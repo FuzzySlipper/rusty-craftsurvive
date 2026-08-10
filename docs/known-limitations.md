@@ -6,12 +6,11 @@ The initial experiment is intentionally bounded:
 - movement is collision-aware flying, without gravity, grounded stepping, or jumping;
 - materials currently share one simple render color, although canonical voxels retain grass, dirt,
   and stone slots;
-- look uses arrow keys because the private renderer host readout currently exposes pointer position
-  and buttons, not downstream-owned relative mouse-look deltas;
-- there is no save format, inventory, crafting, survival simulation, streaming, networking, rich DOM
-  shell, or Studio project adapter;
-- automated evidence is headless contract/mechanism coverage; a headed native run remains the
-  appropriate proof for renderer-visible behavior.
+- the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
+- there is no save format, inventory, crafting, survival simulation, streaming, networking, or
+  Studio project adapter;
+- the browser HUD is deliberately minimal, and the live Chromium smoke proves only the bounded
+  movement/look/break/place loop rather than a broad browser compatibility campaign.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

@@ -9,12 +9,13 @@ async function files(root) {
 const violations = [];
 for (const path of await files(fileURLToPath(new URL('../web/src', import.meta.url)))) {
   const source = await readFile(path, 'utf8');
-  for (const forbidden of ['three', 'renderer-webview', 'private/', 'createElement(\'canvas\'', 'createElement("canvas"']) {
+  for (const forbidden of ['renderer-webview', 'private/', 'createElement(\'canvas\'', 'createElement("canvas"']) {
     if (source.includes(forbidden)) violations.push(`${path}: forbidden downstream renderer ownership token ${forbidden}`);
   }
   for (const match of source.matchAll(/from\s+['"](@rusty-engine\/[^'"]+)['"]/g)) {
     if (match[1] !== '@rusty-engine/application-host') violations.push(`${path}: forbidden Engine package ${match[1]}`);
   }
+  if (/from\s+['"]three(?:\/[^'"]*)?['"]/.test(source)) violations.push(`${path}: forbidden Three import`);
 }
 if (violations.length > 0) { console.error(violations.join('\n')); process.exit(1); }
 console.log('CraftSurvive browser boundary: application-host only');

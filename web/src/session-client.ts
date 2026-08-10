@@ -41,7 +41,12 @@ export class SessionClient {
     this.#socket = socket;
     this.#view.status('connecting');
     socket.addEventListener('open', () => this.#view.status('connected'));
-    socket.addEventListener('message', (event) => void this.#receive(String(event.data)));
+    socket.addEventListener('message', (event) => {
+      void this.#receive(String(event.data)).catch((error: unknown) => {
+        this.#view.status(`protocol error: ${error instanceof Error ? error.message : String(error)}`);
+        socket.close();
+      });
+    });
     socket.addEventListener('close', () => this.#reset('disconnected'));
     socket.addEventListener('error', () => this.#view.status('connection error'));
     this.#timer = window.setInterval(() => this.#sendIntent(), 33);
@@ -80,7 +85,7 @@ export class SessionClient {
   }
 
   async #receive(raw: string): Promise<void> {
-    const message = JSON.parse(raw) as ServerMessage;
+    const message = decodeServerMessage(raw);
     if (message.kind === 'rejected') {
       this.#view.status(`rejected: ${message.code}`);
       this.#applyReadout(message.readout);
@@ -93,7 +98,7 @@ export class SessionClient {
       const receipt = await this.#context.renderer.replaceFrame(message.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
     } else if (update.frame !== null) {
-      const receipt = await this.#context.renderer.replaceFrame(update.frame);
+      const receipt = this.#context.renderer.applyFrame(update.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
     }
     this.#applyReadout(update.readout);
@@ -126,4 +131,82 @@ export class SessionClient {
     this.#held.clear(); this.#look = [0, 0]; this.#action = null; this.#generation = 0;
     this.#view.status(status);
   }
+}
+
+function decodeServerMessage(raw: string): ServerMessage {
+  const value: unknown = JSON.parse(raw);
+  const object = record(value, 'server message');
+  const kind = text(object['kind'], 'server message kind');
+  if (kind === 'welcome') {
+    return { kind, readout: decodeReadout(object['readout']), frame: record(object['frame'], 'welcome frame') };
+  }
+  if (kind === 'update') {
+    const update = record(object['update'], 'session update');
+    return {
+      kind,
+      update: {
+        readout: decodeReadout(update['readout']),
+        edit: update['edit'] === null ? null : decodeEdit(update['edit']),
+        frame: update['frame'] === null ? null : record(update['frame'], 'update frame'),
+      },
+    };
+  }
+  if (kind === 'rejected') {
+    return {
+      kind,
+      code: text(object['code'], 'rejection code'),
+      message: text(object['message'], 'rejection message'),
+      readout: decodeReadout(object['readout']),
+    };
+  }
+  throw new Error(`unsupported Rust session message kind: ${kind}`);
+}
+
+function decodeReadout(value: unknown): Readout {
+  const object = record(value, 'session readout');
+  const camera = record(object['camera'], 'camera pose');
+  const position = tuple3(camera['position'], 'camera position');
+  const surface = text(object['surface'], 'surface');
+  if (!['box', 'marchingCubes', 'dualContouring'].includes(surface)) throw new Error(`unsupported surface: ${surface}`);
+  return {
+    generation: number(object['generation'], 'generation'),
+    acceptedSequence: number(object['acceptedSequence'], 'accepted sequence'),
+    playerRevision: number(object['playerRevision'], 'player revision'),
+    camera: {
+      position,
+      yawDegrees: number(camera['yawDegrees'], 'camera yaw'),
+      pitchDegrees: number(camera['pitchDegrees'], 'camera pitch'),
+    },
+    surface: surface as Surface,
+    worldRevision: number(object['worldRevision'], 'world revision'),
+    authorityHash: number(object['authorityHash'], 'authority hash'),
+    voxelCount: number(object['voxelCount'], 'voxel count'),
+  };
+}
+
+function decodeEdit(value: unknown): EditReadout {
+  const object = record(value, 'edit readout');
+  const action = text(object['action'], 'edit action');
+  if (action !== 'destroy' && action !== 'place') throw new Error(`unsupported edit action: ${action}`);
+  return { action, voxel: tuple3(object['voxel'], 'edit voxel'), revision: number(object['revision'], 'edit revision') };
+}
+
+function record(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`);
+  return value as Record<string, unknown>;
+}
+
+function text(value: unknown, label: string): string {
+  if (typeof value !== 'string') throw new Error(`${label} must be a string`);
+  return value;
+}
+
+function number(value: unknown, label: string): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${label} must be finite`);
+  return value;
+}
+
+function tuple3(value: unknown, label: string): [number, number, number] {
+  if (!Array.isArray(value) || value.length !== 3) throw new Error(`${label} must contain three numbers`);
+  return [number(value[0], label), number(value[1], label), number(value[2], label)];
 }

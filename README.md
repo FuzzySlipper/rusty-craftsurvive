@@ -26,6 +26,24 @@ intentionally fixed forward here.
 
 ## Run
 
+The normal browser-playable path is broker-managed:
+
+```bash
+pnpm install --frozen-lockfile
+den-serve up rusty-craftsurvive -repo /home/dev/rusty-craftsurvive
+den-serve status rusty-craftsurvive
+den-serve logs rusty-craftsurvive
+```
+
+Open the local or LAN URL printed by `den-serve up`, click the world to capture the mouse, and use
+WASD plus mouse look. Left click breaks a voxel and right click places one. `den-serve restart
+rusty-craftsurvive` rebuilds and restores the service; `den-serve stop rusty-craftsurvive` releases
+the broker-owned process group. Set `RUSTY_CRAFTSURVIVE_SURFACE=mc` or `dc` before `up`/`restart`
+to select another startup surface. If startup reports missing browser dependencies, run the pnpm
+install command above; if it reports a missing Engine crate, confirm the adjacent checkout exists.
+
+The native development path remains available and chooses terrain presentation directly:
+
 Choose the terrain presentation when the process starts:
 
 ```bash
@@ -62,10 +80,11 @@ The downstream application owns the native window and calls the Engine-owned
 bridge, or reach into Three/WebGL. The renderer observes Rust frames and camera poses and returns
 raw physical input; it never owns gameplay or voxel authority.
 
-There is no downstream TypeScript in the initial repository. If a browser/Tauri/Electron product
-shell or richer DOM HUD is added later, TypeScript may own trusted local content composition and
-disposable UI state. Rust must still own live world facts and consequences, while the Engine
-application host owns renderer/DOM composition. Do not create a downstream renderer, duplicate
+The browser shell imports only `@rusty-engine/application-host`. Its TypeScript owns trusted local
+HUD composition and translates physical browser input into bounded semantic proposals. Rust still
+owns live world/player facts and consequences, while the Engine application host owns the sole
+canvas, renderer lifecycle, frame decoding, and DOM/renderer composition. This exact bundle can be
+hosted by a browser, Tauri, or Electron wrapper. Do not create a downstream renderer, duplicate
 world store, generic JS command bus, or TS gameplay runtime.
 
 Studio also remains an Engine-hosted authoring product. This demo currently has no authored project
@@ -82,15 +101,17 @@ for ordinary local UI or content composition unless an actual untrusted boundary
 ./scripts/verify.sh
 ```
 
-The public CI is intentionally one small Rust job. It clones rolling-current Engine beside the
-checkout, then runs formatting, tests, and Clippy. It has no browser campaign, headed renderer
-proof, upstream pin certification, or scheduled freshness job.
+The public CI is intentionally one small job. It clones rolling-current Engine beside the checkout,
+then runs Rust formatting/tests/Clippy plus TypeScript typechecking, the application-host-only
+boundary audit, and the production build. It has no browser campaign, upstream pin certification,
+or scheduled freshness job. With a healthy local service and system Chromium, run the bounded live
+proof with `pnpm smoke:browser`.
 
 ## Current scope
 
 This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, complicated
 world generation, gravity/jumping, inventory, crafting, survival stats, persistence, networking,
-and mobile/browser shells. The next useful experiments should stay focused on edit latency,
+and mobile-specific shells. The next useful experiments should stay focused on edit latency,
 incremental remeshing, terrain-material presentation, and player collision before growing product
 systems.
 

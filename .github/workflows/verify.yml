@@ -23,6 +23,12 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Node and pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --global pnpm@10.15.0
+
       - name: Install native compile dependencies
         run: |
           sudo apt-get update
@@ -32,3 +38,8 @@ jobs:
 
       - name: Verify the Rust experiment
         run: ./scripts/verify.sh
+
+      - name: Verify the browser composition boundary
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm check
