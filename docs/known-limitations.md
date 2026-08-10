@@ -15,4 +15,3 @@ The initial experiment is intentionally bounded:
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.
-

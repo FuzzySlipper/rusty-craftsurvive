@@ -32,4 +32,3 @@ jobs:
 
       - name: Verify the Rust experiment
         run: ./scripts/verify.sh
-

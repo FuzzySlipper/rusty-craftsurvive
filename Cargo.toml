@@ -14,4 +14,3 @@ gtk = "0.18"
 
 [lints.rust]
 unsafe_code = "forbid"
-

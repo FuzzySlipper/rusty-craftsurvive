@@ -12,4 +12,3 @@ architecture wholesale.
 
 No asset files or source files were copied verbatim. The implementation uses current public Engine
 facade APIs and owns only CraftSurvive-specific composition.
-

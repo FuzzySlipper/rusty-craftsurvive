@@ -50,4 +50,3 @@ mechanism reusable enough to promote upstream.
   explicitly when only contract/headless evidence ran.
 - Update `README.md`, `docs/donor-provenance.md`, and the Den `known-limitations` document when an
   ownership boundary or deliberate limitation changes.
-
