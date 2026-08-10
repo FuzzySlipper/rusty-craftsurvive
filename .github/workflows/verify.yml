@@ -1,0 +1,35 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out CraftSurvive
+        uses: actions/checkout@v4
+
+      - name: Provision adjacent rolling-current Rusty Engine
+        run: git clone --depth 1 https://github.com/FuzzySlipper/rusty-engine.git ../rusty-engine
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install native compile dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libxkbcommon-x11-0
+
+      - name: Verify the Rust experiment
+        run: ./scripts/verify.sh
+

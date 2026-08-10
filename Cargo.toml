@@ -1,0 +1,17 @@
+[package]
+name = "rusty-craftsurvive"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1"
+rusty-engine = { path = "../rusty-engine/rust/crates/rusty-engine" }
+winit = "0.30"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
+[lints.rust]
+unsafe_code = "forbid"
+
