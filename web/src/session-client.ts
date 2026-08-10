@@ -5,18 +5,19 @@ interface CameraPose { position: [number, number, number]; yawDegrees: number; p
 interface Readout {
   generation: number; acceptedSequence: number; playerRevision: number;
   camera: CameraPose; surface: Surface; worldRevision: number;
-  authorityHash: number; voxelCount: number;
+  authorityHash: number; voxelCount: number; targetedVoxel: [number, number, number] | null;
 }
 interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number }
 type ServerMessage =
   | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown> }
-  | { kind: 'update'; update: { readout: Readout; edit: EditReadout | null; frame: Record<string, unknown> | null } }
+  | { kind: 'update'; update: { readout: Readout; action: 'destroy' | 'place' | null; edit: EditReadout | null; frame: Record<string, unknown> | null } }
   | { kind: 'rejected'; code: string; message: string; readout: Readout };
 
 export interface SessionView {
   status(text: string): void;
   readout(value: Readout): void;
   edit(value: EditReadout): void;
+  miss(action: 'destroy' | 'place', target: [number, number, number] | null): void;
 }
 
 export class SessionClient {
@@ -29,6 +30,8 @@ export class SessionClient {
   #look: [number, number] = [0, 0];
   #action: 'destroy' | 'place' | null = null;
   #timer = 0;
+  #projectionTail: Promise<void> = Promise.resolve();
+  #protocolFailed = false;
 
   constructor(context: RustyApplicationUiContext, view: SessionView) {
     this.#context = context;
@@ -42,7 +45,11 @@ export class SessionClient {
     this.#view.status('connecting');
     socket.addEventListener('open', () => this.#view.status('connected'));
     socket.addEventListener('message', (event) => {
-      void this.#receive(String(event.data)).catch((error: unknown) => {
+      const raw = String(event.data);
+      this.#projectionTail = this.#projectionTail.then(async () => {
+        if (!this.#protocolFailed) await this.#receive(raw);
+      }).catch((error: unknown) => {
+        this.#protocolFailed = true;
         this.#view.status(`protocol error: ${error instanceof Error ? error.message : String(error)}`);
         socket.close();
       });
@@ -55,6 +62,8 @@ export class SessionClient {
   key(event: KeyboardEvent, down: boolean): void {
     if (!this.#context.ui.allowsGameplayInput(event)) return;
     if (down) this.#held.add(event.code); else this.#held.delete(event.code);
+    if (down && !event.repeat && event.code === 'KeyF') this.#action = 'destroy';
+    if (down && !event.repeat && event.code === 'KeyG') this.#action = 'place';
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft'].includes(event.code)) {
       event.preventDefault();
     }
@@ -62,7 +71,7 @@ export class SessionClient {
 
   look(event: MouseEvent): void {
     if (!this.#context.ui.allowsGameplayInput(event) || document.pointerLockElement === null) return;
-    this.#look[0] += event.movementX * 0.12;
+    this.#look[0] -= event.movementX * 0.12;
     this.#look[1] -= event.movementY * 0.12;
   }
 
@@ -93,16 +102,17 @@ export class SessionClient {
     }
     const update = message.kind === 'welcome' ? message : message.update;
     if (message.kind === 'welcome') {
-      this.#generation = message.readout.generation;
-      this.#sequence = message.readout.acceptedSequence;
       const receipt = await this.#context.renderer.replaceFrame(message.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
+      this.#generation = message.readout.generation;
+      this.#sequence = message.readout.acceptedSequence;
     } else if (update.frame !== null) {
       const receipt = this.#context.renderer.applyFrame(update.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
     }
     this.#applyReadout(update.readout);
     if ('edit' in update && update.edit !== null) this.#view.edit(update.edit);
+    else if ('action' in update && update.action !== null) this.#view.miss(update.action, update.readout.targetedVoxel);
   }
 
   #applyReadout(readout: Readout): void {
@@ -129,6 +139,7 @@ export class SessionClient {
 
   #reset(status: string): void {
     this.#held.clear(); this.#look = [0, 0]; this.#action = null; this.#generation = 0;
+    this.#protocolFailed = false;
     this.#view.status(status);
   }
 }
@@ -146,6 +157,7 @@ function decodeServerMessage(raw: string): ServerMessage {
       kind,
       update: {
         readout: decodeReadout(update['readout']),
+        action: update['action'] === null ? null : decodeAction(update['action']),
         edit: update['edit'] === null ? null : decodeEdit(update['edit']),
         frame: update['frame'] === null ? null : record(update['frame'], 'update frame'),
       },
@@ -181,7 +193,14 @@ function decodeReadout(value: unknown): Readout {
     worldRevision: number(object['worldRevision'], 'world revision'),
     authorityHash: number(object['authorityHash'], 'authority hash'),
     voxelCount: number(object['voxelCount'], 'voxel count'),
+    targetedVoxel: object['targetedVoxel'] === null ? null : tuple3(object['targetedVoxel'], 'targeted voxel'),
   };
+}
+
+function decodeAction(value: unknown): 'destroy' | 'place' {
+  const action = text(value, 'session action');
+  if (action !== 'destroy' && action !== 'place') throw new Error(`unsupported session action: ${action}`);
+  return action;
 }
 
 function decodeEdit(value: unknown): EditReadout {

@@ -58,6 +58,12 @@ impl GameWorld {
         &self.presentation_mesh
     }
 
+    pub fn target_from_view(&self, origin: [f64; 3], direction: [f64; 3]) -> Option<[i64; 3]> {
+        self.scene
+            .raycast(origin, direction, 8.0)
+            .map(|hit| hit.voxel)
+    }
+
     pub fn edit_from_view(
         &mut self,
         origin: [f64; 3],

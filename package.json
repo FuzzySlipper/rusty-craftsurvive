@@ -6,14 +6,17 @@
   "scripts": {
     "audit:web": "node scripts/audit-web-boundary.mjs",
     "build": "vite build --config web/vite.config.ts",
-    "check": "tsc --noEmit -p web/tsconfig.json && pnpm audit:web && pnpm build",
+    "check": "tsc --noEmit -p web/tsconfig.json && pnpm test:web && pnpm audit:web && pnpm build",
+    "test:web": "tsx --test web/src/*.test.ts",
     "smoke:browser": "node scripts/browser-smoke.mjs"
   },
   "dependencies": {
     "@rusty-engine/application-host": "file:../rusty-engine/render/artifacts/application-host"
   },
   "devDependencies": {
+    "@types/node": "24.3.0",
     "playwright-core": "1.61.0",
+    "tsx": "4.20.5",
     "typescript": "5.9.2",
     "vite": "7.1.3"
   }

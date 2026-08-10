@@ -36,7 +36,10 @@ den-serve logs rusty-craftsurvive
 ```
 
 Open the local or LAN URL printed by `den-serve up`, click the world to capture the mouse, and use
-WASD plus mouse look. Left click breaks a voxel and right click places one. `den-serve restart
+view-relative WASD plus mouse look. Left click or `F` breaks the targeted voxel; right click or `G`
+places one. The HUD reports the authoritative target or an explicit out-of-reach/miss result. The
+current controller is still bounded fly movement (`Space` rises and left Shift descends); grounded
+gravity and jumping are tracked separately. `den-serve restart
 rusty-craftsurvive` rebuilds and restores the service; `den-serve stop rusty-craftsurvive` releases
 the broker-owned process group. Set `RUSTY_CRAFTSURVIVE_SURFACE=mc` or `dc` before `up`/`restart`
 to select another startup surface. If startup reports missing browser dependencies, run the pnpm

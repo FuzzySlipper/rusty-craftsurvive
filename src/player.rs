@@ -110,4 +110,27 @@ mod tests {
         );
         assert_eq!(controller.pose().position, [0.0, 1.6, 1.0]);
     }
+
+    #[test]
+    fn movement_is_relative_to_the_rust_owned_view_heading() {
+        let scene = VoxelCollisionScene::from_solid_voxels(1.0, 8, []).unwrap();
+        let mut controller = PlayerController {
+            pose: PlayerPose {
+                position: [0.0, 4.0, 0.0],
+                yaw_degrees: -90.0,
+                pitch_degrees: 0.0,
+            },
+            speed_units_per_second: 10.0,
+        };
+        controller.step(
+            &scene,
+            PlayerInput {
+                forward: 1.0,
+                ..PlayerInput::default()
+            },
+            0.05,
+        );
+        assert!(controller.pose().position[0] < -0.49);
+        assert!(controller.pose().position[2].abs() < 0.001);
+    }
 }

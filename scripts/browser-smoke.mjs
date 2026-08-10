@@ -16,12 +16,23 @@ try {
   await page.locator('[data-session-status="connected"]').waitFor({ timeout: 15_000 });
   const initialWorld = Number(await readout.getAttribute('data-world-revision'));
   const initialPlayer = Number(await readout.getAttribute('data-player-revision'));
+  const initialYaw = Number(await readout.getAttribute('data-player-yaw'));
   if (await page.locator('canvas[data-rusty-application-renderer="engine-owned"]').count() !== 1) {
     throw new Error('Engine-owned renderer canvas was not mounted exactly once');
   }
 
   await page.mouse.click(700, 350);
   await page.waitForFunction(() => document.pointerLockElement !== null);
+  await page.evaluate(() => window.dispatchEvent(new MouseEvent('mousemove', {
+    movementX: 20,
+    movementY: 0,
+  })));
+  await page.waitForFunction(
+    (yaw) => Number(document.querySelector('[data-player-yaw]')?.getAttribute('data-player-yaw')) < yaw,
+    initialYaw,
+  );
+  const yaw = Number(await readout.getAttribute('data-player-yaw'));
+  const beforeMove = String(await readout.getAttribute('data-player-position')).split(',').map(Number);
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(180);
   await page.keyboard.up('KeyW');
@@ -29,6 +40,16 @@ try {
     (revision) => Number(document.querySelector('[data-player-revision]')?.getAttribute('data-player-revision')) > revision,
     initialPlayer,
   );
+  const afterMove = String(await readout.getAttribute('data-player-position')).split(',').map(Number);
+  const yawRadians = yaw * Math.PI / 180;
+  const forward = [Math.sin(yawRadians), -Math.cos(yawRadians)];
+  const displacement = [afterMove[0] - beforeMove[0], afterMove[2] - beforeMove[2]];
+  if (displacement[0] * forward[0] + displacement[1] * forward[1] <= 0) {
+    throw new Error(`W movement was not view-relative: yaw=${yaw} displacement=${displacement.join(',')}`);
+  }
+  if ((await readout.getAttribute('data-targeted-voxel')) === '') {
+    throw new Error('crosshair has no authoritative voxel target before edit proof');
+  }
 
   await page.mouse.click(500, 350, { button: 'left' });
   await page.waitForFunction(
@@ -46,6 +67,8 @@ try {
   console.log(JSON.stringify({
     proof: 'CRAFTSURVIVE_BROWSER_PLAYABLE',
     pointerLocked: await page.evaluate(() => document.pointerLockElement !== null),
+    rightLookYawDelta: yaw - initialYaw,
+    viewRelativeDisplacement: displacement,
     playerRevision: Number(await readout.getAttribute('data-player-revision')),
     destroyedWorldRevision: destroyedWorld,
     placedWorldRevision: Number(await readout.getAttribute('data-world-revision')),

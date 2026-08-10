@@ -5,9 +5,9 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   root.innerHTML = `<section class="hud" aria-label="CraftSurvive status">
     <div class="brand">RUSTY <strong>CRAFTSURVIVE</strong></div>
     <output data-status>connecting</output>
-    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>world</dt><dd data-revision>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div></dl>
+    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>world</dt><dd data-revision>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
-    <p class="controls">WASD move · mouse look · left break · right place · space/shift rise/fall</p>
+    <p class="controls">WASD view-relative fly · mouse look · left/F break · right/G place · space/shift rise/fall</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
   const get = (selector: string) => root.querySelector<HTMLElement>(selector)!;
   const view: SessionView = {
@@ -18,8 +18,13 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       get('[data-voxels]').textContent = String(value.voxelCount);
       root.dataset.worldRevision = String(value.worldRevision);
       root.dataset.playerRevision = String(value.playerRevision);
+      root.dataset.playerPosition = value.camera.position.join(',');
+      root.dataset.playerYaw = String(value.camera.yawDegrees);
+      get('[data-target]').textContent = value.targetedVoxel === null ? 'out of reach' : value.targetedVoxel.join(', ');
+      root.dataset.targetedVoxel = value.targetedVoxel?.join(',') ?? '';
     },
     edit: (value) => { get('[data-edit]').textContent = `${value.action} ${value.voxel.join(', ')} · revision ${value.revision}`; },
+    miss: (action, target) => { get('[data-edit]').textContent = `${action} missed · ${target === null ? 'nothing in reach' : `target ${target.join(', ')}`}`; },
   };
   const client = new SessionClient(context, view);
   const down = (event: KeyboardEvent) => client.key(event, true);

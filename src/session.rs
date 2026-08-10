@@ -68,6 +68,7 @@ pub struct SessionReadout {
     pub world_revision: u64,
     pub authority_hash: u64,
     pub voxel_count: usize,
+    pub targeted_voxel: Option<[i64; 3]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -107,6 +108,7 @@ pub enum ServerMessage {
 #[serde(rename_all = "camelCase")]
 pub struct SessionUpdate {
     pub readout: SessionReadout,
+    pub action: Option<SessionAction>,
     pub edit: Option<SessionEditReadout>,
     pub frame: Option<RenderFrameDiff>,
 }
@@ -270,6 +272,7 @@ impl GameSession {
         self.accepted_sequence = sequence;
         Ok(SessionUpdate {
             readout: self.readout(),
+            action: command.action,
             edit,
             frame,
         })
@@ -293,6 +296,9 @@ impl GameSession {
             world_revision: self.world.scene().source_revision().raw(),
             authority_hash: self.world.scene().authority_hash(),
             voxel_count: self.world.scene().solid_voxel_count(),
+            targeted_voxel: self
+                .world
+                .target_from_view(pose.position, self.player.view_direction()),
         }
     }
 }
@@ -517,6 +523,7 @@ mod tests {
             let (readout, frame) = session.connect().unwrap();
             frame.validate().unwrap();
             assert_eq!(readout.surface, surface.into());
+            assert!(readout.targeted_voxel.is_some());
         }
     }
 }
