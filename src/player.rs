@@ -58,8 +58,14 @@ pub struct PlayerController {
 
 impl Default for PlayerController {
     fn default() -> Self {
+        Self::new(PlayerPose::default())
+    }
+}
+
+impl PlayerController {
+    pub const fn new(pose: PlayerPose) -> Self {
         Self {
-            pose: PlayerPose::default(),
+            pose,
             velocity: [0.0; 3],
             grounded: false,
             jump_held: false,
@@ -67,9 +73,7 @@ impl Default for PlayerController {
             speed_units_per_second: 7.0,
         }
     }
-}
 
-impl PlayerController {
     pub const fn pose(&self) -> PlayerPose {
         self.pose
     }
@@ -79,6 +83,13 @@ impl PlayerController {
             grounded: self.grounded,
             velocity: self.velocity,
         }
+    }
+
+    pub fn overlaps_voxel(&self, address: [i64; 3], voxel_size: f64) -> bool {
+        let (player_min, player_max) = capsule_bounds(self.pose.position);
+        let voxel_min = address.map(|coordinate| coordinate as f64 * voxel_size);
+        let voxel_max = voxel_min.map(|coordinate| coordinate + voxel_size);
+        aabb_intersects(player_min, player_max, voxel_min, voxel_max)
     }
 
     pub fn view_direction(&self) -> [f64; 3] {
@@ -239,6 +250,15 @@ fn normalized_axes(forward: f64, right: f64) -> (f64, f64) {
     } else {
         (forward, right)
     }
+}
+
+fn aabb_intersects(
+    left_min: [f64; 3],
+    left_max: [f64; 3],
+    right_min: [f64; 3],
+    right_max: [f64; 3],
+) -> bool {
+    (0..3).all(|axis| left_min[axis] < right_max[axis] && left_max[axis] > right_min[axis])
 }
 
 fn capsule_bounds(eye: [f64; 3]) -> ([f64; 3], [f64; 3]) {

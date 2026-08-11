@@ -9,15 +9,17 @@ interface Readout {
   grounded: boolean; velocity: [number, number, number];
 }
 interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number }
+interface EditRejectionReadout { code: string; voxel: [number, number, number] }
 type ServerMessage =
   | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown> }
-  | { kind: 'update'; update: { readout: Readout; action: 'destroy' | 'place' | null; edit: EditReadout | null; frame: Record<string, unknown> | null } }
+  | { kind: 'update'; update: { readout: Readout; action: 'destroy' | 'place' | null; edit: EditReadout | null; editRejection: EditRejectionReadout | null; frame: Record<string, unknown> | null } }
   | { kind: 'rejected'; code: string; message: string; readout: Readout };
 
 export interface SessionView {
   status(text: string): void;
   readout(value: Readout): void;
   edit(value: EditReadout): void;
+  reject(value: EditRejectionReadout): void;
   miss(action: 'destroy' | 'place', target: [number, number, number] | null): void;
 }
 
@@ -127,6 +129,7 @@ export class SessionClient {
     }
     this.#applyReadout(update.readout);
     if ('edit' in update && update.edit !== null) this.#view.edit(update.edit);
+    else if ('editRejection' in update && update.editRejection !== null) this.#view.reject(update.editRejection);
     else if ('action' in update && update.action !== null) this.#view.miss(update.action, update.readout.targetedVoxel);
   }
 
@@ -179,6 +182,7 @@ function decodeServerMessage(raw: string): ServerMessage {
         readout: decodeReadout(update['readout']),
         action: update['action'] === null ? null : decodeAction(update['action']),
         edit: update['edit'] === null ? null : decodeEdit(update['edit']),
+        editRejection: update['editRejection'] === null ? null : decodeEditRejection(update['editRejection']),
         frame: update['frame'] === null ? null : record(update['frame'], 'update frame'),
       },
     };
@@ -230,6 +234,13 @@ function decodeEdit(value: unknown): EditReadout {
   const action = text(object['action'], 'edit action');
   if (action !== 'destroy' && action !== 'place') throw new Error(`unsupported edit action: ${action}`);
   return { action, voxel: tuple3(object['voxel'], 'edit voxel'), revision: number(object['revision'], 'edit revision') };
+}
+
+function decodeEditRejection(value: unknown): EditRejectionReadout {
+  const object = record(value, 'edit rejection');
+  const code = text(object['code'], 'edit rejection code');
+  if (code !== 'playerOverlap') throw new Error(`unsupported edit rejection: ${code}`);
+  return { code, voxel: tuple3(object['voxel'], 'edit rejection voxel') };
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

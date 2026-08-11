@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    initial_frame, replacement_frame, telemetry_frame, DemoConfig, EditKind, GameWorld,
-    PlayerController, PlayerInput,
+    initial_frame, replacement_frame, telemetry_frame, DemoConfig, EditKind, EditOutcome,
+    GameWorld, PlayerController, PlayerInput,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
@@ -137,29 +137,37 @@ impl CraftSurviveApplication {
             } else {
                 EditKind::Place { material_slot: 1 }
             };
-            if let Some(receipt) = self
+            match self
                 .world
                 .edit_from_view(
                     self.player.pose().position,
                     self.player.view_direction(),
                     kind,
+                    &self.player,
                 )
                 .map_err(anyhow::Error::msg)?
             {
-                self.renderer
-                    .as_mut()
-                    .context("renderer unavailable")?
-                    .submit_frame(
-                        &replacement_frame(self.world.presentation_mesh())
-                            .map_err(anyhow::Error::msg)?,
-                    )?;
-                println!(
-                    "CRAFTSURVIVE_EDIT kind={kind:?} voxel={:?} revision={} voxels={} authority_hash={}",
-                    receipt.voxel, receipt.revision, receipt.voxel_count, receipt.authority_hash
-                );
-                if let Some(window) = &self.window {
-                    window.set_title(&self.window_title());
+                EditOutcome::Applied(receipt) => {
+                    self.renderer
+                        .as_mut()
+                        .context("renderer unavailable")?
+                        .submit_frame(
+                            &replacement_frame(self.world.presentation_mesh())
+                                .map_err(anyhow::Error::msg)?,
+                        )?;
+                    println!(
+                        "CRAFTSURVIVE_EDIT kind={kind:?} voxel={:?} revision={} voxels={} authority_hash={}",
+                        receipt.voxel, receipt.revision, receipt.voxel_count, receipt.authority_hash
+                    );
+                    if let Some(window) = &self.window {
+                        window.set_title(&self.window_title());
+                    }
                 }
+                EditOutcome::Rejected(rejection) => println!(
+                    "CRAFTSURVIVE_EDIT_REJECTED kind={kind:?} code={} rejection={rejection:?}",
+                    rejection.code()
+                ),
+                EditOutcome::Miss => {}
             }
         }
         self.renderer

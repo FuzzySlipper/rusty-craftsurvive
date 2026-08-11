@@ -5,6 +5,8 @@ The initial experiment is intentionally bounded:
 - one generated island is fully resident and remeshed as a whole after an edit;
 - movement uses a deterministic fixed-step grounded capsule envelope with gravity, one-voxel
   stepping, and grounded-only jumping; it is deliberately not a general rigid-body framework;
+- placement is rejected when the edited voxel overlaps the current player capsule; broader
+  construction permissions and structural rules remain out of scope;
 - materials currently share one simple render color, although canonical voxels retain grass, dirt,
   and stone slots;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;

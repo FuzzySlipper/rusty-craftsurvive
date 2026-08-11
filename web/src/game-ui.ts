@@ -27,6 +27,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       root.dataset.targetedVoxel = value.targetedVoxel?.join(',') ?? '';
     },
     edit: (value) => { get('[data-edit]').textContent = `${value.action} ${value.voxel.join(', ')} · revision ${value.revision}`; },
+    reject: (value) => { get('[data-edit]').textContent = `place rejected · ${value.code} at ${value.voxel.join(', ')}`; },
     miss: (action, target) => { get('[data-edit]').textContent = `${action} missed · ${target === null ? 'nothing in reach' : `target ${target.join(', ')}`}`; },
   };
   const client = new SessionClient(context, view);

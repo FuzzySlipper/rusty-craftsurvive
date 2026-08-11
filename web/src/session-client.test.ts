@@ -72,6 +72,7 @@ test('complete welcome projection serializes a newer incremental update', async 
     status: () => undefined,
     readout: (value) => projectedRevisions.push(value.playerRevision),
     edit: () => undefined,
+    reject: () => undefined,
     miss: () => undefined,
   };
 
@@ -92,7 +93,7 @@ test('complete welcome projection serializes a newer incremental update', async 
   socket.emitMessage({
     kind: 'update',
     update: {
-      readout: readout(1, 1), action: null, edit: null,
+      readout: readout(1, 1), action: null, edit: null, editRejection: null,
       frame: { schemaVersion: 1, ops: [{ op: 'replaceMeshPayload' }] },
     },
   });
@@ -139,6 +140,7 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
     status: (value) => published.push(`status:${value}`),
     readout: () => published.push('readout'),
     edit: () => published.push('edit'),
+    reject: () => published.push('reject'),
     miss: () => published.push('miss'),
   };
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
@@ -194,6 +196,7 @@ test('browser input sends the shared horizontal movement and jump intent', async
     status: () => undefined,
     readout: () => undefined,
     edit: () => undefined,
+    reject: () => undefined,
     miss: () => undefined,
   };
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
@@ -223,5 +226,58 @@ test('browser input sends the shared horizontal movement and jump intent', async
   assert.equal(sent.protocolVersion, 2);
   assert.deepEqual(sent.command.movement, [1, 0]);
   assert.equal(sent.command.jump, true);
+  client.dispose();
+});
+
+test('typed player-overlap edit rejection reaches the HUD view', async () => {
+  const rejected: Array<{ code: string; voxel: [number, number, number] }> = [];
+  const context = {
+    renderer: {
+      replaceFrame: async () => ({ applied: true, diagnostics: [] }),
+      applyFrame: () => ({ applied: true, diagnostics: [] }),
+      setCameraPose: () => undefined,
+      clear: async () => undefined,
+      renderOnce: () => undefined,
+      replaceContent: async () => ({ applied: true, diagnostics: [] }),
+    },
+    ui: {
+      active: () => true,
+      allowsGameplayInput: () => true,
+      focusGameplay: () => undefined,
+      interactionMode: () => 'gameplay' as const,
+      setInteractionMode: () => undefined,
+    },
+  } satisfies RustyApplicationUiContext;
+  const view: SessionView = {
+    status: () => undefined,
+    readout: () => undefined,
+    edit: () => undefined,
+    reject: (value) => rejected.push(value),
+    miss: () => undefined,
+  };
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { protocol: 'http:', host: 'craft.test' },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { setInterval: () => 1, clearInterval: () => undefined },
+  });
+
+  const client = new SessionClient(context, view);
+  client.connect();
+  const socket = FakeWebSocket.latest!;
+  socket.emitMessage({ kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  socket.emitMessage({
+    kind: 'update',
+    update: {
+      readout: readout(1, 0), action: 'place', edit: null,
+      editRejection: { code: 'playerOverlap', voxel: [0, 1, 0] }, frame: null,
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(rejected, [{ code: 'playerOverlap', voxel: [0, 1, 0] }]);
   client.dispose();
 });

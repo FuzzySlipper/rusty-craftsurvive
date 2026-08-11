@@ -2,8 +2,8 @@ use rusty_engine::{render_host_contracts::RendererCameraPose, render_model::Rend
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    initial_frame, replacement_frame, EditKind, EditReceipt, GameWorld, PlayerController,
-    PlayerInput, PlayerPose, SurfaceSelection,
+    initial_frame, replacement_frame, EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld,
+    PlayerController, PlayerInput, PlayerPose, SurfaceSelection,
 };
 
 pub const SESSION_PROTOCOL_VERSION: u32 = 2;
@@ -114,6 +114,7 @@ pub struct SessionUpdate {
     pub readout: SessionReadout,
     pub action: Option<SessionAction>,
     pub edit: Option<SessionEditReadout>,
+    pub edit_rejection: Option<SessionEditRejectionReadout>,
     pub frame: Option<RenderFrameDiff>,
 }
 
@@ -125,6 +126,13 @@ pub struct SessionEditReadout {
     pub revision: u64,
     pub authority_hash: u64,
     pub voxel_count: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionEditRejectionReadout {
+    pub code: &'static str,
+    pub voxel: [i64; 3],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,8 +259,8 @@ impl GameSession {
             self.player_revision = self.player_revision.saturating_add(1);
         }
 
-        let edit = match command.action {
-            Some(action) => self
+        let (edit, edit_rejection) = match command.action {
+            Some(action) => match self
                 .world
                 .edit_from_view(
                     self.player.pose().position,
@@ -261,10 +269,15 @@ impl GameSession {
                         SessionAction::Destroy => EditKind::Destroy,
                         SessionAction::Place => EditKind::Place { material_slot: 1 },
                     },
+                    &self.player,
                 )
                 .map_err(SessionErrorOrRuntime::Runtime)?
-                .map(|receipt| session_edit(action, receipt)),
-            None => None,
+            {
+                EditOutcome::Miss => (None, None),
+                EditOutcome::Rejected(rejection) => (None, Some(session_edit_rejection(rejection))),
+                EditOutcome::Applied(receipt) => (Some(session_edit(action, receipt)), None),
+            },
+            None => (None, None),
         };
         let frame = if edit.is_some() {
             Some(
@@ -279,6 +292,7 @@ impl GameSession {
             readout: self.readout(),
             action: command.action,
             edit,
+            edit_rejection,
             frame,
         })
     }
@@ -375,6 +389,15 @@ fn session_edit(action: SessionAction, receipt: EditReceipt) -> SessionEditReado
         revision: receipt.revision,
         authority_hash: receipt.authority_hash,
         voxel_count: receipt.voxel_count,
+    }
+}
+
+fn session_edit_rejection(rejection: EditRejection) -> SessionEditRejectionReadout {
+    match rejection {
+        EditRejection::PlayerOverlap { voxel } => SessionEditRejectionReadout {
+            code: rejection.code(),
+            voxel,
+        },
     }
 }
 

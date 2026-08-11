@@ -73,9 +73,10 @@ Edits are also printed as typed Rust-side receipts.
 
 Rust owns the island recipe, admitted material voxels, player pose, physical-input meaning,
 collision, ray selection, break/place decisions, edit revisions, and render-frame projection. A
-break or place operation is one `VoxelEditService` transaction. Engine swaps the rebuilt canonical
-scene only after collision, navigation, and its canonical chunk mesh all succeed; this demo then
-rebuilds the selected box/MC/DC presentation mesh from the accepted material-voxel readout.
+break or place operation is one prepared `VoxelEditService` transaction. CraftSurvive rejects a
+placement whose voxel overlaps the player capsule, and builds the selected box/MC/DC presentation
+from the prepared deltas before commit. Engine swaps the rebuilt canonical scene only after
+collision, navigation, canonical chunk mesh, and the selected downstream presentation all succeed.
 
 The downstream application owns the native window and calls the Engine-owned
 `RendererWebviewAdapter`. It does not import renderer TypeScript, own a canvas, decode the private
