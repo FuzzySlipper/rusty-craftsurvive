@@ -19,10 +19,20 @@ const waitGrounded = (page, grounded = true) => page.waitForFunction(
   (expected) => document.querySelector('[data-motion]')?.textContent?.startsWith(expected ? 'grounded' : 'airborne'),
   grounded,
 );
-const moveMouse = (page, movementX, movementY) => page.evaluate(
-  ({ x, y }) => window.dispatchEvent(new MouseEvent('mousemove', { movementX: x, movementY: y })),
-  { x: movementX, y: movementY },
-);
+const pointerCenter = { x: 640, y: 360 };
+let mousePosition = { ...pointerCenter };
+const moveMouse = async (page, movementX, movementY) => {
+  mousePosition = { x: mousePosition.x + movementX, y: mousePosition.y + movementY };
+  await page.mouse.move(mousePosition.x, mousePosition.y);
+};
+const clickCenter = async (page, options = {}) => {
+  mousePosition = { ...pointerCenter };
+  await page.mouse.click(pointerCenter.x, pointerCenter.y, options);
+};
+const clickPointer = async (page, button) => {
+  await page.mouse.down({ button });
+  await page.mouse.up({ button });
+};
 
 try {
   const healthResponse = await fetch(new URL('/health', url));
@@ -53,7 +63,7 @@ try {
     throw new Error('Engine-owned renderer canvas was not mounted exactly once');
   }
 
-  await page.mouse.click(640, 360);
+  await clickCenter(page);
   await page.waitForFunction(() => document.pointerLockElement !== null);
   const [initialYaw] = await view(page);
   await moveMouse(page, 300, 0);
@@ -113,7 +123,7 @@ try {
   const initialWorld = await number(page, '[data-world-revision]');
   const canvas = page.locator('canvas[data-rusty-application-renderer="engine-owned"]');
   const beforeDestroyPixels = await canvas.screenshot();
-  await page.mouse.click(640, 360, { button: 'left' });
+  await clickPointer(page, 'left');
   await page.waitForFunction(
     (revision) => Number(document.querySelector('[data-world-revision]')?.textContent) > revision,
     initialWorld,
@@ -132,7 +142,7 @@ try {
   }
 
   const rejectionSequence = await number(page, '[data-accepted-sequence]');
-  await page.mouse.click(640, 360, { button: 'right' });
+  await clickPointer(page, 'right');
   await page.waitForFunction(
     (sequence) => Number(document.querySelector('[data-accepted-sequence]')?.textContent) > sequence,
     rejectionSequence,
@@ -155,7 +165,7 @@ try {
   await page.keyboard.up('KeyS');
   await waitGrounded(page);
   const beforePlacePixels = await canvas.screenshot();
-  await page.mouse.click(640, 360, { button: 'right' });
+  await clickPointer(page, 'right');
   await page.waitForFunction(
     (revision) => Number(document.querySelector('[data-world-revision]')?.textContent) > revision,
     destroyedWorld,
