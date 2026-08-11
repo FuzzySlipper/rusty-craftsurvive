@@ -149,6 +149,12 @@ source, shell state, DOM, hidden datasets, websocket payloads, or internal reado
 independent principal sessions on the same clean revision; use a fresh broker session for a
 deliberate reproduction or mode sample.
 
+A qualifying principal packet ends through `playtest_finish` with a classified outcome, concise
+annotation, and an assertion ledger that references the repeated artifacts for every mission area.
+A generic finished session or a prose-only report does not count as mission completion. The initial
+pilot's two qualifying Luna/max principal packets both ran on exact clean revision
+`a71e7546869768704d41b5195d78aa7cb266971a`; their indexed evidence is retained with Den task 6787.
+
 The deterministic campaign and a Luna visual playtest answer different questions: the former
 certifies exact typed consequences; the latter judges discoverability, visible orientation, and
 whether the route is playable without privileged knowledge. A screenshot-only visual pass is not a
