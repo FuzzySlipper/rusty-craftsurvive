@@ -74,8 +74,9 @@ cargo run -- --surface box --seed 0x2a --size 64
 Restart to change modes. `box` uses greedy cubes, `mc` uses marching cubes, and `dc` uses dual
 contouring. All three read the exact same canonical material voxels; the choice changes only the
 disposable render mesh. Grass, dirt, and stone are visibly distinct through one retained texture
-atlas. Greedy quads repeat tiles across merged faces; MC/DC use deterministic world-space projected
-coordinates over their reconstructed triangles. A fast headless readout is available with
+atlas. Greedy quads repeat tiles across merged faces; MC/DC use each triangle's geometric face
+normal for deterministic dominant-plane world-space coordinates, and steep grass triangles use the
+grass-side tile rather than a smoothed vertex normal or stretched top projection. A fast headless readout is available with
 `--summary`. Terrain sizes must be even and in the bounded `32..=128` range. The default is 96;
 the seed and size are startup inputs and do not introduce streaming or a second world authority.
 
@@ -165,6 +166,8 @@ video recording and `live-ui` artifacts. The scenario supplies the ordinary cont
 mission without expected coordinates or an internal state trace. `.den-playwright.mc.json` and
 `.den-playwright.dc.json` provide only shorter presentation-mode sampling at the corresponding
 ordinary query URLs; they do not create another gameplay authority.
+`.den-playwright.alt.json` supplies the bounded `seed=0x2a,size=64` comparison launch; a runtime URL
+argument does not override a manifest's fixed `startPath`.
 
 A vision playtester should be given the exact committed revision and explicit manifest/scenario
 paths. It should navigate through repeated screenshots or frame bursts and physical mouse/keyboard

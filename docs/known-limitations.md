@@ -11,8 +11,9 @@ The initial experiment is intentionally bounded:
   construction permissions and structural rules remain out of scope;
 - one checked 2 by 2 atlas supplies grass-top, grass-side, dirt, and stone presentation; it has no
   normal maps, material variants, animated tiles, or authored blending;
-- MC/DC use dominant-plane world-space texture projection because reconstructed Engine meshes do
-  not carry greedy tile coordinates; sharp projection-axis transitions can remain visually abrupt;
+- MC/DC use per-triangle geometric-normal dominant-plane world-space texture projection because
+  reconstructed Engine meshes do not carry greedy tile coordinates; steep grass selects the side
+  tile, but sharp projection-axis transitions can remain visually abrupt;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
 - there is no save format, inventory, crafting, survival simulation, streaming, networking, or
   Studio project adapter;

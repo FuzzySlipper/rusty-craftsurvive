@@ -194,8 +194,7 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
     let mut positions = Vec::with_capacity(mesh.indices.len() * 3);
     let mut normals = Vec::with_capacity(mesh.indices.len() * 3);
     let mut uvs = Vec::with_capacity(mesh.indices.len() * 2);
-    let mut indices = Vec::with_capacity(mesh.indices.len());
-    let mut groups = Vec::with_capacity(mesh.groups.len());
+    let mut lanes = BTreeMap::<u16, Vec<u32>>::new();
 
     for group in &mesh.groups {
         let source_start =
@@ -214,10 +213,15 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
                 "reconstructed terrain group does not contain complete triangles".to_owned(),
             );
         }
-        let start = u32::try_from(indices.len()).map_err(|_| "terrain index start exceeds u32")?;
         for triangle in source.chunks_exact(3) {
-            let projection_axis = triangle_projection_axis(mesh, triangle)?;
-            for source_index in triangle {
+            let projection = triangle_projection(mesh, triangle)?;
+            let material_slot = if group.material_slot == 1 && !projection.faces_up {
+                4
+            } else {
+                group.material_slot
+            };
+            let mut target_triangle = [0_u32; 3];
+            for (corner, source_index) in triangle.iter().enumerate() {
                 let source_vertex = usize::try_from(*source_index)
                     .map_err(|_| "terrain vertex index exceeds usize")?;
                 let position = vertex3(&mesh.positions, source_vertex, "position")?;
@@ -226,14 +230,26 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
                     .map_err(|_| "expanded terrain vertex count exceeds u32")?;
                 positions.extend_from_slice(&position);
                 normals.extend_from_slice(&normal);
-                uvs.extend_from_slice(&project_position(position, projection_axis));
-                indices.push(target_index);
+                uvs.extend_from_slice(&project_position(position, projection.axis));
+                target_triangle[corner] = target_index;
             }
+            lanes
+                .entry(material_slot)
+                .or_default()
+                .extend_from_slice(&target_triangle);
         }
+    }
+
+    let mut indices = Vec::with_capacity(mesh.indices.len());
+    let mut groups = Vec::with_capacity(lanes.len());
+    for (material_slot, lane) in lanes {
+        let start = u32::try_from(indices.len()).map_err(|_| "terrain index start exceeds u32")?;
+        let count = u32::try_from(lane.len()).map_err(|_| "terrain index lane exceeds u32")?;
+        indices.extend(lane);
         groups.push(MeshGroupDescriptor {
-            material_slot: group.material_slot,
+            material_slot,
             start,
-            count: u32::try_from(source.len()).map_err(|_| "terrain group count exceeds u32")?,
+            count,
         });
     }
 
@@ -246,18 +262,64 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
     })
 }
 
-fn triangle_projection_axis(mesh: &MeshPayload, triangle: &[u32]) -> Result<usize, String> {
-    let mut normal = [0.0_f32; 3];
-    for index in triangle {
+struct TriangleProjection {
+    axis: usize,
+    faces_up: bool,
+}
+
+fn triangle_projection(mesh: &MeshPayload, triangle: &[u32]) -> Result<TriangleProjection, String> {
+    let mut positions = [[0.0_f32; 3]; 3];
+    for (corner, index) in triangle.iter().enumerate() {
         let vertex = usize::try_from(*index).map_err(|_| "terrain vertex index exceeds usize")?;
-        let source = vertex3(&mesh.normals, vertex, "normal")?;
-        for axis in 0..3 {
-            normal[axis] += source[axis];
-        }
+        positions[corner] = vertex3(&mesh.positions, vertex, "position")?;
     }
-    Ok((0..3)
+    let edge_a = subtract3(positions[1], positions[0]);
+    let edge_b = subtract3(positions[2], positions[0]);
+    let mut normal = cross3(edge_a, edge_b);
+    let mut magnitude = magnitude3(normal);
+    if !magnitude.is_finite() || magnitude <= f32::EPSILON {
+        normal = [0.0; 3];
+        for index in triangle {
+            let vertex =
+                usize::try_from(*index).map_err(|_| "terrain vertex index exceeds usize")?;
+            let source = vertex3(&mesh.normals, vertex, "normal")?;
+            for axis in 0..3 {
+                normal[axis] += source[axis];
+            }
+        }
+        magnitude = magnitude3(normal);
+    }
+    if !magnitude.is_finite() || magnitude <= f32::EPSILON {
+        normal = [0.0, 1.0, 0.0];
+        magnitude = 1.0;
+    }
+    let axis = (0..3)
         .max_by(|left, right| normal[*left].abs().total_cmp(&normal[*right].abs()))
-        .unwrap_or(1))
+        .unwrap_or(1);
+    Ok(TriangleProjection {
+        axis,
+        faces_up: normal[1] > magnitude * 0.5,
+    })
+}
+
+fn magnitude3(value: [f32; 3]) -> f32 {
+    value
+        .iter()
+        .map(|component| component * component)
+        .sum::<f32>()
+        .sqrt()
+}
+
+fn subtract3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
+}
+
+fn cross3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    ]
 }
 
 fn project_position(position: [f32; 3], normal_axis: usize) -> [f32; 2] {
@@ -347,6 +409,21 @@ mod tests {
             assert_eq!(uvs.len(), positions.len() / 3 * 2);
             assert_eq!(indices.len(), positions.len() / 3);
             assert!(uvs.iter().all(|value| value.is_finite()));
+            assert!(payload.groups.iter().any(|group| group.material_slot == 1));
+            assert!(payload.groups.iter().any(|group| group.material_slot == 4));
         }
+    }
+
+    #[test]
+    fn geometric_triangle_projection_does_not_follow_smoothed_vertex_normals() {
+        let normal = cross3(
+            subtract3([1.0, 2.0, 0.0], [0.0, 0.0, 0.0]),
+            subtract3([0.0, 3.0, 0.0], [0.0, 0.0, 0.0]),
+        );
+        let axis = (0..3)
+            .max_by(|left, right| normal[*left].abs().total_cmp(&normal[*right].abs()))
+            .unwrap();
+        assert_eq!(axis, 2);
+        assert_eq!(project_position([1.0, 2.0, 0.0], axis), [1.0, 2.0]);
     }
 }
