@@ -18,7 +18,9 @@ class FakeWebSocket {
     for (const listener of this.#listeners.get('message') ?? []) listener({ data: JSON.stringify(message) });
   }
   send(_message: string): void {}
-  close(): void {}
+  close(): void {
+    for (const listener of this.#listeners.get('close') ?? []) listener({ data: '' });
+  }
 }
 
 const readout = (acceptedSequence: number, playerRevision: number) => ({
@@ -101,4 +103,67 @@ test('complete welcome projection serializes a newer incremental update', async 
   assert.deepEqual(projection, ['welcome:start', 'welcome:complete', 'update:incremental']);
   assert.deepEqual(projectedRevisions, [0, 1]);
   client.dispose();
+});
+
+test('dispose invalidates an in-flight welcome before readout publication', async () => {
+  let releaseWelcome!: () => void;
+  const welcomePending = new Promise<void>((resolve) => { releaseWelcome = resolve; });
+  const projection: string[] = [];
+  const published: string[] = [];
+  const context = {
+    renderer: {
+      replaceFrame: async () => {
+        projection.push('welcome:start');
+        await welcomePending;
+        projection.push('welcome:complete');
+        return { applied: true, diagnostics: [] };
+      },
+      applyFrame: () => { published.push('incremental'); return { applied: true, diagnostics: [] }; },
+      setCameraPose: () => { published.push('camera'); },
+      clear: async () => undefined,
+      renderOnce: () => undefined,
+      replaceContent: async () => ({ applied: true, diagnostics: [] }),
+    },
+    ui: {
+      active: () => true,
+      allowsGameplayInput: () => true,
+      focusGameplay: () => undefined,
+      interactionMode: () => 'gameplay' as const,
+      setInteractionMode: () => undefined,
+    },
+  } satisfies RustyApplicationUiContext;
+  const view: SessionView = {
+    status: (value) => published.push(`status:${value}`),
+    readout: () => published.push('readout'),
+    edit: () => published.push('edit'),
+    miss: () => published.push('miss'),
+  };
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { protocol: 'http:', host: 'craft.test' },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { setInterval: () => 1, clearInterval: () => undefined },
+  });
+
+  const client = new SessionClient(context, view);
+  client.connect();
+  FakeWebSocket.latest!.emitMessage({
+    kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(projection, ['welcome:start']);
+  client.dispose();
+  const afterDispose = [...published];
+  releaseWelcome();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(projection, ['welcome:start', 'welcome:complete']);
+  assert.deepEqual(published, afterDispose);
+  assert.ok(published.includes('status:closed'));
+  assert.ok(!published.includes('camera'));
+  assert.ok(!published.includes('readout'));
 });

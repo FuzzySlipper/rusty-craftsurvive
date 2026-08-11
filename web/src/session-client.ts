@@ -32,6 +32,7 @@ export class SessionClient {
   #timer = 0;
   #projectionTail: Promise<void> = Promise.resolve();
   #protocolFailed = false;
+  #lifecycleEpoch = 0;
 
   constructor(context: RustyApplicationUiContext, view: SessionView) {
     this.#context = context;
@@ -39,6 +40,9 @@ export class SessionClient {
   }
 
   connect(): void {
+    const epoch = ++this.#lifecycleEpoch;
+    this.#protocolFailed = false;
+    this.#projectionTail = Promise.resolve();
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const socket = new WebSocket(`${protocol}//${location.host}/api/session`);
     this.#socket = socket;
@@ -47,15 +51,20 @@ export class SessionClient {
     socket.addEventListener('message', (event) => {
       const raw = String(event.data);
       this.#projectionTail = this.#projectionTail.then(async () => {
-        if (!this.#protocolFailed) await this.#receive(raw);
+        if (this.#active(epoch) && !this.#protocolFailed) await this.#receive(raw, epoch);
       }).catch((error: unknown) => {
+        if (!this.#active(epoch)) return;
         this.#protocolFailed = true;
         this.#view.status(`protocol error: ${error instanceof Error ? error.message : String(error)}`);
         socket.close();
       });
     });
-    socket.addEventListener('close', () => this.#reset('disconnected'));
-    socket.addEventListener('error', () => this.#view.status('connection error'));
+    socket.addEventListener('close', () => {
+      if (this.#active(epoch)) this.#reset('disconnected');
+    });
+    socket.addEventListener('error', () => {
+      if (this.#active(epoch)) this.#view.status('connection error');
+    });
     this.#timer = window.setInterval(() => this.#sendIntent(), 33);
   }
 
@@ -88,25 +97,30 @@ export class SessionClient {
 
   dispose(): void {
     window.clearInterval(this.#timer);
-    this.#reset('closed');
-    this.#socket?.close();
+    const socket = this.#socket;
     this.#socket = null;
+    this.#reset('closed');
+    socket?.close();
   }
 
-  async #receive(raw: string): Promise<void> {
+  async #receive(raw: string, epoch: number): Promise<void> {
+    if (!this.#active(epoch)) return;
     const message = decodeServerMessage(raw);
     if (message.kind === 'rejected') {
       this.#view.status(`rejected: ${message.code}`);
+      if (!this.#active(epoch)) return;
       this.#applyReadout(message.readout);
       return;
     }
     const update = message.kind === 'welcome' ? message : message.update;
     if (message.kind === 'welcome') {
       const receipt = await this.#context.renderer.replaceFrame(message.frame);
+      if (!this.#active(epoch)) return;
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
       this.#generation = message.readout.generation;
       this.#sequence = message.readout.acceptedSequence;
     } else if (update.frame !== null) {
+      if (!this.#active(epoch)) return;
       const receipt = this.#context.renderer.applyFrame(update.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
     }
@@ -141,6 +155,11 @@ export class SessionClient {
     this.#held.clear(); this.#look = [0, 0]; this.#action = null; this.#generation = 0;
     this.#protocolFailed = false;
     this.#view.status(status);
+    this.#lifecycleEpoch += 1;
+  }
+
+  #active(epoch: number): boolean {
+    return epoch === this.#lifecycleEpoch && this.#socket !== null;
   }
 }
 

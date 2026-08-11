@@ -51,7 +51,7 @@ impl PlayerController {
         let pitch = self.pose.pitch_degrees.to_radians();
         let (sin_yaw, cos_yaw) = yaw.sin_cos();
         let (sin_pitch, cos_pitch) = pitch.sin_cos();
-        [sin_yaw * cos_pitch, sin_pitch, -cos_yaw * cos_pitch]
+        [-sin_yaw * cos_pitch, sin_pitch, -cos_yaw * cos_pitch]
     }
 
     pub fn step(&mut self, scene: &VoxelCollisionScene, input: PlayerInput, delta_seconds: f64) {
@@ -64,9 +64,9 @@ impl PlayerController {
         let (sin_yaw, cos_yaw) = yaw.sin_cos();
         let distance = self.speed_units_per_second * delta_seconds;
         let delta = [
-            (sin_yaw * input.forward + cos_yaw * input.right) * distance,
+            (-sin_yaw * input.forward + cos_yaw * input.right) * distance,
             input.vertical * distance,
-            (-cos_yaw * input.forward + sin_yaw * input.right) * distance,
+            (-cos_yaw * input.forward - sin_yaw * input.right) * distance,
         ];
         for axis in 0..3 {
             let mut candidate = self.pose.position;
@@ -130,7 +130,27 @@ mod tests {
             },
             0.05,
         );
-        assert!(controller.pose().position[0] < -0.49);
+        assert!(controller.pose().position[0] > 0.49);
         assert!(controller.pose().position[2].abs() < 0.001);
+    }
+
+    #[test]
+    fn view_ray_matches_the_engine_three_camera_basis() {
+        let mut controller = PlayerController {
+            pose: PlayerPose {
+                position: [0.0; 3],
+                yaw_degrees: -90.0,
+                pitch_degrees: 0.0,
+            },
+            speed_units_per_second: 0.0,
+        };
+        let rightward = controller.view_direction();
+        assert!(rightward[0] > 0.999);
+        assert!(rightward[2].abs() < 0.001);
+
+        controller.pose.yaw_degrees = 90.0;
+        let leftward = controller.view_direction();
+        assert!(leftward[0] < -0.999);
+        assert!(leftward[2].abs() < 0.001);
     }
 }

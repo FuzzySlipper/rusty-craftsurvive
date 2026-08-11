@@ -42,7 +42,8 @@ try {
   );
   const afterMove = String(await readout.getAttribute('data-player-position')).split(',').map(Number);
   const yawRadians = yaw * Math.PI / 180;
-  const forward = [Math.sin(yawRadians), -Math.cos(yawRadians)];
+  // Engine's Three camera rotates the default -Z forward vector around +Y.
+  const forward = [-Math.sin(yawRadians), -Math.cos(yawRadians)];
   const displacement = [afterMove[0] - beforeMove[0], afterMove[2] - beforeMove[2]];
   if (displacement[0] * forward[0] + displacement[1] * forward[1] <= 0) {
     throw new Error(`W movement was not view-relative: yaw=${yaw} displacement=${displacement.join(',')}`);
@@ -51,17 +52,27 @@ try {
     throw new Error('crosshair has no authoritative voxel target before edit proof');
   }
 
+  const centerClip = { x: 450, y: 300, width: 100, height: 100 };
+  const beforeDestroyPixels = await page.screenshot({ clip: centerClip });
   await page.mouse.click(500, 350, { button: 'left' });
   await page.waitForFunction(
     (revision) => Number(document.querySelector('[data-world-revision]')?.getAttribute('data-world-revision')) > revision,
     initialWorld,
   );
   const destroyedWorld = Number(await readout.getAttribute('data-world-revision'));
+  const afterDestroyPixels = await page.screenshot({ clip: centerClip });
+  if (beforeDestroyPixels.equals(afterDestroyPixels)) {
+    throw new Error('accepted destroy did not visibly change the crosshair region');
+  }
   await page.mouse.click(500, 350, { button: 'right' });
   await page.waitForFunction(
     (revision) => Number(document.querySelector('[data-world-revision]')?.getAttribute('data-world-revision')) > revision,
     destroyedWorld,
   );
+  const afterPlacePixels = await page.screenshot({ clip: centerClip });
+  if (afterDestroyPixels.equals(afterPlacePixels)) {
+    throw new Error('accepted place did not visibly change the crosshair region');
+  }
 
   if (pageErrors.length > 0) throw new Error(`browser page errors: ${pageErrors.join('; ')}`);
   console.log(JSON.stringify({
