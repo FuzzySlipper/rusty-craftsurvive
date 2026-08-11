@@ -135,12 +135,19 @@ it does not call a test-only gameplay API.
 
 ## Black-box playtesting
 
-`.den-playwright.json` is the canonical Den playtest manifest. It starts the same product service at
-1280 by 720, headless, with video recording and `live-ui` artifacts. A vision playtester should be
-given the exact committed revision, manifest path, start URL, and only the user controls listed
-above. It should navigate through screenshots and physical mouse/keyboard input, record indexed
-screenshots/video, and report what a player can see. It must not inspect source, shell state, DOM,
-hidden datasets, websocket payloads, or internal readouts.
+`.den-playwright.json` and `product-playtest.scenario.json` are the canonical Den playtest adoption
+packet. The manifest starts an isolated dynamic-port product service at 1280 by 720, headless, with
+video recording and `live-ui` artifacts. The scenario supplies the ordinary controls and visible
+mission without expected coordinates or an internal state trace. `.den-playwright.mc.json` and
+`.den-playwright.dc.json` provide only shorter presentation-mode sampling at the corresponding
+ordinary query URLs; they do not create another gameplay authority.
+
+A vision playtester should be given the exact committed revision and explicit manifest/scenario
+paths. It should navigate through repeated screenshots or frame bursts and physical mouse/keyboard
+input, record indexed screenshots/video, and report what a player can see. It must not inspect
+source, shell state, DOM, hidden datasets, websocket payloads, or internal readouts. Run at least two
+independent principal sessions on the same clean revision; use a fresh broker session for a
+deliberate reproduction or mode sample.
 
 The deterministic campaign and a Luna visual playtest answer different questions: the former
 certifies exact typed consequences; the latter judges discoverability, visible orientation, and
