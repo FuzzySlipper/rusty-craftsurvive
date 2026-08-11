@@ -1,5 +1,5 @@
 {
-  "project": "rusty-craftsurvive-dc",
+  "project": "rusty-craftsurvive",
   "serve": {
     "command": "bash scripts/serve-den.sh -- --host {host} --port {port}",
     "preferredPort": 0,
