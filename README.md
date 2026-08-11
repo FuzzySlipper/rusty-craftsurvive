@@ -51,7 +51,7 @@ restarting the service:
 ```text
 http://127.0.0.1:4419/?surface=mc
 http://127.0.0.1:4419/?surface=dc
-http://127.0.0.1:4419/?surface=box&seed=0x2a&size=64
+http://127.0.0.1:4419/?surface=box&seed=0x2a&size=96
 ```
 
 The visible spawn route has an unequal pair of orientation pillars behind the player, a one-voxel
@@ -166,7 +166,8 @@ video recording and `live-ui` artifacts. The scenario supplies the ordinary cont
 mission without expected coordinates or an internal state trace. `.den-playwright.mc.json` and
 `.den-playwright.dc.json` provide only shorter presentation-mode sampling at the corresponding
 ordinary query URLs; they do not create another gameplay authority.
-`.den-playwright.alt.json` supplies the bounded `seed=0x2a,size=64` comparison launch; a runtime URL
+`.den-playwright.alt.json` holds size at the default 96 while selecting `seed=0x2a`, so paired
+default/alternate screenshots isolate seed-driven terrain variation; a runtime URL
 argument does not override a manifest's fixed `startPath`.
 
 A vision playtester should be given the exact committed revision and explicit manifest/scenario

@@ -2,7 +2,7 @@
   "version": 1,
   "project": "rusty-craftsurvive",
   "scenario": "grounded-voxel-loop",
-  "mission": "From the visible spawn, establish mouse-look handedness and camera-relative movement, test jump while still in the open grounded spawn lane before approaching the low wall, traverse the visible trench and wall route, then aim from visibly different positions to destroy and place terrain and judge whether each edit changes the intended visible geometry and later traversal.",
+  "mission": "From the visible spawn, capture the mouse, establish mouse-look handedness and camera-relative movement, test jump while still in the open grounded spawn lane before approaching the low wall, traverse beyond the invariant trench and wall route toward distant terrain, then aim from visibly different positions to destroy and place terrain and judge whether each edit changes the intended visible geometry and later traversal. For paired seed comparisons, hold terrain size constant and capture a comparable viewpoint beyond the invariant spawn route where the terrain silhouette visibly differs.",
   "controls": [
     {
       "input": "Click the rendered world",
@@ -43,5 +43,5 @@
     "video": true
   },
   "reproductionLimit": 1,
-  "notes": "Judge only visible behavior reached through genuine mouse and keyboard input. Do not inspect DOM, application state, websocket data, source, or hidden readouts. A single still cannot prove motion, handedness, collision, targeting, or an edit transition. Test Space before moving under or against the low stone wall. If pointer recapture makes a mouse edit ambiguous, use F and G once to distinguish the documented break/place commands from the focus gesture. The HUD is ordinary product UI but its values are supporting context rather than substitutes for visible geometry. Classify uncertainty honestly and do not repair the product or harness."
+  "notes": "Judge only visible behavior reached through genuine mouse and keyboard input. Do not inspect DOM, application state, websocket data, source, or hidden readouts. A single still cannot prove motion, handedness, collision, targeting, or an edit transition. Capture the mouse first, then test Space before moving under or against the low stone wall. If pointer recapture makes a mouse edit ambiguous, use F and G once to distinguish the documented break/place commands from the focus gesture. For seed comparison, use default and alternate manifests at the same 96 terrain size, verify the full seed in ordinary HUD, and navigate beyond the intentionally seed-invariant spawn route before judging visible variation. The HUD is ordinary product UI but its values are supporting context rather than substitutes for visible geometry. Classify uncertainty honestly and do not repair the product or harness."
 }

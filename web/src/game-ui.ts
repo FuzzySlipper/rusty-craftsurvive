@@ -5,7 +5,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   root.innerHTML = `<section class="hud" aria-label="CraftSurvive status">
     <div class="brand">RUSTY <strong>CRAFTSURVIVE</strong></div>
     <output data-status>connecting</output>
-    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>position</dt><dd data-player-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
+    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div><dt>seed</dt><dd data-seed>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>position</dt><dd data-player-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
     <p class="controls">WASD move · mouse look · Space jump · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -14,7 +14,8 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     status: (text) => { get('[data-status]').textContent = text; },
     readout: (value) => {
       get('[data-surface]').textContent = value.surface;
-      get('[data-terrain]').textContent = `${value.terrainSize}² · ${value.terrainSeed}`;
+      get('[data-terrain]').textContent = `${value.terrainSize}²`;
+      get('[data-seed]').textContent = value.terrainSeed;
       get('[data-brush]').textContent = `radius ${value.brushRadius}`;
       get('[data-mesh]').textContent = `${value.meshVertices} vertices · ${value.meshTriangles} triangles`;
       get('[data-startup]').textContent = `${value.generationMs.toFixed(1)} + ${value.authorityBuildMs.toFixed(1)} + ${value.meshBuildMs.toFixed(1)} ms`;
