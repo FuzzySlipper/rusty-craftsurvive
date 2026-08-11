@@ -1,9 +1,4 @@
 use rusty_engine::{
-    render_host_contracts::{
-        RendererCameraPose, RendererCameraProjection, RendererCompositionCamera,
-        RendererCompositionView, RendererViewComposition, RendererViewTarget, RendererViewport,
-        RENDERER_VIEW_COMPOSITION_SCHEMA_VERSION,
-    },
     render_model::{
         Geometry, Material, MeshAttribute, MeshAttributeKind, MeshAttributeName,
         MeshBoundsDescriptor, MeshBufferLayout, MeshGroupDescriptor, MeshIndexWidth,
@@ -17,7 +12,7 @@ use rusty_engine::{
     svc_mesh::MeshPayload,
 };
 
-use crate::{PlayerPose, SurfaceSelection};
+use crate::SurfaceSelection;
 
 const TERRAIN_HANDLE: RenderHandle = RenderHandle::new(1);
 
@@ -77,43 +72,6 @@ pub fn telemetry_frame(surface: SurfaceSelection) -> Result<PresentationFrameDif
         },
     }])
     .map_err(|error| format!("build telemetry presentation: {error:?}"))
-}
-
-pub fn view_composition(pose: PlayerPose) -> RendererViewComposition {
-    RendererViewComposition {
-        schema_version: RENDERER_VIEW_COMPOSITION_SCHEMA_VERSION,
-        cameras: vec![RendererCompositionCamera {
-            id: "camera.craftsurvive.player".to_owned(),
-            pose: camera_pose(pose),
-            projection: RendererCameraProjection::Perspective {
-                fov_y_degrees: 68.0,
-                near: 0.05,
-                far: 128.0,
-            },
-        }],
-        targets: Vec::new(),
-        views: vec![RendererCompositionView {
-            id: "view.craftsurvive.player".to_owned(),
-            camera_id: "camera.craftsurvive.player".to_owned(),
-            target: RendererViewTarget::Primary,
-            viewport: RendererViewport {
-                x: 0.0,
-                y: 0.0,
-                width: 1.0,
-                height: 1.0,
-            },
-            order: 0,
-        }],
-        presentations: Vec::new(),
-    }
-}
-
-pub fn camera_pose(pose: PlayerPose) -> RendererCameraPose {
-    RendererCameraPose {
-        position: pose.position,
-        pitch_degrees: pose.pitch_degrees,
-        yaw_degrees: pose.yaw_degrees,
-    }
 }
 
 fn mesh_descriptor(mesh: &MeshPayload) -> Result<MeshPayloadDescriptor, String> {

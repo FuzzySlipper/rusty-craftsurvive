@@ -24,11 +24,11 @@ try {
   await page.mouse.click(700, 350);
   await page.waitForFunction(() => document.pointerLockElement !== null);
   await page.evaluate(() => window.dispatchEvent(new MouseEvent('mousemove', {
-    movementX: 20,
+    movementX: 300,
     movementY: 0,
   })));
   await page.waitForFunction(
-    (yaw) => Number(document.querySelector('[data-player-yaw]')?.getAttribute('data-player-yaw')) < yaw,
+    (yaw) => Number(document.querySelector('[data-player-yaw]')?.getAttribute('data-player-yaw')) > yaw + 30,
     initialYaw,
   );
   const yaw = Number(await readout.getAttribute('data-player-yaw'));
@@ -42,8 +42,8 @@ try {
   );
   const afterMove = String(await readout.getAttribute('data-player-position')).split(',').map(Number);
   const yawRadians = yaw * Math.PI / 180;
-  // Engine's Three camera rotates the default -Z forward vector around +Y.
-  const forward = [-Math.sin(yawRadians), -Math.cos(yawRadians)];
+  // Public Engine pose convention: yaw zero faces -Z and positive yaw turns toward +X.
+  const forward = [Math.sin(yawRadians), -Math.cos(yawRadians)];
   const displacement = [afterMove[0] - beforeMove[0], afterMove[2] - beforeMove[2]];
   if (displacement[0] * forward[0] + displacement[1] * forward[1] <= 0) {
     throw new Error(`W movement was not view-relative: yaw=${yaw} displacement=${displacement.join(',')}`);
@@ -59,6 +59,7 @@ try {
     (revision) => Number(document.querySelector('[data-world-revision]')?.getAttribute('data-world-revision')) > revision,
     initialWorld,
   );
+  await page.waitForTimeout(100);
   const destroyedWorld = Number(await readout.getAttribute('data-world-revision'));
   const afterDestroyPixels = await page.screenshot({ clip: centerClip });
   if (beforeDestroyPixels.equals(afterDestroyPixels)) {
@@ -69,6 +70,7 @@ try {
     (revision) => Number(document.querySelector('[data-world-revision]')?.getAttribute('data-world-revision')) > revision,
     destroyedWorld,
   );
+  await page.waitForTimeout(100);
   const afterPlacePixels = await page.screenshot({ clip: centerClip });
   if (afterDestroyPixels.equals(afterPlacePixels)) {
     throw new Error('accepted place did not visibly change the crosshair region');

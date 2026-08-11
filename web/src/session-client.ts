@@ -80,7 +80,7 @@ export class SessionClient {
 
   look(event: MouseEvent): void {
     if (!this.#context.ui.allowsGameplayInput(event) || document.pointerLockElement === null) return;
-    this.#look[0] -= event.movementX * 0.12;
+    this.#look[0] += event.movementX * 0.12;
     this.#look[1] -= event.movementY * 0.12;
   }
 

@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    initial_frame, replacement_frame, telemetry_frame, view_composition, DemoConfig, EditKind,
-    GameWorld, PlayerController, PlayerInput,
+    initial_frame, replacement_frame, telemetry_frame, DemoConfig, EditKind, GameWorld,
+    PlayerController, PlayerInput,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
@@ -86,7 +86,6 @@ impl CraftSurviveApplication {
         renderer.submit_presentation(
             &telemetry_frame(self.config.surface).map_err(anyhow::Error::msg)?,
         )?;
-        renderer.configure_views(&view_composition(self.player.pose()))?;
         renderer.set_camera_pose(camera_pose(self.player.pose()), None)?;
         renderer.read_state()?;
         renderer.render_once(None)?;
