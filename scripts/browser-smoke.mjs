@@ -14,6 +14,9 @@ try {
   await page.goto(url);
   const readout = page.locator('[data-world-revision]');
   await page.locator('[data-session-status="connected"]').waitFor({ timeout: 15_000 });
+  await page.waitForFunction(
+    () => document.querySelector('[data-player-grounded]')?.getAttribute('data-player-grounded') === 'true',
+  );
   const initialWorld = Number(await readout.getAttribute('data-world-revision'));
   const initialPlayer = Number(await readout.getAttribute('data-player-revision'));
   const initialYaw = Number(await readout.getAttribute('data-player-yaw'));
@@ -48,6 +51,23 @@ try {
   if (displacement[0] * forward[0] + displacement[1] * forward[1] <= 0) {
     throw new Error(`W movement was not view-relative: yaw=${yaw} displacement=${displacement.join(',')}`);
   }
+  await page.waitForFunction(
+    () => document.querySelector('[data-player-grounded]')?.getAttribute('data-player-grounded') === 'true',
+  );
+  const beforeJump = String(await readout.getAttribute('data-player-position')).split(',').map(Number);
+  await page.keyboard.down('Space');
+  await page.waitForFunction(
+    () => document.querySelector('[data-player-grounded]')?.getAttribute('data-player-grounded') === 'false',
+  );
+  await page.keyboard.up('Space');
+  await page.waitForFunction(
+    (eyeY) => Number(String(document.querySelector('[data-player-position]')?.getAttribute('data-player-position')).split(',')[1]) > eyeY + 0.1,
+    beforeJump[1],
+  );
+  const jumpPeakSample = String(await readout.getAttribute('data-player-position')).split(',').map(Number)[1];
+  await page.waitForFunction(
+    () => document.querySelector('[data-player-grounded]')?.getAttribute('data-player-grounded') === 'true',
+  );
   if ((await readout.getAttribute('data-targeted-voxel')) === '') {
     throw new Error('crosshair has no authoritative voxel target before edit proof');
   }
@@ -82,6 +102,7 @@ try {
     pointerLocked: await page.evaluate(() => document.pointerLockElement !== null),
     rightLookYawDelta: yaw - initialYaw,
     viewRelativeDisplacement: displacement,
+    jumpRise: jumpPeakSample - beforeJump[1],
     playerRevision: Number(await readout.getAttribute('data-player-revision')),
     destroyedWorldRevision: destroyedWorld,
     placedWorldRevision: Number(await readout.getAttribute('data-world-revision')),

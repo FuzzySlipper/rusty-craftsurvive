@@ -61,7 +61,7 @@ pub fn telemetry_frame(surface: SurfaceSelection) -> Result<PresentationFrameDif
             handle: TelemetryOverlayHandle::new(1),
             descriptor: TelemetryOverlayDescriptor {
                 title: format!(
-                    "CraftSurvive [{}] | WASD + Space/Shift | arrows look | LMB/F break | RMB/G place",
+                    "CraftSurvive [{}] | WASD move | Space jump | arrows look | LMB/F break | RMB/G place",
                     surface.as_str()
                 ),
                 corner: TelemetryOverlayCorner::TopLeft,

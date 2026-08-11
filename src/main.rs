@@ -118,7 +118,7 @@ impl CraftSurviveApplication {
             PlayerInput {
                 forward: axis("KeyW", "KeyS"),
                 right: axis("KeyD", "KeyA"),
-                vertical: axis("Space", "ShiftLeft"),
+                jump: pressed.contains("Space"),
                 yaw_delta_degrees: axis("ArrowRight", "ArrowLeft") * 90.0 * delta_seconds,
                 pitch_delta_degrees: axis("ArrowDown", "ArrowUp") * 90.0 * delta_seconds,
             },

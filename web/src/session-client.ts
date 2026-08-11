@@ -6,6 +6,7 @@ interface Readout {
   generation: number; acceptedSequence: number; playerRevision: number;
   camera: CameraPose; surface: Surface; worldRevision: number;
   authorityHash: number; voxelCount: number; targetedVoxel: [number, number, number] | null;
+  grounded: boolean; velocity: [number, number, number];
 }
 interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number }
 type ServerMessage =
@@ -73,7 +74,7 @@ export class SessionClient {
     if (down) this.#held.add(event.code); else this.#held.delete(event.code);
     if (down && !event.repeat && event.code === 'KeyF') this.#action = 'destroy';
     if (down && !event.repeat && event.code === 'KeyG') this.#action = 'place';
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft'].includes(event.code)) {
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(event.code)) {
       event.preventDefault();
     }
   }
@@ -141,9 +142,9 @@ export class SessionClient {
     const axis = (positive: string, negative: string) => Number(this.#held.has(positive)) - Number(this.#held.has(negative));
     this.#sequence += 1;
     this.#socket.send(JSON.stringify({
-      kind: 'input', protocolVersion: 1, generation: this.#generation, sequence: this.#sequence,
+      kind: 'input', protocolVersion: 2, generation: this.#generation, sequence: this.#sequence,
       command: {
-        movement: [axis('KeyW', 'KeyS'), axis('KeyD', 'KeyA'), axis('Space', 'ShiftLeft')],
+        movement: [axis('KeyW', 'KeyS'), axis('KeyD', 'KeyA')], jump: this.#held.has('Space'),
         lookDeltaDegrees: this.#look, deltaSeconds: 0.033, action: this.#action,
       },
     }));
@@ -213,6 +214,8 @@ function decodeReadout(value: unknown): Readout {
     authorityHash: number(object['authorityHash'], 'authority hash'),
     voxelCount: number(object['voxelCount'], 'voxel count'),
     targetedVoxel: object['targetedVoxel'] === null ? null : tuple3(object['targetedVoxel'], 'targeted voxel'),
+    grounded: booleanValue(object['grounded'], 'grounded'),
+    velocity: tuple3(object['velocity'], 'player velocity'),
   };
 }
 
@@ -241,6 +244,11 @@ function text(value: unknown, label: string): string {
 
 function number(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${label} must be finite`);
+  return value;
+}
+
+function booleanValue(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${label} must be a boolean`);
   return value;
 }
 

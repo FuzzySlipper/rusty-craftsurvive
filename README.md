@@ -36,10 +36,9 @@ den-serve logs rusty-craftsurvive
 ```
 
 Open the local or LAN URL printed by `den-serve up`, click the world to capture the mouse, and use
-view-relative WASD plus mouse look. Left click or `F` breaks the targeted voxel; right click or `G`
-places one. The HUD reports the authoritative target or an explicit out-of-reach/miss result. The
-current controller is still bounded fly movement (`Space` rises and left Shift descends); grounded
-gravity and jumping are tracked separately. `den-serve restart
+view-relative WASD plus mouse look. `Space` jumps while grounded. Left click or `F` breaks the
+targeted voxel; right click or `G` places one. The HUD reports the authoritative grounded/velocity
+state and target or an explicit out-of-reach/miss result. `den-serve restart
 rusty-craftsurvive` rebuilds and restores the service; `den-serve stop rusty-craftsurvive` releases
 the broker-owned process group. Set `RUSTY_CRAFTSURVIVE_SURFACE=mc` or `dc` before `up`/`restart`
 to select another startup surface. If startup reports missing browser dependencies, run the pnpm
@@ -62,7 +61,7 @@ disposable render mesh. A fast headless readout is available with `--summary`.
 Controls:
 
 - `WASD`: move horizontally
-- `Space` / left Shift: move vertically (the first experiment uses bounded fly movement)
+- `Space`: jump while grounded
 - arrow keys: look
 - left mouse or `F`: destroy the targeted voxel
 - right mouse or `G`: place a grass voxel against the targeted face
@@ -113,10 +112,10 @@ proof with `pnpm smoke:browser`.
 ## Current scope
 
 This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, complicated
-world generation, gravity/jumping, inventory, crafting, survival stats, persistence, networking,
-and mobile-specific shells. The next useful experiments should stay focused on edit latency,
-incremental remeshing, terrain-material presentation, and player collision before growing product
-systems.
+world generation, inventory, crafting, survival stats, persistence, networking, and mobile-specific
+shells. The next useful experiments should stay focused on edit latency, incremental remeshing, and
+terrain-material presentation before growing product systems. The grounded controller is a bounded
+downstream mechanism rather than a general physics framework.
 
 See [donor provenance](docs/donor-provenance.md) and
 [known limitations](docs/known-limitations.md) for the exact starting point.

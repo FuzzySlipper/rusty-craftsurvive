@@ -3,7 +3,8 @@
 The initial experiment is intentionally bounded:
 
 - one generated island is fully resident and remeshed as a whole after an edit;
-- movement is collision-aware flying, without gravity, grounded stepping, or jumping;
+- movement uses a deterministic fixed-step grounded capsule envelope with gravity, one-voxel
+  stepping, and grounded-only jumping; it is deliberately not a general rigid-body framework;
 - materials currently share one simple render color, although canonical voxels retain grass, dirt,
   and stone slots;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;

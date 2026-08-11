@@ -5,9 +5,9 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   root.innerHTML = `<section class="hud" aria-label="CraftSurvive status">
     <div class="brand">RUSTY <strong>CRAFTSURVIVE</strong></div>
     <output data-status>connecting</output>
-    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>world</dt><dd data-revision>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
+    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>world</dt><dd data-revision>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
-    <p class="controls">WASD view-relative fly · mouse look · left/F break · right/G place · space/shift rise/fall</p>
+    <p class="controls">WASD view-relative move · mouse look · Space jump · left/F break · right/G place</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
   const get = (selector: string) => root.querySelector<HTMLElement>(selector)!;
   const view: SessionView = {
@@ -20,6 +20,9 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       root.dataset.playerRevision = String(value.playerRevision);
       root.dataset.playerPosition = value.camera.position.join(',');
       root.dataset.playerYaw = String(value.camera.yawDegrees);
+      root.dataset.playerGrounded = String(value.grounded);
+      root.dataset.playerVelocity = value.velocity.join(',');
+      get('[data-motion]').textContent = value.grounded ? 'grounded' : `airborne · vy ${value.velocity[1].toFixed(1)}`;
       get('[data-target]').textContent = value.targetedVoxel === null ? 'out of reach' : value.targetedVoxel.join(', ');
       root.dataset.targetedVoxel = value.targetedVoxel?.join(',') ?? '';
     },

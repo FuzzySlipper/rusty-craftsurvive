@@ -6,7 +6,7 @@ use crate::{
     PlayerInput, PlayerPose, SurfaceSelection,
 };
 
-pub const SESSION_PROTOCOL_VERSION: u32 = 1;
+pub const SESSION_PROTOCOL_VERSION: u32 = 2;
 pub const MAX_SESSION_MESSAGE_BYTES: usize = 16 * 1024;
 pub const MAX_LOOK_DELTA_DEGREES: f64 = 45.0;
 pub const MAX_INPUT_DELTA_SECONDS: f64 = 0.05;
@@ -21,7 +21,8 @@ pub enum SessionAction {
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionCommand {
-    pub movement: [f64; 3],
+    pub movement: [f64; 2],
+    pub jump: bool,
     pub look_delta_degrees: [f64; 2],
     pub delta_seconds: f64,
     pub action: Option<SessionAction>,
@@ -30,7 +31,8 @@ pub struct SessionCommand {
 impl Default for SessionCommand {
     fn default() -> Self {
         Self {
-            movement: [0.0; 3],
+            movement: [0.0; 2],
+            jump: false,
             look_delta_degrees: [0.0; 2],
             delta_seconds: 0.0,
             action: None,
@@ -63,6 +65,8 @@ pub struct SessionReadout {
     pub accepted_sequence: u64,
     pub player_revision: u64,
     pub player: PlayerPoseReadout,
+    pub grounded: bool,
+    pub velocity: [f64; 3],
     pub camera: RendererCameraPose,
     pub surface: SurfaceSelectionReadout,
     pub world_revision: u64,
@@ -231,18 +235,19 @@ impl GameSession {
         validate_command(command)?;
 
         let pose_before = self.player.pose();
+        let motion_before = self.player.motion();
         self.player.step(
             self.world.scene(),
             PlayerInput {
                 forward: command.movement[0],
                 right: command.movement[1],
-                vertical: command.movement[2],
+                jump: command.jump,
                 yaw_delta_degrees: command.look_delta_degrees[0],
                 pitch_delta_degrees: command.look_delta_degrees[1],
             },
             command.delta_seconds,
         );
-        if self.player.pose() != pose_before {
+        if self.player.pose() != pose_before || self.player.motion() != motion_before {
             self.player_revision = self.player_revision.saturating_add(1);
         }
 
@@ -280,6 +285,7 @@ impl GameSession {
 
     pub fn readout(&self) -> SessionReadout {
         let pose = self.player.pose();
+        let motion = self.player.motion();
         SessionReadout {
             protocol_version: SESSION_PROTOCOL_VERSION,
             generation: self.generation,
@@ -287,6 +293,8 @@ impl GameSession {
             accepted_sequence: self.accepted_sequence,
             player_revision: self.player_revision,
             player: pose.into(),
+            grounded: motion.grounded,
+            velocity: motion.velocity,
             camera: RendererCameraPose {
                 position: pose.position,
                 yaw_degrees: pose.yaw_degrees,
@@ -428,7 +436,7 @@ mod tests {
                 second.generation,
                 2,
                 SessionCommand {
-                    movement: [2.0, 0.0, 0.0],
+                    movement: [2.0, 0.0],
                     ..SessionCommand::default()
                 }
             )),
@@ -471,7 +479,7 @@ mod tests {
                 connected.generation,
                 2,
                 SessionCommand {
-                    movement: [1.0, 0.0, 0.0],
+                    movement: [1.0, 0.0],
                     delta_seconds: 0.05,
                     ..SessionCommand::default()
                 },

@@ -7,6 +7,7 @@ class FakeWebSocket {
   static readonly OPEN = 1;
   static latest: FakeWebSocket | null = null;
   readonly readyState = FakeWebSocket.OPEN;
+  readonly sent: string[] = [];
   readonly #listeners = new Map<string, Array<(event: { data: string }) => void>>();
 
   constructor(_url: string) { FakeWebSocket.latest = this; }
@@ -17,7 +18,7 @@ class FakeWebSocket {
   emitMessage(message: unknown): void {
     for (const listener of this.#listeners.get('message') ?? []) listener({ data: JSON.stringify(message) });
   }
-  send(_message: string): void {}
+  send(message: string): void { this.sent.push(message); }
   close(): void {
     for (const listener of this.#listeners.get('close') ?? []) listener({ data: '' });
   }
@@ -33,6 +34,8 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   authorityHash: 1,
   voxelCount: 10,
   targetedVoxel: [0, 4, 0],
+  grounded: true,
+  velocity: [0, 0, 0],
 });
 
 test('complete welcome projection serializes a newer incremental update', async () => {
@@ -166,4 +169,59 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
   assert.ok(published.includes('status:closed'));
   assert.ok(!published.includes('camera'));
   assert.ok(!published.includes('readout'));
+});
+
+test('browser input sends the shared horizontal movement and jump intent', async () => {
+  let tick!: () => void;
+  const context = {
+    renderer: {
+      replaceFrame: async () => ({ applied: true, diagnostics: [] }),
+      applyFrame: () => ({ applied: true, diagnostics: [] }),
+      setCameraPose: () => undefined,
+      clear: async () => undefined,
+      renderOnce: () => undefined,
+      replaceContent: async () => ({ applied: true, diagnostics: [] }),
+    },
+    ui: {
+      active: () => true,
+      allowsGameplayInput: () => true,
+      focusGameplay: () => undefined,
+      interactionMode: () => 'gameplay' as const,
+      setInteractionMode: () => undefined,
+    },
+  } satisfies RustyApplicationUiContext;
+  const view: SessionView = {
+    status: () => undefined,
+    readout: () => undefined,
+    edit: () => undefined,
+    miss: () => undefined,
+  };
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { protocol: 'http:', host: 'craft.test' },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { setInterval: (callback: () => void) => { tick = callback; return 1; }, clearInterval: () => undefined },
+  });
+
+  const client = new SessionClient(context, view);
+  client.connect();
+  const socket = FakeWebSocket.latest!;
+  socket.emitMessage({ kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const key = (code: string) => ({ code, repeat: false, preventDefault: () => undefined } as KeyboardEvent);
+  client.key(key('KeyW'), true);
+  client.key(key('Space'), true);
+  tick();
+
+  const sent = JSON.parse(socket.sent.at(-1)!) as {
+    protocolVersion: number;
+    command: { movement: number[]; jump: boolean };
+  };
+  assert.equal(sent.protocolVersion, 2);
+  assert.deepEqual(sent.command.movement, [1, 0]);
+  assert.equal(sent.command.jump, true);
+  client.dispose();
 });
