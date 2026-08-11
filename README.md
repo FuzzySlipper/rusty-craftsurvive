@@ -156,6 +156,14 @@ replacement for the deterministic campaign. Before either one, restart the broke
 session is clean. If the manifest health probe fails, inspect `den-serve status` and
 `den-serve logs`; if pointer lock is lost, click the canvas again before sending mouse movement.
 
+The initial Luna pilot found one evidence-backed calibration limit, tracked by Den task 6825:
+after canvas pointer lock, repeated genuine mouse moves of at most 100 pixels left the visible view
+unchanged and surfaced `rejected: invalidCommand` in independent box sessions and both MC/DC mode
+samples. Until that follow-up closes, the black-box lane can certify visible startup, grounded
+movement, collision, and target-dependent edits, but it must report mouse-look handedness and
+camera-relative movement as failed or uncertain rather than infer them. The deterministic campaign
+continues to own the exact input-command regression for this discrepancy.
+
 ## Current scope
 
 This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, complicated
