@@ -7,10 +7,11 @@ class FakeWebSocket {
   static readonly OPEN = 1;
   static latest: FakeWebSocket | null = null;
   readonly readyState = FakeWebSocket.OPEN;
+  readonly url: string;
   readonly sent: string[] = [];
   readonly #listeners = new Map<string, Array<(event: { data: string }) => void>>();
 
-  constructor(_url: string) { FakeWebSocket.latest = this; }
+  constructor(url: string) { this.url = url; FakeWebSocket.latest = this; }
   addEventListener(kind: string, listener: (event: { data: string }) => void): void {
     const listeners = this.#listeners.get(kind) ?? [];
     listeners.push(listener); this.#listeners.set(kind, listeners);
@@ -79,7 +80,7 @@ test('complete welcome projection serializes a newer incremental update', async 
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
-    value: { protocol: 'http:', host: 'craft.test' },
+    value: { protocol: 'http:', host: 'craft.test', search: '' },
   });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
@@ -146,7 +147,7 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
-    value: { protocol: 'http:', host: 'craft.test' },
+    value: { protocol: 'http:', host: 'craft.test', search: '' },
   });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
@@ -202,7 +203,7 @@ test('browser input sends the shared horizontal movement and jump intent', async
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
-    value: { protocol: 'http:', host: 'craft.test' },
+    value: { protocol: 'http:', host: 'craft.test', search: '?surface=mc' },
   });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
@@ -212,6 +213,7 @@ test('browser input sends the shared horizontal movement and jump intent', async
   const client = new SessionClient(context, view);
   client.connect();
   const socket = FakeWebSocket.latest!;
+  assert.equal(socket.url, 'ws://craft.test/api/session?surface=mc');
   socket.emitMessage({ kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] } });
   await new Promise((resolve) => setTimeout(resolve, 0));
   const key = (code: string) => ({ code, repeat: false, preventDefault: () => undefined } as KeyboardEvent);
@@ -258,7 +260,7 @@ test('typed player-overlap edit rejection reaches the HUD view', async () => {
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
-    value: { protocol: 'http:', host: 'craft.test' },
+    value: { protocol: 'http:', host: 'craft.test', search: '' },
   });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,

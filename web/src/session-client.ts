@@ -47,7 +47,9 @@ export class SessionClient {
     this.#protocolFailed = false;
     this.#projectionTail = Promise.resolve();
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${location.host}/api/session`);
+    const surface = new URLSearchParams(location.search).get('surface');
+    const query = surface === null ? '' : `?surface=${encodeURIComponent(surface)}`;
+    const socket = new WebSocket(`${protocol}//${location.host}/api/session${query}`);
     this.#socket = socket;
     this.#view.status('connecting');
     socket.addEventListener('open', () => this.#view.status('connected'));

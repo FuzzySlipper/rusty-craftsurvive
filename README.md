@@ -37,12 +37,24 @@ den-serve logs rusty-craftsurvive
 
 Open the local or LAN URL printed by `den-serve up`, click the world to capture the mouse, and use
 view-relative WASD plus mouse look. `Space` jumps while grounded. Left click or `F` breaks the
-targeted voxel; right click or `G` places one. The HUD reports the authoritative grounded/velocity
-state and target or an explicit out-of-reach/miss result. `den-serve restart
-rusty-craftsurvive` rebuilds and restores the service; `den-serve stop rusty-craftsurvive` releases
-the broker-owned process group. Set `RUSTY_CRAFTSURVIVE_SURFACE=mc` or `dc` before `up`/`restart`
-to select another startup surface. If startup reports missing browser dependencies, run the pnpm
-install command above; if it reports a missing Engine crate, confirm the adjacent checkout exists.
+targeted voxel; right click or `G` places one. The concise HUD exposes the selected presentation,
+accepted input sequence, authoritative player/world revisions, pose, view, grounded/velocity facts,
+target, and typed edit result. `den-serve restart rusty-craftsurvive` rebuilds and restores the
+service; `den-serve stop rusty-craftsurvive` releases the broker-owned process group.
+
+The default URL uses greedy boxes. Select another independently initialized presentation without
+restarting the service:
+
+```text
+http://127.0.0.1:4419/?surface=mc
+http://127.0.0.1:4419/?surface=dc
+```
+
+The visible spawn route has an unequal pair of orientation pillars behind the player, a one-voxel
+trench that can be jumped, a narrow bridge whose support can be destroyed, and a tall collision
+wall. All are ordinary island voxels, not test-only geometry. If startup reports missing browser
+dependencies, run the pnpm install command above; if it reports a missing Engine crate, confirm the
+adjacent checkout exists.
 
 The native development path remains available and chooses terrain presentation directly:
 
@@ -107,8 +119,35 @@ for ordinary local UI or content composition unless an actual untrusted boundary
 The public CI is intentionally one small job. It clones rolling-current Engine beside the checkout,
 then runs Rust formatting/tests/Clippy plus TypeScript typechecking, the application-host-only
 boundary audit, and the production build. It has no browser campaign, upstream pin certification,
-or scheduled freshness job. With a healthy local service and system Chromium, run the bounded live
-proof with `pnpm smoke:browser`.
+or scheduled freshness job. With a freshly restarted local service and system Chromium, run the
+deterministic physical-input campaign across all three presentations:
+
+```bash
+den-serve restart rusty-craftsurvive -repo /home/dev/rusty-craftsurvive
+pnpm smoke:surfaces
+```
+
+Each run checks service identity, pointer lock, rightward mouse handedness, camera-forward `W`,
+grounded jump over the trench, wall blocking, support destruction and lower gravity landing, typed
+player-overlap rejection without a world revision, accepted placement, and that the new voxel is an
+immediate collision blocker. The proof reads visible HUD facts and compares Engine-canvas pixels;
+it does not call a test-only gameplay API.
+
+## Black-box playtesting
+
+`.den-playwright.json` is the canonical Den playtest manifest. It starts the same product service at
+1280 by 720, headless, with video recording and `live-ui` artifacts. A vision playtester should be
+given the exact committed revision, manifest path, start URL, and only the user controls listed
+above. It should navigate through screenshots and physical mouse/keyboard input, record indexed
+screenshots/video, and report what a player can see. It must not inspect source, shell state, DOM,
+hidden datasets, websocket payloads, or internal readouts.
+
+The deterministic campaign and a Luna visual playtest answer different questions: the former
+certifies exact typed consequences; the latter judges discoverability, visible orientation, and
+whether the route is playable without privileged knowledge. A screenshot-only visual pass is not a
+replacement for the deterministic campaign. Before either one, restart the broker service so the
+session is clean. If the manifest health probe fails, inspect `den-serve status` and
+`den-serve logs`; if pointer lock is lost, click the canvas again before sending mouse movement.
 
 ## Current scope
 

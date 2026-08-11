@@ -24,7 +24,7 @@ pub struct PlayerPose {
 impl Default for PlayerPose {
     fn default() -> Self {
         Self {
-            position: [0.0, 7.0, 7.0],
+            position: [0.5, 7.0, 7.0],
             yaw_degrees: 0.0,
             pitch_degrees: -20.0,
         }

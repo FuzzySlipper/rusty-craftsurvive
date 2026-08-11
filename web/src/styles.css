@@ -4,6 +4,6 @@ html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .hud { position: absolute; z-index: 3; inset: 1rem auto auto 1rem; width: min(31rem, calc(100% - 2rem)); padding: .8rem 1rem; color: #eaf5df; background: rgb(6 15 11 / 78%); border: 1px solid #73976f; pointer-events: none; }
 .brand { letter-spacing: .12em; color: #a9c9a1; }.brand strong { color: #f3b65f; }
 .hud output { display: block; margin: .4rem 0; color: #8ee69e; }
-.hud dl { display: flex; gap: 1.5rem; margin: .5rem 0; }.hud dl div { display: flex; gap: .5rem; }.hud dt { color: #91a68e; }
+.hud dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .2rem 1rem; margin: .5rem 0; }.hud dl div { display: flex; gap: .5rem; min-width: 0; }.hud dt { color: #91a68e; }.hud dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud p { margin: .4rem 0 0; }.controls { color: #aeb9ab; font-size: .78rem; }
 .crosshair { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 24px/1 monospace; color: white; text-shadow: 0 1px 3px black; pointer-events: none; }

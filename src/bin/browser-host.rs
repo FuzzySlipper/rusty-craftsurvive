@@ -10,7 +10,7 @@ use axum::{
     body::Body,
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Query, State,
     },
     http::{header, HeaderValue, StatusCode, Uri},
     response::{IntoResponse, Response},
@@ -21,7 +21,7 @@ use futures_util::StreamExt;
 use rusty_craftsurvive::{
     ClientMessage, GameSession, ServerMessage, SurfaceSelection, MAX_SESSION_MESSAGE_BYTES,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::Mutex};
 
 const PROJECT_ID: &str = "rusty-craftsurvive";
@@ -87,8 +87,44 @@ impl Options {
 
 #[derive(Clone)]
 struct HostState {
-    session: Arc<Mutex<GameSession>>,
+    sessions: Arc<SessionPool>,
+    default_surface: SurfaceSelection,
     web_root: Arc<PathBuf>,
+}
+
+struct SessionPool {
+    box_surface: Arc<Mutex<GameSession>>,
+    marching_cubes: Arc<Mutex<GameSession>>,
+    dual_contouring: Arc<Mutex<GameSession>>,
+}
+
+impl SessionPool {
+    fn new() -> Result<Self> {
+        Ok(Self {
+            box_surface: session(SurfaceSelection::Box)?,
+            marching_cubes: session(SurfaceSelection::MarchingCubes)?,
+            dual_contouring: session(SurfaceSelection::DualContouring)?,
+        })
+    }
+
+    fn get(&self, surface: SurfaceSelection) -> Arc<Mutex<GameSession>> {
+        match surface {
+            SurfaceSelection::Box => Arc::clone(&self.box_surface),
+            SurfaceSelection::MarchingCubes => Arc::clone(&self.marching_cubes),
+            SurfaceSelection::DualContouring => Arc::clone(&self.dual_contouring),
+        }
+    }
+}
+
+fn session(surface: SurfaceSelection) -> Result<Arc<Mutex<GameSession>>> {
+    Ok(Arc::new(Mutex::new(
+        GameSession::new(surface).map_err(anyhow::Error::msg)?,
+    )))
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct SessionQuery {
+    surface: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -112,15 +148,27 @@ async fn health() -> impl IntoResponse {
     response
 }
 
-async fn session_upgrade(websocket: WebSocketUpgrade, State(state): State<HostState>) -> Response {
+async fn session_upgrade(
+    websocket: WebSocketUpgrade,
+    State(state): State<HostState>,
+    Query(query): Query<SessionQuery>,
+) -> Response {
+    let surface = match query.surface {
+        Some(surface) => match surface.parse() {
+            Ok(surface) => surface,
+            Err(message) => return (StatusCode::BAD_REQUEST, message).into_response(),
+        },
+        None => state.default_surface,
+    };
+    let session = state.sessions.get(surface);
     websocket
         .max_message_size(MAX_SESSION_MESSAGE_BYTES)
-        .on_upgrade(move |socket| serve_session(socket, state))
+        .on_upgrade(move |socket| serve_session(socket, session))
 }
 
-async fn serve_session(mut socket: WebSocket, state: HostState) {
+async fn serve_session(mut socket: WebSocket, session: Arc<Mutex<GameSession>>) {
     let connected = {
-        let mut session = state.session.lock().await;
+        let mut session = session.lock().await;
         session.connect().map(|(readout, frame)| {
             let generation = readout.generation;
             (generation, ServerMessage::Welcome { readout, frame })
@@ -131,7 +179,7 @@ async fn serve_session(mut socket: WebSocket, state: HostState) {
         return;
     };
     if send_json(&mut socket, &welcome).await.is_err() {
-        let _ = state.session.lock().await.disconnect(generation);
+        let _ = session.lock().await.disconnect(generation);
         return;
     }
 
@@ -139,7 +187,7 @@ async fn serve_session(mut socket: WebSocket, state: HostState) {
         let response = match message {
             Ok(Message::Text(text)) => match serde_json::from_str::<ClientMessage>(text.as_str()) {
                 Ok(message) => {
-                    let mut session = state.session.lock().await;
+                    let mut session = session.lock().await;
                     match session.submit(message) {
                         Ok(update) => ServerMessage::Update { update },
                         Err(error) => ServerMessage::Rejected {
@@ -150,7 +198,7 @@ async fn serve_session(mut socket: WebSocket, state: HostState) {
                     }
                 }
                 Err(error) => {
-                    let session = state.session.lock().await;
+                    let session = session.lock().await;
                     ServerMessage::Rejected {
                         code: "malformedMessage",
                         message: error.to_string(),
@@ -171,7 +219,7 @@ async fn serve_session(mut socket: WebSocket, state: HostState) {
             break;
         }
     }
-    let _ = state.session.lock().await.disconnect(generation);
+    let _ = session.lock().await.disconnect(generation);
 }
 
 async fn send_json(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axum::Error> {
@@ -235,9 +283,8 @@ fn html_response(bytes: Vec<u8>) -> Response {
 async fn main() -> Result<()> {
     let options = Options::parse(env::args().skip(1))?;
     let state = HostState {
-        session: Arc::new(Mutex::new(
-            GameSession::new(options.surface).map_err(anyhow::Error::msg)?,
-        )),
+        sessions: Arc::new(SessionPool::new()?),
+        default_surface: options.surface,
         web_root: Arc::new(options.web_root),
     };
     let application = Router::new()

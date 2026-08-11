@@ -1,4 +1,5 @@
 use rusty_engine::engine_spatial::MaterialVoxel;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct IslandConfig {
@@ -20,7 +21,7 @@ impl Default for IslandConfig {
 }
 
 pub fn generate_island(config: IslandConfig) -> Vec<MaterialVoxel> {
-    let mut voxels = Vec::new();
+    let mut voxels = BTreeMap::new();
     let radius_squared = config.radius * config.radius;
     for x in -config.radius..=config.radius {
         for z in -config.radius..=config.radius {
@@ -40,14 +41,62 @@ pub fn generate_island(config: IslandConfig) -> Vec<MaterialVoxel> {
                 } else {
                     3
                 };
-                voxels.push(MaterialVoxel {
-                    address: [x, y, z],
-                    material_slot,
-                });
+                voxels.insert([x, y, z], material_slot);
             }
         }
     }
+    install_playable_route(&mut voxels);
     voxels
+        .into_iter()
+        .map(|(address, material_slot)| MaterialVoxel {
+            address,
+            material_slot,
+        })
+        .collect()
+}
+
+fn install_playable_route(voxels: &mut BTreeMap<[i64; 3], u16>) {
+    // An ordinary, visible part of the island: the fixed spawn lane gives
+    // players and black-box playtests a repeatable trench, wall, and landmarks.
+    voxels.retain(|address, _| {
+        !((-3..=3).contains(&address[0]) && (2..=10).contains(&address[2]) && address[1] >= -4)
+    });
+    for x in -3..=3 {
+        for z in 2..=10 {
+            for y in -4..=3 {
+                let material_slot = if y == 3 {
+                    1
+                } else if y >= 1 {
+                    2
+                } else {
+                    3
+                };
+                voxels.insert([x, y, z], material_slot);
+            }
+        }
+    }
+    // One-voxel trench across the center lane. A grounded jump cleanly clears it.
+    for x in -1..=1 {
+        voxels.remove(&[x, 3, 5]);
+    }
+    // The cell before the wall is a thin bridge over a two-voxel drop. Removing
+    // its visible top support exercises gravity rather than ordinary step-down.
+    for x in -1..=1 {
+        voxels.remove(&[x, 2, 4]);
+    }
+    // A wall beyond the trench provides an unambiguous collision stop.
+    for x in -1..=1 {
+        for y in 4..=6 {
+            voxels.insert([x, y, 3], 3);
+        }
+    }
+    // Unequal side pillars make spawn orientation visible without HUD knowledge.
+    for y in 4..=5 {
+        voxels.insert([-3, y, 8], 2);
+    }
+    for y in 4..=7 {
+        voxels.insert([3, y, 8], 3);
+    }
 }
 
 fn coordinate_hash(seed: u64, x: i64, z: i64) -> u64 {
@@ -79,5 +128,10 @@ mod tests {
         }));
         assert!(first.iter().any(|voxel| voxel.material_slot == 1));
         assert!(first.iter().any(|voxel| voxel.material_slot == 3));
+        assert!(!first.iter().any(|voxel| voxel.address == [0, 3, 5]));
+        assert!(first.iter().any(|voxel| voxel.address == [0, 2, 5]));
+        assert!(!first.iter().any(|voxel| voxel.address == [0, 2, 4]));
+        assert!(first.iter().any(|voxel| voxel.address == [0, 1, 4]));
+        assert!(first.iter().any(|voxel| voxel.address == [0, 6, 3]));
     }
 }

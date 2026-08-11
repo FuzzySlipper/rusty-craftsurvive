@@ -1,0 +1,22 @@
+{
+  "project": "rusty-craftsurvive",
+  "serve": {
+    "command": "bash scripts/serve-den.sh -- --host {host} --port {port}",
+    "preferredPort": 4419,
+    "healthUrl": "/health",
+    "readyText": "\"project\":\"rusty-craftsurvive\"",
+    "identityHeader": "X-Den-Project",
+    "reusePolicy": "broker_owned",
+    "startupTimeout": "180s"
+  },
+  "tests": {
+    "command": "pnpm smoke:browser",
+    "artifactPolicy": "live-ui"
+  },
+  "playtest": {
+    "startPath": "/",
+    "viewport": { "width": 1280, "height": 720 },
+    "headed": false,
+    "recordVideo": true
+  }
+}
