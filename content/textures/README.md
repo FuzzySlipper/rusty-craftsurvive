@@ -13,9 +13,10 @@ with a box filter, converted to RGBA, and placed into the 2 by 2 atlas in the or
 both the canonical content copy and the browser-served copy. The script prints the SHA-256 hash;
 update the checked metadata and Rust admission expectation only when intentionally changing art.
 
-Greedy box faces use Engine-provided tile coordinates, so a merged quad repeats its selected atlas
-region rather than stretching it. Grass top and side faces are split into presentation material
-slots without changing canonical grass voxels. Marching-cubes and dual-contouring triangles use a
-deterministic dominant-plane projection in world cell units; those modes therefore map the same
-material vocabulary coherently even though their reconstructed surfaces do not carry greedy-quad
-tile coordinates.
+Greedy box faces are projected in stable world cell units, so a merged quad repeats its selected
+atlas region rather than stretching it. Vertical faces use horizontal distance for U and inverted
+world Y for V, matching the atlas's top-origin rows and keeping the green edge of grass-side tiles
+at the physical top on every cardinal face. Grass top and side faces are split into presentation
+material slots without changing canonical grass voxels. Marching-cubes and dual-contouring
+triangles use the same deterministic world projection; grass-side triangles always choose a
+vertical plane even on steep slopes.

@@ -93,13 +93,24 @@ The window title and Engine telemetry overlay show the selected surface and auth
 Startup summaries report generation, authority-build, and mesh-build milliseconds plus mesh size.
 Edits are printed as typed Rust-side receipts with affected volume and measured mesh/total latency.
 
-The default-size debug measurements on the local development host are a 111,775-voxel authority
-and 10,694 box / 93,528 MC / 46,764 DC triangles. Generation measured 189–201 ms, authority build
-982–1,059 ms, and selected presentation build 796–1,240 ms. The resulting local budgets are 3.5
-seconds for Rust startup and 4 seconds for one whole-world edit transaction at size 96. These are
-diagnostic development budgets rather than hardware-independent promises; exceeding one should be
-reported with the seed, size, surface, mesh counts, and on-screen timing instead of shrinking the
-terrain silently.
+`den-serve` runs the optimized Rust host; debug builds make the intentionally complete coherent
+rebuild path more than ten times slower and are not representative of the playable demo. A practical
+browser probe loads the real application, performs one ordinary single-block destroy through
+physical input, and emits startup, end-to-end, Rust edit, and mesh timing as JSON:
+
+```bash
+pnpm perf:edit
+CRAFTSURVIVE_URL='http://127.0.0.1:4419/?surface=mc' pnpm perf:edit
+```
+
+The default-size local optimized measurements are a 111,775-voxel authority and 10,694 box /
+93,528 MC / 46,764 DC triangles. A measured box run took 604 ms to usable UI and 226 ms for the
+visible destroy (149 ms Rust edit, including a 37 ms presentation mesh). MC took 1.82 seconds to
+usable UI and 1.30 seconds for the visible destroy; DC took 1.45 seconds and 773 ms. Both
+reconstructed modes still spend most of that end-to-end time transferring and applying expanded
+textured triangle streams after the roughly 160 ms Rust edit. These are diagnostic local
+measurements rather than hardware-independent promises; report regressions with seed, size,
+surface, mesh counts, and probe JSON instead of shrinking the terrain silently.
 
 ## Authority and renderer boundary
 

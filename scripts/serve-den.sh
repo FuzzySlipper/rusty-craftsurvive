@@ -23,5 +23,5 @@ cd "$CRAFT_ROOT"
 [[ -x node_modules/.bin/vite ]] \
   || { echo "browser dependencies are missing; run pnpm install --frozen-lockfile" >&2; exit 1; }
 pnpm build
-exec cargo run --locked --bin browser-host -- \
+exec cargo run --release --locked --bin browser-host -- \
   --host "$CRAFT_HOST" --port "$CRAFT_PORT" --surface "$CRAFT_SURFACE" --web-root web/dist

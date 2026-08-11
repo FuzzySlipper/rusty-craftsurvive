@@ -14,6 +14,9 @@ The initial experiment is intentionally bounded:
 - MC/DC use per-triangle geometric-normal dominant-plane world-space texture projection because
   reconstructed Engine meshes do not carry greedy tile coordinates; steep grass selects the side
   tile, but sharp projection-axis transitions can remain visually abrupt;
+- the finite terrain is still coherently rebuilt after each accepted edit; optimized box-mode
+  edits are interactive, while expanded textured MC/DC streams retain higher browser transfer and
+  apply costs until the renderer owns a bounded incremental mesh-update contract;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
 - there is no save format, inventory, crafting, survival simulation, streaming, networking, or
   Studio project adapter;

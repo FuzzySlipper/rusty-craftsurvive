@@ -151,8 +151,8 @@ fn presentation_streams(mesh: &MeshPayload) -> Result<PresentationStreams, Strin
             return Err("greedy terrain group does not contain complete quads".to_owned());
         }
         for quad in indices.chunks_exact(6) {
-            let slot = if group.material_slot == 1 && !quad_faces_up(mesh, quad)? {
-                4
+            let slot = if group.material_slot == 1 {
+                grass_material_slot(quad_normal_y(mesh, quad)?, 1.0)
             } else {
                 group.material_slot
             };
@@ -175,19 +175,33 @@ fn presentation_streams(mesh: &MeshPayload) -> Result<PresentationStreams, Strin
     Ok(PresentationStreams {
         positions: mesh.positions.clone(),
         normals: mesh.normals.clone(),
-        uvs: mesh.tile_coordinates.clone(),
+        uvs: world_projected_vertex_uvs(mesh)?,
         indices,
         groups,
     })
 }
 
-fn quad_faces_up(mesh: &MeshPayload, quad: &[u32]) -> Result<bool, String> {
+fn world_projected_vertex_uvs(mesh: &MeshPayload) -> Result<Vec<f32>, String> {
+    let vertex_count = mesh.positions.len() / 3;
+    if !mesh.positions.len().is_multiple_of(3) || mesh.normals.len() != mesh.positions.len() {
+        return Err("terrain position and normal streams are misaligned".to_owned());
+    }
+    let mut uvs = Vec::with_capacity(vertex_count * 2);
+    for vertex in 0..vertex_count {
+        let position = vertex3(&mesh.positions, vertex, "position")?;
+        let normal = vertex3(&mesh.normals, vertex, "normal")?;
+        uvs.extend_from_slice(&project_position(position, dominant_axis(normal)));
+    }
+    Ok(uvs)
+}
+
+fn quad_normal_y(mesh: &MeshPayload, quad: &[u32]) -> Result<f32, String> {
     let vertex = usize::try_from(quad[0]).map_err(|_| "terrain vertex index exceeds usize")?;
     let normal_y = mesh
         .normals
         .get(vertex * 3 + 1)
         .ok_or_else(|| "terrain quad references a missing normal".to_owned())?;
-    Ok(*normal_y > 0.9)
+    Ok(*normal_y)
 }
 
 fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<PresentationStreams, String> {
@@ -215,10 +229,15 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
         }
         for triangle in source.chunks_exact(3) {
             let projection = triangle_projection(mesh, triangle)?;
-            let material_slot = if group.material_slot == 1 && !projection.faces_up {
-                4
+            let material_slot = if group.material_slot == 1 {
+                grass_material_slot(projection.normal_y, projection.normal_magnitude)
             } else {
                 group.material_slot
+            };
+            let uv_axis = if material_slot == 4 {
+                projection.side_axis
+            } else {
+                projection.axis
             };
             let mut target_triangle = [0_u32; 3];
             for (corner, source_index) in triangle.iter().enumerate() {
@@ -230,7 +249,7 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
                     .map_err(|_| "expanded terrain vertex count exceeds u32")?;
                 positions.extend_from_slice(&position);
                 normals.extend_from_slice(&normal);
-                uvs.extend_from_slice(&project_position(position, projection.axis));
+                uvs.extend_from_slice(&project_position(position, uv_axis));
                 target_triangle[corner] = target_index;
             }
             lanes
@@ -264,7 +283,9 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
 
 struct TriangleProjection {
     axis: usize,
-    faces_up: bool,
+    side_axis: usize,
+    normal_y: f32,
+    normal_magnitude: f32,
 }
 
 fn triangle_projection(mesh: &MeshPayload, triangle: &[u32]) -> Result<TriangleProjection, String> {
@@ -277,29 +298,66 @@ fn triangle_projection(mesh: &MeshPayload, triangle: &[u32]) -> Result<TriangleP
     let edge_b = subtract3(positions[2], positions[0]);
     let mut normal = cross3(edge_a, edge_b);
     let mut magnitude = magnitude3(normal);
-    if !magnitude.is_finite() || magnitude <= f32::EPSILON {
-        normal = [0.0; 3];
-        for index in triangle {
-            let vertex =
-                usize::try_from(*index).map_err(|_| "terrain vertex index exceeds usize")?;
-            let source = vertex3(&mesh.normals, vertex, "normal")?;
-            for axis in 0..3 {
-                normal[axis] += source[axis];
-            }
+    let mut source_normal = [0.0_f32; 3];
+    for index in triangle {
+        let vertex = usize::try_from(*index).map_err(|_| "terrain vertex index exceeds usize")?;
+        let source = vertex3(&mesh.normals, vertex, "normal")?;
+        for axis in 0..3 {
+            source_normal[axis] += source[axis];
         }
+    }
+    if !magnitude.is_finite() || magnitude <= f32::EPSILON {
+        normal = source_normal;
         magnitude = magnitude3(normal);
     }
     if !magnitude.is_finite() || magnitude <= f32::EPSILON {
         normal = [0.0, 1.0, 0.0];
         magnitude = 1.0;
     }
-    let axis = (0..3)
-        .max_by(|left, right| normal[*left].abs().total_cmp(&normal[*right].abs()))
-        .unwrap_or(1);
+    normal = align_normal(normal, source_normal);
+    let axis = dominant_axis(normal);
+    let side_axis = if normal[0].abs() >= normal[2].abs() {
+        0
+    } else {
+        2
+    };
     Ok(TriangleProjection {
         axis,
-        faces_up: normal[1] > magnitude * 0.5,
+        side_axis,
+        normal_y: normal[1],
+        normal_magnitude: magnitude,
     })
+}
+
+fn grass_material_slot(normal_y: f32, magnitude: f32) -> u16 {
+    if normal_y > magnitude * 0.5 {
+        1
+    } else if normal_y < -magnitude * 0.5 {
+        2
+    } else {
+        4
+    }
+}
+
+fn align_normal(normal: [f32; 3], source_normal: [f32; 3]) -> [f32; 3] {
+    if dot3(normal, source_normal) < 0.0 {
+        normal.map(|component| -component)
+    } else {
+        normal
+    }
+}
+
+fn dominant_axis(value: [f32; 3]) -> usize {
+    (0..3)
+        .max_by(|left, right| value[*left].abs().total_cmp(&value[*right].abs()))
+        .unwrap_or(1)
+}
+
+fn dot3(left: [f32; 3], right: [f32; 3]) -> f32 {
+    left.iter()
+        .zip(right)
+        .map(|(left, right)| left * right)
+        .sum()
 }
 
 fn magnitude3(value: [f32; 3]) -> f32 {
@@ -324,9 +382,9 @@ fn cross3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
 
 fn project_position(position: [f32; 3], normal_axis: usize) -> [f32; 2] {
     match normal_axis {
-        0 => [position[2], position[1]],
+        0 => [position[2], -position[1]],
         1 => [position[0], position[2]],
-        _ => [position[0], position[1]],
+        _ => [position[0], -position[1]],
     }
 }
 
@@ -358,8 +416,9 @@ mod tests {
     }
 
     #[test]
-    fn textured_box_frame_splits_grass_top_and_side_and_retains_tile_coordinates() {
+    fn textured_box_frame_splits_grass_top_and_keeps_side_texture_upright() {
         let world = GameWorld::new(SurfaceSelection::Box).unwrap();
+        let streams = presentation_streams(world.presentation_mesh()).unwrap();
         let frame = initial_frame(world.presentation_mesh()).unwrap();
         frame.validate().unwrap();
         let payload = frame
@@ -376,8 +435,22 @@ mod tests {
             panic!("terrain projection must remain inline")
         };
         let uvs = uvs.as_ref().expect("voxel tile coordinates");
-        assert_eq!(uvs, &world.presentation_mesh().tile_coordinates);
+        assert_eq!(uvs, &streams.uvs);
         assert!(uvs.iter().any(|coordinate| coordinate.abs() > 1.0));
+        let side_group = streams
+            .groups
+            .iter()
+            .find(|group| group.material_slot == 4)
+            .expect("grass-side lane");
+        let start = side_group.start as usize;
+        let end = start + side_group.count as usize;
+        for index in &streams.indices[start..end] {
+            let vertex = *index as usize;
+            assert_eq!(
+                streams.uvs[vertex * 2 + 1],
+                -streams.positions[vertex * 3 + 1]
+            );
+        }
     }
 
     #[test]
@@ -424,6 +497,47 @@ mod tests {
             .max_by(|left, right| normal[*left].abs().total_cmp(&normal[*right].abs()))
             .unwrap();
         assert_eq!(axis, 2);
-        assert_eq!(project_position([1.0, 2.0, 0.0], axis), [1.0, 2.0]);
+        assert_eq!(project_position([1.0, 2.0, 0.0], axis), [1.0, -2.0]);
+    }
+
+    #[test]
+    fn vertical_face_uvs_keep_world_y_as_the_texture_vertical_axis() {
+        let position = [3.0, 7.0, 11.0];
+        for normal in [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]] {
+            let uv = project_position(position, dominant_axis(normal));
+            assert_eq!(uv[1], -position[1]);
+        }
+        for normal in [[0.0, 0.0, 1.0], [0.0, 0.0, -1.0]] {
+            let uv = project_position(position, dominant_axis(normal));
+            assert_eq!(uv[1], -position[1]);
+        }
+    }
+
+    #[test]
+    fn grass_side_projection_never_uses_the_horizontal_plane() {
+        for normal in [
+            [0.8_f32, 0.6, 0.1],
+            [-0.8, 0.6, 0.1],
+            [0.1, 0.6, 0.8],
+            [0.1, 0.6, -0.8],
+        ] {
+            let side_axis = if normal[0].abs() >= normal[2].abs() {
+                0
+            } else {
+                2
+            };
+            let uv = project_position([3.0, 7.0, 11.0], side_axis);
+            assert_eq!(uv[1], -7.0);
+        }
+    }
+
+    #[test]
+    fn grass_surface_assignment_keeps_dirt_below_and_is_winding_invariant() {
+        assert_eq!(grass_material_slot(1.0, 1.0), 1);
+        assert_eq!(grass_material_slot(0.0, 1.0), 4);
+        assert_eq!(grass_material_slot(-1.0, 1.0), 2);
+        let source = [0.0, 1.0, 0.0];
+        assert_eq!(align_normal([0.0, 1.0, 0.0], source), source);
+        assert_eq!(align_normal([0.0, -1.0, 0.0], source), source);
     }
 }
