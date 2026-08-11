@@ -1,14 +1,18 @@
+use std::time::Instant;
+
 use rusty_engine::{
     engine_spatial::{
-        VoxelCollisionScene, VoxelEditDelta, VoxelEditService, VoxelEditTransaction, VoxelPickHint,
-        VoxelPickService,
+        VoxelCollisionScene, VoxelEdit, VoxelEditDelta, VoxelEditService, VoxelEditTransaction,
+        VoxelPickHint, VoxelPickService,
     },
     svc_mesh::{
         mesh_cells_standalone_with_options, MeshPayload, MeshVoxelCell, SurfaceMeshOptions,
     },
 };
 
-use crate::{generate_island, IslandConfig, PlayerController, SurfaceSelection};
+use crate::{generate_island, IslandConfig, PlayerController, SurfaceSelection, TerrainConfig};
+
+pub const MAX_BRUSH_RADIUS: u8 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditKind {
@@ -16,28 +20,33 @@ pub enum EditKind {
     Place { material_slot: u16 },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EditReceipt {
     pub voxel: [i64; 3],
+    pub affected_voxels: usize,
     pub revision: u64,
     pub authority_hash: u64,
     pub voxel_count: usize,
+    pub mesh_build_ms: f64,
+    pub edit_ms: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditRejection {
     PlayerOverlap { voxel: [i64; 3] },
+    WorldBounds { voxel: [i64; 3] },
 }
 
 impl EditRejection {
     pub const fn code(self) -> &'static str {
         match self {
             Self::PlayerOverlap { .. } => "playerOverlap",
+            Self::WorldBounds { .. } => "worldBounds",
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum EditOutcome {
     Miss,
     Rejected(EditRejection),
@@ -48,21 +57,65 @@ pub struct GameWorld {
     scene: VoxelCollisionScene,
     surface: SurfaceSelection,
     presentation_mesh: MeshPayload,
+    terrain: TerrainConfig,
+    bounds: WorldBounds,
+    metrics: WorldMetrics,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WorldMetrics {
+    pub generation_ms: f64,
+    pub authority_build_ms: f64,
+    pub mesh_build_ms: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WorldBounds {
+    min: [i64; 3],
+    max: [i64; 3],
+}
+
+impl WorldBounds {
+    fn from_island(config: IslandConfig) -> Self {
+        Self {
+            min: [-config.radius, -config.depth, -config.radius],
+            max: [config.radius, config.summit_height + 16, config.radius],
+        }
+    }
+
+    fn contains(self, address: [i64; 3]) -> bool {
+        (0..3).all(|axis| (self.min[axis]..=self.max[axis]).contains(&address[axis]))
+    }
 }
 
 impl GameWorld {
     pub fn new(surface: SurfaceSelection) -> Result<Self, String> {
-        let scene = VoxelCollisionScene::from_material_voxels(
-            1.0,
-            16,
-            generate_island(IslandConfig::default()),
-        )
-        .map_err(|error| format!("build island authority: {error}"))?;
+        Self::with_terrain(surface, TerrainConfig::default())
+    }
+
+    pub fn with_terrain(surface: SurfaceSelection, terrain: TerrainConfig) -> Result<Self, String> {
+        let island = IslandConfig::from(terrain);
+        let generation_started = Instant::now();
+        let voxels = generate_island(island);
+        let generation_ms = generation_started.elapsed().as_secs_f64() * 1_000.0;
+        let authority_started = Instant::now();
+        let scene = VoxelCollisionScene::from_material_voxels(1.0, 16, voxels)
+            .map_err(|error| format!("build island authority: {error}"))?;
+        let authority_build_ms = authority_started.elapsed().as_secs_f64() * 1_000.0;
+        let mesh_started = Instant::now();
         let presentation_mesh = build_presentation_mesh(&scene, surface)?;
+        let mesh_build_ms = mesh_started.elapsed().as_secs_f64() * 1_000.0;
         Ok(Self {
             scene,
             surface,
             presentation_mesh,
+            terrain,
+            bounds: WorldBounds::from_island(island),
+            metrics: WorldMetrics {
+                generation_ms,
+                authority_build_ms,
+                mesh_build_ms,
+            },
         })
     }
 
@@ -78,6 +131,14 @@ impl GameWorld {
         &self.presentation_mesh
     }
 
+    pub const fn terrain(&self) -> TerrainConfig {
+        self.terrain
+    }
+
+    pub const fn metrics(&self) -> WorldMetrics {
+        self.metrics
+    }
+
     pub fn target_from_view(&self, origin: [f64; 3], direction: [f64; 3]) -> Option<[i64; 3]> {
         self.scene
             .raycast(origin, direction, 8.0)
@@ -89,12 +150,14 @@ impl GameWorld {
         origin: [f64; 3],
         direction: [f64; 3],
         kind: EditKind,
+        brush_radius: u8,
         player: &PlayerController,
     ) -> Result<EditOutcome, String> {
         self.edit_from_view_with_mesh_builder(
             origin,
             direction,
             kind,
+            brush_radius,
             player,
             build_presentation_mesh_from_cells,
         )
@@ -105,6 +168,7 @@ impl GameWorld {
         origin: [f64; 3],
         direction: [f64; 3],
         kind: EditKind,
+        brush_radius: u8,
         player: &PlayerController,
         mesh_builder: impl FnOnce(
             &[MeshVoxelCell],
@@ -131,25 +195,41 @@ impl GameWorld {
             EditKind::Place { material_slot } => anchor.place_edit(material_slot),
         };
         let edited_voxel = edit.address();
+        let edit_started = Instant::now();
+        let edits = brush_edits(edited_voxel, brush_radius, kind)?;
+        if let Some(edit) = edits
+            .iter()
+            .find(|edit| !self.bounds.contains(edit.address()))
+        {
+            return Ok(EditOutcome::Rejected(EditRejection::WorldBounds {
+                voxel: edit.address(),
+            }));
+        }
+        if matches!(kind, EditKind::Place { .. }) {
+            if let Some(edit) = edits
+                .iter()
+                .find(|edit| player.overlaps_voxel(edit.address(), self.scene.voxel_size()))
+            {
+                return Ok(EditOutcome::Rejected(EditRejection::PlayerOverlap {
+                    voxel: edit.address(),
+                }));
+            }
+        }
         let expected_revision = self.scene.source_revision();
         let prepared = VoxelEditService::preview(
             &self.scene,
             VoxelEditTransaction {
                 expected_revision,
-                edits: &[edit],
+                edits: &edits,
             },
         )
         .map_err(|error| format!("apply coherent voxel edit: {error}"))?;
-        if matches!(kind, EditKind::Place { .. })
-            && player.overlaps_voxel(edited_voxel, self.scene.voxel_size())
-        {
-            return Ok(EditOutcome::Rejected(EditRejection::PlayerOverlap {
-                voxel: edited_voxel,
-            }));
-        }
+        let affected_voxels = prepared.deltas().len();
         let candidate_cells = candidate_mesh_cells(&self.scene, prepared.deltas());
+        let mesh_started = Instant::now();
         let presentation_mesh =
             mesh_builder(&candidate_cells, self.scene.voxel_size(), self.surface)?;
+        let mesh_build_ms = mesh_started.elapsed().as_secs_f64() * 1_000.0;
         let receipt = VoxelEditService::commit(&mut self.scene, prepared)
             .map_err(|error| format!("commit coherent voxel edit: {error}"))?;
         if !receipt
@@ -161,11 +241,52 @@ impl GameWorld {
         self.presentation_mesh = presentation_mesh;
         Ok(EditOutcome::Applied(EditReceipt {
             voxel: edited_voxel,
+            affected_voxels,
             revision: receipt.accepted_revision.raw(),
             authority_hash: receipt.authority_hash,
             voxel_count: receipt.solid_voxel_count,
+            mesh_build_ms,
+            edit_ms: edit_started.elapsed().as_secs_f64() * 1_000.0,
         }))
     }
+}
+
+pub fn brush_addresses(center: [i64; 3], radius: u8) -> Result<Vec<[i64; 3]>, String> {
+    if radius > MAX_BRUSH_RADIUS {
+        return Err(format!(
+            "brush radius {radius} exceeds maximum {MAX_BRUSH_RADIUS}"
+        ));
+    }
+    let radius = i64::from(radius);
+    let mut addresses = Vec::new();
+    for x in -radius..=radius {
+        for y in -radius..=radius {
+            for z in -radius..=radius {
+                if x * x + y * y + z * z <= radius * radius {
+                    addresses.push([center[0] + x, center[1] + y, center[2] + z]);
+                }
+            }
+        }
+    }
+    Ok(addresses)
+}
+
+fn brush_edits(center: [i64; 3], radius: u8, kind: EditKind) -> Result<Vec<VoxelEdit>, String> {
+    if matches!(kind, EditKind::Place { material_slot: 0 }) {
+        return Err("material slot zero is reserved for empty voxels".to_owned());
+    }
+    brush_addresses(center, radius).map(|addresses| {
+        addresses
+            .into_iter()
+            .map(|address| match kind {
+                EditKind::Destroy => VoxelEdit::Clear { address },
+                EditKind::Place { material_slot } => VoxelEdit::Set {
+                    address,
+                    material_slot,
+                },
+            })
+            .collect()
+    })
 }
 
 fn candidate_mesh_cells(
@@ -255,6 +376,16 @@ mod tests {
             scene,
             surface,
             presentation_mesh,
+            terrain: TerrainConfig::new(0, 32).unwrap(),
+            bounds: WorldBounds {
+                min: [-16, -16, -16],
+                max: [16, 32, 16],
+            },
+            metrics: WorldMetrics {
+                generation_ms: 0.0,
+                authority_build_ms: 0.0,
+                mesh_build_ms: 0.0,
+            },
         }
     }
 
@@ -315,12 +446,12 @@ mod tests {
     fn destroy_and_place_advance_one_coherent_authority() {
         let mut world = GameWorld::new(SurfaceSelection::Box).unwrap();
         let before = world.scene().source_revision();
-        let origin = [0.5, 12.0, 0.5];
+        let origin = [0.5, 10.5, 7.5];
         let direction = [0.0, -1.0, 0.0];
         let player = PlayerController::default();
         let removed = applied(
             world
-                .edit_from_view(origin, direction, EditKind::Destroy, &player)
+                .edit_from_view(origin, direction, EditKind::Destroy, 0, &player)
                 .unwrap(),
         );
         assert!(removed.revision > before.raw());
@@ -334,6 +465,7 @@ mod tests {
                     origin,
                     direction,
                     EditKind::Place { material_slot: 1 },
+                    0,
                     &player,
                 )
                 .unwrap(),
@@ -357,6 +489,7 @@ mod tests {
                     player.pose().position,
                     [0.0, -1.0, 0.0],
                     EditKind::Destroy,
+                    0,
                     &player,
                 )
                 .unwrap(),
@@ -388,6 +521,7 @@ mod tests {
                     player.pose().position,
                     [0.0, -1.0, 0.0],
                     EditKind::Place { material_slot: 1 },
+                    0,
                     &player,
                 )
                 .unwrap();
@@ -413,6 +547,7 @@ mod tests {
                         walker.pose().position,
                         [1.0, 0.0, 0.0],
                         EditKind::Destroy,
+                        0,
                         &walker,
                     )
                     .unwrap(),
@@ -437,6 +572,7 @@ mod tests {
                         blocked.pose().position,
                         [1.0, 0.0, 0.0],
                         EditKind::Place { material_slot: 1 },
+                        0,
                         &blocked,
                     )
                     .unwrap(),
@@ -475,6 +611,7 @@ mod tests {
                 player.pose().position,
                 [1.0, 0.0, 0.0],
                 EditKind::Place { material_slot: 0 },
+                0,
                 &player,
             )
             .is_err());
@@ -485,6 +622,7 @@ mod tests {
             player.pose().position,
             [1.0, 0.0, 0.0],
             EditKind::Destroy,
+            0,
             &player,
             |_, _, _| Err("injected presentation failure".to_owned()),
         );
@@ -507,5 +645,89 @@ mod tests {
             );
         }
         assert!(player.pose().position[0] < 0.71);
+    }
+
+    #[test]
+    fn spherical_brushes_are_bounded_sorted_and_have_expected_volume() {
+        assert_eq!(brush_addresses([0, 0, 0], 0).unwrap(), [[0, 0, 0]]);
+        let medium = brush_addresses([10, 20, 30], 1).unwrap();
+        let large = brush_addresses([10, 20, 30], 2).unwrap();
+        assert_eq!(medium.len(), 7);
+        assert_eq!(large.len(), 33);
+        assert!(medium.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(brush_addresses([0, 0, 0], MAX_BRUSH_RADIUS + 1).is_err());
+    }
+
+    #[test]
+    fn volume_placement_overlap_rejects_every_cell_atomically() {
+        let mut world = test_world(SurfaceSelection::Box, [[0, 0, 0]]);
+        let player = player([0.5, 2.55, 0.5], 0.0);
+        let revision = world.scene().source_revision();
+        let hash = world.scene().authority_hash();
+        let outcome = world
+            .edit_from_view(
+                player.pose().position,
+                [0.0, -1.0, 0.0],
+                EditKind::Place { material_slot: 1 },
+                2,
+                &player,
+            )
+            .unwrap();
+        assert!(matches!(
+            outcome,
+            EditOutcome::Rejected(EditRejection::PlayerOverlap { .. })
+        ));
+        assert_eq!(world.scene().source_revision(), revision);
+        assert_eq!(world.scene().authority_hash(), hash);
+    }
+
+    #[test]
+    fn volume_outside_world_bounds_rejects_every_cell_atomically() {
+        let mut world = test_world(SurfaceSelection::Box, [[16, 2, 0]]);
+        let player = player([10.5, 2.55, 0.5], 90.0);
+        let revision = world.scene().source_revision();
+        let hash = world.scene().authority_hash();
+        let outcome = world
+            .edit_from_view(
+                player.pose().position,
+                [1.0, 0.0, 0.0],
+                EditKind::Place { material_slot: 1 },
+                2,
+                &player,
+            )
+            .unwrap();
+        assert!(matches!(
+            outcome,
+            EditOutcome::Rejected(EditRejection::WorldBounds { .. })
+        ));
+        assert_eq!(world.scene().source_revision(), revision);
+        assert_eq!(world.scene().authority_hash(), hash);
+    }
+
+    #[test]
+    fn volume_destroy_commits_multiple_cells_as_one_revision() {
+        let center = [2, 2, 0];
+        let solids = brush_addresses(center, 1)
+            .unwrap()
+            .into_iter()
+            .filter(|address| address[0] >= center[0]);
+        let mut world = test_world(SurfaceSelection::Box, solids);
+        let player = player([-2.0, 2.55, 0.5], 90.0);
+        let revision = world.scene().source_revision();
+        let receipt = applied(
+            world
+                .edit_from_view(
+                    player.pose().position,
+                    [1.0, 0.0, 0.0],
+                    EditKind::Destroy,
+                    1,
+                    &player,
+                )
+                .unwrap(),
+        );
+        assert!(receipt.affected_voxels > 1);
+        assert_eq!(receipt.revision, revision.raw() + 1);
+        assert!(receipt.edit_ms.is_finite());
+        assert!(receipt.mesh_build_ms.is_finite());
     }
 }

@@ -2,10 +2,12 @@
 
 The initial experiment is intentionally bounded:
 
-- one generated island is fully resident and remeshed as a whole after an edit;
+- one seeded, size-bounded generated island is fully resident and remeshed as a whole after an
+  edit; there is no streaming, chunk eviction, biome system, or general procgen framework;
 - movement uses a deterministic fixed-step grounded capsule envelope with gravity, one-voxel
   stepping, and grounded-only jumping; it is deliberately not a general rigid-body framework;
-- placement is rejected when the edited voxel overlaps the current player capsule; broader
+- each radius 0/1/2 spherical brush is one atomic revision, and placement is rejected as a whole
+  when any edited voxel overlaps the current player capsule or leaves the finite world bounds; broader
   construction permissions and structural rules remain out of scope;
 - one checked 2 by 2 atlas supplies grass-top, grass-side, dirt, and stone presentation; it has no
   normal maps, material variants, animated tiles, or authored blending;

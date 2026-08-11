@@ -10,8 +10,11 @@ interface Readout {
   camera: CameraPose; surface: Surface; worldRevision: number;
   authorityHash: number; voxelCount: number; targetedVoxel: [number, number, number] | null;
   grounded: boolean; velocity: [number, number, number];
+  brushRadius: number; terrainSeed: string; terrainSize: number;
+  meshVertices: number; meshTriangles: number;
+  generationMs: number; authorityBuildMs: number; meshBuildMs: number;
 }
-interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number }
+interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number; affectedVoxels: number; meshBuildMs: number; editMs: number }
 interface EditRejectionReadout { code: string; voxel: [number, number, number] }
 type ServerMessage =
   | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown>; resources: ResourceReadout[] }
@@ -42,6 +45,7 @@ export class SessionClient {
   #sequence = 0;
   #look: [number, number] = [0, 0];
   #action: 'destroy' | 'place' | null = null;
+  #brushRadius = 0;
   #timer = 0;
   #projectionTail: Promise<void> = Promise.resolve();
   #protocolFailed = false;
@@ -57,8 +61,14 @@ export class SessionClient {
     this.#protocolFailed = false;
     this.#projectionTail = Promise.resolve();
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const surface = new URLSearchParams(location.search).get('surface');
-    const query = surface === null ? '' : `?surface=${encodeURIComponent(surface)}`;
+    const pageQuery = new URLSearchParams(location.search);
+    const sessionQuery = new URLSearchParams();
+    for (const name of ['surface', 'seed', 'size']) {
+      const value = pageQuery.get(name);
+      if (value !== null) sessionQuery.set(name, value);
+    }
+    const encodedQuery = sessionQuery.toString();
+    const query = encodedQuery === '' ? '' : `?${encodedQuery}`;
     const socket = new WebSocket(`${protocol}//${location.host}/api/session${query}`);
     this.#socket = socket;
     this.#view.status('connecting');
@@ -88,7 +98,10 @@ export class SessionClient {
     if (down) this.#held.add(event.code); else this.#held.delete(event.code);
     if (down && !event.repeat && event.code === 'KeyF') this.#action = 'destroy';
     if (down && !event.repeat && event.code === 'KeyG') this.#action = 'place';
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(event.code)) {
+    if (down && !event.repeat && event.code === 'Digit1') this.#brushRadius = 0;
+    if (down && !event.repeat && event.code === 'Digit2') this.#brushRadius = 1;
+    if (down && !event.repeat && event.code === 'Digit3') this.#brushRadius = 2;
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
       event.preventDefault();
     }
   }
@@ -171,10 +184,11 @@ export class SessionClient {
     const axis = (positive: string, negative: string) => Number(this.#held.has(positive)) - Number(this.#held.has(negative));
     this.#sequence += 1;
     this.#socket.send(JSON.stringify({
-      kind: 'input', protocolVersion: 2, generation: this.#generation, sequence: this.#sequence,
+      kind: 'input', protocolVersion: 3, generation: this.#generation, sequence: this.#sequence,
       command: {
         movement: [axis('KeyW', 'KeyS'), axis('KeyD', 'KeyA')], jump: this.#held.has('Space'),
         lookDeltaDegrees: this.#look, deltaSeconds: 0.033, action: this.#action,
+        brushRadius: this.#brushRadius,
       },
     }));
     this.#look = [0, 0];
@@ -279,6 +293,14 @@ function decodeReadout(value: unknown): Readout {
     targetedVoxel: object['targetedVoxel'] === null ? null : tuple3(object['targetedVoxel'], 'targeted voxel'),
     grounded: booleanValue(object['grounded'], 'grounded'),
     velocity: tuple3(object['velocity'], 'player velocity'),
+    brushRadius: integer(object['brushRadius'], 'brush radius'),
+    terrainSeed: text(object['terrainSeed'], 'terrain seed'),
+    terrainSize: integer(object['terrainSize'], 'terrain size'),
+    meshVertices: integer(object['meshVertices'], 'mesh vertices'),
+    meshTriangles: integer(object['meshTriangles'], 'mesh triangles'),
+    generationMs: number(object['generationMs'], 'terrain generation time'),
+    authorityBuildMs: number(object['authorityBuildMs'], 'authority build time'),
+    meshBuildMs: number(object['meshBuildMs'], 'mesh build time'),
   };
 }
 
@@ -292,13 +314,20 @@ function decodeEdit(value: unknown): EditReadout {
   const object = record(value, 'edit readout');
   const action = text(object['action'], 'edit action');
   if (action !== 'destroy' && action !== 'place') throw new Error(`unsupported edit action: ${action}`);
-  return { action, voxel: tuple3(object['voxel'], 'edit voxel'), revision: number(object['revision'], 'edit revision') };
+  return {
+    action,
+    voxel: tuple3(object['voxel'], 'edit voxel'),
+    revision: integer(object['revision'], 'edit revision'),
+    affectedVoxels: integer(object['affectedVoxels'], 'affected voxels'),
+    meshBuildMs: number(object['meshBuildMs'], 'edit mesh build time'),
+    editMs: number(object['editMs'], 'edit time'),
+  };
 }
 
 function decodeEditRejection(value: unknown): EditRejectionReadout {
   const object = record(value, 'edit rejection');
   const code = text(object['code'], 'edit rejection code');
-  if (code !== 'playerOverlap') throw new Error(`unsupported edit rejection: ${code}`);
+  if (code !== 'playerOverlap' && code !== 'worldBounds') throw new Error(`unsupported edit rejection: ${code}`);
   return { code, voxel: tuple3(object['voxel'], 'edit rejection voxel') };
 }
 
@@ -320,6 +349,12 @@ function text(value: unknown, label: string): string {
 function number(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${label} must be finite`);
   return value;
+}
+
+function integer(value: unknown, label: string): number {
+  const decoded = number(value, label);
+  if (!Number.isSafeInteger(decoded) || decoded < 0) throw new Error(`${label} must be a non-negative safe integer`);
+  return decoded;
 }
 
 function booleanValue(value: unknown, label: string): boolean {

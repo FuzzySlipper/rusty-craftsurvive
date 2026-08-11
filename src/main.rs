@@ -29,6 +29,7 @@ struct CraftSurviveApplication {
     pending_input: Option<u64>,
     pressed_codes: BTreeSet<String>,
     pointer_buttons: u16,
+    brush_radius: u8,
     last_step: Instant,
     next_input_poll: Instant,
     dispose_request: Option<u64>,
@@ -39,7 +40,8 @@ impl CraftSurviveApplication {
     fn new(config: DemoConfig) -> Result<Self> {
         Ok(Self {
             config,
-            world: GameWorld::new(config.surface).map_err(anyhow::Error::msg)?,
+            world: GameWorld::with_terrain(config.surface, config.terrain)
+                .map_err(anyhow::Error::msg)?,
             player: PlayerController::default(),
             window: None,
             renderer: None,
@@ -47,6 +49,7 @@ impl CraftSurviveApplication {
             pending_input: None,
             pressed_codes: BTreeSet::new(),
             pointer_buttons: 0,
+            brush_radius: 0,
             last_step: Instant::now(),
             next_input_poll: Instant::now(),
             dispose_request: None,
@@ -133,6 +136,14 @@ impl CraftSurviveApplication {
 
         let newly_pressed =
             |code: &str| pressed.contains(code) && !self.pressed_codes.contains(code);
+        for (code, radius) in [("Digit1", 0), ("Digit2", 1), ("Digit3", 2)] {
+            if newly_pressed(code) {
+                self.brush_radius = radius;
+                if let Some(window) = &self.window {
+                    window.set_title(&self.window_title());
+                }
+            }
+        }
         let destroy = (input.pointer.buttons & 1 != 0 && self.pointer_buttons & 1 == 0)
             || newly_pressed("KeyF");
         let place = (input.pointer.buttons & 2 != 0 && self.pointer_buttons & 2 == 0)
@@ -149,6 +160,7 @@ impl CraftSurviveApplication {
                     self.player.pose().position,
                     self.player.view_direction(),
                     kind,
+                    self.brush_radius,
                     &self.player,
                 )
                 .map_err(anyhow::Error::msg)?
@@ -162,8 +174,15 @@ impl CraftSurviveApplication {
                                 .map_err(anyhow::Error::msg)?,
                         )?;
                     println!(
-                        "CRAFTSURVIVE_EDIT kind={kind:?} voxel={:?} revision={} voxels={} authority_hash={}",
-                        receipt.voxel, receipt.revision, receipt.voxel_count, receipt.authority_hash
+                        "CRAFTSURVIVE_EDIT kind={kind:?} voxel={:?} brush={} affected={} revision={} voxels={} mesh_build_ms={:.3} edit_ms={:.3} authority_hash={}",
+                        receipt.voxel,
+                        self.brush_radius,
+                        receipt.affected_voxels,
+                        receipt.revision,
+                        receipt.voxel_count,
+                        receipt.mesh_build_ms,
+                        receipt.edit_ms,
+                        receipt.authority_hash
                     );
                     if let Some(window) = &self.window {
                         window.set_title(&self.window_title());
@@ -240,8 +259,12 @@ impl CraftSurviveApplication {
 
     fn window_title(&self) -> String {
         format!(
-            "Rusty CraftSurvive — {} — revision {} — {} voxels",
+            "Rusty CraftSurvive — {} — seed 0x{:016x} — {}x{} — brush {} — revision {} — {} voxels",
             self.config.surface.as_str(),
+            self.config.terrain.seed,
+            self.config.terrain.size,
+            self.config.terrain.size,
+            self.brush_radius,
             self.world.scene().source_revision().raw(),
             self.world.scene().solid_voxel_count()
         )
@@ -354,12 +377,17 @@ fn main() -> Result<()> {
     let application = CraftSurviveApplication::new(config)?;
     if config.summary_only {
         println!(
-            "CRAFTSURVIVE_SUMMARY surface={} voxels={} chunks={} vertices={} triangles={} authority_hash={}",
+            "CRAFTSURVIVE_SUMMARY surface={} seed=0x{:016x} size={} voxels={} chunks={} vertices={} triangles={} generation_ms={:.3} authority_build_ms={:.3} mesh_build_ms={:.3} authority_hash={}",
             config.surface.as_str(),
+            config.terrain.seed,
+            config.terrain.size,
             application.world.scene().solid_voxel_count(),
             application.world.scene().resident_chunk_count(),
             application.world.presentation_mesh().stats.vertices,
             application.world.presentation_mesh().stats.triangles,
+            application.world.metrics().generation_ms,
+            application.world.metrics().authority_build_ms,
+            application.world.metrics().mesh_build_ms,
             application.world.scene().authority_hash(),
         );
         return Ok(());

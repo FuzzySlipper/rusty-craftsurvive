@@ -37,6 +37,14 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   targetedVoxel: [0, 4, 0],
   grounded: true,
   velocity: [0, 0, 0],
+  brushRadius: 0,
+  terrainSeed: '0x4352414654535552',
+  terrainSize: 96,
+  meshVertices: 100,
+  meshTriangles: 50,
+  generationMs: 1.5,
+  authorityBuildMs: 2.5,
+  meshBuildMs: 3.5,
 });
 
 test('complete welcome projection serializes a newer incremental update', async () => {
@@ -94,7 +102,9 @@ test('complete welcome projection serializes a newer incremental update', async 
   socket.emitMessage({
     kind: 'update',
     update: {
-      readout: readout(1, 1), action: null, edit: null, editRejection: null,
+      readout: readout(1, 1), action: 'destroy',
+      edit: { action: 'destroy', voxel: [0, 4, 0], revision: 1, affectedVoxels: 7, meshBuildMs: 12.5, editMs: 18.5 },
+      editRejection: null,
       frame: { schemaVersion: 1, ops: [{ op: 'replaceMeshPayload' }] },
     },
   });
@@ -271,7 +281,7 @@ test('browser input sends the shared horizontal movement and jump intent', async
   Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
   Object.defineProperty(globalThis, 'location', {
     configurable: true,
-    value: { protocol: 'http:', host: 'craft.test', search: '?surface=mc' },
+    value: { protocol: 'http:', host: 'craft.test', search: '?surface=mc&seed=0x2a&size=64' },
   });
   Object.defineProperty(globalThis, 'window', {
     configurable: true,
@@ -281,21 +291,23 @@ test('browser input sends the shared horizontal movement and jump intent', async
   const client = new SessionClient(context, view);
   client.connect();
   const socket = FakeWebSocket.latest!;
-  assert.equal(socket.url, 'ws://craft.test/api/session?surface=mc');
+  assert.equal(socket.url, 'ws://craft.test/api/session?surface=mc&seed=0x2a&size=64');
   socket.emitMessage({ kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] } });
   await new Promise((resolve) => setTimeout(resolve, 0));
   const key = (code: string) => ({ code, repeat: false, preventDefault: () => undefined } as KeyboardEvent);
   client.key(key('KeyW'), true);
   client.key(key('Space'), true);
+  client.key(key('Digit3'), true);
   tick();
 
   const sent = JSON.parse(socket.sent.at(-1)!) as {
     protocolVersion: number;
-    command: { movement: number[]; jump: boolean };
+    command: { movement: number[]; jump: boolean; brushRadius: number };
   };
-  assert.equal(sent.protocolVersion, 2);
+  assert.equal(sent.protocolVersion, 3);
   assert.deepEqual(sent.command.movement, [1, 0]);
   assert.equal(sent.command.jump, true);
+  assert.equal(sent.command.brushRadius, 2);
   client.dispose();
 });
 

@@ -2,7 +2,6 @@ use std::{
     env,
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 use anyhow::{bail, Context, Result};
@@ -19,11 +18,11 @@ use axum::{
 };
 use futures_util::StreamExt;
 use rusty_craftsurvive::{
-    session_resources, ClientMessage, GameSession, ServerMessage, SurfaceSelection,
-    MAX_SESSION_MESSAGE_BYTES,
+    parse_seed, session_resources, ClientMessage, GameSession, ServerMessage, SurfaceSelection,
+    TerrainConfig, MAX_SESSION_MESSAGE_BYTES,
 };
 use serde::{Deserialize, Serialize};
-use tokio::{net::TcpListener, sync::Mutex};
+use tokio::net::TcpListener;
 
 const PROJECT_ID: &str = "rusty-craftsurvive";
 const FALLBACK_SHELL: &str = r#"<!doctype html>
@@ -38,6 +37,7 @@ const FALLBACK_SHELL: &str = r#"<!doctype html>
 struct Options {
     address: SocketAddr,
     surface: SurfaceSelection,
+    terrain: TerrainConfig,
     web_root: PathBuf,
 }
 
@@ -46,6 +46,7 @@ impl Options {
         let mut host = "127.0.0.1".parse::<IpAddr>().expect("literal IP");
         let mut port = 4419_u16;
         let mut surface = SurfaceSelection::Box;
+        let mut terrain = TerrainConfig::default();
         let mut web_root = PathBuf::from("web/dist");
         let mut arguments = arguments.into_iter();
         while let Some(argument) = arguments.next() {
@@ -71,6 +72,21 @@ impl Options {
                         .parse()
                         .map_err(anyhow::Error::msg)?;
                 }
+                "--seed" => {
+                    terrain.seed = parse_seed(
+                        &arguments
+                            .next()
+                            .context("--seed requires an unsigned integer")?,
+                    )
+                    .map_err(anyhow::Error::msg)?;
+                }
+                "--size" => {
+                    terrain.size = arguments
+                        .next()
+                        .context("--size requires an even integer")?
+                        .parse()
+                        .context("parse --size")?;
+                }
                 "--web-root" => {
                     web_root =
                         PathBuf::from(arguments.next().context("--web-root requires a path")?);
@@ -78,9 +94,11 @@ impl Options {
                 _ => bail!("unknown argument '{argument}'"),
             }
         }
+        terrain = TerrainConfig::new(terrain.seed, terrain.size).map_err(anyhow::Error::msg)?;
         Ok(Self {
             address: SocketAddr::new(host, port),
             surface,
+            terrain,
             web_root,
         })
     }
@@ -88,44 +106,16 @@ impl Options {
 
 #[derive(Clone)]
 struct HostState {
-    sessions: Arc<SessionPool>,
     default_surface: SurfaceSelection,
-    web_root: Arc<PathBuf>,
-}
-
-struct SessionPool {
-    box_surface: Arc<Mutex<GameSession>>,
-    marching_cubes: Arc<Mutex<GameSession>>,
-    dual_contouring: Arc<Mutex<GameSession>>,
-}
-
-impl SessionPool {
-    fn new() -> Result<Self> {
-        Ok(Self {
-            box_surface: session(SurfaceSelection::Box)?,
-            marching_cubes: session(SurfaceSelection::MarchingCubes)?,
-            dual_contouring: session(SurfaceSelection::DualContouring)?,
-        })
-    }
-
-    fn get(&self, surface: SurfaceSelection) -> Arc<Mutex<GameSession>> {
-        match surface {
-            SurfaceSelection::Box => Arc::clone(&self.box_surface),
-            SurfaceSelection::MarchingCubes => Arc::clone(&self.marching_cubes),
-            SurfaceSelection::DualContouring => Arc::clone(&self.dual_contouring),
-        }
-    }
-}
-
-fn session(surface: SurfaceSelection) -> Result<Arc<Mutex<GameSession>>> {
-    Ok(Arc::new(Mutex::new(
-        GameSession::new(surface).map_err(anyhow::Error::msg)?,
-    )))
+    default_terrain: TerrainConfig,
+    web_root: PathBuf,
 }
 
 #[derive(Debug, Default, Deserialize)]
 struct SessionQuery {
     surface: Option<String>,
+    seed: Option<String>,
+    size: Option<u16>,
 }
 
 #[derive(Serialize)]
@@ -161,60 +151,65 @@ async fn session_upgrade(
         },
         None => state.default_surface,
     };
-    let session = state.sessions.get(surface);
+    let seed = match query.seed {
+        Some(seed) => match parse_seed(&seed) {
+            Ok(seed) => seed,
+            Err(message) => return (StatusCode::BAD_REQUEST, message).into_response(),
+        },
+        None => state.default_terrain.seed,
+    };
+    let terrain = match TerrainConfig::new(seed, query.size.unwrap_or(state.default_terrain.size)) {
+        Ok(terrain) => terrain,
+        Err(message) => return (StatusCode::BAD_REQUEST, message).into_response(),
+    };
+    let session = match GameSession::with_terrain(surface, terrain) {
+        Ok(session) => session,
+        Err(message) => return (StatusCode::INTERNAL_SERVER_ERROR, message).into_response(),
+    };
     websocket
         .max_message_size(MAX_SESSION_MESSAGE_BYTES)
         .on_upgrade(move |socket| serve_session(socket, session))
 }
 
-async fn serve_session(mut socket: WebSocket, session: Arc<Mutex<GameSession>>) {
-    let connected = {
-        let mut session = session.lock().await;
-        session.connect().map(|(readout, frame)| {
-            let generation = readout.generation;
-            session_resources().map(|resources| {
-                (
-                    generation,
-                    ServerMessage::Welcome {
-                        readout,
-                        frame,
-                        resources,
-                    },
-                )
-            })
+async fn serve_session(mut socket: WebSocket, mut session: GameSession) {
+    let connected = session.connect().map(|(readout, frame)| {
+        let generation = readout.generation;
+        session_resources().map(|resources| {
+            (
+                generation,
+                ServerMessage::Welcome {
+                    readout,
+                    frame,
+                    resources,
+                },
+            )
         })
-    };
+    });
     let Ok(Ok((generation, welcome))) = connected else {
         let _ = socket.send(Message::Close(None)).await;
         return;
     };
     if send_json(&mut socket, &welcome).await.is_err() {
-        let _ = session.lock().await.disconnect(generation);
+        let _ = session.disconnect(generation);
         return;
     }
 
     while let Some(message) = socket.next().await {
         let response = match message {
             Ok(Message::Text(text)) => match serde_json::from_str::<ClientMessage>(text.as_str()) {
-                Ok(message) => {
-                    let mut session = session.lock().await;
-                    match session.submit(message) {
-                        Ok(update) => ServerMessage::Update { update },
-                        Err(error) => ServerMessage::Rejected {
-                            code: error.code(),
-                            message: error.to_string(),
-                            readout: session.readout(),
-                        },
-                    }
-                }
-                Err(error) => {
-                    let session = session.lock().await;
-                    ServerMessage::Rejected {
-                        code: "malformedMessage",
+                Ok(message) => match session.submit(message) {
+                    Ok(update) => ServerMessage::Update { update },
+                    Err(error) => ServerMessage::Rejected {
+                        code: error.code(),
                         message: error.to_string(),
                         readout: session.readout(),
-                    }
-                }
+                    },
+                },
+                Err(error) => ServerMessage::Rejected {
+                    code: "malformedMessage",
+                    message: error.to_string(),
+                    readout: session.readout(),
+                },
             },
             Ok(Message::Ping(bytes)) => {
                 if socket.send(Message::Pong(bytes)).await.is_err() {
@@ -229,7 +224,7 @@ async fn serve_session(mut socket: WebSocket, session: Arc<Mutex<GameSession>>) 
             break;
         }
     }
-    let _ = session.lock().await.disconnect(generation);
+    let _ = session.disconnect(generation);
 }
 
 async fn send_json(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axum::Error> {
@@ -293,9 +288,9 @@ fn html_response(bytes: Vec<u8>) -> Response {
 async fn main() -> Result<()> {
     let options = Options::parse(env::args().skip(1))?;
     let state = HostState {
-        sessions: Arc::new(SessionPool::new()?),
         default_surface: options.surface,
-        web_root: Arc::new(options.web_root),
+        default_terrain: options.terrain,
+        web_root: options.web_root,
     };
     let application = Router::new()
         .route("/health", get(health))
@@ -306,9 +301,11 @@ async fn main() -> Result<()> {
         .await
         .with_context(|| format!("bind CraftSurvive browser host at {}", options.address))?;
     println!(
-        "CRAFTSURVIVE_BROWSER_READY address=http://{} surface={}",
+        "CRAFTSURVIVE_BROWSER_READY address=http://{} surface={} seed=0x{:016x} size={}",
         options.address,
-        options.surface.as_str()
+        options.surface.as_str(),
+        options.terrain.seed,
+        options.terrain.size,
     );
     axum::serve(listener, application)
         .with_graceful_shutdown(async {

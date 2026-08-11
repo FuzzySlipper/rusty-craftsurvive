@@ -5,8 +5,9 @@ Rusty CraftSurvive is a deliberately small downstream
 path under a different kind of pressure than Studio: a first-person player can destroy and place
 terrain voxels and immediately observe rebuilt collision, navigation, and mesh projections.
 
-The initial world is one deterministic, finite island. It is not an infinite-world or streaming
-prototype, and it does not try to be a survival game yet.
+The world is one deterministic, finite generated island with rolling elevation, layered materials,
+and a few distant landmarks. It is not an infinite-world or streaming prototype, and it does not
+try to be a survival game yet.
 
 ## Local topology
 
@@ -39,7 +40,9 @@ Open the local or LAN URL printed by `den-serve up`, click the world to capture 
 view-relative WASD plus mouse look. `Space` jumps while grounded. Left click or `F` breaks the
 targeted voxel; right click or `G` places one. The concise HUD exposes the selected presentation,
 accepted input sequence, authoritative player/world revisions, pose, view, grounded/velocity facts,
-target, and typed edit result. `den-serve restart rusty-craftsurvive` rebuilds and restores the
+target, terrain seed/size, mesh/startup measurements, selected brush, and typed edit result.
+Keys `1`, `2`, and `3` select spherical edit radii 0, 1, and 2. `den-serve restart
+rusty-craftsurvive` rebuilds and restores the
 service; `den-serve stop rusty-craftsurvive` releases the broker-owned process group.
 
 The default URL uses greedy boxes. Select another independently initialized presentation without
@@ -48,6 +51,7 @@ restarting the service:
 ```text
 http://127.0.0.1:4419/?surface=mc
 http://127.0.0.1:4419/?surface=dc
+http://127.0.0.1:4419/?surface=box&seed=0x2a&size=64
 ```
 
 The visible spawn route has an unequal pair of orientation pillars behind the player, a one-voxel
@@ -64,6 +68,7 @@ Choose the terrain presentation when the process starts:
 cargo run -- --surface box
 cargo run -- --surface mc
 cargo run -- --surface dc
+cargo run -- --surface box --seed 0x2a --size 64
 ```
 
 Restart to change modes. `box` uses greedy cubes, `mc` uses marching cubes, and `dc` uses dual
@@ -71,7 +76,8 @@ contouring. All three read the exact same canonical material voxels; the choice 
 disposable render mesh. Grass, dirt, and stone are visibly distinct through one retained texture
 atlas. Greedy quads repeat tiles across merged faces; MC/DC use deterministic world-space projected
 coordinates over their reconstructed triangles. A fast headless readout is available with
-`--summary`.
+`--summary`. Terrain sizes must be even and in the bounded `32..=128` range. The default is 96;
+the seed and size are startup inputs and do not introduce streaming or a second world authority.
 
 Controls:
 
@@ -80,18 +86,30 @@ Controls:
 - arrow keys: look
 - left mouse or `F`: destroy the targeted voxel
 - right mouse or `G`: place a grass voxel against the targeted face
+- `1`, `2`, or `3`: select edit radius 0, 1, or 2
 
 The window title and Engine telemetry overlay show the selected surface and authority revision.
-Edits are also printed as typed Rust-side receipts.
+Startup summaries report generation, authority-build, and mesh-build milliseconds plus mesh size.
+Edits are printed as typed Rust-side receipts with affected volume and measured mesh/total latency.
+
+The default-size debug measurements on the local development host are a 111,775-voxel authority
+and 10,694 box / 93,528 MC / 46,764 DC triangles. Generation measured 189–201 ms, authority build
+982–1,059 ms, and selected presentation build 796–1,240 ms. The resulting local budgets are 3.5
+seconds for Rust startup and 4 seconds for one whole-world edit transaction at size 96. These are
+diagnostic development budgets rather than hardware-independent promises; exceeding one should be
+reported with the seed, size, surface, mesh counts, and on-screen timing instead of shrinking the
+terrain silently.
 
 ## Authority and renderer boundary
 
 Rust owns the island recipe, admitted material voxels, player pose, physical-input meaning,
 collision, ray selection, break/place decisions, edit revisions, and render-frame projection. A
-break or place operation is one prepared `VoxelEditService` transaction. CraftSurvive rejects a
-placement whose voxel overlaps the player capsule, and builds the selected box/MC/DC presentation
-from the prepared deltas before commit. Engine swaps the rebuilt canonical scene only after
-collision, navigation, canonical chunk mesh, and the selected downstream presentation all succeed.
+break or place operation, including a volume brush, is one revision-checked prepared
+`VoxelEditService` transaction. CraftSurvive rejects the whole transaction when any placement voxel
+overlaps the player capsule or any brush cell leaves the finite world bounds, and builds the
+selected box/MC/DC presentation from the prepared deltas before commit. Engine swaps the rebuilt
+canonical scene only after collision, navigation, canonical chunk mesh, and the selected downstream
+presentation all succeed.
 The atlas, region metadata, source-image provenance, and deterministic rebuild command live under
 `content/textures/`; texture resources are replaced with the complete initial renderer content and
 remain presentation data rather than voxel authority.
@@ -178,10 +196,10 @@ continues to own the exact input-command regression for this discrepancy.
 
 ## Current scope
 
-This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, complicated
-world generation, inventory, crafting, survival stats, persistence, networking, and mobile-specific
-shells. The next useful experiments should stay focused on edit latency, incremental remeshing, and
-terrain-material presentation before growing product systems. The grounded controller is a bounded
+This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, a general
+procgen framework, inventory, crafting, survival stats, persistence, networking, and mobile-specific
+shells. The next useful experiments should stay focused on incremental remeshing and terrain
+calibration before growing product systems. The grounded controller is a bounded
 downstream mechanism rather than a general physics framework.
 
 See [donor provenance](docs/donor-provenance.md) and

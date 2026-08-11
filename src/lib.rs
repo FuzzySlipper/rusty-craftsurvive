@@ -8,7 +8,10 @@ mod session;
 mod terrain_texture;
 mod world;
 
-pub use config::{DemoConfig, SurfaceSelection};
+pub use config::{
+    parse_seed, DemoConfig, SurfaceSelection, TerrainConfig, DEFAULT_TERRAIN_SEED,
+    DEFAULT_TERRAIN_SIZE, MAX_TERRAIN_SIZE, MIN_TERRAIN_SIZE,
+};
 pub use island::{generate_island, IslandConfig};
 pub use player::{PlayerController, PlayerInput, PlayerMotionReadout, PlayerPose};
 pub use projection::{initial_frame, replacement_frame, telemetry_frame};
@@ -18,4 +21,7 @@ pub use session::{
     SessionResourceReadout, SessionUpdate, MAX_SESSION_MESSAGE_BYTES, SESSION_PROTOCOL_VERSION,
 };
 pub use terrain_texture::{terrain_texture_resource, TerrainTextureResource, TERRAIN_ATLAS_URL};
-pub use world::{EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld};
+pub use world::{
+    brush_addresses, EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld, WorldMetrics,
+    MAX_BRUSH_RADIUS,
+};

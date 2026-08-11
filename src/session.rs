@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use crate::{
     initial_frame, replacement_frame, terrain_texture_resource, EditKind, EditOutcome, EditReceipt,
     EditRejection, GameWorld, PlayerController, PlayerInput, PlayerPose, SurfaceSelection,
+    TerrainConfig, MAX_BRUSH_RADIUS,
 };
 
-pub const SESSION_PROTOCOL_VERSION: u32 = 2;
+pub const SESSION_PROTOCOL_VERSION: u32 = 3;
 pub const MAX_SESSION_MESSAGE_BYTES: usize = 16 * 1024;
 pub const MAX_LOOK_DELTA_DEGREES: f64 = 45.0;
 pub const MAX_INPUT_DELTA_SECONDS: f64 = 0.05;
@@ -26,6 +27,7 @@ pub struct SessionCommand {
     pub look_delta_degrees: [f64; 2],
     pub delta_seconds: f64,
     pub action: Option<SessionAction>,
+    pub brush_radius: u8,
 }
 
 impl Default for SessionCommand {
@@ -36,6 +38,7 @@ impl Default for SessionCommand {
             look_delta_degrees: [0.0; 2],
             delta_seconds: 0.0,
             action: None,
+            brush_radius: 0,
         }
     }
 }
@@ -56,7 +59,7 @@ pub enum ClientMessage {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionReadout {
     pub protocol_version: u32,
@@ -73,6 +76,14 @@ pub struct SessionReadout {
     pub authority_hash: u64,
     pub voxel_count: usize,
     pub targeted_voxel: Option<[i64; 3]>,
+    pub brush_radius: u8,
+    pub terrain_seed: String,
+    pub terrain_size: u16,
+    pub mesh_vertices: u32,
+    pub mesh_triangles: u32,
+    pub generation_ms: f64,
+    pub authority_build_ms: f64,
+    pub mesh_build_ms: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -138,14 +149,17 @@ pub struct SessionUpdate {
     pub frame: Option<RenderFrameDiff>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionEditReadout {
     pub action: SessionAction,
     pub voxel: [i64; 3],
     pub revision: u64,
+    pub affected_voxels: usize,
     pub authority_hash: u64,
     pub voxel_count: usize,
+    pub mesh_build_ms: f64,
+    pub edit_ms: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -193,17 +207,23 @@ pub struct GameSession {
     connected: bool,
     accepted_sequence: u64,
     player_revision: u64,
+    brush_radius: u8,
 }
 
 impl GameSession {
     pub fn new(surface: SurfaceSelection) -> Result<Self, String> {
+        Self::with_terrain(surface, TerrainConfig::default())
+    }
+
+    pub fn with_terrain(surface: SurfaceSelection, terrain: TerrainConfig) -> Result<Self, String> {
         Ok(Self {
-            world: GameWorld::new(surface)?,
+            world: GameWorld::with_terrain(surface, terrain)?,
             player: PlayerController::default(),
             generation: 0,
             connected: false,
             accepted_sequence: 0,
             player_revision: 0,
+            brush_radius: 0,
         })
     }
 
@@ -261,6 +281,7 @@ impl GameSession {
             .into());
         }
         validate_command(command)?;
+        self.brush_radius = command.brush_radius;
 
         let pose_before = self.player.pose();
         let motion_before = self.player.motion();
@@ -289,6 +310,7 @@ impl GameSession {
                         SessionAction::Destroy => EditKind::Destroy,
                         SessionAction::Place => EditKind::Place { material_slot: 1 },
                     },
+                    command.brush_radius,
                     &self.player,
                 )
                 .map_err(SessionErrorOrRuntime::Runtime)?
@@ -320,6 +342,9 @@ impl GameSession {
     pub fn readout(&self) -> SessionReadout {
         let pose = self.player.pose();
         let motion = self.player.motion();
+        let terrain = self.world.terrain();
+        let metrics = self.world.metrics();
+        let mesh = self.world.presentation_mesh();
         SessionReadout {
             protocol_version: SESSION_PROTOCOL_VERSION,
             generation: self.generation,
@@ -341,6 +366,14 @@ impl GameSession {
             targeted_voxel: self
                 .world
                 .target_from_view(pose.position, self.player.view_direction()),
+            brush_radius: self.brush_radius,
+            terrain_seed: format!("0x{:016x}", terrain.seed),
+            terrain_size: terrain.size,
+            mesh_vertices: mesh.stats.vertices,
+            mesh_triangles: mesh.stats.triangles,
+            generation_ms: metrics.generation_ms,
+            authority_build_ms: metrics.authority_build_ms,
+            mesh_build_ms: metrics.mesh_build_ms,
         }
     }
 }
@@ -396,6 +429,7 @@ fn validate_command(command: SessionCommand) -> Result<(), SessionError> {
         || !movement_bounded
         || !look_bounded
         || !(0.0..=MAX_INPUT_DELTA_SECONDS).contains(&command.delta_seconds)
+        || command.brush_radius > MAX_BRUSH_RADIUS
     {
         return Err(SessionError::InvalidCommand);
     }
@@ -407,14 +441,21 @@ fn session_edit(action: SessionAction, receipt: EditReceipt) -> SessionEditReado
         action,
         voxel: receipt.voxel,
         revision: receipt.revision,
+        affected_voxels: receipt.affected_voxels,
         authority_hash: receipt.authority_hash,
         voxel_count: receipt.voxel_count,
+        mesh_build_ms: receipt.mesh_build_ms,
+        edit_ms: receipt.edit_ms,
     }
 }
 
 fn session_edit_rejection(rejection: EditRejection) -> SessionEditRejectionReadout {
     match rejection {
         EditRejection::PlayerOverlap { voxel } => SessionEditRejectionReadout {
+            code: rejection.code(),
+            voxel,
+        },
+        EditRejection::WorldBounds { voxel } => SessionEditRejectionReadout {
             code: rejection.code(),
             voxel,
         },

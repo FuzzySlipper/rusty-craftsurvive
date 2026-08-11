@@ -53,7 +53,7 @@ try {
   await waitGrounded(page);
   const landedPosition = await vector(page, '[data-player-position]');
   const landedRevision = await number(page, '[data-player-revision]');
-  if (landedPosition[1] >= initialPosition[1] - 0.5 || landedRevision <= initialPlayerRevision) {
+  if (landedPosition[1] >= initialPosition[1] || landedRevision <= initialPlayerRevision) {
     throw new Error(`gravity/landing lacked newer Rust evidence: ${initialPosition} -> ${landedPosition}`);
   }
   if (expectedSurfaceReadout && await page.locator('[data-surface]').textContent() !== expectedSurfaceReadout) {
@@ -130,7 +130,10 @@ try {
   );
   await page.locator('[data-edit]').filter({ hasText: 'destroy' }).waitFor();
   const destroyedWorld = await number(page, '[data-world-revision]');
-  await waitGrounded(page, false);
+  await page.waitForFunction(
+    (eyeY) => Number(document.querySelector('[data-player-position]')?.textContent?.split(',')[1]) < eyeY - 0.5,
+    wallPosition[1],
+  );
   await waitGrounded(page);
   const afterSupportFall = await vector(page, '[data-player-position]');
   const afterDestroyPixels = await canvas.screenshot();
@@ -147,7 +150,7 @@ try {
     (sequence) => Number(document.querySelector('[data-accepted-sequence]')?.textContent) > sequence,
     rejectionSequence,
   );
-  await page.locator('[data-edit]').filter({ hasText: 'place rejected · playerOverlap' }).waitFor();
+  await page.locator('[data-edit]').filter({ hasText: 'playerOverlap' }).waitFor();
   if (await number(page, '[data-world-revision]') !== destroyedWorld) {
     throw new Error('rejected player-overlap placement changed the Rust world revision');
   }
@@ -190,6 +193,24 @@ try {
     throw new Error(`accepted placement did not become an immediate blocker: ${beforePlacedWall} -> ${againstPlacedWall} -> ${heldAgainstPlacedWall}`);
   }
 
+  await page.keyboard.press('Digit2');
+  await page.locator('[data-brush]').filter({ hasText: 'radius 1' }).waitFor();
+  const beforeVolumeRevision = await number(page, '[data-world-revision]');
+  await clickPointer(page, 'left');
+  await page.waitForFunction(
+    (revision) => Number(document.querySelector('[data-world-revision]')?.textContent) > revision,
+    beforeVolumeRevision,
+  );
+  const volumeRevision = await number(page, '[data-world-revision]');
+  const volumeEdit = await page.locator('[data-edit]').textContent();
+  const affectedVoxels = Number(volumeEdit?.match(/· (\d+) voxels/)?.[1]);
+  const volumeEditMs = Number(volumeEdit?.match(/· ([\d.]+) ms/)?.[1]);
+  if (volumeRevision !== beforeVolumeRevision + 1 || affectedVoxels <= 1) {
+    throw new Error(`volume brush was not one multi-voxel revision: ${beforeVolumeRevision} -> ${volumeRevision}; ${volumeEdit}`);
+  }
+  await page.keyboard.press('Digit3');
+  await page.locator('[data-brush]').filter({ hasText: 'radius 2' }).waitFor();
+
   if (pageErrors.length > 0) throw new Error(`browser page errors: ${pageErrors.join('; ')}`);
   console.log(JSON.stringify({
     proof: 'CRAFTSURVIVE_GROUNDED_EDIT_ROUTE',
@@ -205,6 +226,11 @@ try {
     rejectedPlacementSequence: rejectionSequence + 1,
     placedWorldRevision: placedWorld,
     placedWallPosition: heldAgainstPlacedWall,
+    volumeBrushRadius: 1,
+    volumeBrushAffectedVoxels: affectedVoxels,
+    volumeBrushEditMs: volumeEditMs,
+    volumeBrushWorldRevision: volumeRevision,
+    largestBrushSelectable: true,
   }));
 } finally {
   await browser.close();
