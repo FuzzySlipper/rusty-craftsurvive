@@ -68,7 +68,10 @@ cargo run -- --surface dc
 
 Restart to change modes. `box` uses greedy cubes, `mc` uses marching cubes, and `dc` uses dual
 contouring. All three read the exact same canonical material voxels; the choice changes only the
-disposable render mesh. A fast headless readout is available with `--summary`.
+disposable render mesh. Grass, dirt, and stone are visibly distinct through one retained texture
+atlas. Greedy quads repeat tiles across merged faces; MC/DC use deterministic world-space projected
+coordinates over their reconstructed triangles. A fast headless readout is available with
+`--summary`.
 
 Controls:
 
@@ -89,6 +92,9 @@ break or place operation is one prepared `VoxelEditService` transaction. CraftSu
 placement whose voxel overlaps the player capsule, and builds the selected box/MC/DC presentation
 from the prepared deltas before commit. Engine swaps the rebuilt canonical scene only after
 collision, navigation, canonical chunk mesh, and the selected downstream presentation all succeed.
+The atlas, region metadata, source-image provenance, and deterministic rebuild command live under
+`content/textures/`; texture resources are replaced with the complete initial renderer content and
+remain presentation data rather than voxel authority.
 
 The downstream application owns the native window and calls the Engine-owned
 `RendererWebviewAdapter`. It does not import renderer TypeScript, own a canvas, decode the private

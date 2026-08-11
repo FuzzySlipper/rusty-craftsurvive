@@ -110,6 +110,74 @@ test('complete welcome projection serializes a newer incremental update', async 
   client.dispose();
 });
 
+test('textured welcome fetches retained atlas bytes before replacing content', async () => {
+  const calls: Array<{ frame: Record<string, unknown>; resources: Array<{ identity: string; contentHash: string; mediaType: string; bytes: Uint8Array }> }> = [];
+  const context = {
+    renderer: {
+      replaceFrame: async () => { throw new Error('textured welcome must replace complete content'); },
+      applyFrame: () => ({ applied: true, diagnostics: [] }),
+      setCameraPose: () => undefined,
+      clear: async () => undefined,
+      renderOnce: () => undefined,
+      replaceContent: async (content: (typeof calls)[number]) => {
+        calls.push(content);
+        return { applied: true, diagnostics: [] };
+      },
+    },
+    ui: {
+      active: () => true,
+      allowsGameplayInput: () => true,
+      focusGameplay: () => undefined,
+      interactionMode: () => 'gameplay' as const,
+      setInteractionMode: () => undefined,
+    },
+  } satisfies RustyApplicationUiContext;
+  const view: SessionView = {
+    status: () => undefined,
+    readout: () => undefined,
+    edit: () => undefined,
+    reject: () => undefined,
+    miss: () => undefined,
+  };
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { protocol: 'http:', host: 'craft.test', search: '' },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { setInterval: () => 1, clearInterval: () => undefined },
+  });
+  Object.defineProperty(globalThis, 'fetch', {
+    configurable: true,
+    value: async (url: string) => {
+      assert.equal(url, '/assets/terrain-atlas.png');
+      return new Response(new Uint8Array([137, 80, 78, 71]), { status: 200 });
+    },
+  });
+
+  const client = new SessionClient(context, view);
+  client.connect();
+  FakeWebSocket.latest!.emitMessage({
+    kind: 'welcome',
+    readout: readout(0, 0),
+    frame: { schemaVersion: 1, ops: [] },
+    resources: [{
+      identity: 'texture-resource/terrain-atlas',
+      contentHash: `sha256:${'a'.repeat(64)}`,
+      mediaType: 'image/png',
+      url: '/assets/terrain-atlas.png',
+    }],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(calls.length, 1);
+  assert.deepEqual([...calls[0]!.resources[0]!.bytes], [137, 80, 78, 71]);
+  assert.equal(calls[0]!.resources[0]!.identity, 'texture-resource/terrain-atlas');
+  client.dispose();
+});
+
 test('dispose invalidates an in-flight welcome before readout publication', async () => {
   let releaseWelcome!: () => void;
   const welcomePending = new Promise<void>((resolve) => { releaseWelcome = resolve; });

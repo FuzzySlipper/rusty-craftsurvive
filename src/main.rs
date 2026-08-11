@@ -2,14 +2,14 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    initial_frame, replacement_frame, telemetry_frame, DemoConfig, EditKind, EditOutcome,
-    GameWorld, PlayerController, PlayerInput,
+    initial_frame, replacement_frame, telemetry_frame, terrain_texture_resource, DemoConfig,
+    EditKind, EditOutcome, GameWorld, PlayerController, PlayerInput,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
     renderer_webview_host::{
-        RendererWebviewAdapter, RendererWebviewBounds, RendererWebviewObservation,
-        RendererWebviewOptions,
+        RendererResource, RendererWebviewAdapter, RendererWebviewBounds,
+        RendererWebviewObservation, RendererWebviewOptions,
     },
 };
 use winit::{
@@ -62,6 +62,7 @@ impl CraftSurviveApplication {
                     .with_inner_size(winit::dpi::LogicalSize::new(1100, 720)),
             )
             .context("create CraftSurvive window")?;
+        let terrain_texture = terrain_texture_resource().map_err(anyhow::Error::msg)?;
         let renderer = RendererWebviewAdapter::mount(
             &window,
             RendererWebviewOptions {
@@ -69,7 +70,12 @@ impl CraftSurviveApplication {
                 bounds: window_bounds(&window),
                 clear_color: Some(0x87_ceeb),
                 pixel_ratio: window.scale_factor(),
-                resources: Vec::new(),
+                resources: vec![RendererResource {
+                    identity: terrain_texture.identity,
+                    content_hash: terrain_texture.content_hash,
+                    media_type: terrain_texture.media_type.to_owned(),
+                    bytes: terrain_texture.bytes.to_vec(),
+                }],
             },
         )
         .map_err(|error| anyhow::anyhow!("mount Engine renderer: {error:?}"))?;

@@ -2,8 +2,8 @@ use rusty_engine::{render_host_contracts::RendererCameraPose, render_model::Rend
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    initial_frame, replacement_frame, EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld,
-    PlayerController, PlayerInput, PlayerPose, SurfaceSelection,
+    initial_frame, replacement_frame, terrain_texture_resource, EditKind, EditOutcome, EditReceipt,
+    EditRejection, GameWorld, PlayerController, PlayerInput, PlayerPose, SurfaceSelection,
 };
 
 pub const SESSION_PROTOCOL_VERSION: u32 = 2;
@@ -97,6 +97,7 @@ pub enum ServerMessage {
     Welcome {
         readout: SessionReadout,
         frame: RenderFrameDiff,
+        resources: Vec<SessionResourceReadout>,
     },
     Update {
         update: SessionUpdate,
@@ -106,6 +107,25 @@ pub enum ServerMessage {
         message: String,
         readout: SessionReadout,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SessionResourceReadout {
+    pub identity: String,
+    pub content_hash: String,
+    pub media_type: &'static str,
+    pub url: &'static str,
+}
+
+pub fn session_resources() -> Result<Vec<SessionResourceReadout>, String> {
+    let resource = terrain_texture_resource()?;
+    Ok(vec![SessionResourceReadout {
+        identity: resource.identity,
+        content_hash: resource.content_hash,
+        media_type: resource.media_type,
+        url: resource.url,
+    }])
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

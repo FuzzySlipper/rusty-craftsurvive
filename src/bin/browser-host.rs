@@ -19,7 +19,8 @@ use axum::{
 };
 use futures_util::StreamExt;
 use rusty_craftsurvive::{
-    ClientMessage, GameSession, ServerMessage, SurfaceSelection, MAX_SESSION_MESSAGE_BYTES,
+    session_resources, ClientMessage, GameSession, ServerMessage, SurfaceSelection,
+    MAX_SESSION_MESSAGE_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpListener, sync::Mutex};
@@ -171,10 +172,19 @@ async fn serve_session(mut socket: WebSocket, session: Arc<Mutex<GameSession>>) 
         let mut session = session.lock().await;
         session.connect().map(|(readout, frame)| {
             let generation = readout.generation;
-            (generation, ServerMessage::Welcome { readout, frame })
+            session_resources().map(|resources| {
+                (
+                    generation,
+                    ServerMessage::Welcome {
+                        readout,
+                        frame,
+                        resources,
+                    },
+                )
+            })
         })
     };
-    let Ok((generation, welcome)) = connected else {
+    let Ok(Ok((generation, welcome))) = connected else {
         let _ = socket.send(Message::Close(None)).await;
         return;
     };

@@ -1,4 +1,7 @@
-import type { RustyApplicationUiContext } from '@rusty-engine/application-host';
+import type {
+  RustyApplicationResource,
+  RustyApplicationUiContext,
+} from '@rusty-engine/application-host';
 
 type Surface = 'box' | 'marchingCubes' | 'dualContouring';
 interface CameraPose { position: [number, number, number]; yawDegrees: number; pitchDegrees: number }
@@ -11,9 +14,16 @@ interface Readout {
 interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number }
 interface EditRejectionReadout { code: string; voxel: [number, number, number] }
 type ServerMessage =
-  | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown> }
+  | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown>; resources: ResourceReadout[] }
   | { kind: 'update'; update: { readout: Readout; action: 'destroy' | 'place' | null; edit: EditReadout | null; editRejection: EditRejectionReadout | null; frame: Record<string, unknown> | null } }
   | { kind: 'rejected'; code: string; message: string; readout: Readout };
+
+interface ResourceReadout {
+  identity: string;
+  contentHash: string;
+  mediaType: string;
+  url: string;
+}
 
 export interface SessionView {
   status(text: string): void;
@@ -119,7 +129,9 @@ export class SessionClient {
     }
     const update = message.kind === 'welcome' ? message : message.update;
     if (message.kind === 'welcome') {
-      const receipt = await this.#context.renderer.replaceFrame(message.frame);
+      const receipt = message.resources.length === 0
+        ? await this.#context.renderer.replaceFrame(message.frame)
+        : await this.#replaceTexturedContent(message.frame, message.resources, epoch);
       if (!this.#active(epoch)) return;
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
       this.#generation = message.readout.generation;
@@ -133,6 +145,18 @@ export class SessionClient {
     if ('edit' in update && update.edit !== null) this.#view.edit(update.edit);
     else if ('editRejection' in update && update.editRejection !== null) this.#view.reject(update.editRejection);
     else if ('action' in update && update.action !== null) this.#view.miss(update.action, update.readout.targetedVoxel);
+  }
+
+  async #replaceTexturedContent(
+    frame: Record<string, unknown>,
+    readouts: ResourceReadout[],
+    epoch: number,
+  ) {
+    const resources = await Promise.all(readouts.map(fetchResource));
+    if (!this.#active(epoch)) {
+      return { applied: false, diagnostics: [{ code: 'stale_session', message: 'session changed' }] };
+    }
+    return this.#context.renderer.replaceContent({ frame, resources });
   }
 
   #applyReadout(readout: Readout): void {
@@ -174,7 +198,14 @@ function decodeServerMessage(raw: string): ServerMessage {
   const object = record(value, 'server message');
   const kind = text(object['kind'], 'server message kind');
   if (kind === 'welcome') {
-    return { kind, readout: decodeReadout(object['readout']), frame: record(object['frame'], 'welcome frame') };
+    return {
+      kind,
+      readout: decodeReadout(object['readout']),
+      frame: record(object['frame'], 'welcome frame'),
+      resources: object['resources'] === undefined
+        ? []
+        : list(object['resources'], 'welcome resources').map(decodeResource),
+    };
   }
   if (kind === 'update') {
     const update = record(object['update'], 'session update');
@@ -198,6 +229,32 @@ function decodeServerMessage(raw: string): ServerMessage {
     };
   }
   throw new Error(`unsupported Rust session message kind: ${kind}`);
+}
+
+function decodeResource(value: unknown): ResourceReadout {
+  const object = record(value, 'session resource');
+  const identity = text(object['identity'], 'resource identity');
+  const contentHash = text(object['contentHash'], 'resource content hash');
+  const mediaType = text(object['mediaType'], 'resource media type');
+  const url = text(object['url'], 'resource URL');
+  if (!identity.startsWith('texture-resource/') || !contentHash.startsWith('sha256:')) {
+    throw new Error('session texture resource has invalid content identity');
+  }
+  if (mediaType !== 'image/png' || !url.startsWith('/assets/')) {
+    throw new Error('session texture resource has invalid media or URL');
+  }
+  return { identity, contentHash, mediaType, url };
+}
+
+async function fetchResource(resource: ResourceReadout): Promise<RustyApplicationResource> {
+  const response = await fetch(resource.url, { cache: 'no-store' });
+  if (!response.ok) throw new Error(`texture resource ${resource.url} returned ${String(response.status)}`);
+  return {
+    identity: resource.identity,
+    contentHash: resource.contentHash,
+    mediaType: resource.mediaType,
+    bytes: new Uint8Array(await response.arrayBuffer()),
+  };
 }
 
 function decodeReadout(value: unknown): Readout {
@@ -248,6 +305,11 @@ function decodeEditRejection(value: unknown): EditRejectionReadout {
 function record(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`${label} must be an object`);
   return value as Record<string, unknown>;
+}
+
+function list(value: unknown, label: string): unknown[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value;
 }
 
 function text(value: unknown, label: string): string {

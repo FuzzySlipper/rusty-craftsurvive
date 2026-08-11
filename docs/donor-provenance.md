@@ -11,4 +11,6 @@ architecture wholesale.
 | `rusty-engine-voxels` | Startup comparison posture for greedy cubes, marching cubes, and dual contouring over equivalent voxel cells | Voxelization pipelines, Studio playback, sprite/video inputs, kit baking, density calibration, asset-specific experiments |
 
 No asset files or source files were copied verbatim. The implementation uses current public Engine
-facade APIs and owns only CraftSurvive-specific composition.
+facade APIs and owns only CraftSurvive-specific composition. The terrain source images are original
+OpenAI image-generation outputs made for this repository; their prompts, mechanical atlas build,
+layout, and hash are recorded under `content/textures/`.

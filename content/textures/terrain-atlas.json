@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "image": "terrain-atlas.png",
+  "contentHash": "sha256:d722b7c2af1168cd3d77a5bbcc351156a94c3b77c803fd4641e53eb98d41bf2f",
+  "extent": [128, 128],
+  "tileExtent": [64, 64],
+  "filter": "nearest",
+  "wrap": "clamp",
+  "inset": "halfTexel",
+  "regions": [
+    { "id": "grass-top", "materialSlot": 1, "contentMin": [0, 0], "source": "source/grass-top-gpt.png" },
+    { "id": "grass-side", "materialSlot": 4, "contentMin": [64, 0], "source": "source/grass-side-gpt.png" },
+    { "id": "dirt", "materialSlot": 2, "contentMin": [0, 64], "source": "source/dirt-gpt.png" },
+    { "id": "stone", "materialSlot": 3, "contentMin": [64, 64], "source": "source/stone-gpt.png" }
+  ]
+}
