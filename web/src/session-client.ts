@@ -68,7 +68,7 @@ export class SessionClient {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const pageQuery = new URLSearchParams(location.search);
     const sessionQuery = new URLSearchParams();
-    for (const name of ['surface', 'seed', 'size']) {
+    for (const name of ['surface', 'seed', 'size', 'course']) {
       const value = pageQuery.get(name);
       if (value !== null) sessionQuery.set(name, value);
     }

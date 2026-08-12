@@ -56,6 +56,28 @@ const tenCommandMovement = async (browser, codes) => {
   }
 };
 
+const movingPlatformSample = async (browser) => {
+  const sample = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  try {
+    const platformUrl = new URL(url);
+    platformUrl.searchParams.set('course', 'platform');
+    await sample.goto(platformUrl.href);
+    await sample.locator('[data-status]').filter({ hasText: 'connected' }).waitFor({ timeout: 15_000 });
+    await waitGrounded(sample);
+    await sample.locator('[data-platform]').filter({ hasNotText: 'none' }).waitFor({ timeout: 5_000 });
+    const before = await vector(sample, '[data-player-position]');
+    await sample.waitForTimeout(300);
+    const after = await vector(sample, '[data-player-position]');
+    const platform = await sample.locator('[data-platform]').textContent();
+    if (Math.abs(after[0] - before[0]) < 0.08) {
+      throw new Error(`moving platform did not visibly carry the player: ${before} -> ${after}; ${platform}`);
+    }
+    return { before, after, platform };
+  } finally {
+    await sample.close();
+  }
+};
+
 try {
   const healthResponse = await fetch(new URL('/health', url));
   const health = await healthResponse.json();
@@ -73,6 +95,7 @@ try {
       || diagonalPerCommand < cardinalPerCommand * 0.7) {
     throw new Error(`ten-command diagonal normalization failed: cardinal=${JSON.stringify(cardinalTenCommand)} diagonal=${JSON.stringify(diagonalTenCommand)}`);
   }
+  const movingPlatform = await movingPlatformSample(browser);
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
@@ -228,6 +251,7 @@ try {
     rightLookYawDelta: rightYaw - initialYaw,
     cardinalTenCommand,
     diagonalTenCommand,
+    movingPlatform,
     landingDrop: initialPosition[1] - landedPosition[1],
     jumpRise: jumpSample[1] - beforeJump[1],
     trenchAndWallPosition: afterCourse,

@@ -19,6 +19,12 @@ pub enum SessionAction {
     Place,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpawnSelection {
+    Route,
+    MovingPlatform,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SessionCommand {
@@ -235,9 +241,25 @@ impl GameSession {
     }
 
     pub fn with_terrain(surface: SurfaceSelection, terrain: TerrainConfig) -> Result<Self, String> {
+        Self::with_terrain_and_spawn(surface, terrain, SpawnSelection::Route)
+    }
+
+    pub fn with_terrain_and_spawn(
+        surface: SurfaceSelection,
+        terrain: TerrainConfig,
+        spawn: SpawnSelection,
+    ) -> Result<Self, String> {
+        let player = match spawn {
+            SpawnSelection::Route => PlayerController::default(),
+            SpawnSelection::MovingPlatform => PlayerController::new(PlayerPose {
+                position: [0.0, 6.05, 9.0],
+                yaw_degrees: 180.0,
+                pitch_degrees: -10.0,
+            })?,
+        };
         Ok(Self {
             world: GameWorld::with_terrain(surface, terrain)?,
-            player: PlayerController::default(),
+            player,
             generation: 0,
             connected: false,
             accepted_sequence: 0,

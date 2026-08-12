@@ -18,8 +18,8 @@ use axum::{
 };
 use futures_util::StreamExt;
 use rusty_craftsurvive::{
-    parse_seed, session_resources, ClientMessage, GameSession, ServerMessage, SurfaceSelection,
-    TerrainConfig, MAX_SESSION_MESSAGE_BYTES,
+    parse_seed, session_resources, ClientMessage, GameSession, ServerMessage, SpawnSelection,
+    SurfaceSelection, TerrainConfig, MAX_SESSION_MESSAGE_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
@@ -116,6 +116,7 @@ struct SessionQuery {
     surface: Option<String>,
     seed: Option<String>,
     size: Option<u16>,
+    course: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -162,7 +163,18 @@ async fn session_upgrade(
         Ok(terrain) => terrain,
         Err(message) => return (StatusCode::BAD_REQUEST, message).into_response(),
     };
-    let session = match GameSession::with_terrain(surface, terrain) {
+    let spawn = match query.course.as_deref() {
+        None | Some("route") => SpawnSelection::Route,
+        Some("platform") => SpawnSelection::MovingPlatform,
+        Some(value) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("unsupported controller course '{value}'"),
+            )
+                .into_response()
+        }
+    };
+    let session = match GameSession::with_terrain_and_spawn(surface, terrain, spawn) {
         Ok(session) => session,
         Err(message) => return (StatusCode::INTERNAL_SERVER_ERROR, message).into_response(),
     };

@@ -58,7 +58,9 @@ http://127.0.0.1:4419/?surface=box&seed=0x2a&size=96
 
 The visible spawn route has an unequal pair of orientation pillars behind the player, a one-voxel
 trench that can be jumped, a narrow bridge whose support can be destroyed, and a tall collision
-wall. All are ordinary island voxels, not test-only geometry. If startup reports missing browser
+wall. `?course=platform` selects an ordinary alternate spawn above the visible moving-platform
+station for a bounded carry check; it does not change world or controller authority. All course
+geometry is ordinary product state, not a hidden test API. If startup reports missing browser
 dependencies, run the pnpm install command above; if it reports a missing Engine crate, confirm the
 adjacent checkout exists.
 

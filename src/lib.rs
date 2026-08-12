@@ -24,7 +24,8 @@ pub use projection::{
 pub use session::{
     session_resources, ClientMessage, GameSession, ServerMessage, SessionAction, SessionCommand,
     SessionEditRejectionReadout, SessionError, SessionErrorOrRuntime, SessionReadout,
-    SessionResourceReadout, SessionUpdate, MAX_SESSION_MESSAGE_BYTES, SESSION_PROTOCOL_VERSION,
+    SessionResourceReadout, SessionUpdate, SpawnSelection, MAX_SESSION_MESSAGE_BYTES,
+    SESSION_PROTOCOL_VERSION,
 };
 pub use terrain_texture::{terrain_texture_resource, TerrainTextureResource, TERRAIN_ATLAS_URL};
 pub use world::{

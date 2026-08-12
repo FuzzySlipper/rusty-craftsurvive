@@ -146,7 +146,7 @@ fn install_playable_route(voxels: &mut BTreeMap<[i64; 3], u16>, depth: i64) {
     // shallow recess immediately beyond the original spawn lane and remains visible/playable in
     // every presentation mode.
     for x in -3..=3 {
-        for z in -5..=-3 {
+        for z in 8..=10 {
             for y in 3..=24 {
                 voxels.remove(&[x, y, z]);
             }

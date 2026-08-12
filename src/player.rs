@@ -13,7 +13,7 @@ use rusty_engine::{
 const FIXED_STEP_SECONDS: f32 = 1.0 / 120.0;
 const PLAYER_ENTITY: EntityId = EntityId::new(1);
 const PLATFORM_ENTITY: EntityId = EntityId::new(2);
-pub const PLATFORM_INITIAL_CENTER: [f32; 3] = [0.0, 4.25, -4.0];
+pub const PLATFORM_INITIAL_CENTER: [f32; 3] = [0.0, 4.25, 9.0];
 pub const PLATFORM_HALF_EXTENTS: [f32; 3] = [1.5, 0.25, 0.9];
 const STANDING_EYE_HEIGHT: f32 = 1.55;
 const CROUCHED_EYE_HEIGHT: f32 = 0.85;
@@ -703,7 +703,7 @@ mod tests {
     fn product_platform_is_an_active_engine_support_and_carries_the_player() {
         let scene = VoxelCollisionScene::from_solid_voxels(1.0, 16, []).unwrap();
         let mut player = PlayerController::new(PlayerPose {
-            position: [0.0, 6.05, -4.0],
+            position: [0.0, 6.05, 9.0],
             yaw_degrees: 0.0,
             pitch_degrees: 0.0,
         })
