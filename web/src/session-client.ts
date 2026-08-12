@@ -19,7 +19,13 @@ interface Readout {
   meshVertices: number; meshTriangles: number;
   generationMs: number; authorityBuildMs: number; meshBuildMs: number;
 }
-interface EditReadout { action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number; affectedVoxels: number; meshBuildMs: number; editMs: number }
+interface EditReadout {
+  action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number;
+  affectedVoxels: number; meshBuildMs: number; editMs: number;
+  dirtyChunks: number; rebuiltChunks: number; reusedChunks: number; removedChunks: number;
+  frameOperations: number; encodedBytes: number; replacementCount: number; destroyCount: number;
+  changedHandles: number[];
+}
 interface EditRejectionReadout { code: string; voxel: [number, number, number] }
 type ServerMessage =
   | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown>; resources: ResourceReadout[] }
@@ -343,6 +349,16 @@ function decodeEdit(value: unknown): EditReadout {
     affectedVoxels: integer(object['affectedVoxels'], 'affected voxels'),
     meshBuildMs: number(object['meshBuildMs'], 'edit mesh build time'),
     editMs: number(object['editMs'], 'edit time'),
+    dirtyChunks: integer(object['dirtyChunks'], 'dirty chunks'),
+    rebuiltChunks: integer(object['rebuiltChunks'], 'rebuilt chunks'),
+    reusedChunks: integer(object['reusedChunks'], 'reused chunks'),
+    removedChunks: integer(object['removedChunks'], 'removed chunks'),
+    frameOperations: integer(object['frameOperations'], 'frame operations'),
+    encodedBytes: integer(object['encodedBytes'], 'encoded frame bytes'),
+    replacementCount: integer(object['replacementCount'], 'replacement count'),
+    destroyCount: integer(object['destroyCount'], 'destroy count'),
+    changedHandles: list(object['changedHandles'], 'changed handles')
+      .map((value) => integer(value, 'changed handle')),
   };
 }
 

@@ -242,7 +242,11 @@ impl PlayerController {
 
     #[cfg(test)]
     pub(crate) fn overlaps_scene(&self, scene: &VoxelCollisionScene) -> bool {
-        let (min, max) = self.capsule_bounds();
+        let (mut min, mut max) = self.capsule_bounds();
+        for axis in 0..3 {
+            min[axis] += 1.0e-6;
+            max[axis] -= 1.0e-6;
+        }
         scene.aabb_overlaps_solid(min, max)
     }
 

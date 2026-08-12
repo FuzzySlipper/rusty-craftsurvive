@@ -2,8 +2,9 @@
 
 The initial experiment is intentionally bounded:
 
-- one seeded, size-bounded generated island is fully resident and remeshed as a whole after an
-  edit; there is no streaming, chunk eviction, biome system, or general procgen framework;
+- one seeded, size-bounded generated island is fully resident; accepted edits rebuild and publish
+  only Engine-reported dirty mesh chunks, but there is not yet streaming, chunk eviction, a biome
+  system, or a general procgen framework;
 - movement uses the reusable Engine fixed-step kinematic capsule controller with checked product
   tuning, crouch/stand clearance, slopes, steps, floor snap, moving-platform carry, and external
   impulses; CraftSurvive does not expose a general rigid-body framework;
@@ -15,9 +16,9 @@ The initial experiment is intentionally bounded:
 - MC/DC use per-triangle geometric-normal dominant-plane world-space texture projection because
   reconstructed Engine meshes do not carry greedy tile coordinates; steep grass selects the side
   tile, but sharp projection-axis transitions can remain visually abrupt;
-- the finite terrain is still coherently rebuilt after each accepted edit; optimized box-mode
-  edits are interactive, while expanded textured MC/DC streams retain higher browser transfer and
-  apply costs until the renderer owns a bounded incremental mesh-update contract;
+- collision and navigation projections are still rebuilt coherently across the finite resident
+  authority after each accepted edit. Retained rendering is chunk-granular, while expanded textured
+  MC/DC dirty chunks retain higher rebuild, transfer, and apply costs than greedy boxes;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
 - there is no save format, inventory, crafting, survival simulation, streaming, networking, or
   Studio project adapter;

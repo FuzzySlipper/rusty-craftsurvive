@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use rusty_engine::{
+    engine_spatial::{VoxelCollisionScene, VoxelMeshChunk},
     render_model::{
         Geometry, Material, MeshAttribute, MeshAttributeKind, MeshAttributeName,
         MeshBoundsDescriptor, MeshBufferLayout, MeshGroupDescriptor, MeshIndexWidth,
@@ -11,67 +12,126 @@ use rusty_engine::{
         PresentationFrameDiff, PresentationOp, PresentationOpMeta, TelemetryOverlayCorner,
         TelemetryOverlayDescriptor, TelemetryOverlayHandle, TelemetryOverlayProjectionOp,
     },
-    svc_mesh::{MeshPayload, SurfaceMode},
+    render_projection::{VoxelProjectionInstance, VoxelRenderProjector},
+    svc_mesh::{MeshBounds, MeshGroup, MeshPayload, MeshStats, SurfaceMode},
 };
 
 use crate::{
-    terrain_texture::terrain_material_ops, SurfaceSelection, PLATFORM_HALF_EXTENTS,
+    terrain_materials, terrain_texture_op, SurfaceSelection, PLATFORM_HALF_EXTENTS,
     PLATFORM_INITIAL_CENTER,
 };
 
-const TERRAIN_HANDLE: RenderHandle = RenderHandle::new(1);
 const PLATFORM_HANDLE: RenderHandle = RenderHandle::new(2);
+const TERRAIN_INSTANCE: &str = "craftsurvive-terrain";
 
-pub fn initial_frame(mesh: &MeshPayload) -> Result<RenderFrameDiff, String> {
-    let mut operations = terrain_material_ops()?;
-    operations.extend([
-        RenderDiff::Create {
-            handle: TERRAIN_HANDLE,
-            parent: None,
-            node: RenderNode {
-                geometry: Geometry::Cube,
-                material: Material {
-                    color: [1.0; 4],
-                    wireframe: false,
+#[derive(Debug)]
+pub struct TerrainProjector {
+    inner: VoxelRenderProjector,
+    initialized: bool,
+}
+
+impl Default for TerrainProjector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TerrainProjector {
+    pub fn new() -> Self {
+        Self {
+            inner: VoxelRenderProjector::with_publication_stream("craftsurvive:terrain:v1"),
+            initialized: false,
+        }
+    }
+
+    pub fn project(
+        &mut self,
+        scene: &VoxelCollisionScene,
+        platform_position: [f64; 3],
+        platform_changed: bool,
+    ) -> Result<RenderFrameDiff, String> {
+        let display_materials = terrain_materials()?;
+        let mut projection_materials = display_materials.clone();
+        for material in projection_materials.values_mut() {
+            material.texture = None;
+            material.voxel_surface = None;
+        }
+        let mut result = self
+            .inner
+            .project(
+                &[VoxelProjectionInstance {
+                    instance_id: TERRAIN_INSTANCE.to_owned(),
+                    asset_id: "craftsurvive-terrain-v1".to_owned(),
+                    transform: Transform::IDENTITY,
+                    scene,
+                }],
+                &projection_materials,
+            )
+            .map_err(|error| format!("project retained terrain chunks: {error:?}"))?;
+
+        for operation in &mut result.frame.ops {
+            match operation {
+                RenderDiff::DefineMaterial { material } => {
+                    *material = display_materials
+                        .values()
+                        .find(|candidate| candidate.id == material.id)
+                        .cloned()
+                        .ok_or_else(|| {
+                            format!("terrain projector emitted unknown material {}", material.id)
+                        })?;
+                }
+                RenderDiff::ReplaceMeshPayload { handle, payload } => {
+                    let chunk = scene
+                        .mesh_chunks()
+                        .iter()
+                        .find(|chunk| {
+                            self.inner.chunk_handle(TERRAIN_INSTANCE, chunk.chunk) == Some(*handle)
+                        })
+                        .ok_or_else(|| {
+                            format!("terrain projector emitted unknown chunk handle {handle:?}")
+                        })?;
+                    *payload = mesh_descriptor(&chunk_mesh(chunk), chunk.translation)?;
+                }
+                _ => {}
+            }
+        }
+
+        let mut extra = Vec::new();
+        if !self.initialized {
+            result.frame.ops.insert(0, terrain_texture_op()?);
+            extra.push(RenderDiff::Create {
+                handle: PLATFORM_HANDLE,
+                parent: None,
+                node: RenderNode {
+                    geometry: Geometry::Cube,
+                    material: Material {
+                        color: [0.95, 0.65, 0.12, 1.0],
+                        wireframe: false,
+                    },
+                    transform: platform_transform(PLATFORM_INITIAL_CENTER.map(f64::from)),
+                    visible: true,
+                    layer: RenderLayer::Scene,
+                    metadata: RenderMetadata {
+                        source_entity: None,
+                        source_scene_node: None,
+                        tags: vec!["craftsurvive-moving-platform".to_owned()],
+                        label: Some("Rust-authoritative moving platform".to_owned()),
+                    },
                 },
-                transform: Transform::IDENTITY,
-                visible: true,
-                layer: RenderLayer::Scene,
-                metadata: RenderMetadata {
-                    source_entity: None,
-                    source_scene_node: None,
-                    tags: vec!["craftsurvive-terrain".to_owned()],
-                    label: Some("Rust-authoritative island terrain".to_owned()),
-                },
-            },
-        },
-        RenderDiff::ReplaceMeshPayload {
-            handle: TERRAIN_HANDLE,
-            payload: mesh_descriptor(mesh)?,
-        },
-        RenderDiff::Create {
-            handle: PLATFORM_HANDLE,
-            parent: None,
-            node: RenderNode {
-                geometry: Geometry::Cube,
-                material: Material {
-                    color: [0.95, 0.65, 0.12, 1.0],
-                    wireframe: false,
-                },
-                transform: platform_transform(PLATFORM_INITIAL_CENTER.map(f64::from)),
-                visible: true,
-                layer: RenderLayer::Scene,
-                metadata: RenderMetadata {
-                    source_entity: None,
-                    source_scene_node: None,
-                    tags: vec!["craftsurvive-moving-platform".to_owned()],
-                    label: Some("Rust-authoritative moving platform".to_owned()),
-                },
-            },
-        },
-    ]);
-    RenderFrameDiff::try_from_ops(operations)
-        .map_err(|error| format!("build initial render frame: {error:?}"))
+            });
+        } else if platform_changed {
+            extra.push(RenderDiff::Update {
+                handle: PLATFORM_HANDLE,
+                transform: Some(platform_transform(platform_position)),
+                material: None,
+                visible: None,
+                metadata: None,
+            });
+        }
+        append_published_ops(&mut result.frame, extra)?;
+        self.initialized = true;
+        Ok(result.frame)
+    }
 }
 
 pub fn platform_frame(position: [f64; 3]) -> Result<RenderFrameDiff, String> {
@@ -85,26 +145,6 @@ pub fn platform_frame(position: [f64; 3]) -> Result<RenderFrameDiff, String> {
     .map_err(|error| format!("build moving platform frame: {error:?}"))
 }
 
-pub fn replacement_and_platform_frame(
-    mesh: &MeshPayload,
-    position: [f64; 3],
-) -> Result<RenderFrameDiff, String> {
-    RenderFrameDiff::try_from_ops(vec![
-        RenderDiff::ReplaceMeshPayload {
-            handle: TERRAIN_HANDLE,
-            payload: mesh_descriptor(mesh)?,
-        },
-        RenderDiff::Update {
-            handle: PLATFORM_HANDLE,
-            transform: Some(platform_transform(position)),
-            material: None,
-            visible: None,
-            metadata: None,
-        },
-    ])
-    .map_err(|error| format!("build terrain and platform frame: {error:?}"))
-}
-
 fn platform_transform(position: [f64; 3]) -> Transform {
     Transform {
         translation: position.map(|value| value as f32),
@@ -113,12 +153,51 @@ fn platform_transform(position: [f64; 3]) -> Transform {
     }
 }
 
-pub fn replacement_frame(mesh: &MeshPayload) -> Result<RenderFrameDiff, String> {
-    RenderFrameDiff::try_from_ops(vec![RenderDiff::ReplaceMeshPayload {
-        handle: TERRAIN_HANDLE,
-        payload: mesh_descriptor(mesh)?,
-    }])
-    .map_err(|error| format!("build replacement render frame: {error:?}"))
+fn append_published_ops(
+    frame: &mut RenderFrameDiff,
+    operations: impl IntoIterator<Item = RenderDiff>,
+) -> Result<(), String> {
+    frame.ops.extend(operations);
+    if let Some(publication) = &mut frame.publication {
+        publication.operation_count = u32::try_from(frame.ops.len())
+            .map_err(|_| "terrain frame operation count exceeds u32".to_owned())?;
+    }
+    frame
+        .validate()
+        .map_err(|error| format!("validate terrain publication: {error:?}"))
+}
+
+fn chunk_mesh(chunk: &VoxelMeshChunk) -> MeshPayload {
+    MeshPayload {
+        surface_mode: chunk.surface_mode,
+        positions: chunk.positions.clone(),
+        normals: chunk.normals.clone(),
+        tile_coordinates: chunk.tile_coordinates.clone(),
+        indices: chunk.indices.clone(),
+        groups: chunk
+            .groups
+            .iter()
+            .map(|group| MeshGroup {
+                material_slot: group.material_slot,
+                start: group.start,
+                count: group.count,
+            })
+            .collect(),
+        bounds: MeshBounds {
+            min: chunk.bounds_min,
+            max: chunk.bounds_max,
+        },
+        stats: MeshStats {
+            surface_mode: chunk.surface_mode,
+            vertices: chunk.vertices,
+            indices: chunk.indices.len() as u32,
+            triangles: chunk.indices.len() as u32 / 3,
+            quads: chunk.quads,
+            faces_emitted: chunk.quads,
+            faces_culled: chunk.faces_culled,
+            ..MeshStats::default()
+        },
+    }
 }
 
 pub fn telemetry_frame(surface: SurfaceSelection) -> Result<PresentationFrameDiff, String> {
@@ -141,8 +220,11 @@ pub fn telemetry_frame(surface: SurfaceSelection) -> Result<PresentationFrameDif
     .map_err(|error| format!("build telemetry presentation: {error:?}"))
 }
 
-fn mesh_descriptor(mesh: &MeshPayload) -> Result<MeshPayloadDescriptor, String> {
-    let streams = presentation_streams(mesh)?;
+fn mesh_descriptor(
+    mesh: &MeshPayload,
+    world_translation: [f32; 3],
+) -> Result<MeshPayloadDescriptor, String> {
+    let streams = presentation_streams(mesh, world_translation)?;
     let vertex_count = u32::try_from(streams.positions.len() / 3)
         .map_err(|_| "terrain vertex count exceeds u32".to_owned())?;
     let index_count = u32::try_from(streams.indices.len())
@@ -193,9 +275,12 @@ struct PresentationStreams {
     groups: Vec<MeshGroupDescriptor>,
 }
 
-fn presentation_streams(mesh: &MeshPayload) -> Result<PresentationStreams, String> {
+fn presentation_streams(
+    mesh: &MeshPayload,
+    world_translation: [f32; 3],
+) -> Result<PresentationStreams, String> {
     if mesh.surface_mode != SurfaceMode::GreedyCubes {
-        return reconstructed_presentation_streams(mesh);
+        return reconstructed_presentation_streams(mesh, world_translation);
     }
 
     let mut lanes = BTreeMap::<u16, Vec<u32>>::new();
@@ -238,13 +323,16 @@ fn presentation_streams(mesh: &MeshPayload) -> Result<PresentationStreams, Strin
     Ok(PresentationStreams {
         positions: mesh.positions.clone(),
         normals: mesh.normals.clone(),
-        uvs: world_projected_vertex_uvs(mesh)?,
+        uvs: world_projected_vertex_uvs(mesh, world_translation)?,
         indices,
         groups,
     })
 }
 
-fn world_projected_vertex_uvs(mesh: &MeshPayload) -> Result<Vec<f32>, String> {
+fn world_projected_vertex_uvs(
+    mesh: &MeshPayload,
+    world_translation: [f32; 3],
+) -> Result<Vec<f32>, String> {
     let vertex_count = mesh.positions.len() / 3;
     if !mesh.positions.len().is_multiple_of(3) || mesh.normals.len() != mesh.positions.len() {
         return Err("terrain position and normal streams are misaligned".to_owned());
@@ -253,7 +341,10 @@ fn world_projected_vertex_uvs(mesh: &MeshPayload) -> Result<Vec<f32>, String> {
     for vertex in 0..vertex_count {
         let position = vertex3(&mesh.positions, vertex, "position")?;
         let normal = vertex3(&mesh.normals, vertex, "normal")?;
-        uvs.extend_from_slice(&project_position(position, dominant_axis(normal)));
+        uvs.extend_from_slice(&project_position(
+            add3(position, world_translation),
+            dominant_axis(normal),
+        ));
     }
     Ok(uvs)
 }
@@ -267,7 +358,10 @@ fn quad_normal_y(mesh: &MeshPayload, quad: &[u32]) -> Result<f32, String> {
     Ok(*normal_y)
 }
 
-fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<PresentationStreams, String> {
+fn reconstructed_presentation_streams(
+    mesh: &MeshPayload,
+    world_translation: [f32; 3],
+) -> Result<PresentationStreams, String> {
     let mut positions = Vec::with_capacity(mesh.indices.len() * 3);
     let mut normals = Vec::with_capacity(mesh.indices.len() * 3);
     let mut uvs = Vec::with_capacity(mesh.indices.len() * 2);
@@ -312,7 +406,10 @@ fn reconstructed_presentation_streams(mesh: &MeshPayload) -> Result<Presentation
                     .map_err(|_| "expanded terrain vertex count exceeds u32")?;
                 positions.extend_from_slice(&position);
                 normals.extend_from_slice(&normal);
-                uvs.extend_from_slice(&project_position(position, uv_axis));
+                uvs.extend_from_slice(&project_position(
+                    add3(position, world_translation),
+                    uv_axis,
+                ));
                 target_triangle[corner] = target_index;
             }
             lanes
@@ -435,6 +532,10 @@ fn subtract3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
     [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
 }
 
+fn add3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+    [left[0] + right[0], left[1] + right[1], left[2] + right[2]]
+}
+
 fn cross3(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
     [
         left[1] * right[2] - left[2] * right[1],
@@ -463,14 +564,17 @@ fn vertex3(stream: &[f32], vertex: usize, label: &str) -> Result<[f32; 3], Strin
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
-    use crate::GameWorld;
+    use crate::{EditKind, EditOutcome, GameWorld, PlayerController, TerrainConfig};
 
     #[test]
     fn frame_contract_accepts_every_surface_mode() {
         for surface in SurfaceSelection::ALL {
             let world = GameWorld::new(surface).unwrap();
-            initial_frame(world.presentation_mesh())
+            TerrainProjector::new()
+                .project(world.scene(), PLATFORM_INITIAL_CENTER.map(f64::from), true)
                 .unwrap()
                 .validate()
                 .unwrap();
@@ -479,21 +583,106 @@ mod tests {
     }
 
     #[test]
+    fn accepted_edits_replace_only_stable_dirty_chunk_handles_in_every_mode() {
+        for surface in SurfaceSelection::ALL {
+            let mut world =
+                GameWorld::with_terrain(surface, TerrainConfig::new(0x5eed, 32).unwrap()).unwrap();
+            let mut projector = TerrainProjector::new();
+            projector
+                .project(world.scene(), PLATFORM_INITIAL_CENTER.map(f64::from), true)
+                .unwrap();
+            let handles = world
+                .scene()
+                .mesh_chunks()
+                .iter()
+                .map(|chunk| {
+                    (
+                        chunk.chunk,
+                        projector
+                            .inner
+                            .chunk_handle(TERRAIN_INSTANCE, chunk.chunk)
+                            .unwrap(),
+                    )
+                })
+                .collect::<BTreeMap<_, _>>();
+            let EditOutcome::Applied(receipt) = world
+                .edit_from_view(
+                    [0.5, 10.5, 7.5],
+                    [0.0, -1.0, 0.0],
+                    EditKind::Destroy,
+                    0,
+                    &PlayerController::default(),
+                )
+                .unwrap()
+            else {
+                panic!("expected a visible single-voxel edit")
+            };
+            let frame = projector
+                .project(world.scene(), PLATFORM_INITIAL_CENTER.map(f64::from), false)
+                .unwrap();
+            let changed = frame
+                .ops
+                .iter()
+                .filter_map(|operation| match operation {
+                    RenderDiff::ReplaceMeshPayload { handle, .. }
+                    | RenderDiff::Destroy { handle } => Some(*handle),
+                    _ => None,
+                })
+                .collect::<BTreeSet<_>>();
+            assert_eq!(
+                changed.len(),
+                receipt.rebuilt_chunks + receipt.removed_chunks
+            );
+            assert!(changed.len() < handles.len());
+            for chunk in world.scene().mesh_chunks() {
+                let handle = projector
+                    .inner
+                    .chunk_handle(TERRAIN_INSTANCE, chunk.chunk)
+                    .unwrap();
+                if let Some(previous) = handles.get(&chunk.chunk) {
+                    assert_eq!(&handle, previous);
+                }
+            }
+            assert!(handles.values().any(|handle| !changed.contains(handle)));
+        }
+    }
+
+    #[test]
     fn textured_box_frame_splits_grass_top_and_keeps_side_texture_upright() {
         let world = GameWorld::new(SurfaceSelection::Box).unwrap();
-        let streams = presentation_streams(world.presentation_mesh()).unwrap();
-        let frame = initial_frame(world.presentation_mesh()).unwrap();
+        let (chunk, mesh, streams) = world
+            .scene()
+            .mesh_chunks()
+            .iter()
+            .find_map(|chunk| {
+                let mesh = chunk_mesh(chunk);
+                let streams = presentation_streams(&mesh, chunk.translation).ok()?;
+                streams
+                    .groups
+                    .iter()
+                    .any(|group| group.material_slot == 4)
+                    .then_some((chunk, mesh, streams))
+            })
+            .expect("terrain chunk with a grass-side lane");
+        let frame = TerrainProjector::new()
+            .project(world.scene(), PLATFORM_INITIAL_CENTER.map(f64::from), true)
+            .unwrap();
         frame.validate().unwrap();
-        let payload = frame
+        let payloads = frame
             .ops
             .iter()
-            .find_map(|operation| match operation {
+            .filter_map(|operation| match operation {
                 RenderDiff::ReplaceMeshPayload { payload, .. } => Some(payload),
                 _ => None,
             })
-            .unwrap();
-        assert!(payload.groups.iter().any(|group| group.material_slot == 1));
-        assert!(payload.groups.iter().any(|group| group.material_slot == 4));
+            .collect::<Vec<_>>();
+        assert!(payloads
+            .iter()
+            .any(|payload| payload.groups.iter().any(|group| group.material_slot == 1)));
+        assert!(payloads
+            .iter()
+            .any(|payload| payload.groups.iter().any(|group| group.material_slot == 4)));
+        let payload = mesh_descriptor(&mesh, chunk.translation).unwrap();
         let MeshPayloadSource::Inline { uvs, .. } = &payload.source else {
             panic!("terrain projection must remain inline")
         };
@@ -523,30 +712,33 @@ mod tests {
             SurfaceSelection::DualContouring,
         ] {
             let world = GameWorld::new(surface).unwrap();
-            let frame = initial_frame(world.presentation_mesh()).unwrap();
-            let payload = frame
-                .ops
+            let payloads = world
+                .scene()
+                .mesh_chunks()
                 .iter()
-                .find_map(|operation| match operation {
-                    RenderDiff::ReplaceMeshPayload { payload, .. } => Some(payload),
-                    _ => None,
-                })
-                .unwrap();
-            let MeshPayloadSource::Inline {
-                positions,
-                uvs,
-                indices,
-                ..
-            } = &payload.source
-            else {
-                panic!("terrain projection must remain inline")
-            };
-            let uvs = uvs.as_ref().expect("reconstructed presentation UVs");
-            assert_eq!(uvs.len(), positions.len() / 3 * 2);
-            assert_eq!(indices.len(), positions.len() / 3);
-            assert!(uvs.iter().all(|value| value.is_finite()));
-            assert!(payload.groups.iter().any(|group| group.material_slot == 1));
-            assert!(payload.groups.iter().any(|group| group.material_slot == 4));
+                .map(|chunk| mesh_descriptor(&chunk_mesh(chunk), chunk.translation).unwrap())
+                .collect::<Vec<_>>();
+            for payload in &payloads {
+                let MeshPayloadSource::Inline {
+                    positions,
+                    uvs,
+                    indices,
+                    ..
+                } = &payload.source
+                else {
+                    panic!("terrain projection must remain inline")
+                };
+                let uvs = uvs.as_ref().expect("reconstructed presentation UVs");
+                assert_eq!(uvs.len(), positions.len() / 3 * 2);
+                assert_eq!(indices.len(), positions.len() / 3);
+                assert!(uvs.iter().all(|value| value.is_finite()));
+            }
+            assert!(payloads
+                .iter()
+                .any(|payload| payload.groups.iter().any(|group| group.material_slot == 1)));
+            assert!(payloads
+                .iter()
+                .any(|payload| payload.groups.iter().any(|group| group.material_slot == 4)));
         }
     }
 

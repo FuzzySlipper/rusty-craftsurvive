@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    initial_frame, platform_frame, replacement_frame, telemetry_frame, terrain_texture_resource,
-    DemoConfig, EditKind, EditOutcome, GameWorld, PlayerController, PlayerInput,
+    platform_frame, telemetry_frame, terrain_texture_resource, DemoConfig, EditKind, EditOutcome,
+    GameWorld, PlayerController, PlayerInput, TerrainProjector,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
@@ -22,6 +22,7 @@ use winit::{
 struct CraftSurviveApplication {
     config: DemoConfig,
     world: GameWorld,
+    terrain_projector: TerrainProjector,
     player: PlayerController,
     window: Option<Window>,
     renderer: Option<RendererWebviewAdapter>,
@@ -42,6 +43,7 @@ impl CraftSurviveApplication {
             config,
             world: GameWorld::with_terrain(config.surface, config.terrain)
                 .map_err(anyhow::Error::msg)?,
+            terrain_projector: TerrainProjector::new(),
             player: PlayerController::default(),
             window: None,
             renderer: None,
@@ -90,7 +92,10 @@ impl CraftSurviveApplication {
     fn initialize_renderer(&mut self) -> Result<()> {
         let renderer = self.renderer.as_mut().context("renderer unavailable")?;
         renderer.submit_frame(
-            &initial_frame(self.world.presentation_mesh()).map_err(anyhow::Error::msg)?,
+            &self
+                .terrain_projector
+                .project(self.world.scene(), self.player.platform_position(), true)
+                .map_err(anyhow::Error::msg)?,
         )?;
         renderer.submit_presentation(
             &telemetry_frame(self.config.surface).map_err(anyhow::Error::msg)?,
@@ -177,20 +182,26 @@ impl CraftSurviveApplication {
                 .map_err(anyhow::Error::msg)?
             {
                 EditOutcome::Applied(receipt) => {
+                    let frame = self
+                        .terrain_projector
+                        .project(self.world.scene(), self.player.platform_position(), false)
+                        .map_err(anyhow::Error::msg)?;
                     self.renderer
                         .as_mut()
                         .context("renderer unavailable")?
-                        .submit_frame(
-                            &replacement_frame(self.world.presentation_mesh())
-                                .map_err(anyhow::Error::msg)?,
-                        )?;
+                        .submit_frame(&frame)?;
                     println!(
-                        "CRAFTSURVIVE_EDIT kind={kind:?} voxel={:?} brush={} affected={} revision={} voxels={} mesh_build_ms={:.3} edit_ms={:.3} authority_hash={}",
+                        "CRAFTSURVIVE_EDIT kind={kind:?} voxel={:?} brush={} affected={} revision={} voxels={} dirty_chunks={} rebuilt_chunks={} reused_chunks={} removed_chunks={} frame_ops={} mesh_build_ms={:.3} edit_ms={:.3} authority_hash={}",
                         receipt.voxel,
                         self.brush_radius,
                         receipt.affected_voxels,
                         receipt.revision,
                         receipt.voxel_count,
+                        receipt.dirty_chunks,
+                        receipt.rebuilt_chunks,
+                        receipt.reused_chunks,
+                        receipt.removed_chunks,
+                        frame.ops.len(),
                         receipt.mesh_build_ms,
                         receipt.edit_ms,
                         receipt.authority_hash
@@ -387,15 +398,16 @@ fn main() -> Result<()> {
     let config = DemoConfig::from_args(env::args().skip(1)).map_err(anyhow::Error::msg)?;
     let application = CraftSurviveApplication::new(config)?;
     if config.summary_only {
+        let mesh = application.world.mesh_stats();
         println!(
             "CRAFTSURVIVE_SUMMARY surface={} seed=0x{:016x} size={} voxels={} chunks={} vertices={} triangles={} generation_ms={:.3} authority_build_ms={:.3} mesh_build_ms={:.3} authority_hash={}",
             config.surface.as_str(),
             config.terrain.seed,
             config.terrain.size,
             application.world.scene().solid_voxel_count(),
-            application.world.scene().resident_chunk_count(),
-            application.world.presentation_mesh().stats.vertices,
-            application.world.presentation_mesh().stats.triangles,
+            mesh.chunks,
+            mesh.vertices,
+            mesh.triangles,
             application.world.metrics().generation_ms,
             application.world.metrics().authority_build_ms,
             application.world.metrics().mesh_build_ms,

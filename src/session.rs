@@ -1,10 +1,15 @@
-use rusty_engine::{render_host_contracts::RendererCameraPose, render_model::RenderFrameDiff};
+use std::collections::BTreeSet;
+
+use rusty_engine::{
+    render_host_contracts::RendererCameraPose,
+    render_model::{RenderDiff, RenderFrameDiff},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    initial_frame, platform_frame, replacement_and_platform_frame, terrain_texture_resource,
-    EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld, PlayerController, PlayerInput,
-    PlayerPose, SurfaceSelection, TerrainConfig, MAX_BRUSH_RADIUS,
+    platform_frame, terrain_texture_resource, EditKind, EditOutcome, EditReceipt, EditRejection,
+    GameWorld, PlayerController, PlayerInput, PlayerPose, SurfaceSelection, TerrainConfig,
+    TerrainProjector, MAX_BRUSH_RADIUS,
 };
 
 pub const SESSION_PROTOCOL_VERSION: u32 = 4;
@@ -175,7 +180,7 @@ pub struct SessionUpdate {
     pub frame: Option<RenderFrameDiff>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionEditReadout {
     pub action: SessionAction,
@@ -186,6 +191,15 @@ pub struct SessionEditReadout {
     pub voxel_count: usize,
     pub mesh_build_ms: f64,
     pub edit_ms: f64,
+    pub dirty_chunks: usize,
+    pub rebuilt_chunks: usize,
+    pub reused_chunks: usize,
+    pub removed_chunks: usize,
+    pub frame_operations: usize,
+    pub encoded_bytes: usize,
+    pub replacement_count: usize,
+    pub destroy_count: usize,
+    pub changed_handles: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -228,6 +242,7 @@ impl std::error::Error for SessionError {}
 
 pub struct GameSession {
     world: GameWorld,
+    terrain_projector: TerrainProjector,
     player: PlayerController,
     generation: u64,
     connected: bool,
@@ -259,6 +274,7 @@ impl GameSession {
         };
         Ok(Self {
             world: GameWorld::with_terrain(surface, terrain)?,
+            terrain_projector: TerrainProjector::new(),
             player,
             generation: 0,
             connected: false,
@@ -274,7 +290,12 @@ impl GameSession {
             .ok_or_else(|| SessionError::SessionExhausted.to_string())?;
         self.connected = true;
         self.accepted_sequence = 0;
-        let frame = initial_frame(self.world.presentation_mesh())?;
+        self.terrain_projector = TerrainProjector::new();
+        let frame = self.terrain_projector.project(
+            self.world.scene(),
+            self.player.platform_position(),
+            true,
+        )?;
         Ok((self.readout(), frame))
     }
 
@@ -344,7 +365,7 @@ impl GameSession {
             .map_err(SessionErrorOrRuntime::Runtime)?;
         let _changed = self.player.pose() != pose_before || self.player.motion() != motion_before;
 
-        let (edit, edit_rejection) = match command.action {
+        let (edit_receipt, edit_rejection) = match command.action {
             Some(action) => match self
                 .world
                 .edit_from_view(
@@ -361,23 +382,29 @@ impl GameSession {
             {
                 EditOutcome::Miss => (None, None),
                 EditOutcome::Rejected(rejection) => (None, Some(session_edit_rejection(rejection))),
-                EditOutcome::Applied(receipt) => (Some(session_edit(action, receipt)), None),
+                EditOutcome::Applied(receipt) => (Some((action, receipt)), None),
             },
             None => (None, None),
         };
         let platform_changed = self.player.platform_position() != platform_before;
-        let frame = if edit.is_some() {
-            replacement_and_platform_frame(
-                self.world.presentation_mesh(),
-                self.player.platform_position(),
-            )
-            .map(Some)
+        let frame = if edit_receipt.is_some() {
+            self.terrain_projector
+                .project(
+                    self.world.scene(),
+                    self.player.platform_position(),
+                    platform_changed,
+                )
+                .map(Some)
         } else if platform_changed {
             platform_frame(self.player.platform_position()).map(Some)
         } else {
             Ok(None)
         }
         .map_err(SessionErrorOrRuntime::Runtime)?;
+        let edit = edit_receipt
+            .map(|(action, receipt)| session_edit(action, receipt, frame.as_ref()))
+            .transpose()
+            .map_err(SessionErrorOrRuntime::Runtime)?;
         self.accepted_sequence = sequence;
         Ok(SessionUpdate {
             readout: self.readout(),
@@ -393,7 +420,7 @@ impl GameSession {
         let motion = self.player.motion();
         let terrain = self.world.terrain();
         let metrics = self.world.metrics();
-        let mesh = self.world.presentation_mesh();
+        let mesh = self.world.mesh_stats();
         SessionReadout {
             protocol_version: SESSION_PROTOCOL_VERSION,
             generation: self.generation,
@@ -432,8 +459,8 @@ impl GameSession {
             brush_radius: self.brush_radius,
             terrain_seed: format!("0x{:016x}", terrain.seed),
             terrain_size: terrain.size,
-            mesh_vertices: mesh.stats.vertices,
-            mesh_triangles: mesh.stats.triangles,
+            mesh_vertices: u32::try_from(mesh.vertices).unwrap_or(u32::MAX),
+            mesh_triangles: u32::try_from(mesh.triangles).unwrap_or(u32::MAX),
             generation_ms: metrics.generation_ms,
             authority_build_ms: metrics.authority_build_ms,
             mesh_build_ms: metrics.mesh_build_ms,
@@ -499,8 +526,30 @@ fn validate_command(command: SessionCommand) -> Result<(), SessionError> {
     Ok(())
 }
 
-fn session_edit(action: SessionAction, receipt: EditReceipt) -> SessionEditReadout {
-    SessionEditReadout {
+fn session_edit(
+    action: SessionAction,
+    receipt: EditReceipt,
+    frame: Option<&RenderFrameDiff>,
+) -> Result<SessionEditReadout, String> {
+    let mut replacement_count = 0;
+    let mut destroy_count = 0;
+    let mut changed_handles = BTreeSet::new();
+    if let Some(frame) = frame {
+        for operation in &frame.ops {
+            match operation {
+                RenderDiff::ReplaceMeshPayload { handle, .. } => {
+                    replacement_count += 1;
+                    changed_handles.insert(handle.raw());
+                }
+                RenderDiff::Destroy { handle } => {
+                    destroy_count += 1;
+                    changed_handles.insert(handle.raw());
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(SessionEditReadout {
         action,
         voxel: receipt.voxel,
         revision: receipt.revision,
@@ -509,7 +558,20 @@ fn session_edit(action: SessionAction, receipt: EditReceipt) -> SessionEditReado
         voxel_count: receipt.voxel_count,
         mesh_build_ms: receipt.mesh_build_ms,
         edit_ms: receipt.edit_ms,
-    }
+        dirty_chunks: receipt.dirty_chunks,
+        rebuilt_chunks: receipt.rebuilt_chunks,
+        reused_chunks: receipt.reused_chunks,
+        removed_chunks: receipt.removed_chunks,
+        frame_operations: frame.map_or(0, |frame| frame.ops.len()),
+        encoded_bytes: frame
+            .map(serde_json::to_vec)
+            .transpose()
+            .map_err(|error| format!("encode terrain edit frame metrics: {error}"))?
+            .map_or(0, |encoded| encoded.len()),
+        replacement_count,
+        destroy_count,
+        changed_handles: changed_handles.into_iter().collect(),
+    })
 }
 
 fn session_edit_rejection(rejection: EditRejection) -> SessionEditRejectionReadout {

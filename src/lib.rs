@@ -17,18 +17,18 @@ pub use player::{
     craftsurvive_controller_config, PlayerController, PlayerInput, PlayerMotionReadout, PlayerPose,
     PLATFORM_HALF_EXTENTS, PLATFORM_INITIAL_CENTER,
 };
-pub use projection::{
-    initial_frame, platform_frame, replacement_and_platform_frame, replacement_frame,
-    telemetry_frame,
-};
+pub use projection::{platform_frame, telemetry_frame, TerrainProjector};
 pub use session::{
     session_resources, ClientMessage, GameSession, ServerMessage, SessionAction, SessionCommand,
     SessionEditRejectionReadout, SessionError, SessionErrorOrRuntime, SessionReadout,
     SessionResourceReadout, SessionUpdate, SpawnSelection, MAX_SESSION_MESSAGE_BYTES,
     SESSION_PROTOCOL_VERSION,
 };
-pub use terrain_texture::{terrain_texture_resource, TerrainTextureResource, TERRAIN_ATLAS_URL};
+pub use terrain_texture::{
+    terrain_material_ops, terrain_materials, terrain_texture_op, terrain_texture_resource,
+    TerrainTextureResource, TERRAIN_ATLAS_URL,
+};
 pub use world::{
-    brush_addresses, EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld, WorldMetrics,
-    MAX_BRUSH_RADIUS,
+    brush_addresses, EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld, WorldMeshStats,
+    WorldMetrics, MAX_BRUSH_RADIUS,
 };

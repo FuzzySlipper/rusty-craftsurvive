@@ -110,14 +110,14 @@ pnpm perf:edit
 CRAFTSURVIVE_URL='http://127.0.0.1:4419/?surface=mc' pnpm perf:edit
 ```
 
-The default-size local optimized measurements are a 111,775-voxel authority and 10,694 box /
-93,528 MC / 46,764 DC triangles. A measured box run took 604 ms to usable UI and 226 ms for the
-visible destroy (149 ms Rust edit, including a 37 ms presentation mesh). MC took 1.82 seconds to
-usable UI and 1.30 seconds for the visible destroy; DC took 1.45 seconds and 773 ms. Both
-reconstructed modes still spend most of that end-to-end time transferring and applying expanded
-textured triangle streams after the roughly 160 ms Rust edit. These are diagnostic local
-measurements rather than hardware-independent promises; report regressions with seed, size,
-surface, mesh counts, and probe JSON instead of shrinking the terrain silently.
+The probe also reports dirty/rebuilt handles and encoded frame bytes so a small edit cannot silently
+regress to global replacement. On the default 96-square terrain after chunk publication landed, one
+ordinary destroy dirtied and replaced two stable chunk handles: box emitted about 61 KiB and reached
+the visible result in 254 ms, MC emitted about 680 KiB in 539 ms, and DC emitted about 395 KiB in
+683 ms on the development host. The reconstructed modes remain more expensive, but no mode sends
+the complete world mesh. These are diagnostic local measurements rather than hardware-independent
+promises; report regressions with seed, size, surface, chunk counts, encoded bytes, and probe JSON
+instead of shrinking the terrain silently.
 
 ## Authority and renderer boundary
 
@@ -129,10 +129,11 @@ orchestration, bindings, camera-eye presentation, the visible active moving plat
 product-authored impact action. `FirstPersonLookService` supplies the canonical yaw/pitch basis. A
 break or place operation, including a volume brush, is one revision-checked prepared
 `VoxelEditService` transaction. CraftSurvive rejects the whole transaction when any placement voxel
-overlaps the player capsule or any brush cell leaves the finite world bounds, and builds the
-selected box/MC/DC presentation from the prepared deltas before commit. Engine swaps the rebuilt
-canonical scene only after collision, navigation, canonical chunk mesh, and the selected downstream
-presentation all succeed.
+overlaps the player capsule or any brush cell leaves the finite world bounds. Engine atomically
+publishes the coherent collision, navigation, and selected chunk-mesh revision; the stateful Engine
+voxel projector then creates, replaces, or destroys only those stable retained chunk handles.
+CraftSurvive adapts each emitted chunk payload to its atlas without coalescing chunks or creating
+another world authority.
 The atlas, region metadata, source-image provenance, and deterministic rebuild command live under
 `content/textures/`; texture resources are replaced with the complete initial renderer content and
 remain presentation data rather than voxel authority.
@@ -219,10 +220,10 @@ the deterministic campaign retains the exact bounded-command regression.
 
 ## Current scope
 
-This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, a general
-procgen framework, inventory, crafting, survival stats, persistence, networking, and mobile-specific
-shells. The next useful experiments should stay focused on incremental remeshing and terrain
-calibration before growing product systems. Character tuning and game feel remain downstream;
+This bootstrap deliberately excludes infinite terrain, a general procgen framework, inventory,
+crafting, survival stats, persistence, networking, and mobile-specific shells. Retained terrain
+publication is chunk-granular; the next terrain slice adds bounded residency and eviction without
+changing canonical voxel ownership. Character tuning and game feel remain downstream;
 reusable kinematic movement, collision, and look mechanisms are consumed directly from Engine.
 
 See [donor provenance](docs/donor-provenance.md) and

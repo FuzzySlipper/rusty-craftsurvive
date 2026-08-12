@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rusty_engine::render_model::{
     MaterialUvStrategy, RenderDiff, RenderMaterialDescriptor, TextureDescriptor, TextureFilter,
     TexturePayloadSource, TextureWrap, VoxelAtlasPaddingDescriptor, VoxelAtlasRegionDescriptor,
@@ -40,21 +42,38 @@ pub fn terrain_texture_resource() -> Result<TerrainTextureResource, String> {
 
 pub fn terrain_material_ops() -> Result<Vec<RenderDiff>, String> {
     let texture = terrain_texture_descriptor()?;
-    let definitions = [
-        (1, "grass-top", [0, 0]),
-        (2, "dirt", [0, 64]),
-        (3, "stone", [64, 64]),
-        (4, "grass-side", [64, 0]),
-    ];
     let mut operations = vec![RenderDiff::DefineTexture {
         texture: texture.clone(),
     }];
     operations.extend(
-        definitions.map(|(slot, name, content_min)| RenderDiff::DefineMaterial {
-            material: terrain_material(&texture, slot, name, content_min),
-        }),
+        terrain_materials_with_texture(&texture)
+            .into_values()
+            .map(|material| RenderDiff::DefineMaterial { material }),
     );
     Ok(operations)
+}
+
+pub fn terrain_texture_op() -> Result<RenderDiff, String> {
+    terrain_texture_descriptor().map(|texture| RenderDiff::DefineTexture { texture })
+}
+
+pub fn terrain_materials() -> Result<BTreeMap<u16, RenderMaterialDescriptor>, String> {
+    let texture = terrain_texture_descriptor()?;
+    Ok(terrain_materials_with_texture(&texture))
+}
+
+fn terrain_materials_with_texture(
+    texture: &TextureDescriptor,
+) -> BTreeMap<u16, RenderMaterialDescriptor> {
+    [
+        (1, "grass-top", [0, 0]),
+        (2, "dirt", [0, 64]),
+        (3, "stone", [64, 64]),
+        (4, "grass-side", [64, 0]),
+    ]
+    .into_iter()
+    .map(|(slot, name, content_min)| (slot, terrain_material(texture, slot, name, content_min)))
+    .collect()
 }
 
 fn terrain_texture_descriptor() -> Result<TextureDescriptor, String> {

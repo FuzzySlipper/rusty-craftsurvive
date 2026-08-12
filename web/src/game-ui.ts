@@ -34,7 +34,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       get('[data-platform]').textContent = value.platformEntity === null ? 'none' : `${value.platformEntity} · ${value.platformDisplacement.map((component) => component.toFixed(2)).join(', ')}`;
       get('[data-target]').textContent = value.targetedVoxel === null ? 'out of reach' : value.targetedVoxel.join(', ');
     },
-    edit: (value) => { get('[data-edit]').textContent = `${value.action} ${value.voxel.join(', ')} · ${value.affectedVoxels} voxels · ${value.editMs.toFixed(1)} ms (${value.meshBuildMs.toFixed(1)} mesh) · revision ${value.revision}`; },
+    edit: (value) => { get('[data-edit]').textContent = `${value.action} ${value.voxel.join(', ')} · ${value.affectedVoxels} voxels · ${value.editMs.toFixed(1)} ms (${value.meshBuildMs.toFixed(1)} mesh) · ${value.dirtyChunks} dirty / ${value.replacementCount} replaced / ${value.destroyCount} destroyed · ${value.encodedBytes} bytes · revision ${value.revision}`; },
     reject: (value) => { get('[data-edit]').textContent = `edit rejected · ${value.code} at ${value.voxel.join(', ')}`; },
     miss: (action, target) => { get('[data-edit]').textContent = `${action} missed · ${target === null ? 'nothing in reach' : `target ${target.join(', ')}`}`; },
   };

@@ -139,7 +139,12 @@ test('complete welcome projection serializes a newer incremental update', async 
     kind: 'update',
     update: {
       readout: readout(1, 1), action: 'destroy',
-      edit: { action: 'destroy', voxel: [0, 4, 0], revision: 1, affectedVoxels: 7, meshBuildMs: 12.5, editMs: 18.5 },
+      edit: {
+        action: 'destroy', voxel: [0, 4, 0], revision: 1, affectedVoxels: 7,
+        meshBuildMs: 12.5, editMs: 18.5, dirtyChunks: 2, rebuiltChunks: 2,
+        reusedChunks: 20, removedChunks: 0, frameOperations: 2, encodedBytes: 4096,
+        replacementCount: 2, destroyCount: 0, changedHandles: [17, 18],
+      },
       editRejection: null,
       frame: { schemaVersion: 1, ops: [{ op: 'replaceMeshPayload' }] },
     },

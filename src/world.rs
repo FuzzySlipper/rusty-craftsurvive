@@ -2,12 +2,10 @@ use std::time::Instant;
 
 use rusty_engine::{
     engine_spatial::{
-        VoxelCollisionScene, VoxelEdit, VoxelEditDelta, VoxelEditService, VoxelEditTransaction,
-        VoxelPickHint, VoxelPickService,
+        VoxelCollisionScene, VoxelEdit, VoxelEditService, VoxelEditTransaction, VoxelPickHint,
+        VoxelPickService,
     },
-    svc_mesh::{
-        mesh_cells_standalone_with_options, MeshPayload, MeshVoxelCell, SurfaceMeshOptions,
-    },
+    svc_mesh::SurfaceMeshOptions,
 };
 
 use crate::{generate_island, IslandConfig, PlayerController, SurfaceSelection, TerrainConfig};
@@ -29,6 +27,10 @@ pub struct EditReceipt {
     pub voxel_count: usize,
     pub mesh_build_ms: f64,
     pub edit_ms: f64,
+    pub dirty_chunks: usize,
+    pub rebuilt_chunks: usize,
+    pub reused_chunks: usize,
+    pub removed_chunks: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,7 +58,6 @@ pub enum EditOutcome {
 pub struct GameWorld {
     scene: VoxelCollisionScene,
     surface: SurfaceSelection,
-    presentation_mesh: MeshPayload,
     terrain: TerrainConfig,
     bounds: WorldBounds,
     metrics: WorldMetrics,
@@ -67,6 +68,13 @@ pub struct WorldMetrics {
     pub generation_ms: f64,
     pub authority_build_ms: f64,
     pub mesh_build_ms: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WorldMeshStats {
+    pub chunks: usize,
+    pub vertices: u64,
+    pub triangles: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,22 +107,26 @@ impl GameWorld {
         let voxels = generate_island(island);
         let generation_ms = generation_started.elapsed().as_secs_f64() * 1_000.0;
         let authority_started = Instant::now();
-        let scene = VoxelCollisionScene::from_material_voxels(1.0, 16, voxels)
-            .map_err(|error| format!("build island authority: {error}"))?;
+        let scene = VoxelCollisionScene::from_material_voxels_with_mesh_options(
+            1.0,
+            16,
+            voxels,
+            SurfaceMeshOptions {
+                mode: surface.engine_mode(),
+                ..SurfaceMeshOptions::default()
+            },
+        )
+        .map_err(|error| format!("build island authority: {error}"))?;
         let authority_build_ms = authority_started.elapsed().as_secs_f64() * 1_000.0;
-        let mesh_started = Instant::now();
-        let presentation_mesh = build_presentation_mesh(&scene, surface)?;
-        let mesh_build_ms = mesh_started.elapsed().as_secs_f64() * 1_000.0;
         Ok(Self {
             scene,
             surface,
-            presentation_mesh,
             terrain,
             bounds: WorldBounds::from_island(island),
             metrics: WorldMetrics {
                 generation_ms,
                 authority_build_ms,
-                mesh_build_ms,
+                mesh_build_ms: authority_build_ms,
             },
         })
     }
@@ -127,16 +139,28 @@ impl GameWorld {
         self.surface
     }
 
-    pub const fn presentation_mesh(&self) -> &MeshPayload {
-        &self.presentation_mesh
-    }
-
     pub const fn terrain(&self) -> TerrainConfig {
         self.terrain
     }
 
     pub const fn metrics(&self) -> WorldMetrics {
         self.metrics
+    }
+
+    pub fn mesh_stats(&self) -> WorldMeshStats {
+        self.scene.mesh_chunks().iter().fold(
+            WorldMeshStats {
+                chunks: 0,
+                vertices: 0,
+                triangles: 0,
+            },
+            |mut stats, chunk| {
+                stats.chunks += 1;
+                stats.vertices += u64::from(chunk.vertices);
+                stats.triangles += chunk.indices.len() as u64 / 3;
+                stats
+            },
+        )
     }
 
     pub fn target_from_view(&self, origin: [f64; 3], direction: [f64; 3]) -> Option<[i64; 3]> {
@@ -152,29 +176,6 @@ impl GameWorld {
         kind: EditKind,
         brush_radius: u8,
         player: &PlayerController,
-    ) -> Result<EditOutcome, String> {
-        self.edit_from_view_with_mesh_builder(
-            origin,
-            direction,
-            kind,
-            brush_radius,
-            player,
-            build_presentation_mesh_from_cells,
-        )
-    }
-
-    fn edit_from_view_with_mesh_builder(
-        &mut self,
-        origin: [f64; 3],
-        direction: [f64; 3],
-        kind: EditKind,
-        brush_radius: u8,
-        player: &PlayerController,
-        mesh_builder: impl FnOnce(
-            &[MeshVoxelCell],
-            f64,
-            SurfaceSelection,
-        ) -> Result<MeshPayload, String>,
     ) -> Result<EditOutcome, String> {
         let Some(hit) = self.scene.raycast(origin, direction, 8.0) else {
             return Ok(EditOutcome::Miss);
@@ -216,6 +217,7 @@ impl GameWorld {
             }
         }
         let expected_revision = self.scene.source_revision();
+        let mesh_started = Instant::now();
         let prepared = VoxelEditService::preview(
             &self.scene,
             VoxelEditTransaction {
@@ -225,10 +227,6 @@ impl GameWorld {
         )
         .map_err(|error| format!("apply coherent voxel edit: {error}"))?;
         let affected_voxels = prepared.deltas().len();
-        let candidate_cells = candidate_mesh_cells(&self.scene, prepared.deltas());
-        let mesh_started = Instant::now();
-        let presentation_mesh =
-            mesh_builder(&candidate_cells, self.scene.voxel_size(), self.surface)?;
         let mesh_build_ms = mesh_started.elapsed().as_secs_f64() * 1_000.0;
         let receipt = VoxelEditService::commit(&mut self.scene, prepared)
             .map_err(|error| format!("commit coherent voxel edit: {error}"))?;
@@ -238,7 +236,6 @@ impl GameWorld {
         {
             return Err("Engine accepted an incoherent voxel projection revision".to_owned());
         }
-        self.presentation_mesh = presentation_mesh;
         Ok(EditOutcome::Applied(EditReceipt {
             voxel: edited_voxel,
             affected_voxels,
@@ -247,6 +244,10 @@ impl GameWorld {
             voxel_count: receipt.solid_voxel_count,
             mesh_build_ms,
             edit_ms: edit_started.elapsed().as_secs_f64() * 1_000.0,
+            dirty_chunks: receipt.dirty_mesh_chunks.len(),
+            rebuilt_chunks: receipt.rebuilt_mesh_chunks,
+            reused_chunks: receipt.reused_mesh_chunks,
+            removed_chunks: receipt.removed_mesh_chunks,
         }))
     }
 }
@@ -289,66 +290,6 @@ fn brush_edits(center: [i64; 3], radius: u8, kind: EditKind) -> Result<Vec<Voxel
     })
 }
 
-fn candidate_mesh_cells(
-    scene: &VoxelCollisionScene,
-    deltas: &[VoxelEditDelta],
-) -> Vec<MeshVoxelCell> {
-    let mut materials = scene
-        .material_voxels()
-        .iter()
-        .map(|voxel| (voxel.address, voxel.material_slot))
-        .collect::<std::collections::BTreeMap<_, _>>();
-    for delta in deltas {
-        match delta.after_material {
-            Some(material_slot) => {
-                materials.insert(delta.address, material_slot);
-            }
-            None => {
-                materials.remove(&delta.address);
-            }
-        }
-    }
-    materials
-        .into_iter()
-        .map(|(coordinate, material_slot)| MeshVoxelCell {
-            coordinate,
-            material_slot,
-        })
-        .collect()
-}
-
-fn build_presentation_mesh(
-    scene: &VoxelCollisionScene,
-    surface: SurfaceSelection,
-) -> Result<MeshPayload, String> {
-    let cells = scene
-        .material_voxels()
-        .iter()
-        .map(|voxel| MeshVoxelCell {
-            coordinate: voxel.address,
-            material_slot: voxel.material_slot,
-        })
-        .collect::<Vec<_>>();
-    build_presentation_mesh_from_cells(&cells, scene.voxel_size(), surface)
-}
-
-fn build_presentation_mesh_from_cells(
-    cells: &[MeshVoxelCell],
-    voxel_size: f64,
-    surface: SurfaceSelection,
-) -> Result<MeshPayload, String> {
-    mesh_cells_standalone_with_options(
-        voxel_size,
-        [0.0; 3],
-        cells,
-        SurfaceMeshOptions {
-            mode: surface.engine_mode(),
-            ..SurfaceMeshOptions::default()
-        },
-    )
-    .map_err(|error| format!("build {} presentation mesh: {error}", surface.as_str()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -360,7 +301,7 @@ mod tests {
         surface: SurfaceSelection,
         voxels: impl IntoIterator<Item = [i64; 3]>,
     ) -> GameWorld {
-        let scene = VoxelCollisionScene::from_material_voxels(
+        let scene = VoxelCollisionScene::from_material_voxels_with_mesh_options(
             1.0,
             16,
             voxels
@@ -369,13 +310,15 @@ mod tests {
                     address,
                     material_slot: 1,
                 }),
+            SurfaceMeshOptions {
+                mode: surface.engine_mode(),
+                ..SurfaceMeshOptions::default()
+            },
         )
         .unwrap();
-        let presentation_mesh = build_presentation_mesh(&scene, surface).unwrap();
         GameWorld {
             scene,
             surface,
-            presentation_mesh,
             terrain: TerrainConfig::new(0, 32).unwrap(),
             bounds: WorldBounds {
                 min: [-16, -16, -16],
@@ -432,12 +375,16 @@ mod tests {
             .map(|world| world.scene().authority_hash());
         assert_eq!(hashes[0], hashes[1]);
         assert_eq!(hashes[1], hashes[2]);
-        assert_eq!(meshes[0].presentation_mesh().surface_mode, surface_mode(0));
-        assert_eq!(meshes[1].presentation_mesh().surface_mode, surface_mode(1));
-        assert_eq!(meshes[2].presentation_mesh().surface_mode, surface_mode(2));
+        for (index, world) in meshes.iter().enumerate() {
+            assert!(world
+                .scene()
+                .mesh_chunks()
+                .iter()
+                .all(|chunk| chunk.surface_mode == surface_mode(index)));
+        }
         assert_ne!(
-            meshes[0].presentation_mesh().stats.triangles,
-            meshes[1].presentation_mesh().stats.triangles
+            meshes[0].mesh_stats().triangles,
+            meshes[1].mesh_stats().triangles
         );
     }
 
@@ -518,7 +465,7 @@ mod tests {
             let player = player([0.5, 2.55, 0.5], 0.0);
             let revision = world.scene().source_revision();
             let hash = world.scene().authority_hash();
-            let positions = world.presentation_mesh().positions.clone();
+            let chunks = chunk_hashes(&world);
 
             let outcome = world
                 .edit_from_view(
@@ -535,7 +482,7 @@ mod tests {
             );
             assert_eq!(world.scene().source_revision(), revision);
             assert_eq!(world.scene().authority_hash(), hash);
-            assert_eq!(world.presentation_mesh().positions, positions);
+            assert_eq!(chunk_hashes(&world), chunks);
         }
     }
 
@@ -607,12 +554,12 @@ mod tests {
     }
 
     #[test]
-    fn invalid_edit_or_failed_presentation_build_preserves_prior_coherent_state() {
+    fn invalid_edit_preserves_prior_coherent_state() {
         let mut world = test_world(SurfaceSelection::Box, floor_with([[1, 2, 0]]));
         let mut player = player([0.0, 2.55, 0.5], 90.0);
         let revision = world.scene().source_revision();
         let hash = world.scene().authority_hash();
-        let positions = world.presentation_mesh().positions.clone();
+        let chunks = chunk_hashes(&world);
 
         assert!(world
             .edit_from_view(
@@ -626,18 +573,9 @@ mod tests {
         assert_eq!(world.scene().source_revision(), revision);
         assert_eq!(world.scene().authority_hash(), hash);
 
-        let failed = world.edit_from_view_with_mesh_builder(
-            player.pose().position,
-            [1.0, 0.0, 0.0],
-            EditKind::Destroy,
-            0,
-            &player,
-            |_, _, _| Err("injected presentation failure".to_owned()),
-        );
-        assert_eq!(failed.unwrap_err(), "injected presentation failure");
         assert_eq!(world.scene().source_revision(), revision);
         assert_eq!(world.scene().authority_hash(), hash);
-        assert_eq!(world.presentation_mesh().positions, positions);
+        assert_eq!(chunk_hashes(&world), chunks);
         assert!(world
             .scene()
             .projection_revisions()
@@ -655,6 +593,15 @@ mod tests {
                 .unwrap();
         }
         assert!(player.pose().position[0] < 0.71);
+    }
+
+    fn chunk_hashes(world: &GameWorld) -> Vec<([i64; 3], u64)> {
+        world
+            .scene()
+            .mesh_chunks()
+            .iter()
+            .map(|chunk| (chunk.chunk, chunk.content_hash))
+            .collect()
     }
 
     #[test]

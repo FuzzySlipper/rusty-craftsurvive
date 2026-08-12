@@ -54,7 +54,7 @@ try {
   await page.locator('[data-edit]').filter({ hasText: 'destroy' }).waitFor();
   const destroyElapsedMs = clock() - destroyStarted;
   const editText = await page.locator('[data-edit]').textContent();
-  const edit = editText?.match(/^destroy ([-\d]+), ([-\d]+), ([-\d]+) · (\d+) voxels · ([\d.]+) ms \(([\d.]+) mesh\) · revision (\d+)$/);
+  const edit = editText?.match(/^destroy ([-\d]+), ([-\d]+), ([-\d]+) · (\d+) voxels · ([\d.]+) ms \(([\d.]+) mesh\) · (\d+) dirty \/ (\d+) replaced \/ (\d+) destroyed · (\d+) bytes · revision (\d+)$/);
   if (edit === undefined || edit === null) throw new Error(`destroy readout was not measurable: ${editText}`);
   const finalRevision = await number(page, '[data-world-revision]');
   if (finalRevision !== initialRevision + 1 || Number(edit[4]) !== 1) {
@@ -74,6 +74,10 @@ try {
     destroyElapsedMs,
     rustEditMs: Number(edit[5]),
     rustMeshBuildMs: Number(edit[6]),
+    dirtyChunks: Number(edit[7]),
+    replacementCount: Number(edit[8]),
+    destroyCount: Number(edit[9]),
+    encodedBytes: Number(edit[10]),
     affectedVoxels: Number(edit[4]),
     initialRevision,
     finalRevision,
