@@ -13,8 +13,14 @@ pub use config::{
     DEFAULT_TERRAIN_SIZE, MAX_TERRAIN_SIZE, MIN_TERRAIN_SIZE,
 };
 pub use island::{generate_island, IslandConfig};
-pub use player::{PlayerController, PlayerInput, PlayerMotionReadout, PlayerPose};
-pub use projection::{initial_frame, replacement_frame, telemetry_frame};
+pub use player::{
+    craftsurvive_controller_config, PlayerController, PlayerInput, PlayerMotionReadout, PlayerPose,
+    PLATFORM_HALF_EXTENTS, PLATFORM_INITIAL_CENTER,
+};
+pub use projection::{
+    initial_frame, platform_frame, replacement_and_platform_frame, replacement_frame,
+    telemetry_frame,
+};
 pub use session::{
     session_resources, ClientMessage, GameSession, ServerMessage, SessionAction, SessionCommand,
     SessionEditRejectionReadout, SessionError, SessionErrorOrRuntime, SessionReadout,

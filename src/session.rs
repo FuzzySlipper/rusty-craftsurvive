@@ -2,12 +2,12 @@ use rusty_engine::{render_host_contracts::RendererCameraPose, render_model::Rend
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    initial_frame, replacement_frame, terrain_texture_resource, EditKind, EditOutcome, EditReceipt,
-    EditRejection, GameWorld, PlayerController, PlayerInput, PlayerPose, SurfaceSelection,
-    TerrainConfig, MAX_BRUSH_RADIUS,
+    initial_frame, platform_frame, replacement_and_platform_frame, terrain_texture_resource,
+    EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld, PlayerController, PlayerInput,
+    PlayerPose, SurfaceSelection, TerrainConfig, MAX_BRUSH_RADIUS,
 };
 
-pub const SESSION_PROTOCOL_VERSION: u32 = 3;
+pub const SESSION_PROTOCOL_VERSION: u32 = 4;
 pub const MAX_SESSION_MESSAGE_BYTES: usize = 16 * 1024;
 pub const MAX_LOOK_DELTA_DEGREES: f64 = 45.0;
 pub const MAX_INPUT_DELTA_SECONDS: f64 = 0.05;
@@ -24,6 +24,9 @@ pub enum SessionAction {
 pub struct SessionCommand {
     pub movement: [f64; 2],
     pub jump: bool,
+    pub crouch: bool,
+    pub sprint: bool,
+    pub impulse: bool,
     pub look_delta_degrees: [f64; 2],
     pub delta_seconds: f64,
     pub action: Option<SessionAction>,
@@ -35,6 +38,9 @@ impl Default for SessionCommand {
         Self {
             movement: [0.0; 2],
             jump: false,
+            crouch: false,
+            sprint: false,
+            impulse: false,
             look_delta_degrees: [0.0; 2],
             delta_seconds: 0.0,
             action: None,
@@ -70,6 +76,20 @@ pub struct SessionReadout {
     pub player: PlayerPoseReadout,
     pub grounded: bool,
     pub velocity: [f64; 3],
+    pub stance: &'static str,
+    pub blocked_stand: bool,
+    pub ground_normal: Option<[f64; 3]>,
+    pub ground_source: Option<&'static str>,
+    pub contact_count: usize,
+    pub blocks: Vec<&'static str>,
+    pub step_attempted: bool,
+    pub step_accepted: bool,
+    pub step_rise: f64,
+    pub platform_entity: Option<u64>,
+    pub platform_displacement: [f64; 3],
+    pub collision_world_hash: u64,
+    pub cast_count: u16,
+    pub recovery_passes: u8,
     pub camera: RendererCameraPose,
     pub surface: SurfaceSelectionReadout,
     pub world_revision: u64,
@@ -206,7 +226,6 @@ pub struct GameSession {
     generation: u64,
     connected: bool,
     accepted_sequence: u64,
-    player_revision: u64,
     brush_radius: u8,
 }
 
@@ -222,7 +241,6 @@ impl GameSession {
             generation: 0,
             connected: false,
             accepted_sequence: 0,
-            player_revision: 0,
             brush_radius: 0,
         })
     }
@@ -285,20 +303,24 @@ impl GameSession {
 
         let pose_before = self.player.pose();
         let motion_before = self.player.motion();
-        self.player.step(
-            self.world.scene(),
-            PlayerInput {
-                forward: command.movement[0],
-                right: command.movement[1],
-                jump: command.jump,
-                yaw_delta_degrees: command.look_delta_degrees[0],
-                pitch_delta_degrees: command.look_delta_degrees[1],
-            },
-            command.delta_seconds,
-        );
-        if self.player.pose() != pose_before || self.player.motion() != motion_before {
-            self.player_revision = self.player_revision.saturating_add(1);
-        }
+        let platform_before = self.player.platform_position();
+        self.player
+            .step(
+                self.world.scene(),
+                PlayerInput {
+                    forward: command.movement[0],
+                    right: command.movement[1],
+                    jump: command.jump,
+                    crouch: command.crouch,
+                    sprint: command.sprint,
+                    impulse: command.impulse,
+                    yaw_delta_degrees: command.look_delta_degrees[0],
+                    pitch_delta_degrees: command.look_delta_degrees[1],
+                },
+                command.delta_seconds,
+            )
+            .map_err(SessionErrorOrRuntime::Runtime)?;
+        let _changed = self.player.pose() != pose_before || self.player.motion() != motion_before;
 
         let (edit, edit_rejection) = match command.action {
             Some(action) => match self
@@ -321,14 +343,19 @@ impl GameSession {
             },
             None => (None, None),
         };
+        let platform_changed = self.player.platform_position() != platform_before;
         let frame = if edit.is_some() {
-            Some(
-                replacement_frame(self.world.presentation_mesh())
-                    .map_err(SessionErrorOrRuntime::Runtime)?,
+            replacement_and_platform_frame(
+                self.world.presentation_mesh(),
+                self.player.platform_position(),
             )
+            .map(Some)
+        } else if platform_changed {
+            platform_frame(self.player.platform_position()).map(Some)
         } else {
-            None
-        };
+            Ok(None)
+        }
+        .map_err(SessionErrorOrRuntime::Runtime)?;
         self.accepted_sequence = sequence;
         Ok(SessionUpdate {
             readout: self.readout(),
@@ -350,10 +377,24 @@ impl GameSession {
             generation: self.generation,
             connected: self.connected,
             accepted_sequence: self.accepted_sequence,
-            player_revision: self.player_revision,
+            player_revision: self.player.revision(),
             player: pose.into(),
             grounded: motion.grounded,
             velocity: motion.velocity,
+            stance: motion.stance,
+            blocked_stand: motion.blocked_stand,
+            ground_normal: motion.ground_normal,
+            ground_source: motion.ground_source,
+            contact_count: motion.contact_count,
+            blocks: motion.blocks,
+            step_attempted: motion.step_attempted,
+            step_accepted: motion.step_accepted,
+            step_rise: motion.step_rise,
+            platform_entity: motion.platform_entity,
+            platform_displacement: motion.platform_displacement,
+            collision_world_hash: motion.collision_world_hash,
+            cast_count: motion.cast_count,
+            recovery_passes: motion.recovery_passes,
             camera: RendererCameraPose {
                 position: pose.position,
                 yaw_degrees: pose.yaw_degrees,
@@ -547,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn neutral_input_is_authoritative_noop_while_motion_changes_only_player() {
+    fn neutral_input_is_noop_while_motion_updates_player_and_platform_projection() {
         let mut session = GameSession::new(SurfaceSelection::Box).unwrap();
         let (connected, _) = session.connect().unwrap();
         let neutral = session
@@ -571,7 +612,7 @@ mod tests {
             .unwrap();
         assert!(moved.readout.player_revision > neutral.readout.player_revision);
         assert_eq!(moved.readout.world_revision, neutral.readout.world_revision);
-        assert!(moved.frame.is_none());
+        assert!(moved.frame.is_some());
     }
 
     #[test]
@@ -617,5 +658,42 @@ mod tests {
             assert_eq!(readout.surface, surface.into());
             assert!(readout.targeted_voxel.is_some());
         }
+    }
+
+    #[test]
+    fn semantic_controller_actions_publish_engine_diagnostics() {
+        let mut session = GameSession::new(SurfaceSelection::Box).unwrap();
+        let (connected, _) = session.connect().unwrap();
+        let crouched = session
+            .submit(input(
+                connected.generation,
+                1,
+                SessionCommand {
+                    crouch: true,
+                    delta_seconds: 0.05,
+                    ..SessionCommand::default()
+                },
+            ))
+            .unwrap();
+        assert_eq!(crouched.readout.stance, "crouched");
+        assert_ne!(crouched.readout.collision_world_hash, 0);
+        assert!(crouched.readout.cast_count > 0);
+
+        let impulse = session
+            .submit(input(
+                connected.generation,
+                2,
+                SessionCommand {
+                    sprint: true,
+                    impulse: true,
+                    movement: [1.0, 0.0],
+                    delta_seconds: 0.05,
+                    ..SessionCommand::default()
+                },
+            ))
+            .unwrap();
+        assert!(impulse.readout.velocity[0] > 0.0);
+        assert!(impulse.readout.velocity[2] < 0.0);
+        assert!(impulse.readout.player_revision > crouched.readout.player_revision);
     }
 }

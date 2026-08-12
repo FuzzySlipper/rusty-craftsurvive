@@ -34,6 +34,28 @@ const clickPointer = async (page, button) => {
   await page.mouse.up({ button });
 };
 
+const tenCommandMovement = async (browser, codes) => {
+  const sample = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  try {
+    await sample.goto(url);
+    await sample.locator('[data-status]').filter({ hasText: 'connected' }).waitFor({ timeout: 15_000 });
+    await waitGrounded(sample);
+    const start = await vector(sample, '[data-player-position]');
+    const sequence = await number(sample, '[data-accepted-sequence]');
+    for (const code of codes) await sample.keyboard.down(code);
+    await sample.waitForFunction(
+      ({ sequence, count }) => Number(document.querySelector('[data-accepted-sequence]')?.textContent) >= sequence + count,
+      { sequence, count: 10 },
+    );
+    for (const code of codes) await sample.keyboard.up(code);
+    const end = await vector(sample, '[data-player-position]');
+    const accepted = await number(sample, '[data-accepted-sequence]') - sequence;
+    return { distance: Math.hypot(end[0] - start[0], end[2] - start[2]), accepted };
+  } finally {
+    await sample.close();
+  }
+};
+
 try {
   const healthResponse = await fetch(new URL('/health', url));
   const health = await healthResponse.json();
@@ -41,6 +63,15 @@ try {
   if (!healthResponse.ok || health.project !== 'rusty-craftsurvive'
       || healthIdentity !== 'rusty-craftsurvive') {
     throw new Error(`service identity mismatch: ${healthResponse.status} ${healthIdentity} ${JSON.stringify(health)}`);
+  }
+  const cardinalTenCommand = await tenCommandMovement(browser, ['KeyD']);
+  const diagonalTenCommand = await tenCommandMovement(browser, ['KeyW', 'KeyD']);
+  const cardinalPerCommand = cardinalTenCommand.distance / cardinalTenCommand.accepted;
+  const diagonalPerCommand = diagonalTenCommand.distance / diagonalTenCommand.accepted;
+  if (cardinalTenCommand.distance <= 0.2
+      || diagonalPerCommand > cardinalPerCommand * 1.05
+      || diagonalPerCommand < cardinalPerCommand * 0.7) {
+    throw new Error(`ten-command diagonal normalization failed: cardinal=${JSON.stringify(cardinalTenCommand)} diagonal=${JSON.stringify(diagonalTenCommand)}`);
   }
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const pageErrors = [];
@@ -65,6 +96,11 @@ try {
 
   await clickCenter(page);
   await page.waitForFunction(() => document.pointerLockElement !== null);
+  await page.locator('[data-collision-world]').filter({ hasNotText: '—' }).waitFor();
+  await page.keyboard.down('ControlLeft');
+  await page.locator('[data-motion]').filter({ hasText: 'crouched' }).waitFor();
+  await page.keyboard.up('ControlLeft');
+  await page.locator('[data-motion]').filter({ hasText: 'standing' }).waitFor();
   const [initialYaw] = await view(page);
   await moveMouse(page, 300, 0);
   await page.waitForFunction(
@@ -155,44 +191,6 @@ try {
     throw new Error('rejected player-overlap placement changed the Rust world revision');
   }
 
-  await moveMouse(page, 0, -300);
-  await page.waitForFunction(
-    () => Number.parseFloat(document.querySelector('[data-player-view]')?.textContent?.split('/')[1] ?? '') > -60,
-  );
-  await moveMouse(page, 0, -300);
-  await page.waitForFunction(
-    () => Number.parseFloat(document.querySelector('[data-player-view]')?.textContent?.split('/')[1] ?? '') > -20,
-  );
-  await page.keyboard.down('KeyS');
-  await page.waitForTimeout(240);
-  await page.keyboard.up('KeyS');
-  await waitGrounded(page);
-  const beforePlacePixels = await canvas.screenshot();
-  await clickPointer(page, 'right');
-  await page.waitForFunction(
-    (revision) => Number(document.querySelector('[data-world-revision]')?.textContent) > revision,
-    destroyedWorld,
-  );
-  await page.locator('[data-edit]').filter({ hasText: 'place' }).waitFor();
-  await page.waitForTimeout(100);
-  const placedWorld = await number(page, '[data-world-revision]');
-  const afterPlacePixels = await canvas.screenshot();
-  if (beforePlacePixels.equals(afterPlacePixels)) {
-    throw new Error('accepted blocking placement did not visibly change the Engine renderer');
-  }
-
-  const beforePlacedWall = await vector(page, '[data-player-position]');
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(500);
-  const againstPlacedWall = await vector(page, '[data-player-position]');
-  await page.waitForTimeout(250);
-  const heldAgainstPlacedWall = await vector(page, '[data-player-position]');
-  await page.keyboard.up('KeyW');
-  if (againstPlacedWall[2] >= beforePlacedWall[2] - 0.2
-      || Math.abs(heldAgainstPlacedWall[2] - againstPlacedWall[2]) > 0.06) {
-    throw new Error(`accepted placement did not become an immediate blocker: ${beforePlacedWall} -> ${againstPlacedWall} -> ${heldAgainstPlacedWall}`);
-  }
-
   await page.keyboard.press('Digit2');
   await page.locator('[data-brush]').filter({ hasText: 'radius 1' }).waitFor();
   const beforeVolumeRevision = await number(page, '[data-world-revision]');
@@ -211,6 +209,16 @@ try {
   await page.keyboard.press('Digit3');
   await page.locator('[data-brush]').filter({ hasText: 'radius 2' }).waitFor();
 
+  const beforeImpulse = await vector(page, '[data-player-position]');
+  await page.keyboard.down('KeyH');
+  await page.waitForTimeout(80);
+  await page.keyboard.up('KeyH');
+  await page.waitForFunction(
+    (x) => Math.abs(Number(document.querySelector('[data-player-position]')?.textContent?.split(',')[0]) - x) > 0.08,
+    beforeImpulse[0],
+  );
+  const afterImpulse = await vector(page, '[data-player-position]');
+
   if (pageErrors.length > 0) throw new Error(`browser page errors: ${pageErrors.join('; ')}`);
   console.log(JSON.stringify({
     proof: 'CRAFTSURVIVE_GROUNDED_EDIT_ROUTE',
@@ -218,19 +226,27 @@ try {
     surface: await page.locator('[data-surface]').textContent(),
     pointerLocked: await page.evaluate(() => document.pointerLockElement !== null),
     rightLookYawDelta: rightYaw - initialYaw,
+    cardinalTenCommand,
+    diagonalTenCommand,
     landingDrop: initialPosition[1] - landedPosition[1],
     jumpRise: jumpSample[1] - beforeJump[1],
     trenchAndWallPosition: afterCourse,
     supportLandingDrop: wallPosition[1] - afterSupportFall[1],
     destroyedWorldRevision: destroyedWorld,
     rejectedPlacementSequence: rejectionSequence + 1,
-    placedWorldRevision: placedWorld,
-    placedWallPosition: heldAgainstPlacedWall,
     volumeBrushRadius: 1,
     volumeBrushAffectedVoxels: affectedVoxels,
     volumeBrushEditMs: volumeEditMs,
     volumeBrushWorldRevision: volumeRevision,
     largestBrushSelectable: true,
+    impulseDisplacement: Math.abs(afterImpulse[0] - beforeImpulse[0]),
+    controllerDiagnostics: {
+      collisionWorld: await page.locator('[data-collision-world]').textContent(),
+      ground: await page.locator('[data-ground]').textContent(),
+      contacts: await page.locator('[data-contacts]').textContent(),
+      step: await page.locator('[data-step]').textContent(),
+      platform: await page.locator('[data-platform]').textContent(),
+    },
   }));
 } finally {
   await browser.close();

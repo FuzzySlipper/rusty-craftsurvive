@@ -4,8 +4,9 @@ The initial experiment is intentionally bounded:
 
 - one seeded, size-bounded generated island is fully resident and remeshed as a whole after an
   edit; there is no streaming, chunk eviction, biome system, or general procgen framework;
-- movement uses a deterministic fixed-step grounded capsule envelope with gravity, one-voxel
-  stepping, and grounded-only jumping; it is deliberately not a general rigid-body framework;
+- movement uses the reusable Engine fixed-step kinematic capsule controller with checked product
+  tuning, crouch/stand clearance, slopes, steps, floor snap, moving-platform carry, and external
+  impulses; CraftSurvive does not expose a general rigid-body framework;
 - each radius 0/1/2 spherical brush is one atomic revision, and placement is rejected as a whole
   when any edited voxel overlaps the current player capsule or leaves the finite world bounds; broader
   construction permissions and structural rules remain out of scope;
@@ -20,11 +21,13 @@ The initial experiment is intentionally bounded:
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
 - there is no save format, inventory, crafting, survival simulation, streaming, networking, or
   Studio project adapter;
-- the browser HUD exposes concise authority and locomotion facts for bounded certification rather
+- the browser HUD exposes concise authority and typed Engine controller facts for bounded certification rather
   than a general debug console;
-- the deterministic Chromium campaign covers one authored trench/wall/support route in box,
-  marching-cubes, and dual-contouring presentation; it is not a broad browser, accessibility, or
-  hardware compatibility campaign.
+- the deterministic Chromium campaign combines physical browser checks with focused Rust consumer
+  coverage for slopes, corners, steps, blocked stand, moving support, and impulses. True sloped
+  static-mesh geometry is not part of the voxel island presentation, so browser judgement of the
+  reconstructed MC/DC terrain remains presentation-only rather than alternate collision authority;
+- the campaign is not a broad browser, accessibility, or hardware compatibility campaign.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

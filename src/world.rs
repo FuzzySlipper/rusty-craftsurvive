@@ -394,12 +394,15 @@ mod tests {
             position,
             yaw_degrees,
             pitch_degrees: 0.0,
-        });
-        player.step(
-            &VoxelCollisionScene::from_solid_voxels(1.0, 16, [[0, 0, 0]]).unwrap(),
-            PlayerInput::default(),
-            STEP_SECONDS,
-        );
+        })
+        .unwrap();
+        player
+            .step(
+                &VoxelCollisionScene::from_solid_voxels(1.0, 16, [[0, 0, 0]]).unwrap(),
+                PlayerInput::default(),
+                STEP_SECONDS,
+            )
+            .unwrap();
         player
     }
 
@@ -494,17 +497,18 @@ mod tests {
                 )
                 .unwrap(),
         );
-        player.step(world.scene(), PlayerInput::default(), STEP_SECONDS);
+        player
+            .step(world.scene(), PlayerInput::default(), STEP_SECONDS)
+            .unwrap();
         assert!(!player.motion().grounded);
         for _ in 0..240 {
-            player.step(world.scene(), PlayerInput::default(), STEP_SECONDS);
+            player
+                .step(world.scene(), PlayerInput::default(), STEP_SECONDS)
+                .unwrap();
         }
         assert!(player.motion().grounded);
         assert!(player.pose().position[1] < 0.65);
-        assert!(!crate::player::collides(
-            world.scene(),
-            player.pose().position
-        ));
+        assert!(!player.overlaps_scene(world.scene()));
     }
 
     #[test]
@@ -553,14 +557,16 @@ mod tests {
                     .unwrap(),
             );
             for _ in 0..15 {
-                walker.step(
-                    world.scene(),
-                    PlayerInput {
-                        forward: 1.0,
-                        ..PlayerInput::default()
-                    },
-                    STEP_SECONDS,
-                );
+                walker
+                    .step(
+                        world.scene(),
+                        PlayerInput {
+                            forward: 1.0,
+                            ..PlayerInput::default()
+                        },
+                        STEP_SECONDS,
+                    )
+                    .unwrap();
             }
             let opened_x = walker.pose().position[0];
             assert!(opened_x > 0.8);
@@ -582,14 +588,16 @@ mod tests {
                 .projection_revisions()
                 .is_coherent_with(world.scene().source_revision()));
             for _ in 0..15 {
-                blocked.step(
-                    world.scene(),
-                    PlayerInput {
-                        forward: 1.0,
-                        ..PlayerInput::default()
-                    },
-                    STEP_SECONDS,
-                );
+                blocked
+                    .step(
+                        world.scene(),
+                        PlayerInput {
+                            forward: 1.0,
+                            ..PlayerInput::default()
+                        },
+                        STEP_SECONDS,
+                    )
+                    .unwrap();
             }
             assert!(blocked.pose().position[0] < 0.71);
             observations.push((opened_x, blocked.pose().position[0], placed.revision));
@@ -635,14 +643,16 @@ mod tests {
             .projection_revisions()
             .is_coherent_with(revision));
         for _ in 0..15 {
-            player.step(
-                world.scene(),
-                PlayerInput {
-                    forward: 1.0,
-                    ..PlayerInput::default()
-                },
-                STEP_SECONDS,
-            );
+            player
+                .step(
+                    world.scene(),
+                    PlayerInput {
+                        forward: 1.0,
+                        ..PlayerInput::default()
+                    },
+                    STEP_SECONDS,
+                )
+                .unwrap();
         }
         assert!(player.pose().position[0] < 0.71);
     }

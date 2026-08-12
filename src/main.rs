@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    initial_frame, replacement_frame, telemetry_frame, terrain_texture_resource, DemoConfig,
-    EditKind, EditOutcome, GameWorld, PlayerController, PlayerInput,
+    initial_frame, platform_frame, replacement_frame, telemetry_frame, terrain_texture_resource,
+    DemoConfig, EditKind, EditOutcome, GameWorld, PlayerController, PlayerInput,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
@@ -122,17 +122,28 @@ impl CraftSurviveApplication {
         let axis = |positive: &str, negative: &str| {
             f64::from(pressed.contains(positive)) - f64::from(pressed.contains(negative))
         };
-        self.player.step(
-            self.world.scene(),
-            PlayerInput {
-                forward: axis("KeyW", "KeyS"),
-                right: axis("KeyD", "KeyA"),
-                jump: pressed.contains("Space"),
-                yaw_delta_degrees: axis("ArrowRight", "ArrowLeft") * 90.0 * delta_seconds,
-                pitch_delta_degrees: axis("ArrowDown", "ArrowUp") * 90.0 * delta_seconds,
-            },
-            delta_seconds,
-        );
+        self.player
+            .step(
+                self.world.scene(),
+                PlayerInput {
+                    forward: axis("KeyW", "KeyS"),
+                    right: axis("KeyD", "KeyA"),
+                    jump: pressed.contains("Space"),
+                    crouch: pressed.contains("ControlLeft") || pressed.contains("ControlRight"),
+                    sprint: pressed.contains("ShiftLeft") || pressed.contains("ShiftRight"),
+                    impulse: pressed.contains("KeyH"),
+                    yaw_delta_degrees: axis("ArrowRight", "ArrowLeft") * 90.0 * delta_seconds,
+                    pitch_delta_degrees: axis("ArrowDown", "ArrowUp") * 90.0 * delta_seconds,
+                },
+                delta_seconds,
+            )
+            .map_err(anyhow::Error::msg)?;
+        self.renderer
+            .as_mut()
+            .context("renderer unavailable")?
+            .submit_frame(
+                &platform_frame(self.player.platform_position()).map_err(anyhow::Error::msg)?,
+            )?;
 
         let newly_pressed =
             |code: &str| pressed.contains(code) && !self.pressed_codes.contains(code);

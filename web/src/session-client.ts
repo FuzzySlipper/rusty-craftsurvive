@@ -10,6 +10,11 @@ interface Readout {
   camera: CameraPose; surface: Surface; worldRevision: number;
   authorityHash: number; voxelCount: number; targetedVoxel: [number, number, number] | null;
   grounded: boolean; velocity: [number, number, number];
+  stance: string; blockedStand: boolean; groundNormal: [number, number, number] | null;
+  groundSource: string | null; contactCount: number; blocks: string[];
+  stepAttempted: boolean; stepAccepted: boolean; stepRise: number;
+  platformEntity: number | null; platformDisplacement: [number, number, number];
+  collisionWorldHash: number; castCount: number; recoveryPasses: number;
   brushRadius: number; terrainSeed: string; terrainSize: number;
   meshVertices: number; meshTriangles: number;
   generationMs: number; authorityBuildMs: number; meshBuildMs: number;
@@ -101,7 +106,7 @@ export class SessionClient {
     if (down && !event.repeat && event.code === 'Digit1') this.#brushRadius = 0;
     if (down && !event.repeat && event.code === 'Digit2') this.#brushRadius = 1;
     if (down && !event.repeat && event.code === 'Digit3') this.#brushRadius = 2;
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyH', 'Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
       event.preventDefault();
     }
   }
@@ -184,9 +189,12 @@ export class SessionClient {
     const axis = (positive: string, negative: string) => Number(this.#held.has(positive)) - Number(this.#held.has(negative));
     this.#sequence += 1;
     this.#socket.send(JSON.stringify({
-      kind: 'input', protocolVersion: 3, generation: this.#generation, sequence: this.#sequence,
+      kind: 'input', protocolVersion: 4, generation: this.#generation, sequence: this.#sequence,
       command: {
         movement: [axis('KeyW', 'KeyS'), axis('KeyD', 'KeyA')], jump: this.#held.has('Space'),
+        crouch: this.#held.has('ControlLeft') || this.#held.has('ControlRight'),
+        sprint: this.#held.has('ShiftLeft') || this.#held.has('ShiftRight'),
+        impulse: this.#held.has('KeyH'),
         lookDeltaDegrees: this.#look, deltaSeconds: 0.033, action: this.#action,
         brushRadius: this.#brushRadius,
       },
@@ -293,6 +301,20 @@ function decodeReadout(value: unknown): Readout {
     targetedVoxel: object['targetedVoxel'] === null ? null : tuple3(object['targetedVoxel'], 'targeted voxel'),
     grounded: booleanValue(object['grounded'], 'grounded'),
     velocity: tuple3(object['velocity'], 'player velocity'),
+    stance: text(object['stance'], 'character stance'),
+    blockedStand: booleanValue(object['blockedStand'], 'blocked stand'),
+    groundNormal: object['groundNormal'] === null ? null : tuple3(object['groundNormal'], 'ground normal'),
+    groundSource: object['groundSource'] === null ? null : text(object['groundSource'], 'ground source'),
+    contactCount: integer(object['contactCount'], 'contact count'),
+    blocks: list(object['blocks'], 'controller blocks').map((value) => text(value, 'controller block')),
+    stepAttempted: booleanValue(object['stepAttempted'], 'step attempted'),
+    stepAccepted: booleanValue(object['stepAccepted'], 'step accepted'),
+    stepRise: number(object['stepRise'], 'step rise'),
+    platformEntity: object['platformEntity'] === null ? null : integer(object['platformEntity'], 'platform entity'),
+    platformDisplacement: tuple3(object['platformDisplacement'], 'platform displacement'),
+    collisionWorldHash: number(object['collisionWorldHash'], 'collision world hash'),
+    castCount: integer(object['castCount'], 'controller cast count'),
+    recoveryPasses: integer(object['recoveryPasses'], 'controller recovery passes'),
     brushRadius: integer(object['brushRadius'], 'brush radius'),
     terrainSeed: text(object['terrainSeed'], 'terrain seed'),
     terrainSize: integer(object['terrainSize'], 'terrain size'),

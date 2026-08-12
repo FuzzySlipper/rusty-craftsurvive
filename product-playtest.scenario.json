@@ -2,7 +2,7 @@
   "version": 1,
   "project": "rusty-craftsurvive",
   "scenario": "grounded-voxel-loop",
-  "mission": "From the visible spawn, capture the mouse, establish mouse-look handedness and camera-relative movement, test jump while still in the open grounded spawn lane before approaching the low wall, traverse beyond the invariant trench and wall route toward distant terrain, then aim from visibly different positions to destroy and place terrain and judge whether each edit changes the intended visible geometry and later traversal. For paired seed comparisons, hold terrain size constant and capture a comparable viewpoint beyond the invariant spawn route where the terrain silhouette visibly differs.",
+  "mission": "From the visible spawn, capture the mouse and follow a reproducible controller route: establish mouse-look handedness and camera-relative movement; compare straight and diagonal travel; test walk, sprint, crouch, stand, jump and landing; approach walls and corners obliquely to judge sliding and snagging; traverse the trench, steps, ledges, and the visible moving platform; use H once to judge external impulse response; then destroy and place terrain beneath, above, and beside the capsule and judge recovery. Report feel, clipping, camera/collider agreement, input latency, slope/step behavior, and any harness difficulty separately from game defects.",
   "controls": [
     {
       "input": "Click the rendered world",
@@ -19,6 +19,18 @@
     {
       "input": "Space",
       "purpose": "Jump while grounded"
+    },
+    {
+      "input": "Left or right Shift",
+      "purpose": "Sprint while standing"
+    },
+    {
+      "input": "Left or right Control",
+      "purpose": "Crouch; releasing requests standing clearance"
+    },
+    {
+      "input": "H",
+      "purpose": "Apply one product-authored lateral impact for external-motion testing"
     },
     {
       "input": "Left click or F",
@@ -43,5 +55,5 @@
     "video": true
   },
   "reproductionLimit": 1,
-  "notes": "Judge only visible behavior reached through genuine mouse and keyboard input. Do not inspect DOM, application state, websocket data, source, or hidden readouts. A single still cannot prove motion, handedness, collision, targeting, or an edit transition. Capture the mouse first, then test Space before moving under or against the low stone wall. If pointer recapture makes a mouse edit ambiguous, use F and G once to distinguish the documented break/place commands from the focus gesture. For seed comparison, use default and alternate manifests at the same 96 terrain size, verify the full seed in ordinary HUD, and navigate beyond the intentionally seed-invariant spawn route before judging visible variation. The HUD is ordinary product UI but its values are supporting context rather than substitutes for visible geometry. Classify uncertainty honestly and do not repair the product or harness."
+  "notes": "Judge only visible behavior reached through genuine mouse and keyboard input. Do not inspect DOM, application state, websocket data, source, or hidden readouts. A single still cannot prove motion, handedness, collision, targeting, or an edit transition. Capture the mouse first, then test Space before moving under or against the low stone wall. If pointer recapture makes a mouse edit ambiguous, use F and G once to distinguish the documented break/place commands from the focus gesture. The ordinary HUD may support observations but never replaces visible geometry. Finish with playtest_finish and include exit_interview fields for difficulties, confusing_controls, failed_approaches, blockers, confidence, and suggestions. Explicitly separate harness/control friction from game/controller defects. Classify uncertainty honestly and do not repair the product or harness."
 }

@@ -37,6 +37,20 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   targetedVoxel: [0, 4, 0],
   grounded: true,
   velocity: [0, 0, 0],
+  stance: 'standing',
+  blockedStand: false,
+  groundNormal: [0, 1, 0],
+  groundSource: 'voxel',
+  contactCount: 1,
+  blocks: [],
+  stepAttempted: false,
+  stepAccepted: false,
+  stepRise: 0,
+  platformEntity: null,
+  platformDisplacement: [0, 0, 0],
+  collisionWorldHash: 2,
+  castCount: 1,
+  recoveryPasses: 0,
   brushRadius: 0,
   terrainSeed: '0x4352414654535552',
   terrainSize: 96,
@@ -252,7 +266,7 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
   assert.ok(!published.includes('readout'));
 });
 
-test('browser input sends the shared horizontal movement and jump intent', async () => {
+test('browser input sends movement, stance, sprint, jump, and impulse intent', async () => {
   let tick!: () => void;
   const context = {
     renderer: {
@@ -297,16 +311,22 @@ test('browser input sends the shared horizontal movement and jump intent', async
   const key = (code: string) => ({ code, repeat: false, preventDefault: () => undefined } as KeyboardEvent);
   client.key(key('KeyW'), true);
   client.key(key('Space'), true);
+  client.key(key('ControlLeft'), true);
+  client.key(key('ShiftLeft'), true);
+  client.key(key('KeyH'), true);
   client.key(key('Digit3'), true);
   tick();
 
   const sent = JSON.parse(socket.sent.at(-1)!) as {
     protocolVersion: number;
-    command: { movement: number[]; jump: boolean; brushRadius: number };
+    command: { movement: number[]; jump: boolean; crouch: boolean; sprint: boolean; impulse: boolean; brushRadius: number };
   };
-  assert.equal(sent.protocolVersion, 3);
+  assert.equal(sent.protocolVersion, 4);
   assert.deepEqual(sent.command.movement, [1, 0]);
   assert.equal(sent.command.jump, true);
+  assert.equal(sent.command.crouch, true);
+  assert.equal(sent.command.sprint, true);
+  assert.equal(sent.command.impulse, true);
   assert.equal(sent.command.brushRadius, 2);
   client.dispose();
 });

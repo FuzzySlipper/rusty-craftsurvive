@@ -142,6 +142,19 @@ fn install_playable_route(voxels: &mut BTreeMap<[i64; 3], u16>, depth: i64) {
         voxels.remove(&[x, 3, 5]);
         voxels.remove(&[x, 2, 4]);
     }
+    // The moving-platform station is ordinary product geometry. The active platform bridges a
+    // shallow recess immediately beyond the original spawn lane and remains visible/playable in
+    // every presentation mode.
+    for x in -3..=3 {
+        for z in -5..=-3 {
+            for y in 3..=24 {
+                voxels.remove(&[x, y, z]);
+            }
+            for y in -depth..=2 {
+                voxels.insert([x, y, z], if y == 2 { 2 } else { 3 });
+            }
+        }
+    }
     for x in -1..=1 {
         for y in 4..=6 {
             voxels.insert([x, y, 3], 3);

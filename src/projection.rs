@@ -14,9 +14,13 @@ use rusty_engine::{
     svc_mesh::{MeshPayload, SurfaceMode},
 };
 
-use crate::{terrain_texture::terrain_material_ops, SurfaceSelection};
+use crate::{
+    terrain_texture::terrain_material_ops, SurfaceSelection, PLATFORM_HALF_EXTENTS,
+    PLATFORM_INITIAL_CENTER,
+};
 
 const TERRAIN_HANDLE: RenderHandle = RenderHandle::new(1);
+const PLATFORM_HANDLE: RenderHandle = RenderHandle::new(2);
 
 pub fn initial_frame(mesh: &MeshPayload) -> Result<RenderFrameDiff, String> {
     let mut operations = terrain_material_ops()?;
@@ -45,9 +49,68 @@ pub fn initial_frame(mesh: &MeshPayload) -> Result<RenderFrameDiff, String> {
             handle: TERRAIN_HANDLE,
             payload: mesh_descriptor(mesh)?,
         },
+        RenderDiff::Create {
+            handle: PLATFORM_HANDLE,
+            parent: None,
+            node: RenderNode {
+                geometry: Geometry::Cube,
+                material: Material {
+                    color: [0.95, 0.65, 0.12, 1.0],
+                    wireframe: false,
+                },
+                transform: platform_transform(PLATFORM_INITIAL_CENTER.map(f64::from)),
+                visible: true,
+                layer: RenderLayer::Scene,
+                metadata: RenderMetadata {
+                    source_entity: None,
+                    source_scene_node: None,
+                    tags: vec!["craftsurvive-moving-platform".to_owned()],
+                    label: Some("Rust-authoritative moving platform".to_owned()),
+                },
+            },
+        },
     ]);
     RenderFrameDiff::try_from_ops(operations)
         .map_err(|error| format!("build initial render frame: {error:?}"))
+}
+
+pub fn platform_frame(position: [f64; 3]) -> Result<RenderFrameDiff, String> {
+    RenderFrameDiff::try_from_ops(vec![RenderDiff::Update {
+        handle: PLATFORM_HANDLE,
+        transform: Some(platform_transform(position)),
+        material: None,
+        visible: None,
+        metadata: None,
+    }])
+    .map_err(|error| format!("build moving platform frame: {error:?}"))
+}
+
+pub fn replacement_and_platform_frame(
+    mesh: &MeshPayload,
+    position: [f64; 3],
+) -> Result<RenderFrameDiff, String> {
+    RenderFrameDiff::try_from_ops(vec![
+        RenderDiff::ReplaceMeshPayload {
+            handle: TERRAIN_HANDLE,
+            payload: mesh_descriptor(mesh)?,
+        },
+        RenderDiff::Update {
+            handle: PLATFORM_HANDLE,
+            transform: Some(platform_transform(position)),
+            material: None,
+            visible: None,
+            metadata: None,
+        },
+    ])
+    .map_err(|error| format!("build terrain and platform frame: {error:?}"))
+}
+
+fn platform_transform(position: [f64; 3]) -> Transform {
+    Transform {
+        translation: position.map(|value| value as f32),
+        rotation: [0.0, 0.0, 0.0, 1.0],
+        scale: PLATFORM_HALF_EXTENTS.map(|value| value * 2.0),
+    }
 }
 
 pub fn replacement_frame(mesh: &MeshPayload) -> Result<RenderFrameDiff, String> {

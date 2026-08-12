@@ -37,9 +37,11 @@ den-serve logs rusty-craftsurvive
 ```
 
 Open the local or LAN URL printed by `den-serve up`, click the world to capture the mouse, and use
-view-relative WASD plus mouse look. `Space` jumps while grounded. Left click or `F` breaks the
+view-relative WASD plus mouse look. `Space` jumps, `Shift` sprints, `Control` crouches, and `H`
+applies a bounded lateral impact used to inspect external-motion response. Left click or `F` breaks the
 targeted voxel; right click or `G` places one. The concise HUD exposes the selected presentation,
 accepted input sequence, authoritative player/world revisions, pose, view, grounded/velocity facts,
+stance and blocked stand-up, ground/contact/step/platform facts, collision-world identity,
 target, terrain seed/size, mesh/startup measurements, selected brush, and typed edit result.
 Keys `1`, `2`, and `3` select spherical edit radii 0, 1, and 2. `den-serve restart
 rusty-craftsurvive` rebuilds and restores the
@@ -84,6 +86,9 @@ Controls:
 
 - `WASD`: move horizontally
 - `Space`: jump while grounded
+- `Shift`: sprint while standing
+- `Control`: crouch; release to stand when clearance permits
+- `H`: apply one bounded lateral controller impulse
 - arrow keys: look
 - left mouse or `F`: destroy the targeted voxel
 - right mouse or `G`: place a grass voxel against the targeted face
@@ -115,7 +120,11 @@ surface, mesh counts, and probe JSON instead of shrinking the terrain silently.
 ## Authority and renderer boundary
 
 Rust owns the island recipe, admitted material voxels, player pose, physical-input meaning,
-collision, ray selection, break/place decisions, edit revisions, and render-frame projection. A
+collision, ray selection, break/place decisions, edit revisions, and render-frame projection. The
+Engine `CharacterControllerService` is the sole movement/collision authority over an Engine entity
+transform plus durable character-motion component. CraftSurvive owns checked tuning, fixed-step
+orchestration, bindings, camera-eye presentation, the visible active moving platform, and the
+product-authored impact action. `FirstPersonLookService` supplies the canonical yaw/pitch basis. A
 break or place operation, including a volume brush, is one revision-checked prepared
 `VoxelEditService` transaction. CraftSurvive rejects the whole transaction when any placement voxel
 overlaps the player capsule or any brush cell leaves the finite world bounds, and builds the
@@ -163,8 +172,9 @@ den-serve restart rusty-craftsurvive -repo /home/dev/rusty-craftsurvive
 pnpm smoke:surfaces
 ```
 
-Each run checks service identity, pointer lock, rightward mouse handedness, camera-forward `W`,
-grounded jump over the trench, wall blocking, support destruction and lower gravity landing, typed
+Each run checks service identity, pointer lock, rightward mouse handedness, ten accepted movement
+commands with diagonal normalization, crouch/stand, camera-forward `W`, grounded jump over the
+trench, wall blocking, controller diagnostics, external impulse response, support destruction and lower gravity landing, typed
 player-overlap rejection without a world revision, accepted placement, and that the new voxel is an
 immediate collision blocker. The proof reads visible HUD facts and compares Engine-canvas pixels;
 it does not call a test-only gameplay API.
@@ -201,21 +211,17 @@ replacement for the deterministic campaign. Before either one, restart the broke
 session is clean. If the manifest health probe fails, inspect `den-serve status` and
 `den-serve logs`; if pointer lock is lost, click the canvas again before sending mouse movement.
 
-The initial Luna pilot found one evidence-backed calibration limit, tracked by Den task 6825:
-after canvas pointer lock, repeated genuine mouse moves of at most 100 pixels left the visible view
-unchanged and surfaced `rejected: invalidCommand` in independent box sessions and both MC/DC mode
-samples. Until that follow-up closes, the black-box lane can certify visible startup, grounded
-movement, collision, and target-dependent edits, but it must report mouse-look handedness and
-camera-relative movement as failed or uncertain rather than infer them. The deterministic campaign
-continues to own the exact input-command regression for this discrepancy.
+The initial Luna pilot's rejected pointer-lock movement was resolved by Den task 6825. Fresh
+playtests may now certify look handedness and camera-relative movement from repeated visible frames;
+the deterministic campaign retains the exact bounded-command regression.
 
 ## Current scope
 
 This bootstrap deliberately excludes streaming, infinite terrain, chunk eviction, a general
 procgen framework, inventory, crafting, survival stats, persistence, networking, and mobile-specific
 shells. The next useful experiments should stay focused on incremental remeshing and terrain
-calibration before growing product systems. The grounded controller is a bounded
-downstream mechanism rather than a general physics framework.
+calibration before growing product systems. Character tuning and game feel remain downstream;
+reusable kinematic movement, collision, and look mechanisms are consumed directly from Engine.
 
 See [donor provenance](docs/donor-provenance.md) and
 [known limitations](docs/known-limitations.md) for the exact starting point.
