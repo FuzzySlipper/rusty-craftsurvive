@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { RustyApplicationUiContext } from '@rusty-engine/application-host';
+import type {
+  RustyApplicationRendererPort,
+  RustyApplicationUiContext,
+} from '@rusty-engine/application-host';
 import { SessionClient, type SessionView } from './session-client';
 
 class FakeWebSocket {
@@ -61,13 +64,32 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   meshBuildMs: 3.5,
 });
 
+type CurrentRendererPort = RustyApplicationRendererPort & {
+  readonly applyPresentation: () => Promise<{ readonly applied: number; readonly diagnostics: readonly [] }>;
+  readonly resumeAudio: () => Promise<{ readonly resumed: boolean; readonly diagnostics: readonly [] }>;
+};
+
+const rendererPort = (
+  overrides: Partial<CurrentRendererPort> = {},
+): CurrentRendererPort => ({
+  replaceFrame: async () => ({ applied: true, diagnostics: [] }),
+  applyFrame: () => ({ applied: true, diagnostics: [] }),
+  applyPresentation: async () => ({ applied: 0, diagnostics: [] }),
+  setCameraPose: () => undefined,
+  clear: async () => undefined,
+  renderOnce: () => undefined,
+  replaceContent: async () => ({ applied: true, diagnostics: [] }),
+  resumeAudio: async () => ({ resumed: true, diagnostics: [] }),
+  ...overrides,
+});
+
 test('complete welcome projection serializes a newer incremental update', async () => {
   let releaseWelcome!: () => void;
   const welcomePending = new Promise<void>((resolve) => { releaseWelcome = resolve; });
   const projection: string[] = [];
   const projectedRevisions: number[] = [];
   const context = {
-    renderer: {
+    renderer: rendererPort({
       replaceFrame: async () => {
         projection.push('welcome:start');
         await welcomePending;
@@ -82,7 +104,7 @@ test('complete welcome projection serializes a newer incremental update', async 
       clear: async () => undefined,
       renderOnce: () => undefined,
       replaceContent: async () => ({ applied: true, diagnostics: [] }),
-    },
+    }),
     ui: {
       active: () => true,
       allowsGameplayInput: () => true,
@@ -137,7 +159,7 @@ test('complete welcome projection serializes a newer incremental update', async 
 test('textured welcome fetches retained atlas bytes before replacing content', async () => {
   const calls: Array<{ frame: Record<string, unknown>; resources: Array<{ identity: string; contentHash: string; mediaType: string; bytes: Uint8Array }> }> = [];
   const context = {
-    renderer: {
+    renderer: rendererPort({
       replaceFrame: async () => { throw new Error('textured welcome must replace complete content'); },
       applyFrame: () => ({ applied: true, diagnostics: [] }),
       setCameraPose: () => undefined,
@@ -147,7 +169,7 @@ test('textured welcome fetches retained atlas bytes before replacing content', a
         calls.push(content);
         return { applied: true, diagnostics: [] };
       },
-    },
+    }),
     ui: {
       active: () => true,
       allowsGameplayInput: () => true,
@@ -208,7 +230,7 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
   const projection: string[] = [];
   const published: string[] = [];
   const context = {
-    renderer: {
+    renderer: rendererPort({
       replaceFrame: async () => {
         projection.push('welcome:start');
         await welcomePending;
@@ -220,7 +242,7 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
       clear: async () => undefined,
       renderOnce: () => undefined,
       replaceContent: async () => ({ applied: true, diagnostics: [] }),
-    },
+    }),
     ui: {
       active: () => true,
       allowsGameplayInput: () => true,
@@ -269,14 +291,14 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
 test('browser input sends movement, stance, sprint, jump, and impulse intent', async () => {
   let tick!: () => void;
   const context = {
-    renderer: {
+    renderer: rendererPort({
       replaceFrame: async () => ({ applied: true, diagnostics: [] }),
       applyFrame: () => ({ applied: true, diagnostics: [] }),
       setCameraPose: () => undefined,
       clear: async () => undefined,
       renderOnce: () => undefined,
       replaceContent: async () => ({ applied: true, diagnostics: [] }),
-    },
+    }),
     ui: {
       active: () => true,
       allowsGameplayInput: () => true,
@@ -334,14 +356,14 @@ test('browser input sends movement, stance, sprint, jump, and impulse intent', a
 test('typed player-overlap edit rejection reaches the HUD view', async () => {
   const rejected: Array<{ code: string; voxel: [number, number, number] }> = [];
   const context = {
-    renderer: {
+    renderer: rendererPort({
       replaceFrame: async () => ({ applied: true, diagnostics: [] }),
       applyFrame: () => ({ applied: true, diagnostics: [] }),
       setCameraPose: () => undefined,
       clear: async () => undefined,
       renderOnce: () => undefined,
       replaceContent: async () => ({ applied: true, diagnostics: [] }),
-    },
+    }),
     ui: {
       active: () => true,
       allowsGameplayInput: () => true,
