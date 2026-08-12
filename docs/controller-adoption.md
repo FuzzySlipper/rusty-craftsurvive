@@ -34,7 +34,7 @@ validated before player construction. Principal values are:
 | Gravity / jump / terminal fall | 24 / 8.5 / 24 |
 | Maximum slope | 50 degrees |
 | Maximum step / floor snap | 1.05 / 0.25 |
-| External decay / H impact | 3.0 per second / 5.5 |
+| External decay / H impact | 3.0 per second / 5.5 lateral + 2.5 lift |
 
 ## Evidence and diagnostics
 

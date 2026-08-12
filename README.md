@@ -90,7 +90,7 @@ Controls:
 - `Space`: jump while grounded
 - `Shift`: sprint while standing
 - `Control`: crouch; release to stand when clearance permits
-- `H`: apply one bounded lateral controller impulse
+- `H`: apply one bounded lateral-and-upward controller impulse
 - arrow keys: look
 - left mouse or `F`: destroy the targeted voxel
 - right mouse or `G`: place a grass voxel against the targeted face

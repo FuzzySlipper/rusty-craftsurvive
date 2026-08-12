@@ -147,11 +147,13 @@ fn install_playable_route(voxels: &mut BTreeMap<[i64; 3], u16>, depth: i64) {
     // every presentation mode.
     for x in -3..=3 {
         for z in 8..=10 {
-            for y in 3..=24 {
+            for y in 2..=24 {
                 voxels.remove(&[x, y, z]);
             }
-            for y in -depth..=2 {
-                voxels.insert([x, y, z], if y == 2 { 2 } else { 3 });
+            // Keep a full standing-capsule clearance below the platform sweep so an actor
+            // displaced off its deck cannot be trapped between the lower floor and moving side.
+            for y in -depth..=1 {
+                voxels.insert([x, y, z], if y == 1 { 2 } else { 3 });
             }
         }
     }

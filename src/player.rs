@@ -18,6 +18,7 @@ pub const PLATFORM_HALF_EXTENTS: [f32; 3] = [1.5, 0.25, 0.9];
 const STANDING_EYE_HEIGHT: f32 = 1.55;
 const CROUCHED_EYE_HEIGHT: f32 = 0.85;
 const IMPULSE_SPEED: f32 = 5.5;
+const IMPULSE_LIFT: f32 = 2.5;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerPose {
@@ -311,7 +312,7 @@ impl PlayerController {
                         jump_held: input.jump,
                         crouch_requested: input.crouch,
                         external_impulse: if first_step && impulse_pressed {
-                            look.right * IMPULSE_SPEED
+                            look.right * IMPULSE_SPEED + Vec3::new(0.0, IMPULSE_LIFT, 0.0)
                         } else {
                             Vec3::ZERO
                         },

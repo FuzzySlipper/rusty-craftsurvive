@@ -718,4 +718,68 @@ mod tests {
         assert!(impulse.readout.velocity[2] < 0.0);
         assert!(impulse.readout.player_revision > crouched.readout.player_revision);
     }
+
+    #[test]
+    fn platform_supported_impulse_remains_a_valid_session_update() {
+        let mut session = GameSession::with_terrain_and_spawn(
+            SurfaceSelection::Box,
+            TerrainConfig::default(),
+            SpawnSelection::MovingPlatform,
+        )
+        .unwrap();
+        let (connected, _) = session.connect().unwrap();
+        let mut sequence = 0;
+        for _ in 0..12 {
+            sequence += 1;
+            session
+                .submit(input(
+                    connected.generation,
+                    sequence,
+                    SessionCommand {
+                        delta_seconds: 0.05,
+                        ..SessionCommand::default()
+                    },
+                ))
+                .unwrap();
+        }
+        assert_eq!(session.readout().platform_entity, Some(2));
+        sequence += 1;
+        let impulse = session
+            .submit(input(
+                connected.generation,
+                sequence,
+                SessionCommand {
+                    impulse: true,
+                    delta_seconds: 0.05,
+                    ..SessionCommand::default()
+                },
+            ))
+            .unwrap();
+        assert!(impulse.readout.velocity[0].abs() > 1.0);
+        assert!(impulse.readout.velocity[1] > 0.0);
+        for _ in 0..80 {
+            sequence += 1;
+            let before = session.readout();
+            session
+                .submit(input(
+                    connected.generation,
+                    sequence,
+                    SessionCommand {
+                        delta_seconds: 0.05,
+                        ..SessionCommand::default()
+                    },
+                ))
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "sequence {sequence} failed from position {:?}, velocity {:?}, platform {:?}: {error}",
+                        before.player.position,
+                        before.velocity,
+                        before.platform_entity,
+                    )
+                });
+        }
+        let landed = session.readout();
+        assert!(landed.grounded);
+        assert!(landed.player.position[1] < 4.0);
+    }
 }
