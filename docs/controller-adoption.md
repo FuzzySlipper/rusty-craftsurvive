@@ -52,6 +52,25 @@ The Luna/max route in `product-playtest.scenario.json` requires an exit intervie
 harness/control difficulty from game defects and asks explicitly about feel, clipping,
 camera/collider disagreement, latency, snagging, slopes/steps, platform behavior, and edit recovery.
 
+## Game-feel certification
+
+Den task 6849 owns the indexed playtest artifacts and reviewer-visible exit interview. The final
+product behavior was certified at CraftSurvive revision
+`21bc767ababb409b619e7ecd2ad262063b4413b5` in two same-revision sessions:
+
+- `rusty-craftsurvive-playtest-20260812T055214.182589316Z-1022575` ran the documented
+  `grounded-voxel-loop`. Its visible route covered pointer look, straight/diagonal walk and sprint,
+  jump/landing, crouch/stand, wall/corner slide and snagging, the identifiable trench/step route,
+  and brush 1/2/3 edit recovery. It persisted the requested structured exit-interview fields.
+- `rusty-craftsurvive-playtest-20260812T054157.110336028Z-987006` supplied the final delta for the
+  broker navigation limitation in the broad run: visible moving-platform support, H departure, and
+  lower-floor landing without the previously reproduced runtime rejection.
+
+The broad operator could not identify a literal smooth slope in the voxel presentation and did not
+claim a subjective smooth-slope judgment. Deterministic Engine-consumer tests remain the mechanism
+evidence for legal and over-limit true mesh ramps; that distinction is a known visual-route limit,
+not a substituted playtest claim.
+
 ## Known boundary
 
 The canonical voxel island has box collision even when MC/DC presentation is selected. Engine's
