@@ -16,10 +16,10 @@ use rusty_engine::{
     svc_mesh::{MeshBounds, MeshGroup, MeshPayload, MeshStats, SurfaceMode},
 };
 
-use crate::{
-    terrain_materials, terrain_texture_op, SurfaceSelection, PLATFORM_HALF_EXTENTS,
-    PLATFORM_INITIAL_CENTER,
-};
+use crate::{terrain_materials, terrain_texture_op, SurfaceSelection, PLATFORM_HALF_EXTENTS};
+
+#[cfg(test)]
+use crate::PLATFORM_INITIAL_CENTER;
 
 const PLATFORM_HANDLE: RenderHandle = RenderHandle::new(2);
 const TERRAIN_INSTANCE: &str = "craftsurvive-terrain";
@@ -108,7 +108,7 @@ impl TerrainProjector {
                         color: [0.95, 0.65, 0.12, 1.0],
                         wireframe: false,
                     },
-                    transform: platform_transform(PLATFORM_INITIAL_CENTER.map(f64::from)),
+                    transform: platform_transform(platform_position),
                     visible: true,
                     layer: RenderLayer::Scene,
                     metadata: RenderMetadata {

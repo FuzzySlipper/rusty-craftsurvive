@@ -4,7 +4,9 @@ use rusty_engine::{
     engine_spatial::{
         CharacterBlockKind, CharacterControllerCommand, CharacterControllerConfig,
         CharacterControllerReceipt, CharacterControllerService, FirstPersonLookCommand,
-        FirstPersonLookConfig, FirstPersonLookService, FirstPersonLookState, VoxelCollisionScene,
+        FirstPersonLookConfig, FirstPersonLookService, FirstPersonLookState, GlobalPosition,
+        VoxelCollisionScene, WorldOrigin, WorldOriginEntity, WorldOriginReadout,
+        WorldOriginRebaseRequest, WorldOriginRebaseService, WorldOriginState,
     },
     entity_state::{CharacterMotionComponent, CharacterStance, EntityDefinition, EntityState},
     svc_collision::CharacterCollisionSource,
@@ -19,6 +21,9 @@ const STANDING_EYE_HEIGHT: f32 = 1.55;
 const CROUCHED_EYE_HEIGHT: f32 = 0.85;
 const IMPULSE_SPEED: f32 = 5.5;
 const IMPULSE_LIFT: f32 = 2.5;
+pub(crate) const REBASE_THRESHOLD: f32 = 32.0;
+const CRAFTSURVIVE_LOCAL_ENVELOPE: f32 = 1_000_000.0;
+const PLATFORM_ACTIVITY_RADIUS: f64 = 32.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PlayerPose {
@@ -76,6 +81,9 @@ pub struct PlayerMotionReadout {
 /// entity center into the downstream camera-eye pose.
 pub struct PlayerController {
     entities: EntityState,
+    origin: WorldOriginState,
+    player_global: GlobalPosition,
+    platform_global: GlobalPosition,
     controller: CharacterControllerService,
     config: CharacterControllerConfig,
     look_config: FirstPersonLookConfig,
@@ -112,10 +120,17 @@ impl PlayerController {
             .validate()
             .map_err(|error| format!("validate CraftSurvive controller tuning: {error}"))?;
         let center_y = pose.position[1] - f64::from(eye_offset(&config, CharacterStance::Standing));
-        let center = Vec3::new(
-            finite_f32(pose.position[0])?,
-            finite_f32(center_y)?,
-            finite_f32(pose.position[2])?,
+        let origin = WorldOriginState::new(CRAFTSURVIVE_LOCAL_ENVELOPE)
+            .map_err(|error| format!("create CraftSurvive world origin: {error}"))?;
+        let player_global =
+            GlobalPosition::from_world([pose.position[0], center_y, pose.position[2]])
+                .map_err(|error| format!("create global player position: {error}"))?;
+        let platform_global = GlobalPosition::from_world(PLATFORM_INITIAL_CENTER.map(f64::from))
+            .map_err(|error| format!("create global platform position: {error}"))?;
+        let center = vec3(
+            origin
+                .local_from_global(player_global)
+                .map_err(|error| format!("project initial player position: {error}"))?,
         );
         let entities = EntityState::from_definitions([
             EntityDefinition::new(PLAYER_ENTITY, "craftsurvive-player")
@@ -144,6 +159,9 @@ impl PlayerController {
         .map_err(|error| format!("create Engine player entity: {error}"))?;
         Ok(Self {
             entities,
+            origin,
+            player_global,
+            platform_global,
             controller: CharacterControllerService::default(),
             config,
             look_config: FirstPersonLookConfig::default(),
@@ -161,6 +179,21 @@ impl PlayerController {
     }
 
     pub fn pose(&self) -> PlayerPose {
+        let center = self.player_global.to_world();
+        let stance = self
+            .entities
+            .character_motion(PLAYER_ENTITY)
+            .expect("player always retains its Engine motion")
+            .stance;
+        let offset = f64::from(eye_offset(&self.config, stance));
+        PlayerPose {
+            position: [center[0], center[1] + offset, center[2]],
+            yaw_degrees: f64::from(self.look.yaw_radians.to_degrees()),
+            pitch_degrees: f64::from(self.look.pitch_radians.to_degrees()),
+        }
+    }
+
+    pub fn local_pose(&self) -> PlayerPose {
         let transform = self
             .entities
             .transform(PLAYER_ENTITY)
@@ -220,9 +253,7 @@ impl PlayerController {
     }
 
     pub fn revision(&self) -> u64 {
-        self.last_receipt
-            .as_ref()
-            .map_or(self.entities.revision(), |receipt| receipt.revision_after)
+        self.entities.revision()
     }
 
     pub fn platform_position(&self) -> [f64; 3] {
@@ -233,8 +264,46 @@ impl PlayerController {
         vec3_array(transform.translation)
     }
 
+    pub const fn world_origin(&self) -> WorldOriginReadout {
+        self.origin.readout()
+    }
+
+    pub fn rebase_world(&mut self, scene: &mut VoxelCollisionScene) -> Result<bool, String> {
+        let local = self
+            .entities
+            .transform(PLAYER_ENTITY)
+            .expect("player always retains its Engine transform")
+            .translation;
+        if local.x.abs() < REBASE_THRESHOLD && local.z.abs() < REBASE_THRESHOLD {
+            return Ok(false);
+        }
+        let player_cell = self.player_global.cell();
+        let target = WorldOrigin::new([player_cell[0], 0, player_cell[2]]);
+        let request = WorldOriginRebaseRequest {
+            expected_origin_revision: self.origin.revision(),
+            expected_entity_revision: self.entities.revision(),
+            expected_voxel_source_revision: scene.source_revision().raw(),
+            expected_static_mesh_revision: scene.static_mesh_collision_revision(),
+            target_origin: target,
+            entities: vec![
+                WorldOriginEntity {
+                    entity: PLAYER_ENTITY,
+                    global_position: self.player_global,
+                },
+                WorldOriginEntity {
+                    entity: PLATFORM_ENTITY,
+                    global_position: self.platform_global,
+                },
+            ],
+        };
+        WorldOriginRebaseService
+            .apply(&mut self.origin, &mut self.entities, scene, request)
+            .map_err(|error| format!("rebase CraftSurvive local world frame: {error}"))?;
+        Ok(true)
+    }
+
     pub fn overlaps_voxel(&self, address: [i64; 3], voxel_size: f64) -> bool {
-        let (player_min, player_max) = self.capsule_bounds();
+        let (player_min, player_max) = self.global_capsule_bounds();
         let voxel_min = address.map(|coordinate| coordinate as f64 * voxel_size);
         let voxel_max = voxel_min.map(|coordinate| coordinate + voxel_size);
         aabb_intersects(player_min, player_max, voxel_min, voxel_max)
@@ -328,6 +397,7 @@ impl PlayerController {
                 )
                 .map_err(|error| format!("step Engine character controller: {error}"))?;
             self.last_receipt = Some(receipt);
+            self.refresh_global_positions()?;
             self.fixed_step_accumulator -= FIXED_STEP_SECONDS;
             first_step = false;
         }
@@ -335,12 +405,15 @@ impl PlayerController {
     }
 
     fn advance_platform(&mut self) -> Result<(), String> {
-        let x = self
-            .entities
-            .transform(PLATFORM_ENTITY)
-            .expect("moving platform always retains its Engine transform")
-            .translation
-            .x;
+        let player = self.player_global.to_world();
+        let platform = self.platform_global.to_world();
+        let distance_squared = (player[0] - platform[0]).powi(2)
+            + (player[1] - platform[1]).powi(2)
+            + (player[2] - platform[2]).powi(2);
+        if distance_squared > PLATFORM_ACTIVITY_RADIUS.powi(2) {
+            return Ok(());
+        }
+        let x = platform[0];
         if x >= 1.5 {
             self.platform_direction = -1.0;
         } else if x <= -1.5 {
@@ -356,9 +429,37 @@ impl PlayerController {
                 },
             )
             .map_err(|error| format!("advance CraftSurvive moving platform: {error}"))?;
+        self.refresh_platform_global()?;
         Ok(())
     }
 
+    fn refresh_global_positions(&mut self) -> Result<(), String> {
+        let player = self
+            .entities
+            .transform(PLAYER_ENTITY)
+            .expect("player always retains its Engine transform")
+            .translation;
+        self.player_global = self
+            .origin
+            .global_from_local(player.to_array())
+            .map_err(|error| format!("update global player position: {error}"))?;
+        self.refresh_platform_global()
+    }
+
+    fn refresh_platform_global(&mut self) -> Result<(), String> {
+        let platform = self
+            .entities
+            .transform(PLATFORM_ENTITY)
+            .expect("moving platform always retains its Engine transform")
+            .translation;
+        self.platform_global = self
+            .origin
+            .global_from_local(platform.to_array())
+            .map_err(|error| format!("update global platform position: {error}"))?;
+        Ok(())
+    }
+
+    #[cfg(test)]
     fn capsule_bounds(&self) -> ([f64; 3], [f64; 3]) {
         let transform = self
             .entities
@@ -374,6 +475,33 @@ impl PlayerController {
             CharacterStance::Crouched => self.config.shape.crouched_height,
         };
         let center = vec3_array(transform.translation);
+        let radius = f64::from(self.config.shape.radius);
+        let half_height = f64::from(height) * 0.5;
+        (
+            [
+                center[0] - radius,
+                center[1] - half_height,
+                center[2] - radius,
+            ],
+            [
+                center[0] + radius,
+                center[1] + half_height,
+                center[2] + radius,
+            ],
+        )
+    }
+
+    fn global_capsule_bounds(&self) -> ([f64; 3], [f64; 3]) {
+        let stance = self
+            .entities
+            .character_motion(PLAYER_ENTITY)
+            .expect("player always retains its Engine motion")
+            .stance;
+        let height = match stance {
+            CharacterStance::Standing => self.config.shape.standing_height,
+            CharacterStance::Crouched => self.config.shape.crouched_height,
+        };
+        let center = self.player_global.to_world();
         let radius = f64::from(self.config.shape.radius);
         let half_height = f64::from(height) * 0.5;
         (
@@ -440,6 +568,10 @@ fn finite_f32(value: f64) -> Result<f32, String> {
 
 fn vec3_array(value: Vec3) -> [f64; 3] {
     [f64::from(value.x), f64::from(value.y), f64::from(value.z)]
+}
+
+fn vec3(value: [f32; 3]) -> Vec3 {
+    Vec3::new(value[0], value[1], value[2])
 }
 
 fn stance_name(value: CharacterStance) -> &'static str {
@@ -576,6 +708,46 @@ mod tests {
         assert!(player.motion().grounded, "{:?}", player.motion());
         assert!(player.revision() > before_revision);
         assert_ne!(player.motion().collision_world_hash, 0);
+    }
+
+    #[test]
+    fn far_global_motion_stays_exact_while_repeated_rebases_bound_local_space() {
+        let mut scene = VoxelCollisionScene::from_solid_voxels(1.0, 16, []).unwrap();
+        let mut player = PlayerController::new(PlayerPose {
+            position: [262_080.5, 7.0, 7.0],
+            yaw_degrees: 0.0,
+            pitch_degrees: 0.0,
+        })
+        .unwrap();
+        assert!(player.rebase_world(&mut scene).unwrap());
+        let first_origin = player.world_origin();
+        assert_eq!(first_origin.origin.cell()[0], 262_080);
+        assert!(player.local_pose().position[0].abs() < 1.0);
+
+        let start = player.pose().position;
+        for _ in 0..1_200 {
+            player
+                .step(
+                    &scene,
+                    PlayerInput {
+                        forward: 1.0,
+                        sprint: true,
+                        ..PlayerInput::default()
+                    },
+                    f64::from(FIXED_STEP_SECONDS),
+                )
+                .unwrap();
+            player.rebase_world(&mut scene).unwrap();
+        }
+
+        let global = player.pose().position;
+        let local = player.local_pose().position;
+        assert_eq!(global[0], start[0]);
+        assert!(global[2] < start[2] - 60.0);
+        assert!(local[0].abs() < REBASE_THRESHOLD as f64);
+        assert!(local[2].abs() < REBASE_THRESHOLD as f64);
+        assert!(player.world_origin().revision >= first_origin.revision + 2);
+        assert_eq!(player.revision(), player.entities.revision());
     }
 
     #[test]

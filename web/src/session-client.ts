@@ -7,6 +7,9 @@ type Surface = 'box' | 'marchingCubes' | 'dualContouring';
 interface CameraPose { position: [number, number, number]; yawDegrees: number; pitchDegrees: number }
 interface Readout {
   generation: number; acceptedSequence: number; playerRevision: number;
+  player: CameraPose; playerLocalPosition: [number, number, number];
+  worldOrigin: [number, number, number]; worldOriginRevision: number;
+  localCoordinateEnvelope: number;
   camera: CameraPose; surface: Surface; worldRevision: number;
   authorityHash: number; voxelCount: number; targetedVoxel: [number, number, number] | null;
   grounded: boolean; velocity: [number, number, number];
@@ -201,7 +204,7 @@ export class SessionClient {
     const axis = (positive: string, negative: string) => Number(this.#held.has(positive)) - Number(this.#held.has(negative));
     this.#sequence += 1;
     this.#socket.send(JSON.stringify({
-      kind: 'input', protocolVersion: 4, generation: this.#generation, sequence: this.#sequence,
+      kind: 'input', protocolVersion: 5, generation: this.#generation, sequence: this.#sequence,
       command: {
         movement: [axis('KeyW', 'KeyS'), axis('KeyD', 'KeyA')], jump: this.#held.has('Space'),
         crouch: this.#held.has('ControlLeft') || this.#held.has('ControlRight'),
@@ -293,6 +296,7 @@ async function fetchResource(resource: ResourceReadout): Promise<RustyApplicatio
 
 function decodeReadout(value: unknown): Readout {
   const object = record(value, 'session readout');
+  const player = record(object['player'], 'player pose');
   const camera = record(object['camera'], 'camera pose');
   const position = tuple3(camera['position'], 'camera position');
   const surface = text(object['surface'], 'surface');
@@ -301,6 +305,15 @@ function decodeReadout(value: unknown): Readout {
     generation: number(object['generation'], 'generation'),
     acceptedSequence: number(object['acceptedSequence'], 'accepted sequence'),
     playerRevision: number(object['playerRevision'], 'player revision'),
+    player: {
+      position: tuple3(player['position'], 'player global position'),
+      yawDegrees: number(player['yawDegrees'], 'player yaw'),
+      pitchDegrees: number(player['pitchDegrees'], 'player pitch'),
+    },
+    playerLocalPosition: tuple3(object['playerLocalPosition'], 'player local position'),
+    worldOrigin: tuple3(object['worldOrigin'], 'world origin'),
+    worldOriginRevision: integer(object['worldOriginRevision'], 'world origin revision'),
+    localCoordinateEnvelope: number(object['localCoordinateEnvelope'], 'local coordinate envelope'),
     camera: {
       position,
       yawDegrees: number(camera['yawDegrees'], 'camera yaw'),

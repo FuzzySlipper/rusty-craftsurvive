@@ -177,7 +177,8 @@ async fn session_upgrade(
         None | Some("route") => SpawnSelection::Route,
         Some("platform") => SpawnSelection::MovingPlatform,
         Some("stream") => SpawnSelection::StreamingWest,
-        Some("far") => SpawnSelection::FarCoordinate,
+        Some("far") => SpawnSelection::FarPositive,
+        Some("far-negative") => SpawnSelection::FarNegative,
         Some(value) => {
             return (
                 StatusCode::BAD_REQUEST,

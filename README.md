@@ -166,12 +166,16 @@ fingerprinted JSON overlay under `target/craftsurvive-saves`, keyed by generatio
 Malformed, oversized, wrong-seed, or unsupported-version documents fail before a session opens;
 there is intentionally no guessed migration. The overlay is bounded to 65,536 entries and 8 MiB.
 
-Engine admits voxel addresses through ±1,000,000, but CraftSurvive certifies first-person simulation
-and rendering only through ±65,536 world units. Engine entity/controller and retained transforms are
-currently `f32`; at the certified edge their spacing is about 0.0078 units, and precision worsens
-with distance. Engine task 6895 tracks a host-neutral exact-global/local-origin rebase needed before
-raising this product envelope. Terrain has no authored edge inside the supported range, but this is
-not a marketing claim of limitless precision or storage.
+Engine admits voxel addresses through ±1,000,000. CraftSurvive now certifies first-person
+simulation and rendering through both signs at ±262,144 world units. Engine task 6895 supplies an
+exact `i64` cell plus normalized `f64` offset global position and a guarded world-origin rebase;
+CraftSurvive keeps that exact global pose as authority while character collision, voxel authority,
+camera, and retained rendering operate in a bounded local `f32` frame. A rebase is scheduled when
+the player reaches 32 local units, atomically translates all registered local roots and spatial
+derivatives, and preserves stable entity/chunk render handles. The deterministic far route crosses
+multiple origin revisions in both signs, keeps local X/Z below the trigger, and checks residency,
+edit persistence, and seed isolation. Terrain has no authored edge inside the supported range, but
+this remains a bounded numeric and storage contract rather than a limitless-world claim.
 The atlas, region metadata, source-image provenance, and deterministic rebuild command live under
 `content/textures/`; texture resources are replaced with the complete initial renderer content and
 remain presentation data rather than voxel authority.
@@ -235,7 +239,9 @@ argument does not override a manifest's fixed `startPath`.
 west-corridor spawn for a bounded streaming, reversal, and edit-retention judgement; the explicit
 manifest is required because broker startup paths do not inherit a later runtime query argument.
 `.den-playwright.unbounded.json` and `product-playtest.unbounded.scenario.json` select a fixed seed
-near the certified positive-coordinate edge for long-route, edit, reload, and jitter judgement.
+near the certified positive-coordinate edge for long-route, edit, reload, rebase, and jitter
+judgement. The deterministic `pnpm smoke:unbounded` route additionally traverses both signed edges
+and requires multiple origin revisions while the local player frame remains bounded.
 
 A vision playtester should be given the exact committed revision and explicit manifest/scenario
 paths. It should navigate through repeated screenshots or frame bursts and physical mouse/keyboard

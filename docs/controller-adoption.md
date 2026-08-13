@@ -11,7 +11,11 @@ dependency pin: the adjacent Engine path remains rolling-current.
 Engine owns the accepted entity-center transform, character-motion continuation facts, capsule
 casts/overlaps, movement and collision response, ground/slope/step classification, crouch
 clearance, platform support/carry, recovery, and external-motion integration. Its companion look
-service owns the canonical yaw/pitch basis.
+service owns the canonical yaw/pitch basis. Engine also owns the exact-global/local-origin value
+types and guarded atomic rebase mechanism. CraftSurvive retains the exact global player/platform
+positions, registers the complete local roots, and schedules a rebase at 32 local units; collision,
+camera, and renderer inputs remain local while gameplay identity, residency, edits, and saves use
+signed global coordinates.
 
 CraftSurvive owns the 120 Hz call cadence, camera eye offset, semantic bindings, game-feel tuning,
 moving-platform schedule, and the meaning of the `H` impact action. Browser and native inputs map
@@ -40,11 +44,13 @@ validated before player construction. Principal values are:
 
 Focused Rust consumer tests cover command mapping, normalized diagonal motion, canonical look,
 jump, crouch and blocked stand, wall slide, one-voxel step facts, active moving-platform carry,
-external impulse separation, and live edit reconciliation. The deterministic browser campaign adds
+external impulse separation, live edit reconciliation, exact far signed spawns, and repeated
+world-origin rebases without global drift. The deterministic browser campaign adds
 physical pointer lock, ten-command cardinal/diagonal comparison, crouch/stand, jump/land, wall and
 ledge behavior, edits, renderer-visible changes, collision diagnostics, and H-impact response.
 
-The HUD projects accepted pose/velocity, stance and blocked stand, ground source/normal,
+The HUD projects exact global and bounded local positions plus origin/revision, accepted
+pose/velocity, stance and blocked stand, ground source/normal,
 contacts/blocks, step facts, platform identity/displacement, cast/recovery counts, and the
 collision-world hash. These are observations of Rust authority, not browser gameplay state.
 

@@ -12,7 +12,7 @@ use crate::{
     TerrainProjector, MAX_BRUSH_RADIUS, TERRAIN_GENERATION_VERSION,
 };
 
-pub const SESSION_PROTOCOL_VERSION: u32 = 4;
+pub const SESSION_PROTOCOL_VERSION: u32 = 5;
 pub const MAX_SESSION_MESSAGE_BYTES: usize = 16 * 1024;
 pub const MAX_LOOK_DELTA_DEGREES: f64 = 45.0;
 pub const MAX_INPUT_DELTA_SECONDS: f64 = 0.05;
@@ -29,7 +29,8 @@ pub enum SpawnSelection {
     Route,
     MovingPlatform,
     StreamingWest,
-    FarCoordinate,
+    FarPositive,
+    FarNegative,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -87,6 +88,10 @@ pub struct SessionReadout {
     pub accepted_sequence: u64,
     pub player_revision: u64,
     pub player: PlayerPoseReadout,
+    pub player_local_position: [f64; 3],
+    pub world_origin: [i64; 3],
+    pub world_origin_revision: u64,
+    pub local_coordinate_envelope: f64,
     pub grounded: bool,
     pub velocity: [f64; 3],
     pub stance: &'static str,
@@ -294,8 +299,13 @@ impl GameSession {
                 yaw_degrees: 90.0,
                 pitch_degrees: -15.0,
             })?,
-            SpawnSelection::FarCoordinate => PlayerController::new(PlayerPose {
-                position: [65_440.0, 7.0, -2.0],
+            SpawnSelection::FarPositive => PlayerController::new(PlayerPose {
+                position: [262_080.0, 7.0, -2.0],
+                yaw_degrees: 90.0,
+                pitch_degrees: -15.0,
+            })?,
+            SpawnSelection::FarNegative => PlayerController::new(PlayerPose {
+                position: [-262_080.0, 7.0, -2.0],
                 yaw_degrees: 90.0,
                 pitch_degrees: -15.0,
             })?,
@@ -319,6 +329,7 @@ impl GameSession {
         self.connected = true;
         self.accepted_sequence = 0;
         self.terrain_projector = TerrainProjector::new();
+        self.world.rebase_player(&mut self.player)?;
         self.world.sync_residency(self.player.pose().position)?;
         let frame = self.terrain_projector.project(
             self.world.scene(),
@@ -411,6 +422,10 @@ impl GameSession {
                 command.delta_seconds,
             )
             .map_err(SessionErrorOrRuntime::Runtime)?;
+        let rebased = self
+            .world
+            .rebase_player(&mut self.player)
+            .map_err(SessionErrorOrRuntime::Runtime)?;
         let residency_changed = self
             .world
             .sync_residency(self.player.pose().position)
@@ -421,7 +436,7 @@ impl GameSession {
             Some(action) => match self
                 .world
                 .edit_from_view(
-                    self.player.pose().position,
+                    self.player.local_pose().position,
                     self.player.view_direction(),
                     match action {
                         SessionAction::Destroy => EditKind::Destroy,
@@ -439,7 +454,7 @@ impl GameSession {
             None => (None, None),
         };
         let platform_changed = self.player.platform_position() != platform_before;
-        let frame = if edit_receipt.is_some() || residency_changed {
+        let frame = if edit_receipt.is_some() || residency_changed || rebased {
             self.terrain_projector
                 .project(
                     self.world.scene(),
@@ -469,6 +484,8 @@ impl GameSession {
 
     pub fn readout(&self) -> SessionReadout {
         let pose = self.player.pose();
+        let local_pose = self.player.local_pose();
+        let origin = self.player.world_origin();
         let motion = self.player.motion();
         let terrain = self.world.terrain();
         let metrics = self.world.metrics();
@@ -481,6 +498,10 @@ impl GameSession {
             accepted_sequence: self.accepted_sequence,
             player_revision: self.player.revision(),
             player: pose.into(),
+            player_local_position: local_pose.position,
+            world_origin: origin.origin.cell(),
+            world_origin_revision: origin.revision,
+            local_coordinate_envelope: f64::from(origin.local_envelope),
             grounded: motion.grounded,
             velocity: motion.velocity,
             stance: motion.stance,
@@ -498,9 +519,9 @@ impl GameSession {
             cast_count: motion.cast_count,
             recovery_passes: motion.recovery_passes,
             camera: RendererCameraPose {
-                position: pose.position,
-                yaw_degrees: pose.yaw_degrees,
-                pitch_degrees: pose.pitch_degrees,
+                position: local_pose.position,
+                yaw_degrees: local_pose.yaw_degrees,
+                pitch_degrees: local_pose.pitch_degrees,
             },
             surface: self.world.surface().into(),
             world_revision: self.world.scene().source_revision().raw(),
@@ -508,7 +529,7 @@ impl GameSession {
             voxel_count: self.world.scene().solid_voxel_count(),
             targeted_voxel: self
                 .world
-                .target_from_view(pose.position, self.player.view_direction()),
+                .target_from_view(local_pose.position, self.player.view_direction()),
             brush_radius: self.brush_radius,
             terrain_seed: format!("0x{:016x}", terrain.seed),
             terrain_size: terrain.size,
@@ -915,17 +936,59 @@ mod tests {
     }
 
     #[test]
-    fn far_coordinate_spawn_connects_with_bounded_coherent_residency() {
+    fn far_signed_spawns_connect_in_bounded_local_frames_with_coherent_residency() {
+        for (spawn, sign) in [
+            (SpawnSelection::FarPositive, 1.0),
+            (SpawnSelection::FarNegative, -1.0),
+        ] {
+            let mut session = GameSession::with_terrain_and_spawn(
+                SurfaceSelection::Box,
+                TerrainConfig::default(),
+                spawn,
+            )
+            .unwrap();
+            let (readout, frame) = session.connect().unwrap();
+            assert!(readout.player.position[0] * sign > 262_000.0);
+            assert!(readout.player_local_position[0].abs() < 1.0);
+            assert_eq!(readout.world_origin[0].signum() as f64, sign);
+            assert_eq!(readout.world_origin_revision, 1);
+            assert!(readout.resident_chunks <= 64);
+            assert!(readout.pinned_chunks > 0);
+            frame.validate().unwrap();
+        }
+    }
+
+    #[test]
+    fn far_route_crosses_rebase_thresholds_without_losing_global_or_resident_identity() {
         let mut session = GameSession::with_terrain_and_spawn(
             SurfaceSelection::Box,
             TerrainConfig::default(),
-            SpawnSelection::FarCoordinate,
+            SpawnSelection::FarPositive,
         )
         .unwrap();
-        let (readout, frame) = session.connect().unwrap();
-        assert!(readout.player.position[0] >= 65_000.0);
-        assert!(readout.resident_chunks <= 64);
-        assert!(readout.pinned_chunks > 0);
-        frame.validate().unwrap();
+        let (connected, _) = session.connect().unwrap();
+        let starting_origin_revision = connected.world_origin_revision;
+        let mut last = connected;
+        for sequence in 1..=240 {
+            last = session
+                .submit(input(
+                    last.generation,
+                    sequence,
+                    SessionCommand {
+                        movement: [1.0, 0.0],
+                        sprint: true,
+                        delta_seconds: 0.05,
+                        ..SessionCommand::default()
+                    },
+                ))
+                .unwrap()
+                .readout;
+        }
+        assert!(last.player.position[0] > 262_000.0);
+        assert!(last.player_local_position[0].abs() < crate::player::REBASE_THRESHOLD as f64);
+        assert!(last.player_local_position[2].abs() < crate::player::REBASE_THRESHOLD as f64);
+        assert!(last.world_origin_revision >= starting_origin_revision + 2);
+        assert!(last.resident_chunks <= 64);
+        assert!(last.pinned_chunks > 0);
     }
 }

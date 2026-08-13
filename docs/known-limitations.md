@@ -31,8 +31,9 @@ The initial experiment is intentionally bounded:
   static-mesh geometry is not part of the voxel island presentation, so browser judgement of the
   reconstructed MC/DC terrain remains presentation-only rather than alternate collision authority;
 - the campaign is not a broad browser, accessibility, or hardware compatibility campaign.
-- large-world first-person behavior is certified only through ±65,536 units because Engine
-  entity/controller/render transforms remain `f32`; task 6895 owns the upstream rebasing follow-up.
+- exact-global/local-origin rebasing is certified through ±262,144 units in both signs. Engine's
+  admitted voxel and local-frame envelope remains ±1,000,000; larger coordinates, cross-origin
+  multiplayer policy, background streaming, and limitless precision are not certified here.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

@@ -18,7 +18,7 @@ use crate::{
 };
 
 pub const MAX_BRUSH_RADIUS: u8 = 2;
-pub const CERTIFIED_WORLD_COORDINATE_ABS: i64 = 65_536;
+pub const CERTIFIED_WORLD_COORDINATE_ABS: i64 = 262_144;
 const CHUNK_SIZE: i64 = 16;
 const REQUEST_RADIUS: i64 = 1;
 const RETAIN_RADIUS: i64 = 2;
@@ -204,6 +204,10 @@ impl GameWorld {
 
     pub const fn scene(&self) -> &VoxelCollisionScene {
         &self.scene
+    }
+
+    pub fn rebase_player(&mut self, player: &mut PlayerController) -> Result<bool, String> {
+        player.rebase_world(&mut self.scene)
     }
 
     pub const fn surface(&self) -> SurfaceSelection {

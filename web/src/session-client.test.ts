@@ -32,6 +32,11 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   generation: 1,
   acceptedSequence,
   playerRevision,
+  player: { position: [0, 7, 7], yawDegrees: -10, pitchDegrees: -20 },
+  playerLocalPosition: [0, 7, 7],
+  worldOrigin: [0, 0, 0],
+  worldOriginRevision: 0,
+  localCoordinateEnvelope: 1_000_000,
   camera: { position: [0, 7, 7], yawDegrees: -10, pitchDegrees: -20 },
   surface: 'box',
   worldRevision: 0,
@@ -364,7 +369,7 @@ test('browser input sends movement, stance, sprint, jump, and impulse intent', a
     protocolVersion: number;
     command: { movement: number[]; jump: boolean; crouch: boolean; sprint: boolean; impulse: boolean; brushRadius: number };
   };
-  assert.equal(sent.protocolVersion, 4);
+  assert.equal(sent.protocolVersion, 5);
   assert.deepEqual(sent.command.movement, [1, 0]);
   assert.equal(sent.command.jump, true);
   assert.equal(sent.command.crouch, true);

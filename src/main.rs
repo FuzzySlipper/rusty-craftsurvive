@@ -91,6 +91,9 @@ impl CraftSurviveApplication {
 
     fn initialize_renderer(&mut self) -> Result<()> {
         self.world
+            .rebase_player(&mut self.player)
+            .map_err(anyhow::Error::msg)?;
+        self.world
             .sync_residency(self.player.pose().position)
             .map_err(anyhow::Error::msg)?;
         let renderer = self.renderer.as_mut().context("renderer unavailable")?;
@@ -103,7 +106,7 @@ impl CraftSurviveApplication {
         renderer.submit_presentation(
             &telemetry_frame(self.config.surface).map_err(anyhow::Error::msg)?,
         )?;
-        renderer.set_camera_pose(camera_pose(self.player.pose()), None)?;
+        renderer.set_camera_pose(camera_pose(self.player.local_pose()), None)?;
         renderer.read_state()?;
         renderer.render_once(None)?;
         self.request_input()?;
@@ -146,11 +149,15 @@ impl CraftSurviveApplication {
                 delta_seconds,
             )
             .map_err(anyhow::Error::msg)?;
+        let rebased = self
+            .world
+            .rebase_player(&mut self.player)
+            .map_err(anyhow::Error::msg)?;
         let residency_changed = self
             .world
             .sync_residency(self.player.pose().position)
             .map_err(anyhow::Error::msg)?;
-        let motion_frame = if residency_changed {
+        let motion_frame = if residency_changed || rebased {
             self.terrain_projector
                 .project(self.world.scene(), self.player.platform_position(), true)
                 .map_err(anyhow::Error::msg)?
@@ -185,7 +192,7 @@ impl CraftSurviveApplication {
             match self
                 .world
                 .edit_from_view(
-                    self.player.pose().position,
+                    self.player.local_pose().position,
                     self.player.view_direction(),
                     kind,
                     self.brush_radius,
@@ -232,7 +239,7 @@ impl CraftSurviveApplication {
         self.renderer
             .as_mut()
             .context("renderer unavailable")?
-            .set_camera_pose(camera_pose(self.player.pose()), None)?;
+            .set_camera_pose(camera_pose(self.player.local_pose()), None)?;
         self.pressed_codes = pressed;
         self.pointer_buttons = input.pointer.buttons;
         Ok(())
