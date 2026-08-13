@@ -90,6 +90,9 @@ impl CraftSurviveApplication {
     }
 
     fn initialize_renderer(&mut self) -> Result<()> {
+        self.world
+            .sync_residency(self.player.pose().position)
+            .map_err(anyhow::Error::msg)?;
         let renderer = self.renderer.as_mut().context("renderer unavailable")?;
         renderer.submit_frame(
             &self
@@ -143,12 +146,21 @@ impl CraftSurviveApplication {
                 delta_seconds,
             )
             .map_err(anyhow::Error::msg)?;
+        let residency_changed = self
+            .world
+            .sync_residency(self.player.pose().position)
+            .map_err(anyhow::Error::msg)?;
+        let motion_frame = if residency_changed {
+            self.terrain_projector
+                .project(self.world.scene(), self.player.platform_position(), true)
+                .map_err(anyhow::Error::msg)?
+        } else {
+            platform_frame(self.player.platform_position()).map_err(anyhow::Error::msg)?
+        };
         self.renderer
             .as_mut()
             .context("renderer unavailable")?
-            .submit_frame(
-                &platform_frame(self.player.platform_position()).map_err(anyhow::Error::msg)?,
-            )?;
+            .submit_frame(&motion_frame)?;
 
         let newly_pressed =
             |code: &str| pressed.contains(code) && !self.pressed_codes.contains(code);
