@@ -273,8 +273,10 @@ impl GameWorld {
             .into_iter()
             .map(|chunk| (chunk.chunk, chunk))
             .collect::<BTreeMap<_, _>>();
-        let affected = overlay
+        let affected = self
+            .edit_overlay
             .keys()
+            .chain(overlay.keys())
             .map(|address| {
                 VoxelChunkIdentity::new(
                     address[0].div_euclid(CHUNK_SIZE),
@@ -1207,6 +1209,75 @@ mod tests {
             .material_voxels()
             .iter()
             .any(|voxel| voxel.address == edited));
+    }
+
+    #[test]
+    fn overlay_replacement_restores_old_only_chunks_and_is_fail_atomic() {
+        let terrain = TerrainConfig::new(0x55aa, 96).unwrap();
+        let old_only = [0, 3, 7];
+        let new_only = [17, 3, 7];
+        let island = IslandConfig::from(terrain);
+        let old_base = material_at(island, old_only).unwrap();
+        let new_base = material_at(island, new_only).unwrap();
+        let new_material = if new_base == 1 { 2 } else { 1 };
+        let old_overlay = BTreeMap::from([(old_only, None)]);
+        let new_overlay = BTreeMap::from([(new_only, Some(new_material))]);
+        let empty_overlay = BTreeMap::new();
+        let mut world = GameWorld::with_terrain(SurfaceSelection::Box, terrain).unwrap();
+
+        world
+            .load_overlay_bytes(&encode_overlay(terrain.seed, &old_overlay).unwrap())
+            .unwrap();
+        assert!(!world
+            .scene()
+            .material_voxels()
+            .iter()
+            .any(|voxel| voxel.address == old_only));
+
+        let before_disjoint = world.scene().source_revision();
+        world
+            .load_overlay_bytes(&encode_overlay(terrain.seed, &new_overlay).unwrap())
+            .unwrap();
+        assert!(world.scene().source_revision() > before_disjoint);
+        assert_eq!(world.overlay_entry_count(), 1);
+        assert!(world
+            .scene()
+            .material_voxels()
+            .iter()
+            .any(|voxel| voxel.address == old_only && voxel.material_slot == old_base));
+        assert!(world
+            .scene()
+            .material_voxels()
+            .iter()
+            .any(|voxel| voxel.address == new_only && voxel.material_slot == new_material));
+        assert!(world
+            .scene()
+            .projection_revisions()
+            .is_coherent_with(world.scene().source_revision()));
+
+        let before_empty = world.scene().source_revision();
+        world
+            .load_overlay_bytes(&encode_overlay(terrain.seed, &empty_overlay).unwrap())
+            .unwrap();
+        assert!(world.scene().source_revision() > before_empty);
+        assert_eq!(world.overlay_entry_count(), 0);
+        assert!(world
+            .scene()
+            .material_voxels()
+            .iter()
+            .any(|voxel| voxel.address == new_only && voxel.material_slot == new_base));
+        assert!(world
+            .scene()
+            .projection_revisions()
+            .is_coherent_with(world.scene().source_revision()));
+
+        let revision = world.scene().source_revision();
+        let authority_hash = world.scene().authority_hash();
+        let overlay_bytes = world.overlay_bytes().unwrap();
+        assert!(world.load_overlay_bytes(b"not valid json").is_err());
+        assert_eq!(world.scene().source_revision(), revision);
+        assert_eq!(world.scene().authority_hash(), authority_hash);
+        assert_eq!(world.overlay_bytes().unwrap(), overlay_bytes);
     }
 
     #[test]
