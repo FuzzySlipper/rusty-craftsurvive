@@ -19,7 +19,9 @@ use rusty_engine::{
     svc_mesh::{MeshBounds, MeshGroup, MeshPayload, MeshStats, SurfaceMode},
 };
 
-use crate::{terrain_materials, terrain_texture_op, SurfaceSelection, PLATFORM_HALF_EXTENTS};
+use crate::{
+    terrain_materials, terrain_texture_op, wisp_scene_ops, SurfaceSelection, PLATFORM_HALF_EXTENTS,
+};
 
 #[cfg(test)]
 use crate::PLATFORM_INITIAL_CENTER;
@@ -102,6 +104,7 @@ impl TerrainProjector {
         let mut extra = Vec::new();
         if !self.initialized {
             result.frame.ops.insert(0, terrain_texture_op()?);
+            extra.extend(wisp_scene_ops()?);
             extra.push(RenderDiff::Create {
                 handle: PLATFORM_HANDLE,
                 parent: None,

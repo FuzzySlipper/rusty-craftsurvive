@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    platform_frame, telemetry_frame, terrain_texture_resource, DemoConfig, EditKind, EditOutcome,
-    GameWorld, PlayerController, PlayerInput, TerrainProjector,
+    platform_frame, telemetry_frame, terrain_texture_resource, wisp_texture_resource, DemoConfig,
+    EditKind, EditOutcome, GameWorld, PlayerController, PlayerInput, TerrainProjector,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
@@ -68,6 +68,7 @@ impl CraftSurviveApplication {
             )
             .context("create CraftSurvive window")?;
         let terrain_texture = terrain_texture_resource().map_err(anyhow::Error::msg)?;
+        let wisp_texture = wisp_texture_resource().map_err(anyhow::Error::msg)?;
         let renderer = RendererWebviewAdapter::mount(
             &window,
             RendererWebviewOptions {
@@ -75,12 +76,20 @@ impl CraftSurviveApplication {
                 bounds: window_bounds(&window),
                 clear_color: Some(0x87_ceeb),
                 pixel_ratio: window.scale_factor(),
-                resources: vec![RendererResource {
-                    identity: terrain_texture.identity,
-                    content_hash: terrain_texture.content_hash,
-                    media_type: terrain_texture.media_type.to_owned(),
-                    bytes: terrain_texture.bytes.to_vec(),
-                }],
+                resources: vec![
+                    RendererResource {
+                        identity: terrain_texture.identity,
+                        content_hash: terrain_texture.content_hash,
+                        media_type: terrain_texture.media_type.to_owned(),
+                        bytes: terrain_texture.bytes.to_vec(),
+                    },
+                    RendererResource {
+                        identity: wisp_texture.identity,
+                        content_hash: wisp_texture.content_hash,
+                        media_type: wisp_texture.media_type.to_owned(),
+                        bytes: wisp_texture.bytes.to_vec(),
+                    },
+                ],
             },
         )
         .map_err(|error| anyhow::anyhow!("mount Engine renderer: {error:?}"))?;
