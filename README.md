@@ -218,6 +218,9 @@ ordinary query URLs; they do not create another gameplay authority.
 `.den-playwright.alt.json` holds size at the default 96 while selecting `seed=0x2a`, so paired
 default/alternate screenshots isolate seed-driven terrain variation; a runtime URL
 argument does not override a manifest's fixed `startPath`.
+`.den-playwright.stream.json` and `product-playtest.streaming.scenario.json` select the ordinary
+west-corridor spawn for a bounded streaming, reversal, and edit-retention judgement; the explicit
+manifest is required because broker startup paths do not inherit a later runtime query argument.
 
 A vision playtester should be given the exact committed revision and explicit manifest/scenario
 paths. It should navigate through repeated screenshots or frame bursts and physical mouse/keyboard

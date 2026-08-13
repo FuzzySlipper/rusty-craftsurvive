@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "project": "rusty-craftsurvive",
+  "scenario": "bounded-streaming-corridor",
+  "mission": "From the visible west-corridor spawn, capture the mouse, destroy one targeted terrain voxel near the route, then sprint east across several terrain chunk boundaries. Observe repeatedly for pop-in, stalls, holes, texture discontinuity, or collision mismatch. Reverse and return toward the edited area, verify whether the visible edit persists when practical, and report navigation or control difficulty honestly.",
+  "controls": [
+    { "input": "Click the rendered world", "purpose": "Capture first-person mouse input" },
+    { "input": "WASD and mouse", "purpose": "Move relative to view and look" },
+    { "input": "Shift", "purpose": "Sprint while standing" },
+    { "input": "Space", "purpose": "Jump while grounded" },
+    { "input": "F or left click", "purpose": "Destroy the targeted voxel" },
+    { "input": "G or right click", "purpose": "Place beside the targeted face" }
+  ],
+  "artifacts": {
+    "screenshots": "before-and-after",
+    "frameBurst": { "count": 6, "intervalMs": 120 },
+    "trace": true,
+    "video": true
+  },
+  "reproductionLimit": 1,
+  "notes": "Use repeated visible observations around movement, reversal, and edits. The corridor is ordinary flat grass terrain extending east-west. Do not inspect source, DOM, websocket state, or hidden test data. Finish every live session with an exit interview and preserve uncertainty when the return edit cannot be visually relocated."
+}
