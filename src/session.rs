@@ -8,9 +8,9 @@ use rusty_engine::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    block_break_debris_frame, platform_frame, terrain_texture_resource, wisp_texture_resource,
-    EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld, PlayerController, PlayerInput,
-    PlayerPose, SurfaceSelection, TerrainConfig, TerrainProjector, MAX_BRUSH_RADIUS,
+    block_break_debris_frame, terrain_texture_resource, wisp_texture_resource, EditKind,
+    EditOutcome, EditReceipt, EditRejection, GameWorld, PlayerController, PlayerInput, PlayerPose,
+    SurfaceSelection, TerrainConfig, TerrainProjector, MAX_BRUSH_RADIUS,
     TERRAIN_GENERATION_VERSION,
 };
 
@@ -475,7 +475,9 @@ impl GameSession {
                 )
                 .map(Some)
         } else if platform_changed {
-            platform_frame(self.player.platform_position()).map(Some)
+            self.terrain_projector
+                .project(self.world.scene(), self.player.platform_position(), true)
+                .map(Some)
         } else {
             Ok(None)
         }

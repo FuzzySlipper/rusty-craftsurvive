@@ -85,13 +85,16 @@ pub fn wisp_light_update_op(platform_position: [f64; 3]) -> RenderDiff {
 }
 
 fn wisp_point_light(platform_position: [f64; 3]) -> LightDescriptor {
-    let route = (((platform_position[0] as f32) + 1.5) / 3.0).clamp(0.0, 1.0);
     LightDescriptor::Point {
-        color: [0.08, 0.55, 1.0],
-        intensity: 2.0 + route * 43.0,
+        color: [0.15, 0.72, 1.0],
+        intensity: if platform_position[0] >= 0.0 {
+            18.0
+        } else {
+            0.0
+        },
         enabled: true,
-        position: [platform_position[0] as f32 + 1.0, 5.0, 4.0],
-        range: Some(4.0),
+        position: [2.2, 4.6, 4.35],
+        range: Some(1.15),
         decay: 2.0,
         shadow_intent: LightShadowIntent::Disabled,
     }
@@ -121,7 +124,7 @@ fn wisp_sprite(
         size_mode: SpriteSizeMode::World,
         billboard: BillboardMode::Cylindrical,
         tint: if lit {
-            [0.62, 0.70, 0.78, 1.0]
+            [0.08, 0.1, 0.14, 1.0]
         } else {
             [1.0; 4]
         },
@@ -206,12 +209,26 @@ mod tests {
         let update = wisp_light_update_op([1.5, 4.25, 9.0]);
         update.validate().unwrap();
         let RenderDiff::UpdateLight {
-            light: LightDescriptor::Point { position, .. },
+            light:
+                LightDescriptor::Point {
+                    position,
+                    intensity,
+                    ..
+                },
             ..
         } = update
         else {
             panic!("wisp light update must remain a retained point light");
         };
-        assert_eq!(position, [2.5, 5.0, 4.0]);
+        assert_eq!(position, [2.2, 4.6, 4.35]);
+        assert_eq!(intensity, 18.0);
+        let RenderDiff::UpdateLight {
+            light: LightDescriptor::Point { intensity, .. },
+            ..
+        } = wisp_light_update_op([-1.5, 4.25, 9.0])
+        else {
+            unreachable!();
+        };
+        assert_eq!(intensity, 0.0);
     }
 }
