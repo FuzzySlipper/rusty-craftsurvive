@@ -40,7 +40,10 @@ den-serve logs rusty-craftsurvive
 Open the local or LAN URL printed by `den-serve up`, click the world to capture the mouse, and use
 view-relative WASD plus mouse look. `Space` jumps, `Shift` sprints, `Control` crouches, and `H`
 applies a bounded lateral impact used to inspect external-motion response. Left click or `F` breaks the
-targeted voxel; right click or `G` places one. The concise HUD exposes the selected presentation,
+targeted voxel; an accepted break emits a short-lived burst of material-tinted cube debris that
+bounces against a bounded snapshot of adjacent terrain. The debris is disposable Engine
+presentation and never delays or changes the voxel edit. Right click or `G` places one. The concise
+HUD exposes the selected presentation,
 accepted input sequence, authoritative player/world revisions, pose, view, grounded/velocity facts,
 stance and blocked stand-up, ground/contact/step/platform facts, collision-world identity,
 target, terrain seed/size, mesh/startup measurements, selected brush, and typed edit result.
@@ -125,6 +128,12 @@ the visible result in 254 ms, MC emitted about 680 KiB in 539 ms, and DC emitted
 the complete world mesh. These are diagnostic local measurements rather than hardware-independent
 promises; report regressions with seed, size, surface, chunk counts, encoded bytes, and probe JSON
 instead of shrinking the terrain silently.
+
+For a quick debris check, start the normal default route, click the canvas, and break the voxel under
+the crosshair with left click or `F`. Observe the burst through its full roughly one-second lifetime,
+then break several neighboring blocks. The authoritative block must disappear immediately; cubes
+may bounce or settle against only the nearby collision snapshot and must expire without affecting
+movement, placement, or later edits.
 
 ## Authority and renderer boundary
 

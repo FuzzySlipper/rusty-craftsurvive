@@ -18,7 +18,7 @@ pub use player::{
     craftsurvive_controller_config, PlayerController, PlayerInput, PlayerMotionReadout, PlayerPose,
     PLATFORM_HALF_EXTENTS, PLATFORM_INITIAL_CENTER,
 };
-pub use projection::{platform_frame, telemetry_frame, TerrainProjector};
+pub use projection::{block_break_debris_frame, platform_frame, telemetry_frame, TerrainProjector};
 pub use save::{
     TerrainOverlayError, MAX_TERRAIN_OVERLAY_BYTES, MAX_TERRAIN_OVERLAY_ENTRIES,
     TERRAIN_OVERLAY_SCHEMA_VERSION,

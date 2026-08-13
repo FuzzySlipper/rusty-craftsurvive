@@ -272,7 +272,9 @@ async fn serve_session(
                                 }
                             }
                         }
-                        ServerMessage::Update { update }
+                        ServerMessage::Update {
+                            update: Box::new(update),
+                        }
                     }
                     Err(error) => ServerMessage::Rejected {
                         code: error.code(),

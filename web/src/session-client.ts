@@ -38,7 +38,7 @@ interface EditReadout {
 interface EditRejectionReadout { code: string; voxel: [number, number, number] }
 type ServerMessage =
   | { kind: 'welcome'; readout: Readout; frame: Record<string, unknown>; resources: ResourceReadout[] }
-  | { kind: 'update'; update: { readout: Readout; action: 'destroy' | 'place' | null; edit: EditReadout | null; editRejection: EditRejectionReadout | null; frame: Record<string, unknown> | null } }
+  | { kind: 'update'; update: { readout: Readout; action: 'destroy' | 'place' | null; edit: EditReadout | null; editRejection: EditRejectionReadout | null; frame: Record<string, unknown> | null; presentation: Record<string, unknown> | null } }
   | { kind: 'rejected'; code: string; message: string; readout: Readout };
 
 interface ResourceReadout {
@@ -174,6 +174,10 @@ export class SessionClient {
       const receipt = this.#context.renderer.applyFrame(update.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
     }
+    if (message.kind === 'update' && message.update.presentation !== null) {
+      await this.#context.renderer.applyPresentation(message.update.presentation);
+      if (!this.#active(epoch)) return;
+    }
     this.#applyReadout(update.readout);
     if ('edit' in update && update.edit !== null) this.#view.edit(update.edit);
     else if ('editRejection' in update && update.editRejection !== null) this.#view.reject(update.editRejection);
@@ -204,7 +208,7 @@ export class SessionClient {
     const axis = (positive: string, negative: string) => Number(this.#held.has(positive)) - Number(this.#held.has(negative));
     this.#sequence += 1;
     this.#socket.send(JSON.stringify({
-      kind: 'input', protocolVersion: 5, generation: this.#generation, sequence: this.#sequence,
+      kind: 'input', protocolVersion: 6, generation: this.#generation, sequence: this.#sequence,
       command: {
         movement: [axis('KeyW', 'KeyS'), axis('KeyD', 'KeyA')], jump: this.#held.has('Space'),
         crouch: this.#held.has('ControlLeft') || this.#held.has('ControlRight'),
@@ -254,6 +258,9 @@ function decodeServerMessage(raw: string): ServerMessage {
         edit: update['edit'] === null ? null : decodeEdit(update['edit']),
         editRejection: update['editRejection'] === null ? null : decodeEditRejection(update['editRejection']),
         frame: update['frame'] === null ? null : record(update['frame'], 'update frame'),
+        presentation: update['presentation'] === undefined || update['presentation'] === null
+          ? null
+          : record(update['presentation'], 'update presentation'),
       },
     };
   }

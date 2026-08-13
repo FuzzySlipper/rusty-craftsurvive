@@ -3,16 +3,18 @@ use std::collections::BTreeSet;
 use rusty_engine::{
     render_host_contracts::RendererCameraPose,
     render_model::{RenderDiff, RenderFrameDiff},
+    render_presentation::PresentationFrameDiff,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    platform_frame, terrain_texture_resource, EditKind, EditOutcome, EditReceipt, EditRejection,
-    GameWorld, PlayerController, PlayerInput, PlayerPose, SurfaceSelection, TerrainConfig,
-    TerrainProjector, MAX_BRUSH_RADIUS, TERRAIN_GENERATION_VERSION,
+    block_break_debris_frame, platform_frame, terrain_texture_resource, EditKind, EditOutcome,
+    EditReceipt, EditRejection, GameWorld, PlayerController, PlayerInput, PlayerPose,
+    SurfaceSelection, TerrainConfig, TerrainProjector, MAX_BRUSH_RADIUS,
+    TERRAIN_GENERATION_VERSION,
 };
 
-pub const SESSION_PROTOCOL_VERSION: u32 = 5;
+pub const SESSION_PROTOCOL_VERSION: u32 = 6;
 pub const MAX_SESSION_MESSAGE_BYTES: usize = 16 * 1024;
 pub const MAX_LOOK_DELTA_DEGREES: f64 = 45.0;
 pub const MAX_INPUT_DELTA_SECONDS: f64 = 0.05;
@@ -165,7 +167,7 @@ pub enum ServerMessage {
         resources: Vec<SessionResourceReadout>,
     },
     Update {
-        update: SessionUpdate,
+        update: Box<SessionUpdate>,
     },
     Rejected {
         code: &'static str,
@@ -201,6 +203,7 @@ pub struct SessionUpdate {
     pub edit: Option<SessionEditReadout>,
     pub edit_rejection: Option<SessionEditRejectionReadout>,
     pub frame: Option<RenderFrameDiff>,
+    pub presentation: Option<PresentationFrameDiff>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -468,6 +471,24 @@ impl GameSession {
             Ok(None)
         }
         .map_err(SessionErrorOrRuntime::Runtime)?;
+        let presentation = edit_receipt
+            .as_ref()
+            .and_then(|(action, receipt)| {
+                (*action == SessionAction::Destroy)
+                    .then_some(receipt)
+                    .and_then(|receipt| receipt.removed_material_slot.map(|slot| (receipt, slot)))
+            })
+            .map(|(receipt, material_slot)| {
+                block_break_debris_frame(
+                    self.world.scene(),
+                    receipt.voxel,
+                    self.player.world_origin().origin.cell(),
+                    material_slot,
+                    receipt.revision,
+                )
+            })
+            .transpose()
+            .map_err(SessionErrorOrRuntime::Runtime)?;
         let edit = edit_receipt
             .map(|(action, receipt)| session_edit(action, receipt, frame.as_ref()))
             .transpose()
@@ -479,6 +500,7 @@ impl GameSession {
             edit,
             edit_rejection,
             frame,
+            presentation,
         })
     }
 
@@ -700,6 +722,7 @@ impl From<SurfaceSelection> for SurfaceSelectionReadout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusty_engine::render_presentation::{ParticleProjectionOp, ParticleVisual, PresentationOp};
 
     fn input(generation: u64, sequence: u64, command: SessionCommand) -> ClientMessage {
         ClientMessage::Input {
@@ -805,6 +828,21 @@ mod tests {
             .unwrap();
         assert!(update.edit.is_some());
         assert!(update.frame.is_some());
+        let debris = update.presentation.as_ref().expect("destroy emits debris");
+        debris.validate().unwrap();
+        let PresentationOp::Particle {
+            op: ParticleProjectionOp::Emit { descriptor, .. },
+            ..
+        } = &debris.ops[0]
+        else {
+            panic!("destroy presentation must emit particles");
+        };
+        assert_eq!(descriptor.visual, ParticleVisual::Cube);
+        assert_eq!(descriptor.burst_count, 12);
+        assert!(descriptor
+            .collision
+            .as_ref()
+            .is_some_and(|value| { !value.volumes.is_empty() && value.volumes.len() <= 6 }));
         assert!(update.readout.world_revision > connected.world_revision);
         assert_ne!(update.readout.authority_hash, connected.authority_hash);
 
@@ -820,6 +858,7 @@ mod tests {
             .unwrap();
         assert!(placed.edit.is_some());
         assert!(placed.frame.is_some());
+        assert!(placed.presentation.is_none());
         assert!(placed.readout.world_revision > update.readout.world_revision);
     }
 

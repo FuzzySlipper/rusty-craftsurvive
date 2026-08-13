@@ -9,8 +9,11 @@ use rusty_engine::{
         RenderHandle, RenderLayer, RenderMetadata, RenderNode, Transform,
     },
     render_presentation::{
-        PresentationFrameDiff, PresentationOp, PresentationOpMeta, TelemetryOverlayCorner,
-        TelemetryOverlayDescriptor, TelemetryOverlayHandle, TelemetryOverlayProjectionOp,
+        ParticleAnchor, ParticleCollisionDescriptor, ParticleCollisionLimitBehavior,
+        ParticleCollisionVolume, ParticleColorKey, ParticleEmitterDescriptor, ParticleProjectionOp,
+        ParticleScalarKey, ParticleVisual, PresentationFrameDiff, PresentationOp,
+        PresentationOpMeta, TelemetryOverlayCorner, TelemetryOverlayDescriptor,
+        TelemetryOverlayHandle, TelemetryOverlayProjectionOp,
     },
     render_projection::{VoxelProjectionInstance, VoxelRenderProjector},
     svc_mesh::{MeshBounds, MeshGroup, MeshPayload, MeshStats, SurfaceMode},
@@ -218,6 +221,115 @@ pub fn telemetry_frame(surface: SurfaceSelection) -> Result<PresentationFrameDif
         },
     }])
     .map_err(|error| format!("build telemetry presentation: {error:?}"))
+}
+
+pub fn block_break_debris_frame(
+    scene: &VoxelCollisionScene,
+    voxel: [i64; 3],
+    world_origin: [i64; 3],
+    material_slot: u16,
+    signal_revision: u64,
+) -> Result<PresentationFrameDiff, String> {
+    let local_voxel = [
+        voxel[0] - world_origin[0],
+        voxel[1] - world_origin[1],
+        voxel[2] - world_origin[2],
+    ];
+    let anchor = local_voxel.map(|value| value as f32 + 0.5);
+    let mut volumes = Vec::new();
+    for offset in [
+        [0_i64, -1, 0],
+        [-1, 0, 0],
+        [1, 0, 0],
+        [0, 0, -1],
+        [0, 0, 1],
+        [0, 1, 0],
+    ] {
+        let neighbor = [
+            voxel[0] + offset[0],
+            voxel[1] + offset[1],
+            voxel[2] + offset[2],
+        ];
+        if scene.solid_voxels().binary_search(&neighbor).is_ok() {
+            volumes.push(ParticleCollisionVolume::Aabb {
+                minimum: offset.map(|value| value as f32 - 0.5),
+                maximum: offset.map(|value| value as f32 + 0.5),
+            });
+        }
+    }
+    if volumes.is_empty() {
+        volumes.push(ParticleCollisionVolume::Plane {
+            normal: [0.0, 1.0, 0.0],
+            offset: -1.5,
+        });
+    }
+    let color = debris_color(material_slot);
+    let descriptor = ParticleEmitterDescriptor {
+        anchor: ParticleAnchor::World { position: anchor },
+        visual: ParticleVisual::Cube,
+        rate_per_second: 0.0,
+        burst_count: 12,
+        lifetime_seconds: [0.65, 1.15],
+        velocity_min: [-2.4, 1.8, -2.4],
+        velocity_max: [2.4, 5.4, 2.4],
+        acceleration: [0.0, -12.0, 0.0],
+        size_curve: vec![
+            ParticleScalarKey {
+                age: 0.0,
+                value: 0.18,
+            },
+            ParticleScalarKey {
+                age: 0.82,
+                value: 0.14,
+            },
+            ParticleScalarKey {
+                age: 1.0,
+                value: 0.0,
+            },
+        ],
+        color_curve: vec![
+            ParticleColorKey { age: 0.0, color },
+            ParticleColorKey { age: 0.8, color },
+            ParticleColorKey {
+                age: 1.0,
+                color: [color[0], color[1], color[2], 0.0],
+            },
+        ],
+        flipbook_frames_per_second: 0.0,
+        seed: signal_revision.min(9_007_199_254_740_991),
+        max_particles: 12,
+        visible: true,
+        collision: Some(ParticleCollisionDescriptor {
+            radius: 0.09,
+            restitution: 0.42,
+            friction: 0.32,
+            maximum_impacts: 5,
+            sleep_speed: 0.16,
+            limit_behavior: ParticleCollisionLimitBehavior::Sleep,
+            volumes,
+        }),
+    };
+    PresentationFrameDiff::try_from_ops(vec![PresentationOp::Particle {
+        meta: PresentationOpMeta::new(0),
+        op: ParticleProjectionOp::Emit {
+            signal_id: format!(
+                "craftsurvive:block-break:{signal_revision}:{}:{}:{}",
+                voxel[0], voxel[1], voxel[2]
+            ),
+            descriptor,
+        },
+    }])
+    .map_err(|error| format!("build block-break debris presentation: {error:?}"))
+}
+
+fn debris_color(material_slot: u16) -> [f32; 4] {
+    match material_slot {
+        1 => [0.34, 0.68, 0.16, 1.0],
+        2 => [0.48, 0.30, 0.16, 1.0],
+        3 => [0.48, 0.50, 0.52, 1.0],
+        4 => [0.38, 0.55, 0.18, 1.0],
+        _ => [0.72, 0.68, 0.58, 1.0],
+    }
 }
 
 fn mesh_descriptor(

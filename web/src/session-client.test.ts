@@ -85,10 +85,7 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   editOverlayEntries: 4,
 });
 
-type CurrentRendererPort = RustyApplicationRendererPort & {
-  readonly applyPresentation: () => Promise<{ readonly applied: number; readonly diagnostics: readonly [] }>;
-  readonly resumeAudio: () => Promise<{ readonly resumed: boolean; readonly diagnostics: readonly [] }>;
-};
+type CurrentRendererPort = RustyApplicationRendererPort;
 
 const rendererPort = (
   overrides: Partial<CurrentRendererPort> = {},
@@ -120,6 +117,13 @@ test('complete welcome projection serializes a newer incremental update', async 
       applyFrame: () => {
         projection.push('update:incremental');
         return { applied: true, diagnostics: [] };
+      },
+      applyPresentation: async () => {
+        projection.push('update:presentation');
+        return {
+          applied: 0,
+          diagnostics: [{ code: 'budgetExceeded', domain: 'particle', message: 'optional effect dropped' }],
+        };
       },
       setCameraPose: () => undefined,
       clear: async () => undefined,
@@ -168,6 +172,7 @@ test('complete welcome projection serializes a newer incremental update', async 
       },
       editRejection: null,
       frame: { schemaVersion: 1, ops: [{ op: 'replaceMeshPayload' }] },
+      presentation: { schemaVersion: 1, ops: [{ domain: 'particle' }] },
     },
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -177,7 +182,12 @@ test('complete welcome projection serializes a newer incremental update', async 
   releaseWelcome();
   await new Promise((resolve) => setTimeout(resolve, 0));
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.deepEqual(projection, ['welcome:start', 'welcome:complete', 'update:incremental']);
+  assert.deepEqual(projection, [
+    'welcome:start',
+    'welcome:complete',
+    'update:incremental',
+    'update:presentation',
+  ]);
   assert.deepEqual(projectedRevisions, [0, 1]);
   client.dispose();
 });
@@ -369,7 +379,7 @@ test('browser input sends movement, stance, sprint, jump, and impulse intent', a
     protocolVersion: number;
     command: { movement: number[]; jump: boolean; crouch: boolean; sprint: boolean; impulse: boolean; brushRadius: number };
   };
-  assert.equal(sent.protocolVersion, 5);
+  assert.equal(sent.protocolVersion, 6);
   assert.deepEqual(sent.command.movement, [1, 0]);
   assert.equal(sent.command.jump, true);
   assert.equal(sent.command.crouch, true);

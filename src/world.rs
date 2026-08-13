@@ -34,6 +34,7 @@ pub enum EditKind {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct EditReceipt {
     pub voxel: [i64; 3],
+    pub removed_material_slot: Option<u16>,
     pub affected_voxels: usize,
     pub revision: u64,
     pub authority_hash: u64,
@@ -508,6 +509,15 @@ impl GameWorld {
             EditKind::Place { material_slot } => anchor.place_edit(material_slot),
         };
         let edited_voxel = edit.address();
+        let removed_material_slot = matches!(kind, EditKind::Destroy)
+            .then(|| {
+                self.scene
+                    .material_voxels()
+                    .binary_search_by_key(&edited_voxel, |voxel| voxel.address)
+                    .ok()
+                    .map(|index| self.scene.material_voxels()[index].material_slot)
+            })
+            .flatten();
         let edit_started = Instant::now();
         let edits = brush_edits(edited_voxel, brush_radius, kind)?;
         if let Some(edit) = edits
@@ -572,6 +582,7 @@ impl GameWorld {
         }
         Ok(EditOutcome::Applied(EditReceipt {
             voxel: edited_voxel,
+            removed_material_slot,
             affected_voxels,
             revision: receipt.accepted_revision.raw(),
             authority_hash: receipt.authority_hash,
