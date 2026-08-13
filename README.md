@@ -53,7 +53,7 @@ service; `den-serve stop rusty-craftsurvive` releases the broker-owned process g
 
 Two small forest wisps directly ahead and to the right of the default spawn exercise the public
 Engine lit-sprite route. The left wisp is the unlit reference; the right uses derived-gradient
-lighting under the same retained ambient and cyan point lights. They use the same checked RGBA8
+lighting under the same host ambient/directional route and a moving retained cyan point light. They use the same checked RGBA8
 texture, masked alpha, and cylindrical billboarding. Look right from spawn, then strafe around the
 pair: their silhouettes should remain stable while the right wisp's modeled light response changes
 and the left reference remains visually constant.

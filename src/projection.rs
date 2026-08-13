@@ -20,7 +20,8 @@ use rusty_engine::{
 };
 
 use crate::{
-    terrain_materials, terrain_texture_op, wisp_scene_ops, SurfaceSelection, PLATFORM_HALF_EXTENTS,
+    terrain_materials, terrain_texture_op, wisp_light_update_op, wisp_scene_ops, SurfaceSelection,
+    PLATFORM_HALF_EXTENTS,
 };
 
 #[cfg(test)]
@@ -104,7 +105,7 @@ impl TerrainProjector {
         let mut extra = Vec::new();
         if !self.initialized {
             result.frame.ops.insert(0, terrain_texture_op()?);
-            extra.extend(wisp_scene_ops()?);
+            extra.extend(wisp_scene_ops(platform_position)?);
             extra.push(RenderDiff::Create {
                 handle: PLATFORM_HANDLE,
                 parent: None,
@@ -126,6 +127,7 @@ impl TerrainProjector {
                 },
             });
         } else if platform_changed {
+            extra.push(wisp_light_update_op(platform_position));
             extra.push(RenderDiff::Update {
                 handle: PLATFORM_HANDLE,
                 transform: Some(platform_transform(platform_position)),

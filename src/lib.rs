@@ -30,7 +30,9 @@ pub use session::{
     SessionResourceReadout, SessionUpdate, SpawnSelection, MAX_SESSION_MESSAGE_BYTES,
     SESSION_PROTOCOL_VERSION,
 };
-pub use sprite_scene::{wisp_scene_ops, wisp_texture_resource, WispTextureResource, WISP_URL};
+pub use sprite_scene::{
+    wisp_light_update_op, wisp_scene_ops, wisp_texture_resource, WispTextureResource, WISP_URL,
+};
 pub use terrain_texture::{
     terrain_material_ops, terrain_materials, terrain_texture_op, terrain_texture_resource,
     TerrainTextureResource, TERRAIN_ATLAS_URL,

@@ -13,7 +13,6 @@ const WISP_TEXTURE_ID: &str = "texture/craftsurvive-forest-wisp";
 const WISP_ATLAS_ID: &str = "sprite-sheet/craftsurvive-forest-wisp";
 const UNLIT_WISP_HANDLE: RenderHandle = RenderHandle::new(8_000_001);
 const LIT_WISP_HANDLE: RenderHandle = RenderHandle::new(8_000_002);
-const WISP_AMBIENT_HANDLE: RenderHandle = RenderHandle::new(8_000_003);
 const WISP_POINT_HANDLE: RenderHandle = RenderHandle::new(8_000_004);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +42,7 @@ pub fn wisp_texture_resource() -> Result<WispTextureResource, String> {
     })
 }
 
-pub fn wisp_scene_ops() -> Result<Vec<RenderDiff>, String> {
+pub fn wisp_scene_ops(platform_position: [f64; 3]) -> Result<Vec<RenderDiff>, String> {
     let texture = wisp_texture_descriptor()?;
     let atlas = SpriteAtlasDescriptor {
         id: WISP_ATLAS_ID.to_owned(),
@@ -61,27 +60,9 @@ pub fn wisp_scene_ops() -> Result<Vec<RenderDiff>, String> {
             atlas: atlas.clone(),
         },
         RenderDiff::CreateLight {
-            handle: WISP_AMBIENT_HANDLE,
-            parent: None,
-            light: LightDescriptor::Ambient {
-                color: [0.34, 0.48, 0.62],
-                intensity: 0.45,
-                enabled: true,
-                shadow_intent: LightShadowIntent::Disabled,
-            },
-        },
-        RenderDiff::CreateLight {
             handle: WISP_POINT_HANDLE,
             parent: None,
-            light: LightDescriptor::Point {
-                color: [0.35, 0.82, 1.0],
-                intensity: 22.0,
-                enabled: true,
-                position: [2.2, 5.3, 4.0],
-                range: Some(7.5),
-                decay: 2.0,
-                shadow_intent: LightShadowIntent::Disabled,
-            },
+            light: wisp_point_light(platform_position),
         },
         RenderDiff::CreateSprite {
             handle: UNLIT_WISP_HANDLE,
@@ -94,6 +75,26 @@ pub fn wisp_scene_ops() -> Result<Vec<RenderDiff>, String> {
             sprite: wisp_sprite(&atlas, [2.2, 4.5, 4.0], true),
         },
     ])
+}
+
+pub fn wisp_light_update_op(platform_position: [f64; 3]) -> RenderDiff {
+    RenderDiff::UpdateLight {
+        handle: WISP_POINT_HANDLE,
+        light: wisp_point_light(platform_position),
+    }
+}
+
+fn wisp_point_light(platform_position: [f64; 3]) -> LightDescriptor {
+    let route = (((platform_position[0] as f32) + 1.5) / 3.0).clamp(0.0, 1.0);
+    LightDescriptor::Point {
+        color: [0.08, 0.55, 1.0],
+        intensity: 2.0 + route * 43.0,
+        enabled: true,
+        position: [platform_position[0] as f32 + 1.0, 5.0, 4.0],
+        range: Some(4.0),
+        decay: 2.0,
+        shadow_intent: LightShadowIntent::Disabled,
+    }
 }
 
 fn wisp_texture_descriptor() -> Result<TextureDescriptor, String> {
@@ -119,7 +120,11 @@ fn wisp_sprite(
         size: [0.65, 0.65],
         size_mode: SpriteSizeMode::World,
         billboard: BillboardMode::Cylindrical,
-        tint: [1.0; 4],
+        tint: if lit {
+            [0.62, 0.70, 0.78, 1.0]
+        } else {
+            [1.0; 4]
+        },
         render_order: 3,
         depth: SpriteDepthPolicy::DepthWriteOff,
         shading: if lit {
@@ -133,8 +138,8 @@ fn wisp_sprite(
             } else {
                 SpriteLightingMode::Unlit
             },
-            normal_strength: if lit { 1.3 } else { 1.0 },
-            normal_bias: if lit { 0.12 } else { 0.0 },
+            normal_strength: if lit { 2.5 } else { 1.0 },
+            normal_bias: if lit { -0.2 } else { 0.0 },
             alpha: SpriteAlphaMode::Mask { cutoff: 0.28 },
             shadow: SpriteShadowPolicy::None,
             ..SpriteMaterialDescriptor::default()
@@ -175,8 +180,8 @@ mod tests {
             "fixture must be PNG RGBA8"
         );
 
-        let operations = wisp_scene_ops().unwrap();
-        assert_eq!(operations.len(), 6);
+        let operations = wisp_scene_ops([0.0, 4.25, 9.0]).unwrap();
+        assert_eq!(operations.len(), 5);
         for operation in &operations {
             operation.validate().unwrap();
         }
@@ -197,5 +202,16 @@ mod tests {
             sprite.billboard == BillboardMode::Cylindrical
                 && sprite.material.alpha == (SpriteAlphaMode::Mask { cutoff: 0.28 })
         }));
+
+        let update = wisp_light_update_op([1.5, 4.25, 9.0]);
+        update.validate().unwrap();
+        let RenderDiff::UpdateLight {
+            light: LightDescriptor::Point { position, .. },
+            ..
+        } = update
+        else {
+            panic!("wisp light update must remain a retained point light");
+        };
+        assert_eq!(position, [2.5, 5.0, 4.0]);
     }
 }
