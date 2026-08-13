@@ -2,6 +2,13 @@ import { chromium } from 'playwright-core';
 
 const url = process.env.CRAFTSURVIVE_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:4419';
 const executablePath = process.env.CHROMIUM_BIN ?? '/usr/bin/chromium';
+const captureDirectory = process.env.CRAFTSURVIVE_EDIT_CAPTURE_DIR;
+const captureDelaysMs = (process.env.CRAFTSURVIVE_EDIT_CAPTURE_DELAYS_MS ?? '0,4000')
+  .split(',')
+  .map((value) => Number(value.trim()));
+if (captureDelaysMs.some((value) => !Number.isSafeInteger(value) || value < 0 || value > 30_000)) {
+  throw new Error('CRAFTSURVIVE_EDIT_CAPTURE_DELAYS_MS must contain comma-separated integers in 0..=30000');
+}
 const browser = await chromium.launch({
   executablePath,
   headless: true,
@@ -44,6 +51,9 @@ try {
   await page.locator('[data-target]').filter({ hasNotText: 'out of reach' }).waitFor();
 
   const destroyStarted = clock();
+  if (captureDirectory) {
+    await page.screenshot({ path: `${captureDirectory}/before-destroy.png` });
+  }
   await page.mouse.down({ button: 'left' });
   await page.mouse.up({ button: 'left' });
   await page.waitForFunction(
@@ -53,6 +63,18 @@ try {
   );
   await page.locator('[data-edit]').filter({ hasText: 'destroy' }).waitFor();
   const destroyElapsedMs = clock() - destroyStarted;
+  const captureTimesMs = [];
+  if (captureDirectory) {
+    const captureStarted = clock();
+    for (const delayMs of captureDelaysMs) {
+      const remaining = captureStarted + delayMs - clock();
+      if (remaining > 0) await page.waitForTimeout(remaining);
+      await page.screenshot({
+        path: `${captureDirectory}/after-destroy-${String(delayMs).padStart(4, '0')}ms.png`,
+      });
+      captureTimesMs.push(Math.round(clock() - destroyStarted));
+    }
+  }
   const editText = await page.locator('[data-edit]').textContent();
   const edit = editText?.match(/^destroy ([-\d]+), ([-\d]+), ([-\d]+) · (\d+) voxels · ([\d.]+) ms \(([\d.]+) mesh\) · (\d+) dirty \/ (\d+) replaced \/ (\d+) destroyed · (\d+) bytes · revision (\d+)$/);
   if (edit === undefined || edit === null) throw new Error(`destroy readout was not measurable: ${editText}`);
@@ -82,6 +104,7 @@ try {
     initialRevision,
     finalRevision,
     voxel: edit.slice(1, 4).map(Number),
+    captureTimesMs,
   }));
 } finally {
   await browser.close();
