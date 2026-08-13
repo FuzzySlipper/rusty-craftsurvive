@@ -50,6 +50,7 @@ interface ResourceReadout {
 
 export interface SessionView {
   status(text: string): void;
+  diagnostic(text: string): void;
   readout(value: Readout): void;
   edit(value: EditReadout): void;
   reject(value: EditRejectionReadout): void;
@@ -174,14 +175,28 @@ export class SessionClient {
       const receipt = this.#context.renderer.applyFrame(update.frame);
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
     }
-    if (message.kind === 'update' && message.update.presentation !== null) {
-      await this.#context.renderer.applyPresentation(message.update.presentation);
-      if (!this.#active(epoch)) return;
-    }
     this.#applyReadout(update.readout);
     if ('edit' in update && update.edit !== null) this.#view.edit(update.edit);
     else if ('editRejection' in update && update.editRejection !== null) this.#view.reject(update.editRejection);
     else if ('action' in update && update.action !== null) this.#view.miss(update.action, update.readout.targetedVoxel);
+    if (message.kind === 'update' && message.update.presentation !== null) {
+      this.#applyOptionalPresentation(message.update.presentation, epoch);
+    }
+  }
+
+  #applyOptionalPresentation(frame: Record<string, unknown>, epoch: number): void {
+    void Promise.resolve()
+      .then(() => this.#active(epoch) ? this.#context.renderer.applyPresentation(frame) : null)
+      .then((receipt) => {
+        if (receipt === null || !this.#active(epoch)) return;
+        for (const diagnostic of receipt.diagnostics) {
+          this.#view.diagnostic(`presentation ${diagnostic.code}: ${diagnostic.message}`);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!this.#active(epoch)) return;
+        this.#view.diagnostic(`presentation failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
   }
 
   async #replaceTexturedContent(

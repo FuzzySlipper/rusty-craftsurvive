@@ -12,6 +12,7 @@ class FakeWebSocket {
   readonly readyState = FakeWebSocket.OPEN;
   readonly url: string;
   readonly sent: string[] = [];
+  closeCount = 0;
   readonly #listeners = new Map<string, Array<(event: { data: string }) => void>>();
 
   constructor(url: string) { this.url = url; FakeWebSocket.latest = this; }
@@ -24,6 +25,7 @@ class FakeWebSocket {
   }
   send(message: string): void { this.sent.push(message); }
   close(): void {
+    this.closeCount += 1;
     for (const listener of this.#listeners.get('close') ?? []) listener({ data: '' });
   }
 }
@@ -106,6 +108,7 @@ test('complete welcome projection serializes a newer incremental update', async 
   const welcomePending = new Promise<void>((resolve) => { releaseWelcome = resolve; });
   const projection: string[] = [];
   const projectedRevisions: number[] = [];
+  const diagnostics: string[] = [];
   const context = {
     renderer: rendererPort({
       replaceFrame: async () => {
@@ -140,6 +143,7 @@ test('complete welcome projection serializes a newer incremental update', async 
   } satisfies RustyApplicationUiContext;
   const view: SessionView = {
     status: () => undefined,
+    diagnostic: (value) => diagnostics.push(value),
     readout: (value) => projectedRevisions.push(value.playerRevision),
     edit: () => undefined,
     reject: () => undefined,
@@ -189,6 +193,138 @@ test('complete welcome projection serializes a newer incremental update', async 
     'update:presentation',
   ]);
   assert.deepEqual(projectedRevisions, [0, 1]);
+  assert.deepEqual(diagnostics, ['presentation budgetExceeded: optional effect dropped']);
+  client.dispose();
+});
+
+test('a pending optional presentation does not delay an accepted edit or later updates', async () => {
+  const presentationPending = new Promise<never>(() => undefined);
+  const projectedRevisions: number[] = [];
+  const edits: number[] = [];
+  const context = {
+    renderer: rendererPort({
+      applyPresentation: () => presentationPending,
+    }),
+    ui: {
+      active: () => true,
+      allowsGameplayInput: () => true,
+      focusGameplay: () => undefined,
+      interactionMode: () => 'gameplay' as const,
+      setInteractionMode: () => undefined,
+    },
+  } satisfies RustyApplicationUiContext;
+  const view: SessionView = {
+    status: () => undefined,
+    diagnostic: () => undefined,
+    readout: (value) => projectedRevisions.push(value.playerRevision),
+    edit: (value) => edits.push(value.revision),
+    reject: () => undefined,
+    miss: () => undefined,
+  };
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { protocol: 'http:', host: 'craft.test', search: '' },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { setInterval: () => 1, clearInterval: () => undefined },
+  });
+
+  const client = new SessionClient(context, view);
+  client.connect();
+  const socket = FakeWebSocket.latest!;
+  socket.emitMessage({ kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  socket.emitMessage({
+    kind: 'update',
+    update: {
+      readout: readout(1, 1), action: 'destroy',
+      edit: {
+        action: 'destroy', voxel: [0, 4, 0], revision: 1, affectedVoxels: 1,
+        meshBuildMs: 2, editMs: 3, dirtyChunks: 1, rebuiltChunks: 1, reusedChunks: 2,
+        removedChunks: 0, frameOperations: 1, encodedBytes: 128, replacementCount: 1,
+        destroyCount: 0, changedHandles: [17],
+      },
+      editRejection: null, frame: null,
+      presentation: { schemaVersion: 1, ops: [{ domain: 'particle' }] },
+    },
+  });
+  socket.emitMessage({
+    kind: 'update',
+    update: {
+      readout: readout(2, 2), action: null, edit: null, editRejection: null,
+      frame: null, presentation: null,
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(projectedRevisions, [0, 1, 2]);
+  assert.deepEqual(edits, [1]);
+  assert.equal(socket.closeCount, 0);
+  client.dispose();
+});
+
+test('a rejected optional presentation is diagnostic and does not poison the session', async () => {
+  const diagnostics: string[] = [];
+  const projectedRevisions: number[] = [];
+  const context = {
+    renderer: rendererPort({
+      applyPresentation: async () => { throw new Error('particle sink unavailable'); },
+    }),
+    ui: {
+      active: () => true,
+      allowsGameplayInput: () => true,
+      focusGameplay: () => undefined,
+      interactionMode: () => 'gameplay' as const,
+      setInteractionMode: () => undefined,
+    },
+  } satisfies RustyApplicationUiContext;
+  const view: SessionView = {
+    status: () => undefined,
+    diagnostic: (value) => diagnostics.push(value),
+    readout: (value) => projectedRevisions.push(value.playerRevision),
+    edit: () => undefined,
+    reject: () => undefined,
+    miss: () => undefined,
+  };
+  Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: FakeWebSocket });
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { protocol: 'http:', host: 'craft.test', search: '' },
+  });
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: { setInterval: () => 1, clearInterval: () => undefined },
+  });
+
+  const client = new SessionClient(context, view);
+  client.connect();
+  const socket = FakeWebSocket.latest!;
+  socket.emitMessage({ kind: 'welcome', readout: readout(0, 0), frame: { schemaVersion: 1, ops: [] } });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  socket.emitMessage({
+    kind: 'update',
+    update: {
+      readout: readout(1, 1), action: null, edit: null, editRejection: null, frame: null,
+      presentation: { schemaVersion: 1, ops: [{ domain: 'particle' }] },
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  socket.emitMessage({
+    kind: 'update',
+    update: {
+      readout: readout(2, 2), action: null, edit: null, editRejection: null,
+      frame: null, presentation: null,
+    },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.deepEqual(projectedRevisions, [0, 1, 2]);
+  assert.deepEqual(diagnostics, ['presentation failed: particle sink unavailable']);
+  assert.equal(socket.closeCount, 0);
   client.dispose();
 });
 
@@ -216,6 +352,7 @@ test('textured welcome fetches retained atlas bytes before replacing content', a
   } satisfies RustyApplicationUiContext;
   const view: SessionView = {
     status: () => undefined,
+    diagnostic: () => undefined,
     readout: () => undefined,
     edit: () => undefined,
     reject: () => undefined,
@@ -289,6 +426,7 @@ test('dispose invalidates an in-flight welcome before readout publication', asyn
   } satisfies RustyApplicationUiContext;
   const view: SessionView = {
     status: (value) => published.push(`status:${value}`),
+    diagnostic: (value) => published.push(`diagnostic:${value}`),
     readout: () => published.push('readout'),
     edit: () => published.push('edit'),
     reject: () => published.push('reject'),
@@ -345,6 +483,7 @@ test('browser input sends movement, stance, sprint, jump, and impulse intent', a
   } satisfies RustyApplicationUiContext;
   const view: SessionView = {
     status: () => undefined,
+    diagnostic: () => undefined,
     readout: () => undefined,
     edit: () => undefined,
     reject: () => undefined,
@@ -410,6 +549,7 @@ test('typed player-overlap edit rejection reaches the HUD view', async () => {
   } satisfies RustyApplicationUiContext;
   const view: SessionView = {
     status: () => undefined,
+    diagnostic: () => undefined,
     readout: () => undefined,
     edit: () => undefined,
     reject: (value) => rejected.push(value),
