@@ -135,6 +135,13 @@ then break several neighboring blocks. The authoritative block must disappear im
 may bounce or settle against only the nearby collision snapshot and must expire without affecting
 movement, placement, or later edits.
 
+The same real-browser performance probe can preserve synchronized debris evidence without changing
+its normal CI behavior. Create the destination first, then set
+`CRAFTSURVIVE_EDIT_CAPTURE_DIR=/absolute/path`; optional
+`CRAFTSURVIVE_EDIT_CAPTURE_DELAYS_MS=0,500,4000` controls the post-edit screenshot schedule. The
+probe reports actual capture completion times because software-rendered screenshots can be much
+slower than the requested delay.
+
 ## Authority and renderer boundary
 
 Rust owns the island recipe, admitted material voxels, player pose, physical-input meaning,
