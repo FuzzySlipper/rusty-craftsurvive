@@ -18,6 +18,11 @@ interface Readout {
   brushRadius: number; terrainSeed: string; terrainSize: number;
   meshVertices: number; meshTriangles: number;
   generationMs: number; authorityBuildMs: number; meshBuildMs: number;
+  residencyCenter: [number, number]; requestedChunks: number; preparingChunks: number;
+  residentChunks: number; pinnedChunks: number; evictableChunks: number;
+  admittedChunksTotal: number; evictedChunksTotal: number; residencyCacheHits: number;
+  residencyMissedDeadlines: number;
+  residentChunkBytes: number; residencyGenerationMs: number; residencyAdmissionMs: number;
 }
 interface EditReadout {
   action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number;
@@ -329,6 +334,19 @@ function decodeReadout(value: unknown): Readout {
     generationMs: number(object['generationMs'], 'terrain generation time'),
     authorityBuildMs: number(object['authorityBuildMs'], 'authority build time'),
     meshBuildMs: number(object['meshBuildMs'], 'mesh build time'),
+    residencyCenter: tuple2(object['residencyCenter'], 'residency center'),
+    requestedChunks: integer(object['requestedChunks'], 'requested chunks'),
+    preparingChunks: integer(object['preparingChunks'], 'preparing chunks'),
+    residentChunks: integer(object['residentChunks'], 'resident chunks'),
+    pinnedChunks: integer(object['pinnedChunks'], 'pinned chunks'),
+    evictableChunks: integer(object['evictableChunks'], 'evictable chunks'),
+    admittedChunksTotal: integer(object['admittedChunksTotal'], 'admitted chunks total'),
+    evictedChunksTotal: integer(object['evictedChunksTotal'], 'evicted chunks total'),
+    residencyCacheHits: integer(object['residencyCacheHits'], 'residency cache hits'),
+    residencyMissedDeadlines: integer(object['residencyMissedDeadlines'], 'residency missed deadlines'),
+    residentChunkBytes: integer(object['residentChunkBytes'], 'resident chunk bytes'),
+    residencyGenerationMs: number(object['residencyGenerationMs'], 'residency generation time'),
+    residencyAdmissionMs: number(object['residencyAdmissionMs'], 'residency admission time'),
   };
 }
 
@@ -403,4 +421,9 @@ function booleanValue(value: unknown, label: string): boolean {
 function tuple3(value: unknown, label: string): [number, number, number] {
   if (!Array.isArray(value) || value.length !== 3) throw new Error(`${label} must contain three numbers`);
   return [number(value[0], label), number(value[1], label), number(value[2], label)];
+}
+
+function tuple2(value: unknown, label: string): [number, number] {
+  if (!Array.isArray(value) || value.length !== 2) throw new Error(`${label} must contain two numbers`);
+  return [number(value[0], label), number(value[1], label)];
 }

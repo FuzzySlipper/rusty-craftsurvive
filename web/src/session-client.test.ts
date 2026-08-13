@@ -62,6 +62,19 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   generationMs: 1.5,
   authorityBuildMs: 2.5,
   meshBuildMs: 3.5,
+  residencyCenter: [0, 0],
+  requestedChunks: 9,
+  preparingChunks: 0,
+  residentChunks: 25,
+  pinnedChunks: 9,
+  evictableChunks: 16,
+  admittedChunksTotal: 0,
+  evictedChunksTotal: 0,
+  residencyCacheHits: 9,
+  residencyMissedDeadlines: 0,
+  residentChunkBytes: 204800,
+  residencyGenerationMs: 1.25,
+  residencyAdmissionMs: 2.75,
 });
 
 type CurrentRendererPort = RustyApplicationRendererPort & {

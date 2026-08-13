@@ -166,6 +166,7 @@ async fn session_upgrade(
     let spawn = match query.course.as_deref() {
         None | Some("route") => SpawnSelection::Route,
         Some("platform") => SpawnSelection::MovingPlatform,
+        Some("stream") => SpawnSelection::StreamingWest,
         Some(value) => {
             return (
                 StatusCode::BAD_REQUEST,

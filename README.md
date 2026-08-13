@@ -6,8 +6,8 @@ path under a different kind of pressure than Studio: a first-person player can d
 terrain voxels and immediately observe rebuilt collision, navigation, and mesh projections.
 
 The world is one deterministic, finite generated island with rolling elevation, layered materials,
-and a few distant landmarks. It is not an infinite-world or streaming prototype, and it does not
-try to be a survival game yet.
+and a few distant landmarks. A bounded chunk window streams that finite authority around the
+player; it does not claim infinite terrain or try to be a survival game yet.
 
 ## Local topology
 
@@ -63,6 +63,12 @@ station for a bounded carry check; it does not change world or controller author
 geometry is ordinary product state, not a hidden test API. If startup reports missing browser
 dependencies, run the pnpm install command above; if it reports a missing Engine crate, confirm the
 adjacent checkout exists.
+
+`?course=stream` starts at the west end of a flat, ordinary terrain corridor for inspecting chunk
+admission, eviction, reversal, and texture/collision seams. The HUD residency row reports signed
+chunk center, resident/pinned/loading counts, cumulative evictions, dense authority bytes, and the
+latest generation/admission latency. `pnpm smoke:streaming` drives that route through physical
+browser input and records the lifecycle samples.
 
 The native development path remains available and chooses terrain presentation directly:
 
@@ -134,6 +140,25 @@ publishes the coherent collision, navigation, and selected chunk-mesh revision; 
 voxel projector then creates, replaces, or destroys only those stable retained chunk handles.
 CraftSurvive adapts each emitted chunk payload to its atlas without coalescing chunks or creating
 another world authority.
+
+## Finite terrain residency
+
+Terrain seed plus signed voxel coordinates deterministically define version 1 of the finite island
+recipe. Chunk payloads are generated X-fastest from that recipe and a caller-owned edit overlay;
+the same seed, recipe version, chunk coordinate, and overlay always produce the same payload.
+CraftSurvive requests a 3 by 3 column neighborhood around the player, retains a 5 by 5 hysteresis
+neighborhood, pins currently requested non-empty chunks through Engine leases, and applies at most
+16 admissions or evictions per input tick. Empty and out-of-extent chunks are not materialized.
+The default measured route stayed at or below 29 resident chunks (232 KiB of dense material slots)
+while crossing six signed chunk centers and reversing, with 60 evictions.
+
+Accepted edits are retained by signed voxel address even after their chunk is evicted. Re-admission
+regenerates the deterministic base and applies that overlay before Engine's guarded residency
+transaction; a focused leave/return test proves a removed voxel does not resurrect. Source failure
+or invalid admission leaves the prior coherent scene untouched. The current mechanism consumes
+Engine chunk publication from `0bd00d9`/`fc0925d` and residency transactions introduced by
+`e3037cb`; the adjacent rolling Engine head used for this implementation was
+`5930942b384ad9ec63ec7ee76afd4a84756eae2b`.
 The atlas, region metadata, source-image provenance, and deterministic rebuild command live under
 `content/textures/`; texture resources are replaced with the complete initial renderer content and
 remain presentation data rather than voxel authority.
@@ -222,8 +247,7 @@ the deterministic campaign retains the exact bounded-command regression.
 
 This bootstrap deliberately excludes infinite terrain, a general procgen framework, inventory,
 crafting, survival stats, persistence, networking, and mobile-specific shells. Retained terrain
-publication is chunk-granular; the next terrain slice adds bounded residency and eviction without
-changing canonical voxel ownership. Character tuning and game feel remain downstream;
+publication and finite residency are chunk-granular. Character tuning and game feel remain downstream;
 reusable kinematic movement, collision, and look mechanisms are consumed directly from Engine.
 
 See [donor provenance](docs/donor-provenance.md) and

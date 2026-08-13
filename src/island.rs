@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use rusty_engine::engine_spatial::MaterialVoxel;
 
 use crate::TerrainConfig;
@@ -30,40 +28,97 @@ impl From<TerrainConfig> for IslandConfig {
 }
 
 pub fn generate_island(config: IslandConfig) -> Vec<MaterialVoxel> {
-    let mut voxels = BTreeMap::new();
-    let mut heights = BTreeMap::new();
-    let radius_squared = config.radius * config.radius;
-    for x in -config.radius..=config.radius {
-        for z in -config.radius..=config.radius {
-            let distance_squared = x * x + z * z;
-            if distance_squared <= radius_squared {
-                heights.insert([x, z], terrain_height(config, x, z, distance_squared));
+    (-config.radius..=config.radius)
+        .flat_map(|x| {
+            (-config.radius..=config.radius).flat_map(move |z| {
+                (-config.depth..=config.summit_height + 16).filter_map(move |y| {
+                    let address = [x, y, z];
+                    material_at(config, address).map(|material_slot| MaterialVoxel {
+                        address,
+                        material_slot,
+                    })
+                })
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn material_at(config: IslandConfig, address: [i64; 3]) -> Option<u16> {
+    let [x, y, z] = address;
+    let mut material = natural_material(config, x, y, z);
+
+    if (-3..=3).contains(&x) && (2..=10).contains(&z) && y >= -config.depth {
+        material = (y <= 3).then_some(if y == 3 {
+            1
+        } else if y >= 1 {
+            2
+        } else {
+            3
+        });
+    }
+    if (-config.radius..=config.radius).contains(&x) && (-3..=-1).contains(&z) && y >= -config.depth
+    {
+        material = (y <= 3).then_some(if y == 3 {
+            1
+        } else if y >= 1 {
+            2
+        } else {
+            3
+        });
+    }
+    if (-1..=1).contains(&x) && ((z == 5 && y == 3) || (z == 4 && y == 2)) {
+        material = None;
+    }
+    if (-3..=3).contains(&x) && (8..=10).contains(&z) && y >= -config.depth {
+        material = (y <= 1).then_some(if y == 1 { 2 } else { 3 });
+    }
+    if (-1..=1).contains(&x) && z == 3 && (4..=6).contains(&y) {
+        material = Some(3);
+    }
+    if x == -3 && z == 8 && (4..=5).contains(&y) {
+        material = Some(2);
+    }
+    if x == 3 && z == 8 && (4..=7).contains(&y) {
+        material = Some(3);
+    }
+
+    let distance = config.radius * 2 / 3;
+    for (landmark_x, landmark_z, slot, height) in [
+        (-distance, 0, 3, 8),
+        (distance, 0, 2, 6),
+        (0, -distance, 3, 10),
+    ] {
+        if x == landmark_x && z == landmark_z {
+            if let Some(surface) = terrain_surface(config, x, z) {
+                if (surface + 1..=surface + height).contains(&y) {
+                    material = Some(slot);
+                }
             }
         }
     }
-    for (&[x, z], &top) in &heights {
-        let slope = cardinal_slope(&heights, x, z, top);
-        for y in -config.depth..=top {
-            let depth_from_surface = top - y;
-            let material_slot = if depth_from_surface == 0 && slope < 3 {
-                1
-            } else if depth_from_surface <= 3 && slope < 4 {
-                2
-            } else {
-                3
-            };
-            voxels.insert([x, y, z], material_slot);
-        }
+    material
+}
+
+fn natural_material(config: IslandConfig, x: i64, y: i64, z: i64) -> Option<u16> {
+    let top = terrain_surface(config, x, z)?;
+    if y < -config.depth || y > top {
+        return None;
     }
-    install_playable_route(&mut voxels, config.depth);
-    install_landmarks(&mut voxels, &heights, config);
-    voxels
-        .into_iter()
-        .map(|(address, material_slot)| MaterialVoxel {
-            address,
-            material_slot,
-        })
-        .collect()
+    let slope = cardinal_slope(config, x, z, top);
+    let depth_from_surface = top - y;
+    Some(if depth_from_surface == 0 && slope < 3 {
+        1
+    } else if depth_from_surface <= 3 && slope < 4 {
+        2
+    } else {
+        3
+    })
+}
+
+fn terrain_surface(config: IslandConfig, x: i64, z: i64) -> Option<i64> {
+    let distance_squared = x * x + z * z;
+    (distance_squared <= config.radius * config.radius)
+        .then(|| terrain_height(config, x, z, distance_squared))
 }
 
 fn terrain_height(config: IslandConfig, x: i64, z: i64, distance_squared: i64) -> i64 {
@@ -111,83 +166,13 @@ fn hash_unit(value: u64) -> f64 {
     (value >> 11) as f64 / ((1_u64 << 53) - 1) as f64
 }
 
-fn cardinal_slope(heights: &BTreeMap<[i64; 2], i64>, x: i64, z: i64, top: i64) -> i64 {
+fn cardinal_slope(config: IslandConfig, x: i64, z: i64, top: i64) -> i64 {
     [[x - 1, z], [x + 1, z], [x, z - 1], [x, z + 1]]
         .into_iter()
-        .filter_map(|address| heights.get(&address))
+        .filter_map(|[x, z]| terrain_surface(config, x, z))
         .map(|neighbor| (top - neighbor).abs())
         .max()
         .unwrap_or_default()
-}
-
-fn install_playable_route(voxels: &mut BTreeMap<[i64; 3], u16>, depth: i64) {
-    voxels.retain(|address, _| {
-        !((-3..=3).contains(&address[0]) && (2..=10).contains(&address[2]) && address[1] >= -depth)
-    });
-    for x in -3..=3 {
-        for z in 2..=10 {
-            for y in -depth..=3 {
-                let material_slot = if y == 3 {
-                    1
-                } else if y >= 1 {
-                    2
-                } else {
-                    3
-                };
-                voxels.insert([x, y, z], material_slot);
-            }
-        }
-    }
-    for x in -1..=1 {
-        voxels.remove(&[x, 3, 5]);
-        voxels.remove(&[x, 2, 4]);
-    }
-    // The moving-platform station is ordinary product geometry. The active platform bridges a
-    // shallow recess immediately beyond the original spawn lane and remains visible/playable in
-    // every presentation mode.
-    for x in -3..=3 {
-        for z in 8..=10 {
-            for y in 2..=24 {
-                voxels.remove(&[x, y, z]);
-            }
-            // Keep a full standing-capsule clearance below the platform sweep so an actor
-            // displaced off its deck cannot be trapped between the lower floor and moving side.
-            for y in -depth..=1 {
-                voxels.insert([x, y, z], if y == 1 { 2 } else { 3 });
-            }
-        }
-    }
-    for x in -1..=1 {
-        for y in 4..=6 {
-            voxels.insert([x, y, 3], 3);
-        }
-    }
-    for y in 4..=5 {
-        voxels.insert([-3, y, 8], 2);
-    }
-    for y in 4..=7 {
-        voxels.insert([3, y, 8], 3);
-    }
-}
-
-fn install_landmarks(
-    voxels: &mut BTreeMap<[i64; 3], u16>,
-    heights: &BTreeMap<[i64; 2], i64>,
-    config: IslandConfig,
-) {
-    let distance = config.radius * 2 / 3;
-    for (x, z, material_slot, height) in [
-        (-distance, 0, 3, 8),
-        (distance, 0, 2, 6),
-        (0, -distance, 3, 10),
-    ] {
-        let Some(&surface) = heights.get(&[x, z]) else {
-            continue;
-        };
-        for y in surface + 1..=surface + height {
-            voxels.insert([x, y, z], material_slot);
-        }
-    }
 }
 
 fn coordinate_hash(seed: u64, x: i64, z: i64) -> u64 {

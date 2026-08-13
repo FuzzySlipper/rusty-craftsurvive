@@ -28,6 +28,7 @@ pub enum SessionAction {
 pub enum SpawnSelection {
     Route,
     MovingPlatform,
+    StreamingWest,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -115,6 +116,19 @@ pub struct SessionReadout {
     pub generation_ms: f64,
     pub authority_build_ms: f64,
     pub mesh_build_ms: f64,
+    pub residency_center: [i64; 2],
+    pub requested_chunks: usize,
+    pub preparing_chunks: usize,
+    pub resident_chunks: usize,
+    pub pinned_chunks: usize,
+    pub evictable_chunks: usize,
+    pub admitted_chunks_total: u64,
+    pub evicted_chunks_total: u64,
+    pub residency_cache_hits: u64,
+    pub residency_missed_deadlines: u64,
+    pub resident_chunk_bytes: usize,
+    pub residency_generation_ms: f64,
+    pub residency_admission_ms: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -271,6 +285,11 @@ impl GameSession {
                 yaw_degrees: 180.0,
                 pitch_degrees: -10.0,
             })?,
+            SpawnSelection::StreamingWest => PlayerController::new(PlayerPose {
+                position: [-35.0, 7.0, -2.0],
+                yaw_degrees: 90.0,
+                pitch_degrees: -15.0,
+            })?,
         };
         Ok(Self {
             world: GameWorld::with_terrain(surface, terrain)?,
@@ -291,6 +310,7 @@ impl GameSession {
         self.connected = true;
         self.accepted_sequence = 0;
         self.terrain_projector = TerrainProjector::new();
+        self.world.sync_residency(self.player.pose().position)?;
         let frame = self.terrain_projector.project(
             self.world.scene(),
             self.player.platform_position(),
@@ -363,6 +383,10 @@ impl GameSession {
                 command.delta_seconds,
             )
             .map_err(SessionErrorOrRuntime::Runtime)?;
+        let residency_changed = self
+            .world
+            .sync_residency(self.player.pose().position)
+            .map_err(SessionErrorOrRuntime::Runtime)?;
         let _changed = self.player.pose() != pose_before || self.player.motion() != motion_before;
 
         let (edit_receipt, edit_rejection) = match command.action {
@@ -387,7 +411,7 @@ impl GameSession {
             None => (None, None),
         };
         let platform_changed = self.player.platform_position() != platform_before;
-        let frame = if edit_receipt.is_some() {
+        let frame = if edit_receipt.is_some() || residency_changed {
             self.terrain_projector
                 .project(
                     self.world.scene(),
@@ -421,6 +445,7 @@ impl GameSession {
         let terrain = self.world.terrain();
         let metrics = self.world.metrics();
         let mesh = self.world.mesh_stats();
+        let residency = self.world.residency_readout();
         SessionReadout {
             protocol_version: SESSION_PROTOCOL_VERSION,
             generation: self.generation,
@@ -464,6 +489,19 @@ impl GameSession {
             generation_ms: metrics.generation_ms,
             authority_build_ms: metrics.authority_build_ms,
             mesh_build_ms: metrics.mesh_build_ms,
+            residency_center: residency.center,
+            requested_chunks: residency.requested,
+            preparing_chunks: residency.preparing,
+            resident_chunks: residency.resident,
+            pinned_chunks: residency.pinned,
+            evictable_chunks: residency.evictable,
+            admitted_chunks_total: residency.admitted_total,
+            evicted_chunks_total: residency.evicted_total,
+            residency_cache_hits: residency.cache_hits,
+            residency_missed_deadlines: residency.missed_deadlines,
+            resident_chunk_bytes: residency.resident_bytes,
+            residency_generation_ms: residency.generation_ms,
+            residency_admission_ms: residency.admission_ms,
         }
     }
 }

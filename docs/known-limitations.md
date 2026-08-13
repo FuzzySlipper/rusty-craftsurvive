@@ -2,9 +2,9 @@
 
 The initial experiment is intentionally bounded:
 
-- one seeded, size-bounded generated island is fully resident; accepted edits rebuild and publish
-  only Engine-reported dirty mesh chunks, but there is not yet streaming, chunk eviction, a biome
-  system, or a general procgen framework;
+- one seeded, size-bounded generated island uses a bounded requested/pinned/hysteresis chunk window;
+  it has no background worker, disk cache, biome system, or general procgen framework, and its
+  generation budget is measured per synchronous product input tick;
 - movement uses the reusable Engine fixed-step kinematic capsule controller with checked product
   tuning, crouch/stand clearance, slopes, steps, floor snap, moving-platform carry, and external
   impulses; CraftSurvive does not expose a general rigid-body framework;
@@ -20,7 +20,8 @@ The initial experiment is intentionally bounded:
   authority after each accepted edit. Retained rendering is chunk-granular, while expanded textured
   MC/DC dirty chunks retain higher rebuild, transfer, and apply costs than greedy boxes;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
-- there is no save format, inventory, crafting, survival simulation, streaming, networking, or
+- edit overlays survive eviction only for the current process; there is no save format, inventory,
+  crafting, survival simulation, infinite-world addressing, networking, or
   Studio project adapter;
 - the browser HUD exposes concise authority and typed Engine controller facts for bounded certification rather
   than a general debug console;
