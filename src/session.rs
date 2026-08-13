@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     platform_frame, terrain_texture_resource, EditKind, EditOutcome, EditReceipt, EditRejection,
     GameWorld, PlayerController, PlayerInput, PlayerPose, SurfaceSelection, TerrainConfig,
-    TerrainProjector, MAX_BRUSH_RADIUS,
+    TerrainProjector, MAX_BRUSH_RADIUS, TERRAIN_GENERATION_VERSION,
 };
 
 pub const SESSION_PROTOCOL_VERSION: u32 = 4;
@@ -29,6 +29,7 @@ pub enum SpawnSelection {
     Route,
     MovingPlatform,
     StreamingWest,
+    FarCoordinate,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -129,6 +130,9 @@ pub struct SessionReadout {
     pub resident_chunk_bytes: usize,
     pub residency_generation_ms: f64,
     pub residency_admission_ms: f64,
+    pub residency_request_generation: u64,
+    pub terrain_generation_version: u32,
+    pub edit_overlay_entries: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -290,6 +294,11 @@ impl GameSession {
                 yaw_degrees: 90.0,
                 pitch_degrees: -15.0,
             })?,
+            SpawnSelection::FarCoordinate => PlayerController::new(PlayerPose {
+                position: [65_440.0, 7.0, -2.0],
+                yaw_degrees: 90.0,
+                pitch_degrees: -15.0,
+            })?,
         };
         Ok(Self {
             world: GameWorld::with_terrain(surface, terrain)?,
@@ -317,6 +326,25 @@ impl GameSession {
             true,
         )?;
         Ok((self.readout(), frame))
+    }
+
+    pub fn load_overlay_bytes(&mut self, bytes: &[u8]) -> Result<(), String> {
+        if self.connected {
+            return Err(
+                "cannot replace the terrain overlay while a session is connected".to_owned(),
+            );
+        }
+        self.world.load_overlay_bytes(bytes)
+    }
+
+    pub fn overlay_bytes(&self) -> Result<Vec<u8>, String> {
+        self.world
+            .overlay_bytes()
+            .map_err(|error| error.to_string())
+    }
+
+    pub fn overlay_entry_count(&self) -> usize {
+        self.world.overlay_entry_count()
     }
 
     pub fn disconnect(&mut self, generation: u64) -> bool {
@@ -502,6 +530,9 @@ impl GameSession {
             resident_chunk_bytes: residency.resident_bytes,
             residency_generation_ms: residency.generation_ms,
             residency_admission_ms: residency.admission_ms,
+            residency_request_generation: residency.request_generation,
+            terrain_generation_version: TERRAIN_GENERATION_VERSION,
+            edit_overlay_entries: self.world.overlay_entry_count(),
         }
     }
 }
@@ -881,5 +912,20 @@ mod tests {
         let landed = session.readout();
         assert!(landed.grounded);
         assert!(landed.player.position[1] < 4.0);
+    }
+
+    #[test]
+    fn far_coordinate_spawn_connects_with_bounded_coherent_residency() {
+        let mut session = GameSession::with_terrain_and_spawn(
+            SurfaceSelection::Box,
+            TerrainConfig::default(),
+            SpawnSelection::FarCoordinate,
+        )
+        .unwrap();
+        let (readout, frame) = session.connect().unwrap();
+        assert!(readout.player.position[0] >= 65_000.0);
+        assert!(readout.resident_chunks <= 64);
+        assert!(readout.pinned_chunks > 0);
+        frame.validate().unwrap();
     }
 }

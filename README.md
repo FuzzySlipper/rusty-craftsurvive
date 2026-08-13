@@ -5,9 +5,10 @@ Rusty CraftSurvive is a deliberately small downstream
 path under a different kind of pressure than Studio: a first-person player can destroy and place
 terrain voxels and immediately observe rebuilt collision, navigation, and mesh projections.
 
-The world is one deterministic, finite generated island with rolling elevation, layered materials,
-and a few distant landmarks. A bounded chunk window streams that finite authority around the
-player; it does not claim infinite terrain or try to be a survival game yet.
+The world is deterministic terrain addressed from a versioned seed plus signed world coordinates.
+A bounded chunk window keeps only nearby authority resident as travel continues; this proves
+unbounded addressing within documented numeric and storage limits, not literally infinite
+computation, memory, or precision, and it does not try to be a survival game yet.
 
 ## Local topology
 
@@ -87,8 +88,8 @@ disposable render mesh. Grass, dirt, and stone are visibly distinct through one 
 atlas. Greedy quads repeat tiles across merged faces; MC/DC use each triangle's geometric face
 normal for deterministic dominant-plane world-space coordinates, and steep grass triangles use the
 grass-side tile rather than a smoothed vertex normal or stretched top projection. A fast headless readout is available with
-`--summary`. Terrain sizes must be even and in the bounded `32..=128` range. The default is 96;
-the seed and size are startup inputs and do not introduce streaming or a second world authority.
+`--summary`. Terrain scale values must be even and in the bounded `32..=128` range. The default is
+96; seed and scale are startup inputs and do not introduce a second world authority.
 
 Controls:
 
@@ -135,22 +136,24 @@ orchestration, bindings, camera-eye presentation, the visible active moving plat
 product-authored impact action. `FirstPersonLookService` supplies the canonical yaw/pitch basis. A
 break or place operation, including a volume brush, is one revision-checked prepared
 `VoxelEditService` transaction. CraftSurvive rejects the whole transaction when any placement voxel
-overlaps the player capsule or any brush cell leaves the finite world bounds. Engine atomically
+overlaps the player capsule or any brush cell leaves Engine's admitted coordinate envelope. Engine atomically
 publishes the coherent collision, navigation, and selected chunk-mesh revision; the stateful Engine
 voxel projector then creates, replaces, or destroys only those stable retained chunk handles.
 CraftSurvive adapts each emitted chunk payload to its atlas without coalescing chunks or creating
 another world authority.
 
-## Finite terrain residency
+## Unbounded addressing and finite residency
 
-Terrain seed plus signed voxel coordinates deterministically define version 1 of the finite island
-recipe. Chunk payloads are generated X-fastest from that recipe and a caller-owned edit overlay;
+Terrain seed plus signed voxel coordinates deterministically define generation version 2. Chunk
+payloads are generated X-fastest from that recipe and a caller-owned edit overlay;
 the same seed, recipe version, chunk coordinate, and overlay always produce the same payload.
 CraftSurvive requests a 3 by 3 column neighborhood around the player, retains a 5 by 5 hysteresis
 neighborhood, pins currently requested non-empty chunks through Engine leases, and applies at most
-16 admissions or evictions per input tick. Empty and out-of-extent chunks are not materialized.
-The default measured route stayed at or below 29 resident chunks (232 KiB of dense material slots)
-while crossing six signed chunk centers and reversing, with 60 evictions.
+16 admissions or evictions per input tick. Empty chunks are not materialized. The bounded route
+stayed at or below 29 resident chunks (232 KiB of dense material slots) while crossing six signed
+chunk centers and reversing, with 60 evictions. A far-coordinate browser run at chunk 4090 crossed
+five centers, stayed at or below 24 chunks / 192 KiB, persisted one edit through reload exactly
+once, and isolated a changed seed from that save.
 
 Accepted edits are retained by signed voxel address even after their chunk is evicted. Re-admission
 regenerates the deterministic base and applies that overlay before Engine's guarded residency
@@ -158,7 +161,17 @@ transaction; a focused leave/return test proves a removed voxel does not resurre
 or invalid admission leaves the prior coherent scene untouched. The current mechanism consumes
 Engine chunk publication from `0bd00d9`/`fc0925d` and residency transactions introduced by
 `e3037cb`; the adjacent rolling Engine head used for this implementation was
-`5930942b384ad9ec63ec7ee76afd4a84756eae2b`.
+`5930942b384ad9ec63ec7ee76afd4a84756eae2b`. Browser sessions atomically persist a canonical,
+fingerprinted JSON overlay under `target/craftsurvive-saves`, keyed by generation version and seed.
+Malformed, oversized, wrong-seed, or unsupported-version documents fail before a session opens;
+there is intentionally no guessed migration. The overlay is bounded to 65,536 entries and 8 MiB.
+
+Engine admits voxel addresses through ±1,000,000, but CraftSurvive certifies first-person simulation
+and rendering only through ±65,536 world units. Engine entity/controller and retained transforms are
+currently `f32`; at the certified edge their spacing is about 0.0078 units, and precision worsens
+with distance. Engine task 6895 tracks a host-neutral exact-global/local-origin rebase needed before
+raising this product envelope. Terrain has no authored edge inside the supported range, but this is
+not a marketing claim of limitless precision or storage.
 The atlas, region metadata, source-image provenance, and deterministic rebuild command live under
 `content/textures/`; texture resources are replaced with the complete initial renderer content and
 remain presentation data rather than voxel authority.
@@ -221,6 +234,8 @@ argument does not override a manifest's fixed `startPath`.
 `.den-playwright.stream.json` and `product-playtest.streaming.scenario.json` select the ordinary
 west-corridor spawn for a bounded streaming, reversal, and edit-retention judgement; the explicit
 manifest is required because broker startup paths do not inherit a later runtime query argument.
+`.den-playwright.unbounded.json` and `product-playtest.unbounded.scenario.json` select a fixed seed
+near the certified positive-coordinate edge for long-route, edit, reload, and jitter judgement.
 
 A vision playtester should be given the exact committed revision and explicit manifest/scenario
 paths. It should navigate through repeated screenshots or frame bursts and physical mouse/keyboard
@@ -248,8 +263,8 @@ the deterministic campaign retains the exact bounded-command regression.
 
 ## Current scope
 
-This bootstrap deliberately excludes infinite terrain, a general procgen framework, inventory,
-crafting, survival stats, persistence, networking, and mobile-specific shells. Retained terrain
+This bootstrap deliberately excludes limitless numeric precision, a general procgen framework,
+inventory, crafting, survival stats, networking, and mobile-specific shells. Retained terrain
 publication and finite residency are chunk-granular. Character tuning and game feel remain downstream;
 reusable kinematic movement, collision, and look mechanisms are consumed directly from Engine.
 

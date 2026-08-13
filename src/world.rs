@@ -5,21 +5,25 @@ use rusty_engine::{
         VoxelChunkIdentity, VoxelChunkLeaseId, VoxelChunkLeaseRegistry, VoxelChunkPayload,
         VoxelChunkResidencyOperation, VoxelChunkResidencyService, VoxelChunkResidencyTransaction,
         VoxelCollisionScene, VoxelEdit, VoxelEditService, VoxelEditTransaction, VoxelPickHint,
-        VoxelPickService,
+        VoxelPickService, MAX_VOXEL_COORDINATE_ABS,
     },
     svc_mesh::SurfaceMeshOptions,
 };
 
 use crate::{
-    generate_island, island::material_at, IslandConfig, PlayerController, SurfaceSelection,
-    TerrainConfig,
+    generate_island,
+    island::material_at,
+    save::{decode_overlay, encode_overlay, TerrainOverlayError, MAX_TERRAIN_OVERLAY_ENTRIES},
+    IslandConfig, PlayerController, SurfaceSelection, TerrainConfig,
 };
 
 pub const MAX_BRUSH_RADIUS: u8 = 2;
+pub const CERTIFIED_WORLD_COORDINATE_ABS: i64 = 65_536;
 const CHUNK_SIZE: i64 = 16;
 const REQUEST_RADIUS: i64 = 1;
 const RETAIN_RADIUS: i64 = 2;
 const MAX_RESIDENCY_OPERATIONS_PER_TICK: usize = 16;
+const MAX_PRODUCT_RESIDENT_CHUNKS: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditKind {
@@ -89,6 +93,7 @@ pub struct TerrainResidencyReadout {
     pub resident_bytes: usize,
     pub generation_ms: f64,
     pub admission_ms: f64,
+    pub request_generation: u64,
 }
 
 struct TerrainResidency {
@@ -105,6 +110,7 @@ struct TerrainResidency {
     payload_cache: BTreeMap<VoxelChunkIdentity, Option<VoxelChunkPayload>>,
     generation_ms: f64,
     admission_ms: f64,
+    request_generation: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -129,9 +135,10 @@ struct WorldBounds {
 
 impl WorldBounds {
     fn from_island(config: IslandConfig) -> Self {
+        let _ = config;
         Self {
-            min: [-config.radius, -config.depth, -config.radius],
-            max: [config.radius, config.summit_height + 16, config.radius],
+            min: [-MAX_VOXEL_COORDINATE_ABS; 3],
+            max: [MAX_VOXEL_COORDINATE_ABS; 3],
         }
     }
 
@@ -189,6 +196,7 @@ impl GameWorld {
                 payload_cache: BTreeMap::new(),
                 generation_ms: 0.0,
                 admission_ms: 0.0,
+                request_generation: 0,
             },
             edit_overlay: BTreeMap::new(),
         })
@@ -246,7 +254,62 @@ impl GameWorld {
             resident_bytes: resident.len() * CHUNK_SIZE.pow(3) as usize * size_of::<u16>(),
             generation_ms: self.residency.generation_ms,
             admission_ms: self.residency.admission_ms,
+            request_generation: self.residency.request_generation,
         }
+    }
+
+    pub fn overlay_bytes(&self) -> Result<Vec<u8>, TerrainOverlayError> {
+        encode_overlay(self.terrain.seed, &self.edit_overlay)
+    }
+
+    pub fn overlay_entry_count(&self) -> usize {
+        self.edit_overlay.len()
+    }
+
+    pub fn load_overlay_bytes(&mut self, bytes: &[u8]) -> Result<(), String> {
+        let overlay =
+            decode_overlay(self.terrain.seed, bytes).map_err(|error| error.to_string())?;
+        let current = VoxelChunkResidencyService::resident_chunks(&self.scene)
+            .into_iter()
+            .map(|chunk| (chunk.chunk, chunk))
+            .collect::<BTreeMap<_, _>>();
+        let affected = overlay
+            .keys()
+            .map(|address| {
+                VoxelChunkIdentity::new(
+                    address[0].div_euclid(CHUNK_SIZE),
+                    address[1].div_euclid(CHUNK_SIZE),
+                    address[2].div_euclid(CHUNK_SIZE),
+                )
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        let operations = affected
+            .into_iter()
+            .filter_map(|chunk| {
+                current
+                    .get(&chunk)
+                    .map(|resident| VoxelChunkResidencyOperation::Replace {
+                        chunk,
+                        expected_content_hash: resident.content_hash,
+                        payload: chunk_payload(self.residency.island, chunk, &overlay),
+                    })
+            })
+            .collect::<Vec<_>>();
+        if !operations.is_empty() {
+            let expected_scene_source_revision = self.scene.source_revision();
+            VoxelChunkResidencyService::apply(
+                &mut self.scene,
+                &self.residency.leases,
+                VoxelChunkResidencyTransaction {
+                    expected_scene_source_revision,
+                    operations: &operations,
+                },
+            )
+            .map_err(|error| format!("load terrain edit overlay: {error}"))?;
+        }
+        self.edit_overlay = overlay;
+        self.residency.payload_cache.clear();
+        Ok(())
     }
 
     pub fn sync_residency(&mut self, position: [f64; 3]) -> Result<bool, String> {
@@ -254,7 +317,11 @@ impl GameWorld {
             (position[0].floor() as i64).div_euclid(CHUNK_SIZE),
             (position[2].floor() as i64).div_euclid(CHUNK_SIZE),
         ];
-        self.residency.center = center;
+        if self.residency.center != center {
+            self.residency.center = center;
+            self.residency.request_generation = self.residency.request_generation.wrapping_add(1);
+        }
+        let request_generation = self.residency.request_generation;
         let current = VoxelChunkResidencyService::resident_chunks(&self.scene)
             .into_iter()
             .map(|chunk| (chunk.chunk, chunk))
@@ -295,10 +362,22 @@ impl GameWorld {
         }
 
         let mut operations = Vec::new();
-        for (chunk, payload) in &requested {
+        let admission_budget =
+            if current.len() > MAX_PRODUCT_RESIDENT_CHUNKS - MAX_RESIDENCY_OPERATIONS_PER_TICK {
+                MAX_RESIDENCY_OPERATIONS_PER_TICK / 2
+            } else {
+                MAX_RESIDENCY_OPERATIONS_PER_TICK
+            };
+        let mut requested_by_priority = requested.iter().collect::<Vec<_>>();
+        requested_by_priority.sort_by_key(|(chunk, _)| {
+            let dx = chunk.x - center[0];
+            let dz = chunk.z - center[1];
+            (dx * dx + dz * dz, chunk.y, **chunk)
+        });
+        for (chunk, payload) in requested_by_priority {
             if current.contains_key(chunk) {
                 self.residency.cache_hits = self.residency.cache_hits.saturating_add(1);
-            } else if operations.len() < MAX_RESIDENCY_OPERATIONS_PER_TICK {
+            } else if operations.len() < admission_budget {
                 operations.push(VoxelChunkResidencyOperation::Admit {
                     chunk: *chunk,
                     payload: payload.clone(),
@@ -312,17 +391,18 @@ impl GameWorld {
         if missing_count > MAX_RESIDENCY_OPERATIONS_PER_TICK {
             self.residency.missed_deadlines = self.residency.missed_deadlines.saturating_add(1);
         }
-        if operations.is_empty() {
-            for (chunk, resident) in &current {
-                if !retained.contains_key(chunk)
-                    && !self.residency.leases.is_pinned(*chunk)
-                    && operations.len() < MAX_RESIDENCY_OPERATIONS_PER_TICK
-                {
-                    operations.push(VoxelChunkResidencyOperation::Evict {
-                        chunk: *chunk,
-                        expected_content_hash: resident.content_hash,
-                    });
-                }
+        let admitted = operations.len();
+        for (chunk, resident) in &current {
+            let over_budget = current.len() + admitted
+                > MAX_PRODUCT_RESIDENT_CHUNKS + operations.len().saturating_sub(admitted);
+            if (!retained.contains_key(chunk) || over_budget)
+                && !self.residency.leases.is_pinned(*chunk)
+                && operations.len() < MAX_RESIDENCY_OPERATIONS_PER_TICK
+            {
+                operations.push(VoxelChunkResidencyOperation::Evict {
+                    chunk: *chunk,
+                    expected_content_hash: resident.content_hash,
+                });
             }
         }
         self.residency.preparing = operations.len();
@@ -330,15 +410,11 @@ impl GameWorld {
         if changed {
             let admission_started = Instant::now();
             let expected_scene_source_revision = self.scene.source_revision();
-            let receipt = VoxelChunkResidencyService::apply(
-                &mut self.scene,
-                &self.residency.leases,
-                VoxelChunkResidencyTransaction {
-                    expected_scene_source_revision,
-                    operations: &operations,
-                },
-            )
-            .map_err(|error| format!("publish terrain residency: {error}"))?;
+            let receipt = self.apply_residency_request(
+                request_generation,
+                expected_scene_source_revision,
+                &operations,
+            )?;
             self.residency.admitted_total = self
                 .residency
                 .admitted_total
@@ -364,7 +440,33 @@ impl GameWorld {
                     .insert(*chunk, evidence.lease_id);
             }
         }
+        self.residency
+            .payload_cache
+            .retain(|chunk, _| retained.contains_key(chunk));
         Ok(changed)
+    }
+
+    fn apply_residency_request(
+        &mut self,
+        request_generation: u64,
+        expected_scene_source_revision: rusty_engine::engine_spatial::VoxelSourceRevision,
+        operations: &[VoxelChunkResidencyOperation],
+    ) -> Result<rusty_engine::engine_spatial::VoxelChunkResidencyReceipt, String> {
+        if request_generation != self.residency.request_generation {
+            return Err(format!(
+                "stale terrain residency request {request_generation}; current generation is {}",
+                self.residency.request_generation
+            ));
+        }
+        VoxelChunkResidencyService::apply(
+            &mut self.scene,
+            &self.residency.leases,
+            VoxelChunkResidencyTransaction {
+                expected_scene_source_revision,
+                operations,
+            },
+        )
+        .map_err(|error| format!("publish terrain residency: {error}"))
     }
 
     pub fn target_from_view(&self, origin: [f64; 3], direction: [f64; 3]) -> Option<[i64; 3]> {
@@ -432,6 +534,16 @@ impl GameWorld {
         .map_err(|error| format!("apply coherent voxel edit: {error}"))?;
         let affected_voxels = prepared.deltas().len();
         let overlay = prepared.deltas().to_vec();
+        let new_overlay_entries = overlay
+            .iter()
+            .filter(|delta| !self.edit_overlay.contains_key(&delta.address))
+            .count();
+        if self.edit_overlay.len().saturating_add(new_overlay_entries) > MAX_TERRAIN_OVERLAY_ENTRIES
+        {
+            return Err(format!(
+                "terrain edit overlay exceeds {MAX_TERRAIN_OVERLAY_ENTRIES} retained entries"
+            ));
+        }
         let mesh_build_ms = mesh_started.elapsed().as_secs_f64() * 1_000.0;
         let receipt = VoxelEditService::commit(&mut self.scene, prepared)
             .map_err(|error| format!("commit coherent voxel edit: {error}"))?;
@@ -513,19 +625,11 @@ fn desired_chunks(
     overlay: &BTreeMap<[i64; 3], Option<u16>>,
     cache: &mut BTreeMap<VoxelChunkIdentity, Option<VoxelChunkPayload>>,
 ) -> BTreeMap<VoxelChunkIdentity, VoxelChunkPayload> {
-    let min_chunk = (-island.radius).div_euclid(CHUNK_SIZE);
-    let max_chunk = island.radius.div_euclid(CHUNK_SIZE);
     let min_y = (-island.depth).div_euclid(CHUNK_SIZE);
     let max_y = (island.summit_height + 16).div_euclid(CHUNK_SIZE);
     let mut chunks = BTreeMap::new();
     for chunk_x in center[0] - radius..=center[0] + radius {
-        if !(min_chunk..=max_chunk).contains(&chunk_x) {
-            continue;
-        }
         for chunk_z in center[1] - radius..=center[1] + radius {
-            if !(min_chunk..=max_chunk).contains(&chunk_z) {
-                continue;
-            }
             for chunk_y in min_y..=max_y {
                 let identity = VoxelChunkIdentity::new(chunk_x, chunk_y, chunk_z);
                 let payload = cache
@@ -624,6 +728,7 @@ mod tests {
                 payload_cache: BTreeMap::new(),
                 generation_ms: 0.0,
                 admission_ms: 0.0,
+                request_generation: 0,
             },
             edit_overlay: BTreeMap::new(),
         }
@@ -1055,5 +1160,94 @@ mod tests {
             .scene()
             .projection_revisions()
             .is_coherent_with(revision));
+    }
+
+    #[test]
+    fn long_unbounded_retargeting_keeps_resident_and_cache_budgets_constant() {
+        let mut world = GameWorld::new(SurfaceSelection::Box).unwrap();
+        for step in -8..=8 {
+            world
+                .sync_residency([f64::from(step) * 512.0, 7.0, -2.0])
+                .unwrap();
+            assert!(world.residency_readout().resident <= MAX_PRODUCT_RESIDENT_CHUNKS);
+            assert!(world.residency.payload_cache.len() <= 75);
+        }
+        assert!(world.residency_readout().center[0] > 200);
+        assert!(world.scene().solid_voxel_count() > 0);
+    }
+
+    #[test]
+    fn durable_overlay_round_trip_reapplies_once_after_large_distance_return() {
+        let terrain = TerrainConfig::new(0x55aa, 96).unwrap();
+        let edited = [50_000, 3, -2];
+        let mut source = GameWorld::with_terrain(SurfaceSelection::Box, terrain).unwrap();
+        source.edit_overlay.insert(edited, None);
+        let encoded = source.overlay_bytes().unwrap();
+
+        let mut loaded = GameWorld::with_terrain(SurfaceSelection::Box, terrain).unwrap();
+        loaded.load_overlay_bytes(&encoded).unwrap();
+        for _ in 0..3 {
+            loaded.sync_residency([50_000.5, 7.0, -2.0]).unwrap();
+        }
+        assert!(!loaded
+            .scene()
+            .material_voxels()
+            .iter()
+            .any(|voxel| voxel.address == edited));
+        let entries = loaded.overlay_entry_count();
+        for _ in 0..3 {
+            loaded.sync_residency([-50_000.5, 7.0, -2.0]).unwrap();
+        }
+        for _ in 0..3 {
+            loaded.sync_residency([50_000.5, 7.0, -2.0]).unwrap();
+        }
+        assert_eq!(loaded.overlay_entry_count(), entries);
+        assert!(!loaded
+            .scene()
+            .material_voxels()
+            .iter()
+            .any(|voxel| voxel.address == edited));
+    }
+
+    #[test]
+    fn chunk_generation_order_and_signed_large_coordinates_are_stable() {
+        let island = IslandConfig::default();
+        let overlay = BTreeMap::new();
+        let left = VoxelChunkIdentity::new(4_090, 0, -1);
+        let right = VoxelChunkIdentity::new(4_091, 0, -1);
+        let first = [
+            chunk_payload(island, left, &overlay),
+            chunk_payload(island, right, &overlay),
+        ];
+        let second = [
+            chunk_payload(island, right, &overlay),
+            chunk_payload(island, left, &overlay),
+        ];
+        assert_eq!(first[0], second[1]);
+        assert_eq!(first[1], second[0]);
+        assert!(first.iter().all(|payload| payload.solid_voxel_count() > 0));
+
+        let mut world = GameWorld::new(SurfaceSelection::MarchingCubes).unwrap();
+        for _ in 0..3 {
+            world.sync_residency([65_440.0, 7.0, -2.0]).unwrap();
+        }
+        assert!(world.scene().mesh_chunks().iter().all(|chunk| {
+            chunk.translation.iter().all(|value| value.is_finite())
+                && chunk.translation[0].abs() <= CERTIFIED_WORLD_COORDINATE_ABS as f32
+        }));
+    }
+
+    #[test]
+    fn superseded_request_generation_cannot_publish_after_teleport() {
+        let mut world = GameWorld::new(SurfaceSelection::Box).unwrap();
+        world.sync_residency([0.5, 7.0, -2.0]).unwrap();
+        let stale_generation = world.residency.request_generation;
+        world.sync_residency([10_000.5, 7.0, -2.0]).unwrap();
+        let revision = world.scene().source_revision();
+        let error = world
+            .apply_residency_request(stale_generation, revision, &[])
+            .unwrap_err();
+        assert!(error.contains("stale terrain residency request"));
+        assert_eq!(world.scene().source_revision(), revision);
     }
 }

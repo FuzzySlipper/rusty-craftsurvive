@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "project": "rusty-craftsurvive",
+  "scenario": "unbounded-large-coordinate-persistence",
+  "mission": "At the visible far-coordinate corridor spawn, capture the mouse and inspect stillness and short movement for jitter. Destroy one recognizable terrain voxel, sprint east across several chunk boundaries, reverse toward the edited area, then reload the ordinary page and inspect whether the edit and terrain return coherently. Report stalls, pop-in, cracks, texture phase, collision/targeting disagreement, control drift, and any inability to relocate the edit.",
+  "controls": [
+    { "input": "Click the rendered world", "purpose": "Capture first-person input" },
+    { "input": "WASD and mouse", "purpose": "Move and look" },
+    { "input": "Shift", "purpose": "Sprint" },
+    { "input": "Space", "purpose": "Jump" },
+    { "input": "F or left click", "purpose": "Destroy the targeted voxel" },
+    { "input": "G or right click", "purpose": "Place beside the targeted face" },
+    { "input": "Reload the ordinary page", "purpose": "Reconnect to the same seed and durable overlay" }
+  ],
+  "artifacts": {
+    "screenshots": "before-and-after",
+    "frameBurst": { "count": 6, "intervalMs": 120 },
+    "trace": true,
+    "video": true
+  },
+  "reproductionLimit": 1,
+  "notes": "Judge only visible behavior. The HUD may orient the run but does not replace repeated geometry observations. Do not inspect source, DOM, network payloads, filesystem saves, or hidden state. Preserve uncertainty if the exact edited voxel cannot be visually relocated after travel or reload."
+}

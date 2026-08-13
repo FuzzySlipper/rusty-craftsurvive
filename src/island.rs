@@ -10,6 +10,8 @@ pub struct IslandConfig {
     pub seed: u64,
 }
 
+pub const TERRAIN_GENERATION_VERSION: u32 = 2;
+
 impl Default for IslandConfig {
     fn default() -> Self {
         Self::from(TerrainConfig::default())
@@ -56,8 +58,7 @@ pub(crate) fn material_at(config: IslandConfig, address: [i64; 3]) -> Option<u16
             3
         });
     }
-    if (-config.radius..=config.radius).contains(&x) && (-3..=-1).contains(&z) && y >= -config.depth
-    {
+    if (-3..=-1).contains(&z) && y >= -config.depth {
         material = (y <= 3).then_some(if y == 3 {
             1
         } else if y >= 1 {
@@ -117,27 +118,21 @@ fn natural_material(config: IslandConfig, x: i64, y: i64, z: i64) -> Option<u16>
 
 fn terrain_surface(config: IslandConfig, x: i64, z: i64) -> Option<i64> {
     let distance_squared = x * x + z * z;
-    (distance_squared <= config.radius * config.radius)
-        .then(|| terrain_height(config, x, z, distance_squared))
+    Some(terrain_height(config, x, z, distance_squared))
 }
 
 fn terrain_height(config: IslandConfig, x: i64, z: i64, distance_squared: i64) -> i64 {
-    let radius = config.radius.max(1) as f64;
-    let edge = (1.0 - (distance_squared as f64).sqrt() / radius).clamp(0.0, 1.0);
+    let _ = distance_squared;
     let broad = value_noise(config.seed, x, z, 20);
     let rolling = value_noise(config.seed ^ 0xa076_1d64_78bd_642f, x, z, 9);
     let detail = value_noise(config.seed ^ 0xe703_7ed1_a0b4_28db, x, z, 4);
     let ridge = 1.0 - (rolling * 2.0 - 1.0).abs();
-    let basin_center = [config.radius / 3, -config.radius / 4];
-    let basin_distance =
-        (((x - basin_center[0]).pow(2) + (z - basin_center[1]).pow(2)) as f64).sqrt();
-    let basin = (1.0 - basin_distance / (radius * 0.22)).clamp(0.0, 1.0);
-    let height = -2.0
-        + edge.powf(0.55) * config.summit_height as f64
+    let height = 1.0
+        + broad * 4.0
         + (broad - 0.5) * 8.0
         + ridge * 3.0
         + (detail - 0.5) * 2.0
-        - basin * 4.0;
+        + value_noise(config.seed ^ 0x8ebc_6af0_9c88_c6e3, x, z, 48) * 3.0;
     height.round().max(-2.0) as i64
 }
 

@@ -2,6 +2,7 @@ use std::{
     env,
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use anyhow::{bail, Context, Result};
@@ -39,6 +40,7 @@ struct Options {
     surface: SurfaceSelection,
     terrain: TerrainConfig,
     web_root: PathBuf,
+    save_root: PathBuf,
 }
 
 impl Options {
@@ -48,6 +50,7 @@ impl Options {
         let mut surface = SurfaceSelection::Box;
         let mut terrain = TerrainConfig::default();
         let mut web_root = PathBuf::from("web/dist");
+        let mut save_root = PathBuf::from("target/craftsurvive-saves");
         let mut arguments = arguments.into_iter();
         while let Some(argument) = arguments.next() {
             match argument.as_str() {
@@ -91,6 +94,10 @@ impl Options {
                     web_root =
                         PathBuf::from(arguments.next().context("--web-root requires a path")?);
                 }
+                "--save-root" => {
+                    save_root =
+                        PathBuf::from(arguments.next().context("--save-root requires a path")?);
+                }
                 _ => bail!("unknown argument '{argument}'"),
             }
         }
@@ -100,6 +107,7 @@ impl Options {
             surface,
             terrain,
             web_root,
+            save_root,
         })
     }
 }
@@ -109,6 +117,8 @@ struct HostState {
     default_surface: SurfaceSelection,
     default_terrain: TerrainConfig,
     web_root: PathBuf,
+    save_root: PathBuf,
+    save_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -167,6 +177,7 @@ async fn session_upgrade(
         None | Some("route") => SpawnSelection::Route,
         Some("platform") => SpawnSelection::MovingPlatform,
         Some("stream") => SpawnSelection::StreamingWest,
+        Some("far") => SpawnSelection::FarCoordinate,
         Some(value) => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -175,16 +186,42 @@ async fn session_upgrade(
                 .into_response()
         }
     };
-    let session = match GameSession::with_terrain_and_spawn(surface, terrain, spawn) {
+    let mut session = match GameSession::with_terrain_and_spawn(surface, terrain, spawn) {
         Ok(session) => session,
         Err(message) => return (StatusCode::INTERNAL_SERVER_ERROR, message).into_response(),
     };
+    let save_path = terrain_save_path(&state.save_root, seed);
+    match tokio::fs::read(&save_path).await {
+        Ok(bytes) => {
+            if let Err(message) = session.load_overlay_bytes(&bytes) {
+                return (
+                    StatusCode::CONFLICT,
+                    format!("terrain overlay load failed: {message}"),
+                )
+                    .into_response();
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("read terrain overlay: {error}"),
+            )
+                .into_response()
+        }
+    }
+    let save_lock = state.save_lock.clone();
     websocket
         .max_message_size(MAX_SESSION_MESSAGE_BYTES)
-        .on_upgrade(move |socket| serve_session(socket, session))
+        .on_upgrade(move |socket| serve_session(socket, session, save_path, save_lock))
 }
 
-async fn serve_session(mut socket: WebSocket, mut session: GameSession) {
+async fn serve_session(
+    mut socket: WebSocket,
+    mut session: GameSession,
+    save_path: PathBuf,
+    save_lock: Arc<tokio::sync::Mutex<()>>,
+) {
     let connected = session.connect().map(|(readout, frame)| {
         let generation = readout.generation;
         session_resources().map(|resources| {
@@ -211,7 +248,31 @@ async fn serve_session(mut socket: WebSocket, mut session: GameSession) {
         let response = match message {
             Ok(Message::Text(text)) => match serde_json::from_str::<ClientMessage>(text.as_str()) {
                 Ok(message) => match session.submit(message) {
-                    Ok(update) => ServerMessage::Update { update },
+                    Ok(update) => {
+                        if update.edit.is_some() {
+                            match session.overlay_bytes() {
+                                Ok(bytes) => {
+                                    let _guard = save_lock.lock().await;
+                                    if let Err(error) =
+                                        write_overlay_atomic(&save_path, &bytes).await
+                                    {
+                                        eprintln!(
+                                            "CRAFTSURVIVE_SAVE_FAILED path={} error={error}",
+                                            save_path.display()
+                                        );
+                                        let _ = socket.send(Message::Close(None)).await;
+                                        break;
+                                    }
+                                }
+                                Err(error) => {
+                                    eprintln!("CRAFTSURVIVE_SAVE_FAILED encode={error}");
+                                    let _ = socket.send(Message::Close(None)).await;
+                                    break;
+                                }
+                            }
+                        }
+                        ServerMessage::Update { update }
+                    }
                     Err(error) => ServerMessage::Rejected {
                         code: error.code(),
                         message: error.to_string(),
@@ -238,6 +299,18 @@ async fn serve_session(mut socket: WebSocket, mut session: GameSession) {
         }
     }
     let _ = session.disconnect(generation);
+}
+
+fn terrain_save_path(root: &Path, seed: u64) -> PathBuf {
+    root.join(format!("terrain-v2-{seed:016x}.json"))
+}
+
+async fn write_overlay_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    tokio::fs::create_dir_all(parent).await?;
+    let temporary = path.with_extension("json.tmp");
+    tokio::fs::write(&temporary, bytes).await?;
+    tokio::fs::rename(temporary, path).await
 }
 
 async fn send_json(socket: &mut WebSocket, message: &ServerMessage) -> Result<(), axum::Error> {
@@ -304,6 +377,8 @@ async fn main() -> Result<()> {
         default_surface: options.surface,
         default_terrain: options.terrain,
         web_root: options.web_root,
+        save_root: options.save_root,
+        save_lock: Arc::new(tokio::sync::Mutex::new(())),
     };
     let application = Router::new()
         .route("/health", get(health))

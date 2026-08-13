@@ -75,6 +75,9 @@ const readout = (acceptedSequence: number, playerRevision: number) => ({
   residentChunkBytes: 204800,
   residencyGenerationMs: 1.25,
   residencyAdmissionMs: 2.75,
+  residencyRequestGeneration: 3,
+  terrainGenerationVersion: 2,
+  editOverlayEntries: 4,
 });
 
 type CurrentRendererPort = RustyApplicationRendererPort & {

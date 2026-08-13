@@ -14,7 +14,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     status: (text) => { get('[data-status]').textContent = text; },
     readout: (value) => {
       get('[data-surface]').textContent = value.surface;
-      get('[data-terrain]').textContent = `${value.terrainSize}²`;
+      get('[data-terrain]').textContent = `unbounded v${value.terrainGenerationVersion} · scale ${value.terrainSize} · ${value.editOverlayEntries} edits`;
       get('[data-residency]').textContent = `${value.residencyCenter.join(',')} · ${value.residentChunks} resident / ${value.pinnedChunks} pinned / ${value.preparingChunks} loading · ${value.admittedChunksTotal} admitted / ${value.evictedChunksTotal} evicted · ${(value.residentChunkBytes / 1024).toFixed(0)} KiB · ${value.residencyGenerationMs.toFixed(1)} + ${value.residencyAdmissionMs.toFixed(1)} ms`;
       get('[data-seed]').textContent = value.terrainSeed;
       get('[data-brush]').textContent = `radius ${value.brushRadius}`;

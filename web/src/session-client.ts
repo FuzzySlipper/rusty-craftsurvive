@@ -23,6 +23,7 @@ interface Readout {
   admittedChunksTotal: number; evictedChunksTotal: number; residencyCacheHits: number;
   residencyMissedDeadlines: number;
   residentChunkBytes: number; residencyGenerationMs: number; residencyAdmissionMs: number;
+  residencyRequestGeneration: number; terrainGenerationVersion: number; editOverlayEntries: number;
 }
 interface EditReadout {
   action: 'destroy' | 'place'; voxel: [number, number, number]; revision: number;
@@ -347,6 +348,9 @@ function decodeReadout(value: unknown): Readout {
     residentChunkBytes: integer(object['residentChunkBytes'], 'resident chunk bytes'),
     residencyGenerationMs: number(object['residencyGenerationMs'], 'residency generation time'),
     residencyAdmissionMs: number(object['residencyAdmissionMs'], 'residency admission time'),
+    residencyRequestGeneration: integer(object['residencyRequestGeneration'], 'residency request generation'),
+    terrainGenerationVersion: integer(object['terrainGenerationVersion'], 'terrain generation version'),
+    editOverlayEntries: integer(object['editOverlayEntries'], 'edit overlay entries'),
   };
 }
 

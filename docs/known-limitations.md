@@ -2,14 +2,15 @@
 
 The initial experiment is intentionally bounded:
 
-- one seeded, size-bounded generated island uses a bounded requested/pinned/hysteresis chunk window;
-  it has no background worker, disk cache, biome system, or general procgen framework, and its
+- generation version 2 has no authored terrain edge inside the supported coordinate envelope and
+  uses a bounded requested/pinned/hysteresis chunk window; it has no background worker,
+  generated-chunk disk cache, biome system, or general procgen framework, and its
   generation budget is measured per synchronous product input tick;
 - movement uses the reusable Engine fixed-step kinematic capsule controller with checked product
   tuning, crouch/stand clearance, slopes, steps, floor snap, moving-platform carry, and external
   impulses; CraftSurvive does not expose a general rigid-body framework;
 - each radius 0/1/2 spherical brush is one atomic revision, and placement is rejected as a whole
-  when any edited voxel overlaps the current player capsule or leaves the finite world bounds; broader
+  when any edited voxel overlaps the current player capsule or leaves Engine's coordinate envelope; broader
   construction permissions and structural rules remain out of scope;
 - one checked 2 by 2 atlas supplies grass-top, grass-side, dirt, and stone presentation; it has no
   normal maps, material variants, animated tiles, or authored blending;
@@ -20,9 +21,9 @@ The initial experiment is intentionally bounded:
   authority after each accepted edit. Retained rendering is chunk-granular, while expanded textured
   MC/DC dirty chunks retain higher rebuild, transfer, and apply costs than greedy boxes;
 - the native host retains arrow-key look, while the browser shell supports pointer-lock mouse look;
-- edit overlays survive eviction only for the current process; there is no save format, inventory,
-  crafting, survival simulation, infinite-world addressing, networking, or
-  Studio project adapter;
+- browser-host edit overlays use bounded fingerprinted JSON and atomic replacement, but there is no
+  migration from unsupported generation/schema versions, multi-writer merge, inventory, crafting,
+  survival simulation, networking, or Studio project adapter;
 - the browser HUD exposes concise authority and typed Engine controller facts for bounded certification rather
   than a general debug console;
 - the deterministic Chromium campaign combines physical browser checks with focused Rust consumer
@@ -30,6 +31,8 @@ The initial experiment is intentionally bounded:
   static-mesh geometry is not part of the voxel island presentation, so browser judgement of the
   reconstructed MC/DC terrain remains presentation-only rather than alternate collision authority;
 - the campaign is not a broad browser, accessibility, or hardware compatibility campaign.
+- large-world first-person behavior is certified only through ±65,536 units because Engine
+  entity/controller/render transforms remain `f32`; task 6895 owns the upstream rebasing follow-up.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.
