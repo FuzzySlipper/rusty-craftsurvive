@@ -51,6 +51,10 @@ Keys `1`, `2`, and `3` select spherical edit radii 0, 1, and 2. `den-serve resta
 rusty-craftsurvive` rebuilds and restores the
 service; `den-serve stop rusty-craftsurvive` releases the broker-owned process group.
 
+The game-owned panoramic sky exercises Engine's authored camera-relative background contract. It
+rotates with the camera while remaining fixed under player translation, and it is presentation
+only: the panorama does not contribute lighting, reflections, collision, or gameplay authority.
+
 Two small forest wisps directly ahead and to the right of the default spawn exercise the public
 Engine lit-sprite route. The left wisp is the unlit reference; the right uses derived-gradient
 lighting under the same host ambient/directional route and a moving retained cyan point light. They use the same checked RGBA8

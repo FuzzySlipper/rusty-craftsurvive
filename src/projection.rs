@@ -20,8 +20,8 @@ use rusty_engine::{
 };
 
 use crate::{
-    terrain_materials, terrain_texture_op, wisp_light_update_op, wisp_scene_ops, SurfaceSelection,
-    PLATFORM_HALF_EXTENTS,
+    sky_background_ops, terrain_materials, terrain_texture_op, wisp_light_update_op,
+    wisp_scene_ops, SurfaceSelection, PLATFORM_HALF_EXTENTS,
 };
 
 #[cfg(test)]
@@ -104,7 +104,9 @@ impl TerrainProjector {
 
         let mut extra = Vec::new();
         if !self.initialized {
-            result.frame.ops.insert(0, terrain_texture_op()?);
+            let mut initial_resources = sky_background_ops()?;
+            initial_resources.push(terrain_texture_op()?);
+            result.frame.ops.splice(0..0, initial_resources);
             extra.extend(wisp_scene_ops(platform_position)?);
             extra.push(RenderDiff::Create {
                 handle: PLATFORM_HANDLE,
@@ -697,6 +699,25 @@ mod tests {
                 .unwrap();
             telemetry_frame(surface).unwrap().validate().unwrap();
         }
+    }
+
+    #[test]
+    fn initial_frame_defines_the_panorama_before_selecting_it() {
+        let world = GameWorld::new(SurfaceSelection::Box).unwrap();
+        let frame = TerrainProjector::new()
+            .project(world.scene(), PLATFORM_INITIAL_CENTER.map(f64::from), true)
+            .unwrap();
+
+        let RenderDiff::DefineTexture { texture } = &frame.ops[0] else {
+            panic!("initial operation must define the sky panorama");
+        };
+        assert_eq!(texture.id, "texture/craftsurvive-sky-panorama");
+        assert!(matches!(
+            &frame.ops[1],
+            RenderDiff::SetSkyBackground {
+                background: Some(background)
+            } if background.texture == texture.id
+        ));
     }
 
     #[test]

@@ -8,10 +8,10 @@ use rusty_engine::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    block_break_debris_frame, terrain_texture_resource, wisp_texture_resource, EditKind,
-    EditOutcome, EditReceipt, EditRejection, GameWorld, PlayerController, PlayerInput, PlayerPose,
-    SurfaceSelection, TerrainConfig, TerrainProjector, MAX_BRUSH_RADIUS,
-    TERRAIN_GENERATION_VERSION,
+    block_break_debris_frame, sky_background_resource, terrain_texture_resource,
+    wisp_texture_resource, EditKind, EditOutcome, EditReceipt, EditRejection, GameWorld,
+    PlayerController, PlayerInput, PlayerPose, SurfaceSelection, TerrainConfig, TerrainProjector,
+    MAX_BRUSH_RADIUS, TERRAIN_GENERATION_VERSION,
 };
 
 pub const SESSION_PROTOCOL_VERSION: u32 = 6;
@@ -186,9 +186,16 @@ pub struct SessionResourceReadout {
 }
 
 pub fn session_resources() -> Result<Vec<SessionResourceReadout>, String> {
+    let sky = sky_background_resource()?;
     let terrain = terrain_texture_resource()?;
     let wisp = wisp_texture_resource()?;
     Ok(vec![
+        SessionResourceReadout {
+            identity: sky.identity,
+            content_hash: sky.content_hash,
+            media_type: sky.media_type,
+            url: sky.url,
+        },
         SessionResourceReadout {
             identity: terrain.identity,
             content_hash: terrain.content_hash,

@@ -2,8 +2,9 @@ use std::{collections::BTreeSet, env, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use rusty_craftsurvive::{
-    platform_frame, telemetry_frame, terrain_texture_resource, wisp_texture_resource, DemoConfig,
-    EditKind, EditOutcome, GameWorld, PlayerController, PlayerInput, TerrainProjector,
+    platform_frame, sky_background_resource, telemetry_frame, terrain_texture_resource,
+    wisp_texture_resource, DemoConfig, EditKind, EditOutcome, GameWorld, PlayerController,
+    PlayerInput, TerrainProjector,
 };
 use rusty_engine::{
     render_host_contracts::RendererPhysicalInputReadout,
@@ -67,6 +68,7 @@ impl CraftSurviveApplication {
                     .with_inner_size(winit::dpi::LogicalSize::new(1100, 720)),
             )
             .context("create CraftSurvive window")?;
+        let sky_texture = sky_background_resource().map_err(anyhow::Error::msg)?;
         let terrain_texture = terrain_texture_resource().map_err(anyhow::Error::msg)?;
         let wisp_texture = wisp_texture_resource().map_err(anyhow::Error::msg)?;
         let renderer = RendererWebviewAdapter::mount(
@@ -77,6 +79,12 @@ impl CraftSurviveApplication {
                 clear_color: Some(0x87_ceeb),
                 pixel_ratio: window.scale_factor(),
                 resources: vec![
+                    RendererResource {
+                        identity: sky_texture.identity,
+                        content_hash: sky_texture.content_hash,
+                        media_type: sky_texture.media_type.to_owned(),
+                        bytes: sky_texture.bytes.to_vec(),
+                    },
                     RendererResource {
                         identity: terrain_texture.identity,
                         content_hash: terrain_texture.content_hash,

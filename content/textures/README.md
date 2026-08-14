@@ -20,3 +20,16 @@ at the physical top on every cardinal face. Grass top and side faces are split i
 material slots without changing canonical grass voxels. Marching-cubes and dual-contouring
 triangles use the same deterministic world projection; grass-side triangles always choose a
 vertical plane even on steep slopes.
+
+## Sky panorama provenance
+
+`source/craftsurvive-sky-panorama-gpt.png` was generated for this repository with OpenAI's built-in
+image generation tool on 2026-08-14. The prompt requested a seamless 360-degree equirectangular
+daytime wilderness sky with broad painterly voxel-game clouds, a centered horizon, and no text,
+sun disk, buildings, characters, or nearby objects. `sky-panorama.png` is the RGBA8 runtime copy;
+it retains the generated image's exact 1774 by 887 2:1 dimensions and sRGB color space. The same
+bytes are checked at `web/public/assets/sky-panorama.png` for the browser host.
+
+The panorama is selected through Engine's authored sky-background operation after its retained
+texture definition. It is presentation-only and intentionally does not define environment light,
+reflections, collision, picking, or gameplay state.

@@ -6,6 +6,7 @@ mod player;
 mod projection;
 mod save;
 mod session;
+mod sky_background;
 mod sprite_scene;
 mod terrain_texture;
 mod world;
@@ -29,6 +30,9 @@ pub use session::{
     SessionEditRejectionReadout, SessionError, SessionErrorOrRuntime, SessionReadout,
     SessionResourceReadout, SessionUpdate, SpawnSelection, MAX_SESSION_MESSAGE_BYTES,
     SESSION_PROTOCOL_VERSION,
+};
+pub use sky_background::{
+    sky_background_ops, sky_background_resource, SkyBackgroundResource, SKY_URL,
 };
 pub use sprite_scene::{
     wisp_light_update_op, wisp_scene_ops, wisp_texture_resource, WispTextureResource, WISP_URL,
