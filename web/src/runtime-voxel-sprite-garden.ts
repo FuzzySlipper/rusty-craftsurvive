@@ -395,7 +395,7 @@ export class RuntimeVoxelSpriteGarden {
           node: primitiveNode(
             `runtime-voxel-sprite-${original.subject}-${column === 0 ? 'baseline' : 'enhanced'}-plinth`,
             [position[0], positions.ground[1] - 0.1, position[2]],
-            column === 0 ? [0.18, 0.34, 0.5, 1] : [0.55, 0.24, 0.15, 1],
+            column === 0 ? [0.1, 0.5, 1, 1] : [1, 0.3, 0.05, 1],
           ),
         });
       }
@@ -404,32 +404,37 @@ export class RuntimeVoxelSpriteGarden {
   }
 
   async #publishLabels(): Promise<void> {
-    const ops = SUBJECTS.map((subject, index) => {
-      const position = this.#positions.get(subject)!.ground;
-      return {
-        domain: 'billboard',
-        meta: { sequence: index },
+    const ops = SUBJECTS.flatMap((subject, index) => {
+      const positions = this.#positions.get(subject)!;
+      return (['baseline', 'enhanced'] as const).map((role, column) => ({
+        domain: 'billboard' as const,
+        meta: { sequence: index * 2 + column },
         op: {
-          op: 'create',
-          handle: LABEL_HANDLE + index,
+          op: 'create' as const,
+          handle: LABEL_HANDLE + index * 2 + column,
           descriptor: {
-            anchor: { kind: 'world', position: [position[0], position[1] + 3, position[2]] },
+            anchor: {
+              kind: 'world' as const,
+              position: [positions[role][0], positions[role][1] + 1.55, positions[role][2]],
+            },
             content: {
-              kind: 'text',
-              localizationKey: `craftsurvive.voxelSprite.${subject}`,
-              fallbackText: `${subject.replaceAll('-', ' ')} · BLUE baseline / ORANGE enhanced`,
+              kind: 'text' as const,
+              localizationKey: `craftsurvive.voxelSprite.${subject}.${role}`,
+              fallbackText: `${subject.replaceAll('-', ' ')} · ${role === 'baseline' ? 'BLUE baseline' : 'ORANGE enhanced'}`,
               arguments: [],
             },
-            font: { kind: 'system', family: 'monospace' },
+            font: { kind: 'system' as const, family: 'monospace' },
             heightPixels: 15,
-            color: [1, 1, 1, 1],
-            background: [0.03, 0.05, 0.08, 0.8],
+            color: [1, 1, 1, 1] as const,
+            background: role === 'baseline'
+              ? [0.02, 0.18, 0.45, 0.9] as const
+              : [0.55, 0.12, 0.02, 0.9] as const,
             maxDistance: 45,
-            layer: 'alwaysOnTop',
+            layer: 'alwaysOnTop' as const,
             visible: true,
           },
         },
-      };
+      }));
     });
     const receipt = await this.#renderer.applyPresentation({ schemaVersion: 1, ops });
     for (const diagnostic of receipt.diagnostics) {

@@ -28,7 +28,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       <label>splat overlap <input data-lab-overlap type="range" min="0" max="1.5" step="0.05" value="0.15"><output data-lab-overlap-value>0.15</output></label>
       <div class="lab-actions"><button data-lab-recapture type="button">Recapture selected</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
       <output data-lab-metrics>loading</output>
-      <small>Prepared normals are the original Blender-world bake and intentionally remain an authoring-variable warning.</small>
+      <small data-lab-normal-warning>Prepared normals are the original Blender-world bake and intentionally remain an authoring-variable warning.</small>
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -56,6 +56,9 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       panel.querySelector<HTMLOutputElement>('[data-lab-steps-value]')!.value = String(value.depthQuantizationSteps);
       panel.querySelector<HTMLOutputElement>('[data-lab-overlap-value]')!.value = value.splatOverlap.toFixed(2);
       panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} files / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples`;
+      panel.querySelector<HTMLElement>('[data-lab-normal-warning]')!.textContent = value.producer === 'prepared'
+        ? 'Prepared source warning: normals are the original Blender-world bake, not the view-space contract.'
+        : 'Runtime source: normals are captured in the Engine view-space contract.';
     },
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
   ) : null;
