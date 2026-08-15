@@ -5,6 +5,7 @@ import type {
   RustyApplicationVoxelSpriteCaptureSettings,
   RustyApplicationVoxelSpriteConfig,
   RustyApplicationVoxelSpriteDefinition,
+  RustyApplicationVoxelSpriteEnhancementReadout,
   RustyApplicationVoxelSpriteExperimentPort,
   RustyApplicationVoxelSpriteMode,
   RustyApplicationVoxelSpriteReceipt,
@@ -15,6 +16,7 @@ export type VoxelSpriteSubject = 'spatial-wizard' | 'rigged-wizard' | 'knight';
 export type VoxelSpriteSide = 'baseline' | 'enhanced';
 export type VoxelSpriteCaptureLightingMode = 'isolated' | 'scene';
 export type VoxelSpritePostLightingMode = 'captured' | 'normal';
+export type VoxelSpriteSplatBlendMode = RustyApplicationVoxelSpriteConfig['splatBlendMode'];
 
 interface ModelResource {
   identity: string;
@@ -62,6 +64,10 @@ export interface RuntimeVoxelSpriteGardenReadout {
   autoSector: boolean;
   elevationDegrees: number;
   resolution: number;
+  appliedResolution: number;
+  capturePending: boolean;
+  captureOutputBytesEstimate: number;
+  captureTemporaryDepthBytesEstimate: number;
   captureLightingMode: VoxelSpriteCaptureLightingMode;
   captureAmbient: number;
   captureKey: number;
@@ -82,7 +88,13 @@ export interface RuntimeVoxelSpriteGardenReadout {
   fallbackPreservedCount: number;
   depthAmplitude: number;
   depthQuantizationSteps: number;
+  splatResolution: number;
+  appliedSplatResolution: number;
+  splatDensityPending: boolean;
   splatOverlap: number;
+  splatOpacity: number;
+  splatBlendMode: VoxelSpriteSplatBlendMode;
+  composition: RustyApplicationVoxelSpriteEnhancementReadout['composition'] | 'n/a';
   resourceCount: number;
   resourceBytes: number;
 }
@@ -108,6 +120,7 @@ const SOURCE_HANDLE = 9_800_100;
 const PLINTH_HANDLE = 9_800_200;
 const LABEL_HANDLE = 9_800_300;
 const ROW_DISTANCES = [7, 10.5, 14] as const;
+const HIGH_COST_CAPTURE_RESOLUTION = 512;
 
 export class RuntimeVoxelSpriteGarden {
   readonly #renderer: RustyApplicationRendererPort;
@@ -134,7 +147,10 @@ export class RuntimeVoxelSpriteGarden {
   #resolution = 192;
   #depthAmplitude = 0.35;
   #depthQuantizationSteps = 8;
+  #splatResolution = 48;
   #splatOverlap = 0.15;
+  #splatOpacity = 1;
+  #splatBlendMode: VoxelSpriteSplatBlendMode = 'depth-write';
   #status: RuntimeVoxelSpriteGardenReadout['status'] = 'loading';
 
   constructor(
@@ -220,12 +236,19 @@ export class RuntimeVoxelSpriteGarden {
     if (this.#experiment === null) return;
     if (!preserveAuto) this.#autoSector = false;
     this.#sector = ((Math.round(sector) % 16) + 16) % 16;
+    if (this.#resolution >= HIGH_COST_CAPTURE_RESOLUTION) {
+      this.#diagnostic(
+        `sector ${String(this.#sector)} queued at ${String(this.#resolution)}px; use an explicit recapture action`,
+      );
+      this.#emit();
+      return;
+    }
     this.#recaptureAll('sector');
   }
 
   setAutoSector(enabled: boolean): void { this.#autoSector = enabled; this.#emit(); }
   setElevation(value: number): void { this.#elevationDegrees = bounded(value, -45, 75); this.#emit(); }
-  setResolution(value: number): void { this.#resolution = Math.round(bounded(value, 64, 256)); this.#emit(); }
+  setResolution(value: number): void { this.#resolution = Math.round(bounded(value, 64, 4096)); this.#emit(); }
 
   setCaptureLightingMode(value: VoxelSpriteCaptureLightingMode): void {
     this.#lighting[this.#selectedSide].captureMode = value;
@@ -287,28 +310,40 @@ export class RuntimeVoxelSpriteGarden {
     this.#configureSide('enhanced', { depthQuantizationSteps: this.#depthQuantizationSteps });
   }
 
+  setSplatResolution(value: number): void {
+    this.#splatResolution = Math.round(bounded(value, 8, 512));
+    this.#emit();
+  }
+
   setSplatOverlap(value: number): void {
     this.#splatOverlap = bounded(value, 0, 1.5);
     this.#configureSide('enhanced', { splatOverlap: this.#splatOverlap });
   }
 
+  setSplatOpacity(value: number): void {
+    this.#splatOpacity = bounded(value, 0, 1);
+    this.#configureSide('enhanced', { splatOpacity: this.#splatOpacity });
+  }
+
+  setSplatBlendMode(value: VoxelSpriteSplatBlendMode): void {
+    if (!['depth-write', 'alpha-blend', 'additive'].includes(value)) return;
+    this.#splatBlendMode = value;
+    this.#configureSide('enhanced', { splatBlendMode: value });
+  }
+
   recaptureSelected(): void {
     if (this.#experiment === null) return;
-    this.#apply(
-      this.#experiment.recapture(this.#id(this.#selectedSubject, this.#selectedSide), this.#captureSettings(this.#selectedSide)),
-      `recapture ${this.#selectedSubject} ${this.#selectedSide}`,
-    );
+    this.#recapture(this.#selectedSubject, this.#selectedSide, 'recapture');
+    this.#renderer.renderOnce();
     this.#emit();
   }
 
   recapturePair(): void {
     if (this.#experiment === null) return;
     for (const side of SIDES) {
-      this.#apply(
-        this.#experiment.recapture(this.#id(this.#selectedSubject, side), this.#captureSettings(side)),
-        `recapture ${this.#selectedSubject} ${side}`,
-      );
+      this.#recapture(this.#selectedSubject, side, 'recapture pair');
     }
+    this.#renderer.renderOnce();
     this.#emit();
   }
 
@@ -316,7 +351,7 @@ export class RuntimeVoxelSpriteGarden {
     const other = this.#selectedSide === 'baseline' ? 'enhanced' : 'baseline';
     this.#lighting[other] = { ...this.#lighting[this.#selectedSide] };
     this.#configureSide(other, this.#postConfig(other));
-    this.#recaptureAll(`match ${this.#selectedSide} lighting`);
+    this.recapturePair();
   }
 
   probeFailureFallback(): void {
@@ -353,6 +388,7 @@ export class RuntimeVoxelSpriteGarden {
     for (const subject of SUBJECTS) {
       this.#apply(this.#experiment.configure(this.#id(subject, side), patch), `configure ${subject} ${side}`);
     }
+    this.#renderer.renderOnce();
     this.#emit();
   }
 
@@ -360,13 +396,23 @@ export class RuntimeVoxelSpriteGarden {
     if (this.#experiment === null) return;
     for (const subject of SUBJECTS) {
       for (const side of SIDES) {
-        this.#apply(
-          this.#experiment.recapture(this.#id(subject, side), this.#captureSettings(side)),
-          `${operation}: ${subject} ${side}`,
-        );
+        this.#recapture(subject, side, operation);
       }
     }
+    this.#renderer.renderOnce();
     this.#emit();
+  }
+
+  #recapture(subject: VoxelSpriteSubject, side: VoxelSpriteSide, operation: string): void {
+    if (this.#experiment === null) return;
+    const entry = this.#entry(subject, side);
+    const rebuildSplatGeometry = side === 'enhanced'
+      && (entry?.enhancement.config.splatColumns !== this.#splatResolution
+        || entry.enhancement.config.splatRows !== this.#splatResolution);
+    const receipt = rebuildSplatGeometry
+      ? this.#experiment.replace(this.#definition(subject, side))
+      : this.#experiment.recapture(this.#id(subject, side), this.#captureSettings(side));
+    this.#apply(receipt, `${operation}: ${subject} ${side}${rebuildSplatGeometry ? ' + splat rebuild' : ''}`);
   }
 
   #definition(subject: VoxelSpriteSubject, side: VoxelSpriteSide): RustyApplicationVoxelSpriteDefinition {
@@ -389,6 +435,12 @@ export class RuntimeVoxelSpriteGarden {
         splatOverlap: this.#splatOverlap,
         baseSpriteContribution: 0.7,
         normalInfluence: 0.65,
+        ...(side === 'enhanced' ? {
+          splatColumns: this.#splatResolution,
+          splatRows: this.#splatResolution,
+          splatOpacity: this.#splatOpacity,
+          splatBlendMode: this.#splatBlendMode,
+        } : {}),
         ...this.#postConfig(side),
       },
     };
@@ -530,6 +582,7 @@ export class RuntimeVoxelSpriteGarden {
   #emit(): void {
     const lighting = this.#lighting[this.#selectedSide];
     const entry = this.#entry(this.#selectedSubject, this.#selectedSide);
+    const enhancedEntry = this.#entry(this.#selectedSubject, 'enhanced');
     const manifest = this.#manifest;
     this.#readout({
       status: this.#status,
@@ -542,6 +595,10 @@ export class RuntimeVoxelSpriteGarden {
       autoSector: this.#autoSector,
       elevationDegrees: this.#elevationDegrees,
       resolution: this.#resolution,
+      appliedResolution: entry?.capture?.resolution ?? 0,
+      capturePending: !captureSettingsMatch(entry?.capture ?? null, this.#captureSettings(this.#selectedSide)),
+      captureOutputBytesEstimate: this.#resolution * this.#resolution * 16,
+      captureTemporaryDepthBytesEstimate: this.#resolution * this.#resolution * 4,
       captureLightingMode: lighting.captureMode,
       captureAmbient: lighting.captureAmbient,
       captureKey: lighting.captureKey,
@@ -562,7 +619,13 @@ export class RuntimeVoxelSpriteGarden {
       fallbackPreservedCount: entry?.fallbackPreservedCount ?? 0,
       depthAmplitude: this.#depthAmplitude,
       depthQuantizationSteps: this.#depthQuantizationSteps,
+      splatResolution: this.#splatResolution,
+      appliedSplatResolution: enhancedEntry?.enhancement.config.splatColumns ?? 0,
+      splatDensityPending: enhancedEntry?.enhancement.config.splatColumns !== this.#splatResolution,
       splatOverlap: this.#splatOverlap,
+      splatOpacity: this.#splatOpacity,
+      splatBlendMode: this.#splatBlendMode,
+      composition: enhancedEntry?.enhancement.composition ?? 'n/a',
       resourceCount: manifest?.metrics.resourceCount ?? 0,
       resourceBytes: manifest?.metrics.totalResourceBytes ?? 0,
     });
@@ -604,6 +667,23 @@ function sideLightingEqual(left: SideLighting, right: SideLighting): boolean {
     && left.outputGain === right.outputGain
     && left.lightAzimuthDegrees === right.lightAzimuthDegrees
     && left.lightElevationDegrees === right.lightElevationDegrees;
+}
+
+function captureSettingsMatch(
+  actual: RustyApplicationVoxelSpriteCaptureSettings | null,
+  desired: RustyApplicationVoxelSpriteCaptureSettings,
+): boolean {
+  if (actual === null
+    || actual.resolution !== desired.resolution
+    || actual.azimuthDegrees !== desired.azimuthDegrees
+    || actual.elevationDegrees !== desired.elevationDegrees
+    || actual.near !== desired.near
+    || actual.far !== desired.far
+    || actual.lighting?.mode !== desired.lighting?.mode) return false;
+  if (desired.lighting?.mode !== 'isolated' || actual.lighting?.mode !== 'isolated') return true;
+  return actual.lighting.ambientIntensity === desired.lighting.ambientIntensity
+    && actual.lighting.keyIntensity === desired.lighting.keyIntensity
+    && actual.lighting.fillIntensity === desired.lighting.fillIntensity;
 }
 
 function direction(azimuthDegrees: number, elevationDegrees: number): [number, number, number] {

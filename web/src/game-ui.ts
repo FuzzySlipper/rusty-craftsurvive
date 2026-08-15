@@ -4,6 +4,7 @@ import {
   type VoxelSpriteCaptureLightingMode,
   type VoxelSpritePostLightingMode,
   type VoxelSpriteSide,
+  type VoxelSpriteSplatBlendMode,
   type VoxelSpriteSubject,
 } from './runtime-voxel-sprite-garden';
 import { SessionClient, type SessionView } from './session-client';
@@ -24,7 +25,8 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       <label>sector <input data-lab-sector type="range" min="0" max="15" step="1" value="0"><output data-lab-sector-value>dir-00</output></label>
       <label><input data-lab-auto-sector type="checkbox" checked> auto sector while walking</label>
       <label>capture elevation <input data-lab-elevation type="range" min="-30" max="60" step="1" value="18"><output data-lab-elevation-value>18°</output></label>
-      <label>capture resolution <select data-lab-resolution><option>96</option><option>128</option><option selected>192</option><option>256</option></select></label>
+      <label>capture texture resolution <select data-lab-resolution><option>96</option><option>128</option><option selected>192</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
+      <output data-lab-capture-cost>four RGBA8 outputs 0.6 MiB + temporary depth 0.1 MiB per capture</output>
       <fieldset><legend>selected side · capture lighting</legend>
         <label>capture mode <select data-lab-capture-mode><option value="isolated">isolated light rig</option><option value="scene">authored scene lights</option></select></label>
         <label>ambient <input data-lab-capture-ambient type="range" min="0" max="4" step="0.1" value="1.8"><output data-lab-capture-ambient-value>1.8</output></label>
@@ -41,13 +43,16 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       </fieldset>
       <fieldset><legend>RED geometric enhancement</legend>
       <label>depth amplitude <input data-lab-depth type="range" min="0" max="1.5" step="0.05" value="0.35"><output data-lab-depth-value>0.35</output></label>
-      <label>depth steps <input data-lab-steps type="range" min="0" max="32" step="1" value="8"><output data-lab-steps-value>8</output></label>
+      <label>depth quantization levels (not density) <input data-lab-steps type="range" min="0" max="32" step="1" value="8"><output data-lab-steps-value>8</output></label>
+      <label>splat sampling grid <select data-lab-splat-resolution><option>32</option><option selected>48</option><option>64</option><option>96</option><option>128</option><option>192</option><option>256</option><option>384</option><option>512</option></select></label>
       <label>splat overlap <input data-lab-overlap type="range" min="0" max="1.5" step="0.05" value="0.15"><output data-lab-overlap-value>0.15</output></label>
+      <label>splat opacity <input data-lab-splat-opacity type="range" min="0" max="1" step="0.05" value="1"><output data-lab-splat-opacity-value>1.00</output></label>
+      <label>splat composition <select data-lab-splat-blend><option value="depth-write">depth-writing alpha</option><option value="alpha-blend">transparent alpha blend</option><option value="additive">additive blend</option></select></label>
       </fieldset>
-      <div class="lab-actions"><button data-lab-recapture-selected type="button">Recapture selected side</button><button data-lab-recapture-pair type="button">Recapture pair</button><button data-lab-match type="button">Copy selected lighting to other + recapture all</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
+      <div class="lab-actions"><button data-lab-recapture-selected type="button">Apply queued capture to selected side</button><button data-lab-recapture-pair type="button">Apply queued capture to pair</button><button data-lab-match type="button">Copy selected lighting + recapture pair</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
       <output data-lab-comparison>loading</output>
       <output data-lab-metrics>loading</output>
-      <small>Capture lighting changes the source pixels on recapture. Post-capture lighting changes the proxy shader immediately. Normal relighting modulates captured color; it is not an albedo capture.</small>
+      <small>Capture resolution, elevation, lighting, and RED splat grid stay queued until an explicit recapture action. Auto-sector may recapture below 512px; at 512px and above direction also stays queued. Capture resolution controls four source textures; splat grid controls RED instances; depth levels only quantize displacement. 4K retains 256 MiB of outputs per side plus 64 MiB temporary depth. Transparent splats are depth-tested but unsorted within their instanced draw.</small>
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -59,7 +64,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   const garden = gardenEnabled ? new RuntimeVoxelSpriteGarden(
     context.renderer,
     (value) => {
-      get('[data-garden-sector]').textContent = `${value.selectedSubject} · ${value.source} · ${value.selectedSide === 'baseline' ? 'BLUE proxy' : `RED ${value.mode}`} · ${value.sectorLabel}${value.autoSector ? ' auto' : ' manual'} · ${value.resolution}px`;
+      get('[data-garden-sector]').textContent = `${value.selectedSubject} · ${value.source} · ${value.selectedSide === 'baseline' ? 'BLUE proxy' : `RED ${value.mode}`} · ${value.sectorLabel}${value.autoSector ? ' auto' : ' manual'} · capture ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''}`;
       get('[data-garden-load]').textContent = value.status === 'loading'
         ? 'loading'
         : `capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples · fallback ${value.fallbackPreservedCount}`;
@@ -73,6 +78,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       panel.querySelector<HTMLInputElement>('[data-lab-elevation]')!.value = String(value.elevationDegrees);
       panel.querySelector<HTMLOutputElement>('[data-lab-elevation-value]')!.value = `${value.elevationDegrees.toFixed(0)}°`;
       panel.querySelector<HTMLSelectElement>('[data-lab-resolution]')!.value = String(value.resolution);
+      panel.querySelector<HTMLOutputElement>('[data-lab-capture-cost]')!.value = `four RGBA8 outputs ${mebibytes(value.captureOutputBytesEstimate)} + temporary depth ${mebibytes(value.captureTemporaryDepthBytesEstimate)} per capture; pair retains ${mebibytes(value.captureOutputBytesEstimate * 2)}`;
       panel.querySelector<HTMLSelectElement>('[data-lab-capture-mode]')!.value = value.captureLightingMode;
       panel.querySelector<HTMLInputElement>('[data-lab-capture-ambient]')!.value = String(value.captureAmbient);
       panel.querySelector<HTMLOutputElement>('[data-lab-capture-ambient-value]')!.value = value.captureAmbient.toFixed(1);
@@ -93,9 +99,12 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       panel.querySelector<HTMLOutputElement>('[data-lab-light-elevation-value]')!.value = `${value.lightElevationDegrees.toFixed(0)}°`;
       panel.querySelector<HTMLOutputElement>('[data-lab-depth-value]')!.value = value.depthAmplitude.toFixed(2);
       panel.querySelector<HTMLOutputElement>('[data-lab-steps-value]')!.value = String(value.depthQuantizationSteps);
+      panel.querySelector<HTMLSelectElement>('[data-lab-splat-resolution]')!.value = String(value.splatResolution);
       panel.querySelector<HTMLOutputElement>('[data-lab-overlap-value]')!.value = value.splatOverlap.toFixed(2);
-      panel.querySelector<HTMLOutputElement>('[data-lab-comparison]')!.value = `capture ${value.captureSettingsMatched ? 'MATCHED' : 'DIFFERENT'} · all lighting ${value.allLightingMatched ? 'MATCHED' : 'DIFFERENT'} · selected ${value.selectedSide.toUpperCase()} ${value.captureLightingMode}/${value.postLightingMode}`;
-      panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} GLBs / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples`;
+      panel.querySelector<HTMLOutputElement>('[data-lab-splat-opacity-value]')!.value = value.splatOpacity.toFixed(2);
+      panel.querySelector<HTMLSelectElement>('[data-lab-splat-blend]')!.value = value.splatBlendMode;
+      panel.querySelector<HTMLOutputElement>('[data-lab-comparison]')!.value = `capture ${value.captureSettingsMatched ? 'MATCHED' : 'DIFFERENT'} · all lighting ${value.allLightingMatched ? 'MATCHED' : 'DIFFERENT'} · selected ${value.selectedSide.toUpperCase()} ${value.captureLightingMode}/${value.postLightingMode}${value.capturePending ? ' · CAPTURE QUEUED' : ''}${value.splatDensityPending ? ' · SPLAT GRID QUEUED' : ''}`;
+      panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} GLBs / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture texture ${value.appliedResolution}² / ${mebibytes(value.textureBytes)} resident · RED splats ${value.appliedSplatResolution}² / ${value.splatBlendMode} / ${value.splatOpacity.toFixed(2)} opacity · depth ${value.depthQuantizationSteps} levels · ${value.composition} · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${value.drawCalls} draws / ${value.sampleCount} samples`;
     },
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
   ) : null;
@@ -189,6 +198,8 @@ function bindGardenPanel(
     else if (control.matches('[data-lab-post-mode]')) garden.setPostLightingMode(control.value as VoxelSpritePostLightingMode);
     else if (control.matches('[data-lab-auto-sector]')) garden.setAutoSector((control as HTMLInputElement).checked);
     else if (control.matches('[data-lab-resolution]')) garden.setResolution(Number(control.value));
+    else if (control.matches('[data-lab-splat-resolution]')) garden.setSplatResolution(Number(control.value));
+    else if (control.matches('[data-lab-splat-blend]')) garden.setSplatBlendMode(control.value as VoxelSpriteSplatBlendMode);
     else if (control.matches('[data-lab-sector]')) garden.setSector(Number(control.value));
   };
   const input = (event: Event) => {
@@ -206,6 +217,7 @@ function bindGardenPanel(
     else if (control.matches('[data-lab-depth]')) garden.setDepthAmplitude(Number(control.value));
     else if (control.matches('[data-lab-steps]')) garden.setDepthQuantizationSteps(Number(control.value));
     else if (control.matches('[data-lab-overlap]')) garden.setSplatOverlap(Number(control.value));
+    else if (control.matches('[data-lab-splat-opacity]')) garden.setSplatOpacity(Number(control.value));
   };
   const click = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
@@ -235,4 +247,8 @@ function bindGardenPanel(
 
 function milliseconds(value: number | null): string {
   return value === null ? 'n/a' : `${value.toFixed(2)} ms`;
+}
+
+function mebibytes(value: number): string {
+  return `${(value / 1024 / 1024).toFixed(value < 1024 * 1024 ? 2 : 1)} MiB`;
 }

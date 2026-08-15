@@ -61,11 +61,19 @@ the same retained GLB, pose, direction, elevation, resolution, and framing. The 
 loads no prepared frames or baked comparison textures. Capture lighting and post-capture lighting
 are separate, independently adjustable per side, with a copy-and-recapture action for controlled
 A/B setup. The red side additionally switches between plain sprite, quantized-depth parallax,
-sprite-plus-splats, and full splat replacement. `U`, `I`, `O`, and `P` cycle subject, enhancement,
+sprite-plus-splats, and full splat replacement. Capture texture resolution, RED instanced-splat
+grid density, and depth quantization levels are independent controls: changing depth levels does
+not add splats. Splat opacity can use depth-writing alpha, transparent alpha blending, or additive
+blending. Resolution, elevation, lighting, and splat-grid choices remain queued until an explicit
+selected-side or pair recapture. Auto-sector recapture remains convenient below 512px, while at
+512px and above direction changes also queue rather than silently recapturing. Options extend to 4K
+as a deliberate stress probe, with the panel showing retained-output and temporary depth memory
+before capture. `U`, `I`, `O`, and `P` cycle subject, enhancement,
 selected side, and pair recapture; `V` opens the complete control panel. The HUD separates one-time
 capture CPU submission from steady-state submission and reports texture bytes, draws, samples, and
 preserved fallbacks. Normal post-lighting modulates captured color rather than a canonical albedo
-pass. All sources and representations are presentation-only and never enter collision or gameplay
+pass. Transparent splats remain depth-tested but are unsorted within their one instanced draw. All
+sources and representations are presentation-only and never enter collision or gameplay
 authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against a
 restarted service for the bounded browser loading/control/fallback proof.
 

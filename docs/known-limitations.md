@@ -36,14 +36,13 @@ The initial experiment is intentionally bounded:
   multiplayer policy, background streaming, and limitless precision are not certified here.
 - the runtime voxel-sprite garden is an intentionally rough visual lab, not a production character
   renderer: it captures one orthographic view at a time, uses RGBA8 depth, approximates splat
-  orientation, and reports CPU submission timing rather than GPU timing;
-- the prepared comparison frames retain the source experiment's remapped Blender world-space
-  normals even though the Engine runtime frame contract expects view-space normals. The UI calls
-  this out explicitly so prepared-versus-runtime differences are not mistaken for a verdict about
-  the enhancement method; a later asset experiment must normalize the bake before visual ranking;
+  orientation, leaves transparent splat instances unsorted within one draw, and reports CPU
+  submission timing rather than GPU timing. Its 4K option retains 256 MiB of RGBA8 outputs per
+  side and needs another 64 MiB temporary depth texture during capture before driver overhead;
 - runtime capture currently records the retained model's rendered color rather than canonical
-  albedo/material channels, and changing capture direction, elevation, or resolution is an explicit
-  recapture rather than continuous per-frame rebaking.
+  albedo/material channels. Capture direction, elevation, lighting, resolution, and RED splat-grid
+  changes stay queued until an explicit selected-side or pair recapture rather than continuously
+  rebaking; automatic walking-sector recapture pauses at 512px and above.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

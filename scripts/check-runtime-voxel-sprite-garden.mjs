@@ -62,8 +62,15 @@ for (const required of [
   'data-lab-capture-mode',
   'data-lab-post-mode',
   'data-lab-match',
+  '<option>4096</option>',
+  'data-lab-splat-resolution',
+  'data-lab-splat-opacity',
+  'data-lab-splat-blend',
 ]) {
   if (!ui.includes(required)) fail(`active lab is missing ${required}`);
+}
+for (const required of ['splatColumns', 'splatRows', 'splatOpacity', 'splatBlendMode']) {
+  if (!implementation.includes(required)) fail(`runtime configuration is missing ${required}`);
 }
 
 console.log(`runtime voxel-sprite garden audit passed: 3 runtime GLBs, 0 prepared frames, 0 prepared textures, ${totalBytes} bytes`);

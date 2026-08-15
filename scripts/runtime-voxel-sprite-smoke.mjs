@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const baseUrl = process.env.CRAFTSURVIVE_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:4419';
-const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7018');
+const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7021');
 const screenshotPath = resolve(evidenceDirectory, 'runtime-only-default.png');
 const controlsScreenshotPath = resolve(evidenceDirectory, 'runtime-only-controls.png');
 const url = new URL(baseUrl);
@@ -49,6 +49,27 @@ try {
   if (!initialMetrics?.includes('3 GLBs') || initialMetrics.includes('files')) {
     throw new Error(`active lab admitted more than the three runtime GLBs: ${initialMetrics}`);
   }
+  const captureOptions = await panel.locator('[data-lab-resolution] option').allTextContents();
+  if (!captureOptions.includes('4096')) throw new Error(`4K capture option is unavailable: ${captureOptions.join(', ')}`);
+  await panel.locator('[data-lab-resolution]').selectOption('4096');
+  const fourKCost = await panel.locator('[data-lab-capture-cost]').textContent();
+  if (!fourKCost?.includes('256.0 MiB') || !fourKCost.includes('64.0 MiB')) {
+    throw new Error(`4K capture memory warning is incomplete: ${fourKCost}`);
+  }
+  await panel.locator('[data-lab-sector]').evaluate((element) => {
+    element.value = '1';
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.locator('[data-presentation-diagnostic]')
+    .filter({ hasText: 'queued at 4096px' })
+    .waitFor();
+  const queuedFourKSelection = await page.locator('[data-garden-sector]').textContent();
+  if (!queuedFourKSelection?.includes('capture 192px → 4096px queued')) {
+    throw new Error(`high-cost sector change recaptured implicitly: ${queuedFourKSelection}`);
+  }
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-comparison]')?.textContent?.includes('CAPTURE QUEUED'));
+  await panel.locator('[data-lab-resolution]').selectOption('512');
 
   await panel.locator('[data-lab-subject]').selectOption('rigged-wizard');
   for (const mode of ['sprite', 'depth-parallax', 'sprite-splat', 'full-splat']) {
@@ -56,8 +77,36 @@ try {
     await page.waitForFunction((selectedMode) =>
       document.querySelector('[data-garden-sector]')?.textContent?.includes(`RED ${selectedMode}`), mode);
   }
+  await panel.locator('[data-lab-mode]').selectOption('sprite-splat');
+  await panel.locator('[data-lab-splat-resolution]').selectOption('96');
+  await panel.locator('[data-lab-splat-blend]').selectOption('alpha-blend');
+  await panel.locator('[data-lab-splat-opacity]').evaluate((element) => {
+    element.value = '0.45';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-comparison]')?.textContent?.includes('SPLAT GRID QUEUED'));
+  await panel.locator('[data-lab-recapture-selected]').click();
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-lab-metrics]')?.textContent ?? '';
+    return text.includes('capture texture 512²')
+      && text.includes('RED splats 96² / alpha-blend / 0.45 opacity');
+  }, undefined, { timeout: 60_000 });
+  await panel.locator('[data-lab-steps]').evaluate((element) => {
+    element.value = '12';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const independentGeometryControls = await panel.locator('[data-lab-metrics]').textContent();
+  if (!independentGeometryControls?.includes('RED splats 96²')
+    || !independentGeometryControls.includes('depth 12 levels')) {
+    throw new Error(`splat density and depth quantization are not independent: ${independentGeometryControls}`);
+  }
+  await panel.locator('[data-lab-resolution]').selectOption('192');
+  await panel.locator('[data-lab-recapture-pair]').click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-metrics]')?.textContent?.includes('capture texture 192²'));
 
-  const beforeLightingPixels = await canvas.screenshot();
+  const beforeLightingPixels = await canvasChecksum(canvas);
   await panel.locator('[data-lab-output-gain]').evaluate((element) => {
     element.value = '1.6';
     element.dispatchEvent(new Event('input', { bubbles: true }));
@@ -67,8 +116,9 @@ try {
     return text.includes('capture MATCHED') && text.includes('all lighting DIFFERENT');
   });
   const redGain = await panel.locator('[data-lab-output-gain-value]').textContent();
-  const afterRedLightingPixels = await canvas.screenshot();
-  if (beforeLightingPixels.equals(afterRedLightingPixels)) {
+  await page.waitForTimeout(100);
+  const afterRedLightingPixels = await canvasChecksum(canvas);
+  if (beforeLightingPixels === afterRedLightingPixels) {
     throw new Error('RED post-capture output gain did not visibly affect the selected side');
   }
 
@@ -125,6 +175,9 @@ try {
     initialMetrics,
     independentPostLighting: { redGain, blueGain },
     independentCaptureLighting: { blueCaptureKey, redCaptureKey },
+    independentGeometryControls,
+    fourKCost,
+    queuedFourKSelection,
     matchedRecapture: true,
     screenshotPath,
     controlsScreenshotPath,
@@ -132,4 +185,26 @@ try {
   }));
 } finally {
   await browser.close();
+}
+
+async function canvasChecksum(canvas) {
+  return canvas.evaluate((element) => {
+    const context = element.getContext('webgl2') ?? element.getContext('webgl');
+    if (context === null) throw new Error('Engine canvas has no WebGL context');
+    const pixels = new Uint8Array(context.drawingBufferWidth * context.drawingBufferHeight * 4);
+    context.readPixels(
+      0,
+      0,
+      context.drawingBufferWidth,
+      context.drawingBufferHeight,
+      context.RGBA,
+      context.UNSIGNED_BYTE,
+      pixels,
+    );
+    let checksum = 0;
+    for (let index = 0; index < pixels.length; index += 1) {
+      checksum = (checksum + pixels[index] * ((index % 251) + 1)) % 2_147_483_647;
+    }
+    return checksum;
+  });
 }
