@@ -2,49 +2,68 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const fixture = JSON.parse(readFileSync('web/public/assets/depth-splat/runtime-v1.json', 'utf8'));
+const manifestPath = 'web/public/assets/voxel-sprite/runtime-models-v2.json';
+const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const implementation = readFileSync('web/src/runtime-voxel-sprite-garden.ts', 'utf8');
+const ui = readFileSync('web/src/game-ui.ts', 'utf8');
 const fail = (message) => { throw new Error(`runtime voxel-sprite garden audit: ${message}`); };
-if (fixture.schemaVersion !== 1 || fixture.source?.run !== 'depth-splat-20260815-001') fail('unexpected provenance');
-if (fixture.source?.subjects?.length !== 3 || fixture.source?.sectors !== 16
-  || fixture.source?.preparedNormalSpace !== 'blender-world-remapped-experimental') {
-  fail('expected three subjects, sixteen sectors, and the explicit prepared-normal limitation');
+
+if (manifest.schemaVersion !== 2 || manifest.source?.kind !== 'runtime-models') {
+  fail('unexpected runtime-model manifest contract');
 }
-if (fixture.frames?.length !== 48 || fixture.textures?.length !== 192
-  || fixture.originals?.length !== 3 || fixture.resources?.length !== 195) {
-  fail('runtime fixture inventory is incomplete');
+if (manifest.source?.subjects?.join(',') !== 'spatial-wizard,rigged-wizard,knight') {
+  fail('expected the three comparison subjects');
 }
-const resources = new Map();
+if (manifest.models?.length !== 3 || manifest.resources?.length !== 3) {
+  fail('the active lab must admit exactly three models and three resources');
+}
+
 let totalBytes = 0;
-for (const resource of fixture.resources) {
-  if (resources.has(resource.identity)) fail(`duplicate resource ${resource.identity}`);
-  if (!resource.url?.startsWith('/assets/depth-splat/')) fail(`resource escaped asset root: ${resource.url}`);
+const resources = new Map();
+for (const resource of manifest.resources) {
+  if (resource.mediaType !== 'application/octet-stream' || !resource.url?.endsWith('.glb')) {
+    fail(`non-GLB resource entered the runtime lab: ${resource.url}`);
+  }
+  if (resource.url.includes('runtime-color-') || resource.url.endsWith('.png')) {
+    fail(`prepared texture entered the runtime lab: ${resource.url}`);
+  }
   const bytes = readFileSync(resolve('web/public', resource.url.slice(1)));
   const hash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
   if (bytes.byteLength !== resource.byteLength || hash !== resource.contentHash) {
     fail(`resource bytes drifted for ${resource.identity}`);
   }
-  const prefix = resource.mediaType === 'image/png' ? 'texture-resource/' : 'mesh-resource/';
-  if (resource.identity !== `${prefix}${hash.slice('sha256:'.length)}`) fail(`resource identity drifted for ${resource.identity}`);
+  if (resource.identity !== `mesh-resource/${hash.slice('sha256:'.length)}`) {
+    fail(`resource identity drifted for ${resource.identity}`);
+  }
   resources.set(resource.identity, resource);
   totalBytes += bytes.byteLength;
 }
-const textures = new Map(fixture.textures.map((texture) => [texture.id, texture]));
-for (const frame of fixture.frames) {
-  if (frame.width !== 96 || frame.height !== 96 || frame.depth?.near !== 0 || frame.depth?.far !== 100) {
-    fail(`frame metadata drifted for ${frame.subject}/${frame.label}`);
-  }
-  for (const channel of ['color', 'depth', 'normal', 'coverage']) {
-    const texture = textures.get(frame.textures?.[channel]);
-    if (texture === undefined) fail(`missing ${channel} texture for ${frame.subject}/${frame.label}`);
-    if (texture.width !== frame.width || texture.height !== frame.height
-      || texture.payload?.encoding !== 'pngRgba8'
-      || texture.payload?.colorSpace !== (channel === 'color' ? 'srgb' : 'linear')
-      || !resources.has(texture.payload?.source?.resource)) {
-      fail(`invalid ${channel} texture for ${frame.subject}/${frame.label}`);
-    }
-  }
+
+for (const model of manifest.models) {
+  const identity = `mesh-resource/${model.asset?.contentHash?.slice('sha256:'.length)}`;
+  if (!resources.has(identity)) fail(`model ${model.subject} has no admitted GLB resource`);
 }
-if (totalBytes !== fixture.metrics?.totalResourceBytes || totalBytes > 16 * 1024 * 1024) {
-  fail(`resource total is unexpected: ${totalBytes}`);
+if (manifest.metrics?.resourceCount !== 3 || manifest.metrics?.totalResourceBytes !== totalBytes) {
+  fail('manifest metrics drifted');
 }
-console.log(`runtime voxel-sprite garden audit passed: 3 subjects, 48 frames, 192 textures, ${totalBytes} bytes`);
+
+for (const forbidden of [
+  'runtime-v1.json',
+  "kind: 'prepared'",
+  'PreparedFrame',
+  'prepared texture',
+  'data-lab-producer',
+]) {
+  if (`${implementation}\n${ui}`.includes(forbidden)) fail(`active lab still contains ${forbidden}`);
+}
+for (const required of [
+  'BLUE runtime proxy',
+  'RED runtime enhanced',
+  'data-lab-capture-mode',
+  'data-lab-post-mode',
+  'data-lab-match',
+]) {
+  if (!ui.includes(required)) fail(`active lab is missing ${required}`);
+}
+
+console.log(`runtime voxel-sprite garden audit passed: 3 runtime GLBs, 0 prepared frames, 0 prepared textures, ${totalBytes} bytes`);

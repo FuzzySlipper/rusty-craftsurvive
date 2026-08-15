@@ -1,6 +1,11 @@
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const baseUrl = process.env.CRAFTSURVIVE_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:4419';
+const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7018');
+const screenshotPath = resolve(evidenceDirectory, 'runtime-only-default.png');
+const controlsScreenshotPath = resolve(evidenceDirectory, 'runtime-only-controls.png');
 const url = new URL(baseUrl);
 url.searchParams.set('course', 'garden');
 const browser = await chromium.launch({
@@ -10,71 +15,99 @@ const browser = await chromium.launch({
 });
 
 try {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
   await page.goto(url.href);
   await page.locator('[data-status]').filter({ hasText: 'connected' }).waitFor({ timeout: 30_000 });
   await page.waitForFunction(() => {
     const text = document.querySelector('[data-garden-load]')?.textContent ?? '';
-    return text.includes('capture') && !text.includes('loading');
+    return text.includes('capture') && !text.includes('loading') && !text.includes('capture n/a');
   }, undefined, { timeout: 60_000 });
 
   const canvas = page.locator('canvas[data-rusty-application-renderer="engine-owned"]');
   if (await canvas.count() !== 1) throw new Error('Engine-owned lab canvas was not mounted exactly once');
-  const initialPixels = await canvas.screenshot();
   const initialSelection = await page.locator('[data-garden-sector]').textContent();
   const initialLoad = await page.locator('[data-garden-load]').textContent();
-  if (!initialSelection?.includes('spatial-wizard · runtime · sprite-splat')) {
+  if (!initialSelection?.includes('spatial-wizard · retained/runtime · RED sprite-splat')) {
     throw new Error(`unexpected initial lab selection: ${initialSelection}`);
   }
-  if (!initialLoad?.includes('draws') || !initialLoad.includes('samples')) {
-    throw new Error(`missing bounded cost readout: ${initialLoad}`);
+  if (!initialSelection.includes('192px') || !initialLoad?.includes('draws') || !initialLoad.includes('samples')) {
+    throw new Error(`missing runtime capture resolution/cost readout: ${initialSelection} / ${initialLoad}`);
   }
+  mkdirSync(evidenceDirectory, { recursive: true });
+  await canvas.screenshot({ path: screenshotPath });
 
   await page.keyboard.press('KeyV');
   const panel = page.locator('[data-garden-panel]');
   await panel.waitFor({ state: 'visible' });
+  const initialComparison = await panel.locator('[data-lab-comparison]').textContent();
+  const initialMetrics = await panel.locator('[data-lab-metrics]').textContent();
+  if (!initialComparison?.includes('capture MATCHED') || !initialComparison.includes('all lighting MATCHED')) {
+    throw new Error(`default pair is not controlled: ${initialComparison}`);
+  }
+  if (!initialMetrics?.includes('3 GLBs') || initialMetrics.includes('files')) {
+    throw new Error(`active lab admitted more than the three runtime GLBs: ${initialMetrics}`);
+  }
+
   await panel.locator('[data-lab-subject]').selectOption('rigged-wizard');
-  await panel.locator('[data-lab-sector]').fill('7');
-  for (const mode of ['sprite', 'relit', 'depth-parallax', 'sprite-splat', 'full-splat']) {
+  for (const mode of ['sprite', 'depth-parallax', 'sprite-splat', 'full-splat']) {
     await panel.locator('[data-lab-mode]').selectOption(mode);
     await page.waitForFunction((selectedMode) =>
-      document.querySelector('[data-garden-sector]')?.textContent?.includes(` · ${selectedMode} · `), mode);
+      document.querySelector('[data-garden-sector]')?.textContent?.includes(`RED ${selectedMode}`), mode);
   }
-  await panel.locator('[data-lab-depth]').evaluate((element) => {
-    element.value = '0.7';
+
+  const beforeLightingPixels = await canvas.screenshot();
+  await panel.locator('[data-lab-output-gain]').evaluate((element) => {
+    element.value = '1.6';
     element.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await page.waitForFunction(() => {
-    const text = document.querySelector('[data-garden-sector]')?.textContent ?? '';
-    return text.includes('rigged-wizard · prepared · full-splat · dir-07 manual');
+    const text = document.querySelector('[data-lab-comparison]')?.textContent ?? '';
+    return text.includes('capture MATCHED') && text.includes('all lighting DIFFERENT');
   });
-  await page.waitForFunction(() => document.querySelector('[data-lab-metrics]')?.textContent?.includes('195 files'));
-  const preparedPixels = await canvas.screenshot();
-  if (initialPixels.equals(preparedPixels)) throw new Error('prepared mode/sector controls did not visibly change the lab');
-
-  await panel.locator('[data-lab-producer]').selectOption('runtime');
-  await panel.locator('[data-lab-recapture]').click();
-  await page.waitForFunction(() => {
-    const text = document.querySelector('[data-garden-load]')?.textContent ?? '';
-    return text.includes('rigged-wizard') || (!text.includes('capture n/a') && text.includes('capture'));
-  });
-  const runtimeSelection = await page.locator('[data-garden-sector]').textContent();
-  const runtimeLoad = await page.locator('[data-garden-load]').textContent();
-  if (!runtimeSelection?.includes('rigged-wizard · runtime · full-splat')) {
-    throw new Error(`runtime source switch was not retained: ${runtimeSelection}`);
+  const redGain = await panel.locator('[data-lab-output-gain-value]').textContent();
+  const afterRedLightingPixels = await canvas.screenshot();
+  if (beforeLightingPixels.equals(afterRedLightingPixels)) {
+    throw new Error('RED post-capture output gain did not visibly affect the selected side');
   }
-  if (runtimeLoad?.includes('capture n/a')) throw new Error(`runtime recapture did not publish cost: ${runtimeLoad}`);
 
+  await panel.locator('[data-lab-side]').selectOption('baseline');
+  const blueGain = await panel.locator('[data-lab-output-gain-value]').textContent();
+  if (redGain !== '1.60' || blueGain !== '1.10') {
+    throw new Error(`post lighting leaked across sides: red=${redGain} blue=${blueGain}`);
+  }
+
+  await panel.locator('[data-lab-capture-key]').evaluate((element) => {
+    element.value = '3.2';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-comparison]')?.textContent?.includes('capture DIFFERENT'));
+  const blueCaptureKey = await panel.locator('[data-lab-capture-key-value]').textContent();
+  await panel.locator('[data-lab-side]').selectOption('enhanced');
+  const redCaptureKey = await panel.locator('[data-lab-capture-key-value]').textContent();
+  if (blueCaptureKey !== '3.2' || redCaptureKey !== '3.0') {
+    throw new Error(`capture lighting leaked across sides: blue=${blueCaptureKey} red=${redCaptureKey}`);
+  }
+  await panel.locator('[data-lab-side]').selectOption('baseline');
+  await panel.locator('[data-lab-recapture-selected]').click();
+  await page.waitForFunction(() => !(document.querySelector('[data-garden-load]')?.textContent ?? '').includes('capture n/a'));
+
+  await panel.locator('[data-lab-match]').click();
+  await page.waitForFunction(() => {
+    const text = document.querySelector('[data-lab-comparison]')?.textContent ?? '';
+    return text.includes('capture MATCHED') && text.includes('all lighting MATCHED');
+  });
+  await panel.locator('[data-lab-recapture-pair]').click();
   await panel.locator('[data-lab-fallback]').click();
-  await page.locator('[data-presentation-diagnostic]')
-    .filter({ hasText: 'fallback probe passed' }).waitFor();
-  const fallbackLoad = await page.locator('[data-garden-load]').textContent();
+  await page.locator('[data-presentation-diagnostic]').filter({ hasText: 'fallback probe passed' }).waitFor();
+
+  await page.screenshot({ path: controlsScreenshotPath, fullPage: true });
 
   await panel.locator('[data-lab-resume]').click();
   await panel.waitFor({ state: 'hidden' });
-  await page.mouse.click(640, 360);
+  await page.mouse.click(720, 450);
   await page.waitForFunction(() => document.pointerLockElement !== null);
   const beforeMovement = await page.locator('[data-player-position]').textContent();
   await page.keyboard.down('KeyD');
@@ -85,13 +118,16 @@ try {
 
   if (errors.length > 0) throw new Error(`runtime voxel-sprite page errors: ${errors.join('; ')}`);
   console.log(JSON.stringify({
-    proof: 'CRAFTSURVIVE_RUNTIME_VOXEL_SPRITE_LAB',
+    proof: 'CRAFTSURVIVE_RUNTIME_ONLY_VOXEL_SPRITE_LAB',
     initialSelection,
     initialLoad,
-    runtimeSelection,
-    runtimeLoad,
-    fallbackLoad,
-    preparedControlVisibleChange: true,
+    initialComparison,
+    initialMetrics,
+    independentPostLighting: { redGain, blueGain },
+    independentCaptureLighting: { blueCaptureKey, redCaptureKey },
+    matchedRecapture: true,
+    screenshotPath,
+    controlsScreenshotPath,
     firstPersonMovementAfterPanel: true,
   }));
 } finally {

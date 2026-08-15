@@ -56,15 +56,18 @@ rotates with the camera while remaining fixed under player translation, and it i
 only: the panorama does not contribute lighting, reflections, collision, or gameplay authority.
 
 `?course=garden` starts in a broad flat terrain clearing facing the runtime voxel-sprite lab. Each
-subject has a blue plain-sprite baseline and an orange experimental representation. The orange
-side can switch between live capture of the retained model and a prepared directional frame, then
-between plain sprite, relighting, quantized-depth parallax, sprite-plus-splats, and full splat
-replacement. `U`, `I`, `O`, and `P` cycle subject, mode, source, and recapture; `V` opens the complete
-control panel for direction, capture, and depth variables. The HUD separates one-time capture CPU
-submission from steady-state submission and reports texture bytes, draws, samples, and preserved
-fallbacks. All sources and representations are presentation-only and never enter collision or
-gameplay authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against
-a restarted service for the bounded browser loading/control/fallback proof.
+subject has a blue plain proxy and a red experimental representation; both are captured live from
+the same retained GLB, pose, direction, elevation, resolution, and framing. The active comparison
+loads no prepared frames or baked comparison textures. Capture lighting and post-capture lighting
+are separate, independently adjustable per side, with a copy-and-recapture action for controlled
+A/B setup. The red side additionally switches between plain sprite, quantized-depth parallax,
+sprite-plus-splats, and full splat replacement. `U`, `I`, `O`, and `P` cycle subject, enhancement,
+selected side, and pair recapture; `V` opens the complete control panel. The HUD separates one-time
+capture CPU submission from steady-state submission and reports texture bytes, draws, samples, and
+preserved fallbacks. Normal post-lighting modulates captured color rather than a canonical albedo
+pass. All sources and representations are presentation-only and never enter collision or gameplay
+authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against a
+restarted service for the bounded browser loading/control/fallback proof.
 
 Two small forest wisps directly ahead and to the right of the default spawn exercise the public
 Engine lit-sprite route. The left wisp is the unlit reference; the right uses derived-gradient

@@ -1,7 +1,9 @@
 import type { RustyApplicationUiContext, RustyApplicationUiOwner } from '@rusty-engine/application-host';
 import {
   RuntimeVoxelSpriteGarden,
-  type VoxelSpriteProducer,
+  type VoxelSpriteCaptureLightingMode,
+  type VoxelSpritePostLightingMode,
+  type VoxelSpriteSide,
   type VoxelSpriteSubject,
 } from './runtime-voxel-sprite-garden';
 import { SessionClient, type SessionView } from './session-client';
@@ -13,22 +15,39 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     <output data-presentation-diagnostic></output>
     <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div data-garden-row><dt>lab selection</dt><dd data-garden-sector>loading</dd></div><div data-garden-row><dt>lab cost</dt><dd data-garden-load>loading</dd></div><div><dt>residency</dt><dd data-residency>—</dd></div><div><dt>seed</dt><dd data-seed>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>origin</dt><dd data-world-origin>—</dd></div><div><dt>collision</dt><dd data-collision-world>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>global position</dt><dd data-player-position>—</dd></div><div><dt>local position</dt><dd data-player-local-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>ground</dt><dd data-ground>—</dd></div><div><dt>contacts</dt><dd data-contacts>—</dd></div><div><dt>step</dt><dd data-step>—</dd></div><div><dt>platform</dt><dd data-platform>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
-    <p class="controls" data-garden-controls>Rows: spatial wizard · rigged wizard · knight. BLUE is the prepared sprite baseline; ORANGE is the selected enhancement. U subject · I mode · O source · P recapture · V lab panel.</p>
+    <p class="controls" data-garden-controls>Rows: spatial wizard · rigged wizard · knight. BLUE is a runtime-captured plain proxy; RED is the same runtime capture with the selected enhancement. U subject · I enhancement · O side · P recapture pair · V lab panel.</p>
     <form class="voxel-sprite-lab" data-garden-panel hidden>
-      <strong>Runtime voxel-sprite lab</strong>
+      <strong>Matched runtime voxel-sprite lab</strong>
       <label>subject <select data-lab-subject><option value="spatial-wizard">spatial wizard</option><option value="rigged-wizard">rigged wizard</option><option value="knight">knight</option></select></label>
-      <label>source <select data-lab-producer><option value="runtime">runtime capture</option><option value="prepared">prepared frame</option></select></label>
-      <label>mode <select data-lab-mode><option value="sprite">plain sprite</option><option value="relit">normal relight</option><option value="depth-parallax">quantized depth</option><option value="sprite-splat">sprite + splats</option><option value="full-splat">full replacement</option></select></label>
+      <label>edit side <select data-lab-side><option value="baseline">BLUE runtime proxy</option><option value="enhanced" selected>RED runtime enhanced</option></select></label>
+      <label>RED geometry <select data-lab-mode><option value="sprite">plain sprite</option><option value="depth-parallax">quantized depth</option><option value="sprite-splat" selected>sprite + splats</option><option value="full-splat">full replacement</option></select></label>
       <label>sector <input data-lab-sector type="range" min="0" max="15" step="1" value="0"><output data-lab-sector-value>dir-00</output></label>
       <label><input data-lab-auto-sector type="checkbox" checked> auto sector while walking</label>
       <label>capture elevation <input data-lab-elevation type="range" min="-30" max="60" step="1" value="18"><output data-lab-elevation-value>18°</output></label>
-      <label>capture resolution <select data-lab-resolution><option>64</option><option selected>96</option><option>128</option><option>192</option></select></label>
+      <label>capture resolution <select data-lab-resolution><option>96</option><option>128</option><option selected>192</option><option>256</option></select></label>
+      <fieldset><legend>selected side · capture lighting</legend>
+        <label>capture mode <select data-lab-capture-mode><option value="isolated">isolated light rig</option><option value="scene">authored scene lights</option></select></label>
+        <label>ambient <input data-lab-capture-ambient type="range" min="0" max="4" step="0.1" value="1.8"><output data-lab-capture-ambient-value>1.8</output></label>
+        <label>key light <input data-lab-capture-key type="range" min="0" max="6" step="0.1" value="3"><output data-lab-capture-key-value>3.0</output></label>
+        <label>fill light <input data-lab-capture-fill type="range" min="0" max="6" step="0.1" value="1.4"><output data-lab-capture-fill-value>1.4</output></label>
+      </fieldset>
+      <fieldset><legend>selected side · post-capture lighting</legend>
+        <label>post mode <select data-lab-post-mode><option value="captured">preserve capture</option><option value="normal">normal relight</option></select></label>
+        <label>ambient <input data-lab-post-ambient type="range" min="0" max="2" step="0.05" value="0.35"><output data-lab-post-ambient-value>0.35</output></label>
+        <label>diffuse <input data-lab-post-diffuse type="range" min="0" max="3" step="0.05" value="0.9"><output data-lab-post-diffuse-value>0.90</output></label>
+        <label>output gain <input data-lab-output-gain type="range" min="0" max="3" step="0.05" value="1.1"><output data-lab-output-gain-value>1.10</output></label>
+        <label>light azimuth <input data-lab-light-azimuth type="range" min="-180" max="180" step="5" value="35"><output data-lab-light-azimuth-value>35°</output></label>
+        <label>light elevation <input data-lab-light-elevation type="range" min="-90" max="90" step="5" value="45"><output data-lab-light-elevation-value>45°</output></label>
+      </fieldset>
+      <fieldset><legend>RED geometric enhancement</legend>
       <label>depth amplitude <input data-lab-depth type="range" min="0" max="1.5" step="0.05" value="0.35"><output data-lab-depth-value>0.35</output></label>
       <label>depth steps <input data-lab-steps type="range" min="0" max="32" step="1" value="8"><output data-lab-steps-value>8</output></label>
       <label>splat overlap <input data-lab-overlap type="range" min="0" max="1.5" step="0.05" value="0.15"><output data-lab-overlap-value>0.15</output></label>
-      <div class="lab-actions"><button data-lab-recapture type="button">Recapture selected</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
+      </fieldset>
+      <div class="lab-actions"><button data-lab-recapture-selected type="button">Recapture selected side</button><button data-lab-recapture-pair type="button">Recapture pair</button><button data-lab-match type="button">Copy selected lighting to other + recapture all</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
+      <output data-lab-comparison>loading</output>
       <output data-lab-metrics>loading</output>
-      <small data-lab-normal-warning>Prepared normals are the original Blender-world bake and intentionally remain an authoring-variable warning.</small>
+      <small>Capture lighting changes the source pixels on recapture. Post-capture lighting changes the proxy shader immediately. Normal relighting modulates captured color; it is not an albedo capture.</small>
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -40,25 +59,43 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   const garden = gardenEnabled ? new RuntimeVoxelSpriteGarden(
     context.renderer,
     (value) => {
-      get('[data-garden-sector]').textContent = `${value.selectedSubject} · ${value.producer} · ${value.mode} · ${value.sectorLabel}${value.autoSector ? ' auto' : ' manual'} · elev ${value.elevationDegrees.toFixed(0)}°`;
+      get('[data-garden-sector]').textContent = `${value.selectedSubject} · ${value.source} · ${value.selectedSide === 'baseline' ? 'BLUE proxy' : `RED ${value.mode}`} · ${value.sectorLabel}${value.autoSector ? ' auto' : ' manual'} · ${value.resolution}px`;
       get('[data-garden-load]').textContent = value.status === 'loading'
         ? 'loading'
         : `capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples · fallback ${value.fallbackPreservedCount}`;
       const panel = get('[data-garden-panel]');
       panel.querySelector<HTMLSelectElement>('[data-lab-subject]')!.value = value.selectedSubject;
-      panel.querySelector<HTMLSelectElement>('[data-lab-producer]')!.value = value.producer;
+      panel.querySelector<HTMLSelectElement>('[data-lab-side]')!.value = value.selectedSide;
       panel.querySelector<HTMLSelectElement>('[data-lab-mode]')!.value = value.mode;
       panel.querySelector<HTMLInputElement>('[data-lab-sector]')!.value = String(value.sector);
       panel.querySelector<HTMLOutputElement>('[data-lab-sector-value]')!.value = value.sectorLabel;
       panel.querySelector<HTMLInputElement>('[data-lab-auto-sector]')!.checked = value.autoSector;
+      panel.querySelector<HTMLInputElement>('[data-lab-elevation]')!.value = String(value.elevationDegrees);
       panel.querySelector<HTMLOutputElement>('[data-lab-elevation-value]')!.value = `${value.elevationDegrees.toFixed(0)}°`;
+      panel.querySelector<HTMLSelectElement>('[data-lab-resolution]')!.value = String(value.resolution);
+      panel.querySelector<HTMLSelectElement>('[data-lab-capture-mode]')!.value = value.captureLightingMode;
+      panel.querySelector<HTMLInputElement>('[data-lab-capture-ambient]')!.value = String(value.captureAmbient);
+      panel.querySelector<HTMLOutputElement>('[data-lab-capture-ambient-value]')!.value = value.captureAmbient.toFixed(1);
+      panel.querySelector<HTMLInputElement>('[data-lab-capture-key]')!.value = String(value.captureKey);
+      panel.querySelector<HTMLOutputElement>('[data-lab-capture-key-value]')!.value = value.captureKey.toFixed(1);
+      panel.querySelector<HTMLInputElement>('[data-lab-capture-fill]')!.value = String(value.captureFill);
+      panel.querySelector<HTMLOutputElement>('[data-lab-capture-fill-value]')!.value = value.captureFill.toFixed(1);
+      panel.querySelector<HTMLSelectElement>('[data-lab-post-mode]')!.value = value.postLightingMode;
+      panel.querySelector<HTMLInputElement>('[data-lab-post-ambient]')!.value = String(value.postAmbient);
+      panel.querySelector<HTMLOutputElement>('[data-lab-post-ambient-value]')!.value = value.postAmbient.toFixed(2);
+      panel.querySelector<HTMLInputElement>('[data-lab-post-diffuse]')!.value = String(value.postDiffuse);
+      panel.querySelector<HTMLOutputElement>('[data-lab-post-diffuse-value]')!.value = value.postDiffuse.toFixed(2);
+      panel.querySelector<HTMLInputElement>('[data-lab-output-gain]')!.value = String(value.outputGain);
+      panel.querySelector<HTMLOutputElement>('[data-lab-output-gain-value]')!.value = value.outputGain.toFixed(2);
+      panel.querySelector<HTMLInputElement>('[data-lab-light-azimuth]')!.value = String(value.lightAzimuthDegrees);
+      panel.querySelector<HTMLOutputElement>('[data-lab-light-azimuth-value]')!.value = `${value.lightAzimuthDegrees.toFixed(0)}°`;
+      panel.querySelector<HTMLInputElement>('[data-lab-light-elevation]')!.value = String(value.lightElevationDegrees);
+      panel.querySelector<HTMLOutputElement>('[data-lab-light-elevation-value]')!.value = `${value.lightElevationDegrees.toFixed(0)}°`;
       panel.querySelector<HTMLOutputElement>('[data-lab-depth-value]')!.value = value.depthAmplitude.toFixed(2);
       panel.querySelector<HTMLOutputElement>('[data-lab-steps-value]')!.value = String(value.depthQuantizationSteps);
       panel.querySelector<HTMLOutputElement>('[data-lab-overlap-value]')!.value = value.splatOverlap.toFixed(2);
-      panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} files / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples`;
-      panel.querySelector<HTMLElement>('[data-lab-normal-warning]')!.textContent = value.producer === 'prepared'
-        ? 'Prepared source warning: normals are the original Blender-world bake, not the view-space contract.'
-        : 'Runtime source: normals are captured in the Engine view-space contract.';
+      panel.querySelector<HTMLOutputElement>('[data-lab-comparison]')!.value = `capture ${value.captureSettingsMatched ? 'MATCHED' : 'DIFFERENT'} · all lighting ${value.allLightingMatched ? 'MATCHED' : 'DIFFERENT'} · selected ${value.selectedSide.toUpperCase()} ${value.captureLightingMode}/${value.postLightingMode}`;
+      panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} GLBs / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples`;
     },
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
   ) : null;
@@ -146,23 +183,35 @@ function bindGardenPanel(
     if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) return;
     const control = event.target;
     if (control.matches('[data-lab-subject]')) garden.setSubject(control.value as VoxelSpriteSubject);
-    else if (control.matches('[data-lab-producer]')) garden.setProducer(control.value as VoxelSpriteProducer);
+    else if (control.matches('[data-lab-side]')) garden.setSide(control.value as VoxelSpriteSide);
     else if (control.matches('[data-lab-mode]')) garden.setMode(control.value as Parameters<typeof garden.setMode>[0]);
+    else if (control.matches('[data-lab-capture-mode]')) garden.setCaptureLightingMode(control.value as VoxelSpriteCaptureLightingMode);
+    else if (control.matches('[data-lab-post-mode]')) garden.setPostLightingMode(control.value as VoxelSpritePostLightingMode);
     else if (control.matches('[data-lab-auto-sector]')) garden.setAutoSector((control as HTMLInputElement).checked);
     else if (control.matches('[data-lab-resolution]')) garden.setResolution(Number(control.value));
+    else if (control.matches('[data-lab-sector]')) garden.setSector(Number(control.value));
   };
   const input = (event: Event) => {
     if (!(event.target instanceof HTMLInputElement)) return;
     const control = event.target;
-    if (control.matches('[data-lab-sector]')) garden.setSector(Number(control.value));
-    else if (control.matches('[data-lab-elevation]')) garden.setElevation(Number(control.value));
+    if (control.matches('[data-lab-elevation]')) garden.setElevation(Number(control.value));
+    else if (control.matches('[data-lab-capture-ambient]')) garden.setCaptureAmbient(Number(control.value));
+    else if (control.matches('[data-lab-capture-key]')) garden.setCaptureKey(Number(control.value));
+    else if (control.matches('[data-lab-capture-fill]')) garden.setCaptureFill(Number(control.value));
+    else if (control.matches('[data-lab-post-ambient]')) garden.setPostAmbient(Number(control.value));
+    else if (control.matches('[data-lab-post-diffuse]')) garden.setPostDiffuse(Number(control.value));
+    else if (control.matches('[data-lab-output-gain]')) garden.setOutputGain(Number(control.value));
+    else if (control.matches('[data-lab-light-azimuth]')) garden.setPostLightAzimuth(Number(control.value));
+    else if (control.matches('[data-lab-light-elevation]')) garden.setPostLightElevation(Number(control.value));
     else if (control.matches('[data-lab-depth]')) garden.setDepthAmplitude(Number(control.value));
     else if (control.matches('[data-lab-steps]')) garden.setDepthQuantizationSteps(Number(control.value));
     else if (control.matches('[data-lab-overlap]')) garden.setSplatOverlap(Number(control.value));
   };
   const click = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('[data-lab-recapture]') !== null) garden.recapture();
+    if (event.target.closest('[data-lab-recapture-selected]') !== null) garden.recaptureSelected();
+    else if (event.target.closest('[data-lab-recapture-pair]') !== null) garden.recapturePair();
+    else if (event.target.closest('[data-lab-match]') !== null) garden.matchLightingFromSelected();
     else if (event.target.closest('[data-lab-fallback]') !== null) garden.probeFailureFallback();
     else if (event.target.closest('[data-lab-resume]') !== null) {
       panel.hidden = true;

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "kind": "runtime-models",
+    "subjects": [
+      "spatial-wizard",
+      "rigged-wizard",
+      "knight"
+    ]
+  },
+  "resources": [
+    {
+      "identity": "mesh-resource/b04f1dc32af87a6f5fb8d02cd1261a54a791ac93275fcc5a71e1f93cc23f9aca",
+      "contentHash": "sha256:b04f1dc32af87a6f5fb8d02cd1261a54a791ac93275fcc5a71e1f93cc23f9aca",
+      "byteLength": 2228108,
+      "mediaType": "application/octet-stream",
+      "url": "/assets/depth-splat/original-spatial-wizard-b04f1dc32af87a6f5fb8d02cd1261a54a791ac93275fcc5a71e1f93cc23f9aca.glb"
+    },
+    {
+      "identity": "mesh-resource/13997da6bb5e3f9661a72be6e955653b1c18bf0a203a9016b14b9ee972325202",
+      "contentHash": "sha256:13997da6bb5e3f9661a72be6e955653b1c18bf0a203a9016b14b9ee972325202",
+      "byteLength": 1268048,
+      "mediaType": "application/octet-stream",
+      "url": "/assets/depth-splat/original-rigged-wizard-13997da6bb5e3f9661a72be6e955653b1c18bf0a203a9016b14b9ee972325202.glb"
+    },
+    {
+      "identity": "mesh-resource/a260d79142410b7d3906c0d48a0ac8f4ce3b88024e03213d94fb37be2deba950",
+      "contentHash": "sha256:a260d79142410b7d3906c0d48a0ac8f4ce3b88024e03213d94fb37be2deba950",
+      "byteLength": 1272720,
+      "mediaType": "application/octet-stream",
+      "url": "/assets/depth-splat/original-knight-a260d79142410b7d3906c0d48a0ac8f4ce3b88024e03213d94fb37be2deba950.glb"
+    }
+  ],
+  "models": [
+    {
+      "subject": "spatial-wizard",
+      "asset": {
+        "asset": "mesh-animation/voxel-sprite/spatial-wizard/runtime-source",
+        "runtimeFormat": "glb",
+        "contentHash": "sha256:b04f1dc32af87a6f5fb8d02cd1261a54a791ac93275fcc5a71e1f93cc23f9aca",
+        "clips": [],
+        "defaultClip": null,
+        "materialSlots": [],
+        "bounds": { "min": [-4, -4, -4], "max": [4, 4, 4] }
+      },
+      "scale": 1.9977712461701294
+    },
+    {
+      "subject": "rigged-wizard",
+      "asset": {
+        "asset": "mesh-animation/voxel-sprite/rigged-wizard/runtime-source",
+        "runtimeFormat": "glb",
+        "contentHash": "sha256:13997da6bb5e3f9661a72be6e955653b1c18bf0a203a9016b14b9ee972325202",
+        "clips": [],
+        "defaultClip": null,
+        "materialSlots": [],
+        "bounds": { "min": [-4, -4, -4], "max": [4, 4, 4] }
+      },
+      "scale": 1
+    },
+    {
+      "subject": "knight",
+      "asset": {
+        "asset": "mesh-animation/voxel-sprite/knight/runtime-source",
+        "runtimeFormat": "glb",
+        "contentHash": "sha256:a260d79142410b7d3906c0d48a0ac8f4ce3b88024e03213d94fb37be2deba950",
+        "clips": [],
+        "defaultClip": null,
+        "materialSlots": [],
+        "bounds": { "min": [-4, -4, -4], "max": [4, 4, 4] }
+      },
+      "scale": 2.000364310333146
+    }
+  ],
+  "metrics": {
+    "resourceCount": 3,
+    "totalResourceBytes": 4768876
+  }
+}

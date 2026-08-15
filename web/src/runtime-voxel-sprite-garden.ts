@@ -2,19 +2,21 @@ import type {
   RustyApplicationContent,
   RustyApplicationRendererPort,
   RustyApplicationResource,
+  RustyApplicationVoxelSpriteCaptureSettings,
   RustyApplicationVoxelSpriteConfig,
   RustyApplicationVoxelSpriteDefinition,
   RustyApplicationVoxelSpriteExperimentPort,
   RustyApplicationVoxelSpriteMode,
-  RustyApplicationVoxelSpritePreparedFrame,
   RustyApplicationVoxelSpriteReceipt,
 } from '@rusty-engine/application-host';
 
 type CameraPose = { position: [number, number, number]; yawDegrees: number; pitchDegrees: number };
 export type VoxelSpriteSubject = 'spatial-wizard' | 'rigged-wizard' | 'knight';
-export type VoxelSpriteProducer = 'runtime' | 'prepared';
+export type VoxelSpriteSide = 'baseline' | 'enhanced';
+export type VoxelSpriteCaptureLightingMode = 'isolated' | 'scene';
+export type VoxelSpritePostLightingMode = 'captured' | 'normal';
 
-interface FixtureResource {
+interface ModelResource {
   identity: string;
   contentHash: string;
   byteLength: number;
@@ -22,39 +24,56 @@ interface FixtureResource {
   url: string;
 }
 
-interface FixtureFrame extends RustyApplicationVoxelSpritePreparedFrame {
-  subject: VoxelSpriteSubject;
-  sector: number;
-  label: string;
-  sourceNormalSpace: string;
-}
-
-interface FixtureOriginal {
+interface RuntimeModel {
   subject: VoxelSpriteSubject;
   asset: Record<string, unknown>;
   scale: number;
 }
 
-interface RuntimeFixture {
-  schemaVersion: 1;
-  source: { run: string; subjects: VoxelSpriteSubject[]; sectors: 16; preparedNormalSpace: string };
-  resources: FixtureResource[];
-  textures: Array<Record<string, unknown>>;
-  frames: FixtureFrame[];
-  originals: FixtureOriginal[];
-  metrics: { frameCount: number; textureCount: number; resourceCount: number; totalResourceBytes: number };
+interface RuntimeModelManifest {
+  schemaVersion: 2;
+  source: { kind: 'runtime-models'; subjects: VoxelSpriteSubject[] };
+  resources: ModelResource[];
+  models: RuntimeModel[];
+  metrics: { resourceCount: number; totalResourceBytes: number };
+}
+
+interface SideLighting {
+  captureMode: VoxelSpriteCaptureLightingMode;
+  captureAmbient: number;
+  captureKey: number;
+  captureFill: number;
+  postMode: VoxelSpritePostLightingMode;
+  postAmbient: number;
+  postDiffuse: number;
+  outputGain: number;
+  lightAzimuthDegrees: number;
+  lightElevationDegrees: number;
 }
 
 export interface RuntimeVoxelSpriteGardenReadout {
   status: 'loading' | 'ready' | 'disposed';
   selectedSubject: VoxelSpriteSubject;
-  producer: VoxelSpriteProducer;
+  selectedSide: VoxelSpriteSide;
+  source: 'retained/runtime';
   mode: RustyApplicationVoxelSpriteMode;
   sector: number;
   sectorLabel: string;
   autoSector: boolean;
   elevationDegrees: number;
   resolution: number;
+  captureLightingMode: VoxelSpriteCaptureLightingMode;
+  captureAmbient: number;
+  captureKey: number;
+  captureFill: number;
+  postLightingMode: VoxelSpritePostLightingMode;
+  postAmbient: number;
+  postDiffuse: number;
+  outputGain: number;
+  lightAzimuthDegrees: number;
+  lightElevationDegrees: number;
+  captureSettingsMatched: boolean;
+  allLightingMatched: boolean;
   captureMilliseconds: number | null;
   steadyStateMilliseconds: number | null;
   textureBytes: number;
@@ -64,19 +83,26 @@ export interface RuntimeVoxelSpriteGardenReadout {
   depthAmplitude: number;
   depthQuantizationSteps: number;
   splatOverlap: number;
-  sourceNormalSpace: string;
   resourceCount: number;
   resourceBytes: number;
 }
 
 const SUBJECTS: readonly VoxelSpriteSubject[] = ['spatial-wizard', 'rigged-wizard', 'knight'];
+const SIDES: readonly VoxelSpriteSide[] = ['baseline', 'enhanced'];
 const MODES: readonly RustyApplicationVoxelSpriteMode[] = [
-  'sprite', 'relit', 'depth-parallax', 'sprite-splat', 'full-splat',
+  'sprite', 'depth-parallax', 'sprite-splat', 'full-splat',
 ];
-const PRODUCERS: Record<VoxelSpriteSubject, VoxelSpriteProducer> = {
-  'spatial-wizard': 'runtime',
-  'rigged-wizard': 'prepared',
-  knight: 'runtime',
+const DEFAULT_LIGHTING: SideLighting = {
+  captureMode: 'isolated',
+  captureAmbient: 1.8,
+  captureKey: 3,
+  captureFill: 1.4,
+  postMode: 'captured',
+  postAmbient: 0.35,
+  postDiffuse: 0.9,
+  outputGain: 1.1,
+  lightAzimuthDegrees: 35,
+  lightElevationDegrees: 45,
 };
 const SOURCE_HANDLE = 9_800_100;
 const PLINTH_HANDLE = 9_800_200;
@@ -87,9 +113,12 @@ export class RuntimeVoxelSpriteGarden {
   readonly #renderer: RustyApplicationRendererPort;
   readonly #readout: (value: RuntimeVoxelSpriteGardenReadout) => void;
   readonly #diagnostic: (value: string) => void;
-  readonly #producer = { ...PRODUCERS };
+  readonly #lighting: Record<VoxelSpriteSide, SideLighting> = {
+    baseline: { ...DEFAULT_LIGHTING },
+    enhanced: { ...DEFAULT_LIGHTING },
+  };
   #experiment: RustyApplicationVoxelSpriteExperimentPort | null = null;
-  #fixture: RuntimeFixture | null = null;
+  #manifest: RuntimeModelManifest | null = null;
   #positions = new Map<VoxelSpriteSubject, {
     ground: [number, number, number];
     baseline: [number, number, number];
@@ -97,11 +126,12 @@ export class RuntimeVoxelSpriteGarden {
   }>();
   #gardenCenter: [number, number] = [0, 0];
   #selectedSubject: VoxelSpriteSubject = 'spatial-wizard';
+  #selectedSide: VoxelSpriteSide = 'enhanced';
   #mode: RustyApplicationVoxelSpriteMode = 'sprite-splat';
   #sector = 0;
   #autoSector = true;
   #elevationDegrees = 18;
-  #resolution = 96;
+  #resolution = 192;
   #depthAmplitude = 0.35;
   #depthQuantizationSteps = 8;
   #splatOverlap = 0.15;
@@ -123,26 +153,25 @@ export class RuntimeVoxelSpriteGarden {
     baseResources: RustyApplicationResource[],
     camera: CameraPose,
   ): Promise<RustyApplicationContent> {
-    const fixture = this.#fixture ?? await loadFixture();
-    this.#fixture = fixture;
+    const manifest = this.#manifest ?? await loadManifest();
+    this.#manifest = manifest;
     this.#configureLayout(camera);
     this.#sector = nearestSector(camera.position, this.#gardenCenter);
-    const resources = await Promise.all(fixture.resources.map(fetchResource));
+    const resources = await Promise.all(manifest.resources.map(fetchResource));
     return {
-      frame: withOps(frame, [...frameOps(frame), ...this.#initialOps(fixture)]),
+      frame: withOps(frame, [...frameOps(frame), ...this.#initialOps(manifest)]),
       resources: uniqueResources([...baseResources, ...resources]),
     };
   }
 
   activate(): void {
-    if (this.#fixture === null || this.#status === 'disposed') return;
+    if (this.#manifest === null || this.#status === 'disposed') return;
     this.#experiment?.dispose();
     this.#experiment = this.#renderer.createVoxelSpriteExperiment();
     for (const subject of SUBJECTS) {
-      this.#apply(this.#experiment.create(this.#definition(subject, 'baseline')),
-        `create ${subject} baseline`);
-      this.#apply(this.#experiment.create(this.#definition(subject, 'enhanced')),
-        `create ${subject} enhancement`);
+      for (const side of SIDES) {
+        this.#apply(this.#experiment.create(this.#definition(subject, side)), `create ${subject} ${side}`);
+      }
     }
     this.#status = 'ready';
     void this.#publishLabels();
@@ -158,118 +187,152 @@ export class RuntimeVoxelSpriteGarden {
   key(event: KeyboardEvent, down: boolean): boolean {
     if (!down || event.repeat || this.#status !== 'ready') return false;
     if (event.code === 'KeyU') {
-      const index = (SUBJECTS.indexOf(this.#selectedSubject) + 1) % SUBJECTS.length;
-      this.#selectedSubject = SUBJECTS[index]!;
+      this.#selectedSubject = SUBJECTS[(SUBJECTS.indexOf(this.#selectedSubject) + 1) % SUBJECTS.length]!;
       this.#emit();
       return true;
     }
     if (event.code === 'KeyI') {
-      const index = (MODES.indexOf(this.#mode) + 1) % MODES.length;
-      this.setMode(MODES[index]!);
+      this.setMode(MODES[(MODES.indexOf(this.#mode) + 1) % MODES.length]!);
       return true;
     }
     if (event.code === 'KeyO') {
-      this.setProducer(this.#producer[this.#selectedSubject] === 'runtime' ? 'prepared' : 'runtime');
+      this.#selectedSide = this.#selectedSide === 'baseline' ? 'enhanced' : 'baseline';
+      this.#emit();
       return true;
     }
     if (event.code === 'KeyP') {
-      this.recapture();
+      this.recapturePair();
       return true;
     }
     return false;
   }
 
-  setSubject(subject: VoxelSpriteSubject): void {
-    this.#selectedSubject = subject;
-    this.#emit();
-  }
+  setSubject(subject: VoxelSpriteSubject): void { this.#selectedSubject = subject; this.#emit(); }
+  setSide(side: VoxelSpriteSide): void { this.#selectedSide = side; this.#emit(); }
 
   setMode(mode: RustyApplicationVoxelSpriteMode): void {
+    if (!MODES.includes(mode)) return;
     this.#mode = mode;
-    this.#configureEnhanced({ mode });
-  }
-
-  setProducer(producer: VoxelSpriteProducer): void {
-    if (this.#experiment === null || this.#fixture === null) return;
-    const subject = this.#selectedSubject;
-    const previous = this.#producer[subject];
-    this.#producer[subject] = producer;
-    const receipt = this.#experiment.replace(this.#definition(subject, 'enhanced'));
-    if (!receipt.applied) this.#producer[subject] = previous;
-    this.#apply(receipt, `switch ${subject} to ${producer}`);
-    this.#emit();
+    this.#configureSide('enhanced', { mode });
   }
 
   setSector(sector: number, preserveAuto = false): void {
-    if (this.#experiment === null || this.#fixture === null) return;
-    const next = ((Math.round(sector) % 16) + 16) % 16;
+    if (this.#experiment === null) return;
     if (!preserveAuto) this.#autoSector = false;
-    this.#sector = next;
-    for (const subject of SUBJECTS) {
-      this.#apply(this.#experiment.replace(this.#definition(subject, 'baseline')),
-        `replace ${subject} baseline sector`);
-      if (this.#producer[subject] === 'prepared') {
-        this.#apply(this.#experiment.replace(this.#definition(subject, 'enhanced')),
-          `replace ${subject} prepared sector`);
-      }
-    }
-    this.#emit();
+    this.#sector = ((Math.round(sector) % 16) + 16) % 16;
+    this.#recaptureAll('sector');
   }
 
   setAutoSector(enabled: boolean): void { this.#autoSector = enabled; this.#emit(); }
+  setElevation(value: number): void { this.#elevationDegrees = bounded(value, -45, 75); this.#emit(); }
+  setResolution(value: number): void { this.#resolution = Math.round(bounded(value, 64, 256)); this.#emit(); }
 
-  setElevation(value: number): void {
-    this.#elevationDegrees = bounded(value, -45, 75);
+  setCaptureLightingMode(value: VoxelSpriteCaptureLightingMode): void {
+    this.#lighting[this.#selectedSide].captureMode = value;
     this.#emit();
   }
 
-  setResolution(value: number): void {
-    this.#resolution = Math.round(bounded(value, 32, 256));
+  setCaptureAmbient(value: number): void {
+    this.#lighting[this.#selectedSide].captureAmbient = bounded(value, 0, 8);
     this.#emit();
+  }
+
+  setCaptureKey(value: number): void {
+    this.#lighting[this.#selectedSide].captureKey = bounded(value, 0, 8);
+    this.#emit();
+  }
+
+  setCaptureFill(value: number): void {
+    this.#lighting[this.#selectedSide].captureFill = bounded(value, 0, 8);
+    this.#emit();
+  }
+
+  setPostLightingMode(value: VoxelSpritePostLightingMode): void {
+    this.#lighting[this.#selectedSide].postMode = value;
+    this.#configureSelectedPost();
+  }
+
+  setPostAmbient(value: number): void {
+    this.#lighting[this.#selectedSide].postAmbient = bounded(value, 0, 4);
+    this.#configureSelectedPost();
+  }
+
+  setPostDiffuse(value: number): void {
+    this.#lighting[this.#selectedSide].postDiffuse = bounded(value, 0, 4);
+    this.#configureSelectedPost();
+  }
+
+  setOutputGain(value: number): void {
+    this.#lighting[this.#selectedSide].outputGain = bounded(value, 0, 4);
+    this.#configureSelectedPost();
+  }
+
+  setPostLightAzimuth(value: number): void {
+    this.#lighting[this.#selectedSide].lightAzimuthDegrees = bounded(value, -180, 180);
+    this.#configureSelectedPost();
+  }
+
+  setPostLightElevation(value: number): void {
+    this.#lighting[this.#selectedSide].lightElevationDegrees = bounded(value, -90, 90);
+    this.#configureSelectedPost();
   }
 
   setDepthAmplitude(value: number): void {
     this.#depthAmplitude = bounded(value, 0, 2);
-    this.#configureEnhanced({ depthAmplitude: this.#depthAmplitude });
+    this.#configureSide('enhanced', { depthAmplitude: this.#depthAmplitude });
   }
 
   setDepthQuantizationSteps(value: number): void {
     this.#depthQuantizationSteps = Math.round(bounded(value, 0, 32));
-    this.#configureEnhanced({ depthQuantizationSteps: this.#depthQuantizationSteps });
+    this.#configureSide('enhanced', { depthQuantizationSteps: this.#depthQuantizationSteps });
   }
 
   setSplatOverlap(value: number): void {
     this.#splatOverlap = bounded(value, 0, 1.5);
-    this.#configureEnhanced({ splatOverlap: this.#splatOverlap });
+    this.#configureSide('enhanced', { splatOverlap: this.#splatOverlap });
   }
 
-  recapture(): void {
+  recaptureSelected(): void {
     if (this.#experiment === null) return;
-    const subject = this.#selectedSubject;
-    if (this.#producer[subject] !== 'runtime') {
-      this.#diagnostic(`${subject} uses a prepared frame; switch source to runtime before recapture`);
-      return;
-    }
-    this.#apply(this.#experiment.recapture(`${subject}-enhanced`, this.#captureSettings()),
-      `recapture ${subject}`);
+    this.#apply(
+      this.#experiment.recapture(this.#id(this.#selectedSubject, this.#selectedSide), this.#captureSettings(this.#selectedSide)),
+      `recapture ${this.#selectedSubject} ${this.#selectedSide}`,
+    );
     this.#emit();
+  }
+
+  recapturePair(): void {
+    if (this.#experiment === null) return;
+    for (const side of SIDES) {
+      this.#apply(
+        this.#experiment.recapture(this.#id(this.#selectedSubject, side), this.#captureSettings(side)),
+        `recapture ${this.#selectedSubject} ${side}`,
+      );
+    }
+    this.#emit();
+  }
+
+  matchLightingFromSelected(): void {
+    const other = this.#selectedSide === 'baseline' ? 'enhanced' : 'baseline';
+    this.#lighting[other] = { ...this.#lighting[this.#selectedSide] };
+    this.#configureSide(other, this.#postConfig(other));
+    this.#recaptureAll(`match ${this.#selectedSide} lighting`);
   }
 
   probeFailureFallback(): void {
     if (this.#experiment === null) return;
-    const subject = this.#selectedSubject;
-    const before = this.#entry(subject)?.enhancement.revision;
+    const id = this.#id(this.#selectedSubject, this.#selectedSide);
+    const before = this.#entry(this.#selectedSubject, this.#selectedSide)?.enhancement.revision;
     const failed = this.#experiment.replace({
-      ...this.#definition(subject, 'enhanced'),
-      source: { kind: 'retained', handle: 9_999_999, capture: this.#captureSettings() },
+      ...this.#definition(this.#selectedSubject, this.#selectedSide),
+      source: { kind: 'retained', handle: 9_999_999, capture: this.#captureSettings(this.#selectedSide) },
     });
-    const after = failed.readout.entries.find(({ id }) => id === `${subject}-enhanced`)
-      ?.enhancement.revision;
+    const after = failed.readout.entries.find((entry) => entry.id === id)?.enhancement.revision;
     if (failed.applied || before !== after) {
       this.#diagnostic('fallback probe unexpectedly changed the live representation');
       return;
     }
-    this.#diagnostic(`fallback probe passed: ${subject} kept revision ${String(after)}`);
+    this.#diagnostic(`fallback probe passed: ${id} kept revision ${String(after)}`);
     this.#emit();
   }
 
@@ -281,62 +344,90 @@ export class RuntimeVoxelSpriteGarden {
     this.#emit();
   }
 
-  #configureEnhanced(patch: Partial<RustyApplicationVoxelSpriteConfig>): void {
+  #configureSelectedPost(): void {
+    this.#configureSide(this.#selectedSide, this.#postConfig(this.#selectedSide));
+  }
+
+  #configureSide(side: VoxelSpriteSide, patch: Partial<RustyApplicationVoxelSpriteConfig>): void {
     if (this.#experiment === null) return;
     for (const subject of SUBJECTS) {
-      this.#apply(this.#experiment.configure(`${subject}-enhanced`, patch),
-        `configure ${subject}`);
+      this.#apply(this.#experiment.configure(this.#id(subject, side), patch), `configure ${subject} ${side}`);
     }
     this.#emit();
   }
 
-  #definition(
-    subject: VoxelSpriteSubject,
-    role: 'baseline' | 'enhanced',
-  ): RustyApplicationVoxelSpriteDefinition {
+  #recaptureAll(operation: string): void {
+    if (this.#experiment === null) return;
+    for (const subject of SUBJECTS) {
+      for (const side of SIDES) {
+        this.#apply(
+          this.#experiment.recapture(this.#id(subject, side), this.#captureSettings(side)),
+          `${operation}: ${subject} ${side}`,
+        );
+      }
+    }
+    this.#emit();
+  }
+
+  #definition(subject: VoxelSpriteSubject, side: VoxelSpriteSide): RustyApplicationVoxelSpriteDefinition {
     const positions = this.#positions.get(subject);
     if (positions === undefined) throw new Error(`missing ${subject} garden position`);
-    const prepared = preparedFrame(this.#fixture!, subject, this.#sector);
-    const producer = role === 'baseline' ? 'prepared' : this.#producer[subject];
     return {
-      id: `${subject}-${role}`,
-      source: producer === 'prepared'
-        ? { kind: 'prepared', frame: prepared }
-        : {
-            kind: 'retained',
-            handle: SOURCE_HANDLE + SUBJECTS.indexOf(subject),
-            capture: this.#captureSettings(),
-          },
-      transform: {
-        position: positions[role],
-        width: 2.5,
-        height: 2.5,
+      id: this.#id(subject, side),
+      source: {
+        kind: 'retained',
+        handle: SOURCE_HANDLE + SUBJECTS.indexOf(subject),
+        capture: this.#captureSettings(side),
       },
-      mode: role === 'baseline' ? 'sprite' : this.#mode,
+      transform: { position: positions[side], width: 2.5, height: 2.5 },
+      mode: side === 'baseline' ? 'sprite' : this.#mode,
       config: {
         sampleColumns: 48,
         sampleRows: 48,
-        depthAmplitude: role === 'baseline' ? 0 : this.#depthAmplitude,
+        depthAmplitude: side === 'baseline' ? 0 : this.#depthAmplitude,
         depthQuantizationSteps: this.#depthQuantizationSteps,
         splatOverlap: this.#splatOverlap,
         baseSpriteContribution: 0.7,
         normalInfluence: 0.65,
+        ...this.#postConfig(side),
       },
     };
   }
 
-  #captureSettings() {
+  #captureSettings(side: VoxelSpriteSide): RustyApplicationVoxelSpriteCaptureSettings {
+    const lighting = this.#lighting[side];
     return {
       resolution: this.#resolution,
       azimuthDegrees: this.#sector * 22.5,
       elevationDegrees: this.#elevationDegrees,
       near: 0.1,
       far: 40,
+      lighting: lighting.captureMode === 'scene'
+        ? { mode: 'scene' }
+        : {
+            mode: 'isolated',
+            ambientIntensity: lighting.captureAmbient,
+            keyIntensity: lighting.captureKey,
+            fillIntensity: lighting.captureFill,
+          },
     };
   }
 
-  #entry(subject: VoxelSpriteSubject) {
-    return this.#experiment?.readout().entries.find(({ id }) => id === `${subject}-enhanced`);
+  #postConfig(side: VoxelSpriteSide): Partial<RustyApplicationVoxelSpriteConfig> {
+    const lighting = this.#lighting[side];
+    return {
+      lightingMode: lighting.postMode,
+      ambientLight: lighting.postAmbient,
+      diffuseLight: lighting.postDiffuse,
+      outputGain: lighting.outputGain,
+      lightDirection: direction(lighting.lightAzimuthDegrees, lighting.lightElevationDegrees),
+    };
+  }
+
+  #id(subject: VoxelSpriteSubject, side: VoxelSpriteSide): string { return `${subject}-${side}`; }
+
+  #entry(subject: VoxelSpriteSubject, side: VoxelSpriteSide) {
+    return this.#experiment?.readout().entries.find(({ id }) => id === this.#id(subject, side));
   }
 
   #apply(receipt: RustyApplicationVoxelSpriteReceipt, operation: string): void {
@@ -367,24 +458,21 @@ export class RuntimeVoxelSpriteGarden {
     this.#gardenCenter = [center[0], center[2]];
   }
 
-  #initialOps(fixture: RuntimeFixture): unknown[] {
-    const ops: unknown[] = [
-      ...fixture.textures.map((texture) => ({ op: 'defineTexture', texture })),
-      ...fixture.originals.map((original) => ({ op: 'defineAnimatedMesh', asset: original.asset })),
-    ];
-    fixture.originals.forEach((original, index) => {
-      const positions = this.#positions.get(original.subject)!;
+  #initialOps(manifest: RuntimeModelManifest): unknown[] {
+    const ops: unknown[] = manifest.models.map((model) => ({ op: 'defineAnimatedMesh', asset: model.asset }));
+    manifest.models.forEach((model, index) => {
+      const positions = this.#positions.get(model.subject)!;
       ops.push({
         op: 'createAnimatedMeshInstance',
         handle: SOURCE_HANDLE + index,
         parent: null,
         instance: {
-          asset: original.asset['asset'],
-          transform: transform(positions.ground, original.scale),
+          asset: model.asset['asset'],
+          transform: transform(positions.ground, model.scale),
           visible: false,
           materialOverrides: [],
           playback: null,
-          metadata: metadata(`runtime-voxel-sprite-source-${original.subject}`, 700_600 + index),
+          metadata: metadata(`runtime-voxel-sprite-source-${model.subject}`, 701_800 + index),
         },
       });
       for (const [column, position] of [positions.baseline, positions.enhanced].entries()) {
@@ -393,9 +481,9 @@ export class RuntimeVoxelSpriteGarden {
           handle: PLINTH_HANDLE + index * 2 + column,
           parent: null,
           node: primitiveNode(
-            `runtime-voxel-sprite-${original.subject}-${column === 0 ? 'baseline' : 'enhanced'}-plinth`,
+            `runtime-voxel-sprite-${model.subject}-${column === 0 ? 'baseline' : 'enhanced'}-plinth`,
             [position[0], positions.ground[1] - 0.1, position[2]],
-            column === 0 ? [0.1, 0.5, 1, 1] : [1, 0.3, 0.05, 1],
+            column === 0 ? [0.1, 0.5, 1, 1] : [0.9, 0.06, 0.08, 1],
           ),
         });
       }
@@ -406,29 +494,26 @@ export class RuntimeVoxelSpriteGarden {
   async #publishLabels(): Promise<void> {
     const ops = SUBJECTS.flatMap((subject, index) => {
       const positions = this.#positions.get(subject)!;
-      return (['baseline', 'enhanced'] as const).map((role, column) => ({
+      return SIDES.map((side, column) => ({
         domain: 'billboard' as const,
         meta: { sequence: index * 2 + column },
         op: {
           op: 'create' as const,
           handle: LABEL_HANDLE + index * 2 + column,
           descriptor: {
-            anchor: {
-              kind: 'world' as const,
-              position: [positions[role][0], positions[role][1] + 1.55, positions[role][2]],
-            },
+            anchor: { kind: 'world' as const, position: [positions[side][0], positions[side][1] + 1.55, positions[side][2]] },
             content: {
               kind: 'text' as const,
-              localizationKey: `craftsurvive.voxelSprite.${subject}.${role}`,
-              fallbackText: `${subject.replaceAll('-', ' ')} · ${role === 'baseline' ? 'BLUE baseline' : 'ORANGE enhanced'}`,
+              localizationKey: `craftsurvive.voxelSprite.${subject}.${side}`,
+              fallbackText: `${subject.replaceAll('-', ' ')} · ${side === 'baseline' ? 'BLUE runtime proxy' : 'RED runtime enhanced'}`,
               arguments: [],
             },
             font: { kind: 'system' as const, family: 'monospace' },
             heightPixels: 15,
             color: [1, 1, 1, 1] as const,
-            background: role === 'baseline'
+            background: side === 'baseline'
               ? [0.02, 0.18, 0.45, 0.9] as const
-              : [0.55, 0.12, 0.02, 0.9] as const,
+              : [0.5, 0.01, 0.03, 0.9] as const,
             maxDistance: 45,
             layer: 'alwaysOnTop' as const,
             visible: true,
@@ -443,18 +528,32 @@ export class RuntimeVoxelSpriteGarden {
   }
 
   #emit(): void {
-    const entry = this.#entry(this.#selectedSubject);
-    const fixture = this.#fixture;
+    const lighting = this.#lighting[this.#selectedSide];
+    const entry = this.#entry(this.#selectedSubject, this.#selectedSide);
+    const manifest = this.#manifest;
     this.#readout({
       status: this.#status,
       selectedSubject: this.#selectedSubject,
-      producer: this.#producer[this.#selectedSubject],
+      selectedSide: this.#selectedSide,
+      source: 'retained/runtime',
       mode: this.#mode,
       sector: this.#sector,
       sectorLabel: `dir-${pad(this.#sector)}`,
       autoSector: this.#autoSector,
       elevationDegrees: this.#elevationDegrees,
       resolution: this.#resolution,
+      captureLightingMode: lighting.captureMode,
+      captureAmbient: lighting.captureAmbient,
+      captureKey: lighting.captureKey,
+      captureFill: lighting.captureFill,
+      postLightingMode: lighting.postMode,
+      postAmbient: lighting.postAmbient,
+      postDiffuse: lighting.postDiffuse,
+      outputGain: lighting.outputGain,
+      lightAzimuthDegrees: lighting.lightAzimuthDegrees,
+      lightElevationDegrees: lighting.lightElevationDegrees,
+      captureSettingsMatched: captureLightingEqual(this.#lighting.baseline, this.#lighting.enhanced),
+      allLightingMatched: sideLightingEqual(this.#lighting.baseline, this.#lighting.enhanced),
       captureMilliseconds: entry?.enhancement.captureCpuSubmissionMilliseconds ?? null,
       steadyStateMilliseconds: entry?.enhancement.steadyStateCpuSubmissionMilliseconds ?? null,
       textureBytes: entry?.enhancement.frameTextureBytes ?? 0,
@@ -464,26 +563,25 @@ export class RuntimeVoxelSpriteGarden {
       depthAmplitude: this.#depthAmplitude,
       depthQuantizationSteps: this.#depthQuantizationSteps,
       splatOverlap: this.#splatOverlap,
-      sourceNormalSpace: fixture?.source.preparedNormalSpace ?? 'loading',
-      resourceCount: fixture?.metrics.resourceCount ?? 0,
-      resourceBytes: fixture?.metrics.totalResourceBytes ?? 0,
+      resourceCount: manifest?.metrics.resourceCount ?? 0,
+      resourceBytes: manifest?.metrics.totalResourceBytes ?? 0,
     });
   }
 }
 
-async function loadFixture(): Promise<RuntimeFixture> {
-  const response = await fetch('/assets/depth-splat/runtime-v1.json', { cache: 'no-store' });
-  if (!response.ok) throw new Error(`runtime voxel-sprite fixture returned ${String(response.status)}`);
-  const fixture = await response.json() as RuntimeFixture;
-  if (fixture.schemaVersion !== 1 || fixture.source.run !== 'depth-splat-20260815-001'
-    || fixture.frames.length !== 48 || fixture.textures.length !== 192
-    || fixture.originals.length !== 3) {
-    throw new Error('runtime voxel-sprite fixture inventory is incomplete');
+async function loadManifest(): Promise<RuntimeModelManifest> {
+  const response = await fetch('/assets/voxel-sprite/runtime-models-v2.json', { cache: 'no-store' });
+  if (!response.ok) throw new Error(`runtime voxel-sprite model manifest returned ${String(response.status)}`);
+  const manifest = await response.json() as RuntimeModelManifest;
+  if (manifest.schemaVersion !== 2 || manifest.source.kind !== 'runtime-models'
+    || manifest.models.length !== 3 || manifest.resources.length !== 3
+    || manifest.resources.some((resource) => resource.mediaType !== 'application/octet-stream')) {
+    throw new Error('runtime voxel-sprite model manifest is incomplete or admits non-model resources');
   }
-  return fixture;
+  return manifest;
 }
 
-async function fetchResource(resource: FixtureResource): Promise<RustyApplicationResource> {
+async function fetchResource(resource: ModelResource): Promise<RustyApplicationResource> {
   const response = await fetch(resource.url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`voxel-sprite resource ${resource.url} returned ${String(response.status)}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
@@ -491,14 +589,31 @@ async function fetchResource(resource: FixtureResource): Promise<RustyApplicatio
   return { identity: resource.identity, contentHash: resource.contentHash, mediaType: resource.mediaType, bytes };
 }
 
-function preparedFrame(
-  fixture: RuntimeFixture,
-  subject: VoxelSpriteSubject,
-  sector: number,
-): RustyApplicationVoxelSpritePreparedFrame {
-  const frame = fixture.frames.find((candidate) => candidate.subject === subject && candidate.sector === sector);
-  if (frame === undefined) throw new Error(`missing prepared frame ${subject}/dir-${pad(sector)}`);
-  return frame;
+function captureLightingEqual(left: SideLighting, right: SideLighting): boolean {
+  return left.captureMode === right.captureMode
+    && left.captureAmbient === right.captureAmbient
+    && left.captureKey === right.captureKey
+    && left.captureFill === right.captureFill;
+}
+
+function sideLightingEqual(left: SideLighting, right: SideLighting): boolean {
+  return captureLightingEqual(left, right)
+    && left.postMode === right.postMode
+    && left.postAmbient === right.postAmbient
+    && left.postDiffuse === right.postDiffuse
+    && left.outputGain === right.outputGain
+    && left.lightAzimuthDegrees === right.lightAzimuthDegrees
+    && left.lightElevationDegrees === right.lightElevationDegrees;
+}
+
+function direction(azimuthDegrees: number, elevationDegrees: number): [number, number, number] {
+  const azimuth = azimuthDegrees * Math.PI / 180;
+  const elevation = elevationDegrees * Math.PI / 180;
+  return [
+    Math.sin(azimuth) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.cos(azimuth) * Math.cos(elevation),
+  ];
 }
 
 function nearestSector(position: readonly [number, number, number], center: readonly [number, number]): number {
