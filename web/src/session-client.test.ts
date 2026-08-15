@@ -99,6 +99,7 @@ const rendererPort = (
   clear: async () => undefined,
   renderOnce: () => undefined,
   replaceContent: async () => ({ applied: true, diagnostics: [] }),
+  createVoxelSpriteExperiment: () => { throw new Error('voxel-sprite experiment is not used by this test'); },
   resumeAudio: async () => ({ resumed: true, diagnostics: [] }),
   ...overrides,
 });

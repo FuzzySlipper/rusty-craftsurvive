@@ -55,14 +55,16 @@ The game-owned panoramic sky exercises Engine's authored camera-relative backgro
 rotates with the camera while remaining fixed under player translation, and it is presentation
 only: the panorama does not contribute lighting, reflections, collision, or gameplay authority.
 
-`?course=garden` starts in a broad flat terrain clearing facing a three-subject offline depth-splat
-comparison. Each row is original, quad, flat, compressed, physical, and tangent from left to right.
-The presenter selects one of sixteen authored directions from the authoritative camera position;
-`I` toggles an eight-direction subset and `O` toggles the three-degree boundary hysteresis. The HUD
-reports the selected direction, angular offset, visible triangle count, and exact retained resource
-budget. The original GLBs and all depictions are presentation-only and never enter collision or
-gameplay authority. Run `pnpm smoke:depth-splat` against a restarted service for the bounded browser
-loading/control proof.
+`?course=garden` starts in a broad flat terrain clearing facing the runtime voxel-sprite lab. Each
+subject has a blue plain-sprite baseline and an orange experimental representation. The orange
+side can switch between live capture of the retained model and a prepared directional frame, then
+between plain sprite, relighting, quantized-depth parallax, sprite-plus-splats, and full splat
+replacement. `U`, `I`, `O`, and `P` cycle subject, mode, source, and recapture; `V` opens the complete
+control panel for direction, capture, and depth variables. The HUD separates one-time capture CPU
+submission from steady-state submission and reports texture bytes, draws, samples, and preserved
+fallbacks. All sources and representations are presentation-only and never enter collision or
+gameplay authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against
+a restarted service for the bounded browser loading/control/fallback proof.
 
 Two small forest wisps directly ahead and to the right of the default spawn exercise the public
 Engine lit-sprite route. The left wisp is the unlit reference; the right uses derived-gradient

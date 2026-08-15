@@ -34,6 +34,16 @@ The initial experiment is intentionally bounded:
 - exact-global/local-origin rebasing is certified through ±262,144 units in both signs. Engine's
   admitted voxel and local-frame envelope remains ±1,000,000; larger coordinates, cross-origin
   multiplayer policy, background streaming, and limitless precision are not certified here.
+- the runtime voxel-sprite garden is an intentionally rough visual lab, not a production character
+  renderer: it captures one orthographic view at a time, uses RGBA8 depth, approximates splat
+  orientation, and reports CPU submission timing rather than GPU timing;
+- the prepared comparison frames retain the source experiment's remapped Blender world-space
+  normals even though the Engine runtime frame contract expects view-space normals. The UI calls
+  this out explicitly so prepared-versus-runtime differences are not mistaken for a verdict about
+  the enhancement method; a later asset experiment must normalize the bake before visual ranking;
+- runtime capture currently records the retained model's rendered color rather than canonical
+  albedo/material channels, and changing capture direction, elevation, or resolution is an explicit
+  recapture rather than continuous per-frame rebaking.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

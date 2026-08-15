@@ -6,13 +6,15 @@
   "scripts": {
     "audit:textures": "node scripts/check-terrain-atlas.mjs",
     "audit:depth-splat": "node scripts/check-depth-splat-garden.mjs",
+    "audit:voxel-sprite": "node scripts/check-runtime-voxel-sprite-garden.mjs",
     "audit:web": "node scripts/audit-web-boundary.mjs",
     "build": "vite build --config web/vite.config.ts",
-    "check": "tsc --noEmit -p web/tsconfig.json && pnpm test:web && pnpm audit:web && pnpm audit:textures && pnpm audit:depth-splat && pnpm build",
+    "check": "tsc --noEmit -p web/tsconfig.json && pnpm test:web && pnpm audit:web && pnpm audit:textures && pnpm audit:depth-splat && pnpm audit:voxel-sprite && pnpm build",
     "perf:edit": "node scripts/edit-performance.mjs",
     "test:web": "tsx --test web/src/*.test.ts",
     "smoke:browser": "node scripts/browser-smoke.mjs",
-    "smoke:depth-splat": "node scripts/depth-splat-smoke.mjs",
+    "smoke:depth-splat": "node scripts/runtime-voxel-sprite-smoke.mjs",
+    "smoke:voxel-sprite": "node scripts/runtime-voxel-sprite-smoke.mjs",
     "smoke:streaming": "node scripts/streaming-smoke.mjs",
     "smoke:unbounded": "node scripts/unbounded-smoke.mjs",
     "smoke:surfaces": "CRAFTSURVIVE_SURFACE=box CRAFTSURVIVE_URL=http://127.0.0.1:4419 pnpm smoke:browser && CRAFTSURVIVE_SURFACE=mc CRAFTSURVIVE_URL=http://127.0.0.1:4419/?surface=mc pnpm smoke:browser && CRAFTSURVIVE_SURFACE=dc CRAFTSURVIVE_URL=http://127.0.0.1:4419/?surface=dc pnpm smoke:browser"

@@ -9,3 +9,14 @@ html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 .hud [data-garden-row] { grid-column: 1 / -1; }
 .hud p { margin: .4rem 0 0; }.controls { color: #aeb9ab; font-size: .78rem; }
 .crosshair { position: absolute; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 24px/1 monospace; color: white; text-shadow: 0 1px 3px black; pointer-events: none; }
+.voxel-sprite-lab { position: fixed; z-index: 5; inset: 1rem 1rem auto auto; display: grid; width: min(27rem, calc(100% - 2rem)); max-height: calc(100% - 2rem); overflow: auto; gap: .55rem; padding: .9rem; color: #edf6ea; background: rgb(5 11 15 / 94%); border: 1px solid #d8874c; pointer-events: auto; box-shadow: 0 .5rem 2rem rgb(0 0 0 / 45%); }
+.voxel-sprite-lab[hidden] { display: none; }
+.voxel-sprite-lab label { display: grid; grid-template-columns: 9.5rem 1fr auto; align-items: center; gap: .5rem; font-size: .8rem; color: #bdc9c1; }
+.voxel-sprite-lab select, .voxel-sprite-lab input, .voxel-sprite-lab button { font: inherit; }
+.voxel-sprite-lab select, .voxel-sprite-lab button { padding: .3rem .45rem; color: #f2f5f1; background: #18241f; border: 1px solid #6f8b79; }
+.voxel-sprite-lab input[type="range"] { min-width: 0; accent-color: #e48b4d; }
+.voxel-sprite-lab input[type="checkbox"] { accent-color: #e48b4d; }
+.voxel-sprite-lab output { margin: 0; color: #8ee69e; }
+.voxel-sprite-lab .lab-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.voxel-sprite-lab button:hover { border-color: #f4ba75; }
+.voxel-sprite-lab small { color: #cfa88b; line-height: 1.35; }

@@ -2,7 +2,7 @@ import type {
   RustyApplicationResource,
   RustyApplicationUiContext,
 } from '@rusty-engine/application-host';
-import type { DepthSplatGarden } from './depth-splat-garden';
+import type { RuntimeVoxelSpriteGarden } from './runtime-voxel-sprite-garden';
 
 type Surface = 'box' | 'marchingCubes' | 'dualContouring';
 interface CameraPose { position: [number, number, number]; yawDegrees: number; pitchDegrees: number }
@@ -61,7 +61,7 @@ export interface SessionView {
 export class SessionClient {
   readonly #context: RustyApplicationUiContext;
   readonly #view: SessionView;
-  readonly #garden: DepthSplatGarden | null;
+  readonly #garden: RuntimeVoxelSpriteGarden | null;
   readonly #held = new Set<string>();
   #socket: WebSocket | null = null;
   #generation = 0;
@@ -74,7 +74,7 @@ export class SessionClient {
   #protocolFailed = false;
   #lifecycleEpoch = 0;
 
-  constructor(context: RustyApplicationUiContext, view: SessionView, garden: DepthSplatGarden | null = null) {
+  constructor(context: RustyApplicationUiContext, view: SessionView, garden: RuntimeVoxelSpriteGarden | null = null) {
     this.#context = context;
     this.#view = view;
     this.#garden = garden;
@@ -104,7 +104,9 @@ export class SessionClient {
       }).catch((error: unknown) => {
         if (!this.#active(epoch)) return;
         this.#protocolFailed = true;
-        this.#view.status(`protocol error: ${error instanceof Error ? error.message : String(error)}`);
+        const message = error instanceof Error ? error.message : String(error);
+        this.#view.status(`protocol error: ${message}`);
+        this.#view.diagnostic(`session projection failed: ${message}`);
         socket.close();
       });
     });
