@@ -2,6 +2,7 @@ import type {
   RustyApplicationResource,
   RustyApplicationUiContext,
 } from '@rusty-engine/application-host';
+import type { DepthSplatGarden } from './depth-splat-garden';
 
 type Surface = 'box' | 'marchingCubes' | 'dualContouring';
 interface CameraPose { position: [number, number, number]; yawDegrees: number; pitchDegrees: number }
@@ -60,6 +61,7 @@ export interface SessionView {
 export class SessionClient {
   readonly #context: RustyApplicationUiContext;
   readonly #view: SessionView;
+  readonly #garden: DepthSplatGarden | null;
   readonly #held = new Set<string>();
   #socket: WebSocket | null = null;
   #generation = 0;
@@ -72,9 +74,10 @@ export class SessionClient {
   #protocolFailed = false;
   #lifecycleEpoch = 0;
 
-  constructor(context: RustyApplicationUiContext, view: SessionView) {
+  constructor(context: RustyApplicationUiContext, view: SessionView, garden: DepthSplatGarden | null = null) {
     this.#context = context;
     this.#view = view;
+    this.#garden = garden;
   }
 
   connect(): void {
@@ -116,13 +119,14 @@ export class SessionClient {
 
   key(event: KeyboardEvent, down: boolean): void {
     if (!this.#context.ui.allowsGameplayInput(event)) return;
+    const gardenHandled = this.#garden?.key(event, down) ?? false;
     if (down) this.#held.add(event.code); else this.#held.delete(event.code);
     if (down && !event.repeat && event.code === 'KeyF') this.#action = 'destroy';
     if (down && !event.repeat && event.code === 'KeyG') this.#action = 'place';
     if (down && !event.repeat && event.code === 'Digit1') this.#brushRadius = 0;
     if (down && !event.repeat && event.code === 'Digit2') this.#brushRadius = 1;
     if (down && !event.repeat && event.code === 'Digit3') this.#brushRadius = 2;
-    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyH', 'Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
+    if (gardenHandled || ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ControlLeft', 'ControlRight', 'ShiftLeft', 'ShiftRight', 'KeyH', 'Digit1', 'Digit2', 'Digit3'].includes(event.code)) {
       event.preventDefault();
     }
   }
@@ -163,11 +167,12 @@ export class SessionClient {
     }
     const update = message.kind === 'welcome' ? message : message.update;
     if (message.kind === 'welcome') {
-      const receipt = message.resources.length === 0
+      const receipt = message.resources.length === 0 && this.#garden === null
         ? await this.#context.renderer.replaceFrame(message.frame)
-        : await this.#replaceTexturedContent(message.frame, message.resources, epoch);
+        : await this.#replaceWelcomeContent(message.frame, message.resources, message.readout.camera, epoch);
       if (!this.#active(epoch)) return;
       if (!receipt.applied) throw new Error(receipt.diagnostics.map(({ message }) => message).join('; '));
+      this.#garden?.activate();
       this.#generation = message.readout.generation;
       this.#sequence = message.readout.acceptedSequence;
     } else if (update.frame !== null) {
@@ -199,22 +204,31 @@ export class SessionClient {
       });
   }
 
-  async #replaceTexturedContent(
+  async #replaceWelcomeContent(
     frame: Record<string, unknown>,
     readouts: ResourceReadout[],
+    camera: CameraPose,
     epoch: number,
   ) {
     const resources = await Promise.all(readouts.map(fetchResource));
     if (!this.#active(epoch)) {
       return { applied: false, diagnostics: [{ code: 'stale_session', message: 'session changed' }] };
     }
-    return this.#context.renderer.replaceContent({ frame, resources });
+    const content = this.#garden === null
+      ? { frame, resources }
+      : await this.#garden.prepare(frame, resources, camera);
+    if (!this.#active(epoch)) {
+      return { applied: false, diagnostics: [{ code: 'stale_session', message: 'session changed' }] };
+    }
+    return this.#context.renderer.replaceContent(content);
   }
 
   #applyReadout(readout: Readout): void {
     this.#generation = readout.generation;
     this.#sequence = Math.max(this.#sequence, readout.acceptedSequence);
     this.#context.renderer.setCameraPose(readout.camera);
+    this.#garden?.observe(readout.camera);
+    if (this.#garden !== null) this.#context.renderer.renderOnce();
     this.#view.readout(readout);
   }
 
@@ -240,6 +254,7 @@ export class SessionClient {
   #reset(status: string): void {
     this.#held.clear(); this.#look = [0, 0]; this.#action = null; this.#generation = 0;
     this.#protocolFailed = false;
+    this.#garden?.dispose();
     this.#view.status(status);
     this.#lifecycleEpoch += 1;
   }

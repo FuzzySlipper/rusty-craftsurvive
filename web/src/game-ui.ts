@@ -1,4 +1,5 @@
 import type { RustyApplicationUiContext, RustyApplicationUiOwner } from '@rusty-engine/application-host';
+import { DepthSplatGarden } from './depth-splat-garden';
 import { SessionClient, type SessionView } from './session-client';
 
 export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplicationUiContext): RustyApplicationUiOwner {
@@ -6,11 +7,26 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     <div class="brand">RUSTY <strong>CRAFTSURVIVE</strong></div>
     <output data-status>connecting</output>
     <output data-presentation-diagnostic></output>
-    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div><dt>residency</dt><dd data-residency>—</dd></div><div><dt>seed</dt><dd data-seed>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>origin</dt><dd data-world-origin>—</dd></div><div><dt>collision</dt><dd data-collision-world>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>global position</dt><dd data-player-position>—</dd></div><div><dt>local position</dt><dd data-player-local-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>ground</dt><dd data-ground>—</dd></div><div><dt>contacts</dt><dd data-contacts>—</dd></div><div><dt>step</dt><dd data-step>—</dd></div><div><dt>platform</dt><dd data-platform>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
+    <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div data-garden-row><dt>garden sector</dt><dd data-garden-sector>loading</dd></div><div data-garden-row><dt>garden load</dt><dd data-garden-load>loading</dd></div><div><dt>residency</dt><dd data-residency>—</dd></div><div><dt>seed</dt><dd data-seed>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>origin</dt><dd data-world-origin>—</dd></div><div><dt>collision</dt><dd data-collision-world>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>global position</dt><dd data-player-position>—</dd></div><div><dt>local position</dt><dd data-player-local-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>ground</dt><dd data-ground>—</dd></div><div><dt>contacts</dt><dd data-contacts>—</dd></div><div><dt>step</dt><dd data-step>—</dd></div><div><dt>platform</dt><dd data-platform>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
+    <p class="controls" data-garden-controls>Banks: left spatial wizard · center rigged wizard · right knight. Columns: original · quad · flat · compressed · physical · tangent. I toggles 8/16 sectors · O toggles hysteresis · Tab hides HUD.</p>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
   const get = (selector: string) => root.querySelector<HTMLElement>(selector)!;
+  const gardenEnabled = new URLSearchParams(location.search).get('course') === 'garden';
+  for (const element of root.querySelectorAll<HTMLElement>('[data-garden-row], [data-garden-controls]')) {
+    element.hidden = !gardenEnabled;
+  }
+  const garden = gardenEnabled ? new DepthSplatGarden(
+    context.renderer,
+    (value) => {
+      get('[data-garden-sector]').textContent = `${value.selectedSectorLabel}/${value.sectorCount} · Δ${value.angularOffsetDegrees.toFixed(1)}° · H:${value.hysteresis ? 'on' : 'off'}`;
+      get('[data-garden-load]').textContent = value.status === 'loading'
+        ? 'loading'
+        : `${value.visibleOriginals} originals + ${value.visibleDepictions} depictions · ${value.visibleTriangles} tris · ${value.resourceCount} files / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB`;
+    },
+    (text) => { get('[data-presentation-diagnostic]').textContent = text; },
+  ) : null;
   const view: SessionView = {
     status: (text) => { get('[data-status]').textContent = text; },
     diagnostic: (text) => { get('[data-presentation-diagnostic]').textContent = text; },
@@ -43,8 +59,15 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     reject: (value) => { get('[data-edit]').textContent = `edit rejected · ${value.code} at ${value.voxel.join(', ')}`; },
     miss: (action, target) => { get('[data-edit]').textContent = `${action} missed · ${target === null ? 'nothing in reach' : `target ${target.join(', ')}`}`; },
   };
-  const client = new SessionClient(context, view);
-  const down = (event: KeyboardEvent) => client.key(event, true);
+  const client = new SessionClient(context, view, garden);
+  const down = (event: KeyboardEvent) => {
+    if (event.code === 'Tab' && !event.repeat && context.ui.allowsGameplayInput(event)) {
+      root.querySelector('.hud')?.classList.toggle('is-hidden');
+      event.preventDefault();
+      return;
+    }
+    client.key(event, true);
+  };
   const up = (event: KeyboardEvent) => client.key(event, false);
   const move = (event: MouseEvent) => client.look(event);
   const mouse = (event: MouseEvent) => client.mouse(event);

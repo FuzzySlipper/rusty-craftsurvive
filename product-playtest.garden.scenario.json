@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "project": "rusty-craftsurvive",
+  "scenario": "depth-splat-comparison-garden",
+  "mission": "From the visible comparison-garden spawn, inspect all three subject rows and their original, quad, flat, compressed, physical, and tangent columns. Circle-strafe, approach and retreat, jump or seek elevation, make abrupt yaw changes, and inspect partial terrain occlusion plus bright, shadowed, and fogged views. Toggle I between 8 and 16 direction sectors and O between hysteresis on and off. Report sector stability, depth separation, holes, edge breakup, lighting response, occlusion, fog behavior, and whether each approximation remains recognizable against its original.",
+  "controls": [
+    { "input": "Click the rendered world", "purpose": "Capture first-person mouse input; use F and G rather than recapture clicks for deliberate voxel edits" },
+    { "input": "WASD and mouse", "purpose": "Move around the garden and change viewing direction" },
+    { "input": "Shift", "purpose": "Sprint during wider circle-strafe and approach/retreat passes" },
+    { "input": "Hold Space for about 250 ms", "purpose": "Jump for a short elevated view; a tap shorter than the 33 ms input cadence may not be sampled" },
+    { "input": "I", "purpose": "Toggle between 8-sector and 16-sector direction selection" },
+    { "input": "O", "purpose": "Toggle direction-sector hysteresis" },
+    { "input": "Tab", "purpose": "Hide or restore the diagnostics HUD for unobstructed evidence" }
+  ],
+  "artifacts": {
+    "screenshots": "indexed comparison views",
+    "frameBurst": { "count": 6, "intervalMs": 120 },
+    "trace": true,
+    "video": true
+  },
+  "reproductionLimit": 1,
+  "notes": "Judge visible behavior through genuine mouse and keyboard input. Do not inspect DOM, websocket state, source, or hidden readouts. Use repeated observations to distinguish actual temporal instability from sector changes. Capture evidence with and without the HUD, and keep the original mesh visible beside each approximation when practical. Terrain editing is not part of this mission. Finish with playtest_finish and an exit interview that separates harness/control friction from renderer defects."
+}

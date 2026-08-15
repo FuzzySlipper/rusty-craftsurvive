@@ -55,6 +55,15 @@ The game-owned panoramic sky exercises Engine's authored camera-relative backgro
 rotates with the camera while remaining fixed under player translation, and it is presentation
 only: the panorama does not contribute lighting, reflections, collision, or gameplay authority.
 
+`?course=garden` starts in a broad flat terrain clearing facing a three-subject offline depth-splat
+comparison. Each row is original, quad, flat, compressed, physical, and tangent from left to right.
+The presenter selects one of sixteen authored directions from the authoritative camera position;
+`I` toggles an eight-direction subset and `O` toggles the three-degree boundary hysteresis. The HUD
+reports the selected direction, angular offset, visible triangle count, and exact retained resource
+budget. The original GLBs and all depictions are presentation-only and never enter collision or
+gameplay authority. Run `pnpm smoke:depth-splat` against a restarted service for the bounded browser
+loading/control proof.
+
 Two small forest wisps directly ahead and to the right of the default spawn exercise the public
 Engine lit-sprite route. The left wisp is the unlit reference; the right uses derived-gradient
 lighting under the same host ambient/directional route and a moving retained cyan point light. They use the same checked RGBA8

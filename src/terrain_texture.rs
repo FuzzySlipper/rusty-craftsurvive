@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
 use rusty_engine::render_model::{
-    MaterialUvStrategy, RenderDiff, RenderMaterialDescriptor, TextureDescriptor, TextureFilter,
-    TexturePayloadSource, TextureWrap, VoxelAtlasPaddingDescriptor, VoxelAtlasRegionDescriptor,
-    VoxelSurfaceAlphaModeDescriptor, VoxelSurfaceDescriptor, VoxelSurfaceMappingDescriptor,
+    MaterialAlphaModeDescriptor, MaterialUvStrategy, RenderDiff, RenderMaterialDescriptor,
+    TextureDescriptor, TextureFilter, TexturePayloadSource, TextureWrap,
+    VoxelAtlasPaddingDescriptor, VoxelAtlasRegionDescriptor, VoxelSurfaceAlphaModeDescriptor,
+    VoxelSurfaceDescriptor, VoxelSurfaceMappingDescriptor,
 };
 
 const TERRAIN_ATLAS_BYTES: &[u8] = include_bytes!("../content/textures/terrain-atlas.png");
@@ -107,6 +108,8 @@ fn terrain_material(
         emission_color: [0.0; 3],
         emission_intensity: 0.0,
         uv_strategy: MaterialUvStrategy::Atlas,
+        alpha_mode: MaterialAlphaModeDescriptor::Opaque,
+        double_sided: false,
         voxel_surface: Some(VoxelSurfaceDescriptor {
             schema_version: 1,
             filter: TextureFilter::Nearest,

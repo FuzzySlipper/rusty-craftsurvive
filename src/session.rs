@@ -29,6 +29,7 @@ pub enum SessionAction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpawnSelection {
     Route,
+    DepthSplatGarden,
     MovingPlatform,
     StreamingWest,
     FarPositive,
@@ -308,6 +309,11 @@ impl GameSession {
     ) -> Result<Self, String> {
         let player = match spawn {
             SpawnSelection::Route => PlayerController::default(),
+            SpawnSelection::DepthSplatGarden => PlayerController::new(PlayerPose {
+                position: [28.0, 7.0, 36.0],
+                yaw_degrees: 0.0,
+                pitch_degrees: -8.0,
+            })?,
             SpawnSelection::MovingPlatform => PlayerController::new(PlayerPose {
                 position: [0.0, 6.05, 9.0],
                 yaw_degrees: 180.0,

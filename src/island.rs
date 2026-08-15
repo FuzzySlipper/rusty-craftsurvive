@@ -67,6 +67,17 @@ pub(crate) fn material_at(config: IslandConfig, address: [i64; 3]) -> Option<u16
             3
         });
     }
+    // A broad ordinary terrain clearing gives the browser comparison garden
+    // enough physical room for approach, retreat, and camera-relative orbits.
+    if (16..=40).contains(&x) && (16..=40).contains(&z) && y >= -config.depth {
+        material = (y <= 3).then_some(if y == 3 {
+            1
+        } else if y >= 1 {
+            2
+        } else {
+            3
+        });
+    }
     if (-1..=1).contains(&x) && ((z == 5 && y == 3) || (z == 4 && y == 2)) {
         material = None;
     }
@@ -223,6 +234,15 @@ mod tests {
             assert!(!terrain.iter().any(|voxel| {
                 voxel.address[0] == 0 && voxel.address[2] == 7 && voxel.address[1] > 3
             }));
+        }
+    }
+
+    #[test]
+    fn comparison_garden_clearing_is_flat_and_open() {
+        let config = IslandConfig::default();
+        for [x, z] in [[16, 16], [28, 28], [40, 40]] {
+            assert_eq!(material_at(config, [x, 3, z]), Some(1));
+            assert_eq!(material_at(config, [x, 4, z]), None);
         }
     }
 }

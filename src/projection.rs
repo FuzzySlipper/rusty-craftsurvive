@@ -380,6 +380,7 @@ fn mesh_descriptor(
             positions: streams.positions,
             normals: streams.normals,
             uvs: Some(streams.uvs),
+            colors: None,
             indices: streams.indices,
         },
         provenance: MeshProvenance::VoxelChunk,
