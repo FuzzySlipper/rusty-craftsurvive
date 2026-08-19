@@ -46,8 +46,11 @@ The initial experiment is intentionally bounded:
 - the gold ghost plate remains one frozen capture sector over the original retained topology. It is
   deliberately nearest-sampled and sprite-like, but off-axis motion can expose topology-dependent
   folding, disconnected source regions, texture smear, or holes; it has no held animation,
-  compiled plate shell, regional depth policy, or sector blending yet. The visible gray 3D column
-  is an inspection copy rather than a second gameplay or capture authority.
+  compiled plate shell, regional depth policy, or sector blending yet. Only the selected subject's
+  gold plate is shown because simultaneous plates in the three depth rows visually occlude one
+  another from the spawn view; subject selection recreates the isolated plate and its exact source
+  view. The visible gray 3D column is an inspection copy rather than a second gameplay or capture
+  authority.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

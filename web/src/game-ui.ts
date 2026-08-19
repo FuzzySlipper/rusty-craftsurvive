@@ -17,7 +17,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     <output data-presentation-diagnostic></output>
     <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div data-garden-row><dt>lab selection</dt><dd data-garden-sector>loading</dd></div><div data-garden-row><dt>lab cost</dt><dd data-garden-load>loading</dd></div><div><dt>residency</dt><dd data-residency>—</dd></div><div><dt>seed</dt><dd data-seed>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>origin</dt><dd data-world-origin>—</dd></div><div><dt>collision</dt><dd data-collision-world>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>global position</dt><dd data-player-position>—</dd></div><div><dt>local position</dt><dd data-player-local-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>ground</dt><dd data-ground>—</dd></div><div><dt>contacts</dt><dd data-contacts>—</dd></div><div><dt>step</dt><dd data-step>—</dd></div><div><dt>platform</dt><dd data-platform>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
-    <p class="controls" data-garden-controls>Rows: spatial wizard · rigged wizard · knight. GRAY is frozen 3D, BLUE a plain capture, RED the 7035 control, and GOLD the ghost plate. U subject · I RED mode · O inspect representation · P recapture comparison · V lab panel.</p>
+    <p class="controls" data-garden-controls>Rows: spatial wizard · rigged wizard · knight. GRAY is frozen 3D, BLUE a plain capture, RED the 7035 control, and GOLD the selected subject's ghost plate. U subject · I RED mode · O inspect representation · P recapture comparison · V lab panel.</p>
     <form class="voxel-sprite-lab" data-garden-panel hidden>
       <strong>Matched runtime voxel-sprite lab</strong>
       <label>subject <select data-lab-subject><option value="spatial-wizard">spatial wizard</option><option value="rigged-wizard">rigged wizard</option><option value="knight">knight</option></select></label>
@@ -26,7 +26,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       <label>edit side <select data-lab-side><option value="baseline">BLUE runtime proxy</option><option value="enhanced" selected>RED runtime enhanced</option></select></label>
       <label>RED geometry <select data-lab-mode><option value="sprite">plain sprite</option><option value="depth-parallax">quantized depth</option><option value="sprite-splat" selected>sprite + splats</option><option value="full-splat">full replacement</option></select></label>
       <label>sector <input data-lab-sector type="range" min="0" max="15" step="1" value="0"><output data-lab-sector-value>dir-00</output></label>
-      <label><input data-lab-auto-sector type="checkbox" checked> follow capture sector while walking (off freezes source view)</label>
+      <label><input data-lab-auto-sector type="checkbox"> follow capture sector while walking (off freezes source view)</label>
       <label>capture elevation <input data-lab-elevation type="range" min="-30" max="60" step="1" value="18"><output data-lab-elevation-value>18°</output></label>
       <label>capture texture resolution <select data-lab-resolution><option>96</option><option selected>128</option><option>192</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
       <output data-lab-capture-cost>four RGBA8 outputs 0.6 MiB + temporary depth 0.1 MiB per capture</output>
@@ -58,11 +58,11 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
         <label>anchor depth <input data-lab-ghost-anchor type="range" min="0" max="1" step="0.01" value="0.5"><output data-lab-ghost-anchor-value>0.50</output></label>
         <label>mapping <select data-lab-ghost-mapping><option value="plate-locked">plate locked</option><option value="projective-surface">projective surface</option></select></label>
       </fieldset>
-      <div class="lab-actions"><button data-lab-freeze-view type="button">Capture + freeze current source view</button><button data-lab-recapture-selected type="button">Apply queued capture to selected side</button><button data-lab-recapture-pair type="button">Apply queued capture to comparison</button><button data-lab-match type="button">Copy selected lighting + recapture comparison</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
+      <div class="lab-actions"><button data-lab-reset-ghost type="button">Reset GOLD defaults + current view</button><button data-lab-freeze-view type="button">Capture + freeze current source view</button><button data-lab-recapture-selected type="button">Apply queued capture to selected side</button><button data-lab-recapture-pair type="button">Apply queued capture to comparison</button><button data-lab-match type="button">Copy selected lighting + recapture comparison</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
       <output data-lab-comparison>loading</output>
       <output data-lab-metrics>loading</output>
       <output data-lab-ghost>ghost plate loading</output>
-      <small>The GOLD plate uses a frozen retained pose, nearest-sampled low-resolution color/coverage, and the same capture sector and isolated lighting as RED. Capture settings and the RED splat grid remain queued until recapture. Turning sector follow off freezes the source view for circle-strafe judgment. The GRAY inspection copy is a distinct retained instance, so toggling it never reveals the hidden capture source or double-renders the ghost source hierarchy.</small>
+      <small>The GOLD plate uses a frozen retained pose, nearest-sampled low-resolution color/coverage, and the same capture sector and isolated lighting as RED. Only the selected subject's GOLD plate and marker are shown, preventing nearer depth rows from hiding the subject under inspection. GOLD configuration is absolute rather than cumulative; reset restores 0.15 retention, centered anchoring, plate-locked mapping, and the current exact source view. Capture settings and the RED splat grid remain queued until recapture. Turning sector follow off freezes the source view for circle-strafe judgment. The GRAY inspection copy is a distinct retained instance, so toggling it never reveals the hidden capture source or double-renders the ghost source hierarchy.</small>
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -257,7 +257,8 @@ function bindGardenPanel(
   };
   const click = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('[data-lab-freeze-view]') !== null) garden.freezeCurrentSourceView();
+    if (event.target.closest('[data-lab-reset-ghost]') !== null) garden.resetGhostDefaults();
+    else if (event.target.closest('[data-lab-freeze-view]') !== null) garden.freezeCurrentSourceView();
     else if (event.target.closest('[data-lab-recapture-selected]') !== null) garden.recaptureSelected();
     else if (event.target.closest('[data-lab-recapture-pair]') !== null) garden.recapturePair();
     else if (event.target.closest('[data-lab-match]') !== null) garden.matchLightingFromSelected();

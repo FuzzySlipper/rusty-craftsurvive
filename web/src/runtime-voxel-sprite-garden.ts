@@ -143,6 +143,10 @@ const PLINTH_HANDLE = 9_800_200;
 const LABEL_HANDLE = 9_800_300;
 const ROW_DISTANCES = [7, 10.5, 14] as const;
 const HIGH_COST_CAPTURE_RESOLUTION = 512;
+const DEFAULT_GHOST_DEPTH_RETENTION = 0.15;
+const DEFAULT_GHOST_ANCHOR_POLICY = 'bounds-center' as const;
+const DEFAULT_GHOST_ANCHOR_VALUE = 0.5;
+const DEFAULT_GHOST_PLATE_MAPPING = 'plate-locked' as const;
 
 export class RuntimeVoxelSpriteGarden {
   readonly #renderer: RustyApplicationRendererPort;
@@ -170,7 +174,7 @@ export class RuntimeVoxelSpriteGarden {
   #mode: RustyApplicationVoxelSpriteMode = 'sprite-splat';
   #sector = 0;
   #captureAzimuthDegrees = 0;
-  #autoSector = true;
+  #autoSector = false;
   #elevationDegrees = 18;
   #resolution = 128;
   #depthAmplitude = 0.35;
@@ -179,10 +183,10 @@ export class RuntimeVoxelSpriteGarden {
   #splatOverlap = 0.15;
   #splatOpacity = 1;
   #splatBlendMode: VoxelSpriteSplatBlendMode = 'depth-write';
-  #ghostDepthRetention = 0.15;
-  #ghostAnchorPolicy: 'bounds-center' | 'bounds-normalized' = 'bounds-center';
-  #ghostAnchorValue = 0.5;
-  #ghostPlateMapping: 'plate-locked' | 'projective-surface' = 'plate-locked';
+  #ghostDepthRetention = DEFAULT_GHOST_DEPTH_RETENTION;
+  #ghostAnchorPolicy: 'bounds-center' | 'bounds-normalized' = DEFAULT_GHOST_ANCHOR_POLICY;
+  #ghostAnchorValue = DEFAULT_GHOST_ANCHOR_VALUE;
+  #ghostPlateMapping: 'plate-locked' | 'projective-surface' = DEFAULT_GHOST_PLATE_MAPPING;
   #ghostAngularBucket: number | null | undefined;
   #alignmentTimer: number | null = null;
   #status: RuntimeVoxelSpriteGardenReadout['status'] = 'loading';
@@ -223,8 +227,11 @@ export class RuntimeVoxelSpriteGarden {
       for (const side of SIDES) {
         this.#apply(this.#experiment.create(this.#definition(subject, side)), `create ${subject} ${side}`);
       }
-      this.#apply(this.#experiment.create(this.#definition(subject, 'ghost')), `create ${subject} ghost`);
     }
+    this.#apply(
+      this.#experiment.create(this.#definition(this.#selectedSubject, 'ghost')),
+      `create ${this.#selectedSubject} ghost`,
+    );
     this.#status = 'ready';
     this.#scheduleSourceViewAlignment();
     void this.#publishLabels();
@@ -234,7 +241,7 @@ export class RuntimeVoxelSpriteGarden {
   observe(camera: CameraPose): void {
     if (this.#status !== 'ready') return;
     this.#lastCamera = camera;
-    if (this.#autoSector) {
+    if (this.#autoSector && this.#alignmentTimer === null) {
       const sector = nearestSector(camera.position, this.#gardenCenter);
       if (sector !== this.#sector) this.setSector(sector, true);
     }
@@ -249,8 +256,7 @@ export class RuntimeVoxelSpriteGarden {
   key(event: KeyboardEvent, down: boolean): boolean {
     if (!down || event.repeat || this.#status !== 'ready') return false;
     if (event.code === 'KeyU') {
-      this.#selectedSubject = SUBJECTS[(SUBJECTS.indexOf(this.#selectedSubject) + 1) % SUBJECTS.length]!;
-      this.#emit();
+      this.setSubject(SUBJECTS[(SUBJECTS.indexOf(this.#selectedSubject) + 1) % SUBJECTS.length]!);
       return true;
     }
     if (event.code === 'KeyI') {
@@ -275,15 +281,34 @@ export class RuntimeVoxelSpriteGarden {
   }
 
   setSubject(subject: VoxelSpriteSubject): void {
+    if (!SUBJECTS.includes(subject) || subject === this.#selectedSubject) {
+      this.#emit();
+      return;
+    }
+    const previousSubject = this.#selectedSubject;
     this.#selectedSubject = subject;
     const ghost = this.#positions.get(subject)?.ghost;
     if (ghost !== undefined) this.#gardenCenter = [ghost[0], ghost[2]];
-    if (this.#autoSector && this.#lastCamera !== null) {
-      this.#matchCaptureToView(this.#lastCamera);
-      this.#recaptureAll('subject source view');
-      return;
+    if (this.#lastCamera !== null) this.#matchCaptureToView(this.#lastCamera);
+    if (this.#experiment !== null) {
+      const created = this.#experiment.create(this.#definition(subject, 'ghost'));
+      if (!created.applied) {
+        this.#selectedSubject = previousSubject;
+        const previousGhost = this.#positions.get(previousSubject)?.ghost;
+        if (previousGhost !== undefined) this.#gardenCenter = [previousGhost[0], previousGhost[2]];
+        this.#diagnostic(
+          `select ${subject} ghost rejected: ${created.diagnostics.map(({ message }) => message).join('; ')}`,
+        );
+        this.#emit();
+        return;
+      }
+      this.#apply(this.#experiment.destroy(this.#id(previousSubject, 'ghost')), `hide ${previousSubject} ghost`);
+      for (const side of SIDES) this.#recapture(subject, side, 'subject comparison');
+      void this.#publishSelectedGhostMarkers();
+      this.#renderer.renderOnce();
     }
     this.#emit();
+    this.#scheduleSourceViewAlignment();
   }
   setSide(side: VoxelSpriteSide): void { this.#selectedSide = side; this.#emit(); }
   setRepresentation(representation: VoxelSpriteRepresentation): void {
@@ -442,6 +467,20 @@ export class RuntimeVoxelSpriteGarden {
     this.#configureGhost({ ghostPlateMapping: value });
   }
 
+  resetGhostDefaults(): void {
+    this.#ghostDepthRetention = DEFAULT_GHOST_DEPTH_RETENTION;
+    this.#ghostAnchorPolicy = DEFAULT_GHOST_ANCHOR_POLICY;
+    this.#ghostAnchorValue = DEFAULT_GHOST_ANCHOR_VALUE;
+    this.#ghostPlateMapping = DEFAULT_GHOST_PLATE_MAPPING;
+    this.#configureGhost({
+      ghostDepthRetention: this.#ghostDepthRetention,
+      ghostAnchorPolicy: this.#ghostAnchorPolicy,
+      ghostAnchorValue: this.#ghostAnchorValue,
+      ghostPlateMapping: this.#ghostPlateMapping,
+    });
+    this.freezeCurrentSourceView();
+  }
+
   freezeCurrentSourceView(): void {
     if (this.#lastCamera === null) return;
     this.#autoSector = false;
@@ -516,21 +555,18 @@ export class RuntimeVoxelSpriteGarden {
 
   #configureGhost(patch: Partial<RustyApplicationVoxelSpriteConfig>): void {
     if (this.#experiment === null) return;
-    for (const subject of SUBJECTS) {
-      this.#apply(this.#experiment.configure(this.#id(subject, 'ghost'), patch), `configure ${subject} ghost`);
-    }
+    this.#apply(
+      this.#experiment.configure(this.#id(this.#selectedSubject, 'ghost'), patch),
+      `configure ${this.#selectedSubject} ghost`,
+    );
     this.#renderer.renderOnce();
     this.#emit();
   }
 
   #recaptureAll(operation: string): void {
     if (this.#experiment === null) return;
-    for (const subject of SUBJECTS) {
-      for (const side of SIDES) {
-        this.#recapture(subject, side, operation);
-      }
-      this.#recapture(subject, 'ghost', operation);
-    }
+    for (const side of SIDES) this.#recapture(this.#selectedSubject, side, operation);
+    this.#recapture(this.#selectedSubject, 'ghost', operation);
     this.#renderer.renderOnce();
     this.#emit();
   }
@@ -669,7 +705,7 @@ export class RuntimeVoxelSpriteGarden {
       camera.position[1] - position[1],
       Math.hypot(dx, dz),
     ) * 180 / Math.PI;
-    this.#sector = Math.round(this.#captureAzimuthDegrees / 22.5) % 16;
+    this.#sector = nearestSector(camera.position, this.#gardenCenter);
   }
 
   #alignCaptureToRenderedSourceView(camera: CameraPose): boolean {
@@ -683,11 +719,11 @@ export class RuntimeVoxelSpriteGarden {
     if (Math.abs(azimuthCorrection) <= 0.05 && Math.abs(elevationCorrection) <= 0.05) return false;
     this.#captureAzimuthDegrees = normalizeDegrees(this.#captureAzimuthDegrees + azimuthCorrection);
     this.#elevationDegrees = bounded(this.#elevationDegrees + elevationCorrection, -45, 75);
-    this.#sector = Math.round(this.#captureAzimuthDegrees / 22.5) % 16;
+    this.#sector = nearestSector(camera.position, this.#gardenCenter);
     return true;
   }
 
-  #scheduleSourceViewAlignment(remainingPasses = 4): void {
+  #scheduleSourceViewAlignment(remainingPasses = 30): void {
     if (this.#alignmentTimer !== null) clearTimeout(this.#alignmentTimer);
     this.#alignmentTimer = window.setTimeout(() => {
       this.#alignmentTimer = null;
@@ -742,6 +778,7 @@ export class RuntimeVoxelSpriteGarden {
               : representation === 'baseline' ? [0.1, 0.5, 1, 1]
                 : representation === 'enhanced' ? [0.9, 0.06, 0.08, 1]
                   : [0.82, 0.6, 0.08, 1],
+            representation !== 'ghost' || model.subject === this.#selectedSubject,
           ),
         });
       }
@@ -775,7 +812,7 @@ export class RuntimeVoxelSpriteGarden {
                   : [0.45, 0.3, 0.02, 0.92] as const,
             maxDistance: 45,
             layer: 'alwaysOnTop' as const,
-            visible: true,
+            visible: representation !== 'ghost' || subject === this.#selectedSubject,
           },
         },
       }));
@@ -783,6 +820,51 @@ export class RuntimeVoxelSpriteGarden {
     const receipt = await this.#renderer.applyPresentation({ schemaVersion: 1, ops });
     for (const diagnostic of receipt.diagnostics) {
       this.#diagnostic(`voxel-sprite label ${diagnostic.code}: ${diagnostic.message}`);
+    }
+  }
+
+  async #publishSelectedGhostMarkers(): Promise<void> {
+    const ghostColumn = REPRESENTATIONS.indexOf('ghost');
+    const frameReceipt = this.#renderer.applyFrame({
+      schemaVersion: 1,
+      ops: SUBJECTS.map((subject, index) => ({
+        op: 'update' as const,
+        handle: PLINTH_HANDLE + index * REPRESENTATIONS.length + ghostColumn,
+        transform: null,
+        material: null,
+        visible: subject === this.#selectedSubject,
+        metadata: null,
+      })),
+    });
+    if (!frameReceipt.applied) {
+      this.#diagnostic(
+        `GOLD plinth focus rejected: ${frameReceipt.diagnostics.map(({ message }) => message).join('; ')}`,
+      );
+    }
+    const presentationReceipt = await this.#renderer.applyPresentation({
+      schemaVersion: 1,
+      ops: SUBJECTS.map((subject, index) => ({
+        domain: 'billboard' as const,
+        meta: { sequence: index },
+        op: {
+          op: 'update' as const,
+          handle: LABEL_HANDLE + index * REPRESENTATIONS.length + ghostColumn,
+          patch: {
+            anchor: null,
+            content: null,
+            font: null,
+            heightPixels: null,
+            color: null,
+            background: null,
+            maxDistance: null,
+            layer: null,
+            visible: subject === this.#selectedSubject,
+          },
+        },
+      })),
+    });
+    for (const diagnostic of presentationReceipt.diagnostics) {
+      this.#diagnostic(`GOLD label focus ${diagnostic.code}: ${diagnostic.message}`);
     }
   }
 
@@ -983,12 +1065,17 @@ function metadata(label: string, entity: number) {
   return { sourceEntity: entity, sourceSceneNode: null, tags: ['runtime-voxel-sprite'], label };
 }
 
-function primitiveNode(label: string, position: readonly number[], color: readonly number[]) {
+function primitiveNode(
+  label: string,
+  position: readonly number[],
+  color: readonly number[],
+  visible = true,
+) {
   return {
     geometry: { kind: 'cube' },
     material: { color, wireframe: false },
     transform: { translation: position, rotation: [0, 0, 0, 1], scale: [1.15, 0.1, 1.05] },
-    visible: true,
+    visible,
     layer: 'scene',
     metadata: { sourceEntity: null, sourceSceneNode: null, tags: ['runtime-voxel-sprite', 'plinth'], label },
   };

@@ -6,6 +6,7 @@ const baseUrl = process.env.CRAFTSURVIVE_URL ?? process.env.BASE_URL ?? 'http://
 const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7087');
 const screenshotPath = resolve(evidenceDirectory, 'runtime-only-default.png');
 const controlsScreenshotPath = resolve(evidenceDirectory, 'runtime-only-controls.png');
+const riggedScreenshotPath = resolve(evidenceDirectory, 'runtime-only-rigged-gold.png');
 const url = new URL(baseUrl);
 url.searchParams.set('course', 'garden');
 const browser = await chromium.launch({
@@ -25,11 +26,16 @@ try {
     return text.includes('capture') && !text.includes('loading') && !text.includes('capture n/a');
   }, undefined, { timeout: 60_000 });
   await page.waitForFunction(() =>
-    document.querySelector('[data-lab-ghost]')?.textContent?.includes('source view exact'),
+    document.querySelector('[data-lab-ghost]')?.textContent?.includes('pose MATCHED'),
   undefined, { timeout: 60_000 });
 
   const canvas = page.locator('canvas[data-rusty-application-renderer="engine-owned"]');
   if (await canvas.count() !== 1) throw new Error('Engine-owned lab canvas was not mounted exactly once');
+  const captureCanvas = async (path) => {
+    const clip = await canvas.boundingBox();
+    if (clip === null) throw new Error('Engine-owned lab canvas has no visible screenshot bounds');
+    await page.screenshot({ path, clip });
+  };
   const initialSelection = await page.locator('[data-garden-sector]').textContent();
   const initialLoad = await page.locator('[data-garden-load]').textContent();
   if (!initialSelection?.includes('spatial-wizard · inspect GOLD ghost · RED sprite-splat · GOLD 0.15 plate-locked')) {
@@ -39,11 +45,14 @@ try {
     throw new Error(`missing runtime capture resolution/cost readout: ${initialSelection} / ${initialLoad}`);
   }
   mkdirSync(evidenceDirectory, { recursive: true });
-  await canvas.screenshot({ path: screenshotPath });
 
   await page.keyboard.press('KeyV');
   const panel = page.locator('[data-garden-panel]');
   await panel.waitFor({ state: 'visible' });
+  await clickControl(panel, '[data-lab-freeze-view]');
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-ghost]')?.textContent?.includes('source view exact'),
+  undefined, { timeout: 60_000 });
   const initialComparison = await panel.locator('[data-lab-comparison]').textContent();
   const initialMetrics = await panel.locator('[data-lab-metrics]').textContent();
   const initialGhost = await panel.locator('[data-lab-ghost]').textContent();
@@ -58,13 +67,18 @@ try {
     || !initialGhost.includes('whole-hierarchy-relief')) {
     throw new Error(`ghost-plate readout is incomplete: ${initialGhost}`);
   }
-  await panel.locator('[data-lab-ghost-retention]').selectOption('0.30');
-  await panel.locator('[data-lab-ghost-anchor-policy]').selectOption('bounds-normalized');
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'hidden' });
+  await captureCanvas(screenshotPath);
+  await page.keyboard.press('KeyV');
+  await panel.waitFor({ state: 'visible' });
+  await selectControl(panel, '[data-lab-ghost-retention]', '0.30');
+  await selectControl(panel, '[data-lab-ghost-anchor-policy]', 'bounds-normalized');
   await panel.locator('[data-lab-ghost-anchor]').evaluate((element) => {
     element.value = '0.2';
     element.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await panel.locator('[data-lab-ghost-mapping]').selectOption('projective-surface');
+  await selectControl(panel, '[data-lab-ghost-mapping]', 'projective-surface');
   await page.waitForFunction(() => {
     const selection = document.querySelector('[data-garden-sector]')?.textContent ?? '';
     const anchor = document.querySelector('[data-lab-ghost-anchor-value]')?.textContent ?? '';
@@ -72,7 +86,7 @@ try {
   });
   const captureOptions = await panel.locator('[data-lab-resolution] option').allTextContents();
   if (!captureOptions.includes('4096')) throw new Error(`4K capture option is unavailable: ${captureOptions.join(', ')}`);
-  await panel.locator('[data-lab-resolution]').selectOption('4096');
+  await selectControl(panel, '[data-lab-resolution]', '4096');
   const fourKCost = await panel.locator('[data-lab-capture-cost]').textContent();
   if (!fourKCost?.includes('256.0 MiB') || !fourKCost.includes('64.0 MiB')) {
     throw new Error(`4K capture memory warning is incomplete: ${fourKCost}`);
@@ -90,24 +104,38 @@ try {
   }
   await page.waitForFunction(() =>
     document.querySelector('[data-lab-comparison]')?.textContent?.includes('CAPTURE QUEUED'));
-  await panel.locator('[data-lab-resolution]').selectOption('512');
+  await selectControl(panel, '[data-lab-resolution]', '512');
 
-  await panel.locator('[data-lab-subject]').selectOption('rigged-wizard');
+  await panel.locator('[data-lab-subject]').evaluate((element) => {
+    element.value = 'rigged-wizard';
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForFunction(() => {
+    const selection = document.querySelector('[data-garden-sector]')?.textContent ?? '';
+    const ghost = document.querySelector('[data-lab-ghost]')?.textContent ?? '';
+    return selection.startsWith('rigged-wizard') && ghost.includes('source view exact')
+      && ghost.includes('1 draws / 1 meshes');
+  }, undefined, { timeout: 60_000 });
+  await page.keyboard.press('Escape');
+  await panel.waitFor({ state: 'hidden' });
+  await captureCanvas(riggedScreenshotPath);
+  await page.keyboard.press('KeyV');
+  await panel.waitFor({ state: 'visible' });
   for (const mode of ['sprite', 'depth-parallax', 'sprite-splat', 'full-splat']) {
-    await panel.locator('[data-lab-mode]').selectOption(mode);
+    await selectControl(panel, '[data-lab-mode]', mode);
     await page.waitForFunction((selectedMode) =>
       document.querySelector('[data-garden-sector]')?.textContent?.includes(`RED ${selectedMode}`), mode);
   }
-  await panel.locator('[data-lab-mode]').selectOption('sprite-splat');
-  await panel.locator('[data-lab-splat-resolution]').selectOption('96');
-  await panel.locator('[data-lab-splat-blend]').selectOption('alpha-blend');
+  await selectControl(panel, '[data-lab-mode]', 'sprite-splat');
+  await selectControl(panel, '[data-lab-splat-resolution]', '96');
+  await selectControl(panel, '[data-lab-splat-blend]', 'alpha-blend');
   await panel.locator('[data-lab-splat-opacity]').evaluate((element) => {
     element.value = '0.45';
     element.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await page.waitForFunction(() =>
     document.querySelector('[data-lab-comparison]')?.textContent?.includes('SPLAT GRID QUEUED'));
-  await panel.locator('[data-lab-recapture-selected]').click();
+  await clickControl(panel, '[data-lab-recapture-selected]');
   await page.waitForFunction(() => {
     const text = document.querySelector('[data-lab-metrics]')?.textContent ?? '';
     return text.includes('capture texture 512²')
@@ -122,8 +150,8 @@ try {
     || !independentGeometryControls.includes('depth 12 levels')) {
     throw new Error(`splat density and depth quantization are not independent: ${independentGeometryControls}`);
   }
-  await panel.locator('[data-lab-resolution]').selectOption('128');
-  await panel.locator('[data-lab-recapture-pair]').click();
+  await selectControl(panel, '[data-lab-resolution]', '128');
+  await clickControl(panel, '[data-lab-recapture-pair]');
   await page.waitForFunction(() =>
     document.querySelector('[data-lab-metrics]')?.textContent?.includes('capture texture 128²'));
 
@@ -143,7 +171,7 @@ try {
     throw new Error('RED post-capture output gain did not visibly affect the selected side');
   }
 
-  await panel.locator('[data-lab-side]').selectOption('baseline');
+  await selectControl(panel, '[data-lab-side]', 'baseline');
   const blueGain = await panel.locator('[data-lab-output-gain-value]').textContent();
   if (redGain !== '1.60' || blueGain !== '1.10') {
     throw new Error(`post lighting leaked across sides: red=${redGain} blue=${blueGain}`);
@@ -156,25 +184,37 @@ try {
   await page.waitForFunction(() =>
     document.querySelector('[data-lab-comparison]')?.textContent?.includes('capture DIFFERENT'));
   const blueCaptureKey = await panel.locator('[data-lab-capture-key-value]').textContent();
-  await panel.locator('[data-lab-side]').selectOption('enhanced');
+  await selectControl(panel, '[data-lab-side]', 'enhanced');
   const redCaptureKey = await panel.locator('[data-lab-capture-key-value]').textContent();
   if (blueCaptureKey !== '3.2' || redCaptureKey !== '3.0') {
     throw new Error(`capture lighting leaked across sides: blue=${blueCaptureKey} red=${redCaptureKey}`);
   }
-  await panel.locator('[data-lab-side]').selectOption('baseline');
-  await panel.locator('[data-lab-recapture-selected]').click();
+  await selectControl(panel, '[data-lab-side]', 'baseline');
+  await clickControl(panel, '[data-lab-recapture-selected]');
   await page.waitForFunction(() => !(document.querySelector('[data-garden-load]')?.textContent ?? '').includes('capture n/a'));
 
-  await panel.locator('[data-lab-match]').click();
+  await clickControl(panel, '[data-lab-match]');
   await page.waitForFunction(() => {
     const text = document.querySelector('[data-lab-comparison]')?.textContent ?? '';
     return text.includes('capture MATCHED') && text.includes('all lighting MATCHED');
   });
-  await panel.locator('[data-lab-recapture-pair]').click();
-  await panel.locator('[data-lab-fallback]').click();
+  await clickControl(panel, '[data-lab-recapture-pair]');
+  await clickControl(panel, '[data-lab-fallback]');
   await page.locator('[data-presentation-diagnostic]').filter({ hasText: 'fallback probe passed' }).waitFor();
 
   await page.screenshot({ path: controlsScreenshotPath, fullPage: true });
+  await clickControl(panel, '[data-lab-reset-ghost]');
+  await page.waitForFunction(() => {
+    const selection = document.querySelector('[data-garden-sector]')?.textContent ?? '';
+    const retention = document.querySelector('[data-lab-ghost-retention]')?.value;
+    const anchorPolicy = document.querySelector('[data-lab-ghost-anchor-policy]')?.value;
+    const anchor = document.querySelector('[data-lab-ghost-anchor]')?.value;
+    const mapping = document.querySelector('[data-lab-ghost-mapping]')?.value;
+    const ghost = document.querySelector('[data-lab-ghost]')?.textContent ?? '';
+    return selection.includes('GOLD 0.15 plate-locked')
+      && retention === '0.15' && anchorPolicy === 'bounds-center' && anchor === '0.5'
+      && mapping === 'plate-locked' && ghost.includes('source view exact');
+  }, undefined, { timeout: 60_000 });
 
   await page.keyboard.press('KeyV');
   await panel.waitFor({ state: 'hidden' });
@@ -208,6 +248,8 @@ try {
     matchedRecapture: true,
     screenshotPath,
     controlsScreenshotPath,
+    riggedScreenshotPath,
+    ghostResetRoundTrip: true,
     firstPersonMovementAfterPanel: true,
   }));
 } finally {
@@ -234,4 +276,15 @@ async function canvasChecksum(canvas) {
     }
     return checksum;
   });
+}
+
+async function clickControl(panel, selector) {
+  await panel.locator(selector).evaluate((element) => element.click());
+}
+
+async function selectControl(panel, selector, value) {
+  await panel.locator(selector).evaluate((element, selectedValue) => {
+    element.value = selectedValue;
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
 }

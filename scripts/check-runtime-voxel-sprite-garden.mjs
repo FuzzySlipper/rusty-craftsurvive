@@ -73,6 +73,7 @@ for (const required of [
   'data-lab-ghost-mapping',
   'data-lab-canonical-visible',
   'data-lab-freeze-view',
+  'data-lab-reset-ghost',
 ]) {
   if (!ui.includes(required)) fail(`active lab is missing ${required}`);
 }
@@ -86,6 +87,8 @@ for (const required of [
   'ghostAnchorValue',
   'ghostPlateMapping',
   'ghostSourceViewAgreement',
+  'publishSelectedGhostMarkers',
+  'resetGhostDefaults',
 ]) {
   if (!implementation.includes(required)) fail(`ghost-plate comparison is missing ${required}`);
 }

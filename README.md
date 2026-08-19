@@ -56,8 +56,10 @@ rotates with the camera while remaining fixed under player translation, and it i
 only: the panorama does not contribute lighting, reflections, collision, or gameplay authority.
 
 `?course=garden` starts in a broad flat terrain clearing facing the runtime voxel-sprite lab. Each
-subject has four comparison columns: a gray frozen retained-3D inspection copy, blue plain capture,
-red task-7035 proxy control, and gold ghost plate. The three derived representations use the same
+subject has gray frozen retained-3D, blue plain-capture, and red task-7035 control columns. Gold
+shows the selected subject's ghost plate and marker only, so a nearer depth row cannot hide the
+subject being inspected; changing subject rebuilds that isolated GOLD presentation from its
+retained source rather than layering another deformation over it. The three derived representations use the same
 retained GLB, frozen pose, direction, elevation, low-resolution nearest-sampled capture, framing,
 and controlled lighting; the active comparison loads no prepared frames or baked comparison
 textures. The visible gray copy is a distinct retained instance, so hiding it never exposes or
@@ -66,14 +68,18 @@ independently adjustable per blue/red side, with a copy-and-recapture action for
 The red side switches between plain sprite, quantized-depth parallax, sprite-plus-splats, and full
 splat replacement. Gold keeps the retained appearance shell while compressing its capture-view
 depth, with presets from 0.02 through 1.0, configurable anchor depth, and plate-locked or projective
-texture mapping. Capture texture resolution, RED instanced-splat
+texture mapping. `Reset GOLD defaults + current view` restores 0.15 retention, centered anchoring,
+plate-locked mapping, and a freshly aligned frozen source view, providing a deterministic return
+point after experimentation. Capture texture resolution, RED instanced-splat
 grid density, and depth quantization levels are independent controls: changing depth levels does
 not add splats. Splat opacity can use depth-writing alpha, transparent alpha blending, or additive
 blending. Resolution, elevation, lighting, and splat-grid choices remain queued until an explicit
 selected-side or pair recapture. Auto-sector recapture remains convenient below 512px, while at
 512px and above direction changes also queue rather than silently recapturing. Options extend to 4K
 as a deliberate stress probe, with the panel showing retained-output and temporary depth memory
-before capture. Disabling sector follow freezes the source view for a controlled circle strafe.
+before capture. Sector follow starts disabled so configuration changes retain a stable source view;
+enabling it opts into walking-sector recapture, while disabling it again freezes the current view
+for a controlled circle strafe.
 `U`, `I`, `O`, and `P` cycle subject, RED enhancement, inspected representation, and comparison
 recapture; `V` opens or closes the complete control panel, and Escape also closes it. The HUD separates one-time
 capture CPU submission from steady-state submission and reports texture bytes, draws, samples, and
