@@ -43,6 +43,11 @@ The initial experiment is intentionally bounded:
   albedo/material channels. Capture direction, elevation, lighting, resolution, and RED splat-grid
   changes stay queued until an explicit selected-side or pair recapture rather than continuously
   rebaking; automatic walking-sector recapture pauses at 512px and above.
+- the gold ghost plate remains one frozen capture sector over the original retained topology. It is
+  deliberately nearest-sampled and sprite-like, but off-axis motion can expose topology-dependent
+  folding, disconnected source regions, texture smear, or holes; it has no held animation,
+  compiled plate shell, regional depth policy, or sector blending yet. The visible gray 3D column
+  is an inspection copy rather than a second gameplay or capture authority.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

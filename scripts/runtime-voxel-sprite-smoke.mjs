@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const baseUrl = process.env.CRAFTSURVIVE_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:4419';
-const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7021');
+const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7087');
 const screenshotPath = resolve(evidenceDirectory, 'runtime-only-default.png');
 const controlsScreenshotPath = resolve(evidenceDirectory, 'runtime-only-controls.png');
 const url = new URL(baseUrl);
@@ -24,15 +24,18 @@ try {
     const text = document.querySelector('[data-garden-load]')?.textContent ?? '';
     return text.includes('capture') && !text.includes('loading') && !text.includes('capture n/a');
   }, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-ghost]')?.textContent?.includes('source view exact'),
+  undefined, { timeout: 60_000 });
 
   const canvas = page.locator('canvas[data-rusty-application-renderer="engine-owned"]');
   if (await canvas.count() !== 1) throw new Error('Engine-owned lab canvas was not mounted exactly once');
   const initialSelection = await page.locator('[data-garden-sector]').textContent();
   const initialLoad = await page.locator('[data-garden-load]').textContent();
-  if (!initialSelection?.includes('spatial-wizard · retained/runtime · RED sprite-splat')) {
+  if (!initialSelection?.includes('spatial-wizard · inspect GOLD ghost · RED sprite-splat · GOLD 0.15 plate-locked')) {
     throw new Error(`unexpected initial lab selection: ${initialSelection}`);
   }
-  if (!initialSelection.includes('192px') || !initialLoad?.includes('draws') || !initialLoad.includes('samples')) {
+  if (!initialSelection.includes('128px') || !initialLoad?.includes('draws') || !initialLoad.includes('samples')) {
     throw new Error(`missing runtime capture resolution/cost readout: ${initialSelection} / ${initialLoad}`);
   }
   mkdirSync(evidenceDirectory, { recursive: true });
@@ -43,12 +46,30 @@ try {
   await panel.waitFor({ state: 'visible' });
   const initialComparison = await panel.locator('[data-lab-comparison]').textContent();
   const initialMetrics = await panel.locator('[data-lab-metrics]').textContent();
+  const initialGhost = await panel.locator('[data-lab-ghost]').textContent();
   if (!initialComparison?.includes('capture MATCHED') || !initialComparison.includes('all lighting MATCHED')) {
     throw new Error(`default pair is not controlled: ${initialComparison}`);
   }
   if (!initialMetrics?.includes('3 GLBs') || initialMetrics.includes('files')) {
     throw new Error(`active lab admitted more than the three runtime GLBs: ${initialMetrics}`);
   }
+  if (!initialGhost?.includes('pose MATCHED') || !initialGhost.includes('fallback none')
+    || initialGhost.includes('source view unavailable')
+    || !initialGhost.includes('whole-hierarchy-relief')) {
+    throw new Error(`ghost-plate readout is incomplete: ${initialGhost}`);
+  }
+  await panel.locator('[data-lab-ghost-retention]').selectOption('0.30');
+  await panel.locator('[data-lab-ghost-anchor-policy]').selectOption('bounds-normalized');
+  await panel.locator('[data-lab-ghost-anchor]').evaluate((element) => {
+    element.value = '0.2';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await panel.locator('[data-lab-ghost-mapping]').selectOption('projective-surface');
+  await page.waitForFunction(() => {
+    const selection = document.querySelector('[data-garden-sector]')?.textContent ?? '';
+    const anchor = document.querySelector('[data-lab-ghost-anchor-value]')?.textContent ?? '';
+    return selection.includes('GOLD 0.30 projective-surface') && anchor.startsWith('0.20 →');
+  });
   const captureOptions = await panel.locator('[data-lab-resolution] option').allTextContents();
   if (!captureOptions.includes('4096')) throw new Error(`4K capture option is unavailable: ${captureOptions.join(', ')}`);
   await panel.locator('[data-lab-resolution]').selectOption('4096');
@@ -64,7 +85,7 @@ try {
     .filter({ hasText: 'queued at 4096px' })
     .waitFor();
   const queuedFourKSelection = await page.locator('[data-garden-sector]').textContent();
-  if (!queuedFourKSelection?.includes('capture 192px → 4096px queued')) {
+  if (!queuedFourKSelection?.includes('capture 128px → 4096px queued')) {
     throw new Error(`high-cost sector change recaptured implicitly: ${queuedFourKSelection}`);
   }
   await page.waitForFunction(() =>
@@ -101,10 +122,10 @@ try {
     || !independentGeometryControls.includes('depth 12 levels')) {
     throw new Error(`splat density and depth quantization are not independent: ${independentGeometryControls}`);
   }
-  await panel.locator('[data-lab-resolution]').selectOption('192');
+  await panel.locator('[data-lab-resolution]').selectOption('128');
   await panel.locator('[data-lab-recapture-pair]').click();
   await page.waitForFunction(() =>
-    document.querySelector('[data-lab-metrics]')?.textContent?.includes('capture texture 192²'));
+    document.querySelector('[data-lab-metrics]')?.textContent?.includes('capture texture 128²'));
 
   const beforeLightingPixels = await canvasChecksum(canvas);
   await panel.locator('[data-lab-output-gain]').evaluate((element) => {
@@ -155,7 +176,11 @@ try {
 
   await page.screenshot({ path: controlsScreenshotPath, fullPage: true });
 
-  await panel.locator('[data-lab-resume]').click();
+  await page.keyboard.press('KeyV');
+  await panel.waitFor({ state: 'hidden' });
+  await page.keyboard.press('KeyV');
+  await panel.waitFor({ state: 'visible' });
+  await page.keyboard.press('Escape');
   await panel.waitFor({ state: 'hidden' });
   await page.mouse.click(720, 450);
   await page.waitForFunction(() => document.pointerLockElement !== null);
@@ -173,6 +198,8 @@ try {
     initialLoad,
     initialComparison,
     initialMetrics,
+    initialGhost,
+    ghostControls: { depthRetention: 0.3, anchorPolicy: 'bounds-normalized', anchorValue: 0.2, mapping: 'projective-surface' },
     independentPostLighting: { redGain, blueGain },
     independentCaptureLighting: { blueCaptureKey, redCaptureKey },
     independentGeometryControls,

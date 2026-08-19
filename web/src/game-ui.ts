@@ -3,6 +3,7 @@ import {
   RuntimeVoxelSpriteGarden,
   type VoxelSpriteCaptureLightingMode,
   type VoxelSpritePostLightingMode,
+  type VoxelSpriteRepresentation,
   type VoxelSpriteSide,
   type VoxelSpriteSplatBlendMode,
   type VoxelSpriteSubject,
@@ -16,16 +17,18 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     <output data-presentation-diagnostic></output>
     <dl><div><dt>surface</dt><dd data-surface>—</dd></div><div><dt>terrain</dt><dd data-terrain>—</dd></div><div data-garden-row><dt>lab selection</dt><dd data-garden-sector>loading</dd></div><div data-garden-row><dt>lab cost</dt><dd data-garden-load>loading</dd></div><div><dt>residency</dt><dd data-residency>—</dd></div><div><dt>seed</dt><dd data-seed>—</dd></div><div><dt>brush</dt><dd data-brush>—</dd></div><div><dt>mesh</dt><dd data-mesh>—</dd></div><div><dt>startup</dt><dd data-startup>—</dd></div><div><dt>input</dt><dd data-accepted-sequence>—</dd></div><div><dt>player</dt><dd data-player-revision>—</dd></div><div><dt>world</dt><dd data-world-revision>—</dd></div><div><dt>origin</dt><dd data-world-origin>—</dd></div><div><dt>collision</dt><dd data-collision-world>—</dd></div><div><dt>voxels</dt><dd data-voxels>—</dd></div><div><dt>global position</dt><dd data-player-position>—</dd></div><div><dt>local position</dt><dd data-player-local-position>—</dd></div><div><dt>view</dt><dd data-player-view>—</dd></div><div><dt>motion</dt><dd data-motion>—</dd></div><div><dt>velocity</dt><dd data-player-velocity>—</dd></div><div><dt>ground</dt><dd data-ground>—</dd></div><div><dt>contacts</dt><dd data-contacts>—</dd></div><div><dt>step</dt><dd data-step>—</dd></div><div><dt>platform</dt><dd data-platform>—</dd></div><div><dt>target</dt><dd data-target>—</dd></div></dl>
     <p data-edit>Click the world to capture the mouse.</p>
-    <p class="controls" data-garden-controls>Rows: spatial wizard · rigged wizard · knight. BLUE is a runtime-captured plain proxy; RED is the same runtime capture with the selected enhancement. U subject · I enhancement · O side · P recapture pair · V lab panel.</p>
+    <p class="controls" data-garden-controls>Rows: spatial wizard · rigged wizard · knight. GRAY is frozen 3D, BLUE a plain capture, RED the 7035 control, and GOLD the ghost plate. U subject · I RED mode · O inspect representation · P recapture comparison · V lab panel.</p>
     <form class="voxel-sprite-lab" data-garden-panel hidden>
       <strong>Matched runtime voxel-sprite lab</strong>
       <label>subject <select data-lab-subject><option value="spatial-wizard">spatial wizard</option><option value="rigged-wizard">rigged wizard</option><option value="knight">knight</option></select></label>
+      <label>inspect representation <select data-lab-representation><option value="canonical">GRAY frozen 3D</option><option value="baseline">BLUE plain capture</option><option value="enhanced">RED 7035 control</option><option value="ghost" selected>GOLD ghost plate</option></select></label>
+      <label><input data-lab-canonical-visible type="checkbox" checked> show frozen 3D inspection copies</label>
       <label>edit side <select data-lab-side><option value="baseline">BLUE runtime proxy</option><option value="enhanced" selected>RED runtime enhanced</option></select></label>
       <label>RED geometry <select data-lab-mode><option value="sprite">plain sprite</option><option value="depth-parallax">quantized depth</option><option value="sprite-splat" selected>sprite + splats</option><option value="full-splat">full replacement</option></select></label>
       <label>sector <input data-lab-sector type="range" min="0" max="15" step="1" value="0"><output data-lab-sector-value>dir-00</output></label>
-      <label><input data-lab-auto-sector type="checkbox" checked> auto sector while walking</label>
+      <label><input data-lab-auto-sector type="checkbox" checked> follow capture sector while walking (off freezes source view)</label>
       <label>capture elevation <input data-lab-elevation type="range" min="-30" max="60" step="1" value="18"><output data-lab-elevation-value>18°</output></label>
-      <label>capture texture resolution <select data-lab-resolution><option>96</option><option>128</option><option selected>192</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
+      <label>capture texture resolution <select data-lab-resolution><option>96</option><option selected>128</option><option>192</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
       <output data-lab-capture-cost>four RGBA8 outputs 0.6 MiB + temporary depth 0.1 MiB per capture</output>
       <fieldset><legend>selected side · capture lighting</legend>
         <label>capture mode <select data-lab-capture-mode><option value="isolated">isolated light rig</option><option value="scene">authored scene lights</option></select></label>
@@ -49,10 +52,17 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       <label>splat opacity <input data-lab-splat-opacity type="range" min="0" max="1" step="0.05" value="1"><output data-lab-splat-opacity-value>1.00</output></label>
       <label>splat composition <select data-lab-splat-blend><option value="depth-write">depth-writing alpha</option><option value="alpha-blend">transparent alpha blend</option><option value="additive">additive blend</option></select></label>
       </fieldset>
-      <div class="lab-actions"><button data-lab-recapture-selected type="button">Apply queued capture to selected side</button><button data-lab-recapture-pair type="button">Apply queued capture to pair</button><button data-lab-match type="button">Copy selected lighting + recapture pair</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
+      <fieldset><legend>GOLD ghost plate</legend>
+        <label>depth retention <select data-lab-ghost-retention><option value="0.02">0.02 near-flat</option><option value="0.08">0.08 restrained</option><option value="0.15" selected>0.15 default</option><option value="0.30">0.30 pronounced</option><option value="1">1.00 original depth</option></select></label>
+        <label>anchor policy <select data-lab-ghost-anchor-policy><option value="bounds-center">bounds center</option><option value="bounds-normalized">normalized depth</option></select></label>
+        <label>anchor depth <input data-lab-ghost-anchor type="range" min="0" max="1" step="0.01" value="0.5"><output data-lab-ghost-anchor-value>0.50</output></label>
+        <label>mapping <select data-lab-ghost-mapping><option value="plate-locked">plate locked</option><option value="projective-surface">projective surface</option></select></label>
+      </fieldset>
+      <div class="lab-actions"><button data-lab-freeze-view type="button">Capture + freeze current source view</button><button data-lab-recapture-selected type="button">Apply queued capture to selected side</button><button data-lab-recapture-pair type="button">Apply queued capture to comparison</button><button data-lab-match type="button">Copy selected lighting + recapture comparison</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
       <output data-lab-comparison>loading</output>
       <output data-lab-metrics>loading</output>
-      <small>Capture resolution, elevation, lighting, and RED splat grid stay queued until an explicit recapture action. Auto-sector may recapture below 512px; at 512px and above direction also stays queued. Capture resolution controls four source textures; splat grid controls RED instances; depth levels only quantize displacement. 4K retains 256 MiB of outputs per side plus 64 MiB temporary depth. Transparent splats are depth-tested but unsorted within their instanced draw.</small>
+      <output data-lab-ghost>ghost plate loading</output>
+      <small>The GOLD plate uses a frozen retained pose, nearest-sampled low-resolution color/coverage, and the same capture sector and isolated lighting as RED. Capture settings and the RED splat grid remain queued until recapture. Turning sector follow off freezes the source view for circle-strafe judgment. The GRAY inspection copy is a distinct retained instance, so toggling it never reveals the hidden capture source or double-renders the ghost source hierarchy.</small>
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -64,12 +74,14 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   const garden = gardenEnabled ? new RuntimeVoxelSpriteGarden(
     context.renderer,
     (value) => {
-      get('[data-garden-sector]').textContent = `${value.selectedSubject} · ${value.source} · ${value.selectedSide === 'baseline' ? 'BLUE proxy' : `RED ${value.mode}`} · ${value.sectorLabel}${value.autoSector ? ' auto' : ' manual'} · capture ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''}`;
+      get('[data-garden-sector]').textContent = `${value.selectedSubject} · inspect ${representationLabel(value.selectedRepresentation)} · RED ${value.mode} · GOLD ${value.ghostDepthRetention.toFixed(2)} ${value.ghostPlateMapping} · ${value.sectorLabel}${value.autoSector ? ' follow' : ' frozen'} · capture ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''}`;
       get('[data-garden-load]').textContent = value.status === 'loading'
         ? 'loading'
         : `capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples · fallback ${value.fallbackPreservedCount}`;
       const panel = get('[data-garden-panel]');
       panel.querySelector<HTMLSelectElement>('[data-lab-subject]')!.value = value.selectedSubject;
+      panel.querySelector<HTMLSelectElement>('[data-lab-representation]')!.value = value.selectedRepresentation;
+      panel.querySelector<HTMLInputElement>('[data-lab-canonical-visible]')!.checked = value.canonicalVisible;
       panel.querySelector<HTMLSelectElement>('[data-lab-side]')!.value = value.selectedSide;
       panel.querySelector<HTMLSelectElement>('[data-lab-mode]')!.value = value.mode;
       panel.querySelector<HTMLInputElement>('[data-lab-sector]')!.value = String(value.sector);
@@ -103,8 +115,15 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       panel.querySelector<HTMLOutputElement>('[data-lab-overlap-value]')!.value = value.splatOverlap.toFixed(2);
       panel.querySelector<HTMLOutputElement>('[data-lab-splat-opacity-value]')!.value = value.splatOpacity.toFixed(2);
       panel.querySelector<HTMLSelectElement>('[data-lab-splat-blend]')!.value = value.splatBlendMode;
+      panel.querySelector<HTMLSelectElement>('[data-lab-ghost-retention]')!.value =
+        value.ghostDepthRetention === 1 ? '1' : value.ghostDepthRetention.toFixed(2);
+      panel.querySelector<HTMLSelectElement>('[data-lab-ghost-anchor-policy]')!.value = value.ghostAnchorPolicy;
+      panel.querySelector<HTMLInputElement>('[data-lab-ghost-anchor]')!.value = String(value.ghostAnchorValue);
+      panel.querySelector<HTMLOutputElement>('[data-lab-ghost-anchor-value]')!.value = `${value.ghostAnchorValue.toFixed(2)} → ${value.ghostAnchorDepth?.toFixed(3) ?? 'n/a'} world depth`;
+      panel.querySelector<HTMLSelectElement>('[data-lab-ghost-mapping]')!.value = value.ghostPlateMapping;
       panel.querySelector<HTMLOutputElement>('[data-lab-comparison]')!.value = `capture ${value.captureSettingsMatched ? 'MATCHED' : 'DIFFERENT'} · all lighting ${value.allLightingMatched ? 'MATCHED' : 'DIFFERENT'} · selected ${value.selectedSide.toUpperCase()} ${value.captureLightingMode}/${value.postLightingMode}${value.capturePending ? ' · CAPTURE QUEUED' : ''}${value.splatDensityPending ? ' · SPLAT GRID QUEUED' : ''}`;
       panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} GLBs / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture texture ${value.appliedResolution}² / ${mebibytes(value.textureBytes)} resident · RED splats ${value.appliedSplatResolution}² / ${value.splatBlendMode} / ${value.splatOpacity.toFixed(2)} opacity · depth ${value.depthQuantizationSteps} levels · ${value.composition} · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${value.drawCalls} draws / ${value.sampleCount} samples`;
+      panel.querySelector<HTMLOutputElement>('[data-lab-ghost]')!.value = `GOLD source view ${value.ghostSourceViewAgreement}${value.ghostAngularOffsetDegrees === null ? '' : ` / ${value.ghostAngularOffsetDegrees.toFixed(2)}°`} · pose ${value.ghostMatchedPose ? 'MATCHED' : 'MISMATCH'} · fallback ${value.ghostFallbackActive ? value.ghostFallbackReason ?? 'active' : 'none'} · ${value.ghostDrawCalls} draws / ${value.ghostMeshCount} meshes · ${value.ghostMaterialResourceCount} materials + ${value.ghostBorrowedTextureCount} borrowed textures · limits ${value.ghostLimitations.join(', ') || 'none'}`;
     },
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
   ) : null;
@@ -192,6 +211,8 @@ function bindGardenPanel(
     if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) return;
     const control = event.target;
     if (control.matches('[data-lab-subject]')) garden.setSubject(control.value as VoxelSpriteSubject);
+    else if (control.matches('[data-lab-representation]')) garden.setRepresentation(control.value as VoxelSpriteRepresentation);
+    else if (control.matches('[data-lab-canonical-visible]')) garden.setCanonicalVisible((control as HTMLInputElement).checked);
     else if (control.matches('[data-lab-side]')) garden.setSide(control.value as VoxelSpriteSide);
     else if (control.matches('[data-lab-mode]')) garden.setMode(control.value as Parameters<typeof garden.setMode>[0]);
     else if (control.matches('[data-lab-capture-mode]')) garden.setCaptureLightingMode(control.value as VoxelSpriteCaptureLightingMode);
@@ -200,6 +221,9 @@ function bindGardenPanel(
     else if (control.matches('[data-lab-resolution]')) garden.setResolution(Number(control.value));
     else if (control.matches('[data-lab-splat-resolution]')) garden.setSplatResolution(Number(control.value));
     else if (control.matches('[data-lab-splat-blend]')) garden.setSplatBlendMode(control.value as VoxelSpriteSplatBlendMode);
+    else if (control.matches('[data-lab-ghost-retention]')) garden.setGhostDepthRetention(Number(control.value));
+    else if (control.matches('[data-lab-ghost-anchor-policy]')) garden.setGhostAnchorPolicy(control.value as Parameters<typeof garden.setGhostAnchorPolicy>[0]);
+    else if (control.matches('[data-lab-ghost-mapping]')) garden.setGhostPlateMapping(control.value as Parameters<typeof garden.setGhostPlateMapping>[0]);
     else if (control.matches('[data-lab-sector]')) garden.setSector(Number(control.value));
   };
   const input = (event: Event) => {
@@ -218,19 +242,29 @@ function bindGardenPanel(
     else if (control.matches('[data-lab-steps]')) garden.setDepthQuantizationSteps(Number(control.value));
     else if (control.matches('[data-lab-overlap]')) garden.setSplatOverlap(Number(control.value));
     else if (control.matches('[data-lab-splat-opacity]')) garden.setSplatOpacity(Number(control.value));
+    else if (control.matches('[data-lab-ghost-anchor]')) garden.setGhostAnchorValue(Number(control.value));
+  };
+  const closePanel = () => {
+    panel.hidden = true;
+    context.ui.setInteractionMode('gameplay');
+    context.ui.focusGameplay();
+  };
+  const panelKey = (event: KeyboardEvent) => {
+    if (panel.hidden || event.repeat || (event.code !== 'Escape' && event.code !== 'KeyV')) return;
+    closePanel();
+    event.preventDefault();
+    event.stopImmediatePropagation();
   };
   const click = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('[data-lab-recapture-selected]') !== null) garden.recaptureSelected();
+    if (event.target.closest('[data-lab-freeze-view]') !== null) garden.freezeCurrentSourceView();
+    else if (event.target.closest('[data-lab-recapture-selected]') !== null) garden.recaptureSelected();
     else if (event.target.closest('[data-lab-recapture-pair]') !== null) garden.recapturePair();
     else if (event.target.closest('[data-lab-match]') !== null) garden.matchLightingFromSelected();
     else if (event.target.closest('[data-lab-fallback]') !== null) garden.probeFailureFallback();
-    else if (event.target.closest('[data-lab-resume]') !== null) {
-      panel.hidden = true;
-      context.ui.setInteractionMode('gameplay');
-      context.ui.focusGameplay();
-    }
+    else if (event.target.closest('[data-lab-resume]') !== null) closePanel();
   };
+  window.addEventListener('keydown', panelKey);
   root.addEventListener('submit', submit);
   root.addEventListener('pointerdown', pointerDown);
   root.addEventListener('change', change);
@@ -242,6 +276,7 @@ function bindGardenPanel(
     root.removeEventListener('change', change);
     root.removeEventListener('input', input);
     root.removeEventListener('click', click);
+    window.removeEventListener('keydown', panelKey);
   };
 }
 
@@ -251,4 +286,11 @@ function milliseconds(value: number | null): string {
 
 function mebibytes(value: number): string {
   return `${(value / 1024 / 1024).toFixed(value < 1024 * 1024 ? 2 : 1)} MiB`;
+}
+
+function representationLabel(value: VoxelSpriteRepresentation): string {
+  if (value === 'canonical') return 'GRAY 3D';
+  if (value === 'baseline') return 'BLUE plain';
+  if (value === 'enhanced') return 'RED 7035';
+  return 'GOLD ghost';
 }

@@ -56,22 +56,29 @@ rotates with the camera while remaining fixed under player translation, and it i
 only: the panorama does not contribute lighting, reflections, collision, or gameplay authority.
 
 `?course=garden` starts in a broad flat terrain clearing facing the runtime voxel-sprite lab. Each
-subject has a blue plain proxy and a red experimental representation; both are captured live from
-the same retained GLB, pose, direction, elevation, resolution, and framing. The active comparison
-loads no prepared frames or baked comparison textures. Capture lighting and post-capture lighting
-are separate, independently adjustable per side, with a copy-and-recapture action for controlled
-A/B setup. The red side additionally switches between plain sprite, quantized-depth parallax,
-sprite-plus-splats, and full splat replacement. Capture texture resolution, RED instanced-splat
+subject has four comparison columns: a gray frozen retained-3D inspection copy, blue plain capture,
+red task-7035 proxy control, and gold ghost plate. The three derived representations use the same
+retained GLB, frozen pose, direction, elevation, low-resolution nearest-sampled capture, framing,
+and controlled lighting; the active comparison loads no prepared frames or baked comparison
+textures. The visible gray copy is a distinct retained instance, so hiding it never exposes or
+double-renders the hidden capture source. Capture lighting and post-capture lighting remain
+independently adjustable per blue/red side, with a copy-and-recapture action for controlled setup.
+The red side switches between plain sprite, quantized-depth parallax, sprite-plus-splats, and full
+splat replacement. Gold keeps the retained appearance shell while compressing its capture-view
+depth, with presets from 0.02 through 1.0, configurable anchor depth, and plate-locked or projective
+texture mapping. Capture texture resolution, RED instanced-splat
 grid density, and depth quantization levels are independent controls: changing depth levels does
 not add splats. Splat opacity can use depth-writing alpha, transparent alpha blending, or additive
 blending. Resolution, elevation, lighting, and splat-grid choices remain queued until an explicit
 selected-side or pair recapture. Auto-sector recapture remains convenient below 512px, while at
 512px and above direction changes also queue rather than silently recapturing. Options extend to 4K
 as a deliberate stress probe, with the panel showing retained-output and temporary depth memory
-before capture. `U`, `I`, `O`, and `P` cycle subject, enhancement,
-selected side, and pair recapture; `V` opens the complete control panel. The HUD separates one-time
+before capture. Disabling sector follow freezes the source view for a controlled circle strafe.
+`U`, `I`, `O`, and `P` cycle subject, RED enhancement, inspected representation, and comparison
+recapture; `V` opens or closes the complete control panel, and Escape also closes it. The HUD separates one-time
 capture CPU submission from steady-state submission and reports texture bytes, draws, samples, and
-preserved fallbacks. Normal post-lighting modulates captured color rather than a canonical albedo
+preserved fallbacks. The ghost readout adds source-view agreement, angular offset, pose match,
+fallback, draw/resource counts, and current mechanism limitations. Normal post-lighting modulates captured color rather than a canonical albedo
 pass. Transparent splats remain depth-tested but are unsorted within their one instanced draw. All
 sources and representations are presentation-only and never enter collision or gameplay
 authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against a

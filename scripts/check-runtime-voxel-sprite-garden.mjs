@@ -66,11 +66,28 @@ for (const required of [
   'data-lab-splat-resolution',
   'data-lab-splat-opacity',
   'data-lab-splat-blend',
+  'GRAY frozen 3D',
+  'GOLD ghost plate',
+  'data-lab-ghost-retention',
+  'data-lab-ghost-anchor-policy',
+  'data-lab-ghost-mapping',
+  'data-lab-canonical-visible',
+  'data-lab-freeze-view',
 ]) {
   if (!ui.includes(required)) fail(`active lab is missing ${required}`);
 }
 for (const required of ['splatColumns', 'splatRows', 'splatOpacity', 'splatBlendMode']) {
   if (!implementation.includes(required)) fail(`runtime configuration is missing ${required}`);
 }
+for (const required of [
+  "mode: 'ghost-plate'",
+  'ghostDepthRetention',
+  'ghostAnchorPolicy',
+  'ghostAnchorValue',
+  'ghostPlateMapping',
+  'ghostSourceViewAgreement',
+]) {
+  if (!implementation.includes(required)) fail(`ghost-plate comparison is missing ${required}`);
+}
 
-console.log(`runtime voxel-sprite garden audit passed: 3 runtime GLBs, 0 prepared frames, 0 prepared textures, ${totalBytes} bytes`);
+console.log(`runtime voxel-sprite garden audit passed: 3 runtime GLBs, frozen 3D + two capture controls + ghost plate, 0 prepared frames, 0 prepared textures, ${totalBytes} bytes`);
