@@ -1,9 +1,9 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 
 const baseUrl = process.env.CRAFTSURVIVE_URL ?? process.env.BASE_URL ?? 'http://127.0.0.1:4419';
-const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7087');
+const evidenceDirectory = resolve(process.env.CRAFTSURVIVE_EVIDENCE_DIR ?? 'live-evidence/task-7088');
 const screenshotPath = resolve(evidenceDirectory, 'runtime-only-default.png');
 const controlsScreenshotPath = resolve(evidenceDirectory, 'runtime-only-controls.png');
 const riggedScreenshotPath = resolve(evidenceDirectory, 'runtime-only-rigged-gold.png');
@@ -34,7 +34,17 @@ try {
   const captureCanvas = async (path) => {
     const clip = await canvas.boundingBox();
     if (clip === null) throw new Error('Engine-owned lab canvas has no visible screenshot bounds');
-    await page.screenshot({ path, clip });
+    const session = await page.context().newCDPSession(page);
+    try {
+      const capture = await session.send('Page.captureScreenshot', {
+        format: 'png',
+        fromSurface: true,
+        clip: { ...clip, scale: 1 },
+      });
+      writeFileSync(path, Buffer.from(capture.data, 'base64'));
+    } finally {
+      await session.detach();
+    }
   };
   const initialSelection = await page.locator('[data-garden-sector]').textContent();
   const initialLoad = await page.locator('[data-garden-load]').textContent();
@@ -64,7 +74,7 @@ try {
   }
   if (!initialGhost?.includes('pose MATCHED') || !initialGhost.includes('fallback none')
     || initialGhost.includes('source view unavailable')
-    || !initialGhost.includes('whole-hierarchy-relief')) {
+    || !initialGhost.includes('whole-mesh') || !initialGhost.includes('rgba8-shell-depth')) {
     throw new Error(`ghost-plate readout is incomplete: ${initialGhost}`);
   }
   await page.keyboard.press('Escape');
@@ -79,10 +89,22 @@ try {
     element.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await selectControl(panel, '[data-lab-ghost-mapping]', 'projective-surface');
+  await selectControl(panel, '[data-lab-ghost-shell]', 'strict-source');
+  await page.waitForFunction(() =>
+    document.querySelector('[data-lab-ghost]')?.textContent?.includes('GOLD strict-source'));
+  await selectControl(panel, '[data-lab-ghost-shell]', 'repaired-source');
+  await panel.locator('[data-lab-ghost-shell-epsilon]').evaluate((element) => {
+    element.value = '0.2';
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+  });
   await page.waitForFunction(() => {
     const selection = document.querySelector('[data-garden-sector]')?.textContent ?? '';
     const anchor = document.querySelector('[data-lab-ghost-anchor-value]')?.textContent ?? '';
-    return selection.includes('GOLD 0.30 projective-surface') && anchor.startsWith('0.20 →');
+    const shell = document.querySelector('[data-lab-ghost]')?.textContent ?? '';
+    const epsilon = document.querySelector('[data-lab-ghost-shell-epsilon-value]')?.textContent ?? '';
+    return selection.includes('GOLD 0.30 projective-surface repaired-source')
+      && anchor.startsWith('0.20 →') && shell.includes('ratios reject unavailable')
+      && epsilon.startsWith('0.20 +');
   });
   const captureOptions = await panel.locator('[data-lab-resolution] option').allTextContents();
   if (!captureOptions.includes('4096')) throw new Error(`4K capture option is unavailable: ${captureOptions.join(', ')}`);
@@ -210,10 +232,13 @@ try {
     const anchorPolicy = document.querySelector('[data-lab-ghost-anchor-policy]')?.value;
     const anchor = document.querySelector('[data-lab-ghost-anchor]')?.value;
     const mapping = document.querySelector('[data-lab-ghost-mapping]')?.value;
+    const shell = document.querySelector('[data-lab-ghost-shell]')?.value;
+    const epsilon = document.querySelector('[data-lab-ghost-shell-epsilon]')?.value;
     const ghost = document.querySelector('[data-lab-ghost]')?.textContent ?? '';
     return selection.includes('GOLD 0.15 plate-locked')
       && retention === '0.15' && anchorPolicy === 'bounds-center' && anchor === '0.5'
-      && mapping === 'plate-locked' && ghost.includes('source view exact');
+      && mapping === 'plate-locked' && shell === 'whole-mesh' && epsilon === '0.12'
+      && ghost.includes('source view exact');
   }, undefined, { timeout: 60_000 });
 
   await page.keyboard.press('KeyV');
@@ -239,7 +264,8 @@ try {
     initialComparison,
     initialMetrics,
     initialGhost,
-    ghostControls: { depthRetention: 0.3, anchorPolicy: 'bounds-normalized', anchorValue: 0.2, mapping: 'projective-surface' },
+    ghostControls: { depthRetention: 0.3, anchorPolicy: 'bounds-normalized', anchorValue: 0.2, mapping: 'projective-surface', shellMode: 'repaired-source', shellDepthEpsilon: 0.2 },
+    shellModeRoundTrip: true,
     independentPostLighting: { redGain, blueGain },
     independentCaptureLighting: { blueCaptureKey, redCaptureKey },
     independentGeometryControls,

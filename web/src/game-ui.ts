@@ -57,12 +57,14 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
         <label>anchor policy <select data-lab-ghost-anchor-policy><option value="bounds-center">bounds center</option><option value="bounds-normalized">normalized depth</option></select></label>
         <label>anchor depth <input data-lab-ghost-anchor type="range" min="0" max="1" step="0.01" value="0.5"><output data-lab-ghost-anchor-value>0.50</output></label>
         <label>mapping <select data-lab-ghost-mapping><option value="plate-locked">plate locked</option><option value="projective-surface">projective surface</option></select></label>
+        <label>source shell <select data-lab-ghost-shell><option value="whole-mesh">whole mesh (accepted control)</option><option value="strict-source">strict captured shell</option><option value="repaired-source">one-texel repaired shell</option></select></label>
+        <label>shell depth tolerance <input data-lab-ghost-shell-epsilon type="range" min="0" max="1" step="0.02" value="0.12"><output data-lab-ghost-shell-epsilon-value>0.12</output></label>
       </fieldset>
       <div class="lab-actions"><button data-lab-reset-ghost type="button">Reset GOLD defaults + current view</button><button data-lab-freeze-view type="button">Capture + freeze current source view</button><button data-lab-recapture-selected type="button">Apply queued capture to selected side</button><button data-lab-recapture-pair type="button">Apply queued capture to comparison</button><button data-lab-match type="button">Copy selected lighting + recapture comparison</button><button data-lab-fallback type="button">Probe fallback</button><button data-lab-resume type="button">Resume game</button></div>
       <output data-lab-comparison>loading</output>
       <output data-lab-metrics>loading</output>
       <output data-lab-ghost>ghost plate loading</output>
-      <small>The GOLD plate uses a frozen retained pose, nearest-sampled low-resolution color/coverage, and the same capture sector and isolated lighting as RED. Only the selected subject's GOLD plate and marker are shown, preventing nearer depth rows from hiding the subject under inspection. GOLD configuration is absolute rather than cumulative; reset restores 0.15 retention, centered anchoring, plate-locked mapping, and the current exact source view. Capture settings and the RED splat grid remain queued until recapture. Turning sector follow off freezes the source view for circle-strafe judgment. The GRAY inspection copy is a distinct retained instance, so toggling it never reveals the hidden capture source or double-renders the ghost source hierarchy.</small>
+      <small>The GOLD plate uses a frozen retained pose, nearest-sampled low-resolution color/coverage/depth, and the same capture sector and isolated lighting as RED. Whole mesh is the accepted task-7087 look. Strict shell rejects geometry that disagrees with captured source depth; repaired shell may recover only from one adjacent texel. Only the selected subject's GOLD plate and marker are shown. GOLD configuration is absolute rather than cumulative; reset restores the accepted whole-mesh defaults and current exact source view. Capture settings and the RED splat grid remain queued until recapture.</small>
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
@@ -74,7 +76,7 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   const garden = gardenEnabled ? new RuntimeVoxelSpriteGarden(
     context.renderer,
     (value) => {
-      get('[data-garden-sector]').textContent = `${value.selectedSubject} · inspect ${representationLabel(value.selectedRepresentation)} · RED ${value.mode} · GOLD ${value.ghostDepthRetention.toFixed(2)} ${value.ghostPlateMapping} · ${value.sectorLabel}${value.autoSector ? ' follow' : ' frozen'} · capture ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''}`;
+      get('[data-garden-sector]').textContent = `${value.selectedSubject} · inspect ${representationLabel(value.selectedRepresentation)} · RED ${value.mode} · GOLD ${value.ghostDepthRetention.toFixed(2)} ${value.ghostPlateMapping} ${value.ghostShellMode} · ${value.sectorLabel}${value.autoSector ? ' follow' : ' frozen'} · capture ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''}`;
       get('[data-garden-load]').textContent = value.status === 'loading'
         ? 'loading'
         : `capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples · fallback ${value.fallbackPreservedCount}`;
@@ -121,9 +123,12 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       panel.querySelector<HTMLInputElement>('[data-lab-ghost-anchor]')!.value = String(value.ghostAnchorValue);
       panel.querySelector<HTMLOutputElement>('[data-lab-ghost-anchor-value]')!.value = `${value.ghostAnchorValue.toFixed(2)} → ${value.ghostAnchorDepth?.toFixed(3) ?? 'n/a'} world depth`;
       panel.querySelector<HTMLSelectElement>('[data-lab-ghost-mapping]')!.value = value.ghostPlateMapping;
+      panel.querySelector<HTMLSelectElement>('[data-lab-ghost-shell]')!.value = value.ghostShellMode;
+      panel.querySelector<HTMLInputElement>('[data-lab-ghost-shell-epsilon]')!.value = String(value.ghostShellDepthEpsilon);
+      panel.querySelector<HTMLOutputElement>('[data-lab-ghost-shell-epsilon-value]')!.value = `${value.ghostShellDepthEpsilon.toFixed(2)} + ${value.ghostShellDepthQuantizationStep === null ? 'n/a' : (value.ghostShellDepthQuantizationStep * 0.5).toFixed(3)} half-step = ${value.ghostShellEffectiveDepthEpsilon?.toFixed(3) ?? 'n/a'} effective`;
       panel.querySelector<HTMLOutputElement>('[data-lab-comparison]')!.value = `capture ${value.captureSettingsMatched ? 'MATCHED' : 'DIFFERENT'} · all lighting ${value.allLightingMatched ? 'MATCHED' : 'DIFFERENT'} · selected ${value.selectedSide.toUpperCase()} ${value.captureLightingMode}/${value.postLightingMode}${value.capturePending ? ' · CAPTURE QUEUED' : ''}${value.splatDensityPending ? ' · SPLAT GRID QUEUED' : ''}`;
       panel.querySelector<HTMLOutputElement>('[data-lab-metrics]')!.value = `${value.resourceCount} GLBs / ${(value.resourceBytes / 1024 / 1024).toFixed(1)} MiB · capture texture ${value.appliedResolution}² / ${mebibytes(value.textureBytes)} resident · RED splats ${value.appliedSplatResolution}² / ${value.splatBlendMode} / ${value.splatOpacity.toFixed(2)} opacity · depth ${value.depthQuantizationSteps} levels · ${value.composition} · capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${value.drawCalls} draws / ${value.sampleCount} samples`;
-      panel.querySelector<HTMLOutputElement>('[data-lab-ghost]')!.value = `GOLD source view ${value.ghostSourceViewAgreement}${value.ghostAngularOffsetDegrees === null ? '' : ` / ${value.ghostAngularOffsetDegrees.toFixed(2)}°`} · pose ${value.ghostMatchedPose ? 'MATCHED' : 'MISMATCH'} · fallback ${value.ghostFallbackActive ? value.ghostFallbackReason ?? 'active' : 'none'} · ${value.ghostDrawCalls} draws / ${value.ghostMeshCount} meshes · ${value.ghostMaterialResourceCount} materials + ${value.ghostBorrowedTextureCount} borrowed textures · limits ${value.ghostLimitations.join(', ') || 'none'}`;
+      panel.querySelector<HTMLOutputElement>('[data-lab-ghost]')!.value = `GOLD ${value.ghostShellMode} · source view ${value.ghostSourceViewAgreement}${value.ghostAngularOffsetDegrees === null ? '' : ` / ${value.ghostAngularOffsetDegrees.toFixed(2)}°`} · pose ${value.ghostMatchedPose ? 'MATCHED' : 'MISMATCH'} · shell ratios reject ${value.ghostRejectedFragmentRatioStatus ?? 'n/a'} / repair ${value.ghostRepairedBoundaryRatioStatus ?? 'n/a'} · fallback ${value.ghostFallbackActive ? value.ghostFallbackReason ?? 'active' : 'none'} · ${value.ghostDrawCalls} draws / ${value.ghostMeshCount} meshes · ${value.ghostMaterialResourceCount} materials + ${value.ghostBorrowedTextureCount} borrowed textures · limits ${value.ghostLimitations.join(', ') || 'none'}`;
     },
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
   ) : null;
@@ -224,6 +229,7 @@ function bindGardenPanel(
     else if (control.matches('[data-lab-ghost-retention]')) garden.setGhostDepthRetention(Number(control.value));
     else if (control.matches('[data-lab-ghost-anchor-policy]')) garden.setGhostAnchorPolicy(control.value as Parameters<typeof garden.setGhostAnchorPolicy>[0]);
     else if (control.matches('[data-lab-ghost-mapping]')) garden.setGhostPlateMapping(control.value as Parameters<typeof garden.setGhostPlateMapping>[0]);
+    else if (control.matches('[data-lab-ghost-shell]')) garden.setGhostShellMode(control.value as Parameters<typeof garden.setGhostShellMode>[0]);
     else if (control.matches('[data-lab-sector]')) garden.setSector(Number(control.value));
   };
   const input = (event: Event) => {
@@ -243,6 +249,7 @@ function bindGardenPanel(
     else if (control.matches('[data-lab-overlap]')) garden.setSplatOverlap(Number(control.value));
     else if (control.matches('[data-lab-splat-opacity]')) garden.setSplatOpacity(Number(control.value));
     else if (control.matches('[data-lab-ghost-anchor]')) garden.setGhostAnchorValue(Number(control.value));
+    else if (control.matches('[data-lab-ghost-shell-epsilon]')) garden.setGhostShellDepthEpsilon(Number(control.value));
   };
   const closePanel = () => {
     panel.hidden = true;

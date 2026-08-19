@@ -69,7 +69,8 @@ The red side switches between plain sprite, quantized-depth parallax, sprite-plu
 splat replacement. Gold keeps the retained appearance shell while compressing its capture-view
 depth, with presets from 0.02 through 1.0, configurable anchor depth, and plate-locked or projective
 texture mapping. `Reset GOLD defaults + current view` restores 0.15 retention, centered anchoring,
-plate-locked mapping, and a freshly aligned frozen source view, providing a deterministic return
+plate-locked mapping, the accepted whole-mesh shell, and a freshly aligned frozen source view,
+providing a deterministic return
 point after experimentation. Capture texture resolution, RED instanced-splat
 grid density, and depth quantization levels are independent controls: changing depth levels does
 not add splats. Splat opacity can use depth-writing alpha, transparent alpha blending, or additive
@@ -84,7 +85,12 @@ for a controlled circle strafe.
 recapture; `V` opens or closes the complete control panel, and Escape also closes it. The HUD separates one-time
 capture CPU submission from steady-state submission and reports texture bytes, draws, samples, and
 preserved fallbacks. The ghost readout adds source-view agreement, angular offset, pose match,
-fallback, draw/resource counts, and current mechanism limitations. Normal post-lighting modulates captured color rather than a canonical albedo
+fallback, draw/resource counts, and current mechanism limitations. GOLD shell controls compare the
+accepted whole mesh against strict captured-depth rejection
+and a bounded repair that checks only the four adjacent capture texels. The tolerance readout shows
+both caller-selected capture-view units and the unavoidable half-step from RGBA8 depth precision;
+fragment reject/repair ratios remain explicitly unavailable because the experiment performs no
+texture readback or statistics pass. Normal post-lighting modulates captured color rather than a canonical albedo
 pass. Transparent splats remain depth-tested but are unsorted within their one instanced draw. All
 sources and representations are presentation-only and never enter collision or gameplay
 authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against a

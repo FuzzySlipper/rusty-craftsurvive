@@ -105,6 +105,12 @@ export interface RuntimeVoxelSpriteGardenReadout {
   ghostAnchorValue: number;
   ghostAnchorDepth: number | null;
   ghostPlateMapping: 'plate-locked' | 'projective-surface';
+  ghostShellMode: 'whole-mesh' | 'strict-source' | 'repaired-source';
+  ghostShellDepthEpsilon: number;
+  ghostShellDepthQuantizationStep: number | null;
+  ghostShellEffectiveDepthEpsilon: number | null;
+  ghostRejectedFragmentRatioStatus: 'unavailable' | null;
+  ghostRepairedBoundaryRatioStatus: 'unavailable' | null;
   ghostMatchedPose: boolean;
   ghostFallbackActive: boolean;
   ghostFallbackReason: string | null;
@@ -147,6 +153,8 @@ const DEFAULT_GHOST_DEPTH_RETENTION = 0.15;
 const DEFAULT_GHOST_ANCHOR_POLICY = 'bounds-center' as const;
 const DEFAULT_GHOST_ANCHOR_VALUE = 0.5;
 const DEFAULT_GHOST_PLATE_MAPPING = 'plate-locked' as const;
+const DEFAULT_GHOST_SHELL_MODE = 'whole-mesh' as const;
+const DEFAULT_GHOST_SHELL_DEPTH_EPSILON = 0.12;
 
 export class RuntimeVoxelSpriteGarden {
   readonly #renderer: RustyApplicationRendererPort;
@@ -187,6 +195,8 @@ export class RuntimeVoxelSpriteGarden {
   #ghostAnchorPolicy: 'bounds-center' | 'bounds-normalized' = DEFAULT_GHOST_ANCHOR_POLICY;
   #ghostAnchorValue = DEFAULT_GHOST_ANCHOR_VALUE;
   #ghostPlateMapping: 'plate-locked' | 'projective-surface' = DEFAULT_GHOST_PLATE_MAPPING;
+  #ghostShellMode: 'whole-mesh' | 'strict-source' | 'repaired-source' = DEFAULT_GHOST_SHELL_MODE;
+  #ghostShellDepthEpsilon = DEFAULT_GHOST_SHELL_DEPTH_EPSILON;
   #ghostAngularBucket: number | null | undefined;
   #alignmentTimer: number | null = null;
   #status: RuntimeVoxelSpriteGardenReadout['status'] = 'loading';
@@ -467,16 +477,31 @@ export class RuntimeVoxelSpriteGarden {
     this.#configureGhost({ ghostPlateMapping: value });
   }
 
+  setGhostShellMode(value: 'whole-mesh' | 'strict-source' | 'repaired-source'): void {
+    if (value !== 'whole-mesh' && value !== 'strict-source' && value !== 'repaired-source') return;
+    this.#ghostShellMode = value;
+    this.#configureGhost({ ghostShellMode: value });
+  }
+
+  setGhostShellDepthEpsilon(value: number): void {
+    this.#ghostShellDepthEpsilon = bounded(value, 0, 2);
+    this.#configureGhost({ ghostShellDepthEpsilon: this.#ghostShellDepthEpsilon });
+  }
+
   resetGhostDefaults(): void {
     this.#ghostDepthRetention = DEFAULT_GHOST_DEPTH_RETENTION;
     this.#ghostAnchorPolicy = DEFAULT_GHOST_ANCHOR_POLICY;
     this.#ghostAnchorValue = DEFAULT_GHOST_ANCHOR_VALUE;
     this.#ghostPlateMapping = DEFAULT_GHOST_PLATE_MAPPING;
+    this.#ghostShellMode = DEFAULT_GHOST_SHELL_MODE;
+    this.#ghostShellDepthEpsilon = DEFAULT_GHOST_SHELL_DEPTH_EPSILON;
     this.#configureGhost({
       ghostDepthRetention: this.#ghostDepthRetention,
       ghostAnchorPolicy: this.#ghostAnchorPolicy,
       ghostAnchorValue: this.#ghostAnchorValue,
       ghostPlateMapping: this.#ghostPlateMapping,
+      ghostShellMode: this.#ghostShellMode,
+      ghostShellDepthEpsilon: this.#ghostShellDepthEpsilon,
     });
     this.freezeCurrentSourceView();
   }
@@ -602,6 +627,8 @@ export class RuntimeVoxelSpriteGarden {
           ghostAnchorPolicy: this.#ghostAnchorPolicy,
           ghostAnchorValue: this.#ghostAnchorValue,
           ghostPlateMapping: this.#ghostPlateMapping,
+          ghostShellMode: this.#ghostShellMode,
+          ghostShellDepthEpsilon: this.#ghostShellDepthEpsilon,
         },
       };
     }
@@ -928,6 +955,12 @@ export class RuntimeVoxelSpriteGarden {
       ghostAnchorValue: this.#ghostAnchorValue,
       ghostAnchorDepth: ghost?.anchorDepth ?? null,
       ghostPlateMapping: this.#ghostPlateMapping,
+      ghostShellMode: this.#ghostShellMode,
+      ghostShellDepthEpsilon: this.#ghostShellDepthEpsilon,
+      ghostShellDepthQuantizationStep: ghost?.shellDepthQuantizationStep ?? null,
+      ghostShellEffectiveDepthEpsilon: ghost?.shellEffectiveDepthEpsilon ?? null,
+      ghostRejectedFragmentRatioStatus: ghost?.rejectedFragmentRatio.status ?? null,
+      ghostRepairedBoundaryRatioStatus: ghost?.repairedBoundaryRatio.status ?? null,
       ghostMatchedPose: ghost?.matchedPose ?? false,
       ghostFallbackActive: ghost?.fallbackActive ?? false,
       ghostFallbackReason: ghost?.fallbackReason ?? null,

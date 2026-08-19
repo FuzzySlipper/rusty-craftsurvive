@@ -45,7 +45,10 @@ The initial experiment is intentionally bounded:
   rebaking; automatic walking-sector recapture pauses at 512px and above.
 - the gold ghost plate remains one frozen capture sector over the original retained topology. It is
   deliberately nearest-sampled and sprite-like, but off-axis motion can expose topology-dependent
-  folding, disconnected source regions, texture smear, or holes; it has no held animation,
+  folding, disconnected source regions, texture smear, or holes. Strict captured-depth shell
+  rejection and a four-neighbor repaired variant are available for comparison, but their RGBA8
+  source depth has a visible quantization floor and fragment rejection/repair ratios are unavailable
+  without a prohibited readback/statistics pass. It has no held animation,
   compiled plate shell, regional depth policy, or sector blending yet. Only the selected subject's
   gold plate is shown because simultaneous plates in the three depth rows visually occlude one
   another from the spawn view; subject selection recreates the isolated plate and its exact source
