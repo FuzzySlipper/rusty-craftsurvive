@@ -93,18 +93,24 @@ try {
   await page.waitForFunction(() =>
     document.querySelector('[data-lab-ghost]')?.textContent?.includes('GOLD strict-source'));
   await selectControl(panel, '[data-lab-ghost-shell]', 'repaired-source');
-  await panel.locator('[data-lab-ghost-shell-epsilon]').evaluate((element) => {
-    element.value = '0.2';
-    element.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  const shellEpsilonControl = panel.locator('[data-lab-ghost-shell-epsilon]');
+  const shellEpsilonBounds = await shellEpsilonControl.boundingBox();
+  if (shellEpsilonBounds === null || shellEpsilonBounds.width < 80) {
+    throw new Error(`shell tolerance range is not usable: ${JSON.stringify(shellEpsilonBounds)}`);
+  }
+  await page.mouse.click(
+    shellEpsilonBounds.x + shellEpsilonBounds.width * 0.2,
+    shellEpsilonBounds.y + shellEpsilonBounds.height / 2,
+  );
   await page.waitForFunction(() => {
     const selection = document.querySelector('[data-garden-sector]')?.textContent ?? '';
     const anchor = document.querySelector('[data-lab-ghost-anchor-value]')?.textContent ?? '';
     const shell = document.querySelector('[data-lab-ghost]')?.textContent ?? '';
     const epsilon = document.querySelector('[data-lab-ghost-shell-epsilon-value]')?.textContent ?? '';
+    const epsilonControl = document.querySelector('[data-lab-ghost-shell-epsilon]')?.value ?? '';
     return selection.includes('GOLD 0.30 projective-surface repaired-source')
       && anchor.startsWith('0.20 →') && shell.includes('ratios reject unavailable')
-      && epsilon.startsWith('0.20 +');
+      && Number(epsilonControl) > 0.12 && epsilon.includes('eff.');
   });
   const captureOptions = await panel.locator('[data-lab-resolution] option').allTextContents();
   if (!captureOptions.includes('4096')) throw new Error(`4K capture option is unavailable: ${captureOptions.join(', ')}`);
