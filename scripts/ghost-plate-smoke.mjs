@@ -32,9 +32,9 @@ try {
   if (!(await page.locator('[data-garden-sector]').textContent())?.includes('hard-cut')) {
     throw new Error('hard-cut transition did not reach the Engine readout');
   }
-  await panel.locator('[data-lab-ghost-transition]').selectOption('noise-dissolve');
-  if (!(await page.locator('[data-garden-sector]').textContent())?.includes('noise-dissolve')) {
-    throw new Error('noise-dissolve transition did not reach the Engine readout');
+  await panel.locator('[data-lab-ghost-transition]').selectOption('edge-echo');
+  if (!(await page.locator('[data-garden-sector]').textContent())?.includes('edge-echo')) {
+    throw new Error('edge-echo transition did not reach the Engine readout');
   }
   await page.keyboard.press('Escape');
   await page.keyboard.down('KeyD');

@@ -95,8 +95,8 @@ texture readback or statistics pass.
 `?course=ghost-plate` is the focused directional lab. It omits the gray, blue, red, and splat
 comparisons entirely and instantiates only the selected subject's retained capture source, gold
 plate bank, marker, and controls. The panel exposes 1/4/8/16 azimuth sectors, boundary hysteresis,
-hard-cut versus plate-coordinate ordered dither or multi-scale noise dissolve, transition duration,
-and the accepted plate/shell
+hard-cut versus a localized direction-aware edge echo, plate-coordinate ordered dither, or
+multi-scale noise dissolve, transition duration, and the accepted plate/shell
 look controls. Sector-count changes rebuild the exact-pose bank atomically; the HUD reports the
 selected/previous sector, transition progress, resident capture count, preparation time, draws,
 and material cost. Run `pnpm smoke:ghost-plate` against a browser host for the focused Chromium
