@@ -31,7 +31,7 @@ try {
   await panel.locator('[data-lab-resolution]').selectOption('96');
   await panel.locator('[data-lab-freeze-view]').click();
   await page.waitForFunction(() =>
-    document.querySelector('[data-garden-load]')?.textContent?.includes('96px'),
+    /^4 resident captures · 96px ·/.test(document.querySelector('[data-garden-load]')?.textContent ?? ''),
   undefined, { timeout: 60_000 });
   await panel.locator('[data-lab-ghost-transition]').selectOption('hard-cut');
   if (!(await page.locator('[data-garden-sector]').textContent())?.includes('hard-cut')) {

@@ -972,8 +972,12 @@ export class RuntimeVoxelSpriteGarden {
   }
 
   #emit(): void {
-    const lighting = this.#lighting[this.#selectedSide];
-    const entry = this.#entry(this.#selectedSubject, this.#selectedSide);
+    const captureSide = this.#ghostOnly ? 'enhanced' : this.#selectedSide;
+    const lighting = this.#lighting[captureSide];
+    const entry = this.#entry(
+      this.#selectedSubject,
+      this.#ghostOnly ? 'ghost' : this.#selectedSide,
+    );
     const enhancedEntry = this.#entry(this.#selectedSubject, 'enhanced');
     const ghostEntry = this.#entry(this.#selectedSubject, 'ghost');
     const ghost = ghostEntry?.ghostPlate ?? null;
@@ -996,7 +1000,7 @@ export class RuntimeVoxelSpriteGarden {
       elevationDegrees: this.#elevationDegrees,
       resolution: this.#resolution,
       appliedResolution: entry?.capture?.resolution ?? 0,
-      capturePending: !captureSettingsMatch(entry?.capture ?? null, this.#captureSettings(this.#selectedSide)),
+      capturePending: !captureSettingsMatch(entry?.capture ?? null, this.#captureSettings(captureSide)),
       captureOutputBytesEstimate: this.#resolution * this.#resolution * 16,
       captureTemporaryDepthBytesEstimate: this.#resolution * this.#resolution * 4,
       captureLightingMode: lighting.captureMode,
