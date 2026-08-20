@@ -90,12 +90,13 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       const panel = get('[data-garden-panel]');
       if (ghostOnly) {
         get('[data-garden-sector]').textContent = `${value.selectedSubject} · sector ${value.ghostSelectedSector + 1}/${value.ghostSectorCount}${value.ghostPendingSector === null ? '' : ` ← ${String((value.ghostPreviousSector ?? 0) + 1)}`} · ${value.ghostTransitionMode} ${(value.ghostTransitionProgress * 100).toFixed(0)}%`;
-        get('[data-garden-load]').textContent = `${value.ghostResidentSectorCount} resident captures · prepare ${milliseconds(value.ghostPreparationCpuMilliseconds)} · ${value.ghostDrawCalls} active draws · ${value.ghostMaterialResourceCount} materials`;
+        get('[data-garden-load]').textContent = `${value.ghostResidentSectorCount} resident captures · ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''} · prepare ${milliseconds(value.ghostPreparationCpuMilliseconds)} · ${value.ghostDrawCalls} active draws · ${value.ghostMaterialResourceCount} materials`;
         panel.querySelector<HTMLSelectElement>('[data-lab-subject]')!.value = value.selectedSubject;
         panel.querySelector<HTMLSelectElement>('[data-lab-ghost-sectors]')!.value = String(value.ghostSectorCount);
         panel.querySelector<HTMLInputElement>('[data-lab-ghost-hysteresis]')!.value = String(value.ghostSectorHysteresisDegrees);
         panel.querySelector<HTMLOutputElement>('[data-lab-ghost-hysteresis-value]')!.value = `${value.ghostSectorHysteresisDegrees.toFixed(1)}°`;
         panel.querySelector<HTMLSelectElement>('[data-lab-ghost-transition]')!.value = value.ghostTransitionMode;
+        panel.querySelector<HTMLSelectElement>('[data-lab-resolution]')!.value = String(value.resolution);
         panel.querySelector<HTMLInputElement>('[data-lab-ghost-duration]')!.value = String(value.ghostTransitionDurationMilliseconds);
         panel.querySelector<HTMLOutputElement>('[data-lab-ghost-duration-value]')!.value = `${value.ghostTransitionDurationMilliseconds.toFixed(0)} ms`;
         panel.querySelector<HTMLSelectElement>('[data-lab-ghost-retention]')!.value = value.ghostDepthRetention === 1 ? '1' : value.ghostDepthRetention.toFixed(2);
@@ -240,14 +241,15 @@ function ghostPlatePanel(): string {
       <label>transition duration <input data-lab-ghost-duration type="range" min="0" max="600" step="20" value="180"><output data-lab-ghost-duration-value>180 ms</output></label>
     </fieldset>
     <fieldset><legend>plate look</legend>
+      <label>capture texture resolution <select data-lab-resolution><option>96</option><option selected>128</option><option>192</option><option>256</option><option>512</option><option>1024</option><option>2048</option><option>4096</option></select></label>
       <label>depth retention <select data-lab-ghost-retention><option value="0.02">0.02 near-flat</option><option value="0.08">0.08 restrained</option><option value="0.15" selected>0.15 default</option><option value="0.30">0.30 pronounced</option><option value="1">1.00 original depth</option></select></label>
       <label>mapping <select data-lab-ghost-mapping><option value="plate-locked">plate locked</option><option value="projective-surface">projective surface</option></select></label>
       <label>source shell <select data-lab-ghost-shell><option value="whole-mesh">whole mesh</option><option value="strict-source">strict captured shell</option><option value="repaired-source">one-texel repaired shell</option></select></label>
       <label>shell tolerance <input data-lab-ghost-shell-epsilon type="range" min="0" max="1" step="0.02" value="0.12"><output data-lab-ghost-shell-epsilon-value>0.12</output></label>
     </fieldset>
-    <div class="lab-actions"><button data-lab-freeze-view type="button">Rebuild from current view</button><button data-lab-reset-ghost type="button">Reset plate look</button><button data-lab-resume type="button">Resume game</button></div>
+    <div class="lab-actions"><button data-lab-freeze-view type="button">Rebuild at resolution from current view</button><button data-lab-reset-ghost type="button">Reset plate look</button><button data-lab-resume type="button">Resume game</button></div>
     <output data-lab-ghost>ghost plate loading</output>
-    <small>Only one frozen subject and its directional ghost plates are instantiated. Walk around it to cross actor-relative sector boundaries. A sector-count change atomically rebuilds the exact-pose capture bank.</small>
+    <small>Only one frozen subject and its directional ghost plates are instantiated. Walk around it to cross actor-relative sector boundaries. Sector count rebuilds immediately; capture resolution is queued until the explicit rebuild button.</small>
   </form>`;
 }
 
@@ -274,6 +276,7 @@ function bindGhostPlatePanel(
     if (control.matches('[data-lab-subject]')) garden.setSubject(control.value as VoxelSpriteSubject);
     else if (control.matches('[data-lab-ghost-sectors]')) garden.setGhostSectorCount(Number(control.value) as 1 | 4 | 8 | 16);
     else if (control.matches('[data-lab-ghost-transition]')) garden.setGhostTransitionMode(control.value as Parameters<typeof garden.setGhostTransitionMode>[0]);
+    else if (control.matches('[data-lab-resolution]')) garden.setResolution(Number(control.value));
     else if (control.matches('[data-lab-ghost-retention]')) garden.setGhostDepthRetention(Number(control.value));
     else if (control.matches('[data-lab-ghost-mapping]')) garden.setGhostPlateMapping(control.value as Parameters<typeof garden.setGhostPlateMapping>[0]);
     else if (control.matches('[data-lab-ghost-shell]')) garden.setGhostShellMode(control.value as Parameters<typeof garden.setGhostShellMode>[0]);

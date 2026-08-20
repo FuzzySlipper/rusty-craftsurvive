@@ -28,6 +28,11 @@ try {
   await page.waitForFunction(() =>
     document.querySelector('[data-garden-load]')?.textContent?.includes('4 resident captures'),
   undefined, { timeout: 60_000 });
+  await panel.locator('[data-lab-resolution]').selectOption('96');
+  await panel.locator('[data-lab-freeze-view]').click();
+  await page.waitForFunction(() =>
+    document.querySelector('[data-garden-load]')?.textContent?.includes('96px'),
+  undefined, { timeout: 60_000 });
   await panel.locator('[data-lab-ghost-transition]').selectOption('hard-cut');
   if (!(await page.locator('[data-garden-sector]').textContent())?.includes('hard-cut')) {
     throw new Error('hard-cut transition did not reach the Engine readout');
