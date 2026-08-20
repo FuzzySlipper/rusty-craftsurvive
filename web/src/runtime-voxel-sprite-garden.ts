@@ -127,7 +127,7 @@ export interface RuntimeVoxelSpriteGardenReadout {
   ghostPreviousSector: number | null;
   ghostLocalAzimuthDegrees: number | null;
   ghostSectorHysteresisDegrees: number;
-  ghostTransitionMode: 'hard-cut' | 'ordered-dither';
+  ghostTransitionMode: 'hard-cut' | 'ordered-dither' | 'noise-dissolve';
   ghostTransitionProgress: number;
   ghostTransitionDurationMilliseconds: number;
   ghostResidentSectorCount: number;
@@ -210,7 +210,7 @@ export class RuntimeVoxelSpriteGarden {
   #ghostShellDepthEpsilon = DEFAULT_GHOST_SHELL_DEPTH_EPSILON;
   #ghostSectorCount: 1 | 4 | 8 | 16 = 8;
   #ghostSectorHysteresisDegrees = 3;
-  #ghostTransitionMode: 'hard-cut' | 'ordered-dither' = 'ordered-dither';
+  #ghostTransitionMode: 'hard-cut' | 'ordered-dither' | 'noise-dissolve' = 'ordered-dither';
   #ghostTransitionDurationMilliseconds = 180;
   readonly #ghostOnly: boolean;
   #ghostAngularBucket: number | null | undefined;
@@ -227,6 +227,7 @@ export class RuntimeVoxelSpriteGarden {
     this.#readout = readout;
     this.#diagnostic = diagnostic;
     this.#ghostOnly = options.ghostOnly ?? false;
+    if (this.#ghostOnly) this.#ghostTransitionMode = 'noise-dissolve';
     this.#emit();
   }
 
@@ -521,8 +522,8 @@ export class RuntimeVoxelSpriteGarden {
     this.#configureGhost({ ghostSectorHysteresisDegrees: this.#ghostSectorHysteresisDegrees });
   }
 
-  setGhostTransitionMode(value: 'hard-cut' | 'ordered-dither'): void {
-    if (value !== 'hard-cut' && value !== 'ordered-dither') return;
+  setGhostTransitionMode(value: 'hard-cut' | 'ordered-dither' | 'noise-dissolve'): void {
+    if (value !== 'hard-cut' && value !== 'ordered-dither' && value !== 'noise-dissolve') return;
     this.#ghostTransitionMode = value;
     this.#configureGhost({ ghostTransitionMode: value });
   }

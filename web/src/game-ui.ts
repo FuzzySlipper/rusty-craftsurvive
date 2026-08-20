@@ -236,8 +236,8 @@ function ghostPlatePanel(): string {
     <fieldset><legend>directional depiction bank</legend>
       <label>azimuth sectors <select data-lab-ghost-sectors><option value="1">1</option><option value="4">4</option><option value="8" selected>8</option><option value="16">16</option></select></label>
       <label>boundary hysteresis <input data-lab-ghost-hysteresis type="range" min="0" max="10" step="0.5" value="3"><output data-lab-ghost-hysteresis-value>3.0°</output></label>
-      <label>transition <select data-lab-ghost-transition><option value="hard-cut">hard cut</option><option value="ordered-dither" selected>plate dither</option></select></label>
-      <label>dither duration <input data-lab-ghost-duration type="range" min="0" max="600" step="20" value="180"><output data-lab-ghost-duration-value>180 ms</output></label>
+      <label>transition <select data-lab-ghost-transition><option value="hard-cut">hard cut</option><option value="ordered-dither">plate dither</option><option value="noise-dissolve" selected>noise dissolve</option></select></label>
+      <label>transition duration <input data-lab-ghost-duration type="range" min="0" max="600" step="20" value="180"><output data-lab-ghost-duration-value>180 ms</output></label>
     </fieldset>
     <fieldset><legend>plate look</legend>
       <label>depth retention <select data-lab-ghost-retention><option value="0.02">0.02 near-flat</option><option value="0.08">0.08 restrained</option><option value="0.15" selected>0.15 default</option><option value="0.30">0.30 pronounced</option><option value="1">1.00 original depth</option></select></label>
@@ -273,7 +273,7 @@ function bindGhostPlatePanel(
     const control = event.target;
     if (control.matches('[data-lab-subject]')) garden.setSubject(control.value as VoxelSpriteSubject);
     else if (control.matches('[data-lab-ghost-sectors]')) garden.setGhostSectorCount(Number(control.value) as 1 | 4 | 8 | 16);
-    else if (control.matches('[data-lab-ghost-transition]')) garden.setGhostTransitionMode(control.value as 'hard-cut' | 'ordered-dither');
+    else if (control.matches('[data-lab-ghost-transition]')) garden.setGhostTransitionMode(control.value as Parameters<typeof garden.setGhostTransitionMode>[0]);
     else if (control.matches('[data-lab-ghost-retention]')) garden.setGhostDepthRetention(Number(control.value));
     else if (control.matches('[data-lab-ghost-mapping]')) garden.setGhostPlateMapping(control.value as Parameters<typeof garden.setGhostPlateMapping>[0]);
     else if (control.matches('[data-lab-ghost-shell]')) garden.setGhostShellMode(control.value as Parameters<typeof garden.setGhostShellMode>[0]);
