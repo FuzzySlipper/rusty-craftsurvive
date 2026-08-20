@@ -237,7 +237,7 @@ function ghostPlatePanel(): string {
     <fieldset><legend>directional depiction bank</legend>
       <label>azimuth sectors <select data-lab-ghost-sectors><option value="1">1</option><option value="4">4</option><option value="8" selected>8</option><option value="16">16</option></select></label>
       <label>boundary hysteresis <input data-lab-ghost-hysteresis type="range" min="0" max="10" step="0.5" value="3"><output data-lab-ghost-hysteresis-value>3.0°</output></label>
-      <label>transition <select data-lab-ghost-transition><option value="hard-cut" selected>hard cut</option><option value="edge-echo">edge echo</option><option value="ordered-dither">plate dither</option><option value="noise-dissolve">noise dissolve</option></select></label>
+      <label>transition <select data-lab-ghost-transition><option value="hard-cut" selected>hard cut</option><option value="edge-echo">edge echo (single-plate glint)</option><option value="ordered-dither">plate dither</option><option value="noise-dissolve">noise dissolve</option></select></label>
       <label>transition duration <input data-lab-ghost-duration type="range" min="0" max="600" step="20" value="180"><output data-lab-ghost-duration-value>180 ms</output></label>
     </fieldset>
     <fieldset><legend>plate look</legend>
