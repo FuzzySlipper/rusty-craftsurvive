@@ -175,7 +175,7 @@ async fn session_upgrade(
     };
     let spawn = match query.course.as_deref() {
         None | Some("route") => SpawnSelection::Route,
-        Some("garden") => SpawnSelection::DepthSplatGarden,
+        Some("garden") | Some("ghost-plate") => SpawnSelection::DepthSplatGarden,
         Some("platform") => SpawnSelection::MovingPlatform,
         Some("stream") => SpawnSelection::StreamingWest,
         Some("far") => SpawnSelection::FarPositive,

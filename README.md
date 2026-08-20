@@ -90,7 +90,18 @@ accepted whole mesh against strict captured-depth rejection
 and a bounded repair that checks only the four adjacent capture texels. The tolerance readout shows
 both caller-selected capture-view units and the unavoidable half-step from RGBA8 depth precision;
 fragment reject/repair ratios remain explicitly unavailable because the experiment performs no
-texture readback or statistics pass. Normal post-lighting modulates captured color rather than a canonical albedo
+texture readback or statistics pass.
+
+`?course=ghost-plate` is the focused directional lab. It omits the gray, blue, red, and splat
+comparisons entirely and instantiates only the selected subject's retained capture source, gold
+plate bank, marker, and controls. The panel exposes 1/4/8/16 azimuth sectors, boundary hysteresis,
+hard-cut versus plate-coordinate ordered dither, transition duration, and the accepted plate/shell
+look controls. Sector-count changes rebuild the exact-pose bank atomically; the HUD reports the
+selected/previous sector, transition progress, resident capture count, preparation time, draws,
+and material cost. Run `pnpm smoke:ghost-plate` against a browser host for the focused Chromium
+route check.
+
+Normal post-lighting modulates captured color rather than a canonical albedo
 pass. Transparent splats remain depth-tested but are unsorted within their one instanced draw. All
 sources and representations are presentation-only and never enter collision or gameplay
 authority. Run `pnpm smoke:voxel-sprite` (or the retained `smoke:depth-splat` alias) against a

@@ -15,6 +15,7 @@
     "smoke:browser": "node scripts/browser-smoke.mjs",
     "smoke:depth-splat": "node scripts/runtime-voxel-sprite-smoke.mjs",
     "smoke:voxel-sprite": "node scripts/runtime-voxel-sprite-smoke.mjs",
+    "smoke:ghost-plate": "node scripts/ghost-plate-smoke.mjs",
     "smoke:streaming": "node scripts/streaming-smoke.mjs",
     "smoke:unbounded": "node scripts/unbounded-smoke.mjs",
     "smoke:surfaces": "CRAFTSURVIVE_SURFACE=box CRAFTSURVIVE_URL=http://127.0.0.1:4419 pnpm smoke:browser && CRAFTSURVIVE_SURFACE=mc CRAFTSURVIVE_URL=http://127.0.0.1:4419/?surface=mc pnpm smoke:browser && CRAFTSURVIVE_SURFACE=dc CRAFTSURVIVE_URL=http://127.0.0.1:4419/?surface=dc pnpm smoke:browser"

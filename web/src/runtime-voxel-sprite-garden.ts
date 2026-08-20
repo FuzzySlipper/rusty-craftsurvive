@@ -121,6 +121,17 @@ export interface RuntimeVoxelSpriteGardenReadout {
   ghostMaterialResourceCount: number;
   ghostBorrowedTextureCount: number;
   ghostLimitations: readonly string[];
+  ghostSectorCount: 1 | 4 | 8 | 16;
+  ghostSelectedSector: number;
+  ghostPendingSector: number | null;
+  ghostPreviousSector: number | null;
+  ghostLocalAzimuthDegrees: number | null;
+  ghostSectorHysteresisDegrees: number;
+  ghostTransitionMode: 'hard-cut' | 'ordered-dither';
+  ghostTransitionProgress: number;
+  ghostTransitionDurationMilliseconds: number;
+  ghostResidentSectorCount: number;
+  ghostPreparationCpuMilliseconds: number | null;
   resourceCount: number;
   resourceBytes: number;
 }
@@ -197,6 +208,11 @@ export class RuntimeVoxelSpriteGarden {
   #ghostPlateMapping: 'plate-locked' | 'projective-surface' = DEFAULT_GHOST_PLATE_MAPPING;
   #ghostShellMode: 'whole-mesh' | 'strict-source' | 'repaired-source' = DEFAULT_GHOST_SHELL_MODE;
   #ghostShellDepthEpsilon = DEFAULT_GHOST_SHELL_DEPTH_EPSILON;
+  #ghostSectorCount: 1 | 4 | 8 | 16 = 8;
+  #ghostSectorHysteresisDegrees = 3;
+  #ghostTransitionMode: 'hard-cut' | 'ordered-dither' = 'ordered-dither';
+  #ghostTransitionDurationMilliseconds = 180;
+  readonly #ghostOnly: boolean;
   #ghostAngularBucket: number | null | undefined;
   #alignmentTimer: number | null = null;
   #status: RuntimeVoxelSpriteGardenReadout['status'] = 'loading';
@@ -205,10 +221,12 @@ export class RuntimeVoxelSpriteGarden {
     renderer: RustyApplicationRendererPort,
     readout: (value: RuntimeVoxelSpriteGardenReadout) => void,
     diagnostic: (value: string) => void,
+    options: { readonly ghostOnly?: boolean } = {},
   ) {
     this.#renderer = renderer;
     this.#readout = readout;
     this.#diagnostic = diagnostic;
+    this.#ghostOnly = options.ghostOnly ?? false;
     this.#emit();
   }
 
@@ -233,9 +251,11 @@ export class RuntimeVoxelSpriteGarden {
     if (this.#manifest === null || this.#status === 'disposed') return;
     this.#experiment?.dispose();
     this.#experiment = this.#renderer.createVoxelSpriteExperiment();
-    for (const subject of SUBJECTS) {
-      for (const side of SIDES) {
-        this.#apply(this.#experiment.create(this.#definition(subject, side)), `create ${subject} ${side}`);
+    if (!this.#ghostOnly) {
+      for (const subject of SUBJECTS) {
+        for (const side of SIDES) {
+          this.#apply(this.#experiment.create(this.#definition(subject, side)), `create ${subject} ${side}`);
+        }
       }
     }
     this.#apply(
@@ -313,7 +333,9 @@ export class RuntimeVoxelSpriteGarden {
         return;
       }
       this.#apply(this.#experiment.destroy(this.#id(previousSubject, 'ghost')), `hide ${previousSubject} ghost`);
-      for (const side of SIDES) this.#recapture(subject, side, 'subject comparison');
+      if (!this.#ghostOnly) {
+        for (const side of SIDES) this.#recapture(subject, side, 'subject comparison');
+      }
       void this.#publishSelectedGhostMarkers();
       this.#renderer.renderOnce();
     }
@@ -488,6 +510,30 @@ export class RuntimeVoxelSpriteGarden {
     this.#configureGhost({ ghostShellDepthEpsilon: this.#ghostShellDepthEpsilon });
   }
 
+  setGhostSectorCount(value: 1 | 4 | 8 | 16): void {
+    if (![1, 4, 8, 16].includes(value) || value === this.#ghostSectorCount) return;
+    this.#ghostSectorCount = value;
+    this.#replaceGhost('replace sector bank');
+  }
+
+  setGhostSectorHysteresisDegrees(value: number): void {
+    this.#ghostSectorHysteresisDegrees = bounded(value, 0, 22.5);
+    this.#configureGhost({ ghostSectorHysteresisDegrees: this.#ghostSectorHysteresisDegrees });
+  }
+
+  setGhostTransitionMode(value: 'hard-cut' | 'ordered-dither'): void {
+    if (value !== 'hard-cut' && value !== 'ordered-dither') return;
+    this.#ghostTransitionMode = value;
+    this.#configureGhost({ ghostTransitionMode: value });
+  }
+
+  setGhostTransitionDurationMilliseconds(value: number): void {
+    this.#ghostTransitionDurationMilliseconds = bounded(value, 0, 5_000);
+    this.#configureGhost({
+      ghostTransitionDurationMilliseconds: this.#ghostTransitionDurationMilliseconds,
+    });
+  }
+
   resetGhostDefaults(): void {
     this.#ghostDepthRetention = DEFAULT_GHOST_DEPTH_RETENTION;
     this.#ghostAnchorPolicy = DEFAULT_GHOST_ANCHOR_POLICY;
@@ -590,8 +636,20 @@ export class RuntimeVoxelSpriteGarden {
 
   #recaptureAll(operation: string): void {
     if (this.#experiment === null) return;
-    for (const side of SIDES) this.#recapture(this.#selectedSubject, side, operation);
+    if (!this.#ghostOnly) {
+      for (const side of SIDES) this.#recapture(this.#selectedSubject, side, operation);
+    }
     this.#recapture(this.#selectedSubject, 'ghost', operation);
+    this.#renderer.renderOnce();
+    this.#emit();
+  }
+
+  #replaceGhost(operation: string): void {
+    if (this.#experiment === null) return;
+    this.#apply(
+      this.#experiment.replace(this.#definition(this.#selectedSubject, 'ghost')),
+      `${operation}: ${this.#selectedSubject} ghost`,
+    );
     this.#renderer.renderOnce();
     this.#emit();
   }
@@ -629,6 +687,10 @@ export class RuntimeVoxelSpriteGarden {
           ghostPlateMapping: this.#ghostPlateMapping,
           ghostShellMode: this.#ghostShellMode,
           ghostShellDepthEpsilon: this.#ghostShellDepthEpsilon,
+          ghostSectorCount: this.#ghostSectorCount,
+          ghostSectorHysteresisDegrees: this.#ghostSectorHysteresisDegrees,
+          ghostTransitionMode: this.#ghostTransitionMode,
+          ghostTransitionDurationMilliseconds: this.#ghostTransitionDurationMilliseconds,
         },
       };
     }
@@ -715,7 +777,9 @@ export class RuntimeVoxelSpriteGarden {
         canonical: [center[0] - right[0] * 4.5, baseY, center[2] - right[1] * 4.5],
         baseline: [center[0] - right[0] * 1.5, baseY + 1.25, center[2] - right[1] * 1.5],
         enhanced: [center[0] + right[0] * 1.5, baseY + 1.25, center[2] + right[1] * 1.5],
-        ghost: [center[0] + right[0] * 4.5, baseY + 1.25, center[2] + right[1] * 4.5],
+        ghost: this.#ghostOnly
+          ? [center[0], baseY + 1.25, center[2]]
+          : [center[0] + right[0] * 4.5, baseY + 1.25, center[2] + right[1] * 4.5],
       });
     });
     const ghost = this.#positions.get(this.#selectedSubject)!.ghost;
@@ -779,7 +843,7 @@ export class RuntimeVoxelSpriteGarden {
           metadata: metadata(`runtime-voxel-sprite-source-${model.subject}`, 701_800 + index),
         },
       });
-      ops.push({
+      if (!this.#ghostOnly) ops.push({
         op: 'createAnimatedMeshInstance',
         handle: CANONICAL_HANDLE + index,
         parent: null,
@@ -792,7 +856,9 @@ export class RuntimeVoxelSpriteGarden {
           metadata: metadata(`runtime-voxel-sprite-canonical-${model.subject}`, 701_850 + index),
         },
       });
-      for (const [column, representation] of REPRESENTATIONS.entries()) {
+      const representations = this.#ghostOnly ? ['ghost'] as const : REPRESENTATIONS;
+      for (const representation of representations) {
+        const column = REPRESENTATIONS.indexOf(representation);
         const position = positions[representation];
         ops.push({
           op: 'create',
@@ -816,7 +882,10 @@ export class RuntimeVoxelSpriteGarden {
   async #publishLabels(): Promise<void> {
     const ops = SUBJECTS.flatMap((subject, index) => {
       const positions = this.#positions.get(subject)!;
-      return REPRESENTATIONS.map((representation, column) => ({
+      const representations = this.#ghostOnly ? ['ghost'] as const : REPRESENTATIONS;
+      return representations.map((representation) => {
+        const column = REPRESENTATIONS.indexOf(representation);
+        return ({
         domain: 'billboard' as const,
         meta: { sequence: index * REPRESENTATIONS.length + column },
         op: {
@@ -842,7 +911,8 @@ export class RuntimeVoxelSpriteGarden {
             visible: representation !== 'ghost' || subject === this.#selectedSubject,
           },
         },
-      }));
+        });
+      });
     });
     const receipt = await this.#renderer.applyPresentation({ schemaVersion: 1, ops });
     for (const diagnostic of receipt.diagnostics) {
@@ -971,6 +1041,18 @@ export class RuntimeVoxelSpriteGarden {
       ghostMaterialResourceCount: ghost?.materialResourceCount ?? 0,
       ghostBorrowedTextureCount: ghost?.borrowedTextureCount ?? 0,
       ghostLimitations: ghost?.limitations ?? [],
+      ghostSectorCount: ghost?.sectorCount ?? this.#ghostSectorCount,
+      ghostSelectedSector: ghost?.selectedSector ?? 0,
+      ghostPendingSector: ghost?.pendingSector ?? null,
+      ghostPreviousSector: ghost?.previousSector ?? null,
+      ghostLocalAzimuthDegrees: ghost?.localAzimuthDegrees ?? null,
+      ghostSectorHysteresisDegrees: ghost?.sectorHysteresisDegrees ?? this.#ghostSectorHysteresisDegrees,
+      ghostTransitionMode: ghost?.transitionMode ?? this.#ghostTransitionMode,
+      ghostTransitionProgress: ghost?.transitionProgress ?? 1,
+      ghostTransitionDurationMilliseconds: ghost?.transitionDurationMilliseconds
+        ?? this.#ghostTransitionDurationMilliseconds,
+      ghostResidentSectorCount: ghost?.residentSectorCount ?? 0,
+      ghostPreparationCpuMilliseconds: ghost?.preparationCpuMilliseconds ?? null,
       resourceCount: manifest?.metrics.resourceCount ?? 0,
       resourceBytes: manifest?.metrics.totalResourceBytes ?? 0,
     });

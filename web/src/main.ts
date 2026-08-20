@@ -4,7 +4,8 @@ import './styles.css';
 
 const root = document.querySelector<HTMLElement>('#app');
 if (root === null) throw new Error('missing CraftSurvive application root');
-const gardenEnabled = new URLSearchParams(location.search).get('course') === 'garden';
+const course = new URLSearchParams(location.search).get('course');
+const gardenEnabled = course === 'garden' || course === 'ghost-plate';
 
 void mountRustyApplication({
   root,

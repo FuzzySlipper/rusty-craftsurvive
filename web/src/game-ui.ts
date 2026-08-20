@@ -68,8 +68,15 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     </form>
     <p class="controls">WASD move · mouse look · Space jump · Shift sprint · Control crouch · H impulse · left/F break · right/G place · 1/2/3 brush radius</p>
   </section><div class="crosshair" aria-hidden="true">+</div>`;
+  const course = new URLSearchParams(location.search).get('course');
+  const ghostOnly = course === 'ghost-plate';
+  if (ghostOnly) {
+    root.querySelector<HTMLElement>('[data-garden-controls]')!.textContent =
+      'Focused ghost-plate lab · U changes subject · walk around the plate to exercise sectors · V opens controls.';
+    root.querySelector<HTMLFormElement>('[data-garden-panel]')!.outerHTML = ghostPlatePanel();
+  }
   const get = (selector: string) => root.querySelector<HTMLElement>(selector)!;
-  const gardenEnabled = new URLSearchParams(location.search).get('course') === 'garden';
+  const gardenEnabled = course === 'garden' || ghostOnly;
   for (const element of root.querySelectorAll<HTMLElement>('[data-garden-row], [data-garden-controls]')) {
     element.hidden = !gardenEnabled;
   }
@@ -81,6 +88,24 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
         ? 'loading'
         : `capture ${milliseconds(value.captureMilliseconds)} · steady ${milliseconds(value.steadyStateMilliseconds)} · ${(value.textureBytes / 1024).toFixed(0)} KiB · ${value.drawCalls} draws / ${value.sampleCount} samples · fallback ${value.fallbackPreservedCount}`;
       const panel = get('[data-garden-panel]');
+      if (ghostOnly) {
+        get('[data-garden-sector]').textContent = `${value.selectedSubject} · sector ${value.ghostSelectedSector + 1}/${value.ghostSectorCount}${value.ghostPendingSector === null ? '' : ` ← ${String((value.ghostPreviousSector ?? 0) + 1)}`} · ${value.ghostTransitionMode} ${(value.ghostTransitionProgress * 100).toFixed(0)}%`;
+        get('[data-garden-load]').textContent = `${value.ghostResidentSectorCount} resident captures · prepare ${milliseconds(value.ghostPreparationCpuMilliseconds)} · ${value.ghostDrawCalls} active draws · ${value.ghostMaterialResourceCount} materials`;
+        panel.querySelector<HTMLSelectElement>('[data-lab-subject]')!.value = value.selectedSubject;
+        panel.querySelector<HTMLSelectElement>('[data-lab-ghost-sectors]')!.value = String(value.ghostSectorCount);
+        panel.querySelector<HTMLInputElement>('[data-lab-ghost-hysteresis]')!.value = String(value.ghostSectorHysteresisDegrees);
+        panel.querySelector<HTMLOutputElement>('[data-lab-ghost-hysteresis-value]')!.value = `${value.ghostSectorHysteresisDegrees.toFixed(1)}°`;
+        panel.querySelector<HTMLSelectElement>('[data-lab-ghost-transition]')!.value = value.ghostTransitionMode;
+        panel.querySelector<HTMLInputElement>('[data-lab-ghost-duration]')!.value = String(value.ghostTransitionDurationMilliseconds);
+        panel.querySelector<HTMLOutputElement>('[data-lab-ghost-duration-value]')!.value = `${value.ghostTransitionDurationMilliseconds.toFixed(0)} ms`;
+        panel.querySelector<HTMLSelectElement>('[data-lab-ghost-retention]')!.value = value.ghostDepthRetention === 1 ? '1' : value.ghostDepthRetention.toFixed(2);
+        panel.querySelector<HTMLSelectElement>('[data-lab-ghost-mapping]')!.value = value.ghostPlateMapping;
+        panel.querySelector<HTMLSelectElement>('[data-lab-ghost-shell]')!.value = value.ghostShellMode;
+        panel.querySelector<HTMLInputElement>('[data-lab-ghost-shell-epsilon]')!.value = String(value.ghostShellDepthEpsilon);
+        panel.querySelector<HTMLOutputElement>('[data-lab-ghost-shell-epsilon-value]')!.value = value.ghostShellDepthEpsilon.toFixed(2);
+        panel.querySelector<HTMLOutputElement>('[data-lab-ghost]')!.value = `sector ${value.ghostSelectedSector + 1}/${value.ghostSectorCount} · local azimuth ${value.ghostLocalAzimuthDegrees?.toFixed(1) ?? 'n/a'}° · angular offset ${value.ghostAngularOffsetDegrees?.toFixed(1) ?? 'n/a'}° · transition ${value.ghostTransitionProgress.toFixed(2)} · fallback ${value.ghostFallbackActive ? value.ghostFallbackReason : 'none'}`;
+        return;
+      }
       panel.querySelector<HTMLSelectElement>('[data-lab-subject]')!.value = value.selectedSubject;
       panel.querySelector<HTMLSelectElement>('[data-lab-representation]')!.value = value.selectedRepresentation;
       panel.querySelector<HTMLInputElement>('[data-lab-canonical-visible]')!.checked = value.canonicalVisible;
@@ -136,10 +161,11 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
       panel.querySelector<HTMLOutputElement>('[data-lab-ghost]')!.value = `GOLD ${value.ghostShellMode} · source view ${value.ghostSourceViewAgreement}${value.ghostAngularOffsetDegrees === null ? '' : ` / ${value.ghostAngularOffsetDegrees.toFixed(2)}°`} · pose ${value.ghostMatchedPose ? 'MATCHED' : 'MISMATCH'} · shell ratios reject ${value.ghostRejectedFragmentRatioStatus ?? 'n/a'} / repair ${value.ghostRepairedBoundaryRatioStatus ?? 'n/a'} · fallback ${value.ghostFallbackActive ? value.ghostFallbackReason ?? 'active' : 'none'} · ${value.ghostDrawCalls} draws / ${value.ghostMeshCount} meshes · ${value.ghostMaterialResourceCount} materials + ${value.ghostBorrowedTextureCount} borrowed textures · limits ${value.ghostLimitations.join(', ') || 'none'}`;
     },
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
+    { ghostOnly },
   ) : null;
   const disposeGardenPanel = garden === null
     ? () => undefined
-    : bindGardenPanel(root, context, garden);
+    : ghostOnly ? bindGhostPlatePanel(root, context, garden) : bindGardenPanel(root, context, garden);
   const view: SessionView = {
     status: (text) => { get('[data-status]').textContent = text; },
     diagnostic: (text) => { get('[data-presentation-diagnostic]').textContent = text; },
@@ -201,6 +227,90 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     window.removeEventListener('mousemove', move); window.removeEventListener('mousedown', mouse);
     window.removeEventListener('contextmenu', mouse); disposeGardenPanel(); client.dispose();
   }};
+}
+
+function ghostPlatePanel(): string {
+  return `<form class="voxel-sprite-lab" data-garden-panel hidden>
+    <strong>Directional ghost-plate lab</strong>
+    <label>subject <select data-lab-subject><option value="spatial-wizard">spatial wizard</option><option value="rigged-wizard">rigged wizard</option><option value="knight">knight</option></select></label>
+    <fieldset><legend>directional depiction bank</legend>
+      <label>azimuth sectors <select data-lab-ghost-sectors><option value="1">1</option><option value="4">4</option><option value="8" selected>8</option><option value="16">16</option></select></label>
+      <label>boundary hysteresis <input data-lab-ghost-hysteresis type="range" min="0" max="10" step="0.5" value="3"><output data-lab-ghost-hysteresis-value>3.0°</output></label>
+      <label>transition <select data-lab-ghost-transition><option value="hard-cut">hard cut</option><option value="ordered-dither" selected>plate dither</option></select></label>
+      <label>dither duration <input data-lab-ghost-duration type="range" min="0" max="600" step="20" value="180"><output data-lab-ghost-duration-value>180 ms</output></label>
+    </fieldset>
+    <fieldset><legend>plate look</legend>
+      <label>depth retention <select data-lab-ghost-retention><option value="0.02">0.02 near-flat</option><option value="0.08">0.08 restrained</option><option value="0.15" selected>0.15 default</option><option value="0.30">0.30 pronounced</option><option value="1">1.00 original depth</option></select></label>
+      <label>mapping <select data-lab-ghost-mapping><option value="plate-locked">plate locked</option><option value="projective-surface">projective surface</option></select></label>
+      <label>source shell <select data-lab-ghost-shell><option value="whole-mesh">whole mesh</option><option value="strict-source">strict captured shell</option><option value="repaired-source">one-texel repaired shell</option></select></label>
+      <label>shell tolerance <input data-lab-ghost-shell-epsilon type="range" min="0" max="1" step="0.02" value="0.12"><output data-lab-ghost-shell-epsilon-value>0.12</output></label>
+    </fieldset>
+    <div class="lab-actions"><button data-lab-freeze-view type="button">Rebuild from current view</button><button data-lab-reset-ghost type="button">Reset plate look</button><button data-lab-resume type="button">Resume game</button></div>
+    <output data-lab-ghost>ghost plate loading</output>
+    <small>Only one frozen subject and its directional ghost plates are instantiated. Walk around it to cross actor-relative sector boundaries. A sector-count change atomically rebuilds the exact-pose capture bank.</small>
+  </form>`;
+}
+
+function bindGhostPlatePanel(
+  root: HTMLElement,
+  context: RustyApplicationUiContext,
+  garden: RuntimeVoxelSpriteGarden,
+): () => void {
+  const panel = root.querySelector<HTMLFormElement>('[data-garden-panel]')!;
+  const closePanel = () => {
+    panel.hidden = true;
+    context.ui.setInteractionMode('gameplay');
+    context.ui.focusGameplay();
+  };
+  const submit = (event: Event) => event.preventDefault();
+  const pointerDown = (event: PointerEvent) => {
+    if (event.target instanceof Element && event.target.closest('[data-garden-panel]') !== null) {
+      context.ui.setInteractionMode('interface');
+    }
+  };
+  const change = (event: Event) => {
+    if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) return;
+    const control = event.target;
+    if (control.matches('[data-lab-subject]')) garden.setSubject(control.value as VoxelSpriteSubject);
+    else if (control.matches('[data-lab-ghost-sectors]')) garden.setGhostSectorCount(Number(control.value) as 1 | 4 | 8 | 16);
+    else if (control.matches('[data-lab-ghost-transition]')) garden.setGhostTransitionMode(control.value as 'hard-cut' | 'ordered-dither');
+    else if (control.matches('[data-lab-ghost-retention]')) garden.setGhostDepthRetention(Number(control.value));
+    else if (control.matches('[data-lab-ghost-mapping]')) garden.setGhostPlateMapping(control.value as Parameters<typeof garden.setGhostPlateMapping>[0]);
+    else if (control.matches('[data-lab-ghost-shell]')) garden.setGhostShellMode(control.value as Parameters<typeof garden.setGhostShellMode>[0]);
+  };
+  const input = (event: Event) => {
+    if (!(event.target instanceof HTMLInputElement)) return;
+    const control = event.target;
+    if (control.matches('[data-lab-ghost-hysteresis]')) garden.setGhostSectorHysteresisDegrees(Number(control.value));
+    else if (control.matches('[data-lab-ghost-duration]')) garden.setGhostTransitionDurationMilliseconds(Number(control.value));
+    else if (control.matches('[data-lab-ghost-shell-epsilon]')) garden.setGhostShellDepthEpsilon(Number(control.value));
+  };
+  const click = (event: MouseEvent) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-lab-freeze-view]') !== null) garden.freezeCurrentSourceView();
+    else if (event.target.closest('[data-lab-reset-ghost]') !== null) garden.resetGhostDefaults();
+    else if (event.target.closest('[data-lab-resume]') !== null) closePanel();
+  };
+  const panelKey = (event: KeyboardEvent) => {
+    if (panel.hidden || event.repeat || (event.code !== 'Escape' && event.code !== 'KeyV')) return;
+    closePanel();
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  window.addEventListener('keydown', panelKey);
+  root.addEventListener('submit', submit);
+  root.addEventListener('pointerdown', pointerDown);
+  root.addEventListener('change', change);
+  root.addEventListener('input', input);
+  root.addEventListener('click', click);
+  return () => {
+    window.removeEventListener('keydown', panelKey);
+    root.removeEventListener('submit', submit);
+    root.removeEventListener('pointerdown', pointerDown);
+    root.removeEventListener('change', change);
+    root.removeEventListener('input', input);
+    root.removeEventListener('click', click);
+  };
 }
 
 function bindGardenPanel(
