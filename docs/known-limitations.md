@@ -48,12 +48,18 @@ The initial experiment is intentionally bounded:
   folding, disconnected source regions, texture smear, or holes. Strict captured-depth shell
   rejection and a four-neighbor repaired variant are available for comparison, but their RGBA8
   source depth has a visible quantization floor and fragment rejection/repair ratios are unavailable
-  without a prohibited readback/statistics pass. It has no held animation,
-  compiled plate shell, regional depth policy, or sector blending yet. Only the selected subject's
+  without a prohibited readback/statistics pass. It has no compiled plate shell, regional depth policy,
+  or sector blending yet. Only the selected subject's
   gold plate is shown because simultaneous plates in the three depth rows visually occlude one
   another from the spawn view; subject selection recreates the isolated plate and its exact source
   view. The visible gray 3D column is an inspection copy rather than a second gameplay or capture
   authority.
+- the target-bound held-animation garden is an inspection experiment rather than a production
+  animation system. It retains at most 24 samples per one-direction flat/depth bank and therefore
+  deliberately exposes only the bounded cadence window beginning at source time zero for longer
+  clips; the panel distinguishes that window from the full source duration. It uses CPU submission
+  timings, not GPU timings; it does no runtime retargeting or root-motion extraction. The accepted
+  direction-aligned UAL pack still has approximate axial hand/forearm roll.
 
 These are scope boundaries, not invitations to work around Engine ownership. Add a focused Den task
 before expanding one.

@@ -92,6 +92,22 @@ both caller-selected capture-view units and the unavoidable half-step from RGBA8
 fragment reject/repair ratios remain explicitly unavailable because the experiment performs no
 texture readback or statistics pass.
 
+`?course=animation-garden` is a focused, target-bound animation experiment. It admits the checked
+rigged-wizard mesh and the accepted Asset Pipeline #7027 direction-aligned external UAL clip pack;
+the six chooser entries deliberately cover idle, walk/jog, spell, sword/punch, roll/jump, and death.
+The normal retained mesh, flat runtime capture, and voxel-depth-enhanced capture stand side by side
+at exactly the same declared normalized sample through Engine-owned retained playback. Cadence controls generate a bounded 8/12/24 Hz
+grid (at most 24 held frames per view) beginning at source time zero; the panel names both the full
+source duration and the shorter captured window when the cap prevents complete long-clip coverage.
+Flat frames publish before the depth bank begins because the
+public Engine surface permits only one candidate preparation at a time. Scrubbing and play/pause
+select resident frames without steady-state recapture. The source pack is explicitly in-place, so
+the experiment never derives actor translation from animation: CraftSurvive's Rust player/world
+authority stays unchanged. `V` opens the viewport-bounded panel; `U`, `I`, `O`, and `P` choose clip,
+cadence, readout focus, and play/pause. The panel exposes per-bank preparation/switch timings,
+resident bytes, captured frames, root policy, provenance, and the remaining axial hand/forearm-twist
+limitation from the accepted retarget.
+
 `?course=ghost-plate` is the focused directional lab. It omits the gray, blue, red, and splat
 comparisons entirely and instantiates only the selected subject's retained capture source, gold
 plate bank, marker, and controls. The panel exposes 1/4/8/16 azimuth sectors, boundary hysteresis,

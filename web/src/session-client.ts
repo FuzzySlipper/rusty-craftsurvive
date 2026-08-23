@@ -1,8 +1,8 @@
 import type {
+  RustyApplicationContent,
   RustyApplicationResource,
   RustyApplicationUiContext,
 } from '@rusty-engine/application-host';
-import type { RuntimeVoxelSpriteGarden } from './runtime-voxel-sprite-garden';
 
 type Surface = 'box' | 'marchingCubes' | 'dualContouring';
 interface CameraPose { position: [number, number, number]; yawDegrees: number; pitchDegrees: number }
@@ -58,10 +58,23 @@ export interface SessionView {
   miss(action: 'destroy' | 'place', target: [number, number, number] | null): void;
 }
 
+/** Product-owned laboratory attachment. It may observe the game camera but never owns it. */
+export interface GardenExperiment {
+  prepare(
+    frame: Record<string, unknown>,
+    baseResources: RustyApplicationResource[],
+    camera: CameraPose,
+  ): Promise<RustyApplicationContent>;
+  activate(): void;
+  observe(camera: CameraPose): void;
+  key(event: KeyboardEvent, down: boolean): boolean;
+  dispose(): void;
+}
+
 export class SessionClient {
   readonly #context: RustyApplicationUiContext;
   readonly #view: SessionView;
-  readonly #garden: RuntimeVoxelSpriteGarden | null;
+  readonly #garden: GardenExperiment | null;
   readonly #held = new Set<string>();
   #socket: WebSocket | null = null;
   #generation = 0;
@@ -74,7 +87,7 @@ export class SessionClient {
   #protocolFailed = false;
   #lifecycleEpoch = 0;
 
-  constructor(context: RustyApplicationUiContext, view: SessionView, garden: RuntimeVoxelSpriteGarden | null = null) {
+  constructor(context: RustyApplicationUiContext, view: SessionView, garden: GardenExperiment | null = null) {
     this.#context = context;
     this.#view = view;
     this.#garden = garden;

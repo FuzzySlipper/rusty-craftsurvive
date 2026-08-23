@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type {
+  RustyApplicationContent,
   RustyApplicationRendererPort,
   RustyApplicationUiContext,
 } from '@rusty-engine/application-host';
@@ -330,7 +331,7 @@ test('a rejected optional presentation is diagnostic and does not poison the ses
 });
 
 test('textured welcome fetches retained atlas bytes before replacing content', async () => {
-  const calls: Array<{ frame: Record<string, unknown>; resources: Array<{ identity: string; contentHash: string; mediaType: string; bytes: Uint8Array }> }> = [];
+  const calls: RustyApplicationContent[] = [];
   const context = {
     renderer: rendererPort({
       replaceFrame: async () => { throw new Error('textured welcome must replace complete content'); },
@@ -338,7 +339,7 @@ test('textured welcome fetches retained atlas bytes before replacing content', a
       setCameraPose: () => undefined,
       clear: async () => undefined,
       renderOnce: () => undefined,
-      replaceContent: async (content: (typeof calls)[number]) => {
+      replaceContent: async (content: RustyApplicationContent) => {
         calls.push(content);
         return { applied: true, diagnostics: [] };
       },
@@ -393,8 +394,8 @@ test('textured welcome fetches retained atlas bytes before replacing content', a
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(calls.length, 1);
-  assert.deepEqual([...calls[0]!.resources[0]!.bytes], [137, 80, 78, 71]);
-  assert.equal(calls[0]!.resources[0]!.identity, 'texture-resource/terrain-atlas');
+  assert.deepEqual([...calls[0]!.resources![0]!.bytes], [137, 80, 78, 71]);
+  assert.equal(calls[0]!.resources![0]!.identity, 'texture-resource/terrain-atlas');
   client.dispose();
 });
 

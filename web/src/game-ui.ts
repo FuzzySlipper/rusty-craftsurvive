@@ -8,6 +8,7 @@ import {
   type VoxelSpriteSplatBlendMode,
   type VoxelSpriteSubject,
 } from './runtime-voxel-sprite-garden';
+import { HeldAnimationGarden, type HeldAnimationGardenReadout } from './held-animation-garden';
 import { SessionClient, type SessionView } from './session-client';
 
 export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplicationUiContext): RustyApplicationUiOwner {
@@ -70,17 +71,28 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
   </section><div class="crosshair" aria-hidden="true">+</div>`;
   const course = new URLSearchParams(location.search).get('course');
   const ghostOnly = course === 'ghost-plate';
+  const animationOnly = course === 'animation-garden';
   if (ghostOnly) {
     root.querySelector<HTMLElement>('[data-garden-controls]')!.textContent =
       'Focused ghost-plate lab · U changes subject · walk around the plate to exercise sectors · V opens controls.';
     root.querySelector<HTMLFormElement>('[data-garden-panel]')!.outerHTML = ghostPlatePanel();
   }
+  if (animationOnly) {
+    root.querySelector<HTMLElement>('[data-garden-controls]')!.textContent =
+      'Held animation garden · left normal mesh · center flat capture · right voxel-depth · U clip · I cadence 8/12/24 Hz · O representation · P play/pause held samples · V controls.';
+    root.querySelector<HTMLFormElement>('[data-garden-panel]')!.outerHTML = heldAnimationPanel();
+  }
   const get = (selector: string) => root.querySelector<HTMLElement>(selector)!;
-  const gardenEnabled = course === 'garden' || ghostOnly;
+  const gardenEnabled = course === 'garden' || ghostOnly || animationOnly;
   for (const element of root.querySelectorAll<HTMLElement>('[data-garden-row], [data-garden-controls]')) {
     element.hidden = !gardenEnabled;
   }
-  const garden = gardenEnabled ? new RuntimeVoxelSpriteGarden(
+  const animationGarden = animationOnly ? new HeldAnimationGarden(
+    context.renderer,
+    (value) => renderHeldAnimationReadout(root, value),
+    (text) => { get('[data-presentation-diagnostic]').textContent = text; },
+  ) : null;
+  const garden = !animationOnly && gardenEnabled ? new RuntimeVoxelSpriteGarden(
     context.renderer,
     (value) => {
       get('[data-garden-sector]').textContent = `${value.selectedSubject} · inspect ${representationLabel(value.selectedRepresentation)} · RED ${value.mode} · GOLD ${value.ghostDepthRetention.toFixed(2)} ${value.ghostPlateMapping} ${value.ghostShellMode} · ${value.sectorLabel}${value.autoSector ? ' follow' : ' frozen'} · capture ${value.appliedResolution}px${value.capturePending ? ` → ${value.resolution}px queued` : ''}`;
@@ -164,7 +176,9 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     (text) => { get('[data-presentation-diagnostic]').textContent = text; },
     { ghostOnly },
   ) : null;
-  const disposeGardenPanel = garden === null
+  const disposeGardenPanel = animationGarden !== null
+    ? bindHeldAnimationPanel(root, context, animationGarden)
+    : garden === null
     ? () => undefined
     : ghostOnly ? bindGhostPlatePanel(root, context, garden) : bindGardenPanel(root, context, garden);
   const view: SessionView = {
@@ -199,9 +213,9 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     reject: (value) => { get('[data-edit]').textContent = `edit rejected · ${value.code} at ${value.voxel.join(', ')}`; },
     miss: (action, target) => { get('[data-edit]').textContent = `${action} missed · ${target === null ? 'nothing in reach' : `target ${target.join(', ')}`}`; },
   };
-  const client = new SessionClient(context, view, garden);
+  const client = new SessionClient(context, view, animationGarden ?? garden);
   const down = (event: KeyboardEvent) => {
-    if (event.code === 'KeyV' && !event.repeat && context.ui.allowsGameplayInput(event) && garden !== null) {
+    if (event.code === 'KeyV' && !event.repeat && context.ui.allowsGameplayInput(event) && (garden !== null || animationGarden !== null)) {
       get('[data-garden-panel]').hidden = false;
       context.ui.setInteractionMode('interface');
       event.preventDefault();
@@ -228,6 +242,69 @@ export function mountCraftSurviveUi(root: HTMLElement, context: RustyApplication
     window.removeEventListener('mousemove', move); window.removeEventListener('mousedown', mouse);
     window.removeEventListener('contextmenu', mouse); disposeGardenPanel(); client.dispose();
   }};
+}
+
+function heldAnimationPanel(): string {
+  return `<form class="voxel-sprite-lab" data-garden-panel hidden>
+    <strong>Target-bound held animation garden</strong>
+    <label>representative clip <select data-held-clip>
+      <option value="ual-idle">idle · Idle_Loop</option><option value="ual-jog">walk/jog · Jog_Fwd_Loop</option>
+      <option value="ual-spell">spell · Spell_Simple_Shoot</option><option value="ual-sword">sword/punch · Sword_Attack</option>
+      <option value="ual-roll">roll/jump · Roll</option><option value="ual-death">death · Death01</option>
+    </select></label>
+    <label>held cadence <select data-held-cadence><option value="8">8 Hz</option><option value="12" selected>12 Hz</option><option value="24">24 Hz</option></select></label>
+    <label>inspect <select data-held-representation><option value="normal mesh">normal skinned mesh</option><option value="flat capture">flat runtime capture</option><option value="voxel-depth enhanced" selected>voxel/depth enhanced</option></select></label>
+    <label>normalized pose <input data-held-scrub type="range" min="0" max="7" step="1" value="0"><output data-held-scrub-value>0/8 · 0.000</output></label>
+    <output data-held-window>source window loading</output>
+    <div class="lab-actions"><button data-held-pause type="button">Play held samples</button><button data-lab-resume type="button">Resume game</button></div>
+    <output data-held-summary>loading target-bound animation library</output>
+    <output data-held-banks>frame banks loading</output>
+    <output data-held-policy>root policy loading</output>
+    <small>All three columns use the same admitted pack clip and declared normalized sample. The actor transform is not animation-derived: the pack is explicitly in-place, and the existing Rust player/world authority remains smooth while held presentation changes. Changing a clip or cadence prepares flat then depth without overlapping candidates; the shared selection changes only after both banks are resident. Ordinary scrub only selects resident captures.</small>
+  </form>`;
+}
+
+function renderHeldAnimationReadout(root: HTMLElement, value: HeldAnimationGardenReadout): void {
+  const get = (selector: string) => root.querySelector<HTMLElement>(selector)!;
+  get('[data-garden-sector]').textContent = `${value.category} · ${value.clip} · ${value.cadence} Hz · sample ${value.sampleIndex + 1}/${value.sampleCount} · ${value.representation}`;
+  get('[data-garden-load]').textContent = value.status === 'failed' ? `FAILED · ${value.limitation}`
+    : `${value.status} · flat ${value.flat.frameCount} frames / ${(value.flat.bytes / 1024 / 1024).toFixed(1)} MiB · depth ${value.depth.frameCount} frames / ${(value.depth.bytes / 1024 / 1024).toFixed(1)} MiB`;
+  const panel = root.querySelector<HTMLFormElement>('[data-garden-panel]');
+  if (panel === null) return;
+  panel.querySelector<HTMLSelectElement>('[data-held-clip]')!.value = value.clipId;
+  panel.querySelector<HTMLSelectElement>('[data-held-cadence]')!.value = String(value.cadence);
+  panel.querySelector<HTMLSelectElement>('[data-held-representation]')!.value = value.representation;
+  const scrub = panel.querySelector<HTMLInputElement>('[data-held-scrub]')!;
+  scrub.max = String(Math.max(0, value.sampleCount - 1)); scrub.value = String(value.sampleIndex);
+  panel.querySelector<HTMLOutputElement>('[data-held-scrub-value]')!.value = `${value.sampleIndex + 1}/${value.sampleCount} · ${value.normalizedTime.toFixed(3)}`;
+  panel.querySelector<HTMLOutputElement>('[data-held-window]')!.value = `source ${value.sourceDurationSeconds.toFixed(3)} s · bounded window t=0.000–${value.sampleWindowSeconds.toFixed(3)} s at ${value.cadence} Hz`;
+  panel.querySelector<HTMLButtonElement>('[data-held-pause]')!.textContent = value.paused ? 'Play held samples' : 'Pause held samples';
+  panel.querySelector<HTMLOutputElement>('[data-held-summary]')!.value = `${value.provenance} · exact target-bound source · ${value.paused ? 'held' : 'playing resident samples'}`;
+  panel.querySelector<HTMLOutputElement>('[data-held-banks]')!.value = `flat ${value.flat.state}: ${value.flat.captured}/${value.flat.frameCount}, prepare ${milliseconds(value.flat.prepareMs)}, switch ${milliseconds(value.flat.switchMs)} · depth ${value.depth.state}: ${value.depth.captured}/${value.depth.frameCount}, prepare ${milliseconds(value.depth.prepareMs)}, switch ${milliseconds(value.depth.switchMs)} · ${value.preparation} · ${value.steadyState}`;
+  panel.querySelector<HTMLOutputElement>('[data-held-policy]')!.value = `${value.rootPolicy} Limitation: ${value.limitation}`;
+}
+
+function bindHeldAnimationPanel(root: HTMLElement, context: RustyApplicationUiContext, garden: HeldAnimationGarden): () => void {
+  const panel = root.querySelector<HTMLFormElement>('[data-garden-panel]')!;
+  const close = () => { panel.hidden = true; context.ui.setInteractionMode('gameplay'); context.ui.focusGameplay(); };
+  const submit = (event: Event) => event.preventDefault();
+  const pointer = (event: PointerEvent) => { if (event.target instanceof Element && event.target.closest('[data-garden-panel]')) context.ui.setInteractionMode('interface'); };
+  const change = (event: Event) => {
+    if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) return;
+    const control = event.target;
+    if (control.matches('[data-held-clip]')) garden.setClip(control.value);
+    else if (control.matches('[data-held-cadence]')) garden.setCadence(Number(control.value) as 8 | 12 | 24);
+    else if (control.matches('[data-held-representation]')) garden.setRepresentation(control.value as Parameters<typeof garden.setRepresentation>[0]);
+    else if (control.matches('[data-held-scrub]')) garden.setSampleIndex(Number(control.value));
+  };
+  const click = (event: MouseEvent) => {
+    if (!(event.target instanceof Element)) return;
+    if (event.target.closest('[data-held-pause]')) garden.setPaused(!garden.isPaused());
+    else if (event.target.closest('[data-lab-resume]')) close();
+  };
+  const key = (event: KeyboardEvent) => { if (!panel.hidden && !event.repeat && (event.code === 'Escape' || event.code === 'KeyV')) { close(); event.preventDefault(); event.stopImmediatePropagation(); } };
+  root.addEventListener('submit', submit); root.addEventListener('pointerdown', pointer); root.addEventListener('change', change); root.addEventListener('input', change); root.addEventListener('click', click); window.addEventListener('keydown', key);
+  return () => { root.removeEventListener('submit', submit); root.removeEventListener('pointerdown', pointer); root.removeEventListener('change', change); root.removeEventListener('input', change); root.removeEventListener('click', click); window.removeEventListener('keydown', key); };
 }
 
 function ghostPlatePanel(): string {

@@ -14,8 +14,12 @@ architecture wholesale.
 | Rusty Engine task 6851 | Guarded `VoxelChunkResidencyService` admission/eviction, complete dense payloads, retained mesh reuse, coherent collision/navigation revision publication, and explicit chunk leases | Engine-owned generation policy, ambient streaming scheduler, edit persistence policy, hidden pinning, infinite-world claims |
 | Rusty Engine task 6895 | Exact global position, explicit world origin, guarded complete-root rebasing, synchronized voxel/collision/navigation/static-mesh translation, character continuation, and stable retained identities; adopted from Engine revision `30bcb6d2fd5f9f1b17bdcb0c95aa8588245b34ac` | Engine-owned streaming policy, automatic scheduler, persistence policy, hidden root discovery, or limitless-world claims |
 | Asset Pipeline task 6977 and Rusty Engine tasks 7003-7008 | Three bounded character sources and sixteen-direction color/depth/normal captures adapted into checked prepared-frame fixtures; public application-host voxel-sprite experiment port used for retained runtime capture, source switching, enhancement tuning, fallback evidence, and readout | Asset-pipeline runtime authority, downstream Three/WebGL imports, offline rankings as renderer verdicts, production impostor streaming, continuous rebaking, or gameplay/collision authority |
+| Asset Pipeline task 7027 and Rusty Engine held-animation frame-bank surface | Accepted direction-aligned, target-bound UAL in-place clip pack; public application-host animated mesh admission, sequential held-frame-bank preparation, resident selection, and retained sample playback used for the normal/flat/depth animation comparison | Runtime retargeting, GLTF/Three imports, downstream mixer ownership, animation-derived actor motion, a game scheduler, production combat state, or unbounded capture banks |
 
-No asset files or source files were copied verbatim. The implementation uses current public Engine
-facade APIs and owns only CraftSurvive-specific composition. The terrain source images are original
-OpenAI image-generation outputs made for this repository; their prompts, mechanical atlas build,
-layout, and hash are recorded under `content/textures/`.
+No donor source code or architecture was copied verbatim. The task 7027 target mesh, accepted
+target-bound clip pack, and license are intentionally reproduced byte-for-byte as checked,
+hash-pinned runtime inputs; their provenance is recorded above and in the animation-garden
+manifest. The implementation uses current public Engine facade APIs and owns only
+CraftSurvive-specific composition. The terrain source images are original OpenAI image-generation
+outputs made for this repository; their prompts, mechanical atlas build, layout, and hash are
+recorded under `content/textures/`.
