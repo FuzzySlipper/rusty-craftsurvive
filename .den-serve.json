@@ -1,12 +1,11 @@
 {
   "project": "rusty-craftsurvive",
   "serve": {
-    "command": "bash scripts/serve-den.sh -- --host {host} --port {port}",
-    "preferredPort": 4419,
-    "healthUrl": "/health",
-    "readyText": "\"project\":\"rusty-craftsurvive\"",
-    "identityHeader": "X-Den-Project",
+    "command": "exec ./scripts/run-csharp.sh --bind-host {host} --port {port}",
+    "healthUrl": "/ui/main.js",
+    "readyText": "Rusty CraftSurvive",
     "reusePolicy": "broker_owned",
-    "startupTimeout": "180s"
+    "startupTimeout": "120s",
+    "healthInterval": "250ms"
   }
 }
