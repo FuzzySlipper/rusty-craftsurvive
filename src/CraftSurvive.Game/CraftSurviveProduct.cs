@@ -38,11 +38,11 @@ public sealed class CraftSurviveProduct : IEngineProduct
         }
     }
 
-    public ProductTurnRequest Update(ProductUpdate update)
+    public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         player.Update(update);
-        return ProductTurnRequest.None;
+        return ProductUpdateResult.None;
     }
 
     public void Pause()
