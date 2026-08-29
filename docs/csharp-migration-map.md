@@ -26,10 +26,10 @@ browser transport. No C# or TypeScript migration work should recreate them.
 | NativeAOT bootstrap | none in CraftSurvive | `CraftSurvive.NativeProduct` | Generator-selected product; no handwritten ABI. |
 | Browser host | `src/bin/browser-host.rs`, `web/src/main.ts` | Engine `csharp-product-runtime` plus generated bundle | Replaced by the standard host path. |
 | DOM shell/HUD | `web/src/game-ui.ts` | `src/ui/main.ts` | Static DOM guidance exists; a later slice can use the admitted Engine UI projection rather than recreate gameplay state in the browser. |
-| Terrain recipe and bounds | `src/config.rs`, `src/island.rs`, `src/world.rs` | future `CraftSurvive.Game/Terrain` | Not migrated. C# owns generation policy; Engine must own voxel/collision mechanisms. |
-| Voxel residency, edit, and ray target | `src/world.rs` | future `Terrain` coordinator | Not migrated. Confirm the generated voxel, residency, edit, and pick services before work. |
+| Terrain recipe and bounds | `src/config.rs`, `src/island.rs`, `src/world.rs` | `CraftSurvive.Game/Modules/Terrain` | Safe C# generation-v2 recipe, chunks, residency policy, and atomic edit admission are active; Engine composition remains task 7495. |
+| Voxel residency, edit, and ray target | `src/world.rs` | `CraftSurvive.Game/Modules/Terrain` coordinator | Product policy is migrated; generated Spatial/Voxel integration remains task 7495. |
 | Player movement and look policy | `src/player.rs` | future `CraftSurvive.Game/Player` | Not migrated. Use generated controller/look/camera services only. |
-| Save overlay policy | `src/save.rs` | future `CraftSurvive.Game/Persistence` | Not migrated. Use Engine persistence primitives rather than a browser transport. |
+| Save overlay policy | `src/save.rs` | `CraftSurvive.Game/Modules/Terrain` | One-owner overlay state and bounded canonical binary snapshot codec are active; Engine persistence composition remains task 7495. |
 | Terrain/sky/sprite/debris presentation | `src/projection.rs`, `src/terrain_texture.rs`, `src/sky_background.rs`, `src/sprite_scene.rs` | future C# presentation publishers | Not migrated. Engine presentation capabilities must carry the result. |
 | Animation and depth-splat gardens | `web/src/*garden.ts` | none by default | Retained as narrow historical experiments, not migration targets. |
 
