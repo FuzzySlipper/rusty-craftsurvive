@@ -31,6 +31,21 @@ internal static class TerrainConstants
     internal const long MaximumCoordinateMagnitude = 1_000_000;
     internal const int MaximumBrushRadius = 2;
 
+    internal const double VoxelSize = 1d;
+    internal const uint VoxelChunkSize = ChunkEdgeLength;
+    internal const string PersistenceScope = "craftsurvive";
+    internal const string OverlayPersistenceKey = "terrain/overlay";
+    internal const uint PersistenceSchemaVersion = OverlaySchemaVersion;
+    internal const string UiStreamName = "craftsurvive.terrain";
+    internal const string UiStreamContract = "craftsurvive.terrain.v1";
+    internal const uint CollisionGroupAll = uint.MaxValue;
+    internal const uint CollisionMaskAll = uint.MaxValue;
+    internal const double EditReach = 8d;
+
+    internal const float TerrainRoughness = 0.9f;
+    internal const float MaterialAlpha = 1f;
+    internal const float NoEmission = 0f;
+
     internal const int OverlaySchemaVersion = 1;
     internal const int MaximumOverlayEntries = 65_536;
     internal const int MaximumOverlayBytes = 8 * 1024 * 1024;
