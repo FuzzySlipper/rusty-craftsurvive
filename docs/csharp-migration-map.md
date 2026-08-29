@@ -1,59 +1,58 @@
 # CraftSurvive C# migration map
 
-## Purpose and lane
+## Current lane
 
-CraftSurvive is becoming a C# product hosted by Rusty Engine's generated
-NativeAOT boundary. This map treats the existing Rust and TypeScript code as
-semantic donor material, not an implementation that C# must mirror. The C# map
-starts deliberately small so later gameplay slices can choose clear domain
-owners instead of inheriting a host-shaped file layout.
+CraftSurvive is now a C# product hosted by Rusty Engine's generated
+NativeAOT boundary. The C# product owns application state and gameplay
+meaning; Engine owns reusable mechanisms. The earlier Rust session and
+browser runtime were retired in task 7497. Their exact source and experiment
+assets are recoverable from Git history, but are not alternate implementation
+targets.
 
 ```text
-CraftSurvive.Game          safe product state, terrain policy, player rules
-CraftSurvive.NativeProduct generated NativeAOT composition only
+CraftSurvive.Game          safe C# product state and gameplay domains
+CraftSurvive.NativeProduct thin generated NativeAOT composition
 Rusty.Engine               lifecycle, input, spatial, rendering, persistence
-src/ui/main.ts             DOM-only static companion UI
+src/ui/main.ts             DOM-only companion UI
+content/textures/          canonical terrain content and metadata
 ```
 
-The Engine owns canvas, renderer resources, retained-frame implementation, and
-browser transport. No C# or TypeScript migration work should recreate them.
+The Engine owns the canvas, renderer resources, retained frame construction,
+browser host, and browser transport. Product C# publishes facts through named
+Engine services; neither C# nor TypeScript recreates those mechanisms.
 
-## Current starting point
+## Landed ownership
 
-| Area | Donor location | C# destination | Status |
-| --- | --- | --- | --- |
-| Product lifecycle | `src/main.rs`, `src/session.rs` | `CraftSurvive.Game/CraftSurviveProduct.cs` | Minimal lifecycle shell exists; no gameplay has moved. |
-| NativeAOT bootstrap | none in CraftSurvive | `CraftSurvive.NativeProduct` | Generator-selected product; no handwritten ABI. |
-| Browser host | `src/bin/browser-host.rs`, `web/src/main.ts` | Engine `csharp-product-runtime` plus generated bundle | Replaced by the standard host path. |
-| DOM shell/HUD | `web/src/game-ui.ts` | `src/ui/main.ts` | Static DOM guidance exists; a later slice can use the admitted Engine UI projection rather than recreate gameplay state in the browser. |
-| Terrain recipe and bounds | `src/config.rs`, `src/island.rs`, `src/world.rs` | `CraftSurvive.Game/Modules/Terrain` | Safe C# generation-v2 recipe, chunks, bounded residency policy, canonical overlay state, and atomic edit admission are active. |
-| Voxel residency, edit, and ray target | `src/world.rs` | `CraftSurvive.Game/Modules/Terrain/TerrainWorld.cs` | Active through generated Spatial/Voxel sessions, revision-checked residency/edit transactions, leases, Engine pick facts, and product admission decisions. Player supplies the typed overlap fact at the edit boundary. |
-| Player movement, look, camera, rebase, and moving platform policy | `src/player.rs`, `src/session.rs` | `CraftSurvive.Game/Modules/Player` | Active through product-owned input/pose policy and generated Look, Spatial character (including one call-local platform obstacle), WorldOrigin, CameraView, and Appearance services. Terrain retains voxel residency, edits, presentation, and UI-stream ownership. |
-| Save overlay policy | `src/save.rs` | `CraftSurvive.Game/Modules/Terrain` | One-owner bounded canonical binary overlay uses generated Engine persistence storage. |
-| Terrain presentation | `src/projection.rs`, `src/terrain_texture.rs` | `CraftSurvive.Game/Modules/Terrain/TerrainWorld.cs` | Active through Engine-owned voxel scene projection and three material bindings; C# retains no mesh or renderer implementation. |
-| Sky, sprite, debris, animation labs | `src/projection.rs`, `src/sky_background.rs`, `src/sprite_scene.rs`, `web/src/*garden.ts` | none yet | Still retained donor/experiment material; not part of the terrain C# slice. |
+| Area | Current owner | Status |
+| --- | --- | --- |
+| Product lifecycle and bootstrap | `CraftSurviveProduct`, `CraftSurvive.NativeProduct` | Active. The Engine runtime discovers the product through the generated bootstrap. |
+| Browser host and canvas | Rusty Engine `csharp-product-runtime` and generated product-browser-host | Active. `scripts/run-csharp.sh` is the direct runner and `.den-serve.json` is the normal Den manifest. |
+| DOM companion | `src/ui/main.ts` | Active. Static status only; it does not own game facts or input meaning. |
+| Terrain recipe and bounds | `Modules/Terrain` | Active. Deterministic generation-v2 recipe, 16³ chunks, bounded residency, and named product tuning. |
+| Voxel residency and edits | `TerrainWorld` plus Engine Voxel/Spatial services | Active. Product admits revision-checked edits and leases; Engine owns voxel scene and collision/presentation mechanisms. |
+| Terrain persistence | `TerrainOverlayState` and `TerrainOverlayCodec` plus Engine Persistence | Active. One bounded canonical overlay owner. |
+| Terrain presentation | `TerrainWorld` plus Engine VoxelScenePresentation and Appearance | Active. C# supplies material facts; Engine retains mesh, renderer, and handles. |
+| Player input and look | `PlayerInputState`, `PlayerController` plus Engine Input/Look | Active. Product maps admitted input into movement/edit policy and Engine integrates look. |
+| Character movement and support | `PlayerController` plus Engine Character/Spatial | Active. Product owns cadence, tuning, platform policy, and global position; Engine owns collision and motion response. |
+| Camera and origin | `PlayerController` plus Engine CameraView/WorldOrigin | Active. Product composes camera policy and rebasing decisions; Engine performs the mechanism. |
+| Historical Rust/browser experiments | Git history | Retired. No Cargo crate, bespoke session transport, browser renderer, garden, or smoke lane remains in the checkout. |
 
-## Intended migration order
+## Product/Engine boundary
 
-1. Establish and keep this generated product/bootstrap/host lane buildable.
-2. Port the deterministic terrain recipe and owned world/edit policy into a
-   `Terrain` domain after the voxel capability slice is explicitly confirmed.
-3. Port the `Player` domain through Engine input, first-person look, character
-   controller, ray target, and camera mechanisms.
-4. Connect terrain residency, accepted edits, persistence overlays, and
-   Engine-owned terrain presentation through named generated services.
-5. Add product-facing DOM UI only for facts the Engine can project; then retire
-   the donor runtime deliberately once the C# path reaches a useful interactive
-   continuation state.
+Ordinary product code references the generated safe `Rusty.Engine` surface.
+The NativeAOT composition project is the only C# project that opts into the
+generated unsafe bootstrap. Add a missing mechanism upstream as a coherent
+Engine service family; do not add handwritten P/Invoke, JSON dispatch, a
+second renderer, or a downstream substitute.
 
-Each step may stop for an upstream capability task. A missing service is not a
-reason to reintroduce downstream Rust, an unsafe native call, a browser
-renderer, or a custom transport.
+## Deliberate next areas
 
-## Donor boundaries
+The current lane is a bounded terrain/player continuation rather than a full
+survival game. Inventory, crafting, resource interactions, authored content,
+animation, networking, and broader world simulation remain product work. A
+future slice should first name its C# owner and required Engine mechanisms,
+then stop and file an upstream task if a named capability is absent.
 
-The useful semantic donor is the normal CraftSurvive terrain/player/edit loop.
-The old native host and non-UI TypeScript presentation experiments are not
-structural donors. Existing browser smokes, proof scripts, and detailed
-certification text are historical evidence only; they are not acceptance gates
-for this migration.
+See [`known-limitations.md`](known-limitations.md) for current behavioral
+limits and [`donor-provenance.md`](donor-provenance.md) for the retained
+semantic sources.

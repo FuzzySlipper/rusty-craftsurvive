@@ -1,85 +1,69 @@
-# FPS controller adoption
+# C# controller adoption
 
-CraftSurvive is the durable proving consumer for Rusty Engine's reusable kinematic FPS controller.
-The game calls the complete Engine facade directly; it does not copy the solver or retain a second
-renderer/TypeScript collision path. The first adoption was validated against Engine revision
-`9142e7bf77a909c6657bb1c69abda77a6a6b4434`. That revision is certification evidence, not a
-dependency pin: the adjacent Engine path remains rolling-current.
+CraftSurvive's first-person controller is product-owned C# composition over
+Rusty Engine's generated character, look, camera, and world-origin services.
+The former Rust controller was semantic donor material and is now available
+only in Git history.
 
 ## Ownership and controls
 
-Engine owns the accepted entity-center transform, character-motion continuation facts, capsule
-casts/overlaps, movement and collision response, ground/slope/step classification, crouch
-clearance, platform support/carry, recovery, and external-motion integration. Its companion look
-service owns the canonical yaw/pitch basis. Engine also owns the exact-global/local-origin value
-types and guarded atomic rebase mechanism. CraftSurvive retains the exact global player/platform
-positions, registers the complete local roots, and schedules a rebase at 32 local units; collision,
-camera, and renderer inputs remain local while gameplay identity, residency, edits, and saves use
-signed global coordinates.
+Engine owns the accepted entity transform, character-motion continuation,
+capsule casts/overlaps, movement and collision response, ground/slope/step
+classification, crouch clearance, platform support/carry, recovery, external
+motion integration, camera resource, and atomic origin mechanism. Its look
+service owns the canonical yaw/pitch basis.
 
-CraftSurvive owns the 120 Hz call cadence, camera eye offset, semantic bindings, game-feel tuning,
-moving-platform schedule, and the meaning of the `H` impact action. Browser and native inputs map
-to the same `PlayerInput`: WASD movement, Space jump, Control crouch, Shift sprint, H impact, and
-mouse/arrow look.
+CraftSurvive owns input interpretation, the 120 Hz call cadence, camera eye
+offset, semantic bindings, game-feel tuning, moving-platform schedule, exact
+global player/platform positions, and the meaning of the `H` impulse action.
+The product registers its local player and platform roots and decides when to
+request a rebase; Engine performs the rebasing mechanism.
 
-## Checked tuning
+The active bindings are:
 
-The source-owned tuning constructor is `craftsurvive_controller_config()` in `src/player.rs` and is
-validated before player construction. Principal values are:
+| Input | Product meaning |
+| --- | --- |
+| WASD | planar movement |
+| Space | jump |
+| Control | crouch |
+| Shift | sprint |
+| H | lateral impulse with lift |
+| mouse movement | first-person look |
+| F / left mouse | destroy targeted voxel |
+| G / right mouse | place selected material |
+| 1 / 2 / 3 | brush radius 0 / 1 / 2 |
+
+The browser host and native boundary deliver physical input to the product;
+the DOM companion does not synthesize gameplay state.
+
+## Product tuning
+
+Controller values live in `Modules/Player/PlayerConstants.cs` so behavior can
+be found and changed without hunting through the integration code. The
+current values are:
 
 | Area | Product value |
-|---|---:|
+| --- | ---: |
 | Standing / crouched height | 1.75 / 1.00 |
 | Radius / contact skin | 0.30 / 0.015 |
-| Walk forward / backward / strafe | 7.0 / 7.0 / 7.0 |
-| Sprint forward / backward / strafe | 8.0 / 8.0 / 8.0 |
+| Walk / sprint speed | 7.0 / 8.0 |
 | Ground acceleration / braking / friction | 48 / 58 / 9 |
 | Air acceleration / cap | 10 / 7 |
 | Gravity / jump / terminal fall | 24 / 8.5 / 24 |
-| Maximum slope | 50 degrees |
-| Maximum step / floor snap | 1.05 / 0.25 |
-| External decay / H impact | 3.0 per second / 5.5 lateral + 2.5 lift |
+| Maximum slope / step / floor snap | 50° / 1.05 / 0.25 |
+| External decay / impulse | 3.0/s / 5.5 lateral + 2.5 lift |
 
-## Evidence and diagnostics
+These are product policy values, not a replacement for Engine collision
+guarantees.
 
-Focused Rust consumer tests cover command mapping, normalized diagonal motion, canonical look,
-jump, crouch and blocked stand, wall slide, one-voxel step facts, active moving-platform carry,
-external impulse separation, live edit reconciliation, exact far signed spawns, and repeated
-world-origin rebases without global drift. The deterministic browser campaign adds
-physical pointer lock, ten-command cardinal/diagonal comparison, crouch/stand, jump/land, wall and
-ledge behavior, edits, renderer-visible changes, collision diagnostics, and H-impact response.
+## Boundary and evidence
 
-The HUD projects exact global and bounded local positions plus origin/revision, accepted
-pose/velocity, stance and blocked stand, ground source/normal,
-contacts/blocks, step facts, platform identity/displacement, cast/recovery counts, and the
-collision-world hash. These are observations of Rust authority, not browser gameplay state.
+The C# controller retains no native pointer or renderer implementation. It
+passes typed input, transforms, support facts, and call-local platform
+obstacles through the generated safe Engine facade. If a future controller
+feature cannot be expressed through that facade, file the exact Engine
+capability request and stop that downstream slice.
 
-The Luna/max route in `product-playtest.scenario.json` requires an exit interview distinguishing
-harness/control difficulty from game defects and asks explicitly about feel, clipping,
-camera/collider disagreement, latency, snagging, slopes/steps, platform behavior, and edit recovery.
-
-## Game-feel certification
-
-Den task 6849 owns the indexed playtest artifacts and reviewer-visible exit interview. The final
-product behavior was certified at CraftSurvive revision
-`21bc767ababb409b619e7ecd2ad262063b4413b5` in two same-revision sessions:
-
-- `rusty-craftsurvive-playtest-20260812T055214.182589316Z-1022575` ran the documented
-  `grounded-voxel-loop`. Its visible route covered pointer look, straight/diagonal walk and sprint,
-  jump/landing, crouch/stand, wall/corner slide and snagging, the identifiable trench/step route,
-  and brush 1/2/3 edit recovery. It persisted the requested structured exit-interview fields.
-- `rusty-craftsurvive-playtest-20260812T054157.110336028Z-987006` supplied the final delta for the
-  broker navigation limitation in the broad run: visible moving-platform support, H departure, and
-  lower-floor landing without the previously reproduced runtime rejection.
-
-The broad operator could not identify a literal smooth slope in the voxel presentation and did not
-claim a subjective smooth-slope judgment. Deterministic Engine-consumer tests remain the mechanism
-evidence for legal and over-limit true mesh ramps; that distinction is a known visual-route limit,
-not a substituted playtest claim.
-
-## Known boundary
-
-The canonical voxel island has box collision even when MC/DC presentation is selected. Engine's
-true static-mesh slope mechanism is covered by upstream and direct consumer tests; CraftSurvive
-does not make its reconstructed render triangles authoritative collision. See
-`docs/known-limitations.md` for the remaining bounded product limits.
+Focused C# build/publish checks establish that the current boundary compiles;
+they do not claim a broad browser or subjective game-feel certification. The
+current behavioral limits are recorded in [`known-limitations.md`](known-limitations.md).

@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  verify-csharp-lane:
     runs-on: ubuntu-latest
     steps:
       - name: Check out CraftSurvive
@@ -20,8 +20,11 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v4
         with:
-          components: rustfmt, clippy
+          dotnet-version: '10.0.x'
 
       - name: Install Node and pnpm
         uses: actions/setup-node@v4
@@ -33,13 +36,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
+            clang \
             libwebkit2gtk-4.1-dev \
             libxkbcommon-x11-0
 
-      - name: Verify the Rust experiment
-        run: ./scripts/verify.sh
+      - name: Install UI dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Verify the browser composition boundary
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm check
+      - name: Check the DOM companion
+        run: pnpm run check:ui
+
+      - name: Generate the Engine browser bundle
+        run: node scripts/generate-browser-bundle.mjs src/ui/generated/product-bundle
+
+      - name: Publish the NativeAOT product
+        run: dotnet publish src/CraftSurvive.NativeProduct/CraftSurvive.NativeProduct.csproj --configuration Release --runtime linux-x64 --self-contained true

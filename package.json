@@ -1,35 +1,13 @@
 {
-  "name": "rusty-craftsurvive-browser",
+  "name": "rusty-craftsurvive-ui",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "scripts": {
-    "audit:textures": "node scripts/check-terrain-atlas.mjs",
-    "audit:depth-splat": "node scripts/check-depth-splat-garden.mjs",
-    "audit:voxel-sprite": "node scripts/check-runtime-voxel-sprite-garden.mjs",
-    "audit:held-animation": "node scripts/check-held-animation-garden.mjs",
-    "audit:web": "node scripts/audit-web-boundary.mjs",
-    "build": "vite build --config web/vite.config.ts",
-    "check": "tsc --noEmit -p web/tsconfig.json && pnpm test:web && pnpm audit:web && pnpm audit:textures && pnpm audit:depth-splat && pnpm audit:voxel-sprite && pnpm audit:held-animation && pnpm build",
-    "perf:edit": "node scripts/edit-performance.mjs",
-    "test:web": "tsx --test web/src/*.test.ts",
-    "smoke:browser": "node scripts/browser-smoke.mjs",
-    "smoke:depth-splat": "node scripts/runtime-voxel-sprite-smoke.mjs",
-    "smoke:voxel-sprite": "node scripts/runtime-voxel-sprite-smoke.mjs",
-    "smoke:ghost-plate": "node scripts/ghost-plate-smoke.mjs",
-    "smoke:held-animation": "node scripts/held-animation-garden-smoke.mjs",
-    "smoke:streaming": "node scripts/streaming-smoke.mjs",
-    "smoke:unbounded": "node scripts/unbounded-smoke.mjs",
-    "smoke:surfaces": "CRAFTSURVIVE_SURFACE=box CRAFTSURVIVE_URL=http://127.0.0.1:4419 pnpm smoke:browser && CRAFTSURVIVE_SURFACE=mc CRAFTSURVIVE_URL=http://127.0.0.1:4419/?surface=mc pnpm smoke:browser && CRAFTSURVIVE_SURFACE=dc CRAFTSURVIVE_URL=http://127.0.0.1:4419/?surface=dc pnpm smoke:browser"
-  },
-  "dependencies": {
-    "@rusty-engine/application-host": "file:../rusty-engine/render/artifacts/application-host"
+    "check:ui": "tsc --noEmit -p src/ui/tsconfig.json",
+    "audit:textures": "node scripts/check-terrain-atlas.mjs"
   },
   "devDependencies": {
-    "@types/node": "24.3.0",
-    "playwright-core": "1.61.0",
-    "tsx": "4.20.5",
-    "typescript": "5.9.2",
-    "vite": "7.1.3"
+    "typescript": "5.9.2"
   }
 }

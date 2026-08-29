@@ -1,35 +1,40 @@
 # Rusty CraftSurvive
 
-Rusty CraftSurvive is a downstream NativeAOT C# product migration for
-[Rusty Engine](https://github.com/FuzzySlipper/rusty-engine). Its retained
-Rust/TypeScript voxel experiment is a semantic donor; new product work belongs
-in C#.
+Rusty CraftSurvive is a downstream NativeAOT C# game product hosted by
+[Rusty Engine](https://github.com/FuzzySlipper/rusty-engine). The C# product
+lane is the normal runtime and owns the game rules, terrain recipe, player
+policy, edits, persistence meaning, and product state.
 
 > The product decides. The Engine guarantees.
 
-CraftSurvive will own its terrain recipe, player and world rules, edit policy,
-and product state in C#. Rusty Engine supplies lifecycle/host integration,
-input delivery, spatial mechanisms, rendering infrastructure, resources, and
-persistence primitives through the generated C# API. TypeScript is limited to
-the DOM companion UI and explicit Engine host/backend implementation.
+Rusty Engine supplies lifecycle and host integration, input delivery, camera
+and character mechanisms, voxel residency and presentation, resources, and
+persistence primitives through its generated C# surface. The browser-side
+TypeScript companion owns only a small DOM panel. It does not render game
+elements, hold gameplay state, or implement a transport or game loop.
 
 ## Repository shape
 
 ```text
 src/
   CraftSurvive.Game/          safe C# product domains
-  CraftSurvive.NativeProduct/ thin generated NativeAOT composition
-  ui/                         DOM-only UI and ignored generated host bundle
-docs/csharp-migration-map.md  donor ownership and planned slices
+  CraftSurvive.NativeProduct/ thin NativeAOT composition project
+  ui/                         DOM-only companion and TypeScript source
+content/
+  textures/                   canonical terrain content and metadata
+docs/                         current migration, ownership, and limitations
+scripts/
+  generate-browser-bundle.mjs generated Engine host bundle helper
+  run-csharp.sh               direct NativeAOT product runner
 ```
 
-The first committed C# slice is intentionally only a buildable lifecycle and
-browser-host shell. It contains no fake terrain, player, renderer, or custom
-transport. Terrain, player controller/look, voxel edits/residency, persistence,
-and presentation migrate as separate domain slices once their generated Engine
-capabilities are confirmed.
+The former downstream Rust crate and bespoke browser application were retired
+after the terrain/player slices became runnable. Their implementation and
+experiment assets remain available through Git history, not as a second lane
+that agents might accidentally extend. Current untracked `content/animations/`
+and `content/voxels/` assets are preserved for future product work.
 
-## Run the C# shell
+## Run the C# product
 
 Keep this repository beside `rusty-engine`:
 
@@ -39,42 +44,68 @@ dev/
   rusty-craftsurvive/
 ```
 
+Install the one UI build dependency once:
+
 ```bash
-den-serve up rusty-craftsurvive -repo /home/dev/rusty-craftsurvive
-den-serve status rusty-craftsurvive
+pnpm install --frozen-lockfile
 ```
 
-The service compiles the typed DOM UI, builds the generated Product Browser Host bundle, publishes the
-NativeAOT library, and runs Engine's `csharp-product-runtime`. The visible UI
-truthfully identifies this as a migration shell; it is not yet an interactive
-voxel world.
-
-For the direct equivalent:
+Run directly with the adjacent Engine checkout:
 
 ```bash
 ./scripts/run-csharp.sh --bind-host 127.0.0.1 --port 4419
 ```
 
-## Working on the migration
+Or let Den own the host process:
 
-Read `AGENTS.md`, the adjacent Engine's `docs/csharp-sdk.md` and
-`docs/csharp-product-style.md`, then
-[`docs/csharp-migration-map.md`](docs/csharp-migration-map.md). Use the
-generated `Rusty.Engine` safe surface; ordinary game code must not add unsafe
-calls, handwritten P/Invoke, raw ABI types, another renderer, a TypeScript
-gameplay path, or a custom JSON/WebSocket bridge.
+```bash
+den-serve up rusty-craftsurvive -repo /home/dev/rusty-craftsurvive
+den-serve status rusty-craftsurvive
+```
 
-If a required Engine mechanism is missing, record the exact capability and
-stop that slice for upstream work. Do not construct a downstream substitute.
+The runner compiles the DOM companion, generates the ignored Engine
+product-browser-host bundle, publishes the NativeAOT product, and starts
+Engine's `csharp-product-runtime` host. The normal Den service is
+`.den-serve.json`; there are no alternate browser-smoke or Rust-host
+manifests.
 
-`content/animations/` and `content/voxels/` are user-owned untracked assets in
-the current checkout. Preserve them exactly; do not stage, modify, or clean
-them as part of the migration.
+## Current product slice
 
-## Historical donor material
+- `Modules/Terrain` owns deterministic bounded generation, chunk residency,
+  revision-checked edits, overlay persistence, Engine voxel presentation, and
+  the terrain UI projection.
+- `Modules/Player` owns input interpretation, look and movement policy,
+  product tuning, moving-platform policy, world-position tracking, origin
+  rebasing, camera composition, and player UI facts. Engine performs the
+  collision, character, camera, appearance, and origin mechanisms.
+- `src/ui/main.ts` mounts static DOM guidance beside the Engine-owned canvas.
 
-The existing `src/*.rs`, `src/bin/browser-host.rs`, and `web/src` files remain
-temporarily as donor material. The non-UI browser rendering gardens and their
-old proof scripts are not a C# architecture and are not active migration
-targets. Their historical detail remains in Git and the retained source while
-the product path is rebuilt deliberately.
+This is a runnable continuation lane, not a claim of complete survival
+gameplay or a broad interactive certification. See
+[`docs/known-limitations.md`](docs/known-limitations.md) for the deliberately
+bounded product surface.
+
+## Working on the product
+
+Read [`AGENTS.md`](AGENTS.md), the adjacent Engine's C# SDK guidance, and
+[`docs/csharp-migration-map.md`](docs/csharp-migration-map.md) before changing
+the product/Engine boundary. Use the generated `Rusty.Engine` safe API in
+ordinary product code. Do not add downstream Rust, handwritten P/Invoke,
+unsafe game code, a second renderer or game loop, browser gameplay state, or a
+custom JSON/WebSocket bridge.
+
+If a needed mechanism is absent from the generated API, record the exact
+upstream Engine capability and stop that slice. A missing capability is a
+valid result; a downstream substitute is not.
+
+Focused checks are available for the actual lane:
+
+```bash
+pnpm run check:ui
+pnpm run audit:textures
+dotnet build src/CraftSurvive.Game/CraftSurvive.Game.csproj --configuration Release
+```
+
+Use NativeAOT publish or a bounded direct run when the task needs that
+evidence. Do not resurrect the removed broad browser smokes or retired
+experiment gates.

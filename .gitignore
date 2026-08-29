@@ -6,7 +6,6 @@
 **/Generated/
 **/generated/
 /node_modules/
-/web/dist/
 /live-evidence/
 /.runtime/
 /.idea/

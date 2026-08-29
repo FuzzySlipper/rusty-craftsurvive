@@ -1,25 +1,20 @@
 # Donor provenance
 
-The bootstrap intentionally adapted bounded patterns rather than copying a donor repository or its
-architecture wholesale.
+The C# migration deliberately keeps semantic ownership in the product while
+using Rusty Engine for reusable mechanisms. The old downstream Rust/session
+and browser experiment was retired in task 7497; Git history is its source of
+truth rather than a maintained archive copy.
 
-| Donor | Adapted | Deliberately excluded |
-|---|---|---|
-| `rusty-engine-demo` | Native `winit` + Engine `RendererWebviewAdapter` lifecycle; polling raw renderer input into Rust semantic input; camera-relative FPS movement vocabulary; retained frame replacement after authoritative changes | Loading Bay schemas, scheduler, combat, browser/Tauri shell, Studio adapter, content pipeline, proof harness, updater/pinning history |
-| `rusty-engine-ui` | The idea of a compact always-visible HUD/hotbar-style control summary, implemented initially with Engine telemetry and the native title | Angular/Nx workspace, fake transport, placeholder stores/actions, renderer facade, inventory/minimap/product shell |
-| `rusty-procgen` | Deterministic seeded generation, bounded output, explicit material assignment, and compilation into ordinary Engine voxel facts | Piece graph/catalog architecture, cellular automata, trace viewers, publication integrations, broad generator framework |
-| `rusty-engine-voxels` | Startup comparison posture for greedy cubes, marching cubes, and dual contouring over equivalent voxel cells | Voxelization pipelines, Studio playback, sprite/video inputs, kit baking, density calibration, asset-specific experiments |
-| Rusty Engine task 6847 | Direct `CharacterControllerService`, durable character-motion facts, capsule collision, moving-platform carry, external impulses, and `FirstPersonLookService`; validated during task 6849 against Engine revision `9142e7bf77a909c6657bb1c69abda77a6a6b4434` | Universal scheduler, renderer-owned motion, device bindings, game-feel tuning, camera presentation, gameplay consequences |
-| Rusty Engine task 6848 | Stateful `VoxelRenderProjector`, stable signed-world chunk handles, revisioned create/replace/destroy publication, and Engine-owned dirty/rebuilt/reused/removed chunk facts | Global terrain handles, downstream chunk registries, duplicate voxel authority, renderer-private mutation |
-| Rusty Engine task 6851 | Guarded `VoxelChunkResidencyService` admission/eviction, complete dense payloads, retained mesh reuse, coherent collision/navigation revision publication, and explicit chunk leases | Engine-owned generation policy, ambient streaming scheduler, edit persistence policy, hidden pinning, infinite-world claims |
-| Rusty Engine task 6895 | Exact global position, explicit world origin, guarded complete-root rebasing, synchronized voxel/collision/navigation/static-mesh translation, character continuation, and stable retained identities; adopted from Engine revision `30bcb6d2fd5f9f1b17bdcb0c95aa8588245b34ac` | Engine-owned streaming policy, automatic scheduler, persistence policy, hidden root discovery, or limitless-world claims |
-| Asset Pipeline task 6977 and Rusty Engine tasks 7003-7008 | Three bounded character sources and sixteen-direction color/depth/normal captures adapted into checked prepared-frame fixtures; public application-host voxel-sprite experiment port used for retained runtime capture, source switching, enhancement tuning, fallback evidence, and readout | Asset-pipeline runtime authority, downstream Three/WebGL imports, offline rankings as renderer verdicts, production impostor streaming, continuous rebaking, or gameplay/collision authority |
-| Asset Pipeline task 7027 and Rusty Engine held-animation frame-bank surface | Accepted direction-aligned, target-bound UAL in-place clip pack; public application-host animated mesh admission, sequential held-frame-bank preparation, resident selection, and retained sample playback used for the normal/flat/depth animation comparison | Runtime retargeting, GLTF/Three imports, downstream mixer ownership, animation-derived actor motion, a game scheduler, production combat state, or unbounded capture banks |
+| Source | C# lane use | Boundary retained |
+| --- | --- | --- |
+| Previous CraftSurvive Rust terrain/player/edit loop | Deterministic recipe vocabulary, bounded terrain fixtures, first-person controls, edit semantics, platform route, and global-position intent | C# owns policy and state; Engine owns collision, spatial services, presentation, persistence primitives, and host lifecycle. |
+| Rusty Engine character/look services (tasks 6847/6849) | Generated character step, look integration, support/carry, crouch/step facts, external impulse, and controller continuation | Product owns cadence and tuning; it does not copy the solver or create a second renderer. |
+| Rusty Engine voxel services (tasks 6848/6851) | Generated voxel sessions, chunk admission/leases, revisioned edits, retained scene projection, and material bindings | Product owns recipe and edit admission; Engine owns resident scene, mesh, collision, handles, and render resources. |
+| Rusty Engine world-origin service (task 6895) | Exact global/local values, explicit player/platform roots, synchronized rebase, and continuation after origin changes | Product decides when to rebase and retains global meaning; Engine performs the atomic mechanism. |
+| `content/textures/` | Canonical terrain atlas, sky panorama, source images, and checked metadata retained for future C# content work | Current terrain slice uses named flat material colors and does not treat browser copies as content authority. |
+| `content/animations/` and `content/voxels/` | User-owned untracked assets retained for future product slices | They are intentionally outside this cleanup and are not part of the current runtime. |
 
-No donor source code or architecture was copied verbatim. The task 7027 target mesh, accepted
-target-bound clip pack, and license are intentionally reproduced byte-for-byte as checked,
-hash-pinned runtime inputs; their provenance is recorded above and in the animation-garden
-manifest. The implementation uses current public Engine facade APIs and owns only
-CraftSurvive-specific composition. The terrain source images are original OpenAI image-generation
-outputs made for this repository; their prompts, mechanical atlas build, layout, and hash are
-recorded under `content/textures/`.
+The retired depth-splat, voxel-sprite, ghost-plate, held-animation, and
+surface-smoke experiments are not current product architecture. Their source,
+fixtures, and scripts were removed from the checkout as part of 7497 and can
+be inspected at historical revisions when a future task needs their ideas.
