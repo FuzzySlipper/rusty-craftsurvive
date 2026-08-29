@@ -8,6 +8,7 @@ product_project="$repo_root/src/CraftSurvive.NativeProduct/CraftSurvive.NativePr
 product_library="$repo_root/src/CraftSurvive.NativeProduct/bin/Release/net10.0/linux-x64/publish/CraftSurvive.NativeProduct.so"
 browser_bundle="$repo_root/src/ui/generated/product-bundle"
 content_root="$repo_root/content"
+persistence_root="$repo_root/.runtime/persistence"
 port=0
 bind_host="127.0.0.1"
 
@@ -39,6 +40,7 @@ cargo run --manifest-path "$runtime_manifest" -p csharp-product-runtime -- \
   --library "$product_library" \
   --bundle-dir "$browser_bundle" \
   --content-dir "$content_root" \
+  --persistence-root "$persistence_root" \
   --mode realtime \
   --bind-host "$bind_host" \
   --port "$port"

@@ -22,6 +22,7 @@ internal sealed class TerrainWorld : IDisposable
     private PersistenceStore? persistenceStore;
     private UiStream? uiStream;
     private VoxelScenePresentation? presentation;
+    private TerrainPlayerUiFacts? playerUi;
     private ulong uiSequence;
     private bool started;
     private static readonly TerrainChunkAddress FixedResidencyCenter = new(0, 0, 0);
@@ -42,17 +43,16 @@ internal sealed class TerrainWorld : IDisposable
             return;
         }
 
-        session = engine.Spatial.CreateSession(new SpatialSessionConfig(
-            TerrainConstants.VoxelSize,
-            TerrainConstants.VoxelChunkSize,
-            VoxelSurfaceMode.GreedyCubes));
-        persistenceStore = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainConstants.PersistenceScope));
-        uiStream = engine.Ui.OpenStream(new UiStreamRequest(
-            TerrainConstants.UiStreamName,
-            TerrainConstants.UiStreamContract));
-
         try
         {
+            session = engine.Spatial.CreateSession(new SpatialSessionConfig(
+                TerrainConstants.VoxelSize,
+                TerrainConstants.VoxelChunkSize,
+                VoxelSurfaceMode.GreedyCubes));
+            persistenceStore = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainConstants.PersistenceScope));
+            uiStream = engine.Ui.OpenStream(new UiStreamRequest(
+                TerrainConstants.UiStreamName,
+                TerrainConstants.UiStreamContract));
             RestoreOverlay();
             Synchronize(FixedResidencyCenter);
             CreatePresentation();
@@ -74,6 +74,34 @@ internal sealed class TerrainWorld : IDisposable
             RefreshPresentation();
             PublishUi();
         }
+    }
+
+    /// <summary>Advances the bounded voxel residency plan around a product global voxel fact.</summary>
+    internal void SynchronizeAround(VoxelAddress centerVoxel)
+    {
+        EnsureStarted();
+        if (Synchronize(centerVoxel.Chunk))
+        {
+            RefreshPresentation();
+            PublishUi();
+        }
+    }
+
+    /// <summary>Publishes concise Player facts through the terrain-owned product UI stream.</summary>
+    internal void PublishPlayerUi(TerrainPlayerUiFacts facts)
+    {
+        EnsureStarted();
+        playerUi = facts;
+        PublishUi();
+    }
+
+    /// <summary>Refreshes Engine-owned terrain facts after an accepted world-origin commit.</summary>
+    internal void RefreshAfterWorldOriginCommit(TerrainPlayerUiFacts facts)
+    {
+        EnsureStarted();
+        playerUi = facts;
+        RefreshPresentation();
+        PublishUi();
     }
 
     internal TerrainWorldEditResult TryEditFromView(Vector3 origin, Vector3 direction,
@@ -168,7 +196,7 @@ internal sealed class TerrainWorld : IDisposable
         started = false;
     }
 
-    private SpatialSession Session => session ?? throw new InvalidOperationException("Terrain spatial session is unavailable.");
+    internal SpatialSession Session => session ?? throw new InvalidOperationException("Terrain spatial session is unavailable.");
 
     private PersistenceStore PersistenceStore => persistenceStore ?? throw new InvalidOperationException("Terrain persistence store is unavailable.");
 
@@ -338,7 +366,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
         engine.Ui.PublishProjection(new UiProjection(UiStream, ++uiSequence,
-            TerrainUiProjection.Create(scene, overlay.Count)));
+            TerrainUiProjection.Create(scene, overlay.Count, playerUi)));
     }
 
     private static VoxelEdit ToEngineEdit(TerrainVoxelEdit edit) => edit.Material == TerrainConstants.EmptyMaterial
@@ -381,6 +409,19 @@ internal sealed record TerrainWorldEditMiss : TerrainWorldEditResult;
 internal sealed record TerrainWorldEditRejected(TerrainEditRejected Rejection) : TerrainWorldEditResult;
 
 internal sealed record TerrainWorldEditApplied(VoxelEditReceipt Receipt) : TerrainWorldEditResult;
+
+/// <summary>Small Player-to-UI fact projection carried by Terrain's existing product stream.</summary>
+internal readonly record struct TerrainPlayerUiFacts(
+    double EyeX,
+    double EyeY,
+    double EyeZ,
+    double YawDegrees,
+    double PitchDegrees,
+    bool Grounded,
+    bool Crouched,
+    double PlatformX,
+    double PlatformY,
+    double PlatformZ);
 
 internal static class TerrainPresentation
 {

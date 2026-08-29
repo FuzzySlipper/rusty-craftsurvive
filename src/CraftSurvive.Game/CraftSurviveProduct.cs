@@ -1,5 +1,6 @@
 using Rusty.Engine;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Player;
 
 namespace CraftSurvive.Game;
 
@@ -11,25 +12,36 @@ public sealed class CraftSurviveProduct : IEngineProduct
 {
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
     private readonly TerrainWorld terrain;
+    private readonly PlayerController player;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         terrain = new TerrainWorld(context.Engine, TerrainConfiguration.Default);
+        player = new PlayerController(context.Engine, terrain);
     }
 
     public void Start()
     {
         RequireState(ProductLifecycleState.Created, nameof(Start));
-        terrain.Start();
-        lifecycle = ProductLifecycleState.Running;
+        try
+        {
+            terrain.Start();
+            player.Start();
+            lifecycle = ProductLifecycleState.Running;
+        }
+        catch
+        {
+            player.Dispose();
+            terrain.Dispose();
+            throw;
+        }
     }
 
     public ProductTurnRequest Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
-        _ = update;
-        terrain.Update();
+        player.Update(update);
         return ProductTurnRequest.None;
     }
 
@@ -78,6 +90,7 @@ public sealed class CraftSurviveProduct : IEngineProduct
             Shutdown();
         }
 
+        player.Dispose();
         terrain.Dispose();
         lifecycle = ProductLifecycleState.Disposed;
     }
