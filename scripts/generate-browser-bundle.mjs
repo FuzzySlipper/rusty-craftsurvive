@@ -13,6 +13,7 @@ const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, '..');
 const engineRoot = resolve(process.env.RUSTY_ENGINE_ROOT ?? join(repositoryRoot, '..', 'rusty-engine'));
 const engineHostRoot = join(engineRoot, 'render', 'artifacts', 'product-browser-host');
+const engineLiveDebugPanel = join(engineRoot, 'studio', 'artifacts', 'live-debug-panel', 'index.js');
 const uiDirectory = join(repositoryRoot, 'src', 'ui');
 const uiProject = join(uiDirectory, 'tsconfig.json');
 const compiledUiSource = join(uiDirectory, 'generated', 'source', 'main.js');
@@ -27,9 +28,13 @@ const assets = productBrowserBundleAssets({
   runtimeAdapterModule: './runtime-adapter.js',
   lifecycleMode: 'realtime',
   realtimeAdvanceOwner: 'browser',
+  uiProjection: {
+    expectedStream: 'craftsurvive.terrain',
+    expectedContract: 'craftsurvive.terrain.v1',
+  },
 });
 
-await run(join(repositoryRoot, 'node_modules', '.bin', 'tsc'), ['--project', uiProject]);
+await run(join(engineRoot, 'render', 'node_modules', '.bin', 'tsc'), ['--project', uiProject]);
 await mkdir(join(output, 'ui'), { recursive: true });
 await rm(join(output, 'renderer-preload.json'), { force: true });
 for (const asset of assets) {
@@ -38,4 +43,5 @@ for (const asset of assets) {
   await writeFile(path, asset.content);
 }
 await copyFile(compiledUiSource, join(output, 'ui', 'main.js'));
+await copyFile(engineLiveDebugPanel, join(output, 'ui', 'live-debug-panel.js'));
 await writeFile(join(output, 'runtime-adapter.js'), runtimeAdapterSource);

@@ -6,6 +6,7 @@ namespace CraftSurvive.Game.Modules.Player;
 /// <summary>Named CraftSurvive player policy retained from the Rust donor.</summary>
 internal static class PlayerConstants
 {
+    internal const uint RuntimeComponentLocalId = 1U;
     internal static readonly Vector3 InitialEyePosition = new(0.5f, 7f, 7f);
     internal const double InitialYawDegrees = 0d;
     internal const double InitialPitchDegrees = -20d;

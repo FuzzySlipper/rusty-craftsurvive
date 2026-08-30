@@ -1,5 +1,6 @@
 using System.Numerics;
 using Rusty.Engine;
+using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Terrain;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
@@ -11,9 +12,15 @@ namespace CraftSurvive.Game.Modules.Player;
 /// </summary>
 internal sealed class PlayerController : IDisposable
 {
+    internal static readonly ComponentType<PlayerRuntimeComponent> RuntimeComponent =
+        ComponentType<PlayerRuntimeComponent>.Create(
+            ProductComponentKeys.Create(PlayerConstants.RuntimeComponentLocalId));
+
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly PlayerInputState input = new();
+    private readonly EntityWorld entityWorld = new([RuntimeComponent]);
+    private readonly EntityId playerEntity;
     private readonly CharacterControllerConfig controllerConfig;
     private readonly LookConfig lookConfig;
     private Camera? camera;
@@ -56,6 +63,8 @@ internal sealed class PlayerController : IDisposable
             EyeOffset(CharacterStance.Standing),
             0f));
         platformGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.PlatformInitialCenter);
+        playerEntity = entityWorld.Create();
+        PublishRuntimeComponent();
     }
 
     internal void Start()
@@ -68,24 +77,7 @@ internal sealed class PlayerController : IDisposable
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         playerLocal = playerGlobal.ToLocal(origin);
         platformLocal = platformGlobal.ToLocal(origin);
-        motion = new CharacterMotion(
-            Vector3.Zero,
-            Vector3.Zero,
-            false,
-            CharacterStance.Standing,
-            0f,
-            0f,
-            0f,
-            false,
-            0UL,
-            Vector3.Zero,
-            Vector3.Zero,
-            Quaternion.Identity,
-            Vector3.Zero,
-            playerLocal.Y,
-            playerLocal.Y,
-            0UL,
-            0UL);
+        motion = CreateInitialMotion(playerLocal);
         platformAppearance = engine.Appearance.CreatePrimitive(new PrimitiveAppearanceRequest(
             PrimitiveGeometry.Cube,
             Wireframe: false,
@@ -95,6 +87,7 @@ internal sealed class PlayerController : IDisposable
         engine.CameraView.SetActiveCamera(camera);
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         terrain.PublishPlayerUi(ToUiFacts());
+        PublishRuntimeComponent();
         started = true;
     }
 
@@ -163,7 +156,28 @@ internal sealed class PlayerController : IDisposable
         PublishPlatformAppearance();
         engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
         terrain.PublishPlayerUi(ToUiFacts());
+        PublishRuntimeComponent();
     }
+
+    /// <summary>Moves the live player through the same product-owned state and Engine publication lane used by gameplay.</summary>
+    internal PlayerRuntimeComponent Teleport(double x, double y, double z)
+    {
+        EnsureStarted();
+        playerGlobal = PlayerWorldPosition.FromWorld(x, y, z);
+        WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
+        playerLocal = playerGlobal.ToLocal(origin);
+        motion = CreateInitialMotion(playerLocal);
+        controllerStepAccumulator = 0d;
+        jumpPending = false;
+        impulsePending = false;
+        terrain.SynchronizeAround(playerGlobal.FloorVoxel());
+        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        terrain.PublishPlayerUi(ToUiFacts());
+        PublishRuntimeComponent();
+        return entityWorld.Get(playerEntity, RuntimeComponent);
+    }
+
+    internal EntityWorld EntityWorld => entityWorld;
 
     public void Dispose()
     {
@@ -182,6 +196,7 @@ internal sealed class PlayerController : IDisposable
         }
 
         started = false;
+        entityWorld.Dispose();
     }
 
     private Camera Camera => camera ?? throw new InvalidOperationException("CraftSurvive camera is unavailable.");
@@ -348,6 +363,37 @@ internal sealed class PlayerController : IDisposable
         platformGlobal.WorldY,
         platformGlobal.WorldZ);
 
+    private void PublishRuntimeComponent()
+    {
+        entityWorld.Set(playerEntity, RuntimeComponent, new PlayerRuntimeComponent(
+            playerGlobal.WorldX,
+            playerGlobal.WorldY,
+            playerGlobal.WorldZ,
+            RadiansToDegrees(look.YawRadians),
+            RadiansToDegrees(look.PitchRadians),
+            motion.Grounded,
+            motion.Stance == CharacterStance.Crouched));
+    }
+
+    private static CharacterMotion CreateInitialMotion(Vector3 localPosition) => new(
+        Vector3.Zero,
+        Vector3.Zero,
+        false,
+        CharacterStance.Standing,
+        0f,
+        0f,
+        0f,
+        false,
+        0UL,
+        Vector3.Zero,
+        Vector3.Zero,
+        Quaternion.Identity,
+        Vector3.Zero,
+        localPosition.Y,
+        localPosition.Y,
+        0UL,
+        0UL);
+
     private void EnsureStarted()
     {
         if (!started)
@@ -421,3 +467,12 @@ internal sealed class PlayerController : IDisposable
 
     private static double RadiansToDegrees(float value) => value * 180d / Math.PI;
 }
+
+internal readonly record struct PlayerRuntimeComponent(
+    double X,
+    double Y,
+    double Z,
+    double YawDegrees,
+    double PitchDegrees,
+    bool Grounded,
+    bool Crouched);

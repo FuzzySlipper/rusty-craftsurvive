@@ -1,3 +1,5 @@
+import { mountLiveDebugPanel, type LiveDebugPanelMount } from './live-debug-panel.js';
+
 /**
  * Mounts static DOM guidance beside the Engine-owned canvas. This UI owns no
  * world facts, gameplay input, renderer resources, or application loop.
@@ -14,6 +16,41 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   status.textContent = 'C# product host active. Terrain and first-person gameplay run in the product lane.';
   panel.append(status);
 
+  const debugButton = document.createElement('button');
+  debugButton.type = 'button';
+  debugButton.textContent = 'Open live debug';
+  panel.append(debugButton);
+
+  const debugHost = document.createElement('div');
+  debugHost.hidden = true;
+  panel.append(debugHost);
+
+  let debugPanel: LiveDebugPanelMount | null = null;
+  let disposed = false;
+  debugButton.addEventListener('click', () => {
+    if (debugPanel !== null || disposed) return;
+    debugButton.disabled = true;
+    debugHost.hidden = false;
+    void mountLiveDebugPanel(debugHost, { enabled: true, presentation: 'inline' }).then((mounted) => {
+      if (disposed) {
+        mounted.dispose();
+        return;
+      }
+      debugPanel = mounted;
+      debugButton.textContent = 'Live debug open';
+    }).catch((error: unknown) => {
+      debugButton.disabled = false;
+      debugHost.hidden = true;
+      status.textContent = error instanceof Error ? error.message : 'Live debug panel could not start.';
+    });
+  });
+
   root.append(panel);
-  return Object.freeze({ dispose: () => panel.remove() });
+  return Object.freeze({
+    dispose: () => {
+      disposed = true;
+      debugPanel?.dispose();
+      panel.remove();
+    },
+  });
 }

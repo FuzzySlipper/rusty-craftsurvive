@@ -2,10 +2,19 @@
   "project": "rusty-craftsurvive",
   "serve": {
     "command": "exec ./scripts/run-csharp.sh --loader coreclr --live-debug --bind-host {host} --port {port}",
+    "preferredPort": 0,
     "healthUrl": "/ui/main.js",
     "readyText": "Rusty CraftSurvive",
     "reusePolicy": "broker_owned",
-    "startupTimeout": "120s",
-    "healthInterval": "250ms"
+    "startupTimeout": "120s"
+  },
+  "playtest": {
+    "startPath": "/",
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "headed": false,
+    "recordVideo": false
   }
 }

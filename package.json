@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "scripts": {
-    "check:ui": "tsc --noEmit -p src/ui/tsconfig.json",
+    "check:ui": "node scripts/check-ui.mjs",
     "audit:textures": "node scripts/check-terrain-atlas.mjs"
   },
   "devDependencies": {

@@ -198,6 +198,13 @@ internal sealed class TerrainWorld : IDisposable
 
     internal SpatialSession Session => session ?? throw new InvalidOperationException("Terrain spatial session is unavailable.");
 
+    /// <summary>Reads the live Engine-owned voxel scene for product diagnostics.</summary>
+    internal VoxelSceneReadout ReadScene()
+    {
+        EnsureStarted();
+        return engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+    }
+
     private PersistenceStore PersistenceStore => persistenceStore ?? throw new InvalidOperationException("Terrain persistence store is unavailable.");
 
     private UiStream UiStream => uiStream ?? throw new InvalidOperationException("Terrain UI stream is unavailable.");
