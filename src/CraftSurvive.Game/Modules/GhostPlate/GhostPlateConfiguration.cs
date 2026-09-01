@@ -79,5 +79,84 @@ internal readonly record struct GhostPlateConfiguration(
             SectorCount,
             SectorHysteresisDegrees));
 
+    /// <summary>
+    /// Returns the small set of product-owned look presets used by the live
+    /// debug lane. Every preset keeps the admitted source and object identity
+    /// fixed; only the retained ghost settings and plate layout vary.
+    /// </summary>
+    internal static bool TryGetPreset(
+        string name,
+        out string canonicalName,
+        out GhostPlateConfiguration preset)
+    {
+        switch (name.Trim().ToLowerInvariant())
+        {
+            case "default":
+            case "accepted":
+                canonicalName = "accepted";
+                preset = Default;
+                return true;
+
+            case "wide":
+                canonicalName = "wide";
+                preset = Default with
+                {
+                    Width = 2.6f,
+                    Height = 3.6f,
+                    Capture = Default.Capture with
+                    {
+                        Resolution = 96,
+                        FieldOfViewDegrees = 65f,
+                    },
+                    Config = Default.Config with
+                    {
+                        DepthRetention = 0.35f,
+                        SectorCount = 4,
+                        SectorHysteresisDegrees = 8f,
+                    },
+                };
+                return true;
+
+            case "strict":
+                canonicalName = "strict";
+                preset = Default with
+                {
+                    Capture = Default.Capture with
+                    {
+                        Resolution = 48,
+                    },
+                    Config = Default.Config with
+                    {
+                        DepthRetention = 0.15f,
+                        PlateMapping = GhostPlateMapping.ProjectiveSurface,
+                        ShellMode = GhostPlateShellMode.StrictSource,
+                        ShellDepthEpsilon = 0f,
+                        SectorCount = 8,
+                        SectorHysteresisDegrees = 4f,
+                    },
+                };
+                return true;
+
+            case "scene-lighting":
+                canonicalName = "scene-lighting";
+                preset = Default with
+                {
+                    Capture = Default.Capture with
+                    {
+                        Lighting = Default.Capture.Lighting with
+                        {
+                            Mode = GhostPlateCaptureLightingMode.Scene,
+                        },
+                    },
+                };
+                return true;
+
+            default:
+                canonicalName = string.Empty;
+                preset = default;
+                return false;
+        }
+    }
+
     internal GhostPlatePlacement Placement => new(Transform, Width, Height);
 }

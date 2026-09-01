@@ -40,7 +40,12 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
-        productDebug = new CraftDebugModule(player, terrain, context.Debugging);
+        productDebug = new CraftDebugModule(
+            player,
+            terrain,
+            ghost,
+            microvoxels,
+            context.Debugging);
     }
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
@@ -101,9 +106,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         player.Update(update);
-        ghost.Update(ghost.Placement);
+        // Publish the complete source fact at its queued transform before the
+        // retained ghost operation observes the same desired placement.
+        PublishAppearanceSnapshot(useDesiredGhostSource: true);
+        ghost.Update();
         microvoxels.Update();
-        PublishAppearanceSnapshot();
         return ProductUpdateResult.None;
     }
 
@@ -127,6 +134,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         terrain.Restart();
+        PublishAppearanceSnapshot(useDesiredGhostSource: true);
         ghost.Recapture();
         microvoxels.Restart();
         lifecycle = ProductLifecycleState.Running;
@@ -178,14 +186,18 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
     }
 
-    private void PublishAppearanceSnapshot(bool includeGhostSource = true)
+    private void PublishAppearanceSnapshot(
+        bool includeGhostSource = true,
+        bool useDesiredGhostSource = false)
     {
         if (includeGhostSource)
         {
             engine.Appearance.PublishSnapshot(
             [
                 player.PlatformAppearanceFact,
-                ghost.SourceAppearanceFact,
+                useDesiredGhostSource
+                    ? ghost.DesiredSourceAppearanceFact
+                    : ghost.SourceAppearanceFact,
             ]);
             return;
         }
