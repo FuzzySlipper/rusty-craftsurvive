@@ -20,7 +20,7 @@ internal readonly record struct GhostPlateConfiguration(
     internal const string SourceContentPathValue = "animations/tripo-wizard.glb";
     internal const ulong SourceObjectIdValue = 3UL;
 
-    internal const ushort CaptureResolution = 64;
+    internal const ushort CaptureResolution = 256;
     internal const float CaptureAzimuthDegrees = 0f;
     internal const float CaptureElevationDegrees = 10f;
     internal const float CaptureNear = 0.1f;
