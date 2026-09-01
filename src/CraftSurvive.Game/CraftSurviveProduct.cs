@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Microvoxels;
 using CraftSurvive.Game.Modules.GhostPlate;
+using CraftSurvive.Game.Modules.Sky;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
@@ -20,6 +21,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly PlayerController player;
     private readonly MicrovoxelPresentation microvoxels;
     private readonly GhostPlateActor ghost;
+    private readonly SkyBackground sky;
     private readonly EntityWorldDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
 
@@ -36,6 +38,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         ghost = new GhostPlateActor(
             context.Engine,
             GhostPlateConfiguration.Default);
+        sky = new SkyBackground(context.Engine);
         entityDebug.RegisterWorld("craft", player.EntityWorld);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
@@ -62,6 +65,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         {
             terrain.Start();
             player.Start();
+            sky.Start();
             PublishAppearanceSnapshot();
             ghostSourcePublished = true;
             ghost.Start();
@@ -70,6 +74,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
         catch
         {
+            sky.Dispose();
             ghost.DisposePresentation();
             if (ghostSourcePublished)
             {
@@ -97,6 +102,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
         terrain.Attach();
         player.Attach();
+        sky.Attach();
         PublishAppearanceSnapshot();
         ghost.Attach();
         microvoxels.Attach();
@@ -134,6 +140,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         terrain.Restart();
+        sky.Restart();
         PublishAppearanceSnapshot(useDesiredGhostSource: true);
         ghost.Recapture();
         microvoxels.Restart();
@@ -147,6 +154,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             throw new ObjectDisposedException(nameof(CraftSurviveProduct));
         }
 
+        sky.Dispose();
         lifecycle = ProductLifecycleState.Shutdown;
     }
 
@@ -162,6 +170,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             Shutdown();
         }
 
+        sky.Dispose();
         ghost.Dispose();
         player.Dispose();
         microvoxels.Dispose();

@@ -15,10 +15,11 @@ not invitations to recreate retired Rust, browser, or test infrastructure.
   crafting, construction permissions, networking, and multiplayer merge
   policy are not implemented.
 - The terrain presentation uses three product-owned flat material colors with
-  Engine-owned voxel scene projection. It does not yet consume an authored
-  texture atlas, material variants, normal maps, animated tiles, or blending.
-  The canonical texture files remain in `content/textures/` for a later
-  deliberate content slice.
+  Engine-owned voxel scene projection. It does not yet consume the authored
+  terrain atlas, material variants, normal maps, animated tiles, or blending:
+  face-directed grass top/side mapping awaits Engine task #7665. The authored
+  sky panorama is active through Engine CameraView; the Engine retains its
+  resource and renderer lifecycle.
 - Engine voxel collision remains the canonical collision authority. The
   product's moving platform is a translating axis-aligned box supplied as a
   call-local character obstacle; rotated or general rigid-body platform

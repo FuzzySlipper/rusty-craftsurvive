@@ -78,6 +78,8 @@ manifests.
   product tuning, moving-platform policy, world-position tracking, origin
   rebasing, camera composition, and player UI facts. Engine performs the
   collision, character, camera, appearance, and origin mechanisms.
+- `Modules/Sky` selects the canonical authored panorama through Engine
+  Appearance and CameraView. Engine owns its resource and renderer lifecycle.
 - `src/ui/main.ts` mounts static DOM guidance beside the Engine-owned canvas.
 
 This is a runnable continuation lane, not a claim of complete survival

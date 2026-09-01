@@ -32,6 +32,7 @@ Engine services; neither C# nor TypeScript recreates those mechanisms.
 | Voxel residency and edits | `TerrainWorld` plus Engine Voxel/Spatial services | Active. Product admits revision-checked edits and leases; Engine owns voxel scene and collision/presentation mechanisms. |
 | Terrain persistence | `TerrainOverlayState` and `TerrainOverlayCodec` plus Engine Persistence | Active. One bounded canonical overlay owner. |
 | Terrain presentation | `TerrainWorld` plus Engine VoxelScenePresentation and Appearance | Active. C# supplies material facts; Engine retains mesh, renderer, and handles. |
+| Sky background | `Modules/Sky` plus Engine Appearance/CameraView | Active. C# selects and admits the canonical panorama; Engine retains, realizes, republishes, and clears it. |
 | Player input and look | `PlayerInputState`, `PlayerController` plus Engine Input/Look | Active. Product maps admitted input into movement/edit policy and Engine integrates look. |
 | Character movement and support | `PlayerController` plus Engine Character/Spatial | Active. Product owns cadence, tuning, platform policy, and global position; Engine owns collision and motion response. |
 | Camera and origin | `PlayerController` plus Engine CameraView/WorldOrigin | Active. Product composes camera policy and rebasing decisions; Engine performs the mechanism. |
