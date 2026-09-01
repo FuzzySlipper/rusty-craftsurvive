@@ -82,7 +82,6 @@ internal sealed class PlayerController : IDisposable
             PrimitiveGeometry.Cube,
             Wireframe: false,
             PlayerConstants.PlatformColor));
-        PublishPlatformAppearance();
         camera = engine.CameraView.CreateCamera(CreateCameraDescriptor());
         engine.CameraView.SetActiveCamera(camera);
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
@@ -153,7 +152,6 @@ internal sealed class PlayerController : IDisposable
                 OverlapsVoxel);
         }
 
-        PublishPlatformAppearance();
         engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
@@ -163,7 +161,6 @@ internal sealed class PlayerController : IDisposable
     internal void Attach()
     {
         EnsureStarted();
-        PublishPlatformAppearance();
         engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
         terrain.PublishPlayerUi(ToUiFacts());
     }
@@ -188,6 +185,26 @@ internal sealed class PlayerController : IDisposable
 
     internal EntityWorld EntityWorld => entityWorld;
 
+    /// <summary>
+    /// Returns the current platform fact for the product's single complete
+    /// Appearance snapshot. The root composes this with other product-owned
+    /// source facts so modules never replace each other's retained visuals.
+    /// </summary>
+    internal AppearanceFact PlatformAppearanceFact
+    {
+        get
+        {
+            Appearance appearance = platformAppearance
+                ?? throw new InvalidOperationException("CraftSurvive platform appearance is unavailable.");
+            return new AppearanceFact(
+                PlayerConstants.PlatformEntityId,
+                new Transform(platformLocal, Quaternion.Identity, PlayerConstants.PlatformScale),
+                appearance,
+                Visible: true,
+                RenderLayer.Scene);
+        }
+    }
+
     public void Dispose()
     {
         if (camera is not null)
@@ -199,7 +216,6 @@ internal sealed class PlayerController : IDisposable
 
         if (platformAppearance is not null)
         {
-            engine.Appearance.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
             platformAppearance.Dispose();
             platformAppearance = null;
         }
@@ -319,21 +335,6 @@ internal sealed class PlayerController : IDisposable
             platformLinearVelocity,
             Vector3.Zero),
     };
-
-    private void PublishPlatformAppearance()
-    {
-        Appearance appearance = platformAppearance
-            ?? throw new InvalidOperationException("CraftSurvive platform appearance is unavailable.");
-        engine.Appearance.PublishSnapshot(
-        [
-            new AppearanceFact(
-                PlayerConstants.PlatformEntityId,
-                new Transform(platformLocal, Quaternion.Identity, PlayerConstants.PlatformScale),
-                appearance,
-                Visible: true,
-                RenderLayer.Scene),
-        ]);
-    }
 
     private CameraDescriptor CreateCameraDescriptor() => new(
         new CameraPose(EyePosition(), RadiansToDegrees(look.PitchRadians), RadiansToDegrees(look.YawRadians)),

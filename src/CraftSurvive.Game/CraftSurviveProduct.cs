@@ -3,6 +3,7 @@ using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Microvoxels;
+using CraftSurvive.Game.Modules.GhostPlate;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
@@ -13,22 +14,28 @@ namespace CraftSurvive.Game;
 /// </summary>
 public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSource
 {
+    private readonly IEngineContext engine;
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly MicrovoxelPresentation microvoxels;
+    private readonly GhostPlateActor ghost;
     private readonly EntityWorldDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+        engine = context.Engine;
         terrain = new TerrainWorld(context.Engine, TerrainConfiguration.Default);
         player = new PlayerController(context.Engine, terrain);
         microvoxels = new MicrovoxelPresentation(
             context.Engine,
             context.Content,
             MicrovoxelConfiguration.WoodlandShrine);
+        ghost = new GhostPlateActor(
+            context.Engine,
+            GhostPlateConfiguration.Default);
         entityDebug.RegisterWorld("craft", player.EntityWorld);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
@@ -45,15 +52,29 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     public void Start()
     {
         RequireState(ProductLifecycleState.Created, nameof(Start));
+        bool ghostSourcePublished = false;
         try
         {
             terrain.Start();
             player.Start();
+            PublishAppearanceSnapshot();
+            ghostSourcePublished = true;
+            ghost.Start();
             microvoxels.Start();
             lifecycle = ProductLifecycleState.Running;
         }
         catch
         {
+            ghost.DisposePresentation();
+            if (ghostSourcePublished)
+            {
+                PublishAppearanceSnapshot(includeGhostSource: false);
+            }
+            ghost.DisposeSourceAppearance();
+            if (ghostSourcePublished)
+            {
+                engine.Appearance.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+            }
             player.Dispose();
             microvoxels.Dispose();
             terrain.Dispose();
@@ -71,6 +92,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
         terrain.Attach();
         player.Attach();
+        PublishAppearanceSnapshot();
+        ghost.Attach();
         microvoxels.Attach();
     }
 
@@ -78,7 +101,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         player.Update(update);
+        ghost.Update(ghost.Placement);
         microvoxels.Update();
+        PublishAppearanceSnapshot();
         return ProductUpdateResult.None;
     }
 
@@ -102,6 +127,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         terrain.Restart();
+        ghost.Recapture();
         microvoxels.Restart();
         lifecycle = ProductLifecycleState.Running;
     }
@@ -128,6 +154,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             Shutdown();
         }
 
+        ghost.Dispose();
         player.Dispose();
         microvoxels.Dispose();
         terrain.Dispose();
@@ -149,6 +176,21 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         {
             throw new InvalidOperationException(registration.Message);
         }
+    }
+
+    private void PublishAppearanceSnapshot(bool includeGhostSource = true)
+    {
+        if (includeGhostSource)
+        {
+            engine.Appearance.PublishSnapshot(
+            [
+                player.PlatformAppearanceFact,
+                ghost.SourceAppearanceFact,
+            ]);
+            return;
+        }
+
+        engine.Appearance.PublishSnapshot([player.PlatformAppearanceFact]);
     }
 
     private enum ProductLifecycleState
