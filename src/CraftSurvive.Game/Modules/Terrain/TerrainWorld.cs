@@ -171,6 +171,14 @@ internal sealed class TerrainWorld : IDisposable
         }
     }
 
+    /// <summary>Republishes retained terrain and UI facts for a fresh Engine presentation attachment.</summary>
+    internal void Attach()
+    {
+        EnsureStarted();
+        RefreshPresentation();
+        PublishUi();
+    }
+
     public void Dispose()
     {
         foreach (VoxelChunkLease lease in leases.Values)

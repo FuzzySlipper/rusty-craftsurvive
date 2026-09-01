@@ -2,6 +2,7 @@ using Rusty.Engine;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Debugging;
+using CraftSurvive.Game.Modules.Microvoxels;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
@@ -15,6 +16,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
+    private readonly MicrovoxelPresentation microvoxels;
     private readonly EntityWorldDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
 
@@ -23,6 +25,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         ArgumentNullException.ThrowIfNull(context);
         terrain = new TerrainWorld(context.Engine, TerrainConfiguration.Default);
         player = new PlayerController(context.Engine, terrain);
+        microvoxels = new MicrovoxelPresentation(
+            context.Engine,
+            context.Content,
+            MicrovoxelConfiguration.WoodlandShrine);
         entityDebug.RegisterWorld("craft", player.EntityWorld);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
@@ -43,20 +49,36 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         {
             terrain.Start();
             player.Start();
+            microvoxels.Start();
             lifecycle = ProductLifecycleState.Running;
         }
         catch
         {
             player.Dispose();
+            microvoxels.Dispose();
             terrain.Dispose();
             throw;
         }
+    }
+
+    /// <summary>Republishes the retained world for an Engine-attached browser without resetting product state.</summary>
+    public void Attach()
+    {
+        if (lifecycle is not (ProductLifecycleState.Running or ProductLifecycleState.Paused))
+        {
+            throw new InvalidOperationException("CraftSurvive can only attach while running or paused.");
+        }
+
+        terrain.Attach();
+        player.Attach();
+        microvoxels.Attach();
     }
 
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         player.Update(update);
+        microvoxels.Update();
         return ProductUpdateResult.None;
     }
 
@@ -80,6 +102,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         terrain.Restart();
+        microvoxels.Restart();
         lifecycle = ProductLifecycleState.Running;
     }
 
@@ -106,6 +129,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         player.Dispose();
+        microvoxels.Dispose();
         terrain.Dispose();
         lifecycle = ProductLifecycleState.Disposed;
     }

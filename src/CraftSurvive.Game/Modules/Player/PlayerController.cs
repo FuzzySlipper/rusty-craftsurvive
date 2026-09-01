@@ -159,6 +159,15 @@ internal sealed class PlayerController : IDisposable
         PublishRuntimeComponent();
     }
 
+    /// <summary>Republishes player-owned presentation without advancing simulation state.</summary>
+    internal void Attach()
+    {
+        EnsureStarted();
+        PublishPlatformAppearance();
+        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        terrain.PublishPlayerUi(ToUiFacts());
+    }
+
     /// <summary>Moves the live player through the same product-owned state and Engine publication lane used by gameplay.</summary>
     internal PlayerRuntimeComponent Teleport(double x, double y, double z)
     {
