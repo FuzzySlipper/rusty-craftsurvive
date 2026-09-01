@@ -17,6 +17,7 @@ internal sealed class TerrainWorld : IDisposable
     private readonly TerrainResidencyPolicy residencyPolicy;
     private readonly TerrainOverlayState overlay;
     private readonly Dictionary<TerrainChunkAddress, VoxelChunkLease> leases = [];
+    private readonly Dictionary<TerrainChunkAddress, VoxelChunkReadout> residentChunks = [];
     private readonly List<Material> materials = [];
     private SpatialSession? session;
     private PersistenceStore? persistenceStore;
@@ -154,8 +155,13 @@ internal sealed class TerrainWorld : IDisposable
             Session,
             scene.SourceRevision,
             edits));
-        overlay.Apply(accepted);
-        SaveOverlay();
+        if (receipt.ChangedVoxels > 0)
+        {
+            TerrainOverlayReceipt overlayReceipt = overlay.Apply(accepted);
+            residencyPolicy.RefreshAfterOverlayChange(overlay, overlayReceipt);
+            RefreshResidentChunks(overlayReceipt.AppliedEdits.Select(edit => edit.Address.Chunk));
+            SaveOverlay();
+        }
         RefreshPresentation();
         PublishUi();
         return new TerrainWorldEditApplied(receipt);
@@ -187,6 +193,7 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         leases.Clear();
+        residentChunks.Clear();
         presentation?.Dispose();
         presentation = null;
         foreach (Material material in materials)
@@ -219,9 +226,7 @@ internal sealed class TerrainWorld : IDisposable
 
     private bool Synchronize(TerrainChunkAddress center)
     {
-        TerrainOverlaySnapshot snapshot = overlay.Snapshot();
-        TerrainResidencyPlan plan = residencyPolicy.PlanFor(center, snapshot);
-        Dictionary<TerrainChunkAddress, VoxelChunkReadout> current = ReadResidentChunks();
+        TerrainResidencyPlan plan = residencyPolicy.PlanFor(center, overlay);
 
         foreach (TerrainChunkAddress address in leases.Keys.Where(address => !plan.Requested.Contains(address)).ToArray())
         {
@@ -233,19 +238,19 @@ internal sealed class TerrainWorld : IDisposable
         List<uint> materialSlots = [];
         foreach (TerrainChunkAddress address in plan.Requested)
         {
-            if (current.ContainsKey(address))
+            if (residentChunks.ContainsKey(address))
             {
                 continue;
             }
 
-            AddChunkAdmission(address, snapshot, operations, materialSlots);
+            AddChunkAdmission(address, plan.Overlay, operations, materialSlots);
             if (operations.Count == plan.MaximumOperationsPerTick)
             {
                 break;
             }
         }
 
-        foreach ((TerrainChunkAddress address, VoxelChunkReadout readout) in current)
+        foreach ((TerrainChunkAddress address, VoxelChunkReadout readout) in residentChunks)
         {
             if (plan.Retained.Contains(address) || leases.ContainsKey(address) || operations.Count == plan.MaximumOperationsPerTick)
             {
@@ -269,12 +274,12 @@ internal sealed class TerrainWorld : IDisposable
                 VoxelResidencyHistoryPolicy.ResetToPublishedAuthority,
                 operations.ToArray(),
                 materialSlots.ToArray()));
-            current = ReadResidentChunks();
+            RefreshResidentChunks(operations.Select(operation => FromEngineChunk(operation.Chunk)));
         }
 
         foreach (TerrainChunkAddress address in plan.Requested)
         {
-            if (!current.ContainsKey(address) || leases.ContainsKey(address))
+            if (!residentChunks.ContainsKey(address) || leases.ContainsKey(address))
             {
                 continue;
             }
@@ -285,20 +290,20 @@ internal sealed class TerrainWorld : IDisposable
         return operations.Count > 0;
     }
 
-    private Dictionary<TerrainChunkAddress, VoxelChunkReadout> ReadResidentChunks()
+    private void RefreshResidentChunks(IEnumerable<TerrainChunkAddress> addresses)
     {
-        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
-        Dictionary<TerrainChunkAddress, VoxelChunkReadout> chunks = [];
-        for (ulong index = 0; index < scene.ResidentChunkCount; index++)
+        foreach (TerrainChunkAddress address in addresses.Distinct())
         {
-            VoxelChunkReadout readout = engine.Voxel.ReadResidentChunkAt(new VoxelResidentChunkAtRequest(Session, checked((uint)index)));
+            VoxelChunkReadout readout = engine.Voxel.ReadChunk(new VoxelChunkReadRequest(Session, ToEngineChunk(address)));
             if (readout.Present)
             {
-                chunks.Add(FromEngineChunk(readout.Chunk), readout);
+                residentChunks[address] = readout;
+            }
+            else
+            {
+                residentChunks.Remove(address);
             }
         }
-
-        return chunks;
     }
 
     private void AddChunkAdmission(TerrainChunkAddress address, TerrainOverlaySnapshot snapshot,

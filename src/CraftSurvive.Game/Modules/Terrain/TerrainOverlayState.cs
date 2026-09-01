@@ -8,6 +8,7 @@ internal sealed class TerrainOverlayState
 {
     private readonly SortedDictionary<VoxelAddress, ushort> materials = new();
     private readonly ulong seed;
+    private ulong revision;
 
     internal TerrainOverlayState(ulong seed)
     {
@@ -15,6 +16,9 @@ internal sealed class TerrainOverlayState
     }
 
     internal int Count => materials.Count;
+
+    /// <summary>Monotonically identifies product-owned occupancy inputs.</summary>
+    internal ulong Revision => revision;
 
     internal TerrainOverlaySnapshot Snapshot() => new(seed,
         materials.Select(pair => new TerrainOverlayEntry(pair.Key, pair.Value)).ToArray());
@@ -35,6 +39,7 @@ internal sealed class TerrainOverlayState
             materials[edit.Address] = edit.Material;
         }
 
+        revision = checked(revision + 1UL);
         return new TerrainOverlayReceipt(edits);
     }
 
@@ -62,6 +67,8 @@ internal sealed class TerrainOverlayState
                 throw new InvalidOperationException("Terrain overlay entries must have unique addresses.");
             }
         }
+
+        revision = checked(revision + 1UL);
     }
 
     private static void ValidateMaterial(ushort material)
