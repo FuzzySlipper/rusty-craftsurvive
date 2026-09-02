@@ -10,17 +10,19 @@ treatment suitable for a voxel tile.
 
 `terrain-atlas.png` is the deterministic derivative. Each source is resized
 to 64 by 64 with a box filter, converted to RGBA, and placed into the 2 by 2
-atlas in the order recorded by `terrain-atlas.json`. The canonical atlas and
-metadata are retained here for a future deliberate C# content slice. There is
-no browser-served duplicate and no atlas-copy script in the current runtime.
+atlas in the order recorded by `terrain-atlas.json`. The C# terrain catalog
+admits this canonical image through Engine AuthoredContent and Appearance:
+source slot 1 has grass-side as its base and grass-top as its Engine-directed
+`+Y` override, while slots 2 and 3 select dirt and stone. Slot 4 in historical
+metadata is retired and is never emitted by the C# terrain recipe. There is no
+browser-served duplicate and no atlas-copy script in the current runtime.
 `scripts/check-terrain-atlas.mjs` checks the canonical hash, dimensions, and
 sky format without requiring a host or renderer.
 
-The current C# terrain slice uses named flat material colors through Engine's
-voxel scene presentation. It does not yet consume this atlas. When a future
-product task adopts it, the product should publish the content through a
-named Engine resource/material capability rather than reintroducing a browser
-asset copy.
+The typed C# catalog mirrors the canonical metadata's 128 by 128 extent, 64
+by 64 regions, nearest filtering, clamp wrapping, and half-texel inset. Engine
+validates and resolves the authored catalog; `scripts/check-terrain-atlas.mjs`
+remains the focused file audit rather than runtime texture validation.
 
 ## Sky panorama provenance
 

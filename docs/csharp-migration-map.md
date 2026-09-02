@@ -31,7 +31,7 @@ Engine services; neither C# nor TypeScript recreates those mechanisms.
 | Terrain recipe and bounds | `Modules/Terrain` | Active. Deterministic generation-v2 recipe, 16³ chunks, bounded residency, and named product tuning. |
 | Voxel residency and edits | `TerrainWorld` plus Engine Voxel/Spatial services | Active. Product admits revision-checked edits and leases; Engine owns voxel scene and collision/presentation mechanisms. |
 | Terrain persistence | `TerrainOverlayState` and `TerrainOverlayCodec` plus Engine Persistence | Active. One bounded canonical overlay owner. |
-| Terrain presentation | `TerrainWorld` plus Engine VoxelScenePresentation and Appearance | Active. C# supplies material facts; Engine retains mesh, renderer, and handles. |
+| Terrain presentation | `Modules/Terrain/TerrainAtlasCatalog`, `TerrainWorld`, Engine AuthoredContent/Appearance/VoxelScenePresentation | Active. C# selects the canonical atlas and source-slot/face policy; Engine admits resources, resolves materials, retains mesh/renderer handles, and returns copied mapping rows. |
 | Sky background | `Modules/Sky` plus Engine Appearance/CameraView | Active. C# selects and admits the canonical panorama; Engine retains, realizes, republishes, and clears it. |
 | Player input and look | `PlayerInputState`, `PlayerController` plus Engine Input/Look | Active. Product maps admitted input into movement/edit policy and Engine integrates look. |
 | Character movement and support | `PlayerController` plus Engine Character/Spatial | Active. Product owns cadence, tuning, platform policy, and global position; Engine owns collision and motion response. |
@@ -49,8 +49,8 @@ second renderer, or a downstream substitute.
 ## Deliberate next areas
 
 The current lane is a bounded terrain/player continuation rather than a full
-survival game. Inventory, crafting, resource interactions, authored content,
-animation, networking, and broader world simulation remain product work. A
+survival game. Inventory, crafting, resource interactions beyond the admitted
+terrain atlas, animation, networking, and broader world simulation remain product work. A
 future slice should first name its C# owner and required Engine mechanisms,
 then stop and file an upstream task if a named capability is absent.
 

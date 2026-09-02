@@ -14,12 +14,13 @@ not invitations to recreate retired Rust, browser, or test infrastructure.
   overlaps the player or exceeds the Engine coordinate envelope. Inventory,
   crafting, construction permissions, networking, and multiplayer merge
   policy are not implemented.
-- The terrain presentation uses three product-owned flat material colors with
-  Engine-owned voxel scene projection. It does not yet consume the authored
-  terrain atlas, material variants, normal maps, animated tiles, or blending:
-  face-directed grass top/side mapping awaits Engine task #7665. The authored
-  sky panorama is active through Engine CameraView; the Engine retains its
-  resource and renderer lifecycle.
+- Terrain presentation admits the canonical authored 128 by 128 atlas through
+  Engine AuthoredContent and Appearance, then projects source slots 1 grass,
+  2 dirt, and 3 stone through Engine's directional voxel scene presentation.
+  Grass uses the grass-side base with a +Y grass-top override; normal maps,
+  animated tiles, blending, and any retired source slot 4 are not implemented.
+  The authored sky panorama is active through Engine CameraView; the Engine
+  retains both resource and renderer lifecycles.
 - Engine voxel collision remains the canonical collision authority. The
   product's moving platform is a translating axis-aligned box supplied as a
   call-local character obstacle; rotated or general rigid-body platform

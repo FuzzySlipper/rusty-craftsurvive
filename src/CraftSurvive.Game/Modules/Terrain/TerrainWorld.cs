@@ -18,11 +18,12 @@ internal sealed class TerrainWorld : IDisposable
     private readonly TerrainOverlayState overlay;
     private readonly Dictionary<TerrainChunkAddress, VoxelChunkLease> leases = [];
     private readonly Dictionary<TerrainChunkAddress, VoxelChunkReadout> residentChunks = [];
-    private readonly List<Material> materials = [];
+    private TerrainAtlasCatalog? atlasCatalog;
     private SpatialSession? session;
     private PersistenceStore? persistenceStore;
     private UiStream? uiStream;
     private VoxelScenePresentation? presentation;
+    private VoxelSceneMaterialMappingLeaseReceipt materialMapping;
     private TerrainPlayerUiFacts? playerUi;
     private ulong uiSequence;
     private bool started;
@@ -35,6 +36,9 @@ internal sealed class TerrainWorld : IDisposable
         chunkGenerator = new TerrainChunkGenerator(recipe);
         residencyPolicy = new TerrainResidencyPolicy(recipe, chunkGenerator);
         overlay = new TerrainOverlayState(configuration.Seed);
+        // Authored content is selected during Product Create so the Engine
+        // can retain the resource for every later presentation attachment.
+        atlasCatalog = new TerrainAtlasCatalog(engine);
     }
 
     internal void Start()
@@ -196,12 +200,9 @@ internal sealed class TerrainWorld : IDisposable
         residentChunks.Clear();
         presentation?.Dispose();
         presentation = null;
-        foreach (Material material in materials)
-        {
-            material.Dispose();
-        }
-
-        materials.Clear();
+        atlasCatalog?.Dispose();
+        atlasCatalog = null;
+        materialMapping = default;
         uiStream?.Dispose();
         uiStream = null;
         persistenceStore?.Dispose();
@@ -218,6 +219,13 @@ internal sealed class TerrainWorld : IDisposable
     {
         EnsureStarted();
         return engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+    }
+
+    /// <summary>Returns the copied Engine-owned directional material mapping retained by this terrain owner.</summary>
+    internal VoxelSceneMaterialMappingLeaseReceipt ReadMaterialMapping()
+    {
+        EnsureStarted();
+        return materialMapping;
     }
 
     private PersistenceStore PersistenceStore => persistenceStore ?? throw new InvalidOperationException("Terrain persistence store is unavailable.");
@@ -349,38 +357,44 @@ internal sealed class TerrainWorld : IDisposable
 
     private void CreatePresentation()
     {
-        materials.Add(CreateMaterial(TerrainPresentation.Grass));
-        materials.Add(CreateMaterial(TerrainPresentation.Dirt));
-        materials.Add(CreateMaterial(TerrainPresentation.Stone));
-        presentation = engine.VoxelScenePresentation.ProjectScene(new ProjectVoxelSceneRequest(
+        presentation = engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             Session,
-            MaterialBindings()));
+            MaterialBindings(),
+            FaceMaterialBindings()));
+        CaptureMaterialMapping();
     }
-
-    private Material CreateMaterial(Color color) => engine.Appearance.CreateMaterial(new MaterialRequest(
-        color,
-        default,
-        TerrainConstants.TerrainRoughness,
-        new Color(TerrainConstants.MaterialAlpha, TerrainConstants.MaterialAlpha,
-            TerrainConstants.MaterialAlpha, TerrainConstants.MaterialAlpha),
-        Vector3.Zero,
-        TerrainConstants.NoEmission,
-        false));
 
     private void RefreshPresentation()
     {
         if (presentation is not null)
         {
             engine.VoxelScenePresentation.RefreshScene(presentation);
+            CaptureMaterialMapping();
         }
     }
 
     private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings() => new VoxelSceneMaterialBinding[]
     {
-        new VoxelSceneMaterialBinding(TerrainConstants.GrassMaterial, materials[0]),
-        new VoxelSceneMaterialBinding(TerrainConstants.DirtMaterial, materials[1]),
-        new VoxelSceneMaterialBinding(TerrainConstants.StoneMaterial, materials[2]),
+        new VoxelSceneMaterialBinding(TerrainConstants.GrassMaterial, AtlasCatalog.GrassSide),
+        new VoxelSceneMaterialBinding(TerrainConstants.DirtMaterial, AtlasCatalog.Dirt),
+        new VoxelSceneMaterialBinding(TerrainConstants.StoneMaterial, AtlasCatalog.Stone),
     };
+
+    private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings() =>
+        new VoxelSceneFaceMaterialBinding[]
+        {
+            new(TerrainConstants.GrassMaterial, SpatialFace.PosY, AtlasCatalog.GrassTop),
+        };
+
+    private TerrainAtlasCatalog AtlasCatalog => atlasCatalog ?? throw new InvalidOperationException("Terrain atlas catalog is unavailable.");
+
+    private void CaptureMaterialMapping()
+    {
+        if (presentation is not null)
+        {
+            materialMapping = engine.VoxelScenePresentation.ReadMaterialMapping(presentation);
+        }
+    }
 
     private void PublishUi()
     {
@@ -442,10 +456,3 @@ internal readonly record struct TerrainPlayerUiFacts(
     double PlatformX,
     double PlatformY,
     double PlatformZ);
-
-internal static class TerrainPresentation
-{
-    internal static readonly Color Grass = new(0.29f, 0.52f, 0.18f, TerrainConstants.MaterialAlpha);
-    internal static readonly Color Dirt = new(0.38f, 0.23f, 0.12f, TerrainConstants.MaterialAlpha);
-    internal static readonly Color Stone = new(0.36f, 0.38f, 0.41f, TerrainConstants.MaterialAlpha);
-}

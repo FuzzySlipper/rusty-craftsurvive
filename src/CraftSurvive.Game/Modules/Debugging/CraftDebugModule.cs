@@ -130,6 +130,35 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount}");
     }
 
+    [DebugCommand("craft.terrain.materials", Description = "Reads the copied Engine directional terrain material mapping.")]
+    public string ReadTerrainMaterials()
+    {
+        VoxelSceneMaterialMappingLeaseReceipt mapping = terrain.ReadMaterialMapping();
+        uint grassRows = 0;
+        uint dirtRows = 0;
+        uint stoneRows = 0;
+        bool grassTopOverride = false;
+        foreach (VoxelSceneMaterialMappingRow row in mapping.Mappings.Span)
+        {
+            switch (row.SourceSlot)
+            {
+                case TerrainConstants.GrassMaterial:
+                    grassRows++;
+                    grassTopOverride |= row.Face == SpatialFace.PosY && row.Overridden;
+                    break;
+                case TerrainConstants.DirtMaterial:
+                    dirtRows++;
+                    break;
+                case TerrainConstants.StoneMaterial:
+                    stoneRows++;
+                    break;
+            }
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"rows={mapping.Mappings.Length};source1={grassRows};source2={dirtRows};source3={stoneRows};grassTop+Y={grassTopOverride};sourceRevision={mapping.SourceRevision};meshRevision={mapping.MeshRevision}");
+    }
+
     [DebugCommand("craft.runtime", Description = "Reads the latest committed Rust host lifecycle and binding facts.")]
     public string ReadRuntime()
     {
