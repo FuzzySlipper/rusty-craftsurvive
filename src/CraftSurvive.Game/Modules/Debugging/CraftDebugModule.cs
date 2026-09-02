@@ -122,6 +122,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}");
     }
 
+    [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
+    public string ReadPlayer() => player.DebugReadout();
+
     [DebugCommand("craft.terrain.scene", Description = "Reads the current Engine-owned voxel scene facts.")]
     public string ReadTerrainScene()
     {

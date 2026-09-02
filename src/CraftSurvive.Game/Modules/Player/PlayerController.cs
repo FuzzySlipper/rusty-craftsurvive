@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
 using Rusty.Engine.Entities;
@@ -40,6 +41,29 @@ internal sealed class PlayerController : IDisposable
     private bool jumpPending;
     private bool impulsePending;
     private bool started;
+    private ulong updateCount;
+    private ulong lastSimulationStep;
+    private uint lastAdmittedStepCount;
+    private int lastInputEventCount;
+    private int lastKeyEventCount;
+    private int lastPointerEventCount;
+    private int lastClearEventCount;
+    private string lastInputEvent = "none";
+    private ulong totalInputEventCount;
+    private ulong lastInputEventUpdate;
+    private PlayerInputFrame lastInputFrame;
+    private uint lastControllerStepCount;
+    private CharacterStepReceipt? lastStepReceipt;
+    private Vector3 lastUpdatePositionBefore;
+    private Vector3 lastUpdatePositionAfter;
+    private ulong lastMovementUpdate;
+    private PlayerInputFrame lastMovementInputFrame;
+    private uint lastMovementControllerStepCount;
+    private CharacterStepReceipt? lastMovementStepReceipt;
+    private Vector3 lastMovementPositionBefore;
+    private Vector3 lastMovementPositionAfter;
+    private ulong cameraPublicationCount;
+    private ulong lastCameraPublicationUpdate;
 
     internal PlayerController(IEngineContext engine, TerrainWorld terrain)
     {
@@ -84,6 +108,8 @@ internal sealed class PlayerController : IDisposable
             PlayerConstants.PlatformColor));
         camera = engine.CameraView.CreateCamera(CreateCameraDescriptor());
         engine.CameraView.SetActiveCamera(camera);
+        cameraPublicationCount = 1UL;
+        lastCameraPublicationUpdate = updateCount;
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
@@ -93,7 +119,13 @@ internal sealed class PlayerController : IDisposable
     internal void Update(ProductUpdate update)
     {
         EnsureStarted();
+        updateCount = checked(updateCount + 1UL);
+        lastSimulationStep = update.Facts.SimulationStep;
+        lastAdmittedStepCount = update.Facts.AdmittedStepCount;
+        CaptureInputEvents(update.Input);
+        lastUpdatePositionBefore = playerLocal;
         PlayerInputFrame frame = input.Consume(update.Input);
+        lastInputFrame = frame;
         LookReceipt lookReceipt = engine.Look.Integrate(new LookRequest(look, frame.LookDelta, lookConfig));
         look = lookReceipt.After;
 
@@ -102,6 +134,8 @@ internal sealed class PlayerController : IDisposable
         jumpHeld = frame.JumpHeld;
         impulseHeld = frame.ImpulseHeld;
         controllerStepAccumulator += update.Facts.AdmittedStepCount * update.Facts.FixedDeltaSeconds;
+        lastControllerStepCount = 0U;
+        lastStepReceipt = null;
         while (controllerStepAccumulator + PlayerConstants.ControllerStepEpsilon >= PlayerConstants.ControllerStepSeconds)
         {
             AdvancePlatform((float)PlayerConstants.ControllerStepSeconds);
@@ -127,6 +161,8 @@ internal sealed class PlayerController : IDisposable
                         + Vector3.UnitY * PlayerConstants.ImpulseLift : Vector3.Zero,
                     (float)PlayerConstants.ControllerStepSeconds,
                     commandSequence)));
+            lastControllerStepCount = checked(lastControllerStepCount + 1U);
+            lastStepReceipt = receipt;
             jumpPending = false;
             impulsePending = false;
             playerLocal = receipt.Transform.Translation;
@@ -134,6 +170,17 @@ internal sealed class PlayerController : IDisposable
             WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
             controllerStepAccumulator -= PlayerConstants.ControllerStepSeconds;
+        }
+        lastUpdatePositionAfter = playerLocal;
+        if (frame.PlanarIntent != Vector2.Zero || frame.JumpHeld || frame.CrouchRequested
+            || frame.SprintRequested || frame.ImpulseHeld)
+        {
+            lastMovementUpdate = updateCount;
+            lastMovementInputFrame = frame;
+            lastMovementControllerStepCount = lastControllerStepCount;
+            lastMovementStepReceipt = lastStepReceipt;
+            lastMovementPositionBefore = lastUpdatePositionBefore;
+            lastMovementPositionAfter = lastUpdatePositionAfter;
         }
 
         if (RebaseIfNeeded())
@@ -152,16 +199,33 @@ internal sealed class PlayerController : IDisposable
                 OverlapsVoxel);
         }
 
-        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        PublishCamera();
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
+    }
+
+    /// <summary>Returns one bounded product-owned explanation of the latest movement update.</summary>
+    internal string DebugReadout()
+    {
+        EnsureStarted();
+        CharacterStepReceipt? step = lastStepReceipt;
+        string stepReadout = step is not CharacterStepReceipt receipt
+            ? "none"
+            : string.Create(CultureInfo.InvariantCulture,
+                $"attempted={receipt.Step.Attempted};accepted={receipt.Step.Accepted};wish={Format(receipt.WishVelocity)};displacement={Format(receipt.Displacement)};blocked={receipt.BlockFlags};casts={receipt.CastCount}");
+        string movementReadout = lastMovementUpdate == 0UL
+            ? "none"
+            : string.Create(CultureInfo.InvariantCulture,
+                $"update={lastMovementUpdate};intent={Format(lastMovementInputFrame.PlanarIntent)};controllerSteps={lastMovementControllerStepCount};before={Format(lastMovementPositionBefore)};after={Format(lastMovementPositionAfter)};step=[{FormatStep(lastMovementStepReceipt)}]");
+        return string.Create(CultureInfo.InvariantCulture,
+            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
     }
 
     /// <summary>Republishes player-owned presentation without advancing simulation state.</summary>
     internal void Attach()
     {
         EnsureStarted();
-        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        PublishCamera();
         terrain.PublishPlayerUi(ToUiFacts());
     }
 
@@ -177,7 +241,7 @@ internal sealed class PlayerController : IDisposable
         jumpPending = false;
         impulsePending = false;
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
-        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        PublishCamera();
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
         return entityWorld.Get(playerEntity, RuntimeComponent);
@@ -225,6 +289,53 @@ internal sealed class PlayerController : IDisposable
     }
 
     private Camera Camera => camera ?? throw new InvalidOperationException("CraftSurvive camera is unavailable.");
+
+    private void CaptureInputEvents(ReadOnlySpan<ProductInputEvent> events)
+    {
+        lastInputEventCount = events.Length;
+        lastKeyEventCount = 0;
+        lastPointerEventCount = 0;
+        lastClearEventCount = 0;
+        foreach (ProductInputEvent inputEvent in events)
+        {
+            totalInputEventCount = checked(totalInputEventCount + 1UL);
+            lastInputEventUpdate = updateCount;
+            switch (inputEvent.Kind)
+            {
+                case InputEventKind.Key:
+                    lastKeyEventCount++;
+                    lastInputEvent = $"key:{inputEvent.Keyboard}:{inputEvent.Edge}";
+                    break;
+                case InputEventKind.PointerDelta:
+                    lastPointerEventCount++;
+                    lastInputEvent = string.Create(CultureInfo.InvariantCulture,
+                        $"pointer-delta:{inputEvent.X:F3},{inputEvent.Y:F3}");
+                    break;
+                case InputEventKind.PointerButton:
+                    lastPointerEventCount++;
+                    lastInputEvent = $"pointer-button:{inputEvent.PointerButton}:{inputEvent.Edge}";
+                    break;
+                case InputEventKind.Clear:
+                    lastClearEventCount++;
+                    lastInputEvent = $"clear:{inputEvent.ClearReason}";
+                    break;
+                default:
+                    lastInputEvent = inputEvent.Kind.ToString();
+                    break;
+            }
+        }
+    }
+
+    private static string Format(Vector2 value) => string.Create(CultureInfo.InvariantCulture,
+        $"{value.X:F3},{value.Y:F3}");
+
+    private static string Format(Vector3 value) => string.Create(CultureInfo.InvariantCulture,
+        $"{value.X:F3},{value.Y:F3},{value.Z:F3}");
+
+    private static string FormatStep(CharacterStepReceipt? step) => step is not CharacterStepReceipt receipt
+        ? "none"
+        : string.Create(CultureInfo.InvariantCulture,
+            $"attempted={receipt.Step.Attempted};accepted={receipt.Step.Accepted};wish={Format(receipt.WishVelocity)};displacement={Format(receipt.Displacement)};blocked={receipt.BlockFlags};casts={receipt.CastCount}");
 
     private void AdvancePlatform(float stepSeconds)
     {
@@ -344,6 +455,13 @@ internal sealed class PlayerController : IDisposable
             PlayerConstants.CameraNearDistance, PlayerConstants.CameraFarDistance),
         new CameraViewport(PlayerConstants.CameraViewportOrigin, PlayerConstants.CameraViewportOrigin,
             PlayerConstants.CameraViewportExtent, PlayerConstants.CameraViewportExtent));
+
+    private void PublishCamera()
+    {
+        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        cameraPublicationCount = checked(cameraPublicationCount + 1UL);
+        lastCameraPublicationUpdate = updateCount;
+    }
 
     private CharacterSupport CurrentSupport()
     {

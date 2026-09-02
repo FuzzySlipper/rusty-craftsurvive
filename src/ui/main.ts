@@ -1,4 +1,8 @@
-import { mountLiveDebugPanel, type LiveDebugPanelMount } from './live-debug-panel.js';
+import {
+  mountLiveDebugPanel,
+  mountRendererMetricsWidget,
+  type LiveDebugPanelMount,
+} from './live-debug-panel.js';
 
 /**
  * Mounts static DOM guidance beside the Engine-owned canvas. This UI owns no
@@ -15,6 +19,11 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   const status = document.createElement('p');
   status.textContent = 'C# product host active. Terrain and first-person gameplay run in the product lane.';
   panel.append(status);
+
+  const metricsHost = document.createElement('div');
+  metricsHost.setAttribute('aria-label', 'Renderer performance metrics');
+  panel.append(metricsHost);
+  const metricsWidget = mountRendererMetricsWidget(metricsHost, { initiallyVisible: true });
 
   const debugButton = document.createElement('button');
   debugButton.type = 'button';
@@ -68,6 +77,7 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
       debugPanel = null;
       debugHost.replaceChildren();
       debugHost.hidden = true;
+      metricsWidget.dispose();
       panel.remove();
     },
   });
