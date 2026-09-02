@@ -2,7 +2,7 @@ import {
   mountLiveDebugPanel,
   mountRendererMetricsWidget,
   type LiveDebugPanelMount,
-} from './live-debug-panel.js';
+} from '@rusty-engine/live-debug';
 
 /**
  * Mounts static DOM guidance beside the Engine-owned canvas. This UI owns no

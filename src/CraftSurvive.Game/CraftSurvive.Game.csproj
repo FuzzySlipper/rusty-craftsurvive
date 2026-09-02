@@ -4,10 +4,57 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
-    <EngineRoot Condition="'$(EngineRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../rusty-engine'))</EngineRoot>
+    <!-- This is an ordinary product project. The SDK generates the CoreCLR
+         and NativeAOT composition below obj; no checked bridge project or
+         adjacent Engine source tree is part of the normal product build. -->
+    <RustyEngineSdkPackageVersion>0.1.0-dev.9b1f790</RustyEngineSdkPackageVersion>
+    <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
+    <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
+    <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>
+    <RustyEngineProductUiRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui/generated/source'))</RustyEngineProductUiRoot>
+    <RustyEngineProductContentRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineProductContentRoot>
+    <RustyEngineProductUiEntry>main.js</RustyEngineProductUiEntry>
+    <RustyEngineProductUiProjectionStream>craftsurvive.terrain</RustyEngineProductUiProjectionStream>
+    <RustyEngineProductUiProjectionContract>craftsurvive.terrain.v1</RustyEngineProductUiProjectionContract>
+    <RustyEngineProductLifecycleMode>realtime</RustyEngineProductLifecycleMode>
+    <RustyEngineProductFixedStepHz>60</RustyEngineProductFixedStepHz>
+    <RustyEngineProductFixedStepMaxCatchUpSteps>4</RustyEngineProductFixedStepMaxCatchUpSteps>
+    <!-- Watch authored inputs, rather than the generated UI output that the
+         staging target consumes. -->
+    <RustyEngineWatchPaths>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineWatchPaths>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(EngineRoot)/csharp/Rusty.Engine/Rusty.Engine.csproj" />
+    <PackageReference Include="Rusty.Engine" Version="$(RustyEngineSdkPackageVersion)">
+      <!-- The package is the default. The explicit Engine contributor
+           override supplies the same assembly directly and must therefore
+           exclude only the package's compile/runtime assets. -->
+      <ExcludeAssets Condition="'$(RustyEngineUseSourceDevelopment)' == 'true'">compile;runtime</ExcludeAssets>
+    </PackageReference>
+    <!-- Product metadata declares its ordinary gameplay controls. The C#
+         product still receives the Engine-owned copied input facts. -->
+    <RustyEngineProductInputIntent Include="craftsurvive.move.forward" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.move.backward" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.move.left" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.move.right" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.jump" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.crouch" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.sprint" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.edit.primary" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.edit.secondary" Value="digital" />
+    <RustyEngineProductInputMapping Include="craftsurvive.move.forward.key-w" Intent="craftsurvive.move.forward" Trigger="key:key-w:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.move.backward.key-s" Intent="craftsurvive.move.backward" Trigger="key:key-s:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.move.left.key-a" Intent="craftsurvive.move.left" Trigger="key:key-a:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.move.right.key-d" Intent="craftsurvive.move.right" Trigger="key:key-d:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.jump.space" Intent="craftsurvive.jump" Trigger="key:space:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.crouch.control-left" Intent="craftsurvive.crouch" Trigger="key:control-left:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.sprint.shift-left" Intent="craftsurvive.sprint" Trigger="key:shift-left:held" />
   </ItemGroup>
+
+  <!-- Node is retained only to compile the product-owned DOM companion. It
+       never assembles or copies Engine browser/runtime infrastructure. -->
+  <Target Name="BuildCraftSurviveProductUi"
+          BeforeTargets="StageRustyEngineCoreClrProduct;VerifyRustyEngineAot">
+    <Exec Command="pnpm --dir &quot;$(MSBuildThisFileDirectory)../..&quot; exec tsc --project &quot;$(MSBuildThisFileDirectory)../ui/tsconfig.json&quot;" />
+  </Target>
 </Project>

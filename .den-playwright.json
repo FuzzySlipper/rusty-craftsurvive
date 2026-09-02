@@ -1,9 +1,9 @@
 {
   "project": "rusty-craftsurvive",
   "serve": {
-    "command": "exec ./scripts/run-csharp.sh --loader coreclr --live-debug --bind-host {host} --port {port}",
+    "command": "exec ./.runtime/runtime-pack/bin/rusty dev --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --bind-host {host} --port {port}",
     "preferredPort": 0,
-    "healthUrl": "/ui/main.js",
+    "healthUrl": "/product-ui/main.js",
     "readyText": "Rusty CraftSurvive",
     "reusePolicy": "broker_owned",
     "startupTimeout": "120s"
