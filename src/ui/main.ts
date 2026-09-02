@@ -19,6 +19,7 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   const debugButton = document.createElement('button');
   debugButton.type = 'button';
   debugButton.textContent = 'Open live debug';
+  debugButton.setAttribute('aria-expanded', 'false');
   panel.append(debugButton);
 
   const debugHost = document.createElement('div');
@@ -28,7 +29,17 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   let debugPanel: LiveDebugPanelMount | null = null;
   let disposed = false;
   debugButton.addEventListener('click', () => {
-    if (debugPanel !== null || disposed) return;
+    if (disposed) return;
+    if (debugPanel !== null) {
+      debugPanel.dispose();
+      debugPanel = null;
+      debugHost.replaceChildren();
+      debugHost.hidden = true;
+      debugButton.textContent = 'Open live debug';
+      debugButton.setAttribute('aria-expanded', 'false');
+      return;
+    }
+
     debugButton.disabled = true;
     debugHost.hidden = false;
     void mountLiveDebugPanel(debugHost, { enabled: true, presentation: 'inline' }).then((mounted) => {
@@ -37,9 +48,13 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
         return;
       }
       debugPanel = mounted;
-      debugButton.textContent = 'Live debug open';
-    }).catch((error: unknown) => {
+      debugButton.textContent = 'Close live debug';
+      debugButton.setAttribute('aria-expanded', 'true');
       debugButton.disabled = false;
+    }).catch((error: unknown) => {
+      if (disposed) return;
+      debugButton.disabled = false;
+      debugHost.replaceChildren();
       debugHost.hidden = true;
       status.textContent = error instanceof Error ? error.message : 'Live debug panel could not start.';
     });
@@ -50,6 +65,9 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
     dispose: () => {
       disposed = true;
       debugPanel?.dispose();
+      debugPanel = null;
+      debugHost.replaceChildren();
+      debugHost.hidden = true;
       panel.remove();
     },
   });
