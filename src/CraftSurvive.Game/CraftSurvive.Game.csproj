@@ -6,8 +6,8 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <!-- This is an ordinary product project. The SDK generates the CoreCLR
          and NativeAOT composition below obj; no checked bridge project or
-         adjacent Engine source tree is part of the normal product build. -->
-    <RustyEngineSdkPackageVersion>0.1.0-dev.9b1f790</RustyEngineSdkPackageVersion>
+         Engine source tree is part of the normal product build. -->
+    <RustyEngineSdkPackageVersion>0.1.0-dev.cabba0f</RustyEngineSdkPackageVersion>
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
     <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
     <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>

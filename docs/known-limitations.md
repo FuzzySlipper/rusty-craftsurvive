@@ -1,8 +1,8 @@
 # Known limitations
 
-The current C# lane is a deliberately bounded continuation of the old
-CraftSurvive experiment. These limits describe the landed product; they are
-not invitations to recreate retired Rust, browser, or test infrastructure.
+The current C# lane is a deliberately bounded continuation. These limits
+describe the landed product; they are not invitations to recreate a parallel
+runtime or test infrastructure.
 
 - Terrain generation is deterministic generation version 2 with a fixed
   product recipe. Residency requests a 3-by-3 horizontal window, retains a
@@ -37,11 +37,11 @@ not invitations to recreate retired Rust, browser, or test infrastructure.
 - Persistence is one bounded, product-owned terrain overlay stored through
   Engine Persistence. There is no migration/merge policy for incompatible
   schemas or concurrent writers.
-- `src/ui/main.ts` is a static DOM companion. Engine's generated
-  product-browser-host owns the canvas, renderer, browser input delivery, and
-  runtime transport. There is no TypeScript gameplay or non-UI renderer.
-- The C# host is runnable and supplies the current terrain/player continuation,
-  but this repository makes no broad browser, accessibility, hardware, or
+- `src/ui/main.ts` is a static DOM companion. The packaged Engine host owns the
+  canvas, renderer, physical input delivery, and runtime integration. There is
+  no UI-owned gameplay or non-UI renderer.
+- The CoreCLR lane is runnable and supplies the current terrain/player
+  continuation, but this repository makes no broad accessibility, hardware, or
   subjective interactive-certification claim. Use a focused direct exercise
   only when a task needs it.
 - The generated C# API intentionally exposes named Engine service families,
@@ -49,6 +49,6 @@ not invitations to recreate retired Rust, browser, or test infrastructure.
   mechanism must file or link the upstream capability request and stop its
   downstream substitute work.
 
-Retired Rust/session/browser experiments, garden assets, and their proof
-scripts are deliberately absent from the working tree. Git history is the
-record for those experiments; no archive copy is maintained here.
+Retired experiments and their proof scripts are deliberately absent from the
+working tree. They are semantic evidence only; no archive copy is maintained
+here.

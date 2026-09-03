@@ -1,63 +1,71 @@
-# Rusty CraftSurvive C# guidance
+# Rusty CraftSurvive guidance
 
 ## Direction and ownership
 
-CraftSurvive is an ordinary NativeAOT C# downstream product hosted by the
-adjacent Rusty Engine checkout. The C# lane is the only normal runtime. The
-former Rust session and bespoke browser application were retired in task
-7497; their implementation is available in Git history only as semantic
-donor material.
+CraftSurvive is an ordinary C# product that develops against the installed
+Rusty.Engine SDK and its paired runtime pack. `rusty dev` loads the staged
+CoreCLR product; that is the normal local and Den lane. NativeAOT is an
+explicit fidelity/release verification, not a second product project or the
+development host.
 
 > The product decides. The Engine guarantees.
 
 - C# owns CraftSurvive's game rules, terrain recipe, player and world policy,
   edits, content meaning, and product state.
-- Rusty Engine owns host lifecycle, input delivery, renderer resources and
-  frame construction, spatial mechanisms, content/persistence primitives, and
-  other named Engine services.
-- TypeScript is limited to the DOM companion and explicit Engine host/backend
-  composition. It must never render non-UI game elements, retain gameplay
-  state, implement a transport, or create a second game loop.
-- Do not add downstream Rust, handwritten P/Invoke, unsafe game code, browser
-  renderers, custom WebSocket/JSON transports, or a second product runtime.
+- Rusty Engine owns lifecycle, input delivery, renderer resources and frame
+  construction, spatial mechanisms, content/persistence primitives, and other
+  named Engine services.
+- `src/ui/main.ts` is a DOM-only companion. It must not render game elements,
+  retain gameplay state, implement a transport, or create a game loop.
+- Do not add downstream Rust, handwritten P/Invoke, unsafe game code, a
+  renderer, custom JSON/WebSocket transport, or a second product runtime.
 
-Read the adjacent Engine's `AGENTS.md`, `docs/csharp-sdk.md`, and
-`docs/csharp-product-style.md` before changing the product/Engine boundary.
+Read the packaged SDK's C# guidance when changing the product/Engine boundary.
+
+## Installed development pair
+
+- `.runtime/runtime-pack-cabba0f/` is the current runtime pack. Its `bin/rusty dev`
+  command is the only normal loader and stages the CoreCLR product.
+- `.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.cabba0f.nupkg` is the exact SDK
+  package pinned in `CraftSurvive.Game.csproj`. Do not substitute a package,
+  runtime pack, or backup directory independently; update the pair together.
+- `NuGet.Config` intentionally resolves the SDK from that installed feed. The
+  product does not discover or require an Engine source checkout.
+- An Engine contributor may override only deliberately: pass
+  `--engine-source <absolute-path>` to `rusty dev`, which supplies the matching
+  MSBuild properties. A direct MSBuild invocation instead sets
+  `RustyEngineUseSourceDevelopment=true` with an absolute
+  `RustyEngineSourceDevelopmentPath`. Never infer either path.
 
 ## Den and missing capabilities
 
 - Project ID: `rusty-craftsurvive`. Resolve live Den guidance before
-  substantial work. The current task overrides stale documents and old
-  assumptions about downstream Rust, compiled TypeScript gameplay, or Product
-  Model.
+  substantial work. The current task overrides stale documents.
 - If Den is unreachable, stop and report that failure. Do not invent local
   task records.
-- If a needed mechanism is not expressible through the generated API, identify
-  the exact upstream capability, file or task, and stop. Do not recreate it in
-  C#, TypeScript, or browser code merely to complete a task.
+- If a needed mechanism is not expressible through the SDK, identify the exact
+  upstream capability, file or link the owning task when authorized, and stop.
+  Do not recreate it in product code or UI code.
 
-## Current C# lane
+## Product shape
 
-- `src/CraftSurvive.Game` is safe product code organized by gameplay domain;
-  each mutable state family has one explicit owner and thin coordination
-  follows Read → Decide → Apply → Publish where that boundary is useful.
-- `src/CraftSurvive.NativeProduct` is the thin NativeAOT composition project.
-  It selects the product with `[assembly: EngineProduct(...)]`; the Engine
-  source generator owns exported entry points and ABI plumbing.
-- `src/ui/main.ts` is a small DOM-only companion. The generated Engine
-  product-browser-host bundle owns the canvas, renderer transport, and browser
-  input delivery.
-- `scripts/generate-browser-bundle.mjs` creates the ignored host bundle, and
-  `scripts/run-csharp.sh` publishes the NativeAOT library and runs Engine's
-  `csharp-product-runtime` host.
-- `.den-serve.json` is the single normal Den runtime manifest. Old browser
-  smoke/garden manifests and the bespoke `serve-den.sh` host are retired.
+- `src/CraftSurvive.Game` is the sole checked product project. It is safe C#
+  organized by gameplay domain; each mutable state family has one explicit
+  owner and thin coordination follows Read -> Decide -> Apply -> Publish where
+  that boundary is useful.
+- The SDK generates all composition and staging artifacts below ignored `obj/`.
+  They are not source, configuration, or an extension point.
+- `src/ui/main.ts` compiles into the staged product UI. The Engine host owns
+  canvas, rendering, input delivery, and runtime integration.
+- `.den-serve.json` and `.den-playwright.json` both start the packaged
+  CoreCLR lane. Preserve a broker-owned live session; do not start a competing
+  host merely to inspect it.
 
 ## C# product style
 
 - Use Engine-provided update facts, input, spatial, camera, appearance,
   persistence, and UI services for product behavior. Do not retain native
-  pointers, create a second loop, or depend on browser state for game meaning.
+  pointers, create a second loop, or depend on UI state for game meaning.
 - Prefer file-scoped namespaces, nullable reference types, `internal` and
   `sealed` defaults, records/value types for small immutable data, and explicit
   composition. Keep unsafe/PInvoke out of ordinary product projects.
@@ -70,24 +78,22 @@ Read the adjacent Engine's `AGENTS.md`, `docs/csharp-sdk.md`, and
 ## Work and evidence
 
 - Add capabilities as coherent Engine service families informed by real
-  downstream needs. The generated surface is not a claim that every Rust
-  source API is available in C#.
+  downstream needs. The SDK surface is not a claim that every Engine source API
+  is available in C#.
 - Report a short milestone before expensive integration: goal advanced,
   necessary surfaces, proof scaffolding, drift/unsupported boundary, and any
   upstream request.
-- Tests are evidence, not the deliverable. Run generation, focused
-  compilation, NativeAOT publish, or a direct exercise only when it answers
-  the active task. Do not chase the removed browser/garden smokes, old Rust
-  verification, packaging, security, or conformance gates without a task
-  requirement.
+- Focused normal-lane proof is `pnpm run check:ui` and a Release build of
+  `CraftSurvive.Game`. Run `VerifyRustyEngineAot` only when a task explicitly
+  requires fidelity/release evidence.
 - Preserve unrelated work. In particular, `content/animations/` and
-  `content/voxels/` are user-owned untracked assets in the working checkout:
-  never modify, stage, or clean them.
+  `content/voxels/` are user-owned assets in the working checkout: never
+  modify, stage, or clean them.
 
 ## Documentation status
 
-The current documentation set is intentionally small and rooted in the
-landed C# source. Start at `docs/csharp-migration-map.md` and
-`docs/known-limitations.md`. Use Git history as donor material for retired
-Rust/browser experiments; do not recreate a parallel runtime or archive copy
-in the working tree.
+The current documentation set is rooted in the checked product and installed
+SDK pair. Start at `docs/csharp-migration-map.md` and
+`docs/known-limitations.md`. Historical experiments may be consulted as
+semantic evidence only; do not recreate a parallel runtime or archive copy in
+the working tree.

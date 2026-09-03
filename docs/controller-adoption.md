@@ -33,8 +33,8 @@ The active bindings are:
 | G / right mouse | place selected material |
 | 1 / 2 / 3 | brush radius 0 / 1 / 2 |
 
-The browser host and native boundary deliver physical input to the product;
-the DOM companion does not synthesize gameplay state.
+The packaged Engine host and SDK boundary deliver physical input to the
+product; the DOM companion does not synthesize gameplay state.
 
 ## Product tuning
 
@@ -64,6 +64,6 @@ obstacles through the generated safe Engine facade. If a future controller
 feature cannot be expressed through that facade, file the exact Engine
 capability request and stop that downstream slice.
 
-Focused C# build/publish checks establish that the current boundary compiles;
-they do not claim a broad browser or subjective game-feel certification. The
+Focused CoreCLR staging checks establish that the current boundary compiles;
+they do not claim broad interactive or subjective game-feel certification. The
 current behavioral limits are recorded in [`known-limitations.md`](known-limitations.md).

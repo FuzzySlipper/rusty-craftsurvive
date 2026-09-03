@@ -10,8 +10,8 @@ using Rusty.Engine.Debugging;
 namespace CraftSurvive.Game;
 
 /// <summary>
-/// The intentionally small NativeAOT product root. Gameplay domains join here
-/// as they are migrated from the retained Rust/TypeScript donor implementation.
+/// The intentionally small product root. Gameplay domains join here while the
+/// installed SDK supplies the generated CoreCLR and fidelity compositions.
 /// </summary>
 public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSource
 {
