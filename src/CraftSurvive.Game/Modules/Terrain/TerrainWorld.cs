@@ -155,6 +155,9 @@ internal sealed class TerrainWorld : IDisposable
 
         TerrainEditAccepted accepted = (TerrainEditAccepted)admission;
         VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+        VoxelReadout targetBefore = engine.Voxel.Read(new VoxelReadRequest(Session, ToEngineVoxel(center)));
+        SpatialProjectionReadout spatialBefore = engine.Spatial.ReadProjection(
+            new SpatialProjectionReadRequest(Session));
         VoxelEdit[] edits = accepted.Edits.Select(ToEngineEdit).ToArray();
         VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
             Session,
@@ -163,7 +166,15 @@ internal sealed class TerrainWorld : IDisposable
         switch (receipt.Status)
         {
             case VoxelEditStatus.NoChanges:
-                return new TerrainWorldEditNoChanges(center, scene.SourceRevision, receipt);
+                return new TerrainWorldEditNoChanges(
+                    kind,
+                    target,
+                    picked.Face,
+                    center,
+                    targetBefore,
+                    spatialBefore,
+                    scene,
+                    receipt);
 
             case VoxelEditStatus.StaleRevision:
             {
@@ -263,7 +274,7 @@ internal sealed class TerrainWorld : IDisposable
         TerrainWorldEditRejected rejected => string.Create(CultureInfo.InvariantCulture,
             $"outcome=rejected;target={FormatVoxel(rejected.Target)};reason={rejected.Rejection.Reason};rejected={FormatVoxel(rejected.Rejection.Address)}"),
         TerrainWorldEditNoChanges noChanges => string.Create(CultureInfo.InvariantCulture,
-            $"outcome=no-changes;target={FormatVoxel(noChanges.Target)};expectedRevision={noChanges.ExpectedSceneRevision};currentRevision={noChanges.Receipt.CurrentRevision}"),
+            $"outcome=no-changes;kind={noChanges.Kind};picked={FormatVoxel(noChanges.Picked)};face={noChanges.Face};target={FormatVoxel(noChanges.Target)};beforePresent={noChanges.TargetBefore.Present};beforeMaterial={noChanges.TargetBefore.MaterialSlot};sceneRevision={noChanges.SceneBefore.SourceRevision};spatialRevision={noChanges.SpatialBefore.SourceRevision};authorityMatch={noChanges.SceneBefore.AuthorityHash == noChanges.SpatialBefore.AuthorityHash};currentRevision={noChanges.Receipt.CurrentRevision}"),
         TerrainWorldEditStaleRevision stale => string.Create(CultureInfo.InvariantCulture,
             $"outcome=stale-revision;target={FormatVoxel(stale.Target)};expectedRevision={stale.ExpectedSceneRevision};currentRevision={stale.Receipt.CurrentRevision};sceneRevision={stale.CurrentScene.SourceRevision};presentationSourceRevision={stale.CurrentPresentation.SourceRevision};presentationMeshRevision={stale.CurrentPresentation.MeshRevision}"),
         TerrainWorldEditApplied applied => string.Create(CultureInfo.InvariantCulture,
@@ -493,8 +504,13 @@ internal sealed record TerrainWorldEditPickMiss : TerrainWorldEditResult;
 internal sealed record TerrainWorldEditRejected(VoxelAddress Target, TerrainEditRejected Rejection) : TerrainWorldEditResult;
 
 internal sealed record TerrainWorldEditNoChanges(
+    TerrainEditKind Kind,
+    VoxelAddress Picked,
+    SpatialFace Face,
     VoxelAddress Target,
-    ulong ExpectedSceneRevision,
+    VoxelReadout TargetBefore,
+    SpatialProjectionReadout SpatialBefore,
+    VoxelSceneReadout SceneBefore,
     VoxelEditReceipt Receipt) : TerrainWorldEditResult;
 
 internal sealed record TerrainWorldEditStaleRevision(
