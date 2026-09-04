@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
@@ -124,7 +125,7 @@ internal sealed class TerrainWorld : IDisposable
             ReadOnlyMemory<SpatialEntityCollider>.Empty));
         if (!cast.Present || cast.Kind != SpatialHitKind.Voxel)
         {
-            return TerrainWorldEditResult.Miss;
+            return TerrainWorldEditResult.CastMiss;
         }
 
         SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(
@@ -138,7 +139,7 @@ internal sealed class TerrainWorld : IDisposable
             cast.Face));
         if (!picked.Present || picked.Kind != SpatialHitKind.Voxel)
         {
-            return TerrainWorldEditResult.Miss;
+            return TerrainWorldEditResult.PickMiss;
         }
 
         VoxelAddress target = new(picked.VoxelX, picked.VoxelY, picked.VoxelZ);
@@ -149,7 +150,7 @@ internal sealed class TerrainWorld : IDisposable
         TerrainEditAdmissionResult admission = TerrainEditAdmission.Admit(request, playerOverlaps);
         if (admission is TerrainEditRejected rejected)
         {
-            return new TerrainWorldEditRejected(rejected);
+            return new TerrainWorldEditRejected(center, rejected);
         }
 
         TerrainEditAccepted accepted = (TerrainEditAccepted)admission;
@@ -159,16 +160,41 @@ internal sealed class TerrainWorld : IDisposable
             Session,
             scene.SourceRevision,
             edits));
-        if (receipt.ChangedVoxels > 0)
+        switch (receipt.Status)
         {
-            TerrainOverlayReceipt overlayReceipt = overlay.Apply(accepted);
-            residencyPolicy.RefreshAfterOverlayChange(overlay, overlayReceipt);
-            RefreshResidentChunks(overlayReceipt.AppliedEdits.Select(edit => edit.Address.Chunk));
-            SaveOverlay();
+            case VoxelEditStatus.NoChanges:
+                return new TerrainWorldEditNoChanges(center, scene.SourceRevision, receipt);
+
+            case VoxelEditStatus.StaleRevision:
+            {
+                // The scene can have changed since the read used for this transaction.
+                // Refresh the retained Engine projection to that current authority, but
+                // never replay an edit that was evaluated against the old revision.
+                VoxelSceneReadout currentScene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+                VoxelScenePresentationReadout currentPresentation = RefreshPresentation();
+                PublishUi();
+                return new TerrainWorldEditStaleRevision(
+                    center,
+                    scene.SourceRevision,
+                    receipt,
+                    currentScene,
+                    currentPresentation);
+            }
+
+            case VoxelEditStatus.Accepted:
+            {
+                TerrainOverlayReceipt overlayReceipt = overlay.Apply(accepted);
+                residencyPolicy.RefreshAfterOverlayChange(overlay, overlayReceipt);
+                RefreshResidentChunks(overlayReceipt.AppliedEdits.Select(edit => edit.Address.Chunk));
+                SaveOverlay();
+                VoxelScenePresentationReadout refreshedPresentation = RefreshPresentation();
+                PublishUi();
+                return new TerrainWorldEditApplied(center, receipt, refreshedPresentation);
+            }
+
+            default:
+                throw new InvalidOperationException($"Engine returned unsupported voxel edit status '{receipt.Status}'.");
         }
-        RefreshPresentation();
-        PublishUi();
-        return new TerrainWorldEditApplied(receipt);
     }
 
     internal void Restart()
@@ -227,6 +253,23 @@ internal sealed class TerrainWorld : IDisposable
         EnsureStarted();
         return materialMapping;
     }
+
+    /// <summary>Formats the latest player-consumed target/edit result for the narrow live debug surface.</summary>
+    internal static string FormatEditReadout(TerrainWorldEditResult? result) => result switch
+    {
+        null => "outcome=none",
+        TerrainWorldEditCastMiss => "outcome=cast-miss",
+        TerrainWorldEditPickMiss => "outcome=pick-miss",
+        TerrainWorldEditRejected rejected => string.Create(CultureInfo.InvariantCulture,
+            $"outcome=rejected;target={FormatVoxel(rejected.Target)};reason={rejected.Rejection.Reason};rejected={FormatVoxel(rejected.Rejection.Address)}"),
+        TerrainWorldEditNoChanges noChanges => string.Create(CultureInfo.InvariantCulture,
+            $"outcome=no-changes;target={FormatVoxel(noChanges.Target)};expectedRevision={noChanges.ExpectedSceneRevision};currentRevision={noChanges.Receipt.CurrentRevision}"),
+        TerrainWorldEditStaleRevision stale => string.Create(CultureInfo.InvariantCulture,
+            $"outcome=stale-revision;target={FormatVoxel(stale.Target)};expectedRevision={stale.ExpectedSceneRevision};currentRevision={stale.Receipt.CurrentRevision};sceneRevision={stale.CurrentScene.SourceRevision};presentationSourceRevision={stale.CurrentPresentation.SourceRevision};presentationMeshRevision={stale.CurrentPresentation.MeshRevision}"),
+        TerrainWorldEditApplied applied => string.Create(CultureInfo.InvariantCulture,
+            $"outcome=accepted;target={FormatVoxel(applied.Target)};changed={applied.Receipt.ChangedVoxels};sceneRevision={applied.Receipt.AcceptedRevision};meshRevision={applied.Receipt.MeshRevision};presentationSourceRevision={applied.Presentation.SourceRevision};presentationMeshRevision={applied.Presentation.MeshRevision}"),
+        _ => throw new InvalidOperationException($"Unsupported terrain edit result '{result.GetType().Name}'."),
+    };
 
     private PersistenceStore PersistenceStore => persistenceStore ?? throw new InvalidOperationException("Terrain persistence store is unavailable.");
 
@@ -364,13 +407,13 @@ internal sealed class TerrainWorld : IDisposable
         CaptureMaterialMapping();
     }
 
-    private void RefreshPresentation()
+    private VoxelScenePresentationReadout RefreshPresentation()
     {
-        if (presentation is not null)
-        {
-            engine.VoxelScenePresentation.RefreshScene(presentation);
-            CaptureMaterialMapping();
-        }
+        VoxelScenePresentation currentPresentation = presentation
+            ?? throw new InvalidOperationException("Terrain presentation is unavailable.");
+        VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.RefreshScene(currentPresentation);
+        CaptureMaterialMapping();
+        return readout;
     }
 
     private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings() => new VoxelSceneMaterialBinding[]
@@ -424,6 +467,9 @@ internal sealed class TerrainWorld : IDisposable
 
     private static EngineVoxelAddress ToEngineVoxel(VoxelAddress address) => new(address.X, address.Y, address.Z);
 
+    private static string FormatVoxel(VoxelAddress address) => string.Create(CultureInfo.InvariantCulture,
+        $"{address.X},{address.Y},{address.Z}");
+
     private void EnsureStarted()
     {
         if (!started)
@@ -435,14 +481,33 @@ internal sealed class TerrainWorld : IDisposable
 
 internal abstract record TerrainWorldEditResult
 {
-    internal static TerrainWorldEditResult Miss { get; } = new TerrainWorldEditMiss();
+    internal static TerrainWorldEditResult CastMiss { get; } = new TerrainWorldEditCastMiss();
+
+    internal static TerrainWorldEditResult PickMiss { get; } = new TerrainWorldEditPickMiss();
 }
 
-internal sealed record TerrainWorldEditMiss : TerrainWorldEditResult;
+internal sealed record TerrainWorldEditCastMiss : TerrainWorldEditResult;
 
-internal sealed record TerrainWorldEditRejected(TerrainEditRejected Rejection) : TerrainWorldEditResult;
+internal sealed record TerrainWorldEditPickMiss : TerrainWorldEditResult;
 
-internal sealed record TerrainWorldEditApplied(VoxelEditReceipt Receipt) : TerrainWorldEditResult;
+internal sealed record TerrainWorldEditRejected(VoxelAddress Target, TerrainEditRejected Rejection) : TerrainWorldEditResult;
+
+internal sealed record TerrainWorldEditNoChanges(
+    VoxelAddress Target,
+    ulong ExpectedSceneRevision,
+    VoxelEditReceipt Receipt) : TerrainWorldEditResult;
+
+internal sealed record TerrainWorldEditStaleRevision(
+    VoxelAddress Target,
+    ulong ExpectedSceneRevision,
+    VoxelEditReceipt Receipt,
+    VoxelSceneReadout CurrentScene,
+    VoxelScenePresentationReadout CurrentPresentation) : TerrainWorldEditResult;
+
+internal sealed record TerrainWorldEditApplied(
+    VoxelAddress Target,
+    VoxelEditReceipt Receipt,
+    VoxelScenePresentationReadout Presentation) : TerrainWorldEditResult;
 
 /// <summary>Small Player-to-UI fact projection carried by Terrain's existing product stream.</summary>
 internal readonly record struct TerrainPlayerUiFacts(

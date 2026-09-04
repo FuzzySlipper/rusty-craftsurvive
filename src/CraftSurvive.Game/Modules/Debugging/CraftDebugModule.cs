@@ -133,6 +133,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount}");
     }
 
+    [DebugCommand("craft.terrain.edit", Description = "Reads the latest terrain target and typed edit outcome.")]
+    public string ReadTerrainEdit() => player.TerrainEditReadout();
+
     [DebugCommand("craft.terrain.materials", Description = "Reads the copied Engine directional terrain material mapping.")]
     public string ReadTerrainMaterials()
     {

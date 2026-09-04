@@ -64,6 +64,7 @@ internal sealed class PlayerController : IDisposable
     private Vector3 lastMovementPositionAfter;
     private ulong cameraPublicationCount;
     private ulong lastCameraPublicationUpdate;
+    private TerrainWorldEditResult? lastTerrainEdit;
 
     internal PlayerController(IEngineContext engine, TerrainWorld terrain)
     {
@@ -190,7 +191,7 @@ internal sealed class PlayerController : IDisposable
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         if (frame.Edit is TerrainEditKind edit)
         {
-            terrain.TryEditFromView(
+            lastTerrainEdit = terrain.TryEditFromView(
                 EyePosition(),
                 lookReceipt.Forward,
                 edit,
@@ -219,6 +220,13 @@ internal sealed class PlayerController : IDisposable
                 $"update={lastMovementUpdate};intent={Format(lastMovementInputFrame.PlanarIntent)};controllerSteps={lastMovementControllerStepCount};before={Format(lastMovementPositionBefore)};after={Format(lastMovementPositionAfter)};step=[{FormatStep(lastMovementStepReceipt)}]");
         return string.Create(CultureInfo.InvariantCulture,
             $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
+    }
+
+    /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
+    internal string TerrainEditReadout()
+    {
+        EnsureStarted();
+        return TerrainWorld.FormatEditReadout(lastTerrainEdit);
     }
 
     /// <summary>Republishes player-owned presentation without advancing simulation state.</summary>
