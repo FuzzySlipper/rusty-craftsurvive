@@ -17,29 +17,41 @@ internal readonly record struct GhostPlateConfiguration(
     GhostPlateCaptureSettings Capture,
     GhostPlateConfig Config)
 {
-    internal const string SourceContentPathValue = "animations/tripo-wizard.glb";
+    internal const string SourceContentPathValue = "animations/spatial-wizard.glb";
     internal const ulong SourceObjectIdValue = 3UL;
 
-    internal const ushort CaptureResolution = 256;
+    internal const ushort CaptureResolution = 128;
     internal const float CaptureAzimuthDegrees = 0f;
-    internal const float CaptureElevationDegrees = 10f;
+    internal const float CaptureElevationDegrees = 18f;
     internal const float CaptureNear = 0.1f;
-    internal const float CaptureFar = 20f;
+    internal const float CaptureFar = 40f;
     internal const float CaptureFieldOfViewDegrees = 55f;
 
-    internal const float AmbientIntensity = 0.5f;
-    internal const float KeyIntensity = 1f;
-    internal const float FillIntensity = 0.25f;
-    internal const float DepthRetention = 0.25f;
+    internal const float AmbientIntensity = 1.8f;
+    internal const float KeyIntensity = 3f;
+    internal const float FillIntensity = 1.4f;
+    internal const float DepthRetention = 0.15f;
     internal const float AnchorValue = 0.5f;
-    internal const float ShellDepthEpsilon = 0.02f;
+    internal const float ShellDepthEpsilon = 0.12f;
     internal const byte SectorCount = 8;
-    internal const float SectorHysteresisDegrees = 4f;
-    internal const float GhostWidth = 2.2f;
-    internal const float GhostHeight = 3.2f;
+    internal const float SectorHysteresisDegrees = 3f;
+    internal const float GhostWidth = 2.5f;
+    internal const float GhostHeight = 2.5f;
 
-    internal static readonly Vector3 SourcePlacement = new(0f, 4.5f, 4.5f);
-    internal static readonly Vector3 SourceScale = new(3f, 3f, 3f);
+    internal const ushort CurrentCaptureResolution = 256;
+    internal const float CurrentCaptureElevationDegrees = 10f;
+    internal const float CurrentCaptureFar = 20f;
+    internal const float CurrentAmbientIntensity = 0.5f;
+    internal const float CurrentKeyIntensity = 1f;
+    internal const float CurrentFillIntensity = 0.25f;
+    internal const float CurrentDepthRetention = 0.25f;
+    internal const float CurrentShellDepthEpsilon = 0.02f;
+    internal const float CurrentSectorHysteresisDegrees = 4f;
+
+    // Keep the comparison actor on the clear route in front of the authored
+    // bridge. The pre-C# lab placement is occluded by this product's terrain.
+    internal static readonly Vector3 SourcePlacement = new(0.5f, 5.2f, 4f);
+    internal static readonly Vector3 SourceScale = new(1.9977713f, 1.9977713f, 1.9977713f);
     internal static readonly Vector3 AmbientColor = new(0.25f, 0.25f, 0.25f);
     internal static readonly Vector3 KeyDirection = new(0.5f, 1f, 0.25f);
     internal static readonly Vector3 KeyColor = Vector3.One;
@@ -74,7 +86,7 @@ internal readonly record struct GhostPlateConfiguration(
             GhostPlateAnchorPolicy.BoundsCenter,
             AnchorValue,
             GhostPlateMapping.PlateLocked,
-            GhostPlateShellMode.RepairedSource,
+            GhostPlateShellMode.WholeMesh,
             ShellDepthEpsilon,
             SectorCount,
             SectorHysteresisDegrees));
@@ -95,6 +107,33 @@ internal readonly record struct GhostPlateConfiguration(
             case "accepted":
                 canonicalName = "accepted";
                 preset = Default;
+                return true;
+
+            case "current":
+            case "csharp-baseline":
+                canonicalName = "current";
+                preset = Default with
+                {
+                    Capture = Default.Capture with
+                    {
+                        Resolution = CurrentCaptureResolution,
+                        ElevationDegrees = CurrentCaptureElevationDegrees,
+                        Far = CurrentCaptureFar,
+                        Lighting = Default.Capture.Lighting with
+                        {
+                            AmbientIntensity = CurrentAmbientIntensity,
+                            KeyIntensity = CurrentKeyIntensity,
+                            FillIntensity = CurrentFillIntensity,
+                        },
+                    },
+                    Config = Default.Config with
+                    {
+                        DepthRetention = CurrentDepthRetention,
+                        ShellMode = GhostPlateShellMode.RepairedSource,
+                        ShellDepthEpsilon = CurrentShellDepthEpsilon,
+                        SectorHysteresisDegrees = CurrentSectorHysteresisDegrees,
+                    },
+                };
                 return true;
 
             case "wide":

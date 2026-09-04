@@ -31,7 +31,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         this.execution = execution;
     }
 
-    [DebugCommand("craft.ghost.preset", Description = "Queues accepted, wide, strict, or scene-lighting ghost settings for the next product update.")]
+    [DebugCommand("craft.ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
     public string SetGhostPreset(string preset) => ghost.QueuePreset(preset);
 
     [DebugCommand("craft.ghost.capture", Description = "Queues ghost capture resolution, framing, clip range, and lighting mode.")]

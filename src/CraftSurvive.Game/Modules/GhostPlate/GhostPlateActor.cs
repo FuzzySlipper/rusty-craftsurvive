@@ -165,7 +165,7 @@ internal sealed class GhostPlateActor : IDisposable
         if (!GhostPlateConfiguration.TryGetPreset(name, out string canonicalName, out GhostPlateConfiguration preset))
         {
             throw new ArgumentException(
-                "Ghost preset must be accepted, wide, strict, or scene-lighting.",
+                "Ghost preset must be accepted, current, wide, strict, or scene-lighting.",
                 nameof(name));
         }
 
@@ -349,7 +349,7 @@ internal sealed class GhostPlateActor : IDisposable
             || recapturePending;
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"source={SourceContentPath};object={SourceObjectId};preset={presetName};visible={desiredVisible};appliedVisible={appliedVisible};pending={pending};resolution={desiredCapture.Resolution};azimuth={desiredCapture.AzimuthDegrees:F1};elevation={desiredCapture.ElevationDegrees:F1};fov={desiredCapture.FieldOfViewDegrees:F1};lighting={desiredCapture.Lighting.Mode};depth={desiredConfig.DepthRetention:F3};anchor={desiredConfig.AnchorPolicy}:{desiredConfig.AnchorValue:F3};mapping={desiredConfig.PlateMapping};shell={desiredConfig.ShellMode}:{desiredConfig.ShellDepthEpsilon:F3};sectors={desiredConfig.SectorCount};hysteresis={desiredConfig.SectorHysteresisDegrees:F1};placement={desiredPlacement.Transform.Translation.X:F2},{desiredPlacement.Transform.Translation.Y:F2},{desiredPlacement.Transform.Translation.Z:F2};size={desiredPlacement.Width:F2}x{desiredPlacement.Height:F2};observed={readout.HasRendererObservation};sourceMatch={readout.SourceMatches};sector={readout.CurrentSector};offset={(readout.HasLocalAngularOffset ? readout.LocalAngularOffsetDegrees.ToString("F1", CultureInfo.InvariantCulture) : "none")};fallback={readout.FallbackActive}:{readout.FallbackReason};retained={readout.RetainedSectorCount}/{readout.RetainedMeshCount}/{readout.RetainedMaterialCount}");
+            $"source={SourceContentPath};object={SourceObjectId};preset={presetName};visible={desiredVisible};appliedVisible={appliedVisible};pending={pending};resolution={desiredCapture.Resolution};azimuth={desiredCapture.AzimuthDegrees:F1};elevation={desiredCapture.ElevationDegrees:F1};near={desiredCapture.Near:F2};far={desiredCapture.Far:F1};fov={desiredCapture.FieldOfViewDegrees:F1};lighting={desiredCapture.Lighting.Mode}:{desiredCapture.Lighting.AmbientIntensity:F2}/{desiredCapture.Lighting.KeyIntensity:F2}/{desiredCapture.Lighting.FillIntensity:F2};depth={desiredConfig.DepthRetention:F3};anchor={desiredConfig.AnchorPolicy}:{desiredConfig.AnchorValue:F3};mapping={desiredConfig.PlateMapping};shell={desiredConfig.ShellMode}:{desiredConfig.ShellDepthEpsilon:F3};sectors={desiredConfig.SectorCount};hysteresis={desiredConfig.SectorHysteresisDegrees:F1};placement={desiredPlacement.Transform.Translation.X:F2},{desiredPlacement.Transform.Translation.Y:F2},{desiredPlacement.Transform.Translation.Z:F2};scale={desiredPlacement.Transform.Scale.X:F3},{desiredPlacement.Transform.Scale.Y:F3},{desiredPlacement.Transform.Scale.Z:F3};size={desiredPlacement.Width:F2}x{desiredPlacement.Height:F2};observed={readout.HasRendererObservation};sourceMatch={readout.SourceMatches};sector={readout.CurrentSector};offset={(readout.HasLocalAngularOffset ? readout.LocalAngularOffsetDegrees.ToString("F1", CultureInfo.InvariantCulture) : "none")};fallback={readout.FallbackActive}:{readout.FallbackReason};retained={readout.RetainedSectorCount}/{readout.RetainedMeshCount}/{readout.RetainedMaterialCount}");
     }
 
     public void Dispose()
