@@ -7,7 +7,7 @@ namespace CraftSurvive.Game.Modules.Player;
 internal static class PlayerConstants
 {
     internal const uint RuntimeComponentLocalId = 1U;
-    internal static readonly Vector3 InitialEyePosition = new(0.5f, 7f, 7f);
+    internal static readonly Vector3 InitialEyePosition = new(8f, 7f, 12f);
     internal const double InitialYawDegrees = 0d;
     internal const double InitialPitchDegrees = -20d;
 

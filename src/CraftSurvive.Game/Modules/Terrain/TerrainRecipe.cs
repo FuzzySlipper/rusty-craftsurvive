@@ -55,6 +55,16 @@ internal sealed class TerrainRecipe
             material = RouteMaterialAt(y, TerrainConstants.RouteTop);
         }
 
+        // Keep the renderer comparison fixtures on a deliberately boring,
+        // walkable pad beside the old traversal route. Their silhouettes and
+        // ground contact should never depend on the procedural height field.
+        if (IsInRange(x, TerrainConstants.ShowcaseXMinimum, TerrainConstants.ShowcaseXMaximum)
+            && IsInRange(z, TerrainConstants.ShowcaseZMinimum, TerrainConstants.ShowcaseZMaximum)
+            && y >= MinimumMaterialY)
+        {
+            material = RouteMaterialAt(y, TerrainConstants.ShowcaseTop);
+        }
+
         if (IsInRange(x, TerrainConstants.RouteGapXMinimum, TerrainConstants.RouteGapXMaximum)
             && ((z == TerrainConstants.RouteFirstGapZ && y == TerrainConstants.RouteFirstGapY)
                 || (z == TerrainConstants.RouteSecondGapZ && y == TerrainConstants.RouteSecondGapY)))

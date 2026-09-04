@@ -48,9 +48,9 @@ internal readonly record struct GhostPlateConfiguration(
     internal const float CurrentShellDepthEpsilon = 0.02f;
     internal const float CurrentSectorHysteresisDegrees = 4f;
 
-    // Keep the comparison actor on the clear route in front of the authored
-    // bridge. The pre-C# lab placement is occluded by this product's terrain.
-    internal static readonly Vector3 SourcePlacement = new(0.5f, 5.2f, 4f);
+    // The dedicated showcase pad keeps the actor clear of the old bridge,
+    // procedural rocks, and the neighboring microvoxel fixture.
+    internal static readonly Vector3 SourcePlacement = new(10f, 5.2f, 6f);
     internal static readonly Vector3 SourceScale = new(1.9977713f, 1.9977713f, 1.9977713f);
     internal static readonly Vector3 AmbientColor = new(0.25f, 0.25f, 0.25f);
     internal static readonly Vector3 KeyDirection = new(0.5f, 1f, 0.25f);

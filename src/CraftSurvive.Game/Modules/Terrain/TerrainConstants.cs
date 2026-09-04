@@ -112,6 +112,11 @@ internal static class TerrainConstants
     internal const int RightPillarYMaximum = 7;
     internal const int ClearingMinimum = 16;
     internal const int ClearingMaximum = 40;
+    internal const int ShowcaseXMinimum = 4;
+    internal const int ShowcaseXMaximum = 12;
+    internal const int ShowcaseZMinimum = 2;
+    internal const int ShowcaseZMaximum = 12;
+    internal const int ShowcaseTop = RouteTop;
     internal const int LandmarkHeightFirst = 8;
     internal const int LandmarkHeightSecond = 6;
     internal const int LandmarkHeightThird = 10;

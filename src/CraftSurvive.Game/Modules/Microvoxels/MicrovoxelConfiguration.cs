@@ -88,7 +88,7 @@ internal readonly record struct MicrovoxelConfiguration(
     internal const ulong MaximumWoodlandShrineVoxelCount = 65_536UL;
     internal const uint MaximumMagicaVoxelSourceChunks = 384U;
     internal const uint MaximumMagicaVoxelMaterialSlots = 255U;
-    internal static readonly Vector3 WoodlandShrinePlacement = new(2.5f, 3f, 2f);
+    internal static readonly Vector3 WoodlandShrinePlacement = new(5.5f, 3.5f, 6f);
     internal static readonly Vector3 UnitScale = Vector3.One;
     internal static readonly Color OpaqueTextureTint = new(
         OpaqueTextureTintValue,
