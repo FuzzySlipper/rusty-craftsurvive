@@ -17,7 +17,8 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   panel.append(title);
 
   const status = document.createElement('p');
-  status.textContent = 'C# product host active. Terrain and first-person gameplay run in the product lane.';
+  status.hidden = true;
+  status.setAttribute('role', 'alert');
   panel.append(status);
 
   const metricsHost = document.createElement('div');
@@ -49,6 +50,7 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
       return;
     }
 
+    status.hidden = true;
     debugButton.disabled = true;
     debugHost.hidden = false;
     void mountLiveDebugPanel(debugHost, { enabled: true, presentation: 'inline' }).then((mounted) => {
@@ -66,6 +68,7 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
       debugHost.replaceChildren();
       debugHost.hidden = true;
       status.textContent = error instanceof Error ? error.message : 'Live debug panel could not start.';
+      status.hidden = false;
     });
   });
 

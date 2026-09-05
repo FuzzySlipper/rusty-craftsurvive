@@ -127,7 +127,7 @@ internal sealed class PlayerController : IDisposable
         lastUpdatePositionBefore = playerLocal;
         PlayerInputFrame frame = input.Consume(update.Input);
         lastInputFrame = frame;
-        LookReceipt lookReceipt = Look.Integrate(new LookRequest(look, frame.LookDelta, lookConfig));
+        LookReceipt lookReceipt = Look.IntegrateClamped(new LookRequest(look, frame.LookDelta, lookConfig));
         look = lookReceipt.After;
 
         jumpPending |= frame.JumpHeld && !jumpHeld;
