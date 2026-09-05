@@ -24,9 +24,9 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 
 ## Installed development pair
 
-- `.runtime/runtime-pack-bd5a3c010184/` is the current runtime pack. Its `bin/rusty dev`
+- `.runtime/runtime-pack-4e5d99f431e7/` is the current runtime pack. Its `bin/rusty dev`
   command is the only normal loader and stages the CoreCLR product.
-- `.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.bd5a3c010184.nupkg` is the exact SDK
+- `.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.4e5d99f431e7.nupkg` is the exact SDK
   package pinned in `CraftSurvive.Game.csproj`. Do not substitute a package,
   runtime pack, or backup directory independently; update the pair together.
 - During joint Engine/product work, do not keep this product on an older
