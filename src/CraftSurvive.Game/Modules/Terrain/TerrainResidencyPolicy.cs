@@ -8,7 +8,7 @@ internal sealed class TerrainResidencyPolicy
 {
     private readonly TerrainRecipe recipe;
     private readonly TerrainChunkGenerator generator;
-    private readonly Dictionary<TerrainChunkAddress, bool> cachedOccupancy = [];
+    private readonly Dictionary<TerrainChunkAddress, TerrainChunk> cachedChunks = [];
     private TerrainResidencyPlan? cachedPlan;
     private TerrainOverlaySnapshot? cachedOverlay;
     private ulong cachedOverlayRevision;
@@ -27,12 +27,17 @@ internal sealed class TerrainResidencyPolicy
             return cachedPlan;
         }
 
-        TerrainOverlaySnapshot snapshot = overlay.Snapshot();
-        cachedOccupancy.Clear();
-        foreach (TerrainChunkAddress address in CandidateChunks(center, TerrainConstants.RetainedChunkRadius))
-        {
-            cachedOccupancy.Add(address, generator.Generate(address, snapshot).SolidVoxelCount > 0);
-        }
+        bool overlayChanged = cachedOverlay is null || cachedOverlayRevision != overlay.Revision;
+        TerrainOverlaySnapshot snapshot = overlayChanged ? overlay.Snapshot() : cachedOverlay!;
+        // A restore or an edit not reported through RefreshAfterOverlayChange
+        // invalidates the payloads. Ordinary boundary crossings reuse overlap.
+        if (overlayChanged) cachedChunks.Clear();
+        HashSet<TerrainChunkAddress> candidates = CandidateChunks(center, TerrainConstants.RetainedChunkRadius).ToHashSet();
+        foreach (TerrainChunkAddress address in cachedChunks.Keys.Where(address => !candidates.Contains(address)).ToArray())
+            cachedChunks.Remove(address);
+        foreach (TerrainChunkAddress address in candidates)
+            if (!cachedChunks.ContainsKey(address))
+                cachedChunks.Add(address, generator.Generate(address, snapshot));
 
         cachedOverlay = snapshot;
         cachedOverlayRevision = overlay.Revision;
@@ -53,13 +58,12 @@ internal sealed class TerrainResidencyPolicy
         TerrainOverlaySnapshot snapshot = overlay.Snapshot();
         foreach (TerrainChunkAddress address in receipt.AppliedEdits.Select(edit => edit.Address.Chunk).Distinct())
         {
-            if (!cachedOccupancy.ContainsKey(address))
+            if (!cachedChunks.ContainsKey(address))
             {
                 continue;
             }
 
-            bool isPopulated = generator.Generate(address, snapshot).SolidVoxelCount > 0;
-            cachedOccupancy[address] = isPopulated;
+            cachedChunks[address] = generator.Generate(address, snapshot);
         }
 
         cachedOverlay = snapshot;
@@ -69,19 +73,19 @@ internal sealed class TerrainResidencyPolicy
 
     private TerrainResidencyPlan BuildPlan(TerrainChunkAddress center)
     {
-        TerrainChunkAddress[] requested = cachedOccupancy
-            .Where(pair => IsWithinHorizontalRadius(pair.Key, center, TerrainConstants.RequestedChunkRadius) && pair.Value)
+        TerrainChunkAddress[] requested = cachedChunks
+            .Where(pair => IsWithinHorizontalRadius(pair.Key, center, TerrainConstants.RequestedChunkRadius) && pair.Value.SolidVoxelCount > 0)
             .Select(static pair => pair.Key)
             .OrderBy(address => DistancePriority(address, center))
             .ToArray();
-        TerrainChunkAddress[] retained = cachedOccupancy
-            .Where(static pair => pair.Value)
+        TerrainChunkAddress[] retained = cachedChunks
+            .Where(static pair => pair.Value.SolidVoxelCount > 0)
             .Select(static pair => pair.Key)
             .OrderBy(address => DistancePriority(address, center))
             .Take(TerrainConstants.MaximumResidentChunks)
             .ToArray();
         return new TerrainResidencyPlan(center, requested, retained, TerrainConstants.MaximumResidencyOperationsPerTick,
-            cachedOverlay ?? throw new InvalidOperationException("Terrain residency occupancy has no overlay snapshot."));
+            new Dictionary<TerrainChunkAddress, TerrainChunk>(cachedChunks));
     }
 
     private IEnumerable<TerrainChunkAddress> CandidateChunks(TerrainChunkAddress center, int radius)
@@ -122,13 +126,13 @@ internal sealed class TerrainResidencyPolicy
 internal sealed class TerrainResidencyPlan
 {
     internal TerrainResidencyPlan(TerrainChunkAddress center, TerrainChunkAddress[] requested,
-        TerrainChunkAddress[] retained, int maximumOperationsPerTick, TerrainOverlaySnapshot overlay)
+        TerrainChunkAddress[] retained, int maximumOperationsPerTick, IReadOnlyDictionary<TerrainChunkAddress, TerrainChunk> chunks)
     {
         Center = center;
         Requested = requested ?? throw new ArgumentNullException(nameof(requested));
         Retained = retained ?? throw new ArgumentNullException(nameof(retained));
         MaximumOperationsPerTick = maximumOperationsPerTick;
-        Overlay = overlay ?? throw new ArgumentNullException(nameof(overlay));
+        this.chunks = chunks ?? throw new ArgumentNullException(nameof(chunks));
     }
 
     internal TerrainChunkAddress Center { get; }
@@ -139,5 +143,7 @@ internal sealed class TerrainResidencyPlan
 
     internal int MaximumOperationsPerTick { get; }
 
-    internal TerrainOverlaySnapshot Overlay { get; }
+    private readonly IReadOnlyDictionary<TerrainChunkAddress, TerrainChunk> chunks;
+
+    internal TerrainChunk Chunk(TerrainChunkAddress address) => chunks[address];
 }

@@ -53,3 +53,32 @@ PID and runtime identity after any restage or restart.
 Only implement an optimization after the capture identifies its owning phase.
 Compare tail gaps and movement under matching conditions, then confirm adding
 and removing voxels remain immediate and collision stays synchronized.
+
+## Chunk boundary capture (#7793)
+
+The September 5 live CoreCLR capture identified repeated terrain generation in
+`TerrainResidencyPolicy.PlanFor`. Every center change generated all 75 candidate
+chunks, then admission generated its selected payloads again. Height and slope
+were also recalculated for each voxel in a column.
+
+The product now retains generated payloads only for the current candidate
+window, reuses overlap on crossings, and passes those payloads to Engine
+residency. Accepted edits regenerate affected candidates; unreported overlay
+revision changes and restore invalidate the cache. Generation calculates height
+and slope once per column. Chunk edge remains 16, requested/retained radii remain
+1/2, and the 64 resident / 16 operations-per-update limits are unchanged.
+
+With Engine `3c6be904f792`, the same twelve `craft.player.teleport` commands
+crossing X=1/17/33 at Y=20, Z=8 measured median 240.549 -> 21.192 ms and maximum
+375.598 -> 82.602 ms. Both runs used the normal Debug product worker with a
+12-second EventPipe trace attached. These are end-to-end debug-command timings
+through the real synchronization path, not ordinary update callback tails or
+browser frame times. The profile identifies generation as substantially
+reduced; native residency still contributes. Owner movement and edit acceptance
+remain separate from this route. The original player position was restored.
+
+Local trace, route, worker identity, and material-hash evidence is under ignored
+`live-evidence/7793/`. Run `dotnet run --project tests/TerrainResidency -c Release`
+for original material snapshots, fresh-generation comparisons, overlap reuse,
+edit/restore invalidation, priority ordering, and candidate eviction. This pure
+product regression is also exercised by the `verify-terrain` CI job.

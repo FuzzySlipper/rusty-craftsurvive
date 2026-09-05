@@ -58,14 +58,15 @@ internal sealed class TerrainChunkGenerator
         VoxelAddress origin = address.Origin;
         for (int z = 0; z < TerrainConstants.ChunkEdgeLength; z++)
         {
-            for (int y = 0; y < TerrainConstants.ChunkEdgeLength; y++)
+            for (int x = 0; x < TerrainConstants.ChunkEdgeLength; x++)
             {
-                for (int x = 0; x < TerrainConstants.ChunkEdgeLength; x++)
+                TerrainColumn column = recipe.ColumnAt(origin.X + x, origin.Z + z);
+                for (int y = 0; y < TerrainConstants.ChunkEdgeLength; y++)
                 {
                     VoxelAddress voxel = new(origin.X + x, origin.Y + y, origin.Z + z);
                     ushort material = overlay.TryGetMaterial(voxel, out ushort overridden)
                         ? overridden
-                        : recipe.MaterialAt(voxel);
+                        : recipe.MaterialAt(voxel, column);
                     materials[ToIndex(x, y, z)] = material;
                 }
             }

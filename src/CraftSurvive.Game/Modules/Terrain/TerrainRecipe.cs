@@ -23,14 +23,25 @@ internal sealed class TerrainRecipe
 
     internal long MaximumMaterialY => TerrainConstants.TerrainSummitHeight + TerrainConstants.TerrainHeadroom;
 
-    internal ushort MaterialAt(VoxelAddress address)
+    internal ushort MaterialAt(VoxelAddress address) => MaterialAt(address, ColumnAt(address.X, address.Z));
+
+    // Height and slope depend on x/z only. Dense chunk generation evaluates
+    // them once per column, while individual voxel queries share the same rules.
+    internal TerrainColumn ColumnAt(long x, long z)
+    {
+        if (x < -radius || x > radius || z < -radius || z > radius) return default;
+        long surface = TerrainSurface(x, z);
+        return new TerrainColumn(surface, CardinalSlope(x, z, surface));
+    }
+
+    internal ushort MaterialAt(VoxelAddress address, TerrainColumn column)
     {
         if (address.X < -radius || address.X > radius || address.Z < -radius || address.Z > radius)
         {
             return TerrainConstants.EmptyMaterial;
         }
 
-        ushort material = NaturalMaterialAt(address);
+        ushort material = NaturalMaterialAt(address, column);
         long x = address.X;
         long y = address.Y;
         long z = address.Z;
@@ -98,19 +109,19 @@ internal sealed class TerrainRecipe
             material = TerrainConstants.StoneMaterial;
         }
 
-        AddLandmarks(x, y, z, ref material);
+        AddLandmarks(x, y, z, column.Surface, ref material);
         return material;
     }
 
-    private ushort NaturalMaterialAt(VoxelAddress address)
+    private ushort NaturalMaterialAt(VoxelAddress address, TerrainColumn column)
     {
-        long top = TerrainSurface(address.X, address.Z);
+        long top = column.Surface;
         if (address.Y < MinimumMaterialY || address.Y > top)
         {
             return TerrainConstants.EmptyMaterial;
         }
 
-        long slope = CardinalSlope(address.X, address.Z, top);
+        long slope = column.Slope;
         long depthFromSurface = top - address.Y;
         if (depthFromSurface == 0 && slope <= TerrainConstants.TopsoilSlopeMaximum)
         {
@@ -123,26 +134,25 @@ internal sealed class TerrainRecipe
             : TerrainConstants.StoneMaterial;
     }
 
-    private void AddLandmarks(long x, long y, long z, ref ushort material)
+    private void AddLandmarks(long x, long y, long z, long surface, ref ushort material)
     {
         long distance = radius * 2 / 3;
         ApplyLandmark(-distance, 0, TerrainConstants.StoneMaterial,
-            TerrainConstants.LandmarkHeightFirst, x, y, z, ref material);
+            TerrainConstants.LandmarkHeightFirst, x, y, z, surface, ref material);
         ApplyLandmark(distance, 0, TerrainConstants.DirtMaterial,
-            TerrainConstants.LandmarkHeightSecond, x, y, z, ref material);
+            TerrainConstants.LandmarkHeightSecond, x, y, z, surface, ref material);
         ApplyLandmark(0, -distance, TerrainConstants.StoneMaterial,
-            TerrainConstants.LandmarkHeightThird, x, y, z, ref material);
+            TerrainConstants.LandmarkHeightThird, x, y, z, surface, ref material);
     }
 
     private void ApplyLandmark(long landmarkX, long landmarkZ, ushort materialSlot, int height,
-        long x, long y, long z, ref ushort material)
+        long x, long y, long z, long surface, ref ushort material)
     {
         if (x != landmarkX || z != landmarkZ)
         {
             return;
         }
 
-        long surface = TerrainSurface(x, z);
         long firstY = surface + 1;
         long lastY = surface + height;
         if (IsInRange(y, firstY, lastY))
@@ -237,3 +247,5 @@ internal sealed class TerrainRecipe
 
     private static bool IsInRange(long value, long minimum, long maximum) => value >= minimum && value <= maximum;
 }
+
+internal readonly record struct TerrainColumn(long Surface, long Slope);

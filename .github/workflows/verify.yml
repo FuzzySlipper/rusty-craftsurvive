@@ -9,6 +9,16 @@ permissions:
   contents: read
 
 jobs:
+  verify-terrain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Check terrain materials and residency cache
+        run: dotnet run --project tests/TerrainResidency -c Release
+
   verify-product-ui:
     runs-on: ubuntu-latest
     steps:

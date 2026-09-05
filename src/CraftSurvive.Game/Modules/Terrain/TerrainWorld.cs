@@ -305,7 +305,7 @@ internal sealed class TerrainWorld : IDisposable
                 continue;
             }
 
-            AddChunkAdmission(address, plan.Overlay, operations, materialSlots);
+            AddChunkAdmission(plan.Chunk(address), operations, materialSlots);
             if (operations.Count == plan.MaximumOperationsPerTick)
             {
                 break;
@@ -368,15 +368,14 @@ internal sealed class TerrainWorld : IDisposable
         }
     }
 
-    private void AddChunkAdmission(TerrainChunkAddress address, TerrainOverlaySnapshot snapshot,
+    private static void AddChunkAdmission(TerrainChunk chunk,
         List<VoxelResidencyOperation> operations, List<uint> materialSlots)
     {
-        TerrainChunk chunk = chunkGenerator.Generate(address, snapshot);
         uint offset = checked((uint)materialSlots.Count);
-        materialSlots.AddRange(chunk.Materials.ToArray().Select(static material => (uint)material));
+        foreach (ushort material in chunk.Materials.Span) materialSlots.Add(material);
         operations.Add(new VoxelResidencyOperation(
             VoxelResidencyOperationKind.Admit,
-            ToEngineChunk(address),
+            ToEngineChunk(chunk.Address),
             0,
             offset,
             checked((uint)chunk.Materials.Length)));
