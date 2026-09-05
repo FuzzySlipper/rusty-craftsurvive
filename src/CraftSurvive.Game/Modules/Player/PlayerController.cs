@@ -255,6 +255,18 @@ internal sealed class PlayerController : IDisposable
         return entityWorld.Get(playerEntity, RuntimeComponent);
     }
 
+    /// <summary>Places the ordinary player camera for a product-owned showcase view.</summary>
+    internal PlayerRuntimeComponent ViewFrom(Vector3 eye, Vector3 target)
+    {
+        EnsureStarted();
+        Vector3 direction = target - eye;
+        look = new LookState(
+            MathF.Atan2(direction.X, -direction.Z),
+            Math.Clamp(MathF.Atan2(direction.Y, new Vector2(direction.X, direction.Z).Length()),
+                PlayerConstants.MinimumPitchRadians, PlayerConstants.MaximumPitchRadians));
+        return Teleport(eye.X, eye.Y - EyeOffset(CharacterStance.Standing), eye.Z);
+    }
+
     internal EntityWorld EntityWorld => entityWorld;
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Numerics;
 using CraftSurvive.Game.Modules.GhostPlate;
 using CraftSurvive.Game.Modules.Microvoxels;
 using CraftSurvive.Game.Modules.Player;
@@ -89,6 +90,19 @@ public sealed class CraftDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.ghost.recapture", Description = "Queues an explicit ghost capture-bank rebuild.")]
     public string RecaptureGhost() => ghost.QueueRecapture();
+
+    [DebugCommand("craft.ghost.view", Description = "Moves and aims the player around the ghost; 0/90/180/270 view its front/right/back/left.")]
+    public string ViewGhost(float azimuthDegrees)
+    {
+        if (!float.IsFinite(azimuthDegrees)) throw new ArgumentException("View azimuth must be finite.");
+        float radians = float.DegreesToRadians(azimuthDegrees % 360f);
+        Vector3 target = ghost.Placement.Transform.Translation;
+        Vector3 eye = new(target.X + MathF.Sin(radians) * GhostPlateConfiguration.ViewDistance,
+            GhostPlateConfiguration.ViewEyeHeight,
+            target.Z + MathF.Cos(radians) * GhostPlateConfiguration.ViewDistance);
+        PlayerRuntimeComponent state = player.ViewFrom(eye, target);
+        return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
+    }
 
     [DebugCommand("craft.ghost.readout", Description = "Reads selected ghost source, tuning state, and latest Engine presentation facts.")]
     public string ReadGhost() => ghost.DebugReadout();

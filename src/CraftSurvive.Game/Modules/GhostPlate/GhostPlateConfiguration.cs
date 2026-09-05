@@ -37,6 +37,8 @@ internal readonly record struct GhostPlateConfiguration(
     internal const float SectorHysteresisDegrees = 3f;
     internal const float GhostWidth = 2.5f;
     internal const float GhostHeight = 2.5f;
+    internal const float ViewDistance = 2.2f;
+    internal const float ViewEyeHeight = 5.57f;
 
     internal const ushort CurrentCaptureResolution = 256;
     internal const float CurrentCaptureElevationDegrees = 10f;
@@ -50,8 +52,9 @@ internal readonly record struct GhostPlateConfiguration(
 
     // The dedicated showcase pad keeps the actor clear of the old bridge,
     // procedural rocks, and the neighboring microvoxel fixture.
-    internal static readonly Vector3 SourcePlacement = new(10f, 5.2f, 6f);
-    internal static readonly Vector3 SourceScale = new(1.9977713f, 1.9977713f, 1.9977713f);
+    internal static readonly Vector3 SourcePlacement = new(9.5f, 5.3f, 9.5f);
+    // Width/height already fit the captured source; avoid multiplying them again.
+    internal static readonly Vector3 SourceScale = Vector3.One;
     internal static readonly Vector3 AmbientColor = new(0.25f, 0.25f, 0.25f);
     internal static readonly Vector3 KeyDirection = new(0.5f, 1f, 0.25f);
     internal static readonly Vector3 KeyColor = Vector3.One;

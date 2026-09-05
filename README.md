@@ -22,7 +22,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  runtime-pack-3c6be904f792/  paired `rusty dev` runtime
+  runtime-pack-6b8ab4e2/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -42,8 +42,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/runtime-pack-3c6be904f792/bin/rusty dev \
-  --runtime ./.runtime/runtime-pack-3c6be904f792 \
+./.runtime/runtime-pack-6b8ab4e2/bin/rusty dev \
+  --runtime ./.runtime/runtime-pack-6b8ab4e2 \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -52,8 +52,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/runtime-pack-3c6be904f792/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.3c6be904f792.nupkg` form one installed,
+`.runtime/runtime-pack-6b8ab4e2/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.6b8ab4e2.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -62,7 +62,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/runtime-pack-3c6be904f792/bin/rusty dev \
+./.runtime/runtime-pack-6b8ab4e2/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -85,7 +85,7 @@ location.
   collision, character, camera, appearance, and origin mechanisms.
 - `Modules/Sky` selects the canonical authored panorama through Engine
   Appearance and CameraView. Engine owns its resource and renderer lifecycle.
-- `src/ui/main.ts` mounts static DOM guidance beside the Engine-owned canvas.
+- `src/ui/main.ts` mounts DOM guidance, Ghost Settings, and live diagnostics beside the Engine-owned canvas.
 
 This is a runnable continuation lane, not a claim of complete survival
 gameplay or broad interactive certification. See
@@ -122,3 +122,19 @@ dotnet msbuild src/CraftSurvive.Game/CraftSurvive.Game.csproj \
 
 For the deferred owner-machine pacing investigation, see
 [the focused capture recipe](docs/performance-investigation.md).
+
+## Ghost Plate comparison
+
+Open **Ghost Settings** without capturing the mouse. **Front / Right / Back /
+Left** move the ordinary C# player to comparison positions on the existing flat
+showcase pad. Close the panel and use WASD to circle the wizard. Direction is
+selected by camera position around the plate; turning in place keeps the sector.
+The panel shows the Engine-selected sector, local azimuth, configured/retained
+counts, source match, and fallback.
+
+**Use preset** loads the selected C# preset. **Apply settings** sends the editable
+fields, **Reset to accepted** restores that preset, and **Recapture** freezes a
+new source capture. **Use observed values** replaces a draft with the current C#
+readout; background reads preserve unsaved input. Visibility, relief, direction,
+capture framing/lighting, placement, and size all use the packaged Engine debug
+client and existing `craft.ghost.*` commands.

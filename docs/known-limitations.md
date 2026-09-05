@@ -37,7 +37,7 @@ runtime or test infrastructure.
 - Persistence is one bounded, product-owned terrain overlay stored through
   Engine Persistence. There is no migration/merge policy for incompatible
   schemas or concurrent writers.
-- `src/ui/main.ts` is a static DOM companion. The packaged Engine host owns the
+- `src/ui/main.ts` is a DOM companion with Ghost Settings and live diagnostics. The packaged Engine host owns the
   canvas, renderer, physical input delivery, and runtime integration. There is
   no UI-owned gameplay or non-UI renderer.
 - The CoreCLR lane is runnable and supplies the current terrain/player
