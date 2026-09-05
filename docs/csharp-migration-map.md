@@ -3,7 +3,7 @@
 ## Current lane
 
 CraftSurvive is one ordinary C# product project developed through the installed
-`Rusty.Engine` SDK. The paired `.runtime/runtime-pack-b777eb3e488b/bin/rusty dev` command
+`Rusty.Engine` SDK. The paired `.runtime/runtime-pack-f4f73794a5ef/bin/rusty dev` command
 stages and loads its CoreCLR bundle for both local development and Den. The
 SDK owns the generated composition below `obj/`; NativeAOT is an explicit
 fidelity/release target, never a checked product project or normal host.
@@ -11,7 +11,7 @@ fidelity/release target, never a checked product project or normal host.
 ```text
 CraftSurvive.Game          checked C# product state and gameplay domains
 Rusty.Engine SDK           safe services and generated composition/staging
-.runtime/runtime-pack-b777eb3e488b/ paired CoreCLR development runtime
+.runtime/runtime-pack-f4f73794a5ef/ paired CoreCLR development runtime
 .runtime/sdk-feed/         paired Rusty.Engine package feed
 src/ui/main.ts             DOM-only companion UI
 content/                   canonical terrain, sky, and voxel content
@@ -25,7 +25,7 @@ named SDK services; neither C# nor UI code recreates those mechanisms.
 
 `NuGet.Config` resolves the exact package version declared by
 `CraftSurvive.Game.csproj` from `.runtime/sdk-feed/`. The pinned
-`Rusty.Engine.0.1.0-dev.b777eb3e488b.nupkg` and `.runtime/runtime-pack-b777eb3e488b/`
+`Rusty.Engine.0.1.0-dev.f4f73794a5ef.nupkg` and `.runtime/runtime-pack-f4f73794a5ef/`
 are a single exact installed pair. Do not mix either with a backup, a package
 from another feed, or a separately discovered checkout.
 
