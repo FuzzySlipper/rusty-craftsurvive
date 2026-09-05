@@ -22,7 +22,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  runtime-pack-cbf35130d06c/  paired `rusty dev` runtime
+  runtime-pack-a7a2216fc107/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -42,8 +42,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/runtime-pack-cbf35130d06c/bin/rusty dev \
-  --runtime ./.runtime/runtime-pack-cbf35130d06c \
+./.runtime/runtime-pack-a7a2216fc107/bin/rusty dev \
+  --runtime ./.runtime/runtime-pack-a7a2216fc107 \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -52,8 +52,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/runtime-pack-cbf35130d06c/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.cbf35130d06c.nupkg` form one installed,
+`.runtime/runtime-pack-a7a2216fc107/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.a7a2216fc107.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -62,7 +62,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/runtime-pack-cbf35130d06c/bin/rusty dev \
+./.runtime/runtime-pack-a7a2216fc107/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -119,3 +119,6 @@ Run NativeAOT verification only when the task needs fidelity/release evidence:
 dotnet msbuild src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   -target:VerifyRustyEngineAot -property:Configuration=Release
 ```
+
+For the deferred owner-machine pacing investigation, see
+[the focused capture recipe](docs/performance-investigation.md).
