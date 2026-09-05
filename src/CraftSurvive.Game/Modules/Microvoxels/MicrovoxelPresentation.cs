@@ -45,7 +45,7 @@ internal sealed class MicrovoxelPresentation : IDisposable
 
     internal MicrovoxelPresentationPreset Desired => desired;
 
-    internal PresentationReadout EnginePresentation => engine.Appearance.ReadPresentation();
+    internal PresentationReadout EnginePresentation => engine.Graphics.ReadPresentation();
 
     /// <summary>
     /// Replaces the product's desired named look. The retained Engine
@@ -338,7 +338,7 @@ internal sealed class MicrovoxelPresentation : IDisposable
 
             Color paletteColor = ToColor(row);
             paletteColors.Add(row.MaterialSlot, paletteColor);
-            materials.Add(row.MaterialSlot, engine.Appearance.CreateMaterial(MaterialRequestFor(paletteColor)));
+            materials.Add(row.MaterialSlot, engine.Graphics.CreateMaterial(MaterialRequestFor(paletteColor)));
         }
     }
 
@@ -371,7 +371,7 @@ internal sealed class MicrovoxelPresentation : IDisposable
 
         foreach ((uint materialSlot, Material material) in materials)
         {
-            engine.Appearance.UpdateMaterial(new MaterialUpdateRequest(
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(
                 material,
                 MaterialRequestFor(paletteColors[materialSlot])));
         }

@@ -38,7 +38,7 @@ internal sealed class TerrainAtlasCatalog : IDisposable
         AuthoredCatalog? admittedCatalog = null;
         try
         {
-            RenderResourceInfo texture = engine.Appearance.OpenResource(new RenderResourceRequest(AtlasContentPath));
+            RenderResourceInfo texture = engine.Graphics.OpenResource(new RenderResourceRequest(AtlasContentPath));
             if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Value == 0)
             {
                 throw new InvalidOperationException("CraftSurvive terrain atlas must open as a non-empty Engine texture resource.");
@@ -98,7 +98,7 @@ internal sealed class TerrainAtlasCatalog : IDisposable
 
     private static Material CreateMaterial(IEngineContext engine, AuthoredCatalog catalog, string materialId,
         RenderResourceHandle texture)
-        => engine.Appearance.CreateAuthoredMaterial(new AuthoredMaterialAppearanceRequest(catalog, materialId, texture));
+        => engine.Graphics.CreateAuthoredMaterial(new AuthoredMaterialAppearanceRequest(catalog, materialId, texture));
 
     private static AuthoredCatalogPayloadAdmitRequest CreatePayload() => new(
         Entries(),

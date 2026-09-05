@@ -7,7 +7,7 @@
     <!-- This is an ordinary product project. The SDK generates the CoreCLR
          and NativeAOT composition below obj; no checked bridge project or
          Engine source tree is part of the normal product build. -->
-    <RustyEngineSdkPackageVersion>0.1.0-dev.6d7e081997fc</RustyEngineSdkPackageVersion>
+    <RustyEngineSdkPackageVersion>0.1.0-dev.cbf35130d06c</RustyEngineSdkPackageVersion>
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
     <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
     <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>

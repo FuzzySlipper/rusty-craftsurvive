@@ -103,7 +103,7 @@ internal sealed class PlayerController : IDisposable
         playerLocal = playerGlobal.ToLocal(origin);
         platformLocal = platformGlobal.ToLocal(origin);
         motion = CreateInitialMotion(playerLocal);
-        platformAppearance = engine.Appearance.CreatePrimitive(new PrimitiveAppearanceRequest(
+        platformAppearance = engine.Graphics.CreatePrimitive(new PrimitiveAppearanceRequest(
             PrimitiveGeometry.Cube,
             Wireframe: false,
             PlayerConstants.PlatformColor));
@@ -127,7 +127,7 @@ internal sealed class PlayerController : IDisposable
         lastUpdatePositionBefore = playerLocal;
         PlayerInputFrame frame = input.Consume(update.Input);
         lastInputFrame = frame;
-        LookReceipt lookReceipt = engine.Look.Integrate(new LookRequest(look, frame.LookDelta, lookConfig));
+        LookReceipt lookReceipt = Look.Integrate(new LookRequest(look, frame.LookDelta, lookConfig));
         look = lookReceipt.After;
 
         jumpPending |= frame.JumpHeld && !jumpHeld;
@@ -270,6 +270,8 @@ internal sealed class PlayerController : IDisposable
                 ?? throw new InvalidOperationException("CraftSurvive platform appearance is unavailable.");
             return new AppearanceFact(
                 PlayerConstants.PlatformEntityId,
+                false,
+                0,
                 new Transform(platformLocal, Quaternion.Identity, PlayerConstants.PlatformScale),
                 appearance,
                 Visible: true,

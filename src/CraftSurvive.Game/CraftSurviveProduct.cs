@@ -83,7 +83,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             ghost.DisposeSourceAppearance();
             if (ghostSourcePublished)
             {
-                engine.Appearance.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+                engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
             }
             player.Dispose();
             microvoxels.Dispose();
@@ -201,7 +201,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         if (includeGhostSource)
         {
-            engine.Appearance.PublishSnapshot(
+            engine.Graphics.PublishSnapshot(
             [
                 player.PlatformAppearanceFact,
                 useDesiredGhostSource
@@ -211,7 +211,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             return;
         }
 
-        engine.Appearance.PublishSnapshot([player.PlatformAppearanceFact]);
+        engine.Graphics.PublishSnapshot([player.PlatformAppearanceFact]);
     }
 
     private enum ProductLifecycleState

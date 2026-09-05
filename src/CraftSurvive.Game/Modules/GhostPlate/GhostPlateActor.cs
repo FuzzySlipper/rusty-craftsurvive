@@ -71,6 +71,8 @@ internal sealed class GhostPlateActor : IDisposable
     /// </summary>
     internal AppearanceFact SourceAppearanceFact => new(
         sourceConfiguration.SourceObjectId,
+        false,
+        0,
         appliedPlacement.Transform,
         sourceAppearance,
         Visible: false,
@@ -84,6 +86,8 @@ internal sealed class GhostPlateActor : IDisposable
     /// </summary>
     internal AppearanceFact DesiredSourceAppearanceFact => new(
         sourceConfiguration.SourceObjectId,
+        false,
+        0,
         desiredPlacement.Transform,
         sourceAppearance,
         Visible: false,

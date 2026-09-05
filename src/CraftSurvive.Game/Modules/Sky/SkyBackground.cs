@@ -18,7 +18,7 @@ internal sealed class SkyBackground : IDisposable
     internal SkyBackground(IEngineContext engine)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        resource = engine.Appearance.OpenResource(new RenderResourceRequest(SkyPanoramaContentPath));
+        resource = engine.Graphics.OpenResource(new RenderResourceRequest(SkyPanoramaContentPath));
 
         if (resource.Kind != RenderResourceKind.Texture)
         {
