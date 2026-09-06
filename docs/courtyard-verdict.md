@@ -119,3 +119,34 @@ walk. 0003 was obscured by debug UI, 0010/0011 had no canvas focus, and the sess
 contains the discarded dense-preset timeout. Those attempts are retained and are
 not clean acceptance evidence. Selected raw screenshots/readouts are copied here
 for a durable record. Final serving and warning-capture evidence is recorded below.
+
+Fresh final session:
+`/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T062305.325709916Z-475237/playtest-index.json`.
+At committed Craft `8b7cb530c07e1be9acf1e9bffdf0433a757f338e`, Soft → Faceted →
+Balanced → Soft completed generations 1–4 in the same product runtime, with
+reported build times 0.590/0.713/0.626/0.624s. The Courtyard Refresh control
+visibly read generation 4. Physical W-only movement reached z=24.803m, grounded,
+through the default steps and passage into the chamber (screenshots 0002/0003).
+The optional metrics toggle was not exercised in that session.
+
+The full fresh Engine diagnostic read had zero errors, four dropped *timing
+sample* observations and two degraded browser-baseline transitions, followed by
+ready/baseline-established recovery on a replacement attachment in the same
+runtime. These are nonfatal publication-pressure limitations owned by Engine
+#7833; timing-sample drops are distinct from lost diagnostic-cursor capture.
+No product-state reset occurred in this bounded roundtrip.
+
+The Engine `capture-playtest-warning-delta.mjs` run completed browser and Engine
+capture at cursor 8→8 with no dropped/lagged capture and no new Engine events in
+its post-walk window. It recorded one Chromium GL performance warning, “GPU stall
+due to ReadPixels.” The playtest also retained GL driver performance messages;
+these are not page exceptions. There is no compatible baseline, so the report
+is explicitly report-only (`cleanClaimEligible=false`). It does not cover the
+whole walk's earlier warnings, which are preserved separately in
+`fresh-roundtrip-diagnostics.txt`. No zero-warning or hardware-performance claim
+is made. See `evidence/courtyard/warning-report.json`.
+
+Focused verification: current C# Release build (zero warnings/errors), UI type
+check, retained terrain residency/edit tests, Engine implicit/attribute/native
+resource tests, character collision probes, generated SDK build, release-pair
+build, and publication-budget/frontier/transient regression tests passed.
