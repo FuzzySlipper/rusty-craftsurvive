@@ -23,6 +23,8 @@ sprint and Control to crouch. The generated debug panel exposes:
 - `craft.courtyard.readout`: generation count, dimensions, selected treatment,
   total mesh vertices/triangles, generation time, and correction counts.
 - `craft.courtyard.treatment`: `balanced`, `faceted`, or `soft`.
+- `craft.courtyard.masonry`: `original`, `regions`, or `layered` for the west-wall test bay.
+- `craft.courtyard.inspect`: `front` or `grazing` views that follow the current wall width.
 - `craft.courtyard.layout`: width (20–30m), doorway width (2.4–4.2m), doorway
   offset (−0.3–0.3m), and seed. These queue regeneration for a normal update.
 - `craft.courtyard.view`: eye XYZ and target XYZ for repeatable comparisons,
@@ -30,7 +32,7 @@ sprint and Control to crouch. The generated debug panel exposes:
 - `craft.courtyard.shadows`: queues directional shadow intent for an optional
   controlled lighting comparison.
 
-The materials are five deterministic 32×32 pixel textures with nearest/repeat
+The materials are six deterministic 32×32 pixel textures with nearest/repeat
 sampling selected explicitly when their resources open, plus a dark neutral
 material. `scripts/generate-courtyard-textures.py` records their authored
 source. Texture UV scale remains independent of mesh sampling. The Engine owns
@@ -45,12 +47,13 @@ Engine #7833, not a solver change.
 
 The compact DOM chrome starts with diagnostics collapsed. **Show metrics**
 uses the Engine renderer show/hide commands. The collapsed **Courtyard** panel
-offers Balanced, Faceted, Soft, and Refresh: its treatment receipts mean
-queued, not applied; Refresh reads the C# generation state. The controlled
-view command and optional shadow command remain available through the generic
-debug surface.
+offers shading presets, three masonry constructions, front/grazing inspection
+views, and Refresh. Its regeneration receipts mean queued, not applied; Refresh
+reads the C# generation state. Layered masonry is the default in the four-metre
+west-wall test bay only; see [the comparison](layered-masonry-test.md). The optional
+shadow command remains available through the generic debug surface.
 
-Current `b9740421c2d2` observations are:
+Before the layered-bay test, `b9740421c2d2` observations with original masonry were:
 
 - `balanced` at 0.22m / 38°: 205,336 triangles, 177,393 vertices, about
   0.737 s.

@@ -122,31 +122,45 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   controls.setAttribute('aria-label', 'Courtyard controls');
   controls.style.cssText = 'border-top:1px solid #415165;margin-top:.35rem;padding-top:.35rem;';
   toggle.setAttribute('aria-controls', controls.id);
-  const actions = document.createElement('div');
-  actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:.3rem;';
   const balanced = button('Balanced');
   const faceted = button('Faceted');
   const soft = button('Soft');
+  const original = button('Original');
+  const materialRegions = button('Material regions');
+  const layered = button('Layered');
+  const viewTestWall = button('View test wall');
+  const grazingView = button('Grazing view');
   const refresh = button('Refresh');
-  actions.append(balanced, faceted, soft, refresh);
+  const actionRows = document.createElement('div');
+  actionRows.style.cssText = 'display:grid;gap:.3rem;';
+  actionRows.append(
+    actionRow('Shading', balanced, faceted, soft),
+    actionRow('Test wall', original, materialRegions, layered),
+    actionRow('View', viewTestWall, grazingView, refresh));
+  const scope = document.createElement('p');
+  scope.textContent = 'Test-wall choices change only the west-wall bay.';
+  scope.style.cssText = 'margin:.35rem 0 0;max-width:24rem;';
   const receipt = document.createElement('p');
   receipt.setAttribute('aria-live', 'polite');
   receipt.style.cssText = 'margin:.35rem 0 0;max-width:24rem;overflow-wrap:anywhere;';
-  controls.append(actions, receipt);
+  controls.append(actionRows, scope, receipt);
   host.append(toggle, controls);
 
   let disposed = false;
-  const allActions = [balanced, faceted, soft, refresh];
-  const execute = async (label: string, command: string, queued: boolean): Promise<void> => {
+  const allActions = [balanced, faceted, soft, original, materialRegions, layered, viewTestWall, grazingView, refresh];
+  const execute = async (label: string, command: string, resultKind: 'queued' | 'requested' | 'readout'): Promise<void> => {
     if (disposed) return;
     for (const action of allActions) action.disabled = true;
-    receipt.textContent = queued ? `Queueing ${label} treatment…` : 'Reading C# courtyard state…';
+    receipt.textContent = resultKind === 'queued' ? `Queueing ${label}…`
+      : resultKind === 'requested' ? `Requesting ${label}…` : 'Reading C# courtyard state…';
     try {
       const result = await transport.execute(command);
       if (!result.succeeded) throw new Error(result.message);
-      receipt.textContent = queued
-        ? `Queued ${label} treatment; it applies on the next product update. Receipt: ${result.message}`
-        : `C# readout: ${result.message}`;
+      receipt.textContent = resultKind === 'queued'
+        ? `Queued ${label}; it applies on the next product update. Receipt: ${result.message}`
+        : resultKind === 'requested'
+          ? `Requested ${label}. Receipt: ${result.message}`
+          : `C# readout: ${result.message}`;
     } catch (error: unknown) {
       receipt.textContent = `Command failed: ${message(error, 'Courtyard command failed.')}`;
     } finally {
@@ -157,10 +171,15 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     controls.hidden = !controls.hidden;
     toggle.setAttribute('aria-expanded', String(!controls.hidden));
   });
-  balanced.addEventListener('click', () => void execute('Balanced', 'craft.courtyard.treatment balanced', true));
-  faceted.addEventListener('click', () => void execute('Faceted', 'craft.courtyard.treatment faceted', true));
-  soft.addEventListener('click', () => void execute('Soft', 'craft.courtyard.treatment soft', true));
-  refresh.addEventListener('click', () => void execute('', 'craft.courtyard.readout', false));
+  balanced.addEventListener('click', () => void execute('Balanced', 'craft.courtyard.treatment balanced', 'queued'));
+  faceted.addEventListener('click', () => void execute('Faceted', 'craft.courtyard.treatment faceted', 'queued'));
+  soft.addEventListener('click', () => void execute('Soft', 'craft.courtyard.treatment soft', 'queued'));
+  original.addEventListener('click', () => void execute('Original masonry', 'craft.courtyard.masonry original', 'queued'));
+  materialRegions.addEventListener('click', () => void execute('Material regions masonry', 'craft.courtyard.masonry regions', 'queued'));
+  layered.addEventListener('click', () => void execute('Layered masonry', 'craft.courtyard.masonry layered', 'queued'));
+  viewTestWall.addEventListener('click', () => void execute('Front test-wall view', 'craft.courtyard.inspect front', 'requested'));
+  grazingView.addEventListener('click', () => void execute('Grazing test-wall view', 'craft.courtyard.inspect grazing', 'requested'));
+  refresh.addEventListener('click', () => void execute('', 'craft.courtyard.readout', 'readout'));
   return Object.freeze({ dispose: () => { disposed = true; controls.remove(); toggle.remove(); } });
 }
 
@@ -397,6 +416,15 @@ function renderObserved(host: HTMLElement, readout: Readout): void {
 function isolateEvents(panel: HTMLElement): void {
   const stop = (event: Event): void => event.stopPropagation();
   for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'mousedown', 'mousemove', 'mouseup', 'wheel', 'keydown', 'keyup', 'click']) panel.addEventListener(type, stop);
+}
+function actionRow(label: string, ...actions: HTMLButtonElement[]): HTMLElement {
+  const row = document.createElement('div');
+  row.style.cssText = 'align-items:center;display:flex;flex-wrap:wrap;gap:.3rem;';
+  const heading = document.createElement('strong');
+  heading.textContent = label + ':';
+  heading.style.cssText = 'min-width:4.7rem;';
+  row.append(heading, ...actions);
+  return row;
 }
 function select(host: HTMLElement, label: string, values: readonly string[]): HTMLSelectElement {
   const field = document.createElement('label'); field.textContent = label; field.style.cssText = 'display:grid;gap:.15rem;min-width:0;';

@@ -1,0 +1,4 @@
+{"at":"2026-09-06T07:47:35.554599593Z","diagnostics":[],"driver_pid":621432,"kind":"finish","server_pid":620770,"server_stopped":true}
+{"at":"2026-09-06T07:47:35.55469457Z","diagnostics":[{"code":"cleanup_index_error","continued":true,"error":"parsing playtest index: unexpected end of JSON input"}],"kind":"finish"}
+{"at":"2026-09-06T07:49:16.350008262Z","diagnostics":[],"driver_pid":621432,"kind":"finish","server_pid":620770,"server_stopped":false}
+{"at":"2026-09-06T07:49:16.350040993Z","diagnostics":[{"code":"cleanup_index_error","continued":true,"error":"parsing playtest index: unexpected end of JSON input"}],"kind":"finish"}

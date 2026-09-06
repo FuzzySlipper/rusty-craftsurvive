@@ -156,6 +156,16 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.courtyard.treatment", Description = "Queues balanced, faceted, or soft courtyard regeneration.")]
     public string SetCourtyardTreatment(string treatment) => terrain.QueueCourtyardTreatment(treatment);
 
+    [DebugCommand("craft.courtyard.masonry", Description = "Queues original, regions, or layered construction for the west-wall test section.")]
+    public string SetCourtyardMasonry(string mode) => terrain.QueueCourtyardMasonry(mode);
+
+    [DebugCommand("craft.courtyard.inspect", Description = "Views the current west-wall test section: front or grazing.")]
+    public string InspectCourtyard(string angle)
+    {
+        (Vector3 eye, Vector3 target) = terrain.CourtyardInspectionView(angle);
+        return ViewCourtyard(eye.X, eye.Y, eye.Z, target.X, target.Y, target.Z);
+    }
+
     [DebugCommand("craft.courtyard.layout", Description = "Queues courtyard width, doorway width/offset and detail seed regeneration.")]
     public string SetCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => terrain.QueueCourtyardLayout(width, doorWidth, doorOffset, seed);
 

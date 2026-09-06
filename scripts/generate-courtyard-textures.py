@@ -20,6 +20,7 @@ OUTPUT = Path(__file__).resolve().parents[1] / "content" / "textures" / "courtya
 # named material choice should carry more contrast than any individual tile.
 TEXTURES: dict[str, tuple[int, tuple[tuple[int, int, int], ...]]] = {
     "courtyard-stone.png": (0x19A4_1E71, ((91, 84, 78), (99, 92, 85), (106, 98, 90), (83, 77, 73), (113, 104, 95))),
+    "courtyard-mortar.png": (0x6A35_9C47, ((58, 53, 50), (63, 57, 53), (54, 49, 47), (68, 61, 56), (50, 46, 44))),
     "courtyard-plaster.png": (0x2B7C_6053, ((173, 156, 124), (181, 164, 132), (164, 148, 118), (188, 171, 138), (154, 140, 113))),
     "courtyard-ground.png": (0x3D52_A8C9, ((91, 67, 46), (100, 74, 51), (82, 60, 42), (108, 80, 54), (74, 54, 39))),
     "courtyard-moss.png": (0x4E91_27D5, ((62, 86, 53), (69, 94, 58), (55, 78, 48), (75, 99, 62), (50, 71, 45))),

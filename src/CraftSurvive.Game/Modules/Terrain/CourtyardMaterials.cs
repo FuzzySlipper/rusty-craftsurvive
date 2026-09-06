@@ -11,6 +11,7 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal sealed class CourtyardMaterials : IDisposable
 {
     internal const string StoneContentPath = "textures/courtyard/courtyard-stone.png";
+    internal const string MortarContentPath = "textures/courtyard/courtyard-mortar.png";
     internal const string PlasterContentPath = "textures/courtyard/courtyard-plaster.png";
     internal const string GroundContentPath = "textures/courtyard/courtyard-ground.png";
     internal const string MossContentPath = "textures/courtyard/courtyard-moss.png";
@@ -22,11 +23,13 @@ internal sealed class CourtyardMaterials : IDisposable
     private const float Alpha = 1f;
     private const float NoEmission = 0f;
     private const string StoneTextureId = "texture/courtyard-stone";
+    private const string MortarTextureId = "texture/courtyard-mortar";
     private const string PlasterTextureId = "texture/courtyard-plaster";
     private const string GroundTextureId = "texture/courtyard-ground";
     private const string MossTextureId = "texture/courtyard-moss";
     private const string WoodTextureId = "texture/courtyard-wood";
     private const string StoneMaterialId = "material/courtyard-stone";
+    private const string MortarMaterialId = "material/courtyard-mortar";
     private const string PlasterMaterialId = "material/courtyard-plaster";
     private const string GroundMaterialId = "material/courtyard-ground";
     private const string MossMaterialId = "material/courtyard-moss";
@@ -52,10 +55,11 @@ internal sealed class CourtyardMaterials : IDisposable
             admittedMaterials =
             [
                 CreateAuthoredMaterial(engine, admittedCatalog, StoneMaterialId, textures[0]),
-                CreateAuthoredMaterial(engine, admittedCatalog, PlasterMaterialId, textures[1]),
-                CreateAuthoredMaterial(engine, admittedCatalog, GroundMaterialId, textures[2]),
-                CreateAuthoredMaterial(engine, admittedCatalog, MossMaterialId, textures[3]),
-                CreateAuthoredMaterial(engine, admittedCatalog, WoodMaterialId, textures[4]),
+                CreateAuthoredMaterial(engine, admittedCatalog, MortarMaterialId, textures[1]),
+                CreateAuthoredMaterial(engine, admittedCatalog, PlasterMaterialId, textures[2]),
+                CreateAuthoredMaterial(engine, admittedCatalog, GroundMaterialId, textures[3]),
+                CreateAuthoredMaterial(engine, admittedCatalog, MossMaterialId, textures[4]),
+                CreateAuthoredMaterial(engine, admittedCatalog, WoodMaterialId, textures[5]),
             ];
             createdDarkNeutral = engine.Graphics.CreateMaterial(new MaterialRequest(
                 new Color(0.12f, 0.11f, 0.10f, Alpha),
@@ -90,13 +94,15 @@ internal sealed class CourtyardMaterials : IDisposable
 
     internal Material Stone => MaterialAt(0);
 
-    internal Material Plaster => MaterialAt(1);
+    internal Material Mortar => MaterialAt(1);
 
-    internal Material Ground => MaterialAt(2);
+    internal Material Plaster => MaterialAt(2);
 
-    internal Material Moss => MaterialAt(3);
+    internal Material Ground => MaterialAt(3);
 
-    internal Material Wood => MaterialAt(4);
+    internal Material Moss => MaterialAt(4);
+
+    internal Material Wood => MaterialAt(5);
 
     internal Material DarkNeutral
     {
@@ -126,7 +132,7 @@ internal sealed class CourtyardMaterials : IDisposable
 
     private static RenderResourceInfo[] OpenTextures(IEngineContext engine)
     {
-        string[] paths = [StoneContentPath, PlasterContentPath, GroundContentPath, MossContentPath, WoodContentPath];
+        string[] paths = [StoneContentPath, MortarContentPath, PlasterContentPath, GroundContentPath, MossContentPath, WoodContentPath];
         RenderResourceInfo[] textures = new RenderResourceInfo[paths.Length];
         for (int index = 0; index < paths.Length; index++)
         {
@@ -158,11 +164,13 @@ internal sealed class CourtyardMaterials : IDisposable
     private static AuthoredCatalogEntryInput[] Entries() =>
     [
         TextureEntry(StoneTextureId, StoneContentPath, "Courtyard stone grain"),
+        TextureEntry(MortarTextureId, MortarContentPath, "Courtyard mortar grain"),
         TextureEntry(PlasterTextureId, PlasterContentPath, "Courtyard plaster grain"),
         TextureEntry(GroundTextureId, GroundContentPath, "Courtyard ground grain"),
         TextureEntry(MossTextureId, MossContentPath, "Courtyard moss grain"),
         TextureEntry(WoodTextureId, WoodContentPath, "Courtyard wood grain"),
         MaterialEntry(StoneMaterialId, "Courtyard stone"),
+        MaterialEntry(MortarMaterialId, "Courtyard mortar"),
         MaterialEntry(PlasterMaterialId, "Courtyard plaster"),
         MaterialEntry(GroundMaterialId, "Courtyard ground"),
         MaterialEntry(MossMaterialId, "Courtyard moss"),
@@ -178,6 +186,7 @@ internal sealed class CourtyardMaterials : IDisposable
     private static AuthoredCatalogDependencyInput[] Dependencies() =>
     [
         Dependency(StoneMaterialId, StoneTextureId),
+        Dependency(MortarMaterialId, MortarTextureId),
         Dependency(PlasterMaterialId, PlasterTextureId),
         Dependency(GroundMaterialId, GroundTextureId),
         Dependency(MossMaterialId, MossTextureId),
@@ -190,6 +199,7 @@ internal sealed class CourtyardMaterials : IDisposable
     private static AuthoredMaterialInput[] Materials() =>
     [
         Material(StoneMaterialId, StoneTextureId),
+        Material(MortarMaterialId, MortarTextureId),
         Material(PlasterMaterialId, PlasterTextureId),
         Material(GroundMaterialId, GroundTextureId),
         Material(MossMaterialId, MossTextureId),
@@ -218,6 +228,7 @@ internal sealed class CourtyardMaterials : IDisposable
     private static AuthoredTextureInput[] Textures() =>
     [
         Texture(StoneTextureId),
+        Texture(MortarTextureId),
         Texture(PlasterTextureId),
         Texture(GroundTextureId),
         Texture(MossTextureId),
@@ -230,6 +241,7 @@ internal sealed class CourtyardMaterials : IDisposable
     private static string TextureHash(string textureId) => textureId switch
     {
         StoneTextureId => "848fa498a979486b1628a1fafe4ab2d29388fe003d41e797480bdb20c695e549",
+        MortarTextureId => "109bf8a26bf7ff94c5d41015c58de02f0e6df2c8b4941caf95a03e2a905c3e1b",
         PlasterTextureId => "b6e052c1ffe3bed26894a14813d0b15a98a1faf98063fc27298682dbbf342373",
         GroundTextureId => "f9b33f25140f50b2e644e5591e5932d45e173220995e60cb78f9bb1864d5c5c0",
         MossTextureId => "e61d6339f5a74ec369334f2fe29d5ff5dc20fcf5a68429929141af5075319bcf",
@@ -239,7 +251,7 @@ internal sealed class CourtyardMaterials : IDisposable
 
     private static void ValidateCatalog(AuthoredCatalogReadoutLeaseReceipt readout)
     {
-        if (readout.Entries.Length != 10 || readout.Materials.Length != 5 || readout.Textures.Length != 5
+        if (readout.Entries.Length != 12 || readout.Materials.Length != 6 || readout.Textures.Length != 6
             || readout.VoxelAtlases.Length != 0 || readout.AtlasRegions.Length != 0 || readout.VoxelSurfaces.Length != 0
             || string.IsNullOrWhiteSpace(readout.CanonicalHash))
         {

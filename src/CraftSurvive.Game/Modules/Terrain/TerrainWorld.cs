@@ -83,6 +83,9 @@ internal sealed class TerrainWorld : IDisposable
     internal string QueueCourtyardShadows(bool enabled) => courtyard?.QueueShadows(enabled) ?? "courtyard inactive";
     internal string ReadCourtyard() => courtyard?.Readout() ?? "courtyard inactive";
     internal string QueueCourtyardTreatment(string treatment) => courtyard?.QueueTreatment(treatment) ?? "courtyard inactive";
+    internal string QueueCourtyardMasonry(string mode) => courtyard?.QueueMasonry(mode) ?? "courtyard inactive";
+    internal (Vector3 Eye, Vector3 Target) CourtyardInspectionView(string angle) =>
+        (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).InspectionView(angle);
     internal string QueueCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => courtyard?.QueueLayout(width, doorWidth, doorOffset, seed) ?? "courtyard inactive";
 
     internal void Update()

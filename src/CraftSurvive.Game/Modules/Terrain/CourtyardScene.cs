@@ -7,7 +7,7 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 internal readonly record struct CourtyardSettings(
     string Treatment, float Width, float DoorWidth, float DoorOffset, ulong Seed,
-    float CellSize, float CreaseDegrees)
+    float CellSize, float CreaseDegrees, string Masonry = "layered")
 {
     internal static CourtyardSettings Default => new("soft", 24f, 3.4f, 0f, 0x4352414654UL, 0.20f, 110f);
 
@@ -38,6 +38,11 @@ internal sealed class CourtyardScene : IDisposable
     private const float StoneRelief = 0.09f;
     private const float UvRepeatsPerMeter = 0.6f;
     private const float DomainPadding = 0.25f;
+    private const string TestWall = "west";
+    private const float TestSectionStart = -2f;
+    private const string TestPartPrefix = "masonry test";
+    private const float BrickRegionTolerance = 0.015f;
+    private const float CapDepth = 0.14f;
     private readonly IEngineContext engine;
     private readonly CourtyardMaterials materials;
     private readonly List<Part> parts = [];
@@ -54,6 +59,7 @@ internal sealed class CourtyardScene : IDisposable
     private ulong vertexCount;
     private uint correctionCount;
     private int generation;
+    private double testGenerationSeconds;
 
     internal CourtyardScene(IEngineContext engine)
     {
@@ -82,6 +88,25 @@ internal sealed class CourtyardScene : IDisposable
     {
         pending = (pending ?? settings).WithTreatment(treatment);
         return $"queued courtyard treatment={treatment}";
+    }
+
+    internal string QueueMasonry(string mode)
+    {
+        if (mode is not ("original" or "regions" or "layered"))
+            throw new ArgumentException("Masonry must be original, regions, or layered.");
+        pending = (pending ?? settings) with { Masonry = mode };
+        return $"queued west-wall masonry test={mode}";
+    }
+
+    internal (Vector3 Eye, Vector3 Target) InspectionView(string angle)
+    {
+        float face = -settings.Width * 0.5f + WallThickness;
+        return angle switch
+        {
+            "front" => (new(face + 3f, 4.55f, 0f), new(face, 5.1f, 0f)),
+            "grazing" => (new(face + 0.8f, 4.55f, -3.2f), new(face, 4.9f, 1.3f)),
+            _ => throw new ArgumentException("Inspection view must be front or grazing."),
+        };
     }
 
     internal string QueueLayout(float width, float doorWidth, float doorOffset, ulong seed)
@@ -133,7 +158,9 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};reorientedTriangles={correctionCount};shadows={shadows};collision=generated-mesh-copy");
+        $"generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};reorientedTriangles={correctionCount};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+
+    private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
     private void Build(CourtyardSettings next)
     {
@@ -239,47 +266,98 @@ internal sealed class CourtyardScene : IDisposable
             Vector3 b = max;
             if (alongX) { a.X = position; b.X = MathF.Min(end, position + WallSectionLength); }
             else { a.Z = position; b.Z = MathF.Min(end, position + WallSectionLength); }
-            using Recipe recipe = new(engine.ImplicitSurfaces);
-            ImplicitNode wall = recipe.Box(a, b);
-            // Courses are globally phased inside each architectural wall frame,
-            // then intersected with its section. Sections share solid backing.
-            for (int course = 0; min.Y + course * CourseHeight < max.Y; course++)
-            {
-                float bottom = min.Y + course * CourseHeight;
-                float phase = (course % 2) * StoneLength * 0.5f;
-                for (float p = MathF.Floor((position - phase) / StoneLength) * StoneLength + phase; p < b[alongX ? 0 : 2]; p += StoneLength)
-                {
-                    float left = MathF.Max(position, p + JointHalfWidth);
-                    float right = MathF.Min(b[alongX ? 0 : 2], p + StoneLength - JointHalfWidth);
-                    if (right <= left) continue;
-                    Vector3 stoneMin = a - new Vector3(StoneRelief, 0, StoneRelief);
-                    Vector3 stoneMax = b + new Vector3(StoneRelief, 0, StoneRelief);
-                    stoneMin.Y = bottom + JointHalfWidth;
-                    stoneMax.Y = MathF.Min(max.Y, bottom + CourseHeight - JointHalfWidth);
-                    if (alongX) { stoneMin.X = left; stoneMax.X = right; }
-                    else { stoneMin.Z = left; stoneMax.Z = right; }
-                    if (stoneMax.Y > stoneMin.Y) wall = recipe.Union(wall, recipe.Box(stoneMin, stoneMax));
-                }
-            }
-            const float capDepth = 0.14f;
-            ImplicitNode cap = recipe.Box(new(a.X - capDepth, b.Y - 0.22f, a.Z - capDepth), new(b.X + capDepth, b.Y + 0.14f, b.Z + capDepth));
-            wall = recipe.Union(wall, cap);
-            // Deliberate broken tops: sparse larger chips, not even surface noise.
+            bool test = name == TestWall && position == TestSectionStart;
+            Stopwatch? watch = test ? Stopwatch.StartNew() : null;
+            (Vector3 Min, Vector3 Max)[] stones = CourseStones(a, b, alongX, min.Y).ToArray();
+            Vector3 capMin = new(a.X - CapDepth, b.Y - 0.22f, a.Z - CapDepth);
+            Vector3 capMax = new(b.X + CapDepth, b.Y + CapDepth, b.Z + CapDepth);
             float chipPosition = position + WallSectionLength * 0.65f;
             long chipVariation = engine.Random.DrawKeyed(new KeyedRngRequest(next.Seed, "courtyard.chips", FormattableString.Invariant($"{name}:{position:R}"), 0, 3)).Value;
             float chipRadius = 0.22f + chipVariation * 0.11f;
             Vector3 chip = alongX ? new(chipPosition, b.Y + 0.08f, (a.Z + b.Z) * 0.5f) : new((a.X + b.X) * 0.5f, b.Y + 0.08f, chipPosition);
-            wall = recipe.Subtract(wall, recipe.Sphere(chip, chipRadius));
-            if (doorway)
+
+            if (test && next.Masonry == "layered")
             {
-                float doorHalf = next.DoorWidth * 0.5f;
-                ImplicitNode opening = recipe.Box(new(next.DoorOffset - doorHalf, min.Y - 1f, min.Z - 1f), new(next.DoorOffset + doorHalf, 7.75f, max.Z + 1f));
-                wall = recipe.Subtract(wall, opening);
+                // Separate closed solids with real relief. Brick backs overlap
+                // the backing volume; exposed faces never rely on draw order.
+                LayeredBox($"{TestPartPrefix} mortar", a, b, chip, chipRadius, materials.Mortar, next, output);
+                foreach ((Vector3 stoneMin, Vector3 stoneMax) in stones)
+                    LayeredBox($"{TestPartPrefix} brick", stoneMin, stoneMax, chip, chipRadius, materials.Stone, next, output);
+                LayeredBox($"{TestPartPrefix} cap", capMin, capMax, chip, chipRadius, materials.Plaster, next, output);
             }
-            ImplicitNode mossRegion = recipe.Box(a - Vector3.One, new(b.X + 1f, min.Y + 0.38f, b.Z + 1f));
-            AddPart(name, recipe, wall, a - new Vector3(0.3f), b + new Vector3(0.35f), materials.Stone,
-                [new ImplicitMaterialRegion(recipe.Offset(cap, 0.03f), materials.Plaster), new ImplicitMaterialRegion(mossRegion, materials.Moss)], next, output);
+            else
+            {
+                using Recipe recipe = new(engine.ImplicitSurfaces);
+                ImplicitNode wall = recipe.Box(a, b);
+                ImplicitNode bricks = default;
+                bool hasBricks = false;
+                foreach ((Vector3 stoneMin, Vector3 stoneMax) in stones)
+                {
+                    ImplicitNode brick = recipe.Box(stoneMin, stoneMax);
+                    wall = recipe.Union(wall, brick);
+                    if (test && next.Masonry == "regions")
+                    {
+                        bricks = hasBricks ? recipe.Union(bricks, brick) : brick;
+                        hasBricks = true;
+                    }
+                }
+                ImplicitNode cap = recipe.Box(capMin, capMax);
+                wall = recipe.Subtract(recipe.Union(wall, cap), recipe.Sphere(chip, chipRadius));
+                if (doorway)
+                {
+                    float doorHalf = next.DoorWidth * 0.5f;
+                    ImplicitNode opening = recipe.Box(new(next.DoorOffset - doorHalf, min.Y - 1f, min.Z - 1f), new(next.DoorOffset + doorHalf, 7.75f, max.Z + 1f));
+                    wall = recipe.Subtract(wall, opening);
+                }
+                List<ImplicitMaterialRegion> regions = [new(recipe.Offset(cap, 0.03f), materials.Plaster)];
+                if (test && next.Masonry == "regions" && hasBricks)
+                    regions.Add(new(recipe.Offset(bricks, BrickRegionTolerance), materials.Stone));
+                // Exclude the unrelated moss classification in all three test
+                // modes so the comparison isolates brick/mortar ownership.
+                if (!test)
+                {
+                    ImplicitNode moss = recipe.Box(a - Vector3.One, new(b.X + 1f, min.Y + 0.38f, b.Z + 1f));
+                    regions.Add(new(moss, materials.Moss));
+                }
+                AddPart(test ? $"{TestPartPrefix} union" : name, recipe, wall,
+                    a - new Vector3(0.3f), b + new Vector3(0.35f),
+                    test && next.Masonry == "regions" ? materials.Mortar : materials.Stone,
+                    regions.ToArray(), next, output);
+            }
+            if (watch is not null) testGenerationSeconds = watch.Elapsed.TotalSeconds;
         }
+    }
+
+    private static IEnumerable<(Vector3 Min, Vector3 Max)> CourseStones(Vector3 a, Vector3 b, bool alongX, float baseY)
+    {
+        // Both constructions consume the same globally phased brick bounds.
+        float position = a[alongX ? 0 : 2];
+        for (int course = 0; baseY + course * CourseHeight < b.Y; course++)
+        {
+            float bottom = baseY + course * CourseHeight;
+            float phase = (course % 2) * StoneLength * 0.5f;
+            for (float p = MathF.Floor((position - phase) / StoneLength) * StoneLength + phase; p < b[alongX ? 0 : 2]; p += StoneLength)
+            {
+                float left = MathF.Max(position, p + JointHalfWidth);
+                float right = MathF.Min(b[alongX ? 0 : 2], p + StoneLength - JointHalfWidth);
+                if (right <= left) continue;
+                Vector3 stoneMin = a - new Vector3(StoneRelief, 0, StoneRelief);
+                Vector3 stoneMax = b + new Vector3(StoneRelief, 0, StoneRelief);
+                stoneMin.Y = bottom + JointHalfWidth;
+                stoneMax.Y = MathF.Min(b.Y, bottom + CourseHeight - JointHalfWidth);
+                if (alongX) { stoneMin.X = left; stoneMax.X = right; }
+                else { stoneMin.Z = left; stoneMax.Z = right; }
+                if (stoneMax.Y > stoneMin.Y) yield return (stoneMin, stoneMax);
+            }
+        }
+    }
+
+    private void LayeredBox(string name, Vector3 min, Vector3 max, Vector3 chip, float chipRadius,
+        Material material, CourtyardSettings next, List<Part> output)
+    {
+        using Recipe recipe = new(engine.ImplicitSurfaces);
+        ImplicitNode solid = recipe.Subtract(recipe.Box(min, max), recipe.Sphere(chip, chipRadius));
+        AddPart(name, recipe, solid, min, max, material, [], next, output);
     }
 
     private void Frame(string name, float z, CourtyardSettings next, List<Part> output)

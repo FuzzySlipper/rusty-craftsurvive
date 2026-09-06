@@ -1,0 +1,87 @@
+{
+  "session_id": "rusty-craftsurvive-playtest-20260906T072839.906296817Z-475237",
+  "source_directory": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T072839.906296817Z-475237",
+  "canonical_index_status": "truncated to zero bytes during finish; not reconstructed",
+  "surviving_timeline_entries": 36,
+  "finish_record": {
+    "offset": 35,
+    "at": "2026-09-06T07:47:14.271Z",
+    "kind": "command",
+    "request": {
+      "acceptance_mapping": "Pass: same-pose Original, Material regions, Layered, and Faceted+Layered observations; ordinary grouped UI wiring after reload; collision/contact and short-slide exercise. Uncertain: topology equivalence and flicker stability were not certified from single-frame visual captures. Retain the recorded pointer-lock/focus workaround and the unsupported broker reload action discrepancy as harness interaction evidence.",
+      "annotation": "Configured model identity: gpt-5.6-luna; authoritative runtime model metadata was not inspected. Parent/root owns final aesthetic and architecture judgment. Historical Engine publication/recovery and telemetry warnings remain report-only/owned by the parent; no zero-warning claim.",
+      "assertions": [
+        "Final grouped controls were visible after a normal page reload.",
+        "Original to Layered mode changes and Refresh were executed through ordinary UI selector clicks without force.",
+        "Single-frame front and grazing comparisons were captured for Layered, Original, Material regions, and Faceted+Layered.",
+        "Wall contact stopped the player at the west wall, and a short W+D input was used for the wall-slide check.",
+        "Final UI-closed Layered frame was captured."
+      ],
+      "cleanup": true,
+      "exit_interview": {
+        "confidence": "moderate",
+        "difficulties": "The broker recorded an unsupported reload action and an earlier pointer-lock/UI click interception discrepancy; normal location.reload and focus recovery allowed the mission to continue.",
+        "suggestions": "Keep the recorded harness discrepancies attached to the index; no further product mutation was needed.",
+        "workarounds": "Used the page's ordinary location.reload through the browser page, then ordinary visible selector clicks after pointer lock was released."
+      },
+      "kind": "finish",
+      "neutral_observation": "After the reloaded page's Courtyard panel was closed, the final frame showed the west test wall at close range: layered staggered rectangular courses with visible projecting brick edges and dark horizontal/vertical seams, with grass and courtyard stone/log forms visible around the wall. The grouped-controls frame visibly showed separate Shading, Test wall, and View groups plus the generation readout.",
+      "operational_outcome": "Pass for the bounded masonry comparison, ordinary post-reload UI interaction, wall-contact collision, short wall-slide input, and treatment/regeneration exercise. The wall-contact run stopped at the wall and the wall-slide run advanced along it per the parent/root player readout. Final reloaded Original then Layered selection and Refresh clicks were ordinary selector clicks with no force. The session and owned host were requested for cleanup.",
+      "outcome": "pass",
+      "session_id": "rusty-craftsurvive-playtest-20260906T072839.906296817Z-475237",
+      "stop_host": true
+    },
+    "discrepancies": [
+      {
+        "code": "sequence_missing",
+        "expected": 30
+      }
+    ],
+    "recovery": [],
+    "result": {
+      "status": "pass",
+      "index_path": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T072839.906296817Z-475237/playtest-index.json",
+      "cleanup": {
+        "browser_closed": true,
+        "driver_stopped": true,
+        "virtual_display_stopped": true
+      },
+      "evidence_summary": {
+        "neutral_observation": "After the reloaded page's Courtyard panel was closed, the final frame showed the west test wall at close range: layered staggered rectangular courses with visible projecting brick edges and dark horizontal/vertical seams, with grass and courtyard stone/log forms visible around the wall. The grouped-controls frame visibly showed separate Shading, Test wall, and View groups plus the generation readout.",
+        "operational_outcome": "Pass for the bounded masonry comparison, ordinary post-reload UI interaction, wall-contact collision, short wall-slide input, and treatment/regeneration exercise. The wall-contact run stopped at the wall and the wall-slide run advanced along it per the parent/root player readout. Final reloaded Original then Layered selection and Refresh clicks were ordinary selector clicks with no force. The session and owned host were requested for cleanup.",
+        "acceptance_mapping": "Pass: same-pose Original, Material regions, Layered, and Faceted+Layered observations; ordinary grouped UI wiring after reload; collision/contact and short-slide exercise. Uncertain: topology equivalence and flicker stability were not certified from single-frame visual captures. Retain the recorded pointer-lock/focus workaround and the unsupported broker reload action discrepancy as harness interaction evidence."
+      },
+      "exit_interview": {
+        "confidence": "moderate",
+        "difficulties": "The broker recorded an unsupported reload action and an earlier pointer-lock/UI click interception discrepancy; normal location.reload and focus recovery allowed the mission to continue.",
+        "suggestions": "Keep the recorded harness discrepancies attached to the index; no further product mutation was needed.",
+        "workarounds": "Used the page's ordinary location.reload through the browser page, then ordinary visible selector clicks after pointer lock was released."
+      }
+    }
+  },
+  "screenshots": [
+    "0001-initial-neutral-masonry.png",
+    "0002-layered-front.png",
+    "0003-layered-grazing.png",
+    "0004-original-grazing.png",
+    "0005-original-front.png",
+    "0006-regions-front.png",
+    "0007-regions-grazing.png",
+    "0008-layered-faceted-front.png",
+    "0009-wall-contact.png",
+    "0010-wall-slide.png",
+    "0011-layered-width26-front.png",
+    "0012-width26-controls-readout.png",
+    "0013-final-grouped-layered-controls.png",
+    "0014-final-layered-front.png"
+  ],
+  "independent_evidence": [
+    "session-diagnostics.txt",
+    "warning-report.json",
+    "*-readout.txt",
+    "*-renderer.json",
+    "contact-before.txt",
+    "contact-after.txt",
+    "slide-after.txt"
+  ]
+}

@@ -144,3 +144,5 @@ client and existing `craft.ghost.*` commands.
 
 The runtime courtyard controls, treatment comparison, authoring variation and
 remaining limits are recorded in [the courtyard result](docs/courtyard-verdict.md).
+The newer [layered masonry test](docs/layered-masonry-test.md) compares separate
+bricks over mortar with the original and material-region constructions.
