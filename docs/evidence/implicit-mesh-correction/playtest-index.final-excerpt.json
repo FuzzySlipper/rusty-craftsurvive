@@ -1,0 +1,1703 @@
+{
+  "artifacts": [
+    "driver.stderr.log",
+    "driver.stdout.log",
+    "host-cleanup.jsonl",
+    "playtest-index.json",
+    "requests.jsonl",
+    "screenshots/0001-corrected-initial.png",
+    "screenshots/0002-corrected-layered-front.png",
+    "screenshots/0003-corrected-original-front.png",
+    "screenshots/0004-corrected-original-grazing.png",
+    "screenshots/0005-corrected-regions-front.png",
+    "screenshots/0006-corrected-wall-contact.png",
+    "screenshots/0007-corrected-layered-grazing.png",
+    "screenshots/0008-corrected-wall-contact-delivered.png",
+    "screenshots/0009-corrected-stair-start.png",
+    "screenshots/0010-corrected-stair-walk.png",
+    "server.stderr.log",
+    "server.stdout.log",
+    "timeline.jsonl",
+    "trace.zip"
+  ],
+  "base_url": "http://127.0.0.1:37100",
+  "browser": {
+    "headed": false,
+    "name": "chromium",
+    "version": "149.0.7827.55",
+    "virtual_display": true
+  },
+  "cleanup": {
+    "browser_closed": true,
+    "dev_server_pid": 727601,
+    "dev_server_reused": false,
+    "dev_server_stopped": true,
+    "driver_stopped": false,
+    "virtual_display_stopped": true
+  },
+  "discrepancies": [
+    {
+      "at": "2026-09-06T09:04:53.150Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 1
+    },
+    {
+      "at": "2026-09-06T09:04:57.792Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 2
+    },
+    {
+      "at": "2026-09-06T09:05:59.558Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 3
+    },
+    {
+      "at": "2026-09-06T09:06:58.192Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 4
+    },
+    {
+      "at": "2026-09-06T09:08:00.153Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 5
+    },
+    {
+      "at": "2026-09-06T09:09:06.674Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 6
+    },
+    {
+      "at": "2026-09-06T09:10:37.959Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 7
+    },
+    {
+      "at": "2026-09-06T09:10:41.078Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 8
+    },
+    {
+      "at": "2026-09-06T09:10:44.035Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 9
+    },
+    {
+      "at": "2026-09-06T09:10:46.955Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 10
+    },
+    {
+      "at": "2026-09-06T09:10:50.749Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 11
+    },
+    {
+      "at": "2026-09-06T09:14:30.414Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 12
+    },
+    {
+      "at": "2026-09-06T09:15:06.698Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 13
+    },
+    {
+      "at": "2026-09-06T09:15:28.807Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 14
+    },
+    {
+      "at": "2026-09-06T09:15:32.378Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 15
+    },
+    {
+      "at": "2026-09-06T09:15:37.808Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 16
+    },
+    {
+      "at": "2026-09-06T09:15:50.663Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 17
+    },
+    {
+      "at": "2026-09-06T09:16:13.828Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 18
+    },
+    {
+      "action_index": 1,
+      "at": "2026-09-06T09:16:13.880Z",
+      "code": "action_error",
+      "continued": true,
+      "error": "Error: unknown action type \"key_down\"",
+      "ok": false
+    },
+    {
+      "action_index": 3,
+      "at": "2026-09-06T09:16:14.929Z",
+      "code": "action_error",
+      "continued": true,
+      "error": "Error: unknown action type \"key_up\"",
+      "ok": false
+    },
+    {
+      "at": "2026-09-06T09:17:13.069Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 19
+    },
+    {
+      "at": "2026-09-06T09:17:19.091Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 20
+    },
+    {
+      "at": "2026-09-06T09:17:54.793Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 21
+    },
+    {
+      "at": "2026-09-06T09:17:59.994Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 22
+    },
+    {
+      "at": "2026-09-06T09:18:06.886Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 23
+    },
+    {
+      "at": "2026-09-06T09:19:25.652Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 24
+    }
+  ],
+  "finished_at": "2026-09-06T09:19:55.137947168Z",
+  "metadata": {
+    "acceptance_mapping": "Pass: corrected front/grazing visual evidence, actual wall-contact collision, and actual W-only stair traversal. Retain uncertainty for topology equivalence and flicker stability because still captures do not certify those properties. Preserve the initial PointerLockLoss/no-op attempt and rejected keyboard action aliases as harness discrepancies.",
+    "assertions": [
+      "Corrected initial textured scene was captured after waiting for rendering.",
+      "Matched UI-closed Layered, Original, and Material Regions front/grazing evidence was captured.",
+      "Canvas focus and pointer lock were established before the successful physical input sequence.",
+      "Wall contact was verified by root player readout as grounded and blocked by the wall.",
+      "W-only stair traversal was verified by root player readout as grounded movement from z=3.5 to z=23.676.",
+      "The first failed focus/input attempt and rejected action aliases remain recorded as discrepancies."
+    ],
+    "exit_interview": {
+      "confidence": "moderate-high for delivered input, collision, and stair traversal; moderate for visual topology interpretation",
+      "difficulties": "An initial canvas click lost pointer lock, and guessed key_down/key_up aliases were rejected before root supplied the exact keyboard_down/keyboard_up syntax.",
+      "suggestions": "Keep the parent-saved pre-finish index and retained timeline/screenshots as the authoritative evidence if #7842 truncates the broker's final index.",
+      "workarounds": "Used one bounded DOM focus inspection, then root-corrected exact keyboard action names on the ordinary focused canvas."
+    },
+    "field_guide_usage": "Used the supplied neutral courtyard and ordinary-control guidance; root supplied controlled camera poses and final readouts.",
+    "final_annotation": "Configured model identity: gpt-5.6-luna; authoritative runtime model metadata was not inspected. Root owns final mesh/aesthetic interpretation. The parent saved a valid pre-finish index because of known recorder issue #7842; do not infer final index integrity from post-finish state.",
+    "headed": false,
+    "manifest_path": "/home/dev/rusty-craftsurvive/.den-playwright.json",
+    "neutral_observation": "The corrected initial scene showed a textured brown courtyard bounded by dark walls, a centered tan stepped entry, grass at the base, rounded side stone forms, and timber/log forms to the right. Matched UI-closed front and grazing captures were taken for Layered, Original, and Material Regions, followed by a Layered grazing frame and controlled stair-start/walk frames.",
+    "operational_outcome": "Pass for the bounded corrected visual comparison and delivered physical checks. After canvas focus and the exact keyboard_down(w) \u2192 wait \u2192 keyboard_up(w) actions, root readout confirmed wall contact at x=-10.995 grounded with wish -7 blocked by Wall and zero displacement. The controlled W-only stair walk moved from (0,3.875,3.5) to (0.779,5.890,23.676), grounded, with +z movement unblocked. Browser and owned-host cleanup requested.",
+    "owner": "/root/courtyard_final_walk",
+    "project": "rusty-craftsurvive",
+    "record_video": false,
+    "repo_root": "/home/dev/rusty-craftsurvive",
+    "scenario": "courtyard-final",
+    "verbose_trace": false
+  },
+  "observations": [
+    {
+      "at": "2026-09-06T09:04:57.916Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 70,
+        "responses": 69,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0001-corrected-initial.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:05:59.690Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 314,
+        "responses": 313,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0002-corrected-layered-front.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:06:58.296Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 542,
+        "responses": 540,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0003-corrected-original-front.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:08:00.278Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 788,
+        "responses": 787,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0004-corrected-original-grazing.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:09:06.943Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 1049,
+        "responses": 1048,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0005-corrected-regions-front.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:10:50.905Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 1457,
+        "responses": 1456,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0006-corrected-wall-contact.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:14:30.552Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 2330,
+        "responses": 2329,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0007-corrected-layered-grazing.png",
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:17:19.216Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 3002,
+        "responses": 3001,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0008-corrected-wall-contact-delivered.png",
+      "state": {
+        "active_element": "canvas",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": "canvas",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:17:55.125Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 3146,
+        "responses": 3145,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0009-corrected-stair-start.png",
+      "state": {
+        "active_element": "canvas",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": "canvas",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    },
+    {
+      "at": "2026-09-06T09:18:07.187Z",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 3195,
+        "responses": 3193,
+        "websockets": 0
+      },
+      "screenshot": "screenshots/0010-corrected-stair-walk.png",
+      "state": {
+        "active_element": "canvas",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": "canvas",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      }
+    }
+  ],
+  "owner_label": "/root/courtyard_final_walk",
+  "project": "rusty-craftsurvive",
+  "repository": "/home/dev/rusty-craftsurvive",
+  "requests_file": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237/requests.jsonl",
+  "scenario": "courtyard-final",
+  "schema_version": "den-playwright-playtest/v1",
+  "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+  "started_at": "2026-09-06T09:04:43.808Z",
+  "status": "pass",
+  "timeline": [
+    {
+      "at": "2026-09-06T09:04:44.378Z",
+      "kind": "session_started",
+      "offset": 0,
+      "state": {
+        "active_element": "body",
+        "device_pixel_ratio": 1,
+        "focused": true,
+        "pointer_lock": null,
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "title": "Rusty CraftSurvive",
+        "url": "http://127.0.0.1:37100/",
+        "viewport": {
+          "height": 720,
+          "width": 1280
+        },
+        "visibility": "visible"
+      },
+      "url": "http://127.0.0.1:37100/"
+    },
+    {
+      "at": "2026-09-06T09:04:46.292Z",
+      "kind": "console",
+      "offset": 1,
+      "text": "[.WebGL-0x378c0017ac00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "type": "warning"
+    },
+    {
+      "at": "2026-09-06T09:04:47.394Z",
+      "kind": "console",
+      "offset": 2,
+      "text": "[.WebGL-0x378c0017a000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "type": "warning"
+    },
+    {
+      "at": "2026-09-06T09:04:47.674Z",
+      "kind": "console",
+      "offset": 3,
+      "text": "[.WebGL-0x378c0017a000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "type": "warning"
+    },
+    {
+      "at": "2026-09-06T09:04:47.936Z",
+      "kind": "console",
+      "offset": 4,
+      "text": "[.WebGL-0x378c0017a000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+      "type": "warning"
+    },
+    {
+      "at": "2026-09-06T09:04:53.158Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 1
+        }
+      ],
+      "kind": "command",
+      "offset": 5,
+      "recovery": [],
+      "request": {
+        "kind": "act",
+        "ms": 5000,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "wait"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:04:57.916Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 2
+        }
+      ],
+      "kind": "command",
+      "offset": 6,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-initial",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 70,
+          "responses": 69,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0001-corrected-initial.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:05:59.690Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 3
+        }
+      ],
+      "kind": "command",
+      "offset": 7,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-layered-front",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 314,
+          "responses": 313,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0002-corrected-layered-front.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:06:58.296Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 4
+        }
+      ],
+      "kind": "command",
+      "offset": 8,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-original-front",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 542,
+          "responses": 540,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0003-corrected-original-front.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:08:00.278Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 5
+        }
+      ],
+      "kind": "command",
+      "offset": 9,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-original-grazing",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 788,
+          "responses": 787,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0004-corrected-original-grazing.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:09:06.943Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 6
+        }
+      ],
+      "kind": "command",
+      "offset": 10,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-regions-front",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 1049,
+          "responses": 1048,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0005-corrected-regions-front.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:10:37.964Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 7
+        }
+      ],
+      "kind": "command",
+      "offset": 11,
+      "recovery": [],
+      "request": {
+        "kind": "act",
+        "selector": "canvas",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "click"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:10:41.102Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 8
+        }
+      ],
+      "kind": "command",
+      "offset": 12,
+      "recovery": [],
+      "request": {
+        "key": "W",
+        "kind": "act",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "key_down"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:10:44.039Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 9
+        }
+      ],
+      "kind": "command",
+      "offset": 13,
+      "recovery": [],
+      "request": {
+        "kind": "act",
+        "ms": 1000,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "wait"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:10:46.958Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 10
+        }
+      ],
+      "kind": "command",
+      "offset": 14,
+      "recovery": [],
+      "request": {
+        "key": "W",
+        "kind": "act",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "key_up"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:10:50.905Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 11
+        }
+      ],
+      "kind": "command",
+      "offset": 15,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-wall-contact",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 1457,
+          "responses": 1456,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0006-corrected-wall-contact.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:14:30.552Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 12
+        }
+      ],
+      "kind": "command",
+      "offset": 16,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-layered-grazing",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 2330,
+          "responses": 2329,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0007-corrected-layered-grazing.png",
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:15:06.735Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 13
+        }
+      ],
+      "kind": "command",
+      "offset": 17,
+      "recovery": [],
+      "request": {
+        "expression": "(()=>({active:document.activeElement?.tagName+'#'+(document.activeElement?.id||''),pointerLock:document.pointerLockElement?.tagName+'#'+(document.pointerLockElement?.id||''),canvases:[...document.querySelectorAll('canvas')].map((e,i)=>({i,id:e.id,className:e.className,width:e.width,height:e.height,rect:(()=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})(),tabIndex:e.tabIndex})),buttons:[...document.querySelectorAll('button')].map(e=>e.textContent?.trim()).filter(Boolean)}))()",
+        "kind": "act",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "eval"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:15:28.811Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 14
+        }
+      ],
+      "kind": "command",
+      "offset": 18,
+      "recovery": [],
+      "request": {
+        "kind": "inspect",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:15:32.530Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 15
+        }
+      ],
+      "kind": "command",
+      "offset": 19,
+      "recovery": [],
+      "request": {
+        "kind": "inspect",
+        "selector": "canvas",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "selector": {
+          "count": 1,
+          "html": [
+            ""
+          ]
+        },
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:15:37.849Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 16
+        }
+      ],
+      "kind": "command",
+      "offset": 20,
+      "recovery": [],
+      "request": {
+        "kind": "act",
+        "selector": "canvas",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "type": "click"
+      },
+      "result": {
+        "results": [],
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:15:50.717Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 17
+        }
+      ],
+      "kind": "command",
+      "offset": 21,
+      "recovery": [],
+      "request": {
+        "kind": "inspect",
+        "properties": [
+          "id",
+          "className",
+          "width",
+          "height",
+          "tabIndex"
+        ],
+        "selector": "canvas",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "selector": {
+          "count": 1,
+          "html": [
+            ""
+          ]
+        },
+        "state": {
+          "active_element": "body",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": null,
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:16:14.938Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 18
+        }
+      ],
+      "kind": "command",
+      "offset": 22,
+      "recovery": [],
+      "request": {
+        "actions": [
+          {
+            "selector": "canvas",
+            "type": "click"
+          },
+          {
+            "key": "W",
+            "type": "key_down"
+          },
+          {
+            "ms": 1000,
+            "type": "wait"
+          },
+          {
+            "key": "W",
+            "type": "key_up"
+          }
+        ],
+        "kind": "act",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "results": [
+          {
+            "action_index": 0,
+            "ok": true,
+            "value": null
+          },
+          {
+            "action_index": 1,
+            "continued": true,
+            "error": "Error: unknown action type \"key_down\"",
+            "ok": false
+          },
+          {
+            "action_index": 2,
+            "ok": true,
+            "value": null
+          },
+          {
+            "action_index": 3,
+            "continued": true,
+            "error": "Error: unknown action type \"key_up\"",
+            "ok": false
+          }
+        ],
+        "state": {
+          "active_element": "canvas",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": "canvas",
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:17:14.109Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 19
+        }
+      ],
+      "kind": "command",
+      "offset": 23,
+      "recovery": [],
+      "request": {
+        "actions": [
+          {
+            "key": "w",
+            "type": "keyboard_down"
+          },
+          {
+            "ms": 1000,
+            "type": "wait"
+          },
+          {
+            "key": "w",
+            "type": "keyboard_up"
+          }
+        ],
+        "kind": "act",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "results": [
+          {
+            "action_index": 0,
+            "ok": true,
+            "value": null
+          },
+          {
+            "action_index": 1,
+            "ok": true,
+            "value": null
+          },
+          {
+            "action_index": 2,
+            "ok": true,
+            "value": null
+          }
+        ],
+        "state": {
+          "active_element": "canvas",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": "canvas",
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:17:19.216Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 20
+        }
+      ],
+      "kind": "command",
+      "offset": 24,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-wall-contact-delivered",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 3002,
+          "responses": 3001,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0008-corrected-wall-contact-delivered.png",
+        "state": {
+          "active_element": "canvas",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": "canvas",
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:17:55.125Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 21
+        }
+      ],
+      "kind": "command",
+      "offset": 25,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-stair-start",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 3146,
+          "responses": 3145,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0009-corrected-stair-start.png",
+        "state": {
+          "active_element": "canvas",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": "canvas",
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:18:03.005Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 22
+        }
+      ],
+      "kind": "command",
+      "offset": 26,
+      "recovery": [],
+      "request": {
+        "actions": [
+          {
+            "key": "w",
+            "type": "keyboard_down"
+          },
+          {
+            "ms": 3000,
+            "type": "wait"
+          },
+          {
+            "key": "w",
+            "type": "keyboard_up"
+          }
+        ],
+        "kind": "act",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "results": [
+          {
+            "action_index": 0,
+            "ok": true,
+            "value": null
+          },
+          {
+            "action_index": 1,
+            "ok": true,
+            "value": null
+          },
+          {
+            "action_index": 2,
+            "ok": true,
+            "value": null
+          }
+        ],
+        "state": {
+          "active_element": "canvas",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": "canvas",
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:18:07.187Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 23
+        }
+      ],
+      "kind": "command",
+      "offset": 27,
+      "recovery": [],
+      "request": {
+        "kind": "observe",
+        "label": "corrected-stair-walk",
+        "screenshot": true,
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237"
+      },
+      "result": {
+        "event_counts": {
+          "console": 4,
+          "pageErrors": 0,
+          "requests": 3195,
+          "responses": 3193,
+          "websockets": 0
+        },
+        "screenshot": "screenshots/0010-corrected-stair-walk.png",
+        "state": {
+          "active_element": "canvas",
+          "device_pixel_ratio": 1,
+          "focused": true,
+          "pointer_lock": "canvas",
+          "scroll": {
+            "x": 0,
+            "y": 0
+          },
+          "title": "Rusty CraftSurvive",
+          "url": "http://127.0.0.1:37100/",
+          "viewport": {
+            "height": 720,
+            "width": 1280
+          },
+          "visibility": "visible"
+        }
+      }
+    },
+    {
+      "at": "2026-09-06T09:19:34.206Z",
+      "discrepancies": [
+        {
+          "code": "sequence_missing",
+          "expected": 24
+        }
+      ],
+      "kind": "command",
+      "offset": 28,
+      "recovery": [],
+      "request": {
+        "acceptance_mapping": "Pass: corrected front/grazing visual evidence, actual wall-contact collision, and actual W-only stair traversal. Retain uncertainty for topology equivalence and flicker stability because still captures do not certify those properties. Preserve the initial PointerLockLoss/no-op attempt and rejected keyboard action aliases as harness discrepancies.",
+        "annotation": "Configured model identity: gpt-5.6-luna; authoritative runtime model metadata was not inspected. Root owns final mesh/aesthetic interpretation. The parent saved a valid pre-finish index because of known recorder issue #7842; do not infer final index integrity from post-finish state.",
+        "assertions": [
+          "Corrected initial textured scene was captured after waiting for rendering.",
+          "Matched UI-closed Layered, Original, and Material Regions front/grazing evidence was captured.",
+          "Canvas focus and pointer lock were established before the successful physical input sequence.",
+          "Wall contact was verified by root player readout as grounded and blocked by the wall.",
+          "W-only stair traversal was verified by root player readout as grounded movement from z=3.5 to z=23.676.",
+          "The first failed focus/input attempt and rejected action aliases remain recorded as discrepancies."
+        ],
+        "cleanup": true,
+        "exit_interview": {
+          "confidence": "moderate-high for delivered input, collision, and stair traversal; moderate for visual topology interpretation",
+          "difficulties": "An initial canvas click lost pointer lock, and guessed key_down/key_up aliases were rejected before root supplied the exact keyboard_down/keyboard_up syntax.",
+          "suggestions": "Keep the parent-saved pre-finish index and retained timeline/screenshots as the authoritative evidence if #7842 truncates the broker's final index.",
+          "workarounds": "Used one bounded DOM focus inspection, then root-corrected exact keyboard action names on the ordinary focused canvas."
+        },
+        "field_guide_usage": "Used the supplied neutral courtyard and ordinary-control guidance; root supplied controlled camera poses and final readouts.",
+        "kind": "finish",
+        "neutral_observation": "The corrected initial scene showed a textured brown courtyard bounded by dark walls, a centered tan stepped entry, grass at the base, rounded side stone forms, and timber/log forms to the right. Matched UI-closed front and grazing captures were taken for Layered, Original, and Material Regions, followed by a Layered grazing frame and controlled stair-start/walk frames.",
+        "operational_outcome": "Pass for the bounded corrected visual comparison and delivered physical checks. After canvas focus and the exact keyboard_down(w) \u2192 wait \u2192 keyboard_up(w) actions, root readout confirmed wall contact at x=-10.995 grounded with wish -7 blocked by Wall and zero displacement. The controlled W-only stair walk moved from (0,3.875,3.5) to (0.779,5.890,23.676), grounded, with +z movement unblocked. Browser and owned-host cleanup requested.",
+        "outcome": "pass",
+        "session_id": "rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237",
+        "stop_host": true
+      },
+      "result": {
+        "cleanup": {
+          "browser_closed": true,
+          "driver_stopped": true,
+          "virtual_display_stopped": true
+        },
+        "evidence_summary": {
+          "acceptance_mapping": "Pass: corrected front/grazing visual evidence, actual wall-contact collision, and actual W-only stair traversal. Retain uncertainty for topology equivalence and flicker stability because still captures do not certify those properties. Preserve the initial PointerLockLoss/no-op attempt and rejected keyboard action aliases as harness discrepancies.",
+          "field_guide_usage": "Used the supplied neutral courtyard and ordinary-control guidance; root supplied controlled camera poses and final readouts.",
+          "neutral_observation": "The corrected initial scene showed a textured brown courtyard bounded by dark walls, a centered tan stepped entry, grass at the base, rounded side stone forms, and timber/log forms to the right. Matched UI-closed front and grazing captures were taken for Layered, Original, and Material Regions, followed by a Layered grazing frame and controlled stair-start/walk frames.",
+          "operational_outcome": "Pass for the bounded corrected visual comparison and delivered physical checks. After canvas focus and the exact keyboard_down(w) \u2192 wait \u2192 keyboard_up(w) actions, root readout confirmed wall contact at x=-10.995 grounded with wish -7 blocked by Wall and zero displacement. The controlled W-only stair walk moved from (0,3.875,3.5) to (0.779,5.890,23.676), grounded, with +z movement unblocked. Browser and owned-host cleanup requested."
+        },
+        "exit_interview": {
+          "confidence": "moderate-high for delivered input, collision, and stair traversal; moderate for visual topology interpretation",
+          "difficulties": "An initial canvas click lost pointer lock, and guessed key_down/key_up aliases were rejected before root supplied the exact keyboard_down/keyboard_up syntax.",
+          "suggestions": "Keep the parent-saved pre-finish index and retained timeline/screenshots as the authoritative evidence if #7842 truncates the broker's final index.",
+          "workarounds": "Used one bounded DOM focus inspection, then root-corrected exact keyboard action names on the ordinary focused canvas."
+        },
+        "index_path": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237/playtest-index.json",
+        "status": "pass"
+      }
+    },
+    {
+      "at": "2026-09-06T09:19:55.138059677Z",
+      "diagnostics": [],
+      "driver_pid": 728000,
+      "kind": "finish",
+      "server_pid": 727601,
+      "server_stopped": true
+    }
+  ],
+  "timeline_file": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237/timeline.jsonl",
+  "viewport": {
+    "height": 720,
+    "width": 1280
+  },
+  "provenance": {
+    "kind": "final index excerpt",
+    "original": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T090432.495399617Z-475237/playtest-index.json",
+    "omitted": "events (large network log)",
+    "canonicalFinalIndex": false
+  }
+}

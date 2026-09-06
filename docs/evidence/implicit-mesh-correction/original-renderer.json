@@ -1,0 +1,87 @@
+{
+  "available": true,
+  "canvas": {
+    "backingHeight": 180,
+    "backingWidth": 320,
+    "cssHeight": 720,
+    "cssWidth": 1280,
+    "effectivePixelRatio": 0.25
+  },
+  "frame": {
+    "intervalMs": 116.79999999998836,
+    "intervalStatus": "available",
+    "renderSequence": 736,
+    "submissionRateHz": 6.796706783166471,
+    "syncSubmissionMs": 0.6000000238418579,
+    "syncSubmissionStatus": "available"
+  },
+  "pacing": {
+    "completionAgeMs": 20.5,
+    "completionFenceMode": "active",
+    "effectiveDurationMs": 20.5,
+    "mode": "completionOnly",
+    "pendingMeasurementCount": 0,
+    "pendingSubmissionCount": 0,
+    "state": "waiting",
+    "timerDurationMs": null
+  },
+  "renderer": {
+    "class": "software",
+    "name": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "vendor": "Google Inc. (Google)"
+  },
+  "resources": {
+    "definedTextureCount": 7,
+    "materialFallbackCount": 0,
+    "skyBackground": {
+      "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+      "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+      "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+    },
+    "spriteAtlasCount": 0,
+    "spriteFallbackCount": 0,
+    "voxelSpecializedMaterialCount": 0
+  },
+  "schemaVersion": 1,
+  "statistics": {
+    "animatedInstanceCount": {
+      "scope": "liveResident",
+      "status": "available",
+      "value": 1
+    },
+    "drawCallCount": {
+      "scope": "perSubmission",
+      "status": "available",
+      "value": 56
+    },
+    "geometryResourceCount": {
+      "scope": "liveResident",
+      "status": "available",
+      "value": 68
+    },
+    "materialResourceCount": {
+      "scope": "liveResident",
+      "status": "available",
+      "value": 271
+    },
+    "renderHandleCount": {
+      "scope": "liveResident",
+      "status": "available",
+      "value": 72
+    },
+    "schemaVersion": 1,
+    "textureResourceCount": {
+      "scope": "liveResident",
+      "status": "available",
+      "value": 10
+    },
+    "triangleCount": {
+      "scope": "perSubmission",
+      "status": "available",
+      "value": 53150
+    }
+  },
+  "widget": {
+    "visible": false
+  }
+}
