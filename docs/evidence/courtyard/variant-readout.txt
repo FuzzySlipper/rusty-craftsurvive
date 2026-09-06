@@ -1,0 +1,1 @@
+generation=4;treatment=soft;width=26.0;doorWidth=3.8;doorOffset=0.25;seed=12345;courtyardDepth=20;passageLength=12;chamber=12x10;parts=67;triangles=216176;vertices=153052;seconds=0.627;cellSize=0.200;crease=110;reorientedTriangles=3435;shadows=True;collision=generated-mesh-copy

@@ -30,28 +30,62 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   const panel = document.createElement('aside');
   panel.setAttribute('aria-label', 'Rusty CraftSurvive status');
   panel.setAttribute('data-rusty-ui-interactive', '');
-  panel.style.cssText = 'max-height:calc(100vh - 1rem);max-width:100%;overflow:auto;pointer-events:auto;position:relative;width:fit-content;z-index:1;';
+  panel.style.cssText = 'background:rgb(15 19 25 / 88%);border:1px solid #62748a;border-radius:.35rem;color:#edf5ff;font:.76rem/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:calc(100vh - 1rem);max-width:calc(100vw - 1rem);overflow:auto;padding:.35rem .45rem;pointer-events:auto;position:relative;width:fit-content;z-index:1;';
   isolateEvents(panel);
-  const title = document.createElement('h1');
+  const header = document.createElement('header');
+  header.style.cssText = 'align-items:center;display:flex;gap:.55rem;justify-content:space-between;';
+  const title = document.createElement('strong');
   title.textContent = 'Rusty CraftSurvive';
+  const metricsToggle = button('Show metrics');
+  metricsToggle.setAttribute('aria-pressed', 'false');
   const status = document.createElement('p');
   status.hidden = true;
   status.setAttribute('role', 'alert');
-  panel.append(title, status);
+  header.append(title, metricsToggle);
+  panel.append(header, status);
 
   const transport = createLiveDebugHttpTransport();
   const metricsHost = document.createElement('div');
+  metricsHost.id = 'craft-renderer-metrics';
   metricsHost.setAttribute('aria-label', 'Renderer performance metrics');
-  metricsHost.style.cssText = 'max-width:min(40rem,calc(100vw - 1rem));overflow:auto;';
+  metricsHost.style.cssText = 'margin-top:.3rem;max-width:min(24rem,calc(100vw - 2rem));overflow:auto;';
   panel.append(metricsHost);
-  const metrics = mountRendererMetricsWidget(metricsHost, { initiallyVisible: true, transport });
+  const metrics = mountRendererMetricsWidget(metricsHost, { initiallyVisible: false, transport });
+  metricsToggle.setAttribute('aria-controls', metricsHost.id);
   const debugButton = button('Open live debug');
   debugButton.setAttribute('aria-expanded', 'false');
   const debugHost = document.createElement('div');
+  debugHost.id = 'craft-live-debug';
   debugHost.hidden = true;
+  debugButton.setAttribute('aria-controls', debugHost.id);
   panel.append(debugButton, debugHost);
   let debugPanel: LiveDebugPanelMount | null = null;
   let disposed = false;
+  let metricsVisible = false;
+  metricsToggle.addEventListener('click', () => {
+    if (disposed) return;
+    const nextVisible = !metricsVisible;
+    metricsToggle.disabled = true;
+    status.hidden = true;
+    void transport.execute(nextVisible ? 'engine.renderer.show' : 'engine.renderer.hide').then((result) => {
+      if (disposed) return;
+      if (!result.succeeded) {
+        status.textContent = message(new Error(result.message), 'Renderer metrics command failed.');
+        status.hidden = false;
+        return;
+      }
+
+      metricsVisible = nextVisible;
+      metricsToggle.textContent = metricsVisible ? 'Hide metrics' : 'Show metrics';
+      metricsToggle.setAttribute('aria-pressed', String(metricsVisible));
+    }).catch((error: unknown) => {
+      if (disposed) return;
+      status.textContent = message(error, 'Renderer metrics command failed.');
+      status.hidden = false;
+    }).finally(() => {
+      if (!disposed) metricsToggle.disabled = false;
+    });
+  });
   debugButton.addEventListener('click', () => {
     if (disposed) return;
     if (debugPanel !== null) {
@@ -70,22 +104,77 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
       status.textContent = message(error, 'Live debug panel could not start.'); status.hidden = false;
     });
   });
+  const courtyard = mountCourtyardControls(panel, transport);
   const ghost = mountGhostSettings(panel, transport);
   root.append(panel);
   return Object.freeze({ dispose: () => {
-    disposed = true; ghost.dispose(); debugPanel?.dispose(); metrics.dispose(); panel.remove();
+    disposed = true; courtyard.dispose(); ghost.dispose(); debugPanel?.dispose(); metrics.dispose(); panel.remove();
   } });
+}
+
+/** Sends compact C# courtyard controls without retaining product scene state in the DOM. */
+function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport): Readonly<{ dispose(): void }> {
+  const toggle = button('Courtyard');
+  toggle.setAttribute('aria-expanded', 'false');
+  const controls = document.createElement('section');
+  controls.id = 'craft-courtyard-controls';
+  controls.hidden = true;
+  controls.setAttribute('aria-label', 'Courtyard controls');
+  controls.style.cssText = 'border-top:1px solid #415165;margin-top:.35rem;padding-top:.35rem;';
+  toggle.setAttribute('aria-controls', controls.id);
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:.3rem;';
+  const balanced = button('Balanced');
+  const faceted = button('Faceted');
+  const soft = button('Soft');
+  const refresh = button('Refresh');
+  actions.append(balanced, faceted, soft, refresh);
+  const receipt = document.createElement('p');
+  receipt.setAttribute('aria-live', 'polite');
+  receipt.style.cssText = 'margin:.35rem 0 0;max-width:24rem;overflow-wrap:anywhere;';
+  controls.append(actions, receipt);
+  host.append(toggle, controls);
+
+  let disposed = false;
+  const allActions = [balanced, faceted, soft, refresh];
+  const execute = async (label: string, command: string, queued: boolean): Promise<void> => {
+    if (disposed) return;
+    for (const action of allActions) action.disabled = true;
+    receipt.textContent = queued ? `Queueing ${label} treatment…` : 'Reading C# courtyard state…';
+    try {
+      const result = await transport.execute(command);
+      if (!result.succeeded) throw new Error(result.message);
+      receipt.textContent = queued
+        ? `Queued ${label} treatment; it applies on the next product update. Receipt: ${result.message}`
+        : `C# readout: ${result.message}`;
+    } catch (error: unknown) {
+      receipt.textContent = `Command failed: ${message(error, 'Courtyard command failed.')}`;
+    } finally {
+      if (!disposed) for (const action of allActions) action.disabled = false;
+    }
+  };
+  toggle.addEventListener('click', () => {
+    controls.hidden = !controls.hidden;
+    toggle.setAttribute('aria-expanded', String(!controls.hidden));
+  });
+  balanced.addEventListener('click', () => void execute('Balanced', 'craft.courtyard.treatment balanced', true));
+  faceted.addEventListener('click', () => void execute('Faceted', 'craft.courtyard.treatment faceted', true));
+  soft.addEventListener('click', () => void execute('Soft', 'craft.courtyard.treatment soft', true));
+  refresh.addEventListener('click', () => void execute('', 'craft.courtyard.readout', false));
+  return Object.freeze({ dispose: () => { disposed = true; controls.remove(); toggle.remove(); } });
 }
 
 function mountGhostSettings(host: HTMLElement, transport: LiveDebugTransport): Readonly<{ dispose(): void }> {
   const toggle = button('Open Ghost Settings');
   toggle.setAttribute('aria-expanded', 'false');
   const settings = document.createElement('section');
+  settings.id = 'craft-ghost-settings';
   settings.hidden = true;
   settings.setAttribute('role', 'dialog');
   settings.setAttribute('aria-label', 'Ghost Settings');
   settings.setAttribute('aria-modal', 'false');
   settings.style.cssText = 'background:rgb(15 19 25 / 96%);border:1px solid #62748a;border-radius:.4rem;color:#edf5ff;font:.78rem/1.35 ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:.6rem;max-height:min(42rem,calc(100vh - 9rem));overflow:auto;padding:.7rem;width:min(38rem,calc(100vw - 2rem));';
+  toggle.setAttribute('aria-controls', settings.id);
   const title = document.createElement('strong');
   title.textContent = 'Ghost Settings';
   const close = button('Close');

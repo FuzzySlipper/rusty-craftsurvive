@@ -19,6 +19,7 @@ internal sealed class PlayerController : IDisposable
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
+    private readonly PlayerSceneDefaults sceneDefaults;
     private readonly PlayerInputState input = new();
     private readonly EntityWorld entityWorld = new([RuntimeComponent]);
     private readonly EntityId playerEntity;
@@ -70,6 +71,7 @@ internal sealed class PlayerController : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
+        sceneDefaults = PlayerConstants.ForScene(terrain.IsCourtyard);
         controllerConfig = CreateControllerConfig(engine.Spatial.DefaultCharacterControllerConfig());
         lookConfig = new LookConfig(
             PlayerConstants.LookRadiansPerInputUnit,
@@ -81,13 +83,13 @@ internal sealed class PlayerController : IDisposable
             true,
             true);
         look = new LookState(
-            DegreesToRadians(PlayerConstants.InitialYawDegrees),
+            DegreesToRadians(sceneDefaults.InitialYawDegrees),
             DegreesToRadians(PlayerConstants.InitialPitchDegrees));
-        playerGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.InitialEyePosition - new Vector3(
+        playerGlobal = PlayerWorldPosition.FromWorld(sceneDefaults.InitialEyePosition - new Vector3(
             0f,
             EyeOffset(CharacterStance.Standing),
             0f));
-        platformGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.PlatformInitialCenter);
+        platformGlobal = PlayerWorldPosition.FromWorld(sceneDefaults.PlatformInitialCenter);
         playerEntity = entityWorld.Create();
         PublishRuntimeComponent();
     }
@@ -106,7 +108,7 @@ internal sealed class PlayerController : IDisposable
         platformAppearance = engine.Graphics.CreatePrimitive(new PrimitiveAppearanceRequest(
             PrimitiveGeometry.Cube,
             Wireframe: false,
-            PlayerConstants.PlatformColor));
+            sceneDefaults.PlatformColor));
         camera = engine.CameraView.CreateCamera(CreateCameraDescriptor());
         engine.CameraView.SetActiveCamera(camera);
         cameraPublicationCount = 1UL;
@@ -371,11 +373,11 @@ internal sealed class PlayerController : IDisposable
             return;
         }
 
-        if (platformGlobal.WorldX >= PlayerConstants.PlatformTravelMaximumX)
+        if (platformGlobal.WorldX >= sceneDefaults.PlatformTravelMaximumX)
         {
             platformDirection = -1f;
         }
-        else if (platformGlobal.WorldX <= PlayerConstants.PlatformTravelMinimumX)
+        else if (platformGlobal.WorldX <= sceneDefaults.PlatformTravelMinimumX)
         {
             platformDirection = 1f;
         }
@@ -427,6 +429,7 @@ internal sealed class PlayerController : IDisposable
         playerLocal = player.LocalTransform.Translation;
         platformLocal = platform.LocalTransform.Translation;
         Vector3 localTranslation = playerLocal - playerBeforeRebase;
+        terrain.TranslateCourtyard(localTranslation);
         motion = motion with
         {
             SupportPreviousTranslation = motion.SupportPreviousTranslation + localTranslation,

@@ -3,7 +3,7 @@
 ## Current lane
 
 CraftSurvive is one ordinary C# product project developed through the installed
-`Rusty.Engine` SDK. The paired `.runtime/runtime-pack-8058772cbad2/bin/rusty dev` command
+`Rusty.Engine` SDK. The paired `.runtime/runtime-pack-b9740421c2d2/bin/rusty dev` command
 stages and loads its CoreCLR bundle for both local development and Den. The
 SDK owns the generated composition below `obj/`; NativeAOT is an explicit
 fidelity/release target, never a checked product project or normal host.
@@ -11,7 +11,7 @@ fidelity/release target, never a checked product project or normal host.
 ```text
 CraftSurvive.Game          checked C# product state and gameplay domains
 Rusty.Engine SDK           safe services and generated composition/staging
-.runtime/runtime-pack-8058772cbad2/ paired CoreCLR development runtime
+.runtime/runtime-pack-b9740421c2d2/ paired CoreCLR development runtime
 .runtime/sdk-feed/         paired Rusty.Engine package feed
 src/ui/main.ts             DOM-only companion UI
 content/                   canonical terrain, sky, and voxel content
@@ -25,7 +25,7 @@ named SDK services; neither C# nor UI code recreates those mechanisms.
 
 `NuGet.Config` resolves the exact package version declared by
 `CraftSurvive.Game.csproj` from `.runtime/sdk-feed/`. The pinned
-`Rusty.Engine.0.1.0-dev.8058772cbad2.nupkg` and `.runtime/runtime-pack-8058772cbad2/`
+`Rusty.Engine.0.1.0-dev.b9740421c2d2.nupkg` and `.runtime/runtime-pack-b9740421c2d2/`
 are a single exact installed pair. Do not mix either with a backup, a package
 from another feed, or a separately discovered checkout.
 
@@ -43,7 +43,7 @@ path.
 | Product lifecycle and bootstrap | `CraftSurviveProduct` and SDK composition | Active. The SDK emits and stages the CoreCLR product from one explicit product type. |
 | Runtime pack and Den host | Packaged `rusty dev` | Active. `.den-serve.json` is broker-owned and starts the same CoreCLR lane. |
 | DOM companion | `src/ui/main.ts` | Active. Static product UI only; it does not own game facts or input meaning. |
-| Terrain recipe and bounds | `Modules/Terrain` | Active. Deterministic generation-v2 recipe, 16³ chunks, bounded residency, and named product tuning. |
+| Terrain recipe and bounds | `Modules/Terrain` | Active. `CourtyardScene` constructs the default 24×20m courtyard, 12m passage and 12×10m chamber through Engine ImplicitSurfaces; Graphics retains results and Spatial copies their collision. `TraversalShowcase` retains the prior voxel recipe. |
 | Voxel residency and edits | `TerrainWorld` plus Engine Voxel/Spatial services | Active. Product admits revision-checked edits and leases; Engine owns voxel scene and collision/presentation mechanisms. |
 | Terrain persistence | `TerrainOverlayState` and `TerrainOverlayCodec` plus Engine Persistence | Active. One bounded canonical overlay owner. |
 | Terrain presentation | `Modules/Terrain/TerrainAtlasCatalog`, `TerrainWorld`, Engine AuthoredContent/Appearance/VoxelScenePresentation | Active. C# selects the canonical atlas and source-slot/face policy; Engine admits resources, resolves materials, retains mesh/renderer handles, and returns copied mapping rows. |

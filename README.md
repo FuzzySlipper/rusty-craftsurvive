@@ -22,7 +22,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  runtime-pack-8058772cbad2/  paired `rusty dev` runtime
+  runtime-pack-b9740421c2d2/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -42,8 +42,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/runtime-pack-8058772cbad2/bin/rusty dev \
-  --runtime ./.runtime/runtime-pack-8058772cbad2 \
+./.runtime/runtime-pack-b9740421c2d2/bin/rusty dev \
+  --runtime ./.runtime/runtime-pack-b9740421c2d2 \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -52,8 +52,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/runtime-pack-8058772cbad2/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.8058772cbad2.nupkg` form one installed,
+`.runtime/runtime-pack-b9740421c2d2/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.b9740421c2d2.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -62,7 +62,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/runtime-pack-8058772cbad2/bin/rusty dev \
+./.runtime/runtime-pack-b9740421c2d2/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -85,6 +85,9 @@ location.
   collision, character, camera, appearance, and origin mechanisms.
 - `Modules/Sky` selects the canonical authored panorama through Engine
   Appearance and CameraView. Engine owns its resource and renderer lifecycle.
+- `Modules/Terrain/CourtyardScene` owns the current ruined-courtyard runtime
+  recipe, using the existing terrain/player shell and Engine presentation
+  services.
 - `src/ui/main.ts` mounts DOM guidance, Ghost Settings, and live diagnostics beside the Engine-owned canvas.
 
 This is a runnable continuation lane, not a claim of complete survival
@@ -138,3 +141,6 @@ new source capture. **Use observed values** replaces a draft with the current C#
 readout; background reads preserve unsaved input. Visibility, relief, direction,
 capture framing/lighting, placement, and size all use the packaged Engine debug
 client and existing `craft.ghost.*` commands.
+
+The runtime courtyard controls, treatment comparison, authoring variation and
+remaining limits are recorded in [the courtyard result](docs/courtyard-verdict.md).

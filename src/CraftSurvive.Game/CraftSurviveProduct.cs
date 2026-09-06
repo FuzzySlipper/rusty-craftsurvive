@@ -69,6 +69,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             PublishAppearanceSnapshot();
             ghostSourcePublished = true;
             ghost.Start();
+            if (terrain.IsCourtyard)
+            {
+                microvoxels.SetVisible(false);
+                ghost.QueueVisibility(false);
+            }
             microvoxels.Start();
             lifecycle = ProductLifecycleState.Running;
         }
@@ -111,10 +116,12 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
+        terrain.UpdateCourtyard();
         player.Update(update);
         // Publish the complete source fact at its queued transform before the
         // retained ghost operation observes the same desired placement.
         PublishAppearanceSnapshot(useDesiredGhostSource: true);
+        terrain.ReleaseRetiredCourtyard();
         ghost.Update();
         microvoxels.Update();
         return ProductUpdateResult.None;
@@ -171,6 +178,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         sky.Dispose();
+        ghost.DisposePresentation();
+        engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         ghost.Dispose();
         player.Dispose();
         microvoxels.Dispose();
@@ -203,6 +212,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         {
             engine.Graphics.PublishSnapshot(
             [
+                ..terrain.CourtyardFacts,
                 player.PlatformAppearanceFact,
                 useDesiredGhostSource
                     ? ghost.DesiredSourceAppearanceFact
@@ -211,7 +221,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             return;
         }
 
-        engine.Graphics.PublishSnapshot([player.PlatformAppearanceFact]);
+        engine.Graphics.PublishSnapshot([..terrain.CourtyardFacts, player.PlatformAppearanceFact]);
     }
 
     private enum ProductLifecycleState

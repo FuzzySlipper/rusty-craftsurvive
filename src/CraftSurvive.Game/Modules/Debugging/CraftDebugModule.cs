@@ -147,6 +147,28 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount}");
     }
 
+    [DebugCommand("craft.courtyard.shadows", Description = "Queues directional shadow intent for a controlled lighting comparison.")]
+    public string SetCourtyardShadows(bool enabled) => terrain.QueueCourtyardShadows(enabled);
+
+    [DebugCommand("craft.courtyard.readout", Description = "Reads courtyard generation, geometry and treatment totals.")]
+    public string ReadCourtyard() => terrain.ReadCourtyard();
+
+    [DebugCommand("craft.courtyard.treatment", Description = "Queues balanced, faceted, or soft courtyard regeneration.")]
+    public string SetCourtyardTreatment(string treatment) => terrain.QueueCourtyardTreatment(treatment);
+
+    [DebugCommand("craft.courtyard.layout", Description = "Queues courtyard width, doorway width/offset and detail seed regeneration.")]
+    public string SetCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => terrain.QueueCourtyardLayout(width, doorWidth, doorOffset, seed);
+
+    [DebugCommand("craft.courtyard.view", Description = "Moves the ordinary player camera to a selected eye and target for aesthetic comparisons.")]
+    public string ViewCourtyard(float x, float y, float z, float targetX, float targetY, float targetZ)
+    {
+        PlayerRuntimeComponent state = player.ViewFrom(new Vector3(x, y, z), new Vector3(targetX, targetY, targetZ));
+        return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
+    }
+
+    [DebugCommand("craft.terrain.layout", Description = "Reads the selected product terrain layout and its stable dimensions.")]
+    public string ReadTerrainLayout() => terrain.ReadLayout();
+
     [DebugCommand("craft.terrain.edit", Description = "Reads the latest terrain target and typed edit outcome.")]
     public string ReadTerrainEdit() => player.TerrainEditReadout();
 

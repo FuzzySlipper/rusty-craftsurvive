@@ -26,7 +26,7 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(Convert.ToHexString(hash.GetHashAndReset()) == expected, "authored material snapshot changed");
 }
 
-var configuration = TerrainConfiguration.Default;
+var configuration = TerrainConfiguration.TraversalShowcase;
 var recipe = configuration.CreateRecipe();
 var chunkGenerator = new TerrainChunkGenerator(recipe);
 var state = new TerrainOverlayState(configuration.Seed);

@@ -14,6 +14,7 @@ internal sealed class TerrainWorld : IDisposable
 {
     private readonly IEngineContext engine;
     private readonly TerrainRecipe recipe;
+    private readonly CourtyardScene? courtyard;
     private readonly TerrainChunkGenerator chunkGenerator;
     private readonly TerrainResidencyPolicy residencyPolicy;
     private readonly TerrainOverlayState overlay;
@@ -39,7 +40,8 @@ internal sealed class TerrainWorld : IDisposable
         overlay = new TerrainOverlayState(configuration.Seed);
         // Authored content is selected during Product Create so the Engine
         // can retain the resource for every later presentation attachment.
-        atlasCatalog = new TerrainAtlasCatalog(engine);
+        if (configuration.Scene == TerrainSceneMode.ExperimentalCourtyard) courtyard = new CourtyardScene(engine);
+        else atlasCatalog = new TerrainAtlasCatalog(engine);
     }
 
     internal void Start()
@@ -59,9 +61,10 @@ internal sealed class TerrainWorld : IDisposable
             uiStream = engine.Ui.OpenStream(new UiStreamRequest(
                 TerrainConstants.UiStreamName,
                 TerrainConstants.UiStreamContract));
-            RestoreOverlay();
+            if (courtyard is null) RestoreOverlay();
             Synchronize(FixedResidencyCenter);
-            CreatePresentation();
+            courtyard?.Start(Session);
+            if (courtyard is null) CreatePresentation();
             PublishUi();
             started = true;
         }
@@ -71,6 +74,16 @@ internal sealed class TerrainWorld : IDisposable
             throw;
         }
     }
+
+    internal IEnumerable<AppearanceFact> CourtyardFacts => courtyard?.Facts ?? [];
+    internal bool IsCourtyard => courtyard is not null;
+    internal void ReleaseRetiredCourtyard() => courtyard?.ReleaseRetired();
+    internal void UpdateCourtyard() => courtyard?.Update();
+    internal void TranslateCourtyard(Vector3 delta) => courtyard?.Translate(delta);
+    internal string QueueCourtyardShadows(bool enabled) => courtyard?.QueueShadows(enabled) ?? "courtyard inactive";
+    internal string ReadCourtyard() => courtyard?.Readout() ?? "courtyard inactive";
+    internal string QueueCourtyardTreatment(string treatment) => courtyard?.QueueTreatment(treatment) ?? "courtyard inactive";
+    internal string QueueCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => courtyard?.QueueLayout(width, doorWidth, doorOffset, seed) ?? "courtyard inactive";
 
     internal void Update()
     {
@@ -106,7 +119,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         EnsureStarted();
         playerUi = facts;
-        RefreshPresentation();
+        if (presentation is not null) RefreshPresentation();
         PublishUi();
     }
 
@@ -222,7 +235,7 @@ internal sealed class TerrainWorld : IDisposable
     internal void Attach()
     {
         EnsureStarted();
-        RefreshPresentation();
+        if (presentation is not null) RefreshPresentation();
         PublishUi();
     }
 
@@ -237,6 +250,7 @@ internal sealed class TerrainWorld : IDisposable
         residentChunks.Clear();
         presentation?.Dispose();
         presentation = null;
+        courtyard?.Dispose();
         atlasCatalog?.Dispose();
         atlasCatalog = null;
         materialMapping = default;
@@ -265,6 +279,9 @@ internal sealed class TerrainWorld : IDisposable
         return materialMapping;
     }
 
+    /// <summary>Reads the selected product layout without querying or replacing Engine state.</summary>
+    internal string ReadLayout() => courtyard?.Readout() ?? "mode=traversal-showcase";
+
     /// <summary>Formats the latest player-consumed target/edit result for the narrow live debug surface.</summary>
     internal static string FormatEditReadout(TerrainWorldEditResult? result) => result switch
     {
@@ -288,6 +305,7 @@ internal sealed class TerrainWorld : IDisposable
 
     private bool Synchronize(TerrainChunkAddress center)
     {
+        if (courtyard is not null) return false;
         TerrainResidencyPlan plan = residencyPolicy.PlanFor(center, overlay);
 
         foreach (TerrainChunkAddress address in leases.Keys.Where(address => !plan.Requested.Contains(address)).ToArray())
