@@ -128,6 +128,11 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const original = button('Original');
   const materialRegions = button('Material regions');
   const layered = button('Layered');
+  const centroidBoundaries = button('Centroid');
+  const interpolatedBoundaries = button('Interpolated');
+  const cutoffNegative = button('Cutoff −0.08m');
+  const cutoffZero = button('Cutoff 0.00m');
+  const cutoffPositive = button('Cutoff +0.08m');
   const viewTestWall = button('View test wall');
   const grazingView = button('Grazing view');
   const refresh = button('Refresh');
@@ -136,9 +141,11 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   actionRows.append(
     actionRow('Shading', balanced, faceted, soft),
     actionRow('Test wall', original, materialRegions, layered),
+    actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
+    actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
     actionRow('View', viewTestWall, grazingView, refresh));
   const scope = document.createElement('p');
-  scope.textContent = 'Test-wall choices change only the west-wall bay.';
+  scope.textContent = 'Test wall changes the west comparison bay. Boundaries and cutoff change material edges across the courtyard while keeping the authored shapes fixed.';
   scope.style.cssText = 'margin:.35rem 0 0;max-width:24rem;';
   const receipt = document.createElement('p');
   receipt.setAttribute('aria-live', 'polite');
@@ -147,7 +154,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   host.append(toggle, controls);
 
   let disposed = false;
-  const allActions = [balanced, faceted, soft, original, materialRegions, layered, viewTestWall, grazingView, refresh];
+  const allActions = [balanced, faceted, soft, original, materialRegions, layered, centroidBoundaries, interpolatedBoundaries,
+    cutoffNegative, cutoffZero, cutoffPositive, viewTestWall, grazingView, refresh];
   const execute = async (label: string, command: string, resultKind: 'queued' | 'requested' | 'readout'): Promise<void> => {
     if (disposed) return;
     for (const action of allActions) action.disabled = true;
@@ -177,6 +185,11 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   original.addEventListener('click', () => void execute('Original masonry', 'craft.courtyard.masonry original', 'queued'));
   materialRegions.addEventListener('click', () => void execute('Material regions masonry', 'craft.courtyard.masonry regions', 'queued'));
   layered.addEventListener('click', () => void execute('Layered masonry', 'craft.courtyard.masonry layered', 'queued'));
+  centroidBoundaries.addEventListener('click', () => void execute('Centroid material boundaries', 'craft.courtyard.boundaries centroid', 'queued'));
+  interpolatedBoundaries.addEventListener('click', () => void execute('Interpolated material boundaries', 'craft.courtyard.boundaries interpolated', 'queued'));
+  cutoffNegative.addEventListener('click', () => void execute('−0.08m material cutoff', 'craft.courtyard.cutoff -0.08', 'queued'));
+  cutoffZero.addEventListener('click', () => void execute('0.00m material cutoff', 'craft.courtyard.cutoff 0', 'queued'));
+  cutoffPositive.addEventListener('click', () => void execute('+0.08m material cutoff', 'craft.courtyard.cutoff 0.08', 'queued'));
   viewTestWall.addEventListener('click', () => void execute('Front test-wall view', 'craft.courtyard.inspect front', 'requested'));
   grazingView.addEventListener('click', () => void execute('Grazing test-wall view', 'craft.courtyard.inspect grazing', 'requested'));
   refresh.addEventListener('click', () => void execute('', 'craft.courtyard.readout', 'readout'));

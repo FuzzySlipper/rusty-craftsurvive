@@ -159,6 +159,12 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.courtyard.masonry", Description = "Queues original, regions, or layered construction for the west-wall test section.")]
     public string SetCourtyardMasonry(string mode) => terrain.QueueCourtyardMasonry(mode);
 
+    [DebugCommand("craft.courtyard.boundaries", Description = "Queues centroid or interpolated implicit material-region boundaries without changing courtyard geometry.")]
+    public string SetCourtyardMaterialBoundaries(string mode) => terrain.QueueCourtyardMaterialBoundaries(mode);
+
+    [DebugCommand("craft.courtyard.cutoff", Description = "Queues a -0.15m to 0.15m vertical material-region cutoff without changing courtyard geometry.")]
+    public string SetCourtyardMaterialCutoff(float cutoff) => terrain.QueueCourtyardMaterialCutoff(cutoff);
+
     [DebugCommand("craft.courtyard.inspect", Description = "Views the current west-wall test section: front or grazing.")]
     public string InspectCourtyard(string angle)
     {

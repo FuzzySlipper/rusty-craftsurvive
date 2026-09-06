@@ -1,0 +1,433 @@
+{
+  "schema_version": "den-playwright-playtest/v1",
+  "session_id": "rusty-craftsurvive-playtest-20260906T103516.094639865Z-835292",
+  "project": "rusty-craftsurvive",
+  "repository": "/home/dev/rusty-craftsurvive",
+  "scenario": "material-boundaries",
+  "owner_label": "/root/courtyard_final_walk",
+  "metadata": {
+    "headed": false,
+    "manifest_path": "/home/dev/rusty-craftsurvive/.den-playwright.json",
+    "owner": "/root/courtyard_final_walk",
+    "project": "rusty-craftsurvive",
+    "record_video": false,
+    "repo_root": "/home/dev/rusty-craftsurvive",
+    "scenario": "material-boundaries",
+    "verbose_trace": false,
+    "viewport": {
+      "height": 720,
+      "width": 1280
+    }
+  },
+  "started_at": "2026-09-06T10:35:27.138Z",
+  "finished_at": null,
+  "status": "running",
+  "base_url": "http://127.0.0.1:37100",
+  "browser": {
+    "name": "chromium",
+    "version": "149.0.7827.55",
+    "headed": false,
+    "virtual_display": true
+  },
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "requests_file": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T103516.094639865Z-835292/requests.jsonl",
+  "timeline_file": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260906T103516.094639865Z-835292/timeline.jsonl",
+  "discrepancies": [
+    {
+      "at": "2026-09-06T10:35:36.628Z",
+      "code": "sequence_missing",
+      "expected": 1,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:35:44.664Z",
+      "code": "sequence_missing",
+      "expected": 2,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:36:19.698Z",
+      "code": "sequence_missing",
+      "expected": 3,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:36:23.301Z",
+      "code": "sequence_missing",
+      "expected": 4,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:36:26.745Z",
+      "code": "sequence_missing",
+      "expected": 5,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:36:31.822Z",
+      "code": "sequence_missing",
+      "expected": 6,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:36:36.661Z",
+      "code": "sequence_missing",
+      "expected": 7,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:37:19.814Z",
+      "code": "sequence_missing",
+      "expected": 8,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:37:27.050Z",
+      "code": "sequence_missing",
+      "expected": 9,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:37:31.200Z",
+      "code": "sequence_missing",
+      "expected": 10,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:37:36.552Z",
+      "code": "sequence_missing",
+      "expected": 11,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:37:40.501Z",
+      "code": "sequence_missing",
+      "expected": 12,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:37:46.586Z",
+      "code": "sequence_missing",
+      "expected": 13,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:38:38.487Z",
+      "code": "sequence_missing",
+      "expected": 14,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:38:42.687Z",
+      "code": "sequence_missing",
+      "expected": 15,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:38:47.141Z",
+      "code": "sequence_missing",
+      "expected": 16,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:39:38.775Z",
+      "code": "sequence_missing",
+      "expected": 17,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:39:43.481Z",
+      "code": "sequence_missing",
+      "expected": 18,
+      "continued": true
+    },
+    {
+      "at": "2026-09-06T10:40:41.858Z",
+      "code": "sequence_missing",
+      "expected": 19,
+      "continued": true
+    }
+  ],
+  "observations": [
+    {
+      "at": "2026-09-06T10:35:44.942Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "body",
+        "pointer_lock": null,
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0001-material-boundaries-initial.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 84,
+        "responses": 82,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:36:19.902Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "body",
+        "pointer_lock": null,
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0002-interpolated-corner.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 223,
+        "responses": 221,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:36:36.785Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "button",
+        "pointer_lock": null,
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0003-centroid-corner.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 286,
+        "responses": 285,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:37:31.845Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "button",
+        "pointer_lock": null,
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0004-interpolated-minus.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 495,
+        "responses": 494,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:37:40.628Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "button",
+        "pointer_lock": null,
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0005-interpolated-plus.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 524,
+        "responses": 523,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:38:38.594Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "button",
+        "pointer_lock": null,
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0006-boundaries-wall-before.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 749,
+        "responses": 748,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:38:47.309Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "canvas",
+        "pointer_lock": "canvas",
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0007-boundaries-wallcontact.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 788,
+        "responses": 787,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:39:43.543Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "canvas",
+        "pointer_lock": "canvas",
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0008-boundaries-wallslide.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 1015,
+        "responses": 1014,
+        "websockets": 0
+      }
+    },
+    {
+      "at": "2026-09-06T10:40:42.018Z",
+      "state": {
+        "url": "http://127.0.0.1:37100/",
+        "title": "Rusty CraftSurvive",
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        },
+        "focused": true,
+        "active_element": "canvas",
+        "pointer_lock": "canvas",
+        "visibility": "visible",
+        "scroll": {
+          "x": 0,
+          "y": 0
+        },
+        "device_pixel_ratio": 1
+      },
+      "screenshot": "screenshots/0009-layered-boundaries-grazing.png",
+      "event_counts": {
+        "console": 4,
+        "pageErrors": 0,
+        "requests": 1247,
+        "responses": 1246,
+        "websockets": 0
+      }
+    }
+  ],
+  "artifacts": [
+    "screenshots/0001-material-boundaries-initial.png",
+    "screenshots/0002-interpolated-corner.png",
+    "screenshots/0003-centroid-corner.png",
+    "screenshots/0004-interpolated-minus.png",
+    "screenshots/0005-interpolated-plus.png",
+    "screenshots/0006-boundaries-wall-before.png",
+    "screenshots/0007-boundaries-wallcontact.png",
+    "screenshots/0008-boundaries-wallslide.png",
+    "screenshots/0009-layered-boundaries-grazing.png"
+  ],
+  "cleanup": {
+    "browser_closed": false,
+    "driver_stopped": false
+  },
+  "provenance": {
+    "kind": "pre-finish snapshot excerpt",
+    "original": "/tmp/material-boundary-evidence/playtest-index.pre-finish.json",
+    "sha256": "ca8201d38f584a003f20323955f847da110380518661d1792ddd1405a1e2562e",
+    "omitted": [
+      "events",
+      "timeline"
+    ],
+    "canonicalFinalIndex": false
+  }
+}

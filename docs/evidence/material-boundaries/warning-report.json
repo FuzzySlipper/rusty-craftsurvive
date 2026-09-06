@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "captureProtocol": "rusty-engine.playtest-warning-delta/v1",
+  "compatibility": {
+    "exerciseId": "material-boundaries",
+    "pageOrigin": "http://127.0.0.1:37100",
+    "engineOrigin": "http://127.0.0.1:37100"
+  },
+  "run": {
+    "startedAt": "2026-09-06T10:40:51.283Z",
+    "completedAt": "2026-09-06T10:40:54.843Z",
+    "url": "http://127.0.0.1:37100/",
+    "exerciseId": "material-boundaries",
+    "nodeVersion": "v26.8.1",
+    "gitRevision": "2e99efa5cbe9aa4c2f214384a2220ca01edde35d",
+    "gitDirty": false,
+    "browserVersion": "149.0.7827.55"
+  },
+  "capture": {
+    "browser": {
+      "status": "complete"
+    },
+    "engine": {
+      "status": "complete",
+      "origin": "http://127.0.0.1:37100",
+      "checkpointCursor": "1",
+      "finalCursor": "1",
+      "reads": 2,
+      "lagged": false,
+      "droppedCount": "0",
+      "checkpoint": {
+        "status": "complete",
+        "initialCursor": "1",
+        "checkpointCursor": "1",
+        "reads": 1
+      },
+      "events": []
+    }
+  },
+  "findings": [
+    {
+      "source": "playwright",
+      "kind": "console",
+      "severity": "warning",
+      "message": "[.WebGL-<hex>]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "url": "http://127.0.0.1:37100/",
+      "fingerprint": "4abf030d1009db51dc4afe8ae8f48ee8db7f5522a47aeaecc6c641ff3ec74bf4",
+      "occurrenceCount": 1
+    }
+  ],
+  "comparison": {
+    "status": "unavailable",
+    "reason": "no baseline was supplied"
+  },
+  "cleanClaimEligible": false,
+  "blockers": [
+    "baseline comparison is unavailable"
+  ]
+}

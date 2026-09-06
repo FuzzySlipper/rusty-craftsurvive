@@ -7,7 +7,9 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 internal readonly record struct CourtyardSettings(
     string Treatment, float Width, float DoorWidth, float DoorOffset, ulong Seed,
-    float CellSize, float CreaseDegrees, string Masonry = "layered")
+    float CellSize, float CreaseDegrees, string Masonry = "layered",
+    ImplicitMaterialBoundaryMode MaterialBoundaryMode = ImplicitMaterialBoundaryMode.Interpolated,
+    float MaterialCutoff = 0f)
 {
     internal static CourtyardSettings Default => new("soft", 24f, 3.4f, 0f, 0x4352414654UL, 0.20f, 110f);
 
@@ -43,6 +45,9 @@ internal sealed class CourtyardScene : IDisposable
     private const string TestPartPrefix = "masonry test";
     private const float BrickRegionTolerance = 0.015f;
     private const float CapDepth = 0.14f;
+    private const float CapMaterialMargin = 0.03f;
+    private const float WallMossHeight = 0.38f;
+    private const float MaxMaterialCutoff = 0.15f;
     private readonly IEngineContext engine;
     private readonly CourtyardMaterials materials;
     private readonly List<Part> parts = [];
@@ -96,6 +101,26 @@ internal sealed class CourtyardScene : IDisposable
             throw new ArgumentException("Masonry must be original, regions, or layered.");
         pending = (pending ?? settings) with { Masonry = mode };
         return $"queued west-wall masonry test={mode}";
+    }
+
+    internal string QueueMaterialBoundaries(string mode)
+    {
+        ImplicitMaterialBoundaryMode boundaryMode = mode switch
+        {
+            "centroid" => ImplicitMaterialBoundaryMode.Centroid,
+            "interpolated" => ImplicitMaterialBoundaryMode.Interpolated,
+            _ => throw new ArgumentException("Material boundaries must be centroid or interpolated."),
+        };
+        pending = (pending ?? settings) with { MaterialBoundaryMode = boundaryMode };
+        return $"queued courtyard materialBoundaries={mode}";
+    }
+
+    internal string QueueMaterialCutoff(float cutoff)
+    {
+        if (!float.IsFinite(cutoff) || MathF.Abs(cutoff) > MaxMaterialCutoff)
+            throw new ArgumentException("Material cutoff must be finite and between -0.15m and 0.15m.");
+        pending = (pending ?? settings) with { MaterialCutoff = cutoff };
+        return FormattableString.Invariant($"queued courtyard materialCutoff={cutoff:F2}m");
     }
 
     internal (Vector3 Eye, Vector3 Target) InspectionView(string angle)
@@ -158,7 +183,7 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
@@ -309,14 +334,21 @@ internal sealed class CourtyardScene : IDisposable
                     ImplicitNode opening = recipe.Box(new(next.DoorOffset - doorHalf, min.Y - 1f, min.Z - 1f), new(next.DoorOffset + doorHalf, 7.75f, max.Z + 1f));
                     wall = recipe.Subtract(wall, opening);
                 }
-                List<ImplicitMaterialRegion> regions = [new(recipe.Offset(cap, 0.03f), materials.Plaster)];
+                // Cutoff moves only region classification. The cap and wall root
+                // remain fixed, so extracted geometry and collision do not move.
+                // These are horizontal bands on this wall part, so use affine
+                // half-spaces. A box field also measures distance to its other
+                // sides, which would distort vertex-interpolated band cutoffs.
+                float capCutoff = capMin.Y - CapMaterialMargin + next.MaterialCutoff;
+                ImplicitNode capRegion = recipe.Plane(-Vector3.UnitY, -capCutoff);
+                List<ImplicitMaterialRegion> regions = [new(capRegion, materials.Plaster)];
                 if (test && next.Masonry == "regions" && hasBricks)
                     regions.Add(new(recipe.Offset(bricks, BrickRegionTolerance), materials.Stone));
                 // Exclude the unrelated moss classification in all three test
                 // modes so the comparison isolates brick/mortar ownership.
                 if (!test)
                 {
-                    ImplicitNode moss = recipe.Box(a - Vector3.One, new(b.X + 1f, min.Y + 0.38f, b.Z + 1f));
+                    ImplicitNode moss = recipe.Plane(Vector3.UnitY, min.Y + WallMossHeight + next.MaterialCutoff);
                     regions.Add(new(moss, materials.Moss));
                 }
                 AddPart(test ? $"{TestPartPrefix} union" : name, recipe, wall,
@@ -412,7 +444,7 @@ internal sealed class CourtyardScene : IDisposable
     {
         MeshResource mesh = engine.ImplicitSurfaces.Generate(new ImplicitGenerateRequest(recipe.Field, root,
             min - new Vector3(DomainPadding), max + new Vector3(DomainPadding), next.CellSize, next.CreaseDegrees,
-            UvRepeatsPerMeter, material, regions));
+            UvRepeatsPerMeter, material, regions, MaterialBoundaryMode: next.MaterialBoundaryMode));
         try
         {
             Appearance appearance = engine.Graphics.CreateMeshAppearance(mesh);
@@ -429,6 +461,13 @@ internal sealed class CourtyardScene : IDisposable
         Light owner = engine.Graphics.CreateLight(new LightRequest(FirstLightId + (ulong)lights.Count, false, 0, descriptor));
         lights.Add((owner, descriptor));
     }
+
+    private static string BoundaryModeName(ImplicitMaterialBoundaryMode mode) => mode switch
+    {
+        ImplicitMaterialBoundaryMode.Centroid => "centroid",
+        ImplicitMaterialBoundaryMode.Interpolated => "interpolated",
+        _ => "unknown",
+    };
 
     // Called by the product root after publishing facts for the replacement.
     internal void ReleaseRetired()
@@ -466,6 +505,8 @@ internal sealed class CourtyardScene : IDisposable
         internal ImplicitNode Intersect(ImplicitNode a, ImplicitNode b) => service.Intersection(new(Field, a, b));
         internal ImplicitNode Subtract(ImplicitNode a, ImplicitNode b) => service.Difference(new(Field, a, b));
         internal ImplicitNode Offset(ImplicitNode source, float amount) => service.Offset(new(Field, source, amount));
+        internal ImplicitNode Translate(ImplicitNode source, Vector3 translation) => service.Transform(new(Field, source,
+            new Transform(translation, Quaternion.Identity, Vector3.One)));
         internal ImplicitNode Blend(ImplicitNode a, ImplicitNode b, float radius) => service.SmoothUnion(new(Field, a, b, radius));
         public void Dispose() => Field.Dispose();
     }

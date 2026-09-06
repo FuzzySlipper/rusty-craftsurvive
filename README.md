@@ -22,7 +22,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  runtime-pack-71ba020dc702/  paired `rusty dev` runtime
+  runtime-pack-2e99efa5cbe9/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -42,8 +42,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/runtime-pack-71ba020dc702/bin/rusty dev \
-  --runtime ./.runtime/runtime-pack-71ba020dc702 \
+./.runtime/runtime-pack-2e99efa5cbe9/bin/rusty dev \
+  --runtime ./.runtime/runtime-pack-2e99efa5cbe9 \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -52,8 +52,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/runtime-pack-71ba020dc702/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.71ba020dc702.nupkg` form one installed,
+`.runtime/runtime-pack-2e99efa5cbe9/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.2e99efa5cbe9.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -62,7 +62,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/runtime-pack-71ba020dc702/bin/rusty dev \
+./.runtime/runtime-pack-2e99efa5cbe9/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -148,3 +148,5 @@ The newer [layered masonry test](docs/layered-masonry-test.md) compares separate
 bricks over mortar with the original and material-region constructions.
 The [mesh defect investigation](docs/implicit-mesh-defects.md) records the current
 Engine triangulation correction, before/after evidence, and remaining limits.
+The [material boundary comparison](docs/material-boundaries.md) documents the
+new Centroid/Interpolated controls and the plaster/moss sawtooth correction.
