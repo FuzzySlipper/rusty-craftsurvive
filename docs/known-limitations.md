@@ -68,3 +68,9 @@ retained algorithms and offline artifacts live in local CraftSurvive projects.
 See [procedural levels](procedural-levels.md) for stage ownership and evidence.
 The GPU harness captures real controller interaction and images but does not
 supply a browser-console warning delta, audio or measured frame-pacing proof.
+
+The first GPU cave test recorded five recoverable hot-reload warnings, including
+a late renderer-observation binding mismatch; Engine #7865 owns that follow-up.
+Some streamed screenshots lagged requested inspection poses, so exact view/frame
+binding remains unverified. The input/capture/release evidence is retained in
+`docs/evidence/procedural-levels/` with those limits explicitly marked.

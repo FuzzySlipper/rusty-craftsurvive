@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "repository": "/home/dev/rusty-craftsurvive",
+  "runtime_url": "http://localhost:37300/",
+  "remote_runtime_url": "http://192.168.1.22:37300/",
+  "lease_id": "98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434",
+  "client_id": "7411603768457197485",
+  "firefox_container": {
+    "id": "099e6754f1c6",
+    "name": "WolfFirefox_e42deab6-9260-4eaf-b7b1-d7888fc5e8fe",
+    "forwarder": "python3 /tmp/localhost-forward.py --port 37300 --host 192.168.1.22 --target-port 37300",
+    "forwarder_pid": 592,
+    "http_checks": [
+      "container localhost: 200 text/html; charset=utf-8",
+      "container direct 192.168.1.22:37300: 200 text/html; charset=utf-8"
+    ]
+  },
+  "captures": [
+    {
+      "label": "seed11-level-entry-initial",
+      "path": "seed11-level-entry-initial.png",
+      "debug": "craft.courtyard.study level; craft.courtyard.seed 11; craft.courtyard.inspect level-entry -> player=0.000,3.875,-12.000;yaw=180.0;pitch=0.0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/eb112ab0-99e1-4398-877c-eb4beacd7f1d.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-native-forward-1000-focused",
+      "path": "seed11-native-forward-1000-focused.png",
+      "input": "gamepad ly=1 ms=1000",
+      "readout": "lastEvent=MappedAxis;lastMovement=update=22763;intent=0.000,1.000;before=0.000,3.890,-5.169;after=0.000,3.890,-5.053;displacement=0.058;current after=0.000,3.890,-4.841;grounded=True",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/790f2ec2-7c0b-47c4-8ce4-800e59401522.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-native-entry-to-hub-forward-1800",
+      "path": "seed11-native-entry-to-hub-forward-1800.png",
+      "input": "gamepad ly=1 ms=1800",
+      "readout": "current after=0.000,3.890,8.972;lastEvent=MappedAxis;lastMovement=update=26817;intent=0.000,1.000;before=0.000,3.890,8.643;after=0.000,3.890,8.760;displacement=0.058;grounded=True",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/063c5e30-7c1e-4550-bf1e-103df25b0d2c.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-level-left-preset",
+      "path": "seed11-level-left-preset.png",
+      "debug": "craft.courtyard.inspect level-left -> player=-10.656,3.875,20.901;yaw=132.6;pitch=0.0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/50a09b1c-29d1-4dec-8a56-a4de26cda3e3.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-level-right-preset",
+      "path": "seed11-level-right-preset.png",
+      "debug": "craft.courtyard.inspect level-right -> player=9.471,3.875,19.410;yaw=-144.1;pitch=0.0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/859f4bc5-472e-4f10-8fd4-b2d0749421cc.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-level-goal-pre-policy",
+      "path": "seed11-level-goal-pre-policy.png",
+      "debug": "craft.courtyard.inspect level-goal -> player=0.778,3.875,31.402;yaw=35.9;pitch=0.0",
+      "visual_note": "Floating beige platform visible; later source inspection identified it as the inherited moving platform.",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/7fb449b7-df46-4e3a-9bd2-17409ed8218e.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed29-dressed-level-entry",
+      "path": "seed29-dressed-level-entry.png",
+      "debug": "craft.courtyard.seed 29; craft.courtyard.inspect level-entry -> player=0.000,3.875,-12.000;yaw=180.0;pitch=0.0",
+      "readout": "levelRooms=6;levelRoutes=7;levelLoops=2;levelClearance=1008/1008;levelPlanHash=c10668c3eb9634ed27e637ba6f29bf0e548d36cbddac8c8a4511d730b543d8af;study=level;seed=29;generation=4;triangles=68922;vertices=45489;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/9d9a5d9c-3625-48ed-a204-ebf7f40a0d1c.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed47-dressed-level-entry",
+      "path": "seed47-dressed-level-entry.png",
+      "debug": "craft.courtyard.seed 47; craft.courtyard.inspect level-entry -> player=0.000,3.875,-12.000;yaw=180.0;pitch=0.0",
+      "readout": "levelRooms=6;levelRoutes=7;levelLoops=2;levelClearance=1008/1008;levelPlanHash=0a9d7b242e3d70b443875013079155c4c2da28b51e6673fe285ab576b78b93c2;study=level;seed=47;generation=5;triangles=65388;vertices=42933;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/3ad7496c-37ca-4cbb-a94c-b59903e8b8ec.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed47-bare-layout-level-entry",
+      "path": "seed47-bare-layout-level-entry.png",
+      "debug": "craft.courtyard.study level-layout; craft.courtyard.inspect level-entry -> player=0.000,3.875,-12.000;yaw=180.0;pitch=0.0",
+      "readout": "levelRooms=6;levelRoutes=7;levelLoops=2;levelClearance=1008/1008;levelPlanHash=0a9d7b242e3d70b443875013079155c4c2da28b51e6673fe285ab576b78b93c2;study=level-layout;seed=47;generation=6;triangles=38442;vertices=22402;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/685ac01d-d1b7-42d1-86f2-6c46ddcc18a3.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-level-goal-post-platform-exclusion",
+      "path": "seed11-level-goal-post-platform-exclusion.png",
+      "debug": "craft.courtyard.study level; craft.courtyard.seed 11; craft.courtyard.inspect level-goal -> player=0.778,3.875,31.402;yaw=35.9;pitch=0.0",
+      "readout": "levelRooms=6;levelRoutes=7;levelLoops=2;levelClearance=1008/1008;levelPlanHash=17c65acce56a724af18739206cd21542faae36af4afb6170e4027dd52f48eb14;study=level;seed=11;generation=3;triangles=66628;vertices=43551;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "visual_note": "No beige rectangle in this captured view; exact requested camera alignment is unverified.",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/8c6efcf9-3a5c-4a89-97fc-5f9af9a26ac4.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness.",
+      "rootAssessment": "Image shows an approach passage, not a verified matching goal camera. Absence of the beige rectangle here is not visual proof of platform exclusion; that change is source/build verified."
+    },
+    {
+      "label": "seed11-entry-post-reload-forward-with-focus-loss",
+      "path": "seed11-entry-post-reload-forward-with-focus-loss.png",
+      "input": "gamepad ly=1 ms=1800",
+      "readout": "controllerAxes=0;lastEvent=clear:InteractionModeLoss;before=after=0.000,3.875,-12.000;lastMovement=[none]",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/6f9c98c4-c3d3-4dd4-9e55-11e2653a172a.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    },
+    {
+      "label": "seed11-entry-post-reload-tab-focus-final",
+      "path": "seed11-entry-post-reload-tab-focus-final.png",
+      "input": "Tab; gamepad ly=1 ms=1000",
+      "readout": "controllerAxes=0;lastEvent=MappedAxis;lastMovement=intent=0.000,1.000;before=0.000,3.890,-5.169;after=0.000,3.890,-5.053;displacement=0.058;current after=0.000,3.890,-4.841;grounded=True",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/6923c714-5090-45d3-bf02-dedb141514c3.png",
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+    }
+  ],
+  "release": {
+    "response": {
+      "event": "release",
+      "lease_id": "98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434",
+      "reason": "requested",
+      "released": true,
+      "errors": [],
+      "time": "2026-09-07T09:39:07Z",
+      "local_capture_stopped": true,
+      "artifact_directory": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434"
+    },
+    "status_after": {
+      "lease": null,
+      "sessions": [],
+      "lobbies": [],
+      "last_release_errors": [],
+      "target_time": "2026-09-07T09:39:17Z"
+    }
+  },
+  "rootAssessment": {
+    "movement": "Native movement from entrance z=-12 to z=8.972 near hub, grounded; separate postreload refocus moved z=-12 to -4.841. Full loops were not walked.",
+    "geometry": "All three seed readouts report 1008/1008 source body witnesses and zero boundary/nonmanifold/winding edges; these are not navigation certificates.",
+    "capture": "1280x720 stream captures; no assumed render backing resolution, game frame ID or measured freshness. Some requested preset camera captures lag the requested pose.",
+    "platform": "Excluded in source from visibility/movement/character obstacles only in generated level studies; compiled. Requested postchange goal capture does not certify exact camera alignment.",
+    "warnings": "Five hot-reload Engine warnings, zero Engine errors/drops, complete diagnostic drain; Engine #7865 owns correlation follow-up. Browser-console delta unavailable."
+  }
+}

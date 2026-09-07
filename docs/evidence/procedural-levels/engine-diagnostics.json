@@ -1,0 +1,670 @@
+{
+  "scope": "Engine diagnostics only; GPU Firefox browser-console capture and compatible warning baseline unavailable; report-only",
+  "capturedAt": "2026-09-07T09:36:55.436Z",
+  "initial": {
+    "events": [
+      {
+        "sequence": "1",
+        "monotonicNanoseconds": "3555028086373",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "0"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2206256/1/1;next-input=1;revisions=10"
+          }
+        ]
+      },
+      {
+        "sequence": "2",
+        "monotonicNanoseconds": "4094724916619",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "runtime",
+        "code": "DEV_HOST_WORKER_REPLACING",
+        "message": "worker replacement is in progress; request was not applied"
+      },
+      {
+        "sequence": "3",
+        "monotonicNanoseconds": "4094875117949",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "runtime",
+        "code": "CSHARP_CONTROL_BINDING",
+        "message": "lifecycle control does not name the current runtime binding"
+      },
+      {
+        "sequence": "4",
+        "monotonicNanoseconds": "4095226284337",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "26579"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "5",
+        "monotonicNanoseconds": "4099667742914",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "26579"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-b79d3c0b0c615ad23f905c895d0958d7"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "6",
+        "monotonicNanoseconds": "4099680190147",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "26586"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-b79d3c0b0c615ad23f905c895d0958d7"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2206257/1/1;next-input=1;revisions=10"
+          }
+        ]
+      },
+      {
+        "sequence": "7",
+        "monotonicNanoseconds": "4099680210304",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "browser-host",
+        "code": "BROWSER_RENDERER_DIAGNOSTICS_UNAVAILABLE",
+        "message": "renderer observation reporting was temporarily unavailable: renderer diagnostics result did not match the current Product runtime binding"
+      }
+    ],
+    "floorSequence": "1",
+    "throughSequence": "7",
+    "nextCursor": "7",
+    "readMonotonicNanoseconds": "4209911390595",
+    "lagged": false,
+    "warningCount": "5",
+    "errorCount": "0",
+    "droppedCount": "0",
+    "telemetry": {
+      "inFlightOperation": null,
+      "inFlightAgeMs": null,
+      "lastProductAdmissionLatencyMs": "0",
+      "lastInputAdmissionLatencyMs": "0",
+      "queuedInputBatches": 0,
+      "queuedInputEvents": 0,
+      "inputBatchCapacity": 256,
+      "oldestInputAgeMs": null,
+      "inputOverflowPending": false,
+      "runtimeProgressRateMillihertz": "52426",
+      "runtimeProgressAgeMs": "5",
+      "runtimeProgressUnavailableReason": null,
+      "workerUpdate": {
+        "workerPid": "2344913",
+        "readout": {
+          "artifact": "rusty.product.runtime-readout",
+          "runtime": {
+            "instanceId": "2206257",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "mode": "realtime",
+          "state": "running",
+          "admittedSimulationSteps": "6633",
+          "admittedPresentations": "0",
+          "droppedRealtimeSteps": "271",
+          "clockRegressions": "0",
+          "scaledRemainder": 977115800,
+          "lastObservedTimeNs": "115082952551",
+          "fault": null
+        },
+        "phases": {
+          "operationDurationUs": "1846",
+          "outputConversionDurationUs": "90",
+          "outputEncodeWriteDurationUs": "34",
+          "inputQueueAgeUs": "16739"
+        },
+        "shellDeliveryIntervalUs": "2247",
+        "shellOutputDecodeDurationUs": "113",
+        "shellOutputQueueDurationUs": "927",
+        "shellPublicationDurationUs": "107",
+        "ageMs": "5"
+      },
+      "connections": 2,
+      "subscribers": 1,
+      "outputQueueItems": 256,
+      "outputQueueCapacity": 256,
+      "outputQueueFloor": "189837",
+      "outputBindingActive": true,
+      "updateAttribution": {
+        "sampleCount": "2048",
+        "callbackDurationUsP50": "1243",
+        "callbackDurationUsP95": "1698",
+        "callbackDurationUsMax": "2529",
+        "latest": {
+          "runtime": {
+            "instanceId": "2206257",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "6632",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "163",
+          "callbackDurationUs": "1033",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "59",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "2",
+          "characterStepNarrowPhaseCount": "2",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowest": {
+          "runtime": {
+            "instanceId": "2206257",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "5197",
+          "admittedStepCount": "2",
+          "postCallbackDurationUs": "234",
+          "callbackDurationUs": "2529",
+          "characterStepCalls": "4",
+          "characterStepDurationUs": "307",
+          "characterStepCastCount": "4",
+          "characterStepCandidateCount": "12",
+          "characterStepNarrowPhaseCount": "12",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowestAgeMs": "23920",
+        "slowest": {
+          "runtime": {
+            "instanceId": "2206257",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "3507",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "3864",
+          "callbackDurationUs": "2149906",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "62",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "slowestAgeMs": "53587"
+      }
+    }
+  },
+  "drain": {
+    "status": "complete",
+    "batch": {
+      "events": [
+        {
+          "sequence": "1",
+          "monotonicNanoseconds": "3555028086373",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "0"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2206256/1/1;next-input=1;revisions=10"
+            }
+          ]
+        },
+        {
+          "sequence": "2",
+          "monotonicNanoseconds": "4094724916619",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "runtime",
+          "code": "DEV_HOST_WORKER_REPLACING",
+          "message": "worker replacement is in progress; request was not applied"
+        },
+        {
+          "sequence": "3",
+          "monotonicNanoseconds": "4094875117949",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "runtime",
+          "code": "CSHARP_CONTROL_BINDING",
+          "message": "lifecycle control does not name the current runtime binding"
+        },
+        {
+          "sequence": "4",
+          "monotonicNanoseconds": "4095226284337",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "26579"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "5",
+          "monotonicNanoseconds": "4099667742914",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "26579"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-b79d3c0b0c615ad23f905c895d0958d7"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "6",
+          "monotonicNanoseconds": "4099680190147",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "26586"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-b79d3c0b0c615ad23f905c895d0958d7"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-dd9986be4fa83e921b4d02784b946c1d"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2206257/1/1;next-input=1;revisions=10"
+            }
+          ]
+        },
+        {
+          "sequence": "7",
+          "monotonicNanoseconds": "4099680210304",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "browser-host",
+          "code": "BROWSER_RENDERER_DIAGNOSTICS_UNAVAILABLE",
+          "message": "renderer observation reporting was temporarily unavailable: renderer diagnostics result did not match the current Product runtime binding"
+        }
+      ],
+      "floorSequence": "1",
+      "throughSequence": "7",
+      "nextCursor": "7",
+      "readMonotonicNanoseconds": "4209911390595",
+      "lagged": false,
+      "warningCount": "5",
+      "errorCount": "0",
+      "droppedCount": "0",
+      "telemetry": {
+        "inFlightOperation": null,
+        "inFlightAgeMs": null,
+        "lastProductAdmissionLatencyMs": "0",
+        "lastInputAdmissionLatencyMs": "0",
+        "queuedInputBatches": 0,
+        "queuedInputEvents": 0,
+        "inputBatchCapacity": 256,
+        "oldestInputAgeMs": null,
+        "inputOverflowPending": false,
+        "runtimeProgressRateMillihertz": "52426",
+        "runtimeProgressAgeMs": "5",
+        "runtimeProgressUnavailableReason": null,
+        "workerUpdate": {
+          "workerPid": "2344913",
+          "readout": {
+            "artifact": "rusty.product.runtime-readout",
+            "runtime": {
+              "instanceId": "2206257",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "mode": "realtime",
+            "state": "running",
+            "admittedSimulationSteps": "6633",
+            "admittedPresentations": "0",
+            "droppedRealtimeSteps": "271",
+            "clockRegressions": "0",
+            "scaledRemainder": 977115800,
+            "lastObservedTimeNs": "115082952551",
+            "fault": null
+          },
+          "phases": {
+            "operationDurationUs": "1846",
+            "outputConversionDurationUs": "90",
+            "outputEncodeWriteDurationUs": "34",
+            "inputQueueAgeUs": "16739"
+          },
+          "shellDeliveryIntervalUs": "2247",
+          "shellOutputDecodeDurationUs": "113",
+          "shellOutputQueueDurationUs": "927",
+          "shellPublicationDurationUs": "107",
+          "ageMs": "5"
+        },
+        "connections": 2,
+        "subscribers": 1,
+        "outputQueueItems": 256,
+        "outputQueueCapacity": 256,
+        "outputQueueFloor": "189837",
+        "outputBindingActive": true,
+        "updateAttribution": {
+          "sampleCount": "2048",
+          "callbackDurationUsP50": "1243",
+          "callbackDurationUsP95": "1698",
+          "callbackDurationUsMax": "2529",
+          "latest": {
+            "runtime": {
+              "instanceId": "2206257",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "6632",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "163",
+            "callbackDurationUs": "1033",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "59",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "2",
+            "characterStepNarrowPhaseCount": "2",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowest": {
+            "runtime": {
+              "instanceId": "2206257",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "5197",
+            "admittedStepCount": "2",
+            "postCallbackDurationUs": "234",
+            "callbackDurationUs": "2529",
+            "characterStepCalls": "4",
+            "characterStepDurationUs": "307",
+            "characterStepCastCount": "4",
+            "characterStepCandidateCount": "12",
+            "characterStepNarrowPhaseCount": "12",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowestAgeMs": "23920",
+          "slowest": {
+            "runtime": {
+              "instanceId": "2206257",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "3507",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "3864",
+            "callbackDurationUs": "2149906",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "62",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "slowestAgeMs": "53587"
+        }
+      }
+    },
+    "initialCursor": "7",
+    "checkpointCursor": "7",
+    "reads": 1
+  }
+}
