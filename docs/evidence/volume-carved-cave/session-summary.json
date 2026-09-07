@@ -1,0 +1,16 @@
+{
+  "session_id": "rusty-craftsurvive-playtest-20260907T053940.051435285Z-1701294",
+  "scenario": "volume-carved-cave",
+  "started_at": "2026-09-07T05:39:51.840Z",
+  "finished_at": "2026-09-07T05:49:14.835507616Z",
+  "status": "pass",
+  "base_url": "http://127.0.0.1:37100",
+  "cleanup": {
+    "browser_closed": true,
+    "dev_server_pid": 1931943,
+    "dev_server_reused": false,
+    "dev_server_stopped": true,
+    "driver_stopped": false,
+    "virtual_display_stopped": true
+  }
+}

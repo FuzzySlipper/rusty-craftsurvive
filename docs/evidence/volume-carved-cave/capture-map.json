@@ -1,0 +1,17 @@
+{
+  "session": "rusty-craftsurvive-playtest-20260907T053940.051435285Z-1701294",
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T053940.051435285Z-1701294/playtest-index.json",
+  "engineCommit": "6a386f3a6b873547e405b199bc7241f32e40f329",
+  "screenshots": {
+    "0002-volume-carved-entry.png": "entry.png",
+    "0003-volume-carved-chamber.png": "chamber.png",
+    "0004-volume-carved-back-room.png": "back-room.png",
+    "0005-volume-carved-outer-shell.png": "outer-shell.png",
+    "0006-volume-passages-chamber.png": "passages-stage.png",
+    "0007-volume-chambers-chamber.png": "chambers-stage.png",
+    "0010-volume-entry-after-w-portal.png": "after-entry-walk.png",
+    "0011-volume-inside-after-wall-contact.png": "wall-contact.png",
+    "0012-volume-fine-chamber.png": "chamber-fine.png",
+    "0013-volume-coarse-chamber.png": "chamber-coarse.png"
+  }
+}

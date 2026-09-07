@@ -1,0 +1,2 @@
+volume carved rock;triangles=34716;vertices=22810;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0;groups=3;actualCell=0.23828;seconds=0.1909
+volume exterior landing;triangles=12;vertices=24;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0;groups=1;actualCell=0.32812;seconds=0.0017
