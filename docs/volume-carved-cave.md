@@ -79,6 +79,10 @@ errors, drops, or lag; this is not an absolute warning-free claim.
 The dedicated playtest captured all four views and each stage, walked through
 the entrance with canvas focus/pointer lock, and exercised bounded wall contact.
 This is a short traversal check, not exhaustive collision certification.
-The session ended with pass status and browser/driver/display cleanup confirmed.
+The session ended with pass status. The final broker record confirms browser,
+test-server, and display cleanup, but records `driver_stopped=false`; an earlier
+driver response and agent summary had reported true. The test listener on 37100
+is gone. The separate LAN service on 37300 was restored and returned HTTP 200
+with the applied volume readout; see `lan-readback.json`.
 Synthetic pointer-lock exit assistance and sequence-missing advisory records
 remain in the source index; they are not hidden as product correctness evidence.

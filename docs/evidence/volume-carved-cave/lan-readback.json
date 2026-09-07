@@ -1,0 +1,9 @@
+{
+  "capturedAt": "2026-09-07T05:55:26.572301+00:00",
+  "url": "http://192.168.1.22:37300/",
+  "status": 200,
+  "productCommit": "7deda5f83ea2520949261cf5ce9d7503c079283d",
+  "engineCommit": "6a386f3a6b873547e405b199bc7241f32e40f329",
+  "readout": "volumeProbes=shellWitnesses=19/19;airWitnesses=26/26;protectedMargin=1.2;floorThickness=3;portalCount=1;volumeCell=0.280;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0;caveCarvingCell=0.070;caveTriangles=0;generationError=none;study=volume;materialSampleSpacing=0.00;detailCell=0.08;stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles=0;detail=normal;sampleCell=0.16;sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles=0;generation=3;treatment=balanced;width=24.0;doorWidth=3.4;doorOffset=0.00;seed=289142818388;courtyardDepth=20;passageLength=12;chamber=12x10;parts=2;triangles=34728;vertices=22834;seconds=0.213;cellSize=0.220;crease=38;materialBoundaries=interpolated;materialCutoff=0.00;reorientedTriangles=0;degenerateTriangles=0;shadows=True;collision=generated-mesh-copy;masonry=layered;testParts=0;testTriangles=0;testVertices=0;testSeconds=0.000;testWall=west;testZ=-2..2",
+  "launchState": "broker-owned den-serve; launch and current fingerprint f4bd8a31c6632871ce4b6f868e67ccf7a56e2ee90dc90cb657d12951e0de03a6 match"
+}
