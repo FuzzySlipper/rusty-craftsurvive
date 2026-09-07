@@ -138,6 +138,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const samplingStudy = button('Sampling plaques');
   const detailStudy = button('Small stonework');
   const motifStudy = button('Flat motifs');
+  const caveStudy = button('Cave');
   const originalSamples = button('Original vertices');
   const mediumSamples = button('4 cm samples');
   const fineSamples = button('2 cm samples');
@@ -157,6 +158,10 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const detailViews = [1, 2, 3, 4].map((i) => button(`Detail ${i}`));
   const tinyView = button('Tiny close-up');
   const bricksView = button('Small bricks');
+  const caveEntranceView = button('Cave entrance');
+  const columnView = button('Column');
+  const carvedWallView = button('Carved wall');
+  const terracesView = button('Terraces');
   const refresh = button('Refresh');
   const actionRows = document.createElement('div');
   actionRows.style.cssText = 'display:grid;gap:.3rem;';
@@ -165,15 +170,16 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Test wall', original, materialRegions, layered),
     actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
     actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
-    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy),
+    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy),
     actionRow('Geometry detail', coarseDetail, normalDetail, fineDetail),
     actionRow('Material detail', originalSamples, mediumSamples, fineSamples),
     actionRow('Detail views', detailsView, ...detailViews, tinyView, bricksView),
+    actionRow('Cave views', caveEntranceView, columnView, carvedWallView, terracesView),
     actionRow('Layout', originalDimensions, reshape),
     actionRow('Views', viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView, samplesView),
     actionRow('Readout', refresh));
   const scope = document.createElement('p');
-  scope.textContent = 'Masonry controls change the reference test bay. Boundary and cutoff controls affect their relevant material-region tests. Geometry detail changes sampling plaques and small stonework. Small stonework goes left to right: 64/32/16/8 cm blocks, 16/8/4/2 cm carved strokes. Normal geometry samples at 8 cm; Fine at 2 cm. Material detail affects flat regions, not physical cuts.';
+  scope.textContent = 'Masonry controls change the reference test bay. Boundary and cutoff controls affect their relevant material-region tests. Geometry detail changes sampling plaques and small stonework. Cave geometry detail affects localized carvings only; large masses keep fixed sampling. Material samples affect only existing material-region studies; the cave uses physical layers.';
   scope.style.cssText = 'margin:.35rem 0 0;max-width:24rem;';
   const receipt = document.createElement('p');
   receipt.setAttribute('aria-live', 'polite');
@@ -185,7 +191,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const allActions = [balanced, faceted, soft, original, materialRegions, layered, centroidBoundaries, interpolatedBoundaries,
     cutoffNegative, cutoffZero, cutoffPositive, stoneworksStudy, referenceStudy, samplingStudy, coarseDetail, normalDetail,
     fineDetail, originalDimensions, reshape, viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView,
-    samplesView, detailStudy, motifStudy, originalSamples, mediumSamples, fineSamples, detailsView, ...detailViews, tinyView, bricksView, refresh];
+    samplesView, detailStudy, motifStudy, caveStudy, originalSamples, mediumSamples, fineSamples, detailsView, ...detailViews, tinyView,
+    bricksView, caveEntranceView, columnView, carvedWallView, terracesView, refresh];
   const execute = async (label: string, command: string, resultKind: 'queued' | 'requested' | 'readout'): Promise<void> => {
     if (disposed) return;
     for (const action of allActions) action.disabled = true;
@@ -225,6 +232,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   samplingStudy.addEventListener('click', () => void execute('Sampling-plaques study', 'craft.courtyard.study sampling', 'queued'));
   detailStudy.addEventListener('click', () => void execute('Small stonework', 'craft.courtyard.study detail', 'queued'));
   motifStudy.addEventListener('click', () => void execute('Flat motifs', 'craft.courtyard.study motifs', 'queued'));
+  caveStudy.addEventListener('click', () => void execute('Cave study', 'craft.courtyard.study cave', 'queued'));
   originalSamples.addEventListener('click', () => void execute('Original material vertices', 'craft.courtyard.material-samples 0', 'queued'));
   mediumSamples.addEventListener('click', () => void execute('4 cm material samples', 'craft.courtyard.material-samples 0.04', 'queued'));
   fineSamples.addEventListener('click', () => void execute('2 cm material samples', 'craft.courtyard.material-samples 0.02', 'queued'));
@@ -232,6 +240,10 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   detailViews.forEach((view, index) => view.addEventListener('click', () => void execute(`Detail ${index + 1}`, `craft.courtyard.inspect detail${index + 1}`, 'requested')));
   bricksView.addEventListener('click', () => void execute('Small bricks view', 'craft.courtyard.inspect bricks', 'requested'));
   tinyView.addEventListener('click', () => void execute('Tiny close-up', 'craft.courtyard.inspect tiny', 'requested'));
+  caveEntranceView.addEventListener('click', () => void execute('Cave entrance view', 'craft.courtyard.inspect cave', 'requested'));
+  columnView.addEventListener('click', () => void execute('Cave column view', 'craft.courtyard.inspect column', 'requested'));
+  carvedWallView.addEventListener('click', () => void execute('Carved cave wall view', 'craft.courtyard.inspect runes', 'requested'));
+  terracesView.addEventListener('click', () => void execute('Cave terraces view', 'craft.courtyard.inspect terraces', 'requested'));
   coarseDetail.addEventListener('click', () => void execute('Coarse sampling plaques', 'craft.courtyard.detail coarse', 'queued'));
   normalDetail.addEventListener('click', () => void execute('Normal sampling plaques', 'craft.courtyard.detail normal', 'queued'));
   fineDetail.addEventListener('click', () => void execute('Fine sampling plaques', 'craft.courtyard.detail fine', 'queued'));

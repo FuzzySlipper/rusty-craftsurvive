@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "captureProtocol": "rusty-engine.playtest-warning-delta/v1",
+  "compatibility": {
+    "exerciseId": "stepped-cave",
+    "pageOrigin": "http://127.0.0.1:37100",
+    "engineOrigin": "http://127.0.0.1:37100"
+  },
+  "run": {
+    "startedAt": "2026-09-07T04:31:30.411Z",
+    "completedAt": "2026-09-07T04:31:32.493Z",
+    "url": "http://127.0.0.1:37100/",
+    "exerciseId": "stepped-cave",
+    "nodeVersion": "v26.8.1",
+    "gitRevision": "b9e031e5977d2d60aeeea0c9a1d1f61d889b075f",
+    "gitDirty": true,
+    "browserVersion": "149.0.7827.55"
+  },
+  "capture": {
+    "browser": {
+      "status": "complete"
+    },
+    "engine": {
+      "status": "complete",
+      "origin": "http://127.0.0.1:37100",
+      "checkpointCursor": "1",
+      "finalCursor": "1",
+      "reads": 2,
+      "lagged": false,
+      "droppedCount": "0",
+      "checkpoint": {
+        "status": "complete",
+        "initialCursor": "1",
+        "checkpointCursor": "1",
+        "reads": 1
+      },
+      "events": []
+    }
+  },
+  "findings": [],
+  "comparison": {
+    "status": "unavailable",
+    "reason": "no baseline was supplied"
+  },
+  "cleanClaimEligible": false,
+  "blockers": [
+    "baseline comparison is unavailable"
+  ]
+}

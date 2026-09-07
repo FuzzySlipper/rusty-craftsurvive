@@ -1,0 +1,15 @@
+{
+  "session": "rusty-craftsurvive-playtest-20260907T042848.630965555Z-1701294",
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T042848.630965555Z-1701294/playtest-index.json",
+  "engineCommit": "b84b3dcb8840ef72305af10faf42be5bff3fc20b",
+  "screenshots": {
+    "0003-cave-entrance.png": "first-pass-entrance.png",
+    "0004-cave-column.png": "first-pass-column.png",
+    "0011-cave-final-normal-entrance.png": "entrance.png",
+    "0012-cave-final-normal-column.png": "column-normal.png",
+    "0013-cave-final-normal-carved-wall.png": "wall-normal.png",
+    "0014-cave-final-normal-terraces.png": "terraces.png",
+    "0015-cave-final-fine-column.png": "column-fine.png",
+    "0016-cave-final-fine-carved-wall.png": "wall-fine.png"
+  }
+}

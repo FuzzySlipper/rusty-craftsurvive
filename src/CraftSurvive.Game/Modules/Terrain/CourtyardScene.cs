@@ -71,6 +71,7 @@ internal sealed class CourtyardScene : IDisposable
             new Vector3(-1.8f, 7.4f, 17f), Vector3.Zero);
         AddLight(LightKind.Point, new Vector3(0.55f, 0.74f, 1f), 20f,
             new Vector3(0f, 8.6f, 28f), Vector3.Zero);
+        ApplyStudyLighting();
     }
 
     internal IEnumerable<AppearanceFact> Facts => parts.Select((part, index) => new AppearanceFact(
@@ -79,8 +80,8 @@ internal sealed class CourtyardScene : IDisposable
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs"))
-            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, or motifs.");
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave"))
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, or cave.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
     }
@@ -141,6 +142,10 @@ internal sealed class CourtyardScene : IDisposable
         float face = -settings.Width * 0.5f + WallThickness;
         return angle switch
         {
+            "cave" => (new(0, 4.55f, -8f), new(-1, 7.5f, 6f)),
+            "column" => (new(0, 4.55f, 0.2f), new(-3, 6.2f, 4.4f)),
+            "runes" => (new(3.8f, 4.55f, 6f), new(6.85f, 5.8f, 6f)),
+            "terraces" => (new(0, 4.55f, 7f), new(-6, 5f, 10f)),
             "arrival" => (new(0, 4.55f, -7), new(0, 6.6f, 10)),
             "plaster" => (new(-settings.Width * 0.5f + 4f, 4.8f, -5f), new(-settings.Width * 0.5f, 5.6f, -3f)),
             "arcade" => (new(0, 6.55f, 11.5f), new(-2f, 7f, 19.5f)),
@@ -204,6 +209,7 @@ internal sealed class CourtyardScene : IDisposable
         {
             Build(next);
             settings = next;
+            ApplyStudyLighting();
             generationError = "none";
         }
         catch (EngineCallException error) when (error.Service == "ImplicitSurfaces" && error.Operation == "Generate")
@@ -228,12 +234,12 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
     internal string ReadDetailParts() => string.Join("\n", parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)
-        || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
+        || p.Name.StartsWith("cave ", StringComparison.Ordinal) || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
             $"{p.Name};triangles={p.Stats.Triangles};vertices={p.Stats.Vertices};groups={p.Stats.MaterialGroups};actualCell={p.Stats.SampleSpacing:F5};seconds={p.Stats.GenerationSeconds:F4}")));
 
     private void Build(CourtyardSettings next)
@@ -259,6 +265,7 @@ internal sealed class CourtyardScene : IDisposable
                 if (next.Study == "detail") DetailStudyRecipe.Build(writer, stoneworksMaterials, next);
                 else DetailStudyRecipe.BuildFlatComparison(writer, stoneworksMaterials, next);
             }
+            else if (next.Study == "cave") CaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
             else StoneworksRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
 
             SpatialSession spatial = session ?? throw new InvalidOperationException("Courtyard collision session unavailable.");
@@ -299,6 +306,31 @@ internal sealed class CourtyardScene : IDisposable
             output.Add(new Part(surface.Name, mesh, appearance, engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement));
         }
         catch { appearance?.Dispose(); mesh.Dispose(); throw; }
+    }
+
+    private void ApplyStudyLighting()
+    {
+        if (lights.Count == 0) return;
+        bool cave = settings.Study == "cave";
+        // Product lighting profiles share the Engine's existing retained lights.
+        (Vector3 Color, float Intensity, Vector3 Position)[] profile = cave
+            ? [(new(0.60f, 0.73f, 1f), 0.32f, Vector3.Zero),
+               (new(0.85f, 0.92f, 1f), 2.1f, new(-12f, 22f, -8f)),
+               (new(1f, 0.48f, 0.16f), 25f, new(3.5f, 5.8f, 7f)),
+               (new(0.42f, 0.66f, 1f), 18f, new(-3f, 9f, 5f))]
+            : [(new(0.77f, 0.83f, 1f), 0.75f, Vector3.Zero),
+               (new(1f, 0.84f, 0.62f), 2.1f, new(-12f, 22f, -8f)),
+               (new(1f, 0.49f, 0.19f), 16f, new(-1.8f, 7.4f, 17f)),
+               (new(0.55f, 0.74f, 1f), 20f, new(0f, 8.6f, 28f))];
+        for (int index = 0; index < lights.Count; index++)
+        {
+            (Light owner, LightDescriptor descriptor) = lights[index];
+            descriptor = descriptor with { Color = profile[index].Color, Intensity = profile[index].Intensity,
+                Position = profile[index].Position };
+            lights[index] = (owner, descriptor);
+            engine.Graphics.UpdateLight(new LightUpdateRequest(owner, new LightRequest(FirstLightId + (ulong)index,
+                false, 0, descriptor with { Position = descriptor.Position + translation })));
+        }
     }
 
     private void AddLight(LightKind kind, Vector3 color, float intensity, Vector3 position, Vector3 direction)

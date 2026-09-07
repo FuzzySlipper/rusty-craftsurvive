@@ -11,6 +11,7 @@ internal sealed class ImplicitRecipe(IImplicitSurfacesService service) : IDispos
     internal ImplicitNode Sphere(Vector3 center, float radius) => service.AddSphere(new(Field, center, radius));
     internal ImplicitNode Ellipsoid(Vector3 center, Vector3 radii) => service.AddEllipsoid(new(Field, center, radii));
     internal ImplicitNode Capsule(Vector3 start, Vector3 end, float radius) => service.AddCapsule(new(Field, start, end, radius));
+    internal ImplicitNode Frustum(Vector3 start, Vector3 end, float startRadius, float endRadius) => service.AddFrustum(new(Field, start, end, startRadius, endRadius));
     internal ImplicitNode Plane(Vector3 normal, float offset) => service.AddPlane(new(Field, normal, offset));
     internal ImplicitNode Union(ImplicitNode a, ImplicitNode b) => service.Union(new(Field, a, b));
     internal ImplicitNode Intersect(ImplicitNode a, ImplicitNode b) => service.Intersection(new(Field, a, b));

@@ -1,0 +1,450 @@
+{
+  "events": [
+    {
+      "sequence": "1",
+      "monotonicNanoseconds": "7194010333",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "0"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-eb42676dc073c71613497fa11ee5c796"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "none"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1836370/1/1;next-input=1;revisions=10"
+        }
+      ]
+    },
+    {
+      "sequence": "2",
+      "monotonicNanoseconds": "379587461222",
+      "severity": "warning",
+      "disposition": "rejected-recoverable",
+      "source": "runtime",
+      "code": "DEV_HOST_WORKER_REPLACING",
+      "message": "worker replacement is in progress; request was not applied"
+    },
+    {
+      "sequence": "3",
+      "monotonicNanoseconds": "379681221814",
+      "severity": "warning",
+      "disposition": "rejected-recoverable",
+      "source": "runtime",
+      "code": "CSHARP_CONTROL_BINDING",
+      "message": "lifecycle control does not name the current runtime binding"
+    },
+    {
+      "sequence": "4",
+      "monotonicNanoseconds": "379683711732",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "17798"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-eb42676dc073c71613497fa11ee5c796"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "none"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "5",
+      "monotonicNanoseconds": "383155908090",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "17798"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-1170e2188318017a2c32164687e18312"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-eb42676dc073c71613497fa11ee5c796"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "6",
+      "monotonicNanoseconds": "383614590171",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "17867"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-1170e2188318017a2c32164687e18312"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-eb42676dc073c71613497fa11ee5c796"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1836371/1/1;next-input=1;revisions=8"
+        }
+      ]
+    },
+    {
+      "sequence": "7",
+      "monotonicNanoseconds": "441160266682",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "20182"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-1170e2188318017a2c32164687e18312"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-eb42676dc073c71613497fa11ee5c796"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "8",
+      "monotonicNanoseconds": "444809239174",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "20182"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-7c31ec59138a8d8cf57a87b2193998fd"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-1170e2188318017a2c32164687e18312"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "9",
+      "monotonicNanoseconds": "444979075955",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "20238"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-7c31ec59138a8d8cf57a87b2193998fd"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-1170e2188318017a2c32164687e18312"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1836372/1/1;next-input=1;revisions=10"
+        }
+      ]
+    }
+  ],
+  "floorSequence": "1",
+  "throughSequence": "9",
+  "nextCursor": "9",
+  "readMonotonicNanoseconds": "745358747495",
+  "lagged": false,
+  "warningCount": "6",
+  "errorCount": "0",
+  "droppedCount": "0",
+  "telemetry": {
+    "inFlightOperation": null,
+    "inFlightAgeMs": null,
+    "lastProductAdmissionLatencyMs": "2",
+    "lastInputAdmissionLatencyMs": "0",
+    "queuedInputBatches": 0,
+    "queuedInputEvents": 0,
+    "inputBatchCapacity": 256,
+    "oldestInputAgeMs": null,
+    "inputOverflowPending": false,
+    "runtimeProgressRateMillihertz": "47091",
+    "runtimeProgressAgeMs": "4",
+    "runtimeProgressUnavailableReason": null,
+    "workerUpdate": {
+      "workerPid": "1849410",
+      "readout": {
+        "artifact": "rusty.product.runtime-readout",
+        "runtime": {
+          "instanceId": "1836372",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "mode": "realtime",
+        "state": "running",
+        "admittedSimulationSteps": "17875",
+        "admittedPresentations": "0",
+        "droppedRealtimeSteps": "385",
+        "clockRegressions": "0",
+        "scaledRemainder": 580813600,
+        "lastObservedTimeNs": "304343014532",
+        "fault": null
+      },
+      "phases": {
+        "operationDurationUs": "3568",
+        "outputConversionDurationUs": "37",
+        "outputEncodeWriteDurationUs": "17",
+        "inputQueueAgeUs": null
+      },
+      "shellDeliveryIntervalUs": "3731",
+      "shellOutputDecodeDurationUs": "38",
+      "shellOutputQueueDurationUs": "9",
+      "shellPublicationDurationUs": "31",
+      "ageMs": "4"
+    },
+    "connections": 2,
+    "subscribers": 1,
+    "outputQueueItems": 256,
+    "outputQueueCapacity": 256,
+    "outputQueueFloor": "34639",
+    "outputBindingActive": true,
+    "updateAttribution": {
+      "sampleCount": "2048",
+      "callbackDurationUsP50": "2099",
+      "callbackDurationUsP95": "3114",
+      "callbackDurationUsMax": "10636",
+      "latest": {
+        "runtime": {
+          "instanceId": "1836372",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "17874",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "390",
+        "callbackDurationUs": "2053",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "75",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "8",
+        "characterStepNarrowPhaseCount": "8",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "rollingSlowest": {
+        "runtime": {
+          "instanceId": "1836372",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "16509",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "436",
+        "callbackDurationUs": "10636",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "104",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "8",
+        "characterStepNarrowPhaseCount": "8",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "rollingSlowestAgeMs": "22742",
+      "slowest": {
+        "runtime": {
+          "instanceId": "1836372",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "6299",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "6303",
+        "callbackDurationUs": "1489933",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "78",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "8",
+        "characterStepNarrowPhaseCount": "8",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "slowestAgeMs": "196824"
+    }
+  }
+}

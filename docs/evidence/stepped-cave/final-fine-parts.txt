@@ -1,0 +1,119 @@
+cave chamber floor;triangles=78;vertices=75;groups=1;actualCell=0.42969;seconds=0.0078
+cave left deep rock;triangles=100;vertices=91;groups=1;actualCell=0.38281;seconds=0.0044
+cave right deep rock;triangles=100;vertices=91;groups=1;actualCell=0.38281;seconds=0.0052
+cave strata -1/0/0;triangles=68;vertices=82;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata -1/0/1;triangles=292;vertices=230;groups=1;actualCell=0.18594;seconds=0.0030
+cave strata -1/0/2;triangles=124;vertices=119;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata -1/0/3;triangles=170;vertices=150;groups=1;actualCell=0.18594;seconds=0.0028
+cave strata -1/0/4;triangles=356;vertices=278;groups=1;actualCell=0.18594;seconds=0.0025
+cave strata -1/0/5;triangles=174;vertices=168;groups=1;actualCell=0.18594;seconds=0.0025
+cave strata -1/0/6;triangles=180;vertices=161;groups=1;actualCell=0.18594;seconds=0.0033
+cave strata -1/1/0;triangles=178;vertices=169;groups=1;actualCell=0.18594;seconds=0.0036
+cave strata -1/1/1;triangles=216;vertices=179;groups=1;actualCell=0.18594;seconds=0.0030
+cave strata -1/1/2;triangles=152;vertices=139;groups=1;actualCell=0.18594;seconds=0.0028
+cave strata -1/1/3;triangles=290;vertices=227;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata -1/1/4;triangles=254;vertices=212;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata -1/1/5;triangles=148;vertices=140;groups=1;actualCell=0.18594;seconds=0.0033
+cave strata -1/1/6;triangles=68;vertices=82;groups=1;actualCell=0.18594;seconds=0.0022
+cave strata -1/2/0;triangles=112;vertices=119;groups=1;actualCell=0.18594;seconds=0.0031
+cave strata -1/2/1;triangles=270;vertices=216;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata -1/2/2;triangles=238;vertices=195;groups=1;actualCell=0.18594;seconds=0.0025
+cave strata -1/2/3;triangles=128;vertices=142;groups=1;actualCell=0.18594;seconds=0.0029
+cave strata -1/2/4;triangles=310;vertices=241;groups=1;actualCell=0.18594;seconds=0.0035
+cave strata -1/2/5;triangles=66;vertices=78;groups=1;actualCell=0.18594;seconds=0.0022
+cave strata -1/2/6;triangles=160;vertices=156;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata -1/3/0;triangles=170;vertices=150;groups=1;actualCell=0.18594;seconds=0.0035
+cave strata -1/3/1;triangles=278;vertices=225;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata -1/3/2;triangles=152;vertices=152;groups=1;actualCell=0.18594;seconds=0.0029
+cave strata -1/3/3;triangles=180;vertices=161;groups=1;actualCell=0.18594;seconds=0.0033
+cave strata -1/3/4;triangles=142;vertices=134;groups=1;actualCell=0.18594;seconds=0.0025
+cave strata -1/3/5;triangles=200;vertices=182;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata -1/3/6;triangles=112;vertices=119;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata 1/0/0;triangles=124;vertices=133;groups=1;actualCell=0.18594;seconds=0.0028
+cave strata 1/0/1;triangles=182;vertices=164;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata 1/0/2;triangles=146;vertices=138;groups=1;actualCell=0.18594;seconds=0.0025
+cave strata 1/0/3;triangles=254;vertices=204;groups=1;actualCell=0.18594;seconds=0.0028
+cave strata 1/0/4;triangles=234;vertices=197;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata 1/0/5;triangles=178;vertices=177;groups=1;actualCell=0.18594;seconds=0.0029
+cave strata 1/0/6;triangles=300;vertices=239;groups=1;actualCell=0.18594;seconds=0.0034
+cave strata 1/1/0;triangles=232;vertices=199;groups=1;actualCell=0.18594;seconds=0.0033
+cave strata 1/1/1;triangles=118;vertices=116;groups=1;actualCell=0.18594;seconds=0.0028
+cave strata 1/1/2;triangles=140;vertices=124;groups=1;actualCell=0.18594;seconds=0.0052
+cave strata 1/1/3;triangles=298;vertices=239;groups=1;actualCell=0.18594;seconds=0.0068
+cave strata 1/1/4;triangles=158;vertices=158;groups=1;actualCell=0.18594;seconds=0.0108
+cave strata 1/1/5;triangles=190;vertices=168;groups=1;actualCell=0.18594;seconds=0.0047
+cave strata 1/1/6;triangles=124;vertices=133;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata 1/2/0;triangles=186;vertices=162;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata 1/2/1;triangles=228;vertices=215;groups=1;actualCell=0.18594;seconds=0.0029
+cave strata 1/2/2;triangles=82;vertices=95;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata 1/2/3;triangles=150;vertices=152;groups=1;actualCell=0.18594;seconds=0.0037
+cave strata 1/2/4;triangles=140;vertices=130;groups=1;actualCell=0.18594;seconds=0.0044
+cave strata 1/2/5;triangles=86;vertices=96;groups=1;actualCell=0.18594;seconds=0.0026
+cave strata 1/2/6;triangles=220;vertices=190;groups=1;actualCell=0.18594;seconds=0.0028
+cave strata 1/3/0;triangles=254;vertices=204;groups=1;actualCell=0.18594;seconds=0.0032
+cave strata 1/3/1;triangles=178;vertices=158;groups=1;actualCell=0.18594;seconds=0.0025
+cave strata 1/3/2;triangles=168;vertices=167;groups=1;actualCell=0.18594;seconds=0.0029
+cave strata 1/3/3;triangles=300;vertices=239;groups=1;actualCell=0.18594;seconds=0.0036
+cave strata 1/3/4;triangles=84;vertices=95;groups=1;actualCell=0.18594;seconds=0.0027
+cave strata 1/3/5;triangles=214;vertices=187;groups=1;actualCell=0.18594;seconds=0.0034
+cave strata 1/3/6;triangles=186;vertices=162;groups=1;actualCell=0.18594;seconds=0.0026
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.50000;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.47188;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.50000;seconds=0.0011
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.47188;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.50000;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.47188;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.50000;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.47188;seconds=0.0006
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.50000;seconds=0.0006
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.47188;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.50000;seconds=0.0007
+cave rear opening strata;triangles=12;vertices=24;groups=1;actualCell=0.47188;seconds=0.0009
+cave terrace rock;triangles=20;vertices=31;groups=1;actualCell=0.26562;seconds=0.0020
+cave terrace moss;triangles=76;vertices=78;groups=1;actualCell=0.06531;seconds=0.0167
+cave terrace rock;triangles=18;vertices=29;groups=1;actualCell=0.49687;seconds=0.0015
+cave terrace moss;triangles=60;vertices=64;groups=1;actualCell=0.06102;seconds=0.0141
+cave terrace rock;triangles=30;vertices=39;groups=1;actualCell=0.46250;seconds=0.0014
+cave terrace moss;triangles=108;vertices=96;groups=1;actualCell=0.05672;seconds=0.0162
+cave terrace rock;triangles=16;vertices=28;groups=1;actualCell=0.42812;seconds=0.0032
+cave terrace moss;triangles=116;vertices=107;groups=1;actualCell=0.05242;seconds=0.0198
+cave warm mineral shelf;triangles=42;vertices=47;groups=1;actualCell=0.15625;seconds=0.0027
+cave shelf pale deposit;triangles=18;vertices=29;groups=1;actualCell=0.12969;seconds=0.0023
+cave hero column deep rock;triangles=4028;vertices=2328;groups=1;actualCell=0.15703;seconds=0.0065
+cave hero column course 0;triangles=994;vertices=676;groups=1;actualCell=0.15313;seconds=0.0033
+cave hero column course 1;triangles=1624;vertices=998;groups=1;actualCell=0.13438;seconds=0.0045
+cave column recessed bronze;triangles=3012;vertices=1719;groups=1;actualCell=0.07500;seconds=0.0071
+cave hero column course 2;triangles=9716;vertices=7128;groups=1;actualCell=0.02844;seconds=0.0474
+cave hero column course 3;triangles=1416;vertices=875;groups=1;actualCell=0.12063;seconds=0.0041
+cave hero column course 4;triangles=2226;vertices=1336;groups=1;actualCell=0.09813;seconds=0.0059
+cave hero column course 5;triangles=1652;vertices=1020;groups=1;actualCell=0.10813;seconds=0.0046
+cave hero column course 6;triangles=1428;vertices=933;groups=1;actualCell=0.12375;seconds=0.0043
+cave hero column course 7;triangles=1414;vertices=884;groups=1;actualCell=0.14062;seconds=0.0039
+cave rear column deep rock;triangles=3276;vertices=1824;groups=1;actualCell=0.15703;seconds=0.0052
+cave rear column course 0;triangles=1068;vertices=713;groups=1;actualCell=0.11813;seconds=0.0034
+cave rear column course 1;triangles=1628;vertices=993;groups=1;actualCell=0.10463;seconds=0.0049
+cave rear column course 2;triangles=1898;vertices=1189;groups=1;actualCell=0.08978;seconds=0.0045
+cave rear column course 3;triangles=1466;vertices=932;groups=1;actualCell=0.09473;seconds=0.0074
+cave rear column course 4;triangles=694;vertices=489;groups=1;actualCell=0.15705;seconds=0.0052
+cave rear column course 5;triangles=1662;vertices=1011;groups=1;actualCell=0.08573;seconds=0.0102
+cave rear column course 6;triangles=1608;vertices=1033;groups=1;actualCell=0.09698;seconds=0.0060
+cave rear column course 7;triangles=1544;vertices=950;groups=1;actualCell=0.10913;seconds=0.0052
+cave skylight strata;triangles=1896;vertices=1389;groups=1;actualCell=0.19141;seconds=0.0259
+cave skylight strata;triangles=1918;vertices=1427;groups=1;actualCell=0.19141;seconds=0.0267
+cave skylight strata;triangles=2422;vertices=1707;groups=1;actualCell=0.19141;seconds=0.0262
+cave exit arch rock;triangles=1644;vertices=1073;groups=1;actualCell=0.15234;seconds=0.0127
+cave hanging taper;triangles=748;vertices=511;groups=1;actualCell=0.15000;seconds=0.0020
+cave hanging taper;triangles=2168;vertices=1310;groups=1;actualCell=0.09531;seconds=0.0043
+cave hanging taper;triangles=1764;vertices=1112;groups=1;actualCell=0.11562;seconds=0.0060
+cave hanging taper;triangles=748;vertices=511;groups=1;actualCell=0.15000;seconds=0.0040
+cave hanging taper;triangles=2168;vertices=1310;groups=1;actualCell=0.09531;seconds=0.0096
+cave hanging taper;triangles=1764;vertices=1112;groups=1;actualCell=0.11562;seconds=0.0063
+cave hanging taper;triangles=748;vertices=511;groups=1;actualCell=0.15000;seconds=0.0024
+cave hanging taper;triangles=2168;vertices=1310;groups=1;actualCell=0.09531;seconds=0.0047
+cave hanging taper;triangles=1764;vertices=1112;groups=1;actualCell=0.11562;seconds=0.0041
+cave wall incised face;triangles=2649;vertices=2591;groups=1;actualCell=0.02812;seconds=0.0238
+cave wall bronze recess;triangles=18;vertices=29;groups=1;actualCell=0.23500;seconds=0.0014
+cave fallen stone;triangles=616;vertices=471;groups=1;actualCell=0.16875;seconds=0.0021
+cave fallen stone;triangles=664;vertices=464;groups=1;actualCell=0.16875;seconds=0.0023
+cave fallen stone;triangles=728;vertices=492;groups=1;actualCell=0.16875;seconds=0.0021
+cave fallen stone;triangles=778;vertices=510;groups=1;actualCell=0.16875;seconds=0.0023
