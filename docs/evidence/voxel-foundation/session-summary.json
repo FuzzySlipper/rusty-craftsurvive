@@ -1,0 +1,217 @@
+{
+  "session_id": "rusty-craftsurvive-playtest-20260907T065405.743883180Z-1701294",
+  "project": "rusty-craftsurvive",
+  "started_at": "2026-09-07T06:54:18.071Z",
+  "finished_at": "2026-09-07T07:04:42.968429718Z",
+  "status": "finish",
+  "base_url": "http://127.0.0.1:37100",
+  "viewport": {
+    "height": 720,
+    "width": 1280
+  },
+  "cleanup": {
+    "browser_closed": true,
+    "dev_server_pid": 2053346,
+    "dev_server_reused": false,
+    "dev_server_stopped": true,
+    "driver_stopped": false,
+    "virtual_display_stopped": true
+  },
+  "discrepancies": [
+    {
+      "at": "2026-09-07T06:54:29.306Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 1
+    },
+    {
+      "at": "2026-09-07T06:54:44.526Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 2
+    },
+    {
+      "at": "2026-09-07T06:54:55.557Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 3
+    },
+    {
+      "at": "2026-09-07T06:55:09.101Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 4
+    },
+    {
+      "at": "2026-09-07T06:55:21.641Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 5
+    },
+    {
+      "at": "2026-09-07T06:55:34.970Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 6
+    },
+    {
+      "at": "2026-09-07T06:55:45.959Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 7
+    },
+    {
+      "at": "2026-09-07T06:55:58.333Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 8
+    },
+    {
+      "at": "2026-09-07T06:56:11.879Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 9
+    },
+    {
+      "at": "2026-09-07T06:56:25.802Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 10
+    },
+    {
+      "at": "2026-09-07T06:56:40.744Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 11
+    },
+    {
+      "at": "2026-09-07T06:56:53.102Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 12
+    },
+    {
+      "at": "2026-09-07T06:57:07.737Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 13
+    },
+    {
+      "at": "2026-09-07T06:57:21.741Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 14
+    },
+    {
+      "at": "2026-09-07T06:57:35.413Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 15
+    },
+    {
+      "at": "2026-09-07T06:58:07.152Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 16
+    },
+    {
+      "at": "2026-09-07T06:58:25.181Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 17
+    },
+    {
+      "at": "2026-09-07T06:58:39.989Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 18
+    },
+    {
+      "at": "2026-09-07T06:59:31.200Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 19
+    },
+    {
+      "at": "2026-09-07T06:59:46.440Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 20
+    },
+    {
+      "at": "2026-09-07T07:01:14.808Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 21
+    },
+    {
+      "at": "2026-09-07T07:01:23.442Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 22
+    },
+    {
+      "at": "2026-09-07T07:01:42.627Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 23
+    },
+    {
+      "action_index": 0,
+      "at": "2026-09-07T07:01:42.627Z",
+      "code": "action_error",
+      "continued": true,
+      "error": "Error: unknown action type \"key_press\"",
+      "ok": false
+    },
+    {
+      "at": "2026-09-07T07:01:47.246Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 24
+    },
+    {
+      "at": "2026-09-07T07:01:52.596Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 25
+    },
+    {
+      "at": "2026-09-07T07:01:57.676Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 26
+    },
+    {
+      "at": "2026-09-07T07:02:03.283Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 27
+    },
+    {
+      "at": "2026-09-07T07:02:39.496Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 28
+    },
+    {
+      "at": "2026-09-07T07:02:50.831Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 29
+    },
+    {
+      "at": "2026-09-07T07:04:15.846Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 30
+    }
+  ],
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T065405.743883180Z-1701294/playtest-index.json",
+  "movement": "W input burst completed with canvas focus; distance through entrance not established.",
+  "finalState": "Carved volume / Normal / Entry; pointer lock and W released.",
+  "warningOwners": {
+    "DEV_HOST_WORKER_TELEMETRY_DROPPED": "rusty-engine #7833",
+    "GPU stall due to ReadPixels": "den-services #7853"
+  }
+}

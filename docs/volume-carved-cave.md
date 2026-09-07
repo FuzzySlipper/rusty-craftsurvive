@@ -50,7 +50,7 @@ and 26 entrance/path witnesses. The readout reports the passing counts. The
 wall-margin guarantee comes from clipping construction; these finite samples
 are witnesses, not an exhaustive voxel flood fill or a second field evaluator.
 
-Current runtime/SDK pair: `6a386f3a6b873547e405b199bc7241f32e40f329`.
+The original experiment used runtime/SDK pair `6a386f3a6b873547e405b199bc7241f32e40f329`; the observations below describe that historical build. See [the reusable foundation](voxel-foundation.md) for the current implementation and evidence.
 
 ## Observed result
 

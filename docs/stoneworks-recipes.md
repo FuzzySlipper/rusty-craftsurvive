@@ -1,12 +1,13 @@
 # Stoneworks recipe study
 
 Den campaign #7849: recipe separation #7850, environment #7851, sampling and
-presentation evaluation #7852. The installed Engine pair remains
-`0.1.0-dev.2e99efa5cbe9`; this phase initially uses its existing named services.
+presentation evaluation #7852. The original phase used Engine pair `0.1.0-dev.2e99efa5cbe9`.
+Engine #7861 has since upstreamed the reusable vocabulary; see
+[the current foundation](voxel-foundation.md).
 
 ## Ownership and reuse
 
-`Recipes/WallLayout.cs` owns local wall coordinates, opening dimensions and
+The SDK's `Rusty.Engine.Implicit.WallLayout` owns local wall coordinates, opening dimensions and
 globally phased masonry courses. X follows the wall, Y is up and -Z is its
 decorated side. `ArchitecturalRecipes` composes Engine fields for backing,
 courses, broken plaster and arch trim from that same layout. Material handles
@@ -27,8 +28,8 @@ original comparison geometry; `StoneworksRecipe` is the second composition.
 Rigid placement turns the local geometry, texture frame and collision together.
 Each arch layer has ordered reveal clearance: trim owns the requested opening, plaster retreats 0.08m, courses 0.16m and mortar 0.24m. Otherwise separately extracted cut faces can overlap even when the front faces have real relief. This is not a claim that independently extracted pieces form a welded mesh.
 
-The plausible future extraction is the small layout/composition vocabulary and
-its caller-supplied palette/output contract. Keep the stoneworks dimensions,
+The layout/composition vocabulary and its caller-supplied palette/output
+contract now live in the SDK. Keep the stoneworks dimensions,
 wear pattern, material assets, scene switches and inspection cameras downstream.
 There is no new field AST, dispatch registry, evaluator, mesher or renderer.
 

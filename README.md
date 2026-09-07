@@ -22,7 +22,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  runtime-pack-6a386f3a6b87/  paired `rusty dev` runtime
+  runtime-pack-2207cc4e9842/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -42,8 +42,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/runtime-pack-6a386f3a6b87/bin/rusty dev \
-  --runtime ./.runtime/runtime-pack-6a386f3a6b87 \
+./.runtime/runtime-pack-2207cc4e9842/bin/rusty dev \
+  --runtime ./.runtime/runtime-pack-2207cc4e9842 \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -52,8 +52,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/runtime-pack-6a386f3a6b87/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.6a386f3a6b87.nupkg` form one installed,
+`.runtime/runtime-pack-2207cc4e9842/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.2207cc4e9842.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -62,7 +62,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/runtime-pack-6a386f3a6b87/bin/rusty dev \
+./.runtime/runtime-pack-2207cc4e9842/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -87,7 +87,7 @@ location.
   Appearance and CameraView. Engine owns its resource and renderer lifecycle.
 - `Modules/Terrain/CourtyardScene` retains generated geometry and copied
   collision for the default Stoneworks environment, Reference courtyard and
-  Sampling plaques. Product-local `Terrain/Recipes` separates local frames,
+  Sampling plaques. The SDK's `Rusty.Engine.Implicit` vocabulary separates local frames,
   openings, layered materials and field composition from that runtime owner.
   See [the recipe study](docs/stoneworks-recipes.md) for controls and evidence.
 - `src/ui/main.ts` mounts DOM guidance, Ghost Settings, and live diagnostics beside the Engine-owned canvas.
@@ -159,3 +159,7 @@ The [stepped cave study](docs/stepped-cave.md) composes those techniques into a 
 The [volume-first cave study](docs/volume-carved-cave.md) starts with one solid
 enclosure and subtracts connected passages, chambers, and layered recesses.
 Use Courtyard → Carved volume and the Volume views to explore it.
+
+The [reusable voxel foundation](docs/voxel-foundation.md) moves shared recipes
+upstream, repairs escaped adaptive cell vertices, and adds **Sampled volume**
+as a comparison of the same cave through retained Engine density data.

@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
-using CraftSurvive.Game.Modules.Terrain.Recipes;
+using Rusty.Engine.Implicit;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -81,8 +81,8 @@ internal sealed class CourtyardScene : IDisposable
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers"))
-            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, or volume.");
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled"))
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, or volume-sampled.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
     }
@@ -143,6 +143,8 @@ internal sealed class CourtyardScene : IDisposable
         float face = -settings.Width * 0.5f + WallThickness;
         return angle switch
         {
+            "volume-cut-left" => (new(-2, 4.55f, 3), new(-3.8f, 4.3f, 1)),
+            "volume-cut-right" => (new(0, 4.55f, -1), new(-3.8f, 4.3f, 1)),
             "volume-entry" => (new(0, 4.55f, -9), new(0, 5.5f, 0)),
             "volume-room" => (new(-2, 4.55f, 4), new(-5, 7.5f, 8)),
             "volume-back" => (new(0, 4.55f, 18), new(2, 7, 21)),
@@ -217,7 +219,7 @@ internal sealed class CourtyardScene : IDisposable
             ApplyStudyLighting();
             generationError = "none";
         }
-        catch (EngineCallException error) when (error.Service == "ImplicitSurfaces" && error.Operation == "Generate")
+        catch (EngineCallException error) when (error.Service == "ImplicitSurfaces" && error.Operation is "Generate" or "CreateSampledVolume" or "RasterizeSampledVolume" or "GenerateSampledVolume")
         {
             // Build disposes the unpublished replacement on failure. A rejected
             // bounded recipe leaves the applied scene/settings in place and is
@@ -239,7 +241,7 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"volumeProbes={volumeProbes};volumeCell={VolumeCaveRecipe.Cell(settings.Detail):F3};boundaryEdges={parts.Sum(p => (long)p.Stats.BoundaryEdges)};nonManifoldEdges={parts.Sum(p => (long)p.Stats.NonManifoldEdges)};inconsistentWindingEdges={parts.Sum(p => (long)p.Stats.InconsistentWindingEdges)};caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"volumeProbes={volumeProbes};volumeCell={(settings.Study == "volume-sampled" ? VolumeCaveRecipe.SampledCell(settings.Detail) : VolumeCaveRecipe.Cell(settings.Detail)):F3};boundedLeafVertices={parts.Sum(p => (long)p.Stats.BoundedLeafVertices)};boundaryEdges={parts.Sum(p => (long)p.Stats.BoundaryEdges)};nonManifoldEdges={parts.Sum(p => (long)p.Stats.NonManifoldEdges)};inconsistentWindingEdges={parts.Sum(p => (long)p.Stats.InconsistentWindingEdges)};caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
@@ -271,7 +273,7 @@ internal sealed class CourtyardScene : IDisposable
                 if (next.Study == "detail") DetailStudyRecipe.Build(writer, stoneworksMaterials, next);
                 else DetailStudyRecipe.BuildFlatComparison(writer, stoneworksMaterials, next);
             }
-            else if (VolumeCaveRecipe.IsStudy(next.Study)) nextVolumeProbes = VolumeCaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
+            else if (VolumeCaveRecipe.IsStudy(next.Study)) nextVolumeProbes = VolumeCaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement), surface => AddSampledPart(surface, replacement));
             else if (next.Study == "cave") CaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
             else StoneworksRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
 
@@ -307,11 +309,23 @@ internal sealed class CourtyardScene : IDisposable
             surface.Material, surface.Regions, MaterialBoundaryMode: surface.Sampling.MaterialBoundaries, MaterialSampleSpacing:
                 surface.Regions.Length > 0 && surface.Sampling.MaterialBoundaries == ImplicitMaterialBoundaryMode.Interpolated
                     ? surface.Sampling.MaterialSampleSpacing : 0f));
+        PublishPart(surface.Name, mesh, () => engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement, output);
+    }
+
+    private void AddSampledPart(SampledRecipeSurface surface, List<Part> output)
+    {
+        MeshResource mesh = engine.ImplicitSurfaces.GenerateSampledVolume(surface.Request);
+        PublishPart(surface.Name, mesh, () => engine.ImplicitSurfaces.ReadSampledVolumeGeneration(surface.Request.Volume), surface.Placement, output);
+    }
+
+    private void PublishPart(string name, MeshResource mesh, Func<ImplicitGenerationReadout> readGeneration,
+        Transform placement, List<Part> output)
+    {
         Appearance? appearance = null;
         try
         {
             appearance = engine.Graphics.CreateMeshAppearance(mesh);
-            output.Add(new Part(surface.Name, mesh, appearance, engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement));
+            output.Add(new Part(name, mesh, appearance, readGeneration(), placement));
         }
         catch { appearance?.Dispose(); mesh.Dispose(); throw; }
     }

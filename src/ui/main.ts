@@ -142,6 +142,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const volumePassagesStudy = button('Carve passages');
   const volumeChambersStudy = button('Add chambers');
   const volumeStudy = button('Carved volume');
+  const sampledVolumeStudy = button('Sampled volume');
   const originalSamples = button('Original vertices');
   const mediumSamples = button('4 cm samples');
   const fineSamples = button('2 cm samples');
@@ -169,6 +170,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const volumeRoomView = button('Chamber');
   const volumeBackView = button('Back room');
   const volumeRoofView = button('Outer shell');
+  const volumeCutLeftView = button('Cut left');
+  const volumeCutRightView = button('Cut right');
   const refresh = button('Refresh');
   const actionRows = document.createElement('div');
   actionRows.style.cssText = 'display:grid;gap:.3rem;';
@@ -178,12 +181,12 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
     actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
     actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy),
-    actionRow('Carved volume', volumePassagesStudy, volumeChambersStudy, volumeStudy),
+    actionRow('Carved volume', volumePassagesStudy, volumeChambersStudy, volumeStudy, sampledVolumeStudy),
     actionRow('Geometry detail', coarseDetail, normalDetail, fineDetail),
     actionRow('Material detail', originalSamples, mediumSamples, fineSamples),
     actionRow('Detail views', detailsView, ...detailViews, tinyView, bricksView),
     actionRow('Cave views', caveEntranceView, columnView, carvedWallView, terracesView),
-    actionRow('Volume views', volumeEntryView, volumeRoomView, volumeBackView, volumeRoofView),
+    actionRow('Volume views', volumeEntryView, volumeRoomView, volumeBackView, volumeRoofView, volumeCutLeftView, volumeCutRightView),
     actionRow('Layout', originalDimensions, reshape),
     actionRow('Views', viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView, samplesView),
     actionRow('Readout', refresh));
@@ -202,7 +205,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     fineDetail, originalDimensions, reshape, viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView,
     samplesView, detailStudy, motifStudy, caveStudy, originalSamples, mediumSamples, fineSamples, detailsView, ...detailViews, tinyView,
     bricksView, caveEntranceView, columnView, carvedWallView, terracesView, volumePassagesStudy, volumeChambersStudy, volumeStudy,
-    volumeEntryView, volumeRoomView, volumeBackView, volumeRoofView, refresh];
+    sampledVolumeStudy, volumeEntryView, volumeRoomView, volumeBackView, volumeRoofView, volumeCutLeftView, volumeCutRightView, refresh];
   const execute = async (label: string, command: string, resultKind: 'queued' | 'requested' | 'readout'): Promise<void> => {
     if (disposed) return;
     for (const action of allActions) action.disabled = true;
@@ -246,6 +249,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   volumePassagesStudy.addEventListener('click', () => void execute('Carved passages', 'craft.courtyard.study volume-passages', 'queued'));
   volumeChambersStudy.addEventListener('click', () => void execute('Carved chambers', 'craft.courtyard.study volume-chambers', 'queued'));
   volumeStudy.addEventListener('click', () => void execute('Carved volume', 'craft.courtyard.study volume', 'queued'));
+  sampledVolumeStudy.addEventListener('click', () => void execute('Sampled volume', 'craft.courtyard.study volume-sampled', 'queued'));
   originalSamples.addEventListener('click', () => void execute('Original material vertices', 'craft.courtyard.material-samples 0', 'queued'));
   mediumSamples.addEventListener('click', () => void execute('4 cm material samples', 'craft.courtyard.material-samples 0.04', 'queued'));
   fineSamples.addEventListener('click', () => void execute('2 cm material samples', 'craft.courtyard.material-samples 0.02', 'queued'));
@@ -261,6 +265,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   volumeRoomView.addEventListener('click', () => void execute('Carved-volume chamber', 'craft.courtyard.inspect volume-room', 'requested'));
   volumeBackView.addEventListener('click', () => void execute('Carved-volume back room', 'craft.courtyard.inspect volume-back', 'requested'));
   volumeRoofView.addEventListener('click', () => void execute('Carved-volume outer shell', 'craft.courtyard.inspect volume-roof', 'requested'));
+  volumeCutLeftView.addEventListener('click', () => void execute('Carved-volume left cut', 'craft.courtyard.inspect volume-cut-left', 'requested'));
+  volumeCutRightView.addEventListener('click', () => void execute('Carved-volume right cut', 'craft.courtyard.inspect volume-cut-right', 'requested'));
   coarseDetail.addEventListener('click', () => void execute('Coarse sampling plaques', 'craft.courtyard.detail coarse', 'queued'));
   normalDetail.addEventListener('click', () => void execute('Normal sampling plaques', 'craft.courtyard.detail normal', 'queued'));
   fineDetail.addEventListener('click', () => void execute('Fine sampling plaques', 'craft.courtyard.detail fine', 'queued'));

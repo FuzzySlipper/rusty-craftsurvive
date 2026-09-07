@@ -6,6 +6,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/Recipes/WallLayout.cs" Link="WallLayout.cs" />
+    <PackageReference Include="Rusty.Engine" Version="0.1.0-dev.2207cc4e9842" />
   </ItemGroup>
 </Project>

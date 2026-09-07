@@ -1,6 +1,6 @@
 using System.Numerics;
 using Rusty.Engine;
-using CraftSurvive.Game.Modules.Terrain.Recipes;
+using Rusty.Engine.Implicit;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 

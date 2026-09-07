@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "captureProtocol": "rusty-engine.playtest-warning-delta/v1",
+  "compatibility": {
+    "exerciseId": "voxel-foundation-7862",
+    "pageOrigin": "http://127.0.0.1:37100",
+    "engineOrigin": "http://127.0.0.1:37100"
+  },
+  "run": {
+    "startedAt": "2026-09-07T06:56:40.015Z",
+    "completedAt": "2026-09-07T06:56:42.071Z",
+    "url": "http://127.0.0.1:37100/",
+    "exerciseId": "voxel-foundation-7862",
+    "nodeVersion": "v26.8.1",
+    "gitRevision": "2207cc4e98422c036b655742651f08e102a22ab4",
+    "gitDirty": true,
+    "browserVersion": "149.0.7827.55"
+  },
+  "capture": {
+    "browser": {
+      "status": "complete"
+    },
+    "engine": {
+      "status": "complete",
+      "origin": "http://127.0.0.1:37100",
+      "checkpointCursor": "1",
+      "finalCursor": "1",
+      "reads": 2,
+      "lagged": false,
+      "droppedCount": "0",
+      "checkpoint": {
+        "status": "complete",
+        "initialCursor": "1",
+        "checkpointCursor": "1",
+        "reads": 1
+      },
+      "events": []
+    }
+  },
+  "findings": [],
+  "comparison": {
+    "status": "unavailable",
+    "reason": "no baseline was supplied"
+  },
+  "cleanClaimEligible": false,
+  "blockers": [
+    "baseline comparison is unavailable"
+  ]
+}

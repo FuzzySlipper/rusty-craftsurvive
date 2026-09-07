@@ -1,0 +1,14 @@
+{
+  "session": "rusty-craftsurvive-playtest-20260907T065405.743883180Z-1701294",
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T065405.743883180Z-1701294/playtest-index.json",
+  "captures": {
+    "0002-carved-normal-cut-left.png": "analytic-normal-cut-left.png",
+    "0003-carved-normal-cut-right.png": "analytic-normal-cut-right.png",
+    "0004-carved-normal-chamber.png": "analytic-normal-chamber.png",
+    "0005-sampled-normal-chamber.png": "sampled-normal-chamber.png",
+    "0006-sampled-normal-entry.png": "sampled-normal-entry.png",
+    "0007-sampled-fine-chamber.png": "sampled-fine-chamber.png",
+    "0008-carved-fine-cut-left.png": "analytic-fine-cut-left.png",
+    "0009-sampled-normal-entry-after-bounded-walk-4.png": "sampled-walk-burst.png"
+  }
+}

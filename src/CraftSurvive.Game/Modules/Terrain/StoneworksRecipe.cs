@@ -1,6 +1,6 @@
 using System.Numerics;
 using Rusty.Engine;
-using CraftSurvive.Game.Modules.Terrain.Recipes;
+using Rusty.Engine.Implicit;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -22,7 +22,6 @@ internal static class StoneworksRecipe
     {
         RecipeWriter writer = new(engine.ImplicitSurfaces,
             new(settings.CellSize, settings.CreaseDegrees, 0.45f, settings.MaterialBoundaryMode, settings.MaterialSampleSpacing), emit);
-        ArchitecturalRecipes architecture = new(writer);
         WallPalette masonry = new(materials.Limestone, materials.Mortar, materials.Limestone, materials.Plaster);
         WallPalette plaster = masonry with { Body = materials.Brick };
         float half = settings.Width * 0.5f;
@@ -37,11 +36,11 @@ internal static class StoneworksRecipe
         writer.Box("stoneworks hall", new(-6.5f, UpperFloor - 0.5f, HallZ), new(6.5f, UpperFloor, EndZ + 0.5f), materials.Paving, Identity);
         Stairs(writer, materials.Limestone);
 
-        architecture.Wall("south dressed wall", new(new(half, Floor, -10), 180, settings.Width, 3.8f, Thickness), WallFinish.DressedStone, masonry, Wear("south dressed wall"));
-        architecture.Wall("west plaster", new(new(-half, Floor, -10), -90, 20, 4.8f, Thickness), WallFinish.BrokenPlaster, plaster, Wear("west plaster"));
-        architecture.Wall("east masonry", new(new(half, Floor, GatewayZ), 90, 20, 3.6f, Thickness), WallFinish.Masonry, masonry, Wear("east masonry"));
+        ArchitecturalRecipes.Wall(writer, "south dressed wall", new(new(half, Floor, -10), 180, settings.Width, 3.8f, Thickness), WallFinish.DressedStone, masonry, Wear("south dressed wall"));
+        ArchitecturalRecipes.Wall(writer, "west plaster", new(new(-half, Floor, -10), -90, 20, 4.8f, Thickness), WallFinish.BrokenPlaster, plaster, Wear("west plaster"));
+        ArchitecturalRecipes.Wall(writer, "east masonry", new(new(half, Floor, GatewayZ), 90, 20, 3.6f, Thickness), WallFinish.Masonry, masonry, Wear("east masonry"));
         WallOpening gate = new(half + settings.DoorOffset, settings.DoorWidth, 4.0f, true);
-        architecture.Wall("arched gateway", new(new(-half, Floor, GatewayZ), 0, settings.Width, 6.7f, Thickness, gate), WallFinish.BrokenPlaster, plaster, Wear("arched gateway"));
+        ArchitecturalRecipes.Wall(writer, "arched gateway", new(new(-half, Floor, GatewayZ), 0, settings.Width, 6.7f, Thickness, gate), WallFinish.BrokenPlaster, plaster, Wear("arched gateway"));
 
         // Repeated open arches establish a readable rhythm through the passage.
         for (int bay = 0; bay < 3; bay++)
@@ -49,17 +48,17 @@ internal static class StoneworksRecipe
             const float bayLength = 4f;
             float z = GatewayZ + bay * bayLength;
             WallOpening arch = new(bayLength * 0.5f, 2.5f, 1.9f, true);
-            architecture.Wall("west arcade", new(new(-3.3f, UpperFloor, z), -90, bayLength, 4.2f, Thickness, arch), WallFinish.DressedStone, masonry, Wear("west arcade"));
-            architecture.Wall("east arcade", new(new(3.3f, UpperFloor, z + bayLength), 90, bayLength, 4.2f, Thickness, arch), WallFinish.DressedStone, masonry, Wear("east arcade"));
+            ArchitecturalRecipes.Wall(writer, "west arcade", new(new(-3.3f, UpperFloor, z), -90, bayLength, 4.2f, Thickness, arch), WallFinish.DressedStone, masonry, Wear("west arcade"));
+            ArchitecturalRecipes.Wall(writer, "east arcade", new(new(3.3f, UpperFloor, z + bayLength), 90, bayLength, 4.2f, Thickness, arch), WallFinish.DressedStone, masonry, Wear("east arcade"));
             writer.Box("arcade beam", new(-3.6f, 9.15f, z + 0.15f), new(3.6f, 9.5f, z + 0.5f), materials.Timber, Identity);
         }
         writer.Box("passage canopy", new(-3.7f, 9.5f, GatewayZ), new(3.7f, 9.8f, HallZ), materials.Timber, Identity);
-        architecture.Wall("hall west", new(new(-6.2f, UpperFloor, HallZ), -90, 10, 4.5f, Thickness), WallFinish.BrokenPlaster, plaster, Wear("hall west"));
-        architecture.Wall("hall east", new(new(6.2f, UpperFloor, EndZ), 90, 10, 4.5f, Thickness), WallFinish.DressedStone, masonry, Wear("hall east"));
-        architecture.Wall("hall rear", new(new(-6.2f, UpperFloor, EndZ), 0, 12.4f, 5.8f, Thickness), WallFinish.DressedStone, masonry, Wear("hall rear"));
+        ArchitecturalRecipes.Wall(writer, "hall west", new(new(-6.2f, UpperFloor, HallZ), -90, 10, 4.5f, Thickness), WallFinish.BrokenPlaster, plaster, Wear("hall west"));
+        ArchitecturalRecipes.Wall(writer, "hall east", new(new(6.2f, UpperFloor, EndZ), 90, 10, 4.5f, Thickness), WallFinish.DressedStone, masonry, Wear("hall east"));
+        ArchitecturalRecipes.Wall(writer, "hall rear", new(new(-6.2f, UpperFloor, EndZ), 0, 12.4f, 5.8f, Thickness), WallFinish.DressedStone, masonry, Wear("hall rear"));
         // Short front returns leave a generous, aligned transition from arcade.
         foreach (float x in new[] { -6.2f, 3.6f })
-            architecture.Wall("hall return", new(new(x, UpperFloor, HallZ), 0, 2.6f, 4.5f, Thickness), WallFinish.DressedStone, masonry, Wear("hall return"));
+            ArchitecturalRecipes.Wall(writer, "hall return", new(new(x, UpperFloor, HallZ), 0, 2.6f, 4.5f, Thickness), WallFinish.DressedStone, masonry, Wear("hall return"));
 
         // A lighter central route, inset joints and low garden beds divide the
         // court into deliberate masses rather than an uninterrupted noisy plane.
