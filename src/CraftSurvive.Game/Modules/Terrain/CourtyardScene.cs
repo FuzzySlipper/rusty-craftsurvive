@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
+using CraftSurvive.Game.Modules.Terrain.Recipes;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -9,7 +10,7 @@ internal readonly record struct CourtyardSettings(
     string Treatment, float Width, float DoorWidth, float DoorOffset, ulong Seed,
     float CellSize, float CreaseDegrees, string Masonry = "layered",
     ImplicitMaterialBoundaryMode MaterialBoundaryMode = ImplicitMaterialBoundaryMode.Interpolated,
-    float MaterialCutoff = 0f)
+    float MaterialCutoff = 0f, string Study = "stoneworks", string Detail = "normal")
 {
     internal static CourtyardSettings Default => new("soft", 24f, 3.4f, 0f, 0x4352414654UL, 0.20f, 110f);
 
@@ -27,29 +28,13 @@ internal sealed class CourtyardScene : IDisposable
 {
     private const ulong FirstObjectId = 1000;
     private const ulong FirstLightId = 5000;
-    private const float CourtyardFloor = 3f;
-    private const float RaisedFloor = 5f;
-    private const float PassageStart = 10f;
-    private const float PassageEnd = 22f;
-    private const float ChamberEnd = 32f;
     private const float WallThickness = 0.6f;
-    private const float WallSectionLength = 4f;
-    private const float CourseHeight = 0.6f;
-    private const float StoneLength = 0.95f;
-    private const float JointHalfWidth = 0.045f;
-    private const float StoneRelief = 0.09f;
-    private const float UvRepeatsPerMeter = 0.6f;
     private const float DomainPadding = 0.25f;
-    private const string TestWall = "west";
-    private const float TestSectionStart = -2f;
     private const string TestPartPrefix = "masonry test";
-    private const float BrickRegionTolerance = 0.015f;
-    private const float CapDepth = 0.14f;
-    private const float CapMaterialMargin = 0.03f;
-    private const float WallMossHeight = 0.38f;
     private const float MaxMaterialCutoff = 0.15f;
     private readonly IEngineContext engine;
     private readonly CourtyardMaterials materials;
+    private readonly StoneworksMaterials stoneworksMaterials;
     private readonly List<Part> parts = [];
     private readonly List<Part> retired = [];
     private readonly List<(Light Owner, LightDescriptor Descriptor)> lights = [];
@@ -70,6 +55,8 @@ internal sealed class CourtyardScene : IDisposable
     {
         this.engine = engine;
         materials = new CourtyardMaterials(engine);
+        try { stoneworksMaterials = new StoneworksMaterials(engine); }
+        catch { materials.Dispose(); throw; }
     }
 
     internal void Start(SpatialSession spatial)
@@ -86,8 +73,24 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal IEnumerable<AppearanceFact> Facts => parts.Select((part, index) => new AppearanceFact(
-        FirstObjectId + (ulong)index, false, 0, new Transform(translation, Quaternion.Identity, Vector3.One),
+        FirstObjectId + (ulong)index, false, 0, part.Placement with { Translation = part.Placement.Translation + translation },
         part.Appearance, true, RenderLayer.Scene));
+
+    internal string QueueStudy(string study)
+    {
+        if (study is not ("stoneworks" or "reference" or "sampling"))
+            throw new ArgumentException("Study must be stoneworks, reference, or sampling.");
+        pending = (pending ?? settings) with { Study = study };
+        return $"queued environment study={study}";
+    }
+
+    internal string QueueDetail(string detail)
+    {
+        if (detail is not ("coarse" or "normal" or "fine"))
+            throw new ArgumentException("Detail must be coarse, normal, or fine.");
+        pending = (pending ?? settings) with { Detail = detail };
+        return $"queued sampling panel detail={detail}";
+    }
 
     internal string QueueTreatment(string treatment)
     {
@@ -128,9 +131,14 @@ internal sealed class CourtyardScene : IDisposable
         float face = -settings.Width * 0.5f + WallThickness;
         return angle switch
         {
+            "arrival" => (new(0, 4.55f, -7), new(0, 6.6f, 10)),
+            "plaster" => (new(-settings.Width * 0.5f + 4f, 4.8f, -5f), new(-settings.Width * 0.5f, 5.6f, -3f)),
+            "arcade" => (new(0, 6.55f, 11.5f), new(-2f, 7f, 19.5f)),
+            "carving" => (new(0, 6.55f, 26.5f), new(0, 7.6f, 30.6f)),
+            "samples" => (new(-3.5f, 5f, -7.5f), new(-2f, 4.5f, -3f)),
             "front" => (new(face + 3f, 4.55f, 0f), new(face, 5.1f, 0f)),
             "grazing" => (new(face + 0.8f, 4.55f, -3.2f), new(face, 4.9f, 1.3f)),
-            _ => throw new ArgumentException("Inspection view must be front or grazing."),
+            _ => throw new ArgumentException("Inspection view must be arrival, plaster, arcade, carving, samples, front or grazing."),
         };
     }
 
@@ -183,7 +191,7 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"study={settings.Study};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
@@ -193,75 +201,20 @@ internal sealed class CourtyardScene : IDisposable
         List<Part> replacement = [];
         try
         {
-            float halfWidth = next.Width * 0.5f;
-            // Floors and the raised route are authored solids; texture density
-            // stays constant when dimensions or extraction sampling change.
-            BoxPart("courtyard floor", new(-halfWidth, CourtyardFloor - 0.5f, -10f), new(halfWidth, CourtyardFloor, PassageStart), materials.Ground, next, replacement);
-            BoxPart("passage floor", new(-2.6f, RaisedFloor - 0.5f, PassageStart), new(2.6f, RaisedFloor, PassageEnd), materials.Stone, next, replacement);
-            BoxPart("chamber floor", new(-6f, RaisedFloor - 0.5f, PassageEnd), new(6f, RaisedFloor, ChamberEnd), materials.Stone, next, replacement);
-            // Union before extraction so hidden overlapping risers never enter
-            // the collision world as separate surfaces.
-            using (Recipe stairs = new(engine.ImplicitSurfaces))
+            testGenerationSeconds = 0;
+            if (next.Study == "reference")
             {
-                const int stairCount = 6;
-                const float stairRun = 4f;
-                ImplicitNode solid = default;
-                for (int step = 0; step < stairCount; step++)
-                {
-                    float top = CourtyardFloor + (RaisedFloor - CourtyardFloor) * (step + 1) / stairCount;
-                    float front = PassageStart - stairRun + stairRun * step / stairCount;
-                    ImplicitNode riser = stairs.Box(new(-2f, CourtyardFloor - 0.1f, front), new(2f, top, PassageStart + 0.08f));
-                    // Each visible nose is a 45-degree cut, followed by a flat
-                    // tread. Collision copies this exact surface.
-                    Vector3 noseNormal = Vector3.Normalize(new Vector3(0f, 1f, -1f));
-                    float noseRun = (RaisedFloor - CourtyardFloor) / stairCount;
-                    ImplicitNode nose = stairs.Plane(noseNormal, Vector3.Dot(noseNormal, new Vector3(0f, top, front + noseRun)));
-                    riser = stairs.Intersect(riser, nose);
-                    solid = step == 0 ? riser : stairs.Union(solid, riser);
-                }
-                AddPart("stair flight", stairs, solid, new(-2f, CourtyardFloor - 0.1f, PassageStart - stairRun),
-                    new(2f, RaisedFloor, PassageStart + 0.08f), materials.Plaster, [], next, replacement);
+                CourtyardRecipe recipe = new(engine, materials);
+                recipe.Compose(next, surface => AddPart(surface, replacement));
+                testGenerationSeconds = recipe.TestGenerationSeconds;
             }
-
-            WallRun("south", new(-halfWidth, CourtyardFloor, -10f), new(halfWidth, 7.2f, -10f + WallThickness), false, next, replacement);
-            WallRun("west", new(-halfWidth, CourtyardFloor, -10f), new(-halfWidth + WallThickness, 7.6f, PassageStart), false, next, replacement);
-            WallRun("east", new(halfWidth - WallThickness, CourtyardFloor, -10f), new(halfWidth, 6.4f, PassageStart), false, next, replacement);
-            WallRun("gateway", new(-halfWidth, CourtyardFloor, PassageStart - WallThickness), new(halfWidth, 8.1f, PassageStart), true, next, replacement);
-            WallRun("passage west", new(-2.6f, RaisedFloor, PassageStart), new(-2f, 8.6f, PassageEnd), false, next, replacement);
-            WallRun("passage east", new(2f, RaisedFloor, PassageStart), new(2.6f, 8.6f, PassageEnd), false, next, replacement);
-            BoxPart("covered passage", new(-2.7f, 8.6f, PassageStart), new(2.7f, 9f, PassageEnd), materials.DarkNeutral, next, replacement);
-            WallRun("chamber entrance", new(-6f, RaisedFloor, PassageEnd), new(6f, 9f, PassageEnd + WallThickness), true, next, replacement);
-            WallRun("chamber west", new(-6f, RaisedFloor, PassageEnd), new(-5.4f, 9.5f, ChamberEnd), false, next, replacement);
-            WallRun("chamber east", new(5.4f, RaisedFloor, PassageEnd), new(6f, 8.8f, ChamberEnd), false, next, replacement);
-            WallRun("chamber end", new(-6f, RaisedFloor, ChamberEnd - WallThickness), new(6f, 10f, ChamberEnd), false, next, replacement);
-
-            Frame("gateway frame", PassageStart - WallThickness - 0.12f, next, replacement);
-            Frame("chamber frame", PassageEnd - 0.15f, next, replacement);
-            for (int beam = 0; beam < 4; beam++)
-            {
-                float z = PassageStart + 1f + beam * 3f;
-                BoxPart($"roof beam {beam}", new(-2f, 8.25f, z), new(2f, 8.62f, z + 0.28f), materials.Wood, next, replacement);
-            }
-            // A low altar and clipped columns anchor the chamber's long view.
-            BoxPart("altar base", new(-2.1f, RaisedFloor, 29.4f), new(2.1f, 5.4f, 31f), materials.DarkNeutral, next, replacement);
-            BoxPart("altar cap", new(-2.3f, 5.4f, 29.2f), new(2.3f, 5.65f, 31.2f), materials.Plaster, next, replacement);
-            foreach (float x in new[] { -4.3f, 4.3f })
-            {
-                BoxPart("column foot", new(x - 0.55f, 5f, 28.3f), new(x + 0.55f, 5.5f, 29.4f), materials.Plaster, next, replacement);
-                using Recipe column = new(engine.ImplicitSurfaces);
-                ImplicitNode shaft = column.Box(new(x - 0.36f, 5.4f, 28.5f), new(x + 0.36f, 8.7f, 29.2f));
-                Vector3 cutNormal = Vector3.Normalize(new Vector3(0.35f, 1f, 0.2f));
-                ImplicitNode cut = column.Plane(cutNormal, Vector3.Dot(cutNormal, new Vector3(x, 8.35f, 28.85f)));
-                shaft = column.Intersect(shaft, cut);
-                AddPart("clipped column", column, shaft, new(x - 0.8f, 5.1f, 28.2f), new(x + 0.8f, 9f, 29.6f), materials.Plaster, [], next, replacement);
-            }
-            OrganicDetails(halfWidth, next, replacement);
+            else StoneworksRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
 
             SpatialSession spatial = session ?? throw new InvalidOperationException("Courtyard collision session unavailable.");
             StaticMeshAsset[] assets = replacement.Select((p, i) => new StaticMeshAsset(
                 FirstObjectId + (ulong)i, new MeshResourceReference(p.Mesh), 0, 0, 0, 0)).ToArray();
             StaticMeshInstance[] instances = replacement.Select((p, i) => new StaticMeshInstance(
-                FirstObjectId + (ulong)i, FirstObjectId + (ulong)i, new Transform(translation, Quaternion.Identity, Vector3.One))).ToArray();
+                FirstObjectId + (ulong)i, FirstObjectId + (ulong)i, p.Placement with { Translation = p.Placement.Translation + translation })).ToArray();
             engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(spatial, assets,
                 ReadOnlyMemory<Vector3>.Empty, ReadOnlyMemory<Triangle>.Empty, instances));
             retired.AddRange(parts);
@@ -280,177 +233,19 @@ internal sealed class CourtyardScene : IDisposable
         }
     }
 
-    private void WallRun(string name, Vector3 min, Vector3 max, bool doorway, CourtyardSettings next, List<Part> output)
+    private void AddPart(RecipeSurface surface, List<Part> output)
     {
-        bool alongX = max.X - min.X > max.Z - min.Z;
-        float start = alongX ? min.X : min.Z;
-        float end = alongX ? max.X : max.Z;
-        for (float position = start; position < end - 0.01f; position += WallSectionLength)
-        {
-            Vector3 a = min;
-            Vector3 b = max;
-            if (alongX) { a.X = position; b.X = MathF.Min(end, position + WallSectionLength); }
-            else { a.Z = position; b.Z = MathF.Min(end, position + WallSectionLength); }
-            bool test = name == TestWall && position == TestSectionStart;
-            Stopwatch? watch = test ? Stopwatch.StartNew() : null;
-            (Vector3 Min, Vector3 Max)[] stones = CourseStones(a, b, alongX, min.Y).ToArray();
-            Vector3 capMin = new(a.X - CapDepth, b.Y - 0.22f, a.Z - CapDepth);
-            Vector3 capMax = new(b.X + CapDepth, b.Y + CapDepth, b.Z + CapDepth);
-            float chipPosition = position + WallSectionLength * 0.65f;
-            long chipVariation = engine.Random.DrawKeyed(new KeyedRngRequest(next.Seed, "courtyard.chips", FormattableString.Invariant($"{name}:{position:R}"), 0, 3)).Value;
-            float chipRadius = 0.22f + chipVariation * 0.11f;
-            Vector3 chip = alongX ? new(chipPosition, b.Y + 0.08f, (a.Z + b.Z) * 0.5f) : new((a.X + b.X) * 0.5f, b.Y + 0.08f, chipPosition);
-
-            if (test && next.Masonry == "layered")
-            {
-                // Separate closed solids with real relief. Brick backs overlap
-                // the backing volume; exposed faces never rely on draw order.
-                LayeredBox($"{TestPartPrefix} mortar", a, b, chip, chipRadius, materials.Mortar, next, output);
-                foreach ((Vector3 stoneMin, Vector3 stoneMax) in stones)
-                    LayeredBox($"{TestPartPrefix} brick", stoneMin, stoneMax, chip, chipRadius, materials.Stone, next, output);
-                LayeredBox($"{TestPartPrefix} cap", capMin, capMax, chip, chipRadius, materials.Plaster, next, output);
-            }
-            else
-            {
-                using Recipe recipe = new(engine.ImplicitSurfaces);
-                ImplicitNode wall = recipe.Box(a, b);
-                ImplicitNode bricks = default;
-                bool hasBricks = false;
-                foreach ((Vector3 stoneMin, Vector3 stoneMax) in stones)
-                {
-                    ImplicitNode brick = recipe.Box(stoneMin, stoneMax);
-                    wall = recipe.Union(wall, brick);
-                    if (test && next.Masonry == "regions")
-                    {
-                        bricks = hasBricks ? recipe.Union(bricks, brick) : brick;
-                        hasBricks = true;
-                    }
-                }
-                ImplicitNode cap = recipe.Box(capMin, capMax);
-                wall = recipe.Subtract(recipe.Union(wall, cap), recipe.Sphere(chip, chipRadius));
-                if (doorway)
-                {
-                    float doorHalf = next.DoorWidth * 0.5f;
-                    ImplicitNode opening = recipe.Box(new(next.DoorOffset - doorHalf, min.Y - 1f, min.Z - 1f), new(next.DoorOffset + doorHalf, 7.75f, max.Z + 1f));
-                    wall = recipe.Subtract(wall, opening);
-                }
-                // Cutoff moves only region classification. The cap and wall root
-                // remain fixed, so extracted geometry and collision do not move.
-                // These are horizontal bands on this wall part, so use affine
-                // half-spaces. A box field also measures distance to its other
-                // sides, which would distort vertex-interpolated band cutoffs.
-                float capCutoff = capMin.Y - CapMaterialMargin + next.MaterialCutoff;
-                ImplicitNode capRegion = recipe.Plane(-Vector3.UnitY, -capCutoff);
-                List<ImplicitMaterialRegion> regions = [new(capRegion, materials.Plaster)];
-                if (test && next.Masonry == "regions" && hasBricks)
-                    regions.Add(new(recipe.Offset(bricks, BrickRegionTolerance), materials.Stone));
-                // Exclude the unrelated moss classification in all three test
-                // modes so the comparison isolates brick/mortar ownership.
-                if (!test)
-                {
-                    ImplicitNode moss = recipe.Plane(Vector3.UnitY, min.Y + WallMossHeight + next.MaterialCutoff);
-                    regions.Add(new(moss, materials.Moss));
-                }
-                AddPart(test ? $"{TestPartPrefix} union" : name, recipe, wall,
-                    a - new Vector3(0.3f), b + new Vector3(0.35f),
-                    test && next.Masonry == "regions" ? materials.Mortar : materials.Stone,
-                    regions.ToArray(), next, output);
-            }
-            if (watch is not null) testGenerationSeconds = watch.Elapsed.TotalSeconds;
-        }
-    }
-
-    private static IEnumerable<(Vector3 Min, Vector3 Max)> CourseStones(Vector3 a, Vector3 b, bool alongX, float baseY)
-    {
-        // Both constructions consume the same globally phased brick bounds.
-        float position = a[alongX ? 0 : 2];
-        for (int course = 0; baseY + course * CourseHeight < b.Y; course++)
-        {
-            float bottom = baseY + course * CourseHeight;
-            float phase = (course % 2) * StoneLength * 0.5f;
-            for (float p = MathF.Floor((position - phase) / StoneLength) * StoneLength + phase; p < b[alongX ? 0 : 2]; p += StoneLength)
-            {
-                float left = MathF.Max(position, p + JointHalfWidth);
-                float right = MathF.Min(b[alongX ? 0 : 2], p + StoneLength - JointHalfWidth);
-                if (right <= left) continue;
-                Vector3 stoneMin = a - new Vector3(StoneRelief, 0, StoneRelief);
-                Vector3 stoneMax = b + new Vector3(StoneRelief, 0, StoneRelief);
-                stoneMin.Y = bottom + JointHalfWidth;
-                stoneMax.Y = MathF.Min(b.Y, bottom + CourseHeight - JointHalfWidth);
-                if (alongX) { stoneMin.X = left; stoneMax.X = right; }
-                else { stoneMin.Z = left; stoneMax.Z = right; }
-                if (stoneMax.Y > stoneMin.Y) yield return (stoneMin, stoneMax);
-            }
-        }
-    }
-
-    private void LayeredBox(string name, Vector3 min, Vector3 max, Vector3 chip, float chipRadius,
-        Material material, CourtyardSettings next, List<Part> output)
-    {
-        using Recipe recipe = new(engine.ImplicitSurfaces);
-        ImplicitNode solid = recipe.Subtract(recipe.Box(min, max), recipe.Sphere(chip, chipRadius));
-        AddPart(name, recipe, solid, min, max, material, [], next, output);
-    }
-
-    private void Frame(string name, float z, CourtyardSettings next, List<Part> output)
-    {
-        float half = next.DoorWidth * 0.5f;
-        float center = next.DoorOffset;
-        const float trimWidth = 0.25f;
-        foreach (float x in new[] { center - half - trimWidth, center + half })
-            BoxPart(name + " jamb", new(x, RaisedFloor, z), new(x + trimWidth, 7.85f, z + 0.28f), materials.Plaster, next, output);
-        BoxPart(name + " lintel", new(center - half - trimWidth, 7.75f, z), new(center + half + trimWidth, 8.1f, z + 0.28f), materials.Plaster, next, output);
-    }
-
-    private void OrganicDetails(float halfWidth, CourtyardSettings next, List<Part> output)
-    {
-        foreach ((Vector3 center, Vector3 radii) in new[] {
-            (new Vector3(-8.5f, 3.25f, -2f), new Vector3(1.8f, 1.1f, 1.4f)),
-            (new Vector3(8.5f, 3.2f, 3f), new Vector3(1.5f, 0.8f, 2f)),
-            (new Vector3(-7f, 3.15f, 6f), new Vector3(1.1f, 0.65f, 1.2f)) })
-        {
-            using Recipe recipe = new(engine.ImplicitSurfaces);
-            ImplicitNode rock = recipe.Ellipsoid(center, radii);
-            Vector3 clipNormal = Vector3.Normalize(new Vector3(0.3f, 1f, 0.15f));
-            ImplicitNode clip = recipe.Plane(clipNormal, Vector3.Dot(clipNormal, center + new Vector3(0f, radii.Y * 0.6f, 0f)));
-            rock = recipe.Intersect(rock, clip);
-            ImplicitNode moss = recipe.Box(center - radii, center + new Vector3(radii.X, 0.15f, radii.Z));
-            AddPart("broken rock", recipe, rock, center - radii, center + radii, materials.Stone, [new ImplicitMaterialRegion(moss, materials.Moss)], next, output);
-        }
-        using Recipe roots = new(engine.ImplicitSurfaces);
-        Vector3 origin = new(-halfWidth + 0.9f, 3.2f, 2f);
-        ImplicitNode root = roots.Capsule(origin, origin + new Vector3(2f, -0.08f, 1f), 0.23f);
-        for (int branch = 0; branch < 4; branch++)
-        {
-            Vector3 bend = origin + new Vector3(1.2f + branch * 0.45f, 0.15f, branch - 1f);
-            Vector3 tip = bend + new Vector3(1.4f, -0.17f, 0.7f);
-            root = roots.Blend(root, roots.Capsule(origin, bend, 0.18f), 0.12f);
-            root = roots.Blend(root, roots.Capsule(bend, tip, 0.12f), 0.1f);
-        }
-        AddPart("root cluster", roots, root, origin - new Vector3(0.4f, 0.4f, 2f), origin + new Vector3(5f, 1f, 4f), materials.Wood, [], next, output);
-    }
-
-    private void BoxPart(string name, Vector3 min, Vector3 max, Material material, CourtyardSettings next, List<Part> output)
-    {
-        using Recipe recipe = new(engine.ImplicitSurfaces);
-        Vector3 extent = max - min;
-        float narrowest = MathF.Min(extent.X, MathF.Min(extent.Y, extent.Z));
-        CourtyardSettings planar = next with { CellSize = MathF.Min(0.5f, narrowest * 0.75f) };
-        AddPart(name, recipe, recipe.Box(min, max), min, max, material, [], planar, output);
-    }
-
-    private void AddPart(string name, Recipe recipe, ImplicitNode root, Vector3 min, Vector3 max, Material material,
-        ImplicitMaterialRegion[] regions, CourtyardSettings next, List<Part> output)
-    {
-        MeshResource mesh = engine.ImplicitSurfaces.Generate(new ImplicitGenerateRequest(recipe.Field, root,
-            min - new Vector3(DomainPadding), max + new Vector3(DomainPadding), next.CellSize, next.CreaseDegrees,
-            UvRepeatsPerMeter, material, regions, MaterialBoundaryMode: next.MaterialBoundaryMode));
+        MeshResource mesh = engine.ImplicitSurfaces.Generate(new ImplicitGenerateRequest(surface.Field, surface.Root,
+            surface.Min - new Vector3(DomainPadding), surface.Max + new Vector3(DomainPadding),
+            surface.Sampling.CellSize, surface.Sampling.CreaseDegrees, surface.Sampling.TextureRepeats,
+            surface.Material, surface.Regions, MaterialBoundaryMode: surface.Sampling.MaterialBoundaries));
+        Appearance? appearance = null;
         try
         {
-            Appearance appearance = engine.Graphics.CreateMeshAppearance(mesh);
-            output.Add(new Part(name, mesh, appearance, engine.ImplicitSurfaces.ReadGeneration(recipe.Field)));
+            appearance = engine.Graphics.CreateMeshAppearance(mesh);
+            output.Add(new Part(surface.Name, mesh, appearance, engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement));
         }
-        catch { mesh.Dispose(); throw; }
+        catch { appearance?.Dispose(); mesh.Dispose(); throw; }
     }
 
     private void AddLight(LightKind kind, Vector3 color, float intensity, Vector3 position, Vector3 direction)
@@ -461,6 +256,8 @@ internal sealed class CourtyardScene : IDisposable
         Light owner = engine.Graphics.CreateLight(new LightRequest(FirstLightId + (ulong)lights.Count, false, 0, descriptor));
         lights.Add((owner, descriptor));
     }
+
+    private static float SampleCell(string detail) => detail switch { "coarse" => 0.32f, "fine" => 0.08f, _ => 0.16f };
 
     private static string BoundaryModeName(ImplicitMaterialBoundaryMode mode) => mode switch
     {
@@ -483,31 +280,13 @@ internal sealed class CourtyardScene : IDisposable
         lights.Clear();
         foreach (Part part in parts) part.Dispose();
         parts.Clear();
+        stoneworksMaterials.Dispose();
         materials.Dispose();
     }
 
-    private sealed record Part(string Name, MeshResource Mesh, Appearance Appearance, ImplicitGenerationReadout Stats) : IDisposable
+    private sealed record Part(string Name, MeshResource Mesh, Appearance Appearance, ImplicitGenerationReadout Stats, Transform Placement) : IDisposable
     {
         public void Dispose() { Appearance.Dispose(); Mesh.Dispose(); }
     }
 
-    // This helper only composes named Engine operations; it evaluates no fields
-    // and generates no geometry in the product.
-    private sealed class Recipe(IImplicitSurfacesService service) : IDisposable
-    {
-        internal ImplicitField Field { get; } = service.CreateField();
-        internal ImplicitNode Box(Vector3 min, Vector3 max) => service.AddBox(new(Field, min, max));
-        internal ImplicitNode Sphere(Vector3 center, float radius) => service.AddSphere(new(Field, center, radius));
-        internal ImplicitNode Ellipsoid(Vector3 center, Vector3 radii) => service.AddEllipsoid(new(Field, center, radii));
-        internal ImplicitNode Capsule(Vector3 start, Vector3 end, float radius) => service.AddCapsule(new(Field, start, end, radius));
-        internal ImplicitNode Plane(Vector3 normal, float offset) => service.AddPlane(new(Field, normal, offset));
-        internal ImplicitNode Union(ImplicitNode a, ImplicitNode b) => service.Union(new(Field, a, b));
-        internal ImplicitNode Intersect(ImplicitNode a, ImplicitNode b) => service.Intersection(new(Field, a, b));
-        internal ImplicitNode Subtract(ImplicitNode a, ImplicitNode b) => service.Difference(new(Field, a, b));
-        internal ImplicitNode Offset(ImplicitNode source, float amount) => service.Offset(new(Field, source, amount));
-        internal ImplicitNode Translate(ImplicitNode source, Vector3 translation) => service.Transform(new(Field, source,
-            new Transform(translation, Quaternion.Identity, Vector3.One)));
-        internal ImplicitNode Blend(ImplicitNode a, ImplicitNode b, float radius) => service.SmoothUnion(new(Field, a, b, radius));
-        public void Dispose() => Field.Dispose();
-    }
 }

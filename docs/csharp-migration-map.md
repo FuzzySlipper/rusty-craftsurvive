@@ -43,7 +43,7 @@ path.
 | Product lifecycle and bootstrap | `CraftSurviveProduct` and SDK composition | Active. The SDK emits and stages the CoreCLR product from one explicit product type. |
 | Runtime pack and Den host | Packaged `rusty dev` | Active. `.den-serve.json` is broker-owned and starts the same CoreCLR lane. |
 | DOM companion | `src/ui/main.ts` | Active. Static product UI only; it does not own game facts or input meaning. |
-| Terrain recipe and bounds | `Modules/Terrain` | Active. `CourtyardScene` constructs the default 24×20m courtyard, 12m passage and 12×10m chamber through Engine ImplicitSurfaces; Graphics retains results and Spatial copies their collision. `TraversalShowcase` retains the prior voxel recipe. |
+| Terrain recipe and bounds | `Modules/Terrain` | Active. `StoneworksRecipe` and `CourtyardRecipe` compose through product-local `Terrain/Recipes`; `CourtyardScene` generates through Engine ImplicitSurfaces and retains results. Spatial copies the same per-part mesh placements. `TraversalShowcase` retains the prior voxel recipe. |
 | Voxel residency and edits | `TerrainWorld` plus Engine Voxel/Spatial services | Active. Product admits revision-checked edits and leases; Engine owns voxel scene and collision/presentation mechanisms. |
 | Terrain persistence | `TerrainOverlayState` and `TerrainOverlayCodec` plus Engine Persistence | Active. One bounded canonical overlay owner. |
 | Terrain presentation | `Modules/Terrain/TerrainAtlasCatalog`, `TerrainWorld`, Engine AuthoredContent/Appearance/VoxelScenePresentation | Active. C# selects the canonical atlas and source-slot/face policy; Engine admits resources, resolves materials, retains mesh/renderer handles, and returns copied mapping rows. |

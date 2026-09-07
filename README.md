@@ -85,9 +85,11 @@ location.
   collision, character, camera, appearance, and origin mechanisms.
 - `Modules/Sky` selects the canonical authored panorama through Engine
   Appearance and CameraView. Engine owns its resource and renderer lifecycle.
-- `Modules/Terrain/CourtyardScene` owns the current ruined-courtyard runtime
-  recipe, using the existing terrain/player shell and Engine presentation
-  services.
+- `Modules/Terrain/CourtyardScene` retains generated geometry and copied
+  collision for the default Stoneworks environment, Reference courtyard and
+  Sampling plaques. Product-local `Terrain/Recipes` separates local frames,
+  openings, layered materials and field composition from that runtime owner.
+  See [the recipe study](docs/stoneworks-recipes.md) for controls and evidence.
 - `src/ui/main.ts` mounts DOM guidance, Ghost Settings, and live diagnostics beside the Engine-owned canvas.
 
 This is a runnable continuation lane, not a claim of complete survival

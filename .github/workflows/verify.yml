@@ -18,6 +18,8 @@ jobs:
           dotnet-version: 10.0.x
       - name: Check terrain materials and residency cache
         run: dotnet run --project tests/TerrainResidency -c Release
+      - name: Check architectural recipe composition
+        run: dotnet run --project tests/ArchitecturalRecipes -c Release
 
   verify-product-ui:
     runs-on: ubuntu-latest

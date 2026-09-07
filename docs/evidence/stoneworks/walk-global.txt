@@ -1,0 +1,1 @@
+world=craft;entity=1;component=1024;present=true;revision=18079;value=position=0.056,5.890,29.385;yaw=-180.00;pitch=0.00;grounded=True;crouched=False

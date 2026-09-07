@@ -1,0 +1,30 @@
+{
+  "console": [
+    {
+      "at": "2026-09-07T00:09:07.004Z",
+      "type": "warning",
+      "text": "[.WebGL-0x339c00189000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "at": "2026-09-07T00:09:08.309Z",
+      "type": "warning",
+      "text": "[.WebGL-0x339c0018a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "at": "2026-09-07T00:09:08.604Z",
+      "type": "warning",
+      "text": "[.WebGL-0x339c0018a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "at": "2026-09-07T00:09:08.879Z",
+      "type": "warning",
+      "text": "[.WebGL-0x339c0018a200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "at": "2026-09-07T00:11:34.057Z",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    }
+  ],
+  "pageErrors": []
+}

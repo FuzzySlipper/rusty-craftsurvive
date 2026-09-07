@@ -165,7 +165,13 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.courtyard.cutoff", Description = "Queues a -0.15m to 0.15m vertical material-region cutoff without changing courtyard geometry.")]
     public string SetCourtyardMaterialCutoff(float cutoff) => terrain.QueueCourtyardMaterialCutoff(cutoff);
 
-    [DebugCommand("craft.courtyard.inspect", Description = "Views the current west-wall test section: front or grazing.")]
+    [DebugCommand("craft.courtyard.study", Description = "Queues the stoneworks, reference, or sampling courtyard study for the next product update.")]
+    public string SetCourtyardStudy(string study) => terrain.QueueCourtyardStudy(study);
+
+    [DebugCommand("craft.courtyard.detail", Description = "Queues coarse, normal, or fine extraction detail for sampling plaques only.")]
+    public string SetCourtyardDetail(string detail) => terrain.QueueCourtyardDetail(detail);
+
+    [DebugCommand("craft.courtyard.inspect", Description = "Views a selected courtyard comparison: front, grazing, arrival, plaster, arcade, carving, or samples.")]
     public string InspectCourtyard(string angle)
     {
         (Vector3 eye, Vector3 target) = terrain.CourtyardInspectionView(angle);

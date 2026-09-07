@@ -133,8 +133,21 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const cutoffNegative = button('Cutoff −0.08m');
   const cutoffZero = button('Cutoff 0.00m');
   const cutoffPositive = button('Cutoff +0.08m');
+  const stoneworksStudy = button('Stoneworks (default)');
+  const referenceStudy = button('Reference bay');
+  const samplingStudy = button('Sampling plaques');
+  const coarseDetail = button('Coarse plaques');
+  const normalDetail = button('Normal plaques');
+  const fineDetail = button('Fine plaques');
+  const originalDimensions = button('Original dimensions');
+  const reshape = button('Reshape');
   const viewTestWall = button('View test wall');
   const grazingView = button('Grazing view');
+  const arrivalView = button('Arrival');
+  const plasterView = button('Plaster');
+  const arcadeView = button('Arcade');
+  const carvingView = button('Carving');
+  const samplesView = button('Samples');
   const refresh = button('Refresh');
   const actionRows = document.createElement('div');
   actionRows.style.cssText = 'display:grid;gap:.3rem;';
@@ -143,9 +156,13 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Test wall', original, materialRegions, layered),
     actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
     actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
-    actionRow('View', viewTestWall, grazingView, refresh));
+    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy),
+    actionRow('Plaque detail', coarseDetail, normalDetail, fineDetail),
+    actionRow('Layout', originalDimensions, reshape),
+    actionRow('Views', viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView, samplesView),
+    actionRow('Readout', refresh));
   const scope = document.createElement('p');
-  scope.textContent = 'Test wall changes the west comparison bay. Boundaries and cutoff change material edges across the courtyard while keeping the authored shapes fixed.';
+  scope.textContent = 'Masonry controls change the reference test bay. Boundary and cutoff controls affect their relevant material-region tests. Sampling detail changes plaque resolution only.';
   scope.style.cssText = 'margin:.35rem 0 0;max-width:24rem;';
   const receipt = document.createElement('p');
   receipt.setAttribute('aria-live', 'polite');
@@ -155,7 +172,9 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
 
   let disposed = false;
   const allActions = [balanced, faceted, soft, original, materialRegions, layered, centroidBoundaries, interpolatedBoundaries,
-    cutoffNegative, cutoffZero, cutoffPositive, viewTestWall, grazingView, refresh];
+    cutoffNegative, cutoffZero, cutoffPositive, stoneworksStudy, referenceStudy, samplingStudy, coarseDetail, normalDetail,
+    fineDetail, originalDimensions, reshape, viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView,
+    samplesView, refresh];
   const execute = async (label: string, command: string, resultKind: 'queued' | 'requested' | 'readout'): Promise<void> => {
     if (disposed) return;
     for (const action of allActions) action.disabled = true;
@@ -190,8 +209,21 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   cutoffNegative.addEventListener('click', () => void execute('−0.08m material cutoff', 'craft.courtyard.cutoff -0.08', 'queued'));
   cutoffZero.addEventListener('click', () => void execute('0.00m material cutoff', 'craft.courtyard.cutoff 0', 'queued'));
   cutoffPositive.addEventListener('click', () => void execute('+0.08m material cutoff', 'craft.courtyard.cutoff 0.08', 'queued'));
+  stoneworksStudy.addEventListener('click', () => void execute('Stoneworks study', 'craft.courtyard.study stoneworks', 'queued'));
+  referenceStudy.addEventListener('click', () => void execute('Reference-bay study', 'craft.courtyard.study reference', 'queued'));
+  samplingStudy.addEventListener('click', () => void execute('Sampling-plaques study', 'craft.courtyard.study sampling', 'queued'));
+  coarseDetail.addEventListener('click', () => void execute('Coarse sampling plaques', 'craft.courtyard.detail coarse', 'queued'));
+  normalDetail.addEventListener('click', () => void execute('Normal sampling plaques', 'craft.courtyard.detail normal', 'queued'));
+  fineDetail.addEventListener('click', () => void execute('Fine sampling plaques', 'craft.courtyard.detail fine', 'queued'));
+  originalDimensions.addEventListener('click', () => void execute('Original dimensions', 'craft.courtyard.layout 24 3.4 0 289142818388', 'queued'));
+  reshape.addEventListener('click', () => void execute('Reshaped courtyard', 'craft.courtyard.layout 26 3.8 0.25 12345', 'queued'));
   viewTestWall.addEventListener('click', () => void execute('Front test-wall view', 'craft.courtyard.inspect front', 'requested'));
   grazingView.addEventListener('click', () => void execute('Grazing test-wall view', 'craft.courtyard.inspect grazing', 'requested'));
+  arrivalView.addEventListener('click', () => void execute('Arrival view', 'craft.courtyard.inspect arrival', 'requested'));
+  plasterView.addEventListener('click', () => void execute('Plaster view', 'craft.courtyard.inspect plaster', 'requested'));
+  arcadeView.addEventListener('click', () => void execute('Arcade view', 'craft.courtyard.inspect arcade', 'requested'));
+  carvingView.addEventListener('click', () => void execute('Carving view', 'craft.courtyard.inspect carving', 'requested'));
+  samplesView.addEventListener('click', () => void execute('Sampling-plaques view', 'craft.courtyard.inspect samples', 'requested'));
   refresh.addEventListener('click', () => void execute('', 'craft.courtyard.readout', 'readout'));
   return Object.freeze({ dispose: () => { disposed = true; controls.remove(); toggle.remove(); } });
 }

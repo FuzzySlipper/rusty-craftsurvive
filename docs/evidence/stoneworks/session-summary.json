@@ -1,0 +1,132 @@
+{
+  "schema_version": "den-playwright-playtest/v1",
+  "session_id": "rusty-craftsurvive-playtest-20260907T000850.502569316Z-1541405",
+  "project": "rusty-craftsurvive",
+  "repository": "/home/dev/rusty-craftsurvive",
+  "scenario": "stoneworks-first-pass",
+  "owner_label": "/root/stoneworks_first_views",
+  "metadata": {
+    "acceptance_owner": "orchestrator",
+    "controls": "Ordinary visible controls only. Courtyard toggle, Stoneworks (default), Arrival, Plaster, Arcade, Carving, Open live debug, visible Command field and Run button. No hardware overrides.",
+    "den_task": "7851",
+    "headed": false,
+    "manifest_path": "/home/dev/rusty-craftsurvive/.den-playwright.json",
+    "mission": "Second visual evidence pass on the default Stoneworks connected environment. Keep Study=Stoneworks (default) while capturing Arrival, Plaster, Arcade, and Carving. For each view, open Courtyard, select the view, then close Courtyard before the screenshot. For Arcade capture a matched pose with shadows true and shadows false via the visible live debug command craft.courtyard.shadows false, then restore true. Keep session available briefly after captures for parent readouts and warning capture.",
+    "model_identity": "gpt-5.6-luna",
+    "owner": "/root/stoneworks_first_views",
+    "project": "rusty-craftsurvive",
+    "record_video": false,
+    "repo_root": "/home/dev/rusty-craftsurvive",
+    "requested_artifacts": [
+      "neutral startup screenshot",
+      "Stoneworks Arrival screenshot",
+      "Stoneworks Plaster screenshot",
+      "Stoneworks Arcade shadows-true screenshot",
+      "Stoneworks Arcade shadows-false screenshot",
+      "Stoneworks Carving screenshot",
+      "live debug receipts",
+      "page errors",
+      "Engine diagnostics"
+    ],
+    "scenario": "stoneworks-first-pass",
+    "task": "7851",
+    "verbose_trace": false,
+    "final_annotation": "Session origin http://127.0.0.1:37100/. Indexed evidence is under /home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T000850.502569316Z-1541405/. Page errors were 0 throughout observed browser captures. Whole-session diagnostics were 17 warnings and 0 errors: 13 timing-sample drops (#7833), worker-replacing/stale control-binding warnings during the deliberate source restage, two degraded browser transitions followed by ready recovery, four browser console ReadPixels warnings, and one 500 response at 00:11:34 from /debug/execute with DEV_HOST_WORKER_REPLACING during source editing. Warning capture later reported cursor 19 to 19 with no lag/drop/findings; there was no compatible baseline, so that capture is report-only. Do not claim zero console warnings/errors.",
+    "assertions": [
+      {
+        "id": "startup",
+        "statement": "Startup reached the visible product at the reported origin; pageErrors remained 0.",
+        "status": "observed"
+      },
+      {
+        "id": "visual_views",
+        "statement": "Arrival, Stoneworks Plaster, Arcade, and Carving were captured with the Courtyard panel collapsed; final post-clearance Arcade/Carving captures showed readable continuous surfaces.",
+        "status": "observed"
+      },
+      {
+        "id": "shadow_pair",
+        "statement": "Matched Arcade screenshots before the ordered-reveal restage showed dark patches persisting with shadows true and false.",
+        "status": "observed"
+      },
+      {
+        "id": "physical_route",
+        "statement": "The corrected W-only route reached the hall at global x=0.056,y=5.890,z=29.385, grounded true; hall evidence is 0018-route-hall-after.png.",
+        "status": "observed"
+      },
+      {
+        "id": "sampling_comparison",
+        "statement": "Coarse and Fine Samples were captured at the same pose; plaque triangle counts were 354 and 3750 respectively.",
+        "status": "observed"
+      },
+      {
+        "id": "final_state",
+        "statement": "Final state was restored to Stoneworks, Normal plaques, Original dimensions, Arrival, cutoff 0.00m, shadows true; readout generation 13, 160 parts, 164272 triangles.",
+        "status": "observed"
+      }
+    ],
+    "neutral_observation": "The browser loaded the Stoneworks scene at http://127.0.0.1:37100/ with a bright blue sky, pale plaster/masonry, red brick bands and triangular reveals, blue-gray paving, and green support ground/plinths. The final collapsed Arrival view is screenshots/0022-observe.png. After the ordered-reveal restage, the Arcade and Carving views were visually continuous and readable in screenshots/0007-final-arcade-clearances.png and 0008-final-carving-clearances.png; the earlier matched Arcade shadows pair (0004 true, 0005 false) retained large dark overlap patches before that restage. Stoneworks Plaster is 0003-stoneworks-plaster-collapsed.png. Samples at the same pose are 0020 coarse and 0021 fine; fine increases plaque triangles from 354 to 3750 and exposes additional grooves/fins, while upper closed material motifs remain absent. The Reference readout was separately observed at generation 7, 110 parts, 116088 triangles, width 24.0, doorWidth 3.4, cutoff 0.00m. Final restored Stoneworks readout was generation 13, 160 parts, 164272 triangles, 130787 vertices, width 24.0, doorWidth 3.4, cutoff 0.00m, shadows true, layered masonry, generated-mesh-copy collision, reorientedTriangles 0, degenerateTriangles 0. A first physical attempt drifted into the garden after pointer-lock movement changed yaw; after the bounded reset and W-only segments, the route reached the hall/shrine. Authoritative global endpoint was x=0.056, y=5.890, z=29.385, yaw=-180, grounded=true; endpoint evidence is screenshots/0018-route-hall-after.png. The local readout had rebased z and was not used as the global route threshold.",
+    "operational_outcome": "completed: startup succeeded, requested scene/view controls and matched plaque comparison were exercised, the corrected physical route reached the hall, and the UI was restored to Stoneworks/default dimensions/normal plaques/Arrival with cutoff 0.00m before finish.",
+    "acceptance_mapping": "Observation mission complete. Visual/art acceptance remains with the root/orchestrator; this pass records evidence and does not convert the neutral observations into an aesthetic acceptance claim. Engine follow-up 7854 remains associated with the missing upper closed material motifs seen in Fine plaques.",
+    "exit_interview": {
+      "confidence": "High for startup, captured view state, readouts, and authoritative global endpoint; visual acceptance remains the root's judgment.",
+      "difficulties": "Pointer lock caused one failed UI-interleaved route attempt and changed yaw; UI controls were then exercised after Escape/focus recovery, and the route was retried with no mouse movement.",
+      "suggestions": "Retain the indexed matched shadow pair as pre-clearance evidence and the post-clearance Arcade/Carving captures as current geometry evidence.",
+      "workarounds": "Used direct visible locators for controls and W-only bounded segments after the parent reset the exact start pose."
+    }
+  },
+  "started_at": "2026-09-07T00:09:04.041Z",
+  "finished_at": "2026-09-07T00:28:01.691Z",
+  "status": "pass",
+  "base_url": "http://127.0.0.1:37100",
+  "browser": {
+    "name": "chromium",
+    "version": "149.0.7827.55",
+    "headed": false,
+    "virtual_display": true
+  },
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "discrepancies": [
+    {
+      "at": "2026-09-07T00:13:59.067Z",
+      "code": "action_error",
+      "action_index": 0,
+      "ok": false,
+      "error": "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Courtyard\")')\u001b[22m\n\u001b[2m    - locator resolved to <button type=\"button\" aria-expanded=\"false\" aria-controls=\"craft-courtyard-controls\">Courtyard</button>\u001b[22m\n\u001b[2m  - attempting click action\u001b[22m\n\u001b[2m    2 \u00d7 waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - performing click action\u001b[22m\n\u001b[2m      - <canvas width=\"320\" tabindex=\"0\" height=\"180\" data-engine=\"three.js r184\" aria-label=\"Engine-rendered game world\" data-rusty-application-renderer=\"engine-owned\"></canvas> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m    - waiting 20ms\u001b[22m\n\u001b[2m    2 \u00d7 waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m      - element is visible, enabled and stable\u001b[22m\n\u001b[2m      - scrolling into view if needed\u001b[22m\n\u001b[2m      - done scrolling\u001b[22m\n\u001b[2m      - performing click action\u001b[22m\n\u001b[2m      - <canvas width=\"320\" tabindex=\"0\" height=\"180\" data-engine=\"three.js r184\" aria-label=\"Engine-rendered game world\" data-rusty-application-renderer=\"engine-owned\"></canvas> intercepts pointer events\u001b[22m\n\u001b[2m    - retrying click action\u001b[22m\n\u001b[2m      - waiting 100ms\u001b[22m\n\u001b[2m    45 \u00d7 waiting for element to be visible, enabled and stable\u001b[22m\n\u001b[2m       - element is visible, enabled and stable\u001b[22m\n\u001b[2m       - scrolling into view if needed\u001b[22m\n\u001b[2m       - done scrolling\u001b[22m\n\u001b[2m       - performing click action\u001b[22m\n\u001b[2m       - <canvas width=\"320\" tabindex=\"0\" height=\"180\" data-engine=\"three.js r184\" aria-label=\"Engine-rendered game world\" data-rusty-application-renderer=\"engine-owned\"></canvas> intercepts pointer events\u001b[22m\n\u001b[2m     - retrying click action\u001b[22m\n\u001b[2m       - waiting 500ms\u001b[22m\n",
+      "continued": true
+    },
+    {
+      "at": "2026-09-07T00:21:09.205Z",
+      "code": "sequence_gap",
+      "expected": 65,
+      "received": 66,
+      "continued": true
+    },
+    {
+      "at": "2026-09-07T00:27:52.927Z",
+      "code": "sequence_missing",
+      "expected": 85,
+      "continued": true
+    }
+  ],
+  "cleanup": {
+    "browser_closed": true,
+    "driver_stopped": true,
+    "virtual_display_stopped": true
+  },
+  "provenance": {
+    "kind": "derived-final-summary",
+    "source": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T000850.502569316Z-1541405/playtest-index.json",
+    "sourceBytes": 155384973,
+    "omitted": [
+      "events",
+      "observations",
+      "timeline",
+      "artifacts"
+    ],
+    "timeline": "timeline.jsonl",
+    "requests": "requests.jsonl"
+  }
+}
