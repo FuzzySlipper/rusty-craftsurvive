@@ -42,9 +42,14 @@ operations are the upstream foundation for later experiments.
 
 ## Verification and limits
 
-The installed pair is Engine `2207cc4e98422c036b655742651f08e102a22ab4`.
-The packaged Release product build, DOM UI check, and phased/rotated recipe tests
-against the actual SDK pass. Upstream focused tests cover scalar magnitudes,
+The installed pair is Engine `2574cc89fd30215de6d68be794bd2c3c3d22b4f3`.
+Visual evidence used `2207cc4e9842`; the successor only moves the helper tests
+into Engine SDK package CI and has identical runtime/API/recipe implementation.
+The packaged Release product build and DOM UI check pass. Phased/rotated recipe
+tests passed against the actual SDK and now run in Engine's packaged CoreCLR
+consumer check, alongside their upstream implementation. CraftSurvive CI retains
+product terrain and DOM checks; it no longer needs a local SDK feed merely to
+exercise Engine helper invariants. Upstream focused tests cover scalar magnitudes,
 coordinates, sample copies/leases, mutation invalidation, rasterization lifetime,
 extraction, and the carved geometry regression; strict Clippy and the required
 Engine CI checks pass.
