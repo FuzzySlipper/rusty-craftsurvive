@@ -184,6 +184,12 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return ViewCourtyard(eye.X, eye.Y, eye.Z, target.X, target.Y, target.Z);
     }
 
+    [DebugCommand("craft.courtyard.level-plan", Description = "Reads accepted cave rooms and route waypoints in local metres.")]
+    public string ReadCourtyardLevelPlan() => terrain.ReadCourtyardLevelPlan();
+
+    [DebugCommand("craft.courtyard.seed", Description = "Regenerates the selected environment with a repeatable seed.")]
+    public string SetCourtyardSeed(ulong seed) => terrain.QueueCourtyardSeed(seed);
+
     [DebugCommand("craft.courtyard.layout", Description = "Queues courtyard width, doorway width/offset and detail seed regeneration.")]
     public string SetCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => terrain.QueueCourtyardLayout(width, doorWidth, doorOffset, seed);
 

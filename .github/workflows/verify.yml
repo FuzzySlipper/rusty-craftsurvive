@@ -16,6 +16,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - name: Check procedural planning and cave layout
+        run: dotnet run --project tests/Procgen -c Release
+      - name: Check offline generation artifacts
+        run: dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
       - name: Check terrain materials and residency cache
         run: dotnet run --project tests/TerrainResidency -c Release
 

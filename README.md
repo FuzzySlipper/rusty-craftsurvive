@@ -13,6 +13,10 @@ mechanisms, voxel residency and presentation, resources, and persistence
 primitives through the safe SDK. The small DOM companion is UI-only; it does
 not render game elements, retain game state, or implement a transport or loop.
 
+Combined level and voxel-art experiments are described in
+[Procedural cave levels](docs/procedural-levels.md). CraftSurvive is now the active
+home for the retained Rusty Procgen algorithms and offline artifact tool.
+
 ## Repository shape
 
 ```text

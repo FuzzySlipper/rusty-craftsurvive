@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.LevelGeneration;
 using Rusty.Engine;
 using Rusty.Engine.Implicit;
 
@@ -33,6 +34,7 @@ internal sealed class CourtyardScene : IDisposable
     private const string TestPartPrefix = "masonry test";
     private const float MaxMaterialCutoff = 0.15f;
     private string generationError = "none";
+    private CaveLevelPlan? levelPlan;
     private string volumeProbes = "not-built";
     private readonly IEngineContext engine;
     private readonly CourtyardMaterials materials;
@@ -81,10 +83,16 @@ internal sealed class CourtyardScene : IDisposable
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled"))
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout"))
             throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, or volume-sampled.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
+    }
+
+    internal string QueueSeed(ulong seed)
+    {
+        pending = (pending ?? settings) with { Seed = seed };
+        return $"queued environment seed={seed}";
     }
 
     internal string QueueMaterialSamples(float spacing)
@@ -140,6 +148,15 @@ internal sealed class CourtyardScene : IDisposable
 
     internal (Vector3 Eye, Vector3 Target) InspectionView(string angle)
     {
+        if (angle.StartsWith("level-", StringComparison.Ordinal))
+        {
+            CaveLevelPlan plan = levelPlan ?? GeneratedCaveRecipe.Plan(engine, settings.Seed);
+            string room = angle[6..];
+            if (room == "entry") return (new(0, 4.55f, -12), plan.Eye("start"));
+            if (room == "roof") return (new(15, 21, -10), new(0, 9, 20));
+            Vector3 eye = plan.Eye(room);
+            return (eye, room == "goal" ? plan.Eye("right") : plan.Eye(room == "hub" ? "left" : "goal"));
+        }
         float face = -settings.Width * 0.5f + WallThickness;
         return angle switch
         {
@@ -245,8 +262,12 @@ internal sealed class CourtyardScene : IDisposable
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
+    internal string ReadLevelPlan() => levelPlan is not { } plan ? "level inactive" : string.Join("\n",
+        plan.Rooms.Select(room => FormattableString.Invariant($"room={room.Id};center={room.Center.X:F2},{room.Center.Y:F2},{room.Center.Z:F2};radii={room.Radii.X:F2},{room.Radii.Y:F2},{room.Radii.Z:F2}"))
+        .Concat(plan.Routes.Select(route => $"route={route.Id};from={route.From};to={route.To};points=" + string.Join("/", route.Points.Select(point => FormattableString.Invariant($"{point.X:F2},{point.Y:F2},{point.Z:F2}"))))));
+
     internal string ReadDetailParts() => string.Join("\n", parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)
-        || p.Name.StartsWith("volume ", StringComparison.Ordinal) || p.Name.StartsWith("cave ", StringComparison.Ordinal) || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
+        || p.Name.StartsWith("level ", StringComparison.Ordinal) || p.Name.StartsWith("volume ", StringComparison.Ordinal) || p.Name.StartsWith("cave ", StringComparison.Ordinal) || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
             $"{p.Name};triangles={p.Stats.Triangles};vertices={p.Stats.Vertices};boundaryEdges={p.Stats.BoundaryEdges};nonManifoldEdges={p.Stats.NonManifoldEdges};inconsistentWindingEdges={p.Stats.InconsistentWindingEdges};groups={p.Stats.MaterialGroups};actualCell={p.Stats.SampleSpacing:F5};seconds={p.Stats.GenerationSeconds:F4}")));
 
     private void Build(CourtyardSettings next)
@@ -256,6 +277,7 @@ internal sealed class CourtyardScene : IDisposable
         try
         {
             string nextVolumeProbes = "not-built";
+            CaveLevelPlan? nextLevelPlan = null;
             testGenerationSeconds = 0;
             if (next.Study == "reference")
             {
@@ -272,6 +294,12 @@ internal sealed class CourtyardScene : IDisposable
                     new(Vector3.Zero, Quaternion.Identity, Vector3.One));
                 if (next.Study == "detail") DetailStudyRecipe.Build(writer, stoneworksMaterials, next);
                 else DetailStudyRecipe.BuildFlatComparison(writer, stoneworksMaterials, next);
+            }
+            else if (GeneratedCaveRecipe.IsStudy(next.Study))
+            {
+                var built = GeneratedCaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
+                nextVolumeProbes = built.Probes;
+                nextLevelPlan = built.Plan;
             }
             else if (VolumeCaveRecipe.IsStudy(next.Study)) nextVolumeProbes = VolumeCaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement), surface => AddSampledPart(surface, replacement));
             else if (next.Study == "cave") CaveRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
@@ -292,6 +320,7 @@ internal sealed class CourtyardScene : IDisposable
             correctionCount = (uint)parts.Sum(p => (long)p.Stats.ReorientedTriangles);
             generationSeconds = watch.Elapsed.TotalSeconds;
             volumeProbes = nextVolumeProbes;
+            levelPlan = nextLevelPlan;
             generation++;
         }
         catch
@@ -333,9 +362,14 @@ internal sealed class CourtyardScene : IDisposable
     private void ApplyStudyLighting()
     {
         if (lights.Count == 0) return;
-        bool cave = settings.Study == "cave" || VolumeCaveRecipe.IsStudy(settings.Study);
+        bool cave = settings.Study == "cave" || VolumeCaveRecipe.IsStudy(settings.Study) || GeneratedCaveRecipe.IsStudy(settings.Study);
         // Product lighting profiles share the Engine's existing retained lights.
-        (Vector3 Color, float Intensity, Vector3 Position)[] profile = VolumeCaveRecipe.IsStudy(settings.Study)
+        (Vector3 Color, float Intensity, Vector3 Position)[] profile = GeneratedCaveRecipe.IsStudy(settings.Study)
+            ? [(new(0.60f, 0.73f, 1f), 0.38f, Vector3.Zero),
+               (new(0.85f, 0.92f, 1f), 2.1f, new(-12f, 22f, -8f)),
+               (new(1f, 0.55f, 0.23f), 65f, new(-6f, 7f, 16f)),
+               (new(0.42f, 0.66f, 1f), 65f, new(5f, 7f, 27f))]
+            : VolumeCaveRecipe.IsStudy(settings.Study)
             ? [(new(0.60f, 0.73f, 1f), 0.26f, Vector3.Zero),
                (new(0.85f, 0.92f, 1f), 2.1f, new(-12f, 22f, -8f)),
                (new(1f, 0.55f, 0.23f), 40f, new(-3f, 7f, 6f)),

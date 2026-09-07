@@ -21,10 +21,11 @@
     <RustyEngineProductFixedStepMaxCatchUpSteps>4</RustyEngineProductFixedStepMaxCatchUpSteps>
     <!-- Watch authored inputs, rather than the generated UI output that the
          staging target consumes. -->
-    <RustyEngineWatchPaths>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineWatchPaths>
+    <RustyEngineWatchPaths>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../CraftSurvive.Procgen'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineWatchPaths>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../CraftSurvive.Procgen/CraftSurvive.Procgen.csproj" />
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEngineSdkPackageVersion)]">
       <!-- The package is the default. The explicit Engine contributor
            override supplies the same assembly directly and must therefore
