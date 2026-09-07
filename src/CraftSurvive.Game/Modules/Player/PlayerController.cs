@@ -288,7 +288,7 @@ internal sealed class PlayerController : IDisposable
                 0,
                 new Transform(platformLocal, Quaternion.Identity, PlayerConstants.PlatformScale),
                 appearance,
-                Visible: true,
+                Visible: !terrain.IsGeneratedLevel,
                 RenderLayer.Scene);
         }
     }
@@ -364,6 +364,7 @@ internal sealed class PlayerController : IDisposable
     private void AdvancePlatform(float stepSeconds)
     {
         platformLinearVelocity = Vector3.Zero;
+        if (terrain.IsGeneratedLevel) return;
         double deltaX = playerGlobal.WorldX - platformGlobal.WorldX;
         double deltaY = playerGlobal.WorldY - platformGlobal.WorldY;
         double deltaZ = playerGlobal.WorldZ - platformGlobal.WorldZ;
@@ -460,7 +461,8 @@ internal sealed class PlayerController : IDisposable
 
     private Transform PlatformTransform() => new(platformLocal, Quaternion.Identity, Vector3.One);
 
-    private ReadOnlyMemory<CharacterObstacle> CurrentPlatformObstacle() => new CharacterObstacle[]
+    private ReadOnlyMemory<CharacterObstacle> CurrentPlatformObstacle() => terrain.IsGeneratedLevel
+        ? ReadOnlyMemory<CharacterObstacle>.Empty : new CharacterObstacle[]
     {
         new(
             PlayerConstants.PlatformEntityId,

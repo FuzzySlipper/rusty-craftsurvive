@@ -4,7 +4,9 @@ CraftSurvive now combines level and aesthetic experiments. Select **Generated
 cave**, choose seed **11**, **29** or **47**, then **Entry** and walk in. The
 **Cave layout** study retains the same rooms/routes without rock courses or
 material bands. Existing detail and normal-treatment controls still apply.
-The other voxel studies remain available.
+The other voxel studies remain available. The inherited moving platform is hidden
+and excluded from character obstacles in these two studies; older traversal and
+art studies retain their existing behavior.
 
 ## Ownership and stages
 

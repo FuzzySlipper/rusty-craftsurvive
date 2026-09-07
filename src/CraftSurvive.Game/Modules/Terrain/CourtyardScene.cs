@@ -77,6 +77,8 @@ internal sealed class CourtyardScene : IDisposable
         ApplyStudyLighting();
     }
 
+    internal bool IsGeneratedLevel => GeneratedCaveRecipe.IsStudy(settings.Study);
+
     internal IEnumerable<AppearanceFact> Facts => parts.Select((part, index) => new AppearanceFact(
         FirstObjectId + (ulong)index, false, 0, part.Placement with { Translation = part.Placement.Translation + translation },
         part.Appearance, true, RenderLayer.Scene));
@@ -84,7 +86,7 @@ internal sealed class CourtyardScene : IDisposable
     internal string QueueStudy(string study)
     {
         if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout"))
-            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, or volume-sampled.");
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, or level-layout.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
     }

@@ -57,3 +57,14 @@ runtime or test infrastructure.
 Retired experiments and their proof scripts are deliberately absent from the
 working tree. They are semantic evidence only; no archive copy is maintained
 here.
+
+## Generated cave levels (#7863)
+
+The six-room cave uses a flat protected floor and two intended graph loops.
+Source-field clearance witnesses and mesh topology diagnostics are not exhaustive
+navigation or collision certification. Erosion, multilevel routes and streaming
+remain outside this slice. The previous Procgen workbench UI is historical;
+retained algorithms and offline artifacts live in local CraftSurvive projects.
+See [procedural levels](procedural-levels.md) for stage ownership and evidence.
+The GPU harness captures real controller interaction and images but does not
+supply a browser-console warning delta, audio or measured frame-pacing proof.

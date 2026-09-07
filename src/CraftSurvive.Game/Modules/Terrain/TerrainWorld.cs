@@ -86,6 +86,7 @@ internal sealed class TerrainWorld : IDisposable
     internal string QueueCourtyardMasonry(string mode) => courtyard?.QueueMasonry(mode) ?? "courtyard inactive";
     internal string QueueCourtyardMaterialBoundaries(string mode) => courtyard?.QueueMaterialBoundaries(mode) ?? "courtyard inactive";
     internal string QueueCourtyardMaterialCutoff(float cutoff) => courtyard?.QueueMaterialCutoff(cutoff) ?? "courtyard inactive";
+    internal bool IsGeneratedLevel => courtyard?.IsGeneratedLevel == true;
     internal string ReadCourtyardLevelPlan() => courtyard?.ReadLevelPlan() ?? "courtyard inactive";
     internal string QueueCourtyardSeed(ulong seed) => courtyard?.QueueSeed(seed) ?? "courtyard inactive";
     internal string QueueCourtyardStudy(string study) => courtyard?.QueueStudy(study) ?? "courtyard inactive";
