@@ -85,8 +85,8 @@ internal sealed class CourtyardScene : IDisposable
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout"))
-            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, or level-layout.");
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout" or "level-weathered" or "level-weathered-strata" or "level-disrupted"))
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, level-layout, level-weathered, level-weathered-strata, or level-disrupted.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
     }
@@ -339,7 +339,8 @@ internal sealed class CourtyardScene : IDisposable
             surface.Sampling.CellSize, surface.Sampling.CreaseDegrees, surface.Sampling.TextureRepeats,
             surface.Material, surface.Regions, MaterialBoundaryMode: surface.Sampling.MaterialBoundaries, MaterialSampleSpacing:
                 surface.Regions.Length > 0 && surface.Sampling.MaterialBoundaries == ImplicitMaterialBoundaryMode.Interpolated
-                    ? surface.Sampling.MaterialSampleSpacing : 0f));
+                    ? surface.Sampling.MaterialSampleSpacing : 0f,
+            MaxExtractionVertices: surface.Sampling.MaxExtractionVertices, MaxExtractionTriangles: surface.Sampling.MaxExtractionTriangles));
         PublishPart(surface.Name, mesh, () => engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement, output);
     }
 

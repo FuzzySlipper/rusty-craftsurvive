@@ -1,0 +1,1762 @@
+{
+  "checkpoint": {
+    "status": "complete",
+    "batch": {
+      "events": [
+        {
+          "sequence": "1",
+          "monotonicNanoseconds": "2639547090",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "runtime",
+          "code": "CSHARP_CONTROL_BINDING",
+          "message": "lifecycle control does not name the current runtime binding"
+        },
+        {
+          "sequence": "2",
+          "monotonicNanoseconds": "78929083792",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "3",
+          "monotonicNanoseconds": "83244089245",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "4",
+          "monotonicNanoseconds": "87596770489",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "5",
+          "monotonicNanoseconds": "1119659756180",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "0"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-8dd6bfdfe62f01d02394f3e9904c9641"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541959/1/1;next-input=1;revisions=187"
+            }
+          ]
+        },
+        {
+          "sequence": "6",
+          "monotonicNanoseconds": "1126125908635",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "0"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-f326f0612754d91b86aadc6752eef09e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541959/1/1;next-input=201;revisions=187"
+            }
+          ]
+        },
+        {
+          "sequence": "7",
+          "monotonicNanoseconds": "1174242920610",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "2431"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-f326f0612754d91b86aadc6752eef09e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "8",
+          "monotonicNanoseconds": "1174247164834",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "2431"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-f326f0612754d91b86aadc6752eef09e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "9",
+          "monotonicNanoseconds": "1174247191203",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "browser-host",
+          "code": "BROWSER_LOCAL_REQUEST_UNAVAILABLE",
+          "message": "Product Browser local runtime request failed for input: Failed to fetch"
+        },
+        {
+          "sequence": "10",
+          "monotonicNanoseconds": "1175105250378",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "11",
+          "monotonicNanoseconds": "1177346939628",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "2431"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-93d10eb24d1cf1e0cfbdceac3c1e64c9"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-f326f0612754d91b86aadc6752eef09e"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "12",
+          "monotonicNanoseconds": "1177435560670",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "2476"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-93d10eb24d1cf1e0cfbdceac3c1e64c9"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-f326f0612754d91b86aadc6752eef09e"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541959/1/2;next-input=1;revisions=187"
+            }
+          ]
+        },
+        {
+          "sequence": "13",
+          "monotonicNanoseconds": "1869057837799",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "14",
+          "monotonicNanoseconds": "1881585036787",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "15",
+          "monotonicNanoseconds": "1896494045758",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "0"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-13c490670df75ad5db2e821485dd59fb"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541960/1/1;next-input=1;revisions=337"
+            }
+          ]
+        },
+        {
+          "sequence": "16",
+          "monotonicNanoseconds": "1918312618924",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "17",
+          "monotonicNanoseconds": "1926841898216",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "18",
+          "monotonicNanoseconds": "1946869756700",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "runtime",
+          "code": "DEV_HOST_WORKER_REPLACING",
+          "message": "worker replacement is in progress; request was not applied"
+        },
+        {
+          "sequence": "19",
+          "monotonicNanoseconds": "1947003423934",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "worker-runtime",
+          "code": "CSHARP_INPUT_INVALID_REBIND_CLEAR",
+          "message": "runtime input error: InvalidRebindClear"
+        },
+        {
+          "sequence": "20",
+          "monotonicNanoseconds": "1947304174001",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "1588"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-13c490670df75ad5db2e821485dd59fb"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "none"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "21",
+          "monotonicNanoseconds": "1951992645340",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "1588"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-13c490670df75ad5db2e821485dd59fb"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "22",
+          "monotonicNanoseconds": "1952002677585",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "1595"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-13c490670df75ad5db2e821485dd59fb"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541961/1/1;next-input=1;revisions=10"
+            }
+          ]
+        },
+        {
+          "sequence": "23",
+          "monotonicNanoseconds": "1952002700447",
+          "severity": "warning",
+          "disposition": "rejected-recoverable",
+          "source": "browser-host",
+          "code": "BROWSER_RENDERER_DIAGNOSTICS_UNAVAILABLE",
+          "message": "renderer observation reporting was temporarily unavailable: renderer diagnostics result did not match the current Product runtime binding"
+        },
+        {
+          "sequence": "24",
+          "monotonicNanoseconds": "1961713312390",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "1897"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-13c490670df75ad5db2e821485dd59fb"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "25",
+          "monotonicNanoseconds": "1966240983221",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "1897"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-ce73f73b6f1c7674294c933ced442b4a"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "26",
+          "monotonicNanoseconds": "1966258068287",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "1904"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-ce73f73b6f1c7674294c933ced442b4a"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541962/1/1;next-input=1;revisions=10"
+            }
+          ]
+        },
+        {
+          "sequence": "27",
+          "monotonicNanoseconds": "1979842161235",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "28",
+          "monotonicNanoseconds": "1991426309035",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "29",
+          "monotonicNanoseconds": "2007542487409",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "0"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-e368701eaae3b38c52896c798710c9ed"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-ce73f73b6f1c7674294c933ced442b4a"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=2541962/1/1;next-input=3390;revisions=337"
+            }
+          ]
+        },
+        {
+          "sequence": "30",
+          "monotonicNanoseconds": "2131707009683",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        }
+      ],
+      "floorSequence": "1",
+      "throughSequence": "30",
+      "nextCursor": "30",
+      "readMonotonicNanoseconds": "2193922485726",
+      "lagged": false,
+      "warningCount": "23",
+      "errorCount": "0",
+      "droppedCount": "0",
+      "telemetry": {
+        "inFlightOperation": null,
+        "inFlightAgeMs": null,
+        "lastProductAdmissionLatencyMs": "0",
+        "lastInputAdmissionLatencyMs": "0",
+        "queuedInputBatches": 0,
+        "queuedInputEvents": 0,
+        "inputBatchCapacity": 256,
+        "oldestInputAgeMs": null,
+        "inputOverflowPending": false,
+        "runtimeProgressRateMillihertz": "49371",
+        "runtimeProgressAgeMs": "1",
+        "runtimeProgressUnavailableReason": null,
+        "workerUpdate": {
+          "workerPid": "2589458",
+          "readout": {
+            "artifact": "rusty.product.runtime-readout",
+            "runtime": {
+              "instanceId": "2541962",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "mode": "realtime",
+            "state": "running",
+            "admittedSimulationSteps": "12963",
+            "admittedPresentations": "0",
+            "droppedRealtimeSteps": "989",
+            "clockRegressions": "0",
+            "scaledRemainder": 990176380,
+            "lastObservedTimeNs": "232549836934",
+            "fault": null
+          },
+          "phases": {
+            "operationDurationUs": "3218",
+            "outputConversionDurationUs": "29",
+            "outputEncodeWriteDurationUs": "15",
+            "inputQueueAgeUs": null
+          },
+          "shellDeliveryIntervalUs": "3323",
+          "shellOutputDecodeDurationUs": "31",
+          "shellOutputQueueDurationUs": "10",
+          "shellPublicationDurationUs": "25",
+          "ageMs": "1"
+        },
+        "connections": 2,
+        "subscribers": 1,
+        "outputQueueItems": 256,
+        "outputQueueCapacity": 256,
+        "outputQueueFloor": "105535",
+        "outputBindingActive": true,
+        "updateAttribution": {
+          "sampleCount": "2048",
+          "callbackDurationUsP50": "2004",
+          "callbackDurationUsP95": "2631",
+          "callbackDurationUsMax": "3533",
+          "latest": {
+            "runtime": {
+              "instanceId": "2541962",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "12962",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "170",
+            "callbackDurationUs": "2127",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "103",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowest": {
+            "runtime": {
+              "instanceId": "2541962",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "12112",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "209",
+            "callbackDurationUs": "3533",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "66",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowestAgeMs": "14178",
+          "slowest": {
+            "runtime": {
+              "instanceId": "2541962",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "1079",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "6067",
+            "callbackDurationUs": "8532701",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "74",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "slowestAgeMs": "202413"
+        }
+      }
+    },
+    "initialCursor": "30",
+    "checkpointCursor": "30",
+    "reads": 1
+  },
+  "initialBatch": {
+    "events": [
+      {
+        "sequence": "1",
+        "monotonicNanoseconds": "2639547090",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "runtime",
+        "code": "CSHARP_CONTROL_BINDING",
+        "message": "lifecycle control does not name the current runtime binding"
+      },
+      {
+        "sequence": "2",
+        "monotonicNanoseconds": "78929083792",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "3",
+        "monotonicNanoseconds": "83244089245",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "4",
+        "monotonicNanoseconds": "87596770489",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "5",
+        "monotonicNanoseconds": "1119659756180",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "0"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-8dd6bfdfe62f01d02394f3e9904c9641"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541959/1/1;next-input=1;revisions=187"
+          }
+        ]
+      },
+      {
+        "sequence": "6",
+        "monotonicNanoseconds": "1126125908635",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "0"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-f326f0612754d91b86aadc6752eef09e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541959/1/1;next-input=201;revisions=187"
+          }
+        ]
+      },
+      {
+        "sequence": "7",
+        "monotonicNanoseconds": "1174242920610",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "2431"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-f326f0612754d91b86aadc6752eef09e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "8",
+        "monotonicNanoseconds": "1174247164834",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "2431"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-f326f0612754d91b86aadc6752eef09e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "9",
+        "monotonicNanoseconds": "1174247191203",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "browser-host",
+        "code": "BROWSER_LOCAL_REQUEST_UNAVAILABLE",
+        "message": "Product Browser local runtime request failed for input: Failed to fetch"
+      },
+      {
+        "sequence": "10",
+        "monotonicNanoseconds": "1175105250378",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "11",
+        "monotonicNanoseconds": "1177346939628",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "2431"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-93d10eb24d1cf1e0cfbdceac3c1e64c9"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-f326f0612754d91b86aadc6752eef09e"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "12",
+        "monotonicNanoseconds": "1177435560670",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "2476"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-93d10eb24d1cf1e0cfbdceac3c1e64c9"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-f326f0612754d91b86aadc6752eef09e"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541959/1/2;next-input=1;revisions=187"
+          }
+        ]
+      },
+      {
+        "sequence": "13",
+        "monotonicNanoseconds": "1869057837799",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "14",
+        "monotonicNanoseconds": "1881585036787",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "15",
+        "monotonicNanoseconds": "1896494045758",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "0"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-13c490670df75ad5db2e821485dd59fb"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541960/1/1;next-input=1;revisions=337"
+          }
+        ]
+      },
+      {
+        "sequence": "16",
+        "monotonicNanoseconds": "1918312618924",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "17",
+        "monotonicNanoseconds": "1926841898216",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "18",
+        "monotonicNanoseconds": "1946869756700",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "runtime",
+        "code": "DEV_HOST_WORKER_REPLACING",
+        "message": "worker replacement is in progress; request was not applied"
+      },
+      {
+        "sequence": "19",
+        "monotonicNanoseconds": "1947003423934",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "worker-runtime",
+        "code": "CSHARP_INPUT_INVALID_REBIND_CLEAR",
+        "message": "runtime input error: InvalidRebindClear"
+      },
+      {
+        "sequence": "20",
+        "monotonicNanoseconds": "1947304174001",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "1588"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-13c490670df75ad5db2e821485dd59fb"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "21",
+        "monotonicNanoseconds": "1951992645340",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "1588"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-13c490670df75ad5db2e821485dd59fb"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "22",
+        "monotonicNanoseconds": "1952002677585",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "1595"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-13c490670df75ad5db2e821485dd59fb"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541961/1/1;next-input=1;revisions=10"
+          }
+        ]
+      },
+      {
+        "sequence": "23",
+        "monotonicNanoseconds": "1952002700447",
+        "severity": "warning",
+        "disposition": "rejected-recoverable",
+        "source": "browser-host",
+        "code": "BROWSER_RENDERER_DIAGNOSTICS_UNAVAILABLE",
+        "message": "renderer observation reporting was temporarily unavailable: renderer diagnostics result did not match the current Product runtime binding"
+      },
+      {
+        "sequence": "24",
+        "monotonicNanoseconds": "1961713312390",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "1897"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-13c490670df75ad5db2e821485dd59fb"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "25",
+        "monotonicNanoseconds": "1966240983221",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "1897"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-ce73f73b6f1c7674294c933ced442b4a"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "26",
+        "monotonicNanoseconds": "1966258068287",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "1904"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-ce73f73b6f1c7674294c933ced442b4a"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-f2a8bf86bd2069b787733f8d4022cff5"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541962/1/1;next-input=1;revisions=10"
+          }
+        ]
+      },
+      {
+        "sequence": "27",
+        "monotonicNanoseconds": "1979842161235",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "28",
+        "monotonicNanoseconds": "1991426309035",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "29",
+        "monotonicNanoseconds": "2007542487409",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "0"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-e368701eaae3b38c52896c798710c9ed"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-ce73f73b6f1c7674294c933ced442b4a"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2541962/1/1;next-input=3390;revisions=337"
+          }
+        ]
+      },
+      {
+        "sequence": "30",
+        "monotonicNanoseconds": "2131707009683",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      }
+    ],
+    "floorSequence": "1",
+    "throughSequence": "30",
+    "nextCursor": "30",
+    "readMonotonicNanoseconds": "2193922485726",
+    "lagged": false,
+    "warningCount": "23",
+    "errorCount": "0",
+    "droppedCount": "0",
+    "telemetry": {
+      "inFlightOperation": null,
+      "inFlightAgeMs": null,
+      "lastProductAdmissionLatencyMs": "0",
+      "lastInputAdmissionLatencyMs": "0",
+      "queuedInputBatches": 0,
+      "queuedInputEvents": 0,
+      "inputBatchCapacity": 256,
+      "oldestInputAgeMs": null,
+      "inputOverflowPending": false,
+      "runtimeProgressRateMillihertz": "49371",
+      "runtimeProgressAgeMs": "1",
+      "runtimeProgressUnavailableReason": null,
+      "workerUpdate": {
+        "workerPid": "2589458",
+        "readout": {
+          "artifact": "rusty.product.runtime-readout",
+          "runtime": {
+            "instanceId": "2541962",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "mode": "realtime",
+          "state": "running",
+          "admittedSimulationSteps": "12963",
+          "admittedPresentations": "0",
+          "droppedRealtimeSteps": "989",
+          "clockRegressions": "0",
+          "scaledRemainder": 990176380,
+          "lastObservedTimeNs": "232549836934",
+          "fault": null
+        },
+        "phases": {
+          "operationDurationUs": "3218",
+          "outputConversionDurationUs": "29",
+          "outputEncodeWriteDurationUs": "15",
+          "inputQueueAgeUs": null
+        },
+        "shellDeliveryIntervalUs": "3323",
+        "shellOutputDecodeDurationUs": "31",
+        "shellOutputQueueDurationUs": "10",
+        "shellPublicationDurationUs": "25",
+        "ageMs": "1"
+      },
+      "connections": 2,
+      "subscribers": 1,
+      "outputQueueItems": 256,
+      "outputQueueCapacity": 256,
+      "outputQueueFloor": "105535",
+      "outputBindingActive": true,
+      "updateAttribution": {
+        "sampleCount": "2048",
+        "callbackDurationUsP50": "2004",
+        "callbackDurationUsP95": "2631",
+        "callbackDurationUsMax": "3533",
+        "latest": {
+          "runtime": {
+            "instanceId": "2541962",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "12962",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "170",
+          "callbackDurationUs": "2127",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "103",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowest": {
+          "runtime": {
+            "instanceId": "2541962",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "12112",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "209",
+          "callbackDurationUs": "3533",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "66",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowestAgeMs": "14178",
+        "slowest": {
+          "runtime": {
+            "instanceId": "2541962",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "1079",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "6067",
+          "callbackDurationUs": "8532701",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "74",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "slowestAgeMs": "202413"
+      }
+    }
+  }
+}

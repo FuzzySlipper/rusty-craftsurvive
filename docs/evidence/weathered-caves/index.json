@@ -1,0 +1,67 @@
+{
+  "task": "7866",
+  "lease_id": "13c8e717-aa3d-44d3-8248-2d269bdabf9b",
+  "client_session": 11189,
+  "captures": [
+    {
+      "label": "weathered-hub",
+      "path": "weathered-hub.png",
+      "readout": "seed=11;study=level-weathered;weathering=spectral;generation=3;seconds=3.856;triangles=119618;vertices=83756;levelClearance=1008/1008;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/13c8e717-aa3d-44d3-8248-2d269bdabf9b/fdcc43c7-69ae-4505-8cba-c2c9203c6911.png",
+      "rootAssessment": "Looks indistinguishable from baseline-level-hub; do not treat this first capture as independent visual proof of the no-courses weathered mode."
+    },
+    {
+      "label": "baseline-level-hub",
+      "path": "baseline-level-hub.png",
+      "readout": "seed=11;study=level;weathering=none;generation=5;seconds=1.200;triangles=66628;vertices=43551;levelClearance=1008/1008;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/13c8e717-aa3d-44d3-8248-2d269bdabf9b/10b847ad-2016-42a4-ae8c-ccb064506292.png",
+      "rootAssessment": "Requested setup label; stream has no game frame ID or freshness guarantee."
+    },
+    {
+      "label": "weathered-strata-hub",
+      "path": "weathered-strata-hub.png",
+      "readout": "seed=11;study=level-weathered-strata;weathering=spectral;generation=6;seconds=3.882;triangles=126574;vertices=91668;levelClearance=1008/1008;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/13c8e717-aa3d-44d3-8248-2d269bdabf9b/7f352fa0-4786-41e4-a67c-ee8799f956ce.png",
+      "rootAssessment": "Root inspected: visibly irregular wall relief and scalloped courses, coherent passage. No exhaustive self-intersection or traversal claim."
+    },
+    {
+      "label": "weathered-strata-left",
+      "path": "weathered-strata-left.png",
+      "readout": "seed=11;study=level-weathered-strata;generation=6;seconds=3.882;inspect=level-left",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/13c8e717-aa3d-44d3-8248-2d269bdabf9b/7f847c39-d88e-41a3-bf3f-f13da3159455.png",
+      "rootAssessment": "Root inspected: visibly irregular wall relief and scalloped courses, coherent passage. No exhaustive self-intersection or traversal claim."
+    },
+    {
+      "label": "weathered-strata-goal",
+      "path": "weathered-strata-goal.png",
+      "readout": "seed=11;study=level-weathered-strata;generation=6;seconds=3.882;inspect=level-goal",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/13c8e717-aa3d-44d3-8248-2d269bdabf9b/8729e322-4738-4258-8c97-4ba2a61c767a.png",
+      "rootAssessment": "Root inspected: visibly irregular wall relief and scalloped courses, coherent passage. No exhaustive self-intersection or traversal claim."
+    },
+    {
+      "label": "weathered-hub-stale-blank-excluded",
+      "path": "weathered-hub-stale-blank-excluded.png",
+      "excluded": "blank browser page before native Ctrl+R recovery",
+      "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/13c8e717-aa3d-44d3-8248-2d269bdabf9b/4858be07-9a1e-41ca-a8ce-7e2fdae176f7.png",
+      "rootAssessment": "Requested setup label; stream has no game frame ID or freshness guarantee."
+    }
+  ],
+  "movement": {
+    "focus": "native Tab",
+    "action": "gamepad ly=1 ms=1000",
+    "before": "player=0.778,3.876,31.402;lastEvent=clear:InteractionModeLoss;intent=0,0",
+    "after": "player=5.181,3.890,25.317;lastEvent=MappedAxis;intent=0,0;lastMovement=before 4.988,3.890,25.583 -> after 5.057,3.890,25.488;displacement=0.034,0,-0.047;blocked=None"
+  },
+  "release": {
+    "released": true,
+    "errors": [],
+    "time": "2026-09-07T10:44:57Z",
+    "post_status": {
+      "lease": null,
+      "sessions": [],
+      "lobbies": []
+    }
+  },
+  "artifactPair": "Local contributor SDK0.1.0-dev.2574cc89fd30.waves2/runtime-pack-2574cc89fd30-waves5. Captures used earlierwaves3runtime with same recipe/field math; subsequent changes were extraction/admission budgets.",
+  "fine": "Rejected at16MiBencodedmeshresourcebudget; previousnormalsceneretained. Engine7868owns reusablepartitioningfollowup."
+}

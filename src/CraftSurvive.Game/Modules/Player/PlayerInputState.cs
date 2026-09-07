@@ -7,19 +7,27 @@ namespace CraftSurvive.Game.Modules.Player;
 /// <summary>Owns the product interpretation of physical input facts and one-shot actions.</summary>
 internal sealed class PlayerInputState
 {
-    private bool forward;
-    private bool backward;
-    private bool right;
-    private bool left;
-    private bool jump;
-    private bool crouch;
-    private bool sprint;
-    private bool impulse;
+    private bool keyboardForward;
+    private bool keyboardBackward;
+    private bool keyboardRight;
+    private bool keyboardLeft;
+    private bool keyboardJump;
+    private bool keyboardCrouch;
+    private bool keyboardSprint;
+    private bool keyboardImpulse;
+    private bool controllerJump;
+    private bool controllerCrouch;
+    private bool controllerSprint;
+    private bool controllerImpulse;
+    private float controllerMoveX;
+    private float controllerMoveY;
+    private float controllerLookX;
+    private float controllerLookY;
     private int brushRadius = PlayerConstants.DefaultBrushRadius;
     private Vector2 pendingLookDelta;
     private TerrainEditKind? pendingEdit;
 
-    internal PlayerInputFrame Consume(ReadOnlySpan<ProductInputEvent> events)
+    internal PlayerInputFrame Consume(ReadOnlySpan<ProductInputEvent> events, float simulationDeltaSeconds)
     {
         foreach (ProductInputEvent input in events)
         {
@@ -51,16 +59,34 @@ internal sealed class PlayerInputState
             if (input.Kind == InputEventKind.Key)
             {
                 ApplyKey(input.Keyboard, input.Edge);
+                continue;
+            }
+
+            if (input.Kind == InputEventKind.ControllerAxis)
+            {
+                ApplyControllerAxis(input.ControllerAxis, input.X);
+                continue;
+            }
+
+            if (input.Kind == InputEventKind.ControllerButton)
+            {
+                ApplyControllerButton(input.ControllerButton, input.Edge);
             }
         }
 
+        Vector2 controllerMove = ApplyRadialDeadzone(new Vector2(controllerMoveX, -controllerMoveY));
+        Vector2 controllerLook = ApplyRadialDeadzone(new Vector2(controllerLookX, controllerLookY));
         PlayerInputFrame frame = new(
-            new Vector2(Axis(right, left), Axis(forward, backward)),
-            jump,
-            crouch,
-            sprint,
-            impulse,
-            pendingLookDelta,
+            Vector2.Clamp(new Vector2(
+                Axis(keyboardRight, keyboardLeft),
+                Axis(keyboardForward, keyboardBackward)) + controllerMove,
+                -Vector2.One,
+                Vector2.One),
+            keyboardJump || controllerJump,
+            keyboardCrouch || controllerCrouch,
+            keyboardSprint || controllerSprint,
+            keyboardImpulse || controllerImpulse,
+            pendingLookDelta + controllerLook * (PlayerConstants.ControllerLookInputUnitsPerSecond * simulationDeltaSeconds),
             pendingEdit,
             brushRadius);
         pendingLookDelta = Vector2.Zero;
@@ -79,30 +105,30 @@ internal sealed class PlayerInputState
         switch (key)
         {
             case KeyboardControl.KeyW:
-                forward = held;
+                keyboardForward = held;
                 break;
             case KeyboardControl.KeyS:
-                backward = held;
+                keyboardBackward = held;
                 break;
             case KeyboardControl.KeyD:
-                right = held;
+                keyboardRight = held;
                 break;
             case KeyboardControl.KeyA:
-                left = held;
+                keyboardLeft = held;
                 break;
             case KeyboardControl.Space:
-                jump = held;
+                keyboardJump = held;
                 break;
             case KeyboardControl.ControlLeft:
             case KeyboardControl.ControlRight:
-                crouch = held;
+                keyboardCrouch = held;
                 break;
             case KeyboardControl.ShiftLeft:
             case KeyboardControl.ShiftRight:
-                sprint = held;
+                keyboardSprint = held;
                 break;
             case KeyboardControl.KeyH:
-                impulse = held;
+                keyboardImpulse = held;
                 break;
         }
 
@@ -133,14 +159,92 @@ internal sealed class PlayerInputState
 
     private void ClearHeld()
     {
-        forward = false;
-        backward = false;
-        right = false;
-        left = false;
-        jump = false;
-        crouch = false;
-        sprint = false;
-        impulse = false;
+        keyboardForward = false;
+        keyboardBackward = false;
+        keyboardRight = false;
+        keyboardLeft = false;
+        keyboardJump = false;
+        keyboardCrouch = false;
+        keyboardSprint = false;
+        keyboardImpulse = false;
+        controllerJump = false;
+        controllerCrouch = false;
+        controllerSprint = false;
+        controllerImpulse = false;
+        controllerMoveX = 0f;
+        controllerMoveY = 0f;
+        controllerLookX = 0f;
+        controllerLookY = 0f;
+    }
+
+    private void ApplyControllerAxis(ControllerAxis axis, float value)
+    {
+        switch (axis)
+        {
+            case ControllerAxis.Axis0:
+                controllerMoveX = value;
+                break;
+            case ControllerAxis.Axis1:
+                controllerMoveY = value;
+                break;
+            case ControllerAxis.Axis2:
+                controllerLookX = value;
+                break;
+            case ControllerAxis.Axis3:
+                controllerLookY = value;
+                break;
+        }
+    }
+
+    private void ApplyControllerButton(ControllerButton button, InputEdge edge)
+    {
+        if (edge == InputEdge.None)
+        {
+            return;
+        }
+
+        bool held = edge is InputEdge.Pressed or InputEdge.Held;
+        switch (button)
+        {
+            case ControllerButton.Button0:
+                controllerJump = held;
+                break;
+            case ControllerButton.Button1:
+                controllerCrouch = held;
+                break;
+            case ControllerButton.Button2:
+                controllerImpulse = held;
+                break;
+            case ControllerButton.Button10:
+                controllerSprint = held;
+                break;
+        }
+
+        if (edge != InputEdge.Pressed)
+        {
+            return;
+        }
+
+        pendingEdit = button switch
+        {
+            ControllerButton.Button7 => TerrainEditKind.Clear,
+            ControllerButton.Button6 => TerrainEditKind.Set,
+            _ => pendingEdit,
+        };
+    }
+
+    private static Vector2 ApplyRadialDeadzone(Vector2 value)
+    {
+        float magnitude = value.Length();
+        if (magnitude <= PlayerConstants.ControllerStickDeadzone)
+        {
+            return Vector2.Zero;
+        }
+
+        float clampedMagnitude = MathF.Min(magnitude, 1f);
+        float remappedMagnitude = (clampedMagnitude - PlayerConstants.ControllerStickDeadzone)
+            / (1f - PlayerConstants.ControllerStickDeadzone);
+        return value / magnitude * remappedMagnitude;
     }
 
     private static float Axis(bool positive, bool negative) => positive == negative ? 0f : positive ? 1f : -1f;

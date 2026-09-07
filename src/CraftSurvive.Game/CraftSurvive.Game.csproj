@@ -7,7 +7,7 @@
     <!-- This is an ordinary product project. The SDK generates the CoreCLR
          and NativeAOT composition below obj; no checked bridge project or
          Engine source tree is part of the normal product build. -->
-    <RustyEngineSdkPackageVersion>0.1.0-dev.2574cc89fd30</RustyEngineSdkPackageVersion>
+    <RustyEngineSdkPackageVersion>0.1.0-dev.2574cc89fd30.audit4</RustyEngineSdkPackageVersion>
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
     <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
     <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>
@@ -43,6 +43,11 @@
     <RustyEngineProductInputIntent Include="craftsurvive.sprint" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.edit.primary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.edit.secondary" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.impulse" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.move.analog-x" Value="axis" />
+    <RustyEngineProductInputIntent Include="craftsurvive.move.analog-y" Value="axis" />
+    <RustyEngineProductInputIntent Include="craftsurvive.look.analog-x" Value="axis" />
+    <RustyEngineProductInputIntent Include="craftsurvive.look.analog-y" Value="axis" />
     <RustyEngineProductInputMapping Include="craftsurvive.move.forward.key-w" Intent="craftsurvive.move.forward" Trigger="key:key-w:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.move.backward.key-s" Intent="craftsurvive.move.backward" Trigger="key:key-s:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.move.left.key-a" Intent="craftsurvive.move.left" Trigger="key:key-a:held" />
@@ -50,6 +55,16 @@
     <RustyEngineProductInputMapping Include="craftsurvive.jump.space" Intent="craftsurvive.jump" Trigger="key:space:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.crouch.control-left" Intent="craftsurvive.crouch" Trigger="key:control-left:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.sprint.shift-left" Intent="craftsurvive.sprint" Trigger="key:shift-left:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.move.analog-x.left-stick" Intent="craftsurvive.move.analog-x" Trigger="controller-axis:axis-0" />
+    <RustyEngineProductInputMapping Include="craftsurvive.move.analog-y.left-stick" Intent="craftsurvive.move.analog-y" Trigger="controller-axis:axis-1" />
+    <RustyEngineProductInputMapping Include="craftsurvive.look.analog-x.right-stick" Intent="craftsurvive.look.analog-x" Trigger="controller-axis:axis-2" />
+    <RustyEngineProductInputMapping Include="craftsurvive.look.analog-y.right-stick" Intent="craftsurvive.look.analog-y" Trigger="controller-axis:axis-3" />
+    <RustyEngineProductInputMapping Include="craftsurvive.jump.controller-a" Intent="craftsurvive.jump" Trigger="controller-button:button-0:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.crouch.controller-b" Intent="craftsurvive.crouch" Trigger="controller-button:button-1:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.impulse.controller-x" Intent="craftsurvive.impulse" Trigger="controller-button:button-2:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.sprint.controller-left-stick" Intent="craftsurvive.sprint" Trigger="controller-button:button-10:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.edit.primary.controller-right-trigger" Intent="craftsurvive.edit.primary" Trigger="controller-button:button-7:pressed" />
+    <RustyEngineProductInputMapping Include="craftsurvive.edit.secondary.controller-left-trigger" Intent="craftsurvive.edit.secondary" Trigger="controller-button:button-6:pressed" />
   </ItemGroup>
 
   <!-- Node is retained only to compile the product-owned DOM companion. It

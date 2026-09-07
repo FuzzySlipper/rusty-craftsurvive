@@ -48,6 +48,8 @@ internal sealed class PlayerController : IDisposable
     private int lastInputEventCount;
     private int lastKeyEventCount;
     private int lastPointerEventCount;
+    private int lastControllerButtonEventCount;
+    private int lastControllerAxisEventCount;
     private int lastClearEventCount;
     private string lastInputEvent = "none";
     private ulong totalInputEventCount;
@@ -127,7 +129,8 @@ internal sealed class PlayerController : IDisposable
         lastAdmittedStepCount = update.Facts.AdmittedStepCount;
         CaptureInputEvents(update.Input);
         lastUpdatePositionBefore = playerLocal;
-        PlayerInputFrame frame = input.Consume(update.Input);
+        float simulationDeltaSeconds = checked((float)(update.Facts.AdmittedStepCount * update.Facts.FixedDeltaSeconds));
+        PlayerInputFrame frame = input.Consume(update.Input, simulationDeltaSeconds);
         lastInputFrame = frame;
         LookReceipt lookReceipt = Look.IntegrateClamped(new LookRequest(look, frame.LookDelta, lookConfig));
         look = lookReceipt.After;
@@ -221,7 +224,7 @@ internal sealed class PlayerController : IDisposable
             : string.Create(CultureInfo.InvariantCulture,
                 $"update={lastMovementUpdate};intent={Format(lastMovementInputFrame.PlanarIntent)};controllerSteps={lastMovementControllerStepCount};before={Format(lastMovementPositionBefore)};after={Format(lastMovementPositionAfter)};step=[{FormatStep(lastMovementStepReceipt)}]");
         return string.Create(CultureInfo.InvariantCulture,
-            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
+            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};controllerButtons={lastControllerButtonEventCount};controllerAxes={lastControllerAxisEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -319,6 +322,8 @@ internal sealed class PlayerController : IDisposable
         lastInputEventCount = events.Length;
         lastKeyEventCount = 0;
         lastPointerEventCount = 0;
+        lastControllerButtonEventCount = 0;
+        lastControllerAxisEventCount = 0;
         lastClearEventCount = 0;
         foreach (ProductInputEvent inputEvent in events)
         {
@@ -338,6 +343,15 @@ internal sealed class PlayerController : IDisposable
                 case InputEventKind.PointerButton:
                     lastPointerEventCount++;
                     lastInputEvent = $"pointer-button:{inputEvent.PointerButton}:{inputEvent.Edge}";
+                    break;
+                case InputEventKind.ControllerButton:
+                    lastControllerButtonEventCount++;
+                    lastInputEvent = $"controller-button:{inputEvent.ControllerButton}:{inputEvent.Edge}";
+                    break;
+                case InputEventKind.ControllerAxis:
+                    lastControllerAxisEventCount++;
+                    lastInputEvent = string.Create(CultureInfo.InvariantCulture,
+                        $"controller-axis:{inputEvent.ControllerAxis}:{inputEvent.X:F3}");
                     break;
                 case InputEventKind.Clear:
                     lastClearEventCount++;

@@ -10,7 +10,7 @@ runtime or test infrastructure.
 - Free-form debug camera placement does not validate a safe character pose. A root probe below the floor during #7855 caused Spatial.ProposeCharacterStep failure and runtime restart; use the standing-eye inspection presets for art evaluation. The error and excluded capture are recorded in `docs/fine-stonework.md`.
 - Courtyard replacement is bounded by the Engine's committed baseline of 64 MiB for the assembled replacement; existing per-mesh limits remain unchanged. The product publishes the replacement snapshot before retiring its predecessor, and clears the snapshot before disposal. This is a lifecycle rule, not a second retained-scene owner.
 - Whole-scene treatment switches can briefly trigger browser baseline recovery and `DEV_HOST_WORKER_TELEMETRY_DROPPED` when timing samples cannot enter the shell queue. Fresh bounded treatment roundtrips recover with the same product state and zero Engine errors, but this is not an instantaneous or zero-warning refresh claim. Engine #7833 owns this publication/telemetry pressure; timing samples can be stale during recovery.
-- Automated browser evidence uses software SwiftShader at 320×180 within a 1280×720 viewport, limiting conclusions about pacing, subpixel features and final aesthetics. Engine already preserves ordinary resolution on accelerated browsers; Den Services #7853 owns an explicit accelerated playtest launch option. The normal LAN browser remains the owner-machine comparison path. Hardware behavior is not certified by software captures.
+- Earlier Den browser evidence uses software SwiftShader at 320×180 within a 1280×720 viewport, limiting conclusions about pacing, subpixel features and final aesthetics. The Wolf controller test on den-srv additionally exercised native Xbox movement and look in Firefox on the RX 9070 XT, with a 1280×720 streamed window. This is focused control evidence, not a frame-pacing or broad visual certification. Den Services #7853 still owns an explicit accelerated option for its browser harness.
 - In `TraversalShowcase`, terrain generation is deterministic generation version 2 with a fixed
   product recipe. Residency requests a 3-by-3 horizontal window, retains a
   5-by-5 window up to 64 populated chunks, and admits at most 16 operations
@@ -37,6 +37,16 @@ runtime or test infrastructure.
   world-position policy. Engine owns the character solver, collision casts,
   support/carry, camera resource, and origin mechanism. No general entity,
   rigid-body, animation, or scheduler framework is claimed.
+- Standard controller input is product policy: the left stick has a radial
+  deadzone and preserves its analog magnitude for movement; the right stick
+  is integrated with the admitted simulation delta for look. A, B,
+  left-stick click, X, RT and LT map to jump, crouch, sprint, impulse, clear
+  terrain and set terrain. Trigger edits use the browser's digital button
+  edges; the Engine also exposes proportional button values, but editing is
+  deliberately a digital action here. The native Wolf test verified stick look,
+  movement, jump, crouch, sprint and return to neutral. RT/LT reached terrain
+  interaction with a cast-miss result; successful terrain edits were not certified
+  by that run. See [controller playtest](controller-playtest.md).
 - The product rebases at a named local threshold and retains signed global
   positions. It remains bounded by Engine's admitted coordinate envelope; no
   limitless precision, cross-origin multiplayer policy, or background-world

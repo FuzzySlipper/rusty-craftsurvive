@@ -43,6 +43,10 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
   status.setAttribute('role', 'alert');
   header.append(title, metricsToggle);
   panel.append(header, status);
+  const controlsHelp = document.createElement('p');
+  controlsHelp.textContent = 'Controls: WASD and mouse; controller left stick moves and right stick looks. A jumps, B crouches, left-stick click sprints, X impulses, RT clears terrain, and LT sets terrain.';
+  controlsHelp.style.cssText = 'margin:.3rem 0 0;max-width:24rem;';
+  panel.append(controlsHelp);
 
   const transport = createLiveDebugHttpTransport();
   const metricsHost = document.createElement('div');
@@ -141,6 +145,9 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const caveStudy = button('Cave');
   const levelStudy = button('Generated cave');
   const levelLayoutStudy = button('Cave layout');
+  const levelWeatheredStudy = button('Weathered cave');
+  const levelWeatheredStrataStudy = button('Weathered strata');
+  const levelDisruptedStudy = button('Disrupted cave');
   const volumePassagesStudy = button('Carve passages');
   const volumeChambersStudy = button('Add chambers');
   const volumeStudy = button('Carved volume');
@@ -191,7 +198,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Test wall', original, materialRegions, layered),
     actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
     actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
-    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy, levelStudy, levelLayoutStudy),
+    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy, levelStudy, levelLayoutStudy,
+      levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy),
     actionRow('Level seed', seed11, seed29, seed47),
     actionRow('Carved volume', volumePassagesStudy, volumeChambersStudy, volumeStudy, sampledVolumeStudy),
     actionRow('Geometry detail', coarseDetail, normalDetail, fineDetail),
@@ -218,6 +226,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   let disposed = false;
   const allActions = [balanced, faceted, soft, original, materialRegions, layered, centroidBoundaries, interpolatedBoundaries,
     cutoffNegative, cutoffZero, cutoffPositive, stoneworksStudy, referenceStudy, samplingStudy, levelStudy, levelLayoutStudy,
+    levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy,
     seed11, seed29, seed47, coarseDetail, normalDetail,
     fineDetail, originalDimensions, reshape, viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView,
     samplesView, detailStudy, motifStudy, caveStudy, originalSamples, mediumSamples, fineSamples, detailsView, ...detailViews, tinyView,
@@ -266,6 +275,9 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   caveStudy.addEventListener('click', () => void execute('Cave study', 'craft.courtyard.study cave', 'queued'));
   levelStudy.addEventListener('click', () => void execute('Generated cave level', 'craft.courtyard.study level', 'queued'));
   levelLayoutStudy.addEventListener('click', () => void execute('Bare cave layout', 'craft.courtyard.study level-layout', 'queued'));
+  levelWeatheredStudy.addEventListener('click', () => void execute('Weathered cave level', 'craft.courtyard.study level-weathered', 'queued'));
+  levelDisruptedStudy.addEventListener('click', () => void execute('Strongly disrupted cave', 'craft.courtyard.study level-disrupted', 'queued'));
+  levelWeatheredStrataStudy.addEventListener('click', () => void execute('Weathered cave with strata', 'craft.courtyard.study level-weathered-strata', 'queued'));
   volumePassagesStudy.addEventListener('click', () => void execute('Carved passages', 'craft.courtyard.study volume-passages', 'queued'));
   volumeChambersStudy.addEventListener('click', () => void execute('Carved chambers', 'craft.courtyard.study volume-chambers', 'queued'));
   volumeStudy.addEventListener('click', () => void execute('Carved volume', 'craft.courtyard.study volume', 'queued'));

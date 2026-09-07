@@ -44,6 +44,9 @@ internal static class PlayerConstants
     internal const float ExternalDecayPerSecond = 3f;
     internal const float LookDegreesPerPointerUnit = 0.12f;
     internal const float LookRadiansPerInputUnit = LookDegreesPerPointerUnit * MathF.PI / 180f;
+    internal const float ControllerStickDeadzone = 0.15f;
+    internal const float ControllerLookDegreesPerSecond = 108f;
+    internal const float ControllerLookInputUnitsPerSecond = ControllerLookDegreesPerSecond / LookDegreesPerPointerUnit;
     internal const float LookMaximumDeltaRadians = MathF.PI;
     internal const float LookPitchEpsilonRadians = 0.0001f;
     internal const float MinimumPitchRadians = (-MathF.PI / 2f) + LookPitchEpsilonRadians;

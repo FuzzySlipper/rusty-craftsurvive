@@ -1,6 +1,9 @@
 using System.Security.Cryptography;
 using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Tests;
+
+PlayerInputChecks.Run();
 
 // Material snapshots taken before the residency/column optimization. Cover
 // authored landmarks, boundaries, negative coordinates, layers, and two seeds.
@@ -65,7 +68,7 @@ CheckAgainstFullScan(new(-2, 1, -1));
 var distant = policy.PlanFor(new(12, 0, 0), state);
 try { distant.Chunk(unchanged); throw new Exception("out-of-window payload was retained"); }
 catch (KeyNotFoundException) { }
-Console.WriteLine("Terrain materials, residency overlap, ordering, payload reuse, edits, restore and eviction passed.");
+Console.WriteLine("Player input plus terrain materials, residency overlap, ordering, payload reuse, edits, restore and eviction passed.");
 
 void CheckAgainstFullScan(TerrainChunkAddress location)
 {

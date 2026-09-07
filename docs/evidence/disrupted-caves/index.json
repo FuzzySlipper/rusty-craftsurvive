@@ -1,0 +1,58 @@
+{
+  "lease": "415acd17-8ded-407e-8609-b93c5c8f6105",
+  "images": [
+    {
+      "label": "disrupted-hub",
+      "path": "disrupted-hub.png",
+      "artifactId": "bd0c531b-f1e0-4da8-89ab-29f74735d8b5",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/bd0c531b-f1e0-4da8-89ab-29f74735d8b5.png"
+    },
+    {
+      "label": "disrupted-left",
+      "path": "disrupted-left.png",
+      "artifactId": "c8db2b0b-2ddf-4f11-a2c3-e96a7da1fede",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/c8db2b0b-2ddf-4f11-a2c3-e96a7da1fede.png"
+    },
+    {
+      "label": "disrupted-goal",
+      "path": "disrupted-goal.png",
+      "artifactId": "f69a6aac-8d39-41ad-829c-98724d832e6f",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/f69a6aac-8d39-41ad-829c-98724d832e6f.png"
+    },
+    {
+      "label": "weathered-strata-hub",
+      "path": "weathered-strata-hub.png",
+      "artifactId": "04b11377-2270-4f01-a65a-a9a2fc0fe8a5",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/04b11377-2270-4f01-a65a-a9a2fc0fe8a5.png"
+    },
+    {
+      "label": "waves6-refresh",
+      "path": "waves6-refresh.png",
+      "artifactId": "a3e13b91-76d6-4d4d-a9bc-ae55667244f0",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/a3e13b91-76d6-4d4d-a9bc-ae55667244f0.png"
+    },
+    {
+      "label": "weathered-strata-fine-hub",
+      "path": "weathered-strata-fine-hub.png",
+      "artifactId": "a817e5f2-eaba-462e-bf22-5689db2603c4",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/a817e5f2-eaba-462e-bf22-5689db2603c4.png"
+    },
+    {
+      "label": "final-disrupted-hub",
+      "path": "final-disrupted-hub.png",
+      "artifactId": "eff08790-8ac7-47cc-8c06-1f23c609dc6c",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/415acd17-8ded-407e-8609-b93c5c8f6105/eff08790-8ac7-47cc-8c06-1f23c609dc6c.png"
+    }
+  ],
+  "assessment": "Root inspected disrupted hub/left/goal and Fine strata hub. Stronger silhouette changes and irregular recesses visible. Non-manifold edge counts remain an explicit limit; no defect-free claim. Refresh image is browser readiness only. Operator labels do not supply a measured game-frame freshness contract.",
+  "cleanup": {
+    "released": true,
+    "time": "2026-09-07T11:31:22Z",
+    "errors": [],
+    "postRelease": {
+      "lease": null,
+      "sessions": [],
+      "lobbies": []
+    }
+  }
+}
