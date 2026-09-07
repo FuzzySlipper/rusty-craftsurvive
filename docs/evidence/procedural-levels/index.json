@@ -83,7 +83,8 @@
       "debug": "craft.courtyard.study level-layout; craft.courtyard.inspect level-entry -> player=0.000,3.875,-12.000;yaw=180.0;pitch=0.0",
       "readout": "levelRooms=6;levelRoutes=7;levelLoops=2;levelClearance=1008/1008;levelPlanHash=0a9d7b242e3d70b443875013079155c4c2da28b51e6673fe285ab576b78b93c2;study=level-layout;seed=47;generation=6;triangles=38442;vertices=22402;boundaryEdges=0;nonManifoldEdges=0;inconsistentWindingEdges=0",
       "sourcePath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/98c8c0b7-8ce3-4e47-b7c8-fe40fbdd4434/685ac01d-d1b7-42d1-86f2-6c46ddcc18a3.png",
-      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness."
+      "poseBinding": "Requested view/seed label; stream provides no game frame ID or measured freshness.",
+      "rootAssessment": "Visibly still dressed; not valid bare-layout evidence. Superseded by second-session seed11-settled-bare.png."
     },
     {
       "label": "seed11-level-goal-post-platform-exclusion",
@@ -137,5 +138,16 @@
     "capture": "1280x720 stream captures; no assumed render backing resolution, game frame ID or measured freshness. Some requested preset camera captures lag the requested pose.",
     "platform": "Excluded in source from visibility/movement/character obstacles only in generated level studies; compiled. Requested postchange goal capture does not certify exact camera alignment.",
     "warnings": "Five hot-reload Engine warnings, zero Engine errors/drops, complete diagnostic drain; Engine #7865 owns correlation follow-up. Browser-console delta unavailable."
+  },
+  "settledComparison": {
+    "lease": "105b94a3-16b2-40c3-b717-e1ab2914e67e",
+    "seed": 11,
+    "bare": "seed11-settled-bare.png",
+    "dressed": "seed11-settled-dressed.png",
+    "bareTriangles": 39210,
+    "dressedTriangles": 66628,
+    "planHash": "17c65acce56a724af18739206cd21542faae36af4afb6170e4027dd52f48eb14",
+    "assessment": "Root visually confirmed plain rock versus pale bands, carved courses and moss. Requested goal pose; no exact game-frame binding. Initial DEV_HOST_REQUEST_TIMEOUT recovered with native Ctrl+R.",
+    "cleanup": "Released without errors at 09:54:40Z; status 09:54:50Z had no lease, sessions or lobbies."
   }
 }

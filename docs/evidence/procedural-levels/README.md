@@ -65,3 +65,18 @@ Release succeeded with no errors. Local capture stopped; subsequent status had
 no lease, sessions or lobbies, and the disposable Wolf UI/Firefox containers were
 gone. The installed controller service remained active. No private Moonlight
 logs were copied.
+
+A second root-operated session corrected the comparison evidence. The original
+seed-47 bare label still shows dressed surfaces and must not be used as a bare
+comparison. [Settled seed-11 bare](seed11-settled-bare.png) and
+[dressed](seed11-settled-dressed.png) visibly distinguish plain rock from carved
+courses, pale bands and moss. Both retained the same plan hash; bare had 39,210
+triangles and dressed 66,628. The dressed capture followed confirmed generation,
+a goal camera request and a five-second settle. Neither image has exact frame
+binding. No moving platform is visible in this comparison.
+
+The second browser initially displayed DEV_HOST_REQUEST_TIMEOUT (request header
+timeout); native Ctrl+R recovered. Its cause was not diagnosed, and this is not
+a clean infrastructure-health claim. The timeout screenshot and second action
+journal are retained. Release at 09:54:40Z succeeded without errors and stopped
+local capture; status at 09:54:50Z had no lease, sessions or lobbies.
