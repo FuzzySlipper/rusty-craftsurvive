@@ -1,0 +1,5 @@
+detail study floor;triangles=66;vertices=70;groups=1;actualCell=0.32031;seconds=0.0048
+detail flat motif panel-0 stroke-0.16;triangles=116972;vertices=59420;groups=2;actualCell=0.06875;seconds=0.0626
+detail flat motif panel-1 stroke-0.08;triangles=117608;vertices=59738;groups=2;actualCell=0.06875;seconds=0.0534
+detail flat motif panel-2 stroke-0.04;triangles=117952;vertices=59910;groups=2;actualCell=0.06875;seconds=0.0557
+detail flat motif panel-3 stroke-0.02;triangles=118080;vertices=59974;groups=2;actualCell=0.06875;seconds=0.0576

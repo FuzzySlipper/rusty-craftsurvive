@@ -1,0 +1,13 @@
+detail study floor;triangles=66;vertices=108;groups=1;actualCell=0.32031;seconds=0.0060
+detail backing panel-0 mortar feature-0.16m-cell-0.02m;triangles=86;vertices=181;groups=1;actualCell=0.04750;seconds=0.0066
+detail masonry panel-0 block-feature-0.64m-cell-0.02m;triangles=484;vertices=806;groups=1;actualCell=0.01484;seconds=0.0145
+detail carving woven-diamond panel-0 feature-0.16m-cell-0.02m;triangles=3466;vertices=7126;groups=1;actualCell=0.01719;seconds=0.0268
+detail backing panel-1 mortar feature-0.08m-cell-0.02m;triangles=86;vertices=181;groups=1;actualCell=0.04750;seconds=0.0049
+detail masonry panel-1 block-feature-0.32m-cell-0.02m;triangles=2248;vertices=3058;groups=1;actualCell=0.01484;seconds=0.0195
+detail carving woven-diamond panel-1 feature-0.08m-cell-0.02m;triangles=5661;vertices=12599;groups=1;actualCell=0.01719;seconds=0.0299
+detail backing panel-2 mortar feature-0.04m-cell-0.02m;triangles=86;vertices=181;groups=1;actualCell=0.04750;seconds=0.0046
+detail masonry panel-2 block-feature-0.16m-cell-0.02m;triangles=11712;vertices=13133;groups=1;actualCell=0.01484;seconds=0.0396
+detail carving woven-diamond panel-2 feature-0.04m-cell-0.02m;triangles=8588;vertices=18591;groups=1;actualCell=0.01719;seconds=0.0364
+detail backing panel-3 mortar-bronze-flat-region feature-0.02m-cell-0.02m;triangles=1120;vertices=1037;groups=1;actualCell=0.01187;seconds=0.0443
+detail masonry panel-3 block-feature-0.08m-cell-0.02m;triangles=35456;vertices=36328;groups=1;actualCell=0.01484;seconds=0.0683
+detail carving woven-diamond panel-3 feature-0.02m-cell-0.02m;triangles=19879;vertices=42400;groups=1;actualCell=0.01719;seconds=0.0609

@@ -1,0 +1,16 @@
+{
+  "session": "rusty-craftsurvive-playtest-20260907T024052.400466360Z-1701294",
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T024052.400466360Z-1701294/playtest-index.json",
+  "screenshots": {
+    "0006-detail4-normal-baseline.png": "carving-normal.png",
+    "0007-detail4-fine-comparison.png": "carving-fine.png",
+    "0008-small-stonework-tiny-closeup.png": "carving-fine-soft-close.png",
+    "0009-flat-motifs-detail4-original.png": "motif-original.png",
+    "0010-flat-motifs-detail4-4cm.png": "motif-4cm.png",
+    "0011-flat-motifs-detail4-2cm.png": "motif-2cm.png",
+    "0014-root-faceted-tiny-closeup.png": "carving-fine-faceted-close.png",
+    "0015-valid-fine-small-bricks.png": "bricks-fine-soft.png",
+    "0016-balanced-fine-carving.png": "carving-fine-balanced.png",
+    "0018-coarse-overview.png": "coarse-overview-earlier-order.png"
+  }
+}

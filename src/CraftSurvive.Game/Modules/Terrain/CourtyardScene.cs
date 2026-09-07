@@ -10,7 +10,7 @@ internal readonly record struct CourtyardSettings(
     string Treatment, float Width, float DoorWidth, float DoorOffset, ulong Seed,
     float CellSize, float CreaseDegrees, string Masonry = "layered",
     ImplicitMaterialBoundaryMode MaterialBoundaryMode = ImplicitMaterialBoundaryMode.Interpolated,
-    float MaterialCutoff = 0f, string Study = "stoneworks", string Detail = "normal")
+    float MaterialCutoff = 0f, string Study = "stoneworks", string Detail = "normal", float MaterialSampleSpacing = 0f)
 {
     internal static CourtyardSettings Default => new("soft", 24f, 3.4f, 0f, 0x4352414654UL, 0.20f, 110f);
 
@@ -32,6 +32,7 @@ internal sealed class CourtyardScene : IDisposable
     private const float DomainPadding = 0.25f;
     private const string TestPartPrefix = "masonry test";
     private const float MaxMaterialCutoff = 0.15f;
+    private string generationError = "none";
     private readonly IEngineContext engine;
     private readonly CourtyardMaterials materials;
     private readonly StoneworksMaterials stoneworksMaterials;
@@ -78,10 +79,19 @@ internal sealed class CourtyardScene : IDisposable
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling"))
-            throw new ArgumentException("Study must be stoneworks, reference, or sampling.");
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs"))
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, or motifs.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
+    }
+
+    internal string QueueMaterialSamples(float spacing)
+    {
+        if (!float.IsFinite(spacing) || spacing < 0f || (spacing > 0f && spacing < 0.02f) || spacing > 0.5f)
+            throw new ArgumentException("Material sample spacing must be 0 (off), or 0.02 to 0.5 metres.");
+        pending = (pending ?? settings) with { MaterialSampleSpacing = spacing,
+            MaterialBoundaryMode = ImplicitMaterialBoundaryMode.Interpolated };
+        return FormattableString.Invariant($"queued material sample spacing={spacing:F2}m");
     }
 
     internal string QueueDetail(string detail)
@@ -89,7 +99,7 @@ internal sealed class CourtyardScene : IDisposable
         if (detail is not ("coarse" or "normal" or "fine"))
             throw new ArgumentException("Detail must be coarse, normal, or fine.");
         pending = (pending ?? settings) with { Detail = detail };
-        return $"queued sampling panel detail={detail}";
+        return $"queued detail sampling={detail}";
     }
 
     internal string QueueTreatment(string treatment)
@@ -135,11 +145,25 @@ internal sealed class CourtyardScene : IDisposable
             "plaster" => (new(-settings.Width * 0.5f + 4f, 4.8f, -5f), new(-settings.Width * 0.5f, 5.6f, -3f)),
             "arcade" => (new(0, 6.55f, 11.5f), new(-2f, 7f, 19.5f)),
             "carving" => (new(0, 6.55f, 26.5f), new(0, 7.6f, 30.6f)),
+            "details" => (new(0, 4.6f, -9f), new(0, 4.4f, -3f)),
+            "detail1" => DetailView(0, false),
+            "detail2" => DetailView(1, false),
+            "detail3" => DetailView(2, false),
+            "detail4" => DetailView(3, false),
+            "tiny" => DetailView(3, true),
+            "bricks" => (new(-4.8f, 4.55f, -4.6f), new(-4.8f, 3.35f, -3.13f)),
             "samples" => (new(-3.5f, 5f, -7.5f), new(-2f, 4.5f, -3f)),
             "front" => (new(face + 3f, 4.55f, 0f), new(face, 5.1f, 0f)),
             "grazing" => (new(face + 0.8f, 4.55f, -3.2f), new(face, 4.9f, 1.3f)),
             _ => throw new ArgumentException("Inspection view must be arrival, plaster, arcade, carving, samples, front or grazing."),
         };
+    }
+
+    private static (Vector3 Eye, Vector3 Target) DetailView(int panel, bool close)
+    {
+        Vector3 station = DetailStudyRecipe.PanelStations[panel];
+        Vector3 target = station + new Vector3(0, 1.6f, -0.13f);
+        return (target + new Vector3(0, 0, close ? -0.6f : -2f), target);
     }
 
     internal string QueueLayout(float width, float doorWidth, float doorOffset, ulong seed)
@@ -175,9 +199,22 @@ internal sealed class CourtyardScene : IDisposable
             }
         }
         if (pending is not { } next) return;
-        Build(next);
-        settings = next;
         pending = null;
+        try
+        {
+            Build(next);
+            settings = next;
+            generationError = "none";
+        }
+        catch (EngineCallException error) when (error.Service == "ImplicitSurfaces" && error.Operation == "Generate")
+        {
+            // Build disposes the unpublished replacement on failure. A rejected
+            // bounded recipe leaves the applied scene/settings in place and is
+            // visible in the readout, rather than escaping the product callback.
+            string reason = error.Diagnostics.IsEmpty ? $"status {error.Status}" :
+                string.Join(" | ", error.Diagnostics.ToArray().Select(diagnostic => diagnostic.Message));
+            generationError = $"{next.Study} generation rejected: {reason}; previous scene retained";
+        }
     }
 
     internal void Translate(Vector3 delta)
@@ -191,9 +228,13 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"study={settings.Study};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
+
+    internal string ReadDetailParts() => string.Join("\n", parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)
+        || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
+            $"{p.Name};triangles={p.Stats.Triangles};vertices={p.Stats.Vertices};groups={p.Stats.MaterialGroups};actualCell={p.Stats.SampleSpacing:F5};seconds={p.Stats.GenerationSeconds:F4}")));
 
     private void Build(CourtyardSettings next)
     {
@@ -207,6 +248,16 @@ internal sealed class CourtyardScene : IDisposable
                 CourtyardRecipe recipe = new(engine, materials);
                 recipe.Compose(next, surface => AddPart(surface, replacement));
                 testGenerationSeconds = recipe.TestGenerationSeconds;
+            }
+            else if (next.Study is "detail" or "motifs")
+            {
+                RecipeWriter writer = new(engine.ImplicitSurfaces,
+                    new(next.CellSize, next.CreaseDegrees, 0.45f, next.MaterialBoundaryMode, next.MaterialSampleSpacing),
+                    surface => AddPart(surface, replacement));
+                writer.Box("detail study floor", new(-10, 2.5f, -12), new(10, 3, 1), stoneworksMaterials.Paving,
+                    new(Vector3.Zero, Quaternion.Identity, Vector3.One));
+                if (next.Study == "detail") DetailStudyRecipe.Build(writer, stoneworksMaterials, next);
+                else DetailStudyRecipe.BuildFlatComparison(writer, stoneworksMaterials, next);
             }
             else StoneworksRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
 
@@ -238,7 +289,9 @@ internal sealed class CourtyardScene : IDisposable
         MeshResource mesh = engine.ImplicitSurfaces.Generate(new ImplicitGenerateRequest(surface.Field, surface.Root,
             surface.Min - new Vector3(DomainPadding), surface.Max + new Vector3(DomainPadding),
             surface.Sampling.CellSize, surface.Sampling.CreaseDegrees, surface.Sampling.TextureRepeats,
-            surface.Material, surface.Regions, MaterialBoundaryMode: surface.Sampling.MaterialBoundaries));
+            surface.Material, surface.Regions, MaterialBoundaryMode: surface.Sampling.MaterialBoundaries, MaterialSampleSpacing:
+                surface.Regions.Length > 0 && surface.Sampling.MaterialBoundaries == ImplicitMaterialBoundaryMode.Interpolated
+                    ? surface.Sampling.MaterialSampleSpacing : 0f));
         Appearance? appearance = null;
         try
         {

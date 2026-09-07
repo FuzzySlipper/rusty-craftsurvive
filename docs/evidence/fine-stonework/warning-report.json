@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "captureProtocol": "rusty-engine.playtest-warning-delta/v1",
+  "compatibility": {
+    "exerciseId": "fine-stonework-7855",
+    "pageOrigin": "http://127.0.0.1:37100",
+    "engineOrigin": "http://127.0.0.1:37100"
+  },
+  "run": {
+    "startedAt": "2026-09-07T02:48:13.455Z",
+    "completedAt": "2026-09-07T02:48:15.390Z",
+    "url": "http://127.0.0.1:37100/",
+    "exerciseId": "fine-stonework-7855",
+    "nodeVersion": "v26.8.1",
+    "gitRevision": "ca51d868ba71a68fcb8b21c7d6708fa996048db7",
+    "gitDirty": false,
+    "browserVersion": "149.0.7827.55"
+  },
+  "capture": {
+    "browser": {
+      "status": "complete"
+    },
+    "engine": {
+      "status": "complete",
+      "origin": "http://127.0.0.1:37100",
+      "checkpointCursor": "18",
+      "finalCursor": "18",
+      "reads": 2,
+      "lagged": false,
+      "droppedCount": "0",
+      "checkpoint": {
+        "status": "complete",
+        "initialCursor": "18",
+        "checkpointCursor": "18",
+        "reads": 1
+      },
+      "events": []
+    }
+  },
+  "findings": [],
+  "comparison": {
+    "status": "unavailable",
+    "reason": "no baseline was supplied"
+  },
+  "cleanClaimEligible": false,
+  "blockers": [
+    "baseline comparison is unavailable"
+  ]
+}

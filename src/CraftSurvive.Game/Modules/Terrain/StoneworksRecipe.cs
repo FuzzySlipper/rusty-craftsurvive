@@ -21,7 +21,7 @@ internal static class StoneworksRecipe
         Action<RecipeSurface> emit)
     {
         RecipeWriter writer = new(engine.ImplicitSurfaces,
-            new(settings.CellSize, settings.CreaseDegrees, 0.45f, settings.MaterialBoundaryMode), emit);
+            new(settings.CellSize, settings.CreaseDegrees, 0.45f, settings.MaterialBoundaryMode, settings.MaterialSampleSpacing), emit);
         ArchitecturalRecipes architecture = new(writer);
         WallPalette masonry = new(materials.Limestone, materials.Mortar, materials.Limestone, materials.Plaster);
         WallPalette plaster = masonry with { Body = materials.Brick };

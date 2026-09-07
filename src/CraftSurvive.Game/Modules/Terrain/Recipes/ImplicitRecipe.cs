@@ -24,7 +24,7 @@ internal sealed class ImplicitRecipe(IImplicitSurfacesService service) : IDispos
 }
 
 internal readonly record struct RecipeSampling(float CellSize, float CreaseDegrees, float TextureRepeats,
-    ImplicitMaterialBoundaryMode MaterialBoundaries);
+    ImplicitMaterialBoundaryMode MaterialBoundaries, float MaterialSampleSpacing = 0f);
 
 // Consumed synchronously while Field is alive. Materials are borrowed from the
 // caller; the runtime adapter owns every generated mesh and appearance.

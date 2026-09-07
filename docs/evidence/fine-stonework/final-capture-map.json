@@ -1,0 +1,12 @@
+{
+  "session": "rusty-craftsurvive-playtest-20260907T031438.132853034Z-1701294",
+  "engineCommit": "d7e59b48ca0cbe08f6fa4a64f8e83403d97de3ac",
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T031438.132853034Z-1701294/playtest-index.json",
+  "screenshots": {
+    "0003-fresh-final-fine-overview.png": "final-fine-overview.png",
+    "0004-fresh-small-bricks-view.png": "final-small-bricks.png",
+    "0006-fresh-pre-limit-2cm-readout.png": "final-pre-limit-readout.png",
+    "0008-sampling-plaques-post-request-readout-visible.png": "final-rejected-readout.png",
+    "0010-fresh-restored-readout.png": "final-restored-readout.png"
+  }
+}

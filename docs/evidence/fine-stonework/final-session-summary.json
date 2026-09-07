@@ -1,0 +1,56 @@
+{
+  "session_id": "rusty-craftsurvive-playtest-20260907T031438.132853034Z-1701294",
+  "status": "pass",
+  "started_at": "2026-09-07T03:14:50.227Z",
+  "finished_at": "2026-09-07T03:20:48.753261414Z",
+  "base_url": "http://127.0.0.1:37100",
+  "scenario": "fine-stonework-final",
+  "viewport": {
+    "height": 720,
+    "width": 1280
+  },
+  "cleanup": {
+    "browser_closed": true,
+    "dev_server_pid": 1747773,
+    "dev_server_reused": false,
+    "dev_server_stopped": true,
+    "driver_stopped": false,
+    "virtual_display_stopped": true
+  },
+  "discrepancies": [
+    {
+      "action_index": 2,
+      "at": "2026-09-07T03:16:15.968Z",
+      "code": "action_error",
+      "continued": true,
+      "error": "Error: locator.click: Error: strict mode violation: locator('button:has-text(\"Refresh\")') resolved to 2 elements:\n    1) <button type=\"button\">Refresh</button> aka getByRole('button', { name: 'Refresh' })\n    2) <button type=\"button\">Refresh readout</button> aka getByText('Refresh readout')\n\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"Refresh\")')\u001b[22m\n",
+      "ok": false
+    },
+    {
+      "at": "2026-09-07T03:16:52.351Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 13
+    },
+    {
+      "at": "2026-09-07T03:17:04.909Z",
+      "code": "sequence_stale",
+      "continued": true,
+      "expected": 14,
+      "received": 13
+    },
+    {
+      "at": "2026-09-07T03:17:43.763Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 18
+    },
+    {
+      "at": "2026-09-07T03:18:43.880Z",
+      "code": "sequence_missing",
+      "continued": true,
+      "expected": 23
+    }
+  ],
+  "sourceIndex": "/home/agent/.codex/playtester/runs/rusty-craftsurvive/rusty-craftsurvive-playtest-20260907T031438.132853034Z-1701294/playtest-index.json"
+}

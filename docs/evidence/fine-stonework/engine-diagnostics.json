@@ -1,0 +1,570 @@
+{
+  "events": [
+    {
+      "sequence": "1",
+      "monotonicNanoseconds": "6798294094",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "0"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-5ee832770548c2163409d15557722f3f"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "none"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1701301/1/1;next-input=1;revisions=10"
+        }
+      ]
+    },
+    {
+      "sequence": "2",
+      "monotonicNanoseconds": "185252754865",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "worker-runtime",
+      "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+      "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+    },
+    {
+      "sequence": "3",
+      "monotonicNanoseconds": "185464300661",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "8737"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-5ee832770548c2163409d15557722f3f"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "none"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "4",
+      "monotonicNanoseconds": "191672224290",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "8737"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-386c0745eafe16abdb7229c61dbfbc55"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-5ee832770548c2163409d15557722f3f"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "5",
+      "monotonicNanoseconds": "192874099115",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "8854"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-386c0745eafe16abdb7229c61dbfbc55"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-5ee832770548c2163409d15557722f3f"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1701301/1/1;next-input=2;revisions=1580"
+        }
+      ]
+    },
+    {
+      "sequence": "6",
+      "monotonicNanoseconds": "316161196327",
+      "severity": "error",
+      "disposition": "terminal",
+      "source": "csharp-runtime",
+      "code": "CSHARP_PRODUCT_CALL",
+      "message": "Spatial.ProposeCharacterStep returned status 0: Rusty Engine Spatial.ProposeCharacterStep returned status 0.",
+      "runtime": {
+        "instanceId": "1701301",
+        "generation": "1",
+        "controlRevision": "1"
+      }
+    },
+    {
+      "sequence": "7",
+      "monotonicNanoseconds": "316161198260",
+      "severity": "error",
+      "disposition": "terminal",
+      "source": "worker-runtime",
+      "code": "CSHARP_PRODUCT_CALL",
+      "message": "Spatial.ProposeCharacterStep returned status 0: Rusty Engine Spatial.ProposeCharacterStep returned status 0."
+    },
+    {
+      "sequence": "8",
+      "monotonicNanoseconds": "316161198972",
+      "severity": "error",
+      "disposition": "terminal",
+      "source": "worker-runtime",
+      "code": "CSHARP_PRODUCT_CALL",
+      "message": "Spatial.ProposeCharacterStep returned status 0: Rusty Engine Spatial.ProposeCharacterStep returned status 0."
+    },
+    {
+      "sequence": "9",
+      "monotonicNanoseconds": "316161199513",
+      "severity": "error",
+      "disposition": "terminal",
+      "source": "worker-runtime",
+      "code": "DEV_HOST_WORKER_EOF",
+      "message": "failed to fill whole buffer"
+    },
+    {
+      "sequence": "10",
+      "monotonicNanoseconds": "318753229837",
+      "severity": "error",
+      "disposition": "terminal",
+      "source": "runtime",
+      "code": "CSHARP_PRODUCT_CALL",
+      "message": "Spatial.ProposeCharacterStep returned status 0: Rusty Engine Spatial.ProposeCharacterStep returned status 0."
+    },
+    {
+      "sequence": "11",
+      "monotonicNanoseconds": "318844968028",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "14040"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-386c0745eafe16abdb7229c61dbfbc55"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-5ee832770548c2163409d15557722f3f"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1701301/1/1;next-input=2;revisions=1580"
+        }
+      ]
+    },
+    {
+      "sequence": "12",
+      "monotonicNanoseconds": "318844970342",
+      "severity": "warning",
+      "disposition": "rejected-recoverable",
+      "source": "browser-host",
+      "code": "BROWSER_RENDERER_DIAGNOSTICS_UNAVAILABLE",
+      "message": "renderer observation reporting was temporarily unavailable: Spatial.ProposeCharacterStep returned status 0: Rusty Engine Spatial.ProposeCharacterStep returned status 0."
+    },
+    {
+      "sequence": "13",
+      "monotonicNanoseconds": "318845086678",
+      "severity": "warning",
+      "disposition": "rejected-recoverable",
+      "source": "runtime",
+      "code": "CSHARP_CONTROL_BINDING",
+      "message": "lifecycle control does not name the current runtime binding"
+    },
+    {
+      "sequence": "14",
+      "monotonicNanoseconds": "318867268590",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "14040"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-7bb2a34a7f65162f6d1e6c68a238efba"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-386c0745eafe16abdb7229c61dbfbc55"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "15",
+      "monotonicNanoseconds": "322224984500",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "14040"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-7bb2a34a7f65162f6d1e6c68a238efba"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-386c0745eafe16abdb7229c61dbfbc55"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "sequence": "16",
+      "monotonicNanoseconds": "322478453751",
+      "severity": "info",
+      "disposition": "accepted",
+      "source": "browser-host",
+      "code": "BROWSER_HOST_STATUS",
+      "message": "Product Browser Host transition snapshot",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "ready"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "14096"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-7bb2a34a7f65162f6d1e6c68a238efba"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-386c0745eafe16abdb7229c61dbfbc55"
+        },
+        {
+          "key": "baseline-established",
+          "value": "true"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "runtime=1701302/1/1;next-input=1;revisions=10"
+        }
+      ]
+    },
+    {
+      "sequence": "17",
+      "monotonicNanoseconds": "389341843194",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "worker-runtime",
+      "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+      "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+    },
+    {
+      "sequence": "18",
+      "monotonicNanoseconds": "419834914829",
+      "severity": "warning",
+      "disposition": "degraded",
+      "source": "worker-runtime",
+      "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+      "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+    }
+  ],
+  "floorSequence": "1",
+  "throughSequence": "18",
+  "nextCursor": "18",
+  "readMonotonicNanoseconds": "615230518233",
+  "lagged": false,
+  "warningCount": "9",
+  "errorCount": "5",
+  "droppedCount": "0",
+  "telemetry": {
+    "inFlightOperation": null,
+    "inFlightAgeMs": null,
+    "lastProductAdmissionLatencyMs": "0",
+    "lastInputAdmissionLatencyMs": "0",
+    "queuedInputBatches": 0,
+    "queuedInputEvents": 0,
+    "inputBatchCapacity": 256,
+    "oldestInputAgeMs": null,
+    "inputOverflowPending": false,
+    "runtimeProgressRateMillihertz": "50338",
+    "runtimeProgressAgeMs": "7",
+    "runtimeProgressUnavailableReason": null,
+    "workerUpdate": {
+      "workerPid": "1709014",
+      "readout": {
+        "artifact": "rusty.product.runtime-readout",
+        "runtime": {
+          "instanceId": "1701302",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "mode": "realtime",
+        "state": "running",
+        "admittedSimulationSteps": "17369",
+        "admittedPresentations": "0",
+        "droppedRealtimeSteps": "413",
+        "clockRegressions": "0",
+        "scaledRemainder": 456622280,
+        "lastObservedTimeNs": "296374277499",
+        "fault": null
+      },
+      "phases": {
+        "operationDurationUs": "2906",
+        "outputConversionDurationUs": "29",
+        "outputEncodeWriteDurationUs": "16",
+        "inputQueueAgeUs": null
+      },
+      "shellDeliveryIntervalUs": "3076",
+      "shellOutputDecodeDurationUs": "35",
+      "shellOutputQueueDurationUs": "10",
+      "shellPublicationDurationUs": "24",
+      "ageMs": "7"
+    },
+    "connections": 2,
+    "subscribers": 1,
+    "outputQueueItems": 256,
+    "outputQueueCapacity": 256,
+    "outputQueueFloor": "28838",
+    "outputBindingActive": true,
+    "updateAttribution": {
+      "sampleCount": "2048",
+      "callbackDurationUsP50": "1722",
+      "callbackDurationUsP95": "2589",
+      "callbackDurationUsMax": "553788",
+      "latest": {
+        "runtime": {
+          "instanceId": "1701302",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "17368",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "213",
+        "callbackDurationUs": "1808",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "100",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "8",
+        "characterStepNarrowPhaseCount": "8",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "rollingSlowest": {
+        "runtime": {
+          "instanceId": "1701302",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "16890",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "2645",
+        "callbackDurationUs": "553788",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "122",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "8",
+        "characterStepNarrowPhaseCount": "8",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "rollingSlowestAgeMs": "7806",
+      "slowest": {
+        "runtime": {
+          "instanceId": "1701302",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "4028",
+        "admittedStepCount": "2",
+        "postCallbackDurationUs": "11121",
+        "callbackDurationUs": "1919380",
+        "characterStepCalls": "4",
+        "characterStepDurationUs": "112",
+        "characterStepCastCount": "4",
+        "characterStepCandidateCount": "16",
+        "characterStepNarrowPhaseCount": "16",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "slowestAgeMs": "225814"
+    }
+  }
+}
