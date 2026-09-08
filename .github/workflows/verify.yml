@@ -16,7 +16,19 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - name: Check procedural planning and cave layout
+      - name: Install the product's paired Engine SDK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(python3 -c "import xml.etree.ElementTree as E; print(E.parse('src/CraftSurvive.Game/CraftSurvive.Game.csproj').findtext('.//RustyEngineSdkPackageVersion'))")
+          archive="rusty-engine-csharp-pair-${version}-linux-x64.tar.gz"
+          mkdir -p .runtime/download .runtime/ci-pair .runtime/sdk-feed
+          gh release download "csharp-sdk-v${version}" --repo FuzzySlipper/rusty-engine --pattern "$archive" --pattern "$archive.sha256" --dir .runtime/download
+          (cd .runtime/download && sha256sum -c "$archive.sha256")
+          tar -xzf ".runtime/download/$archive" --strip-components=1 -C .runtime/ci-pair
+          # These tests consume managed SDK values only; they do not launch the Linux runtime.
+          cp .runtime/ci-pair/sdk-feed/*.nupkg .runtime/sdk-feed/
+      - name: Check procedural planning and cave/dungeon layouts
         run: dotnet run --project tests/Procgen -c Release
       - name: Check offline generation artifacts
         run: dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
