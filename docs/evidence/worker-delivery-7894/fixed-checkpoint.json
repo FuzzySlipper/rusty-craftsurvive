@@ -1,0 +1,180 @@
+{
+  "status": "complete",
+  "batch": {
+    "events": [
+      {
+        "sequence": "1",
+        "monotonicNanoseconds": "25070105133",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "0"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-020872044491b8f5b569c7c9049e358c"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "none"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=2128086/1/1;next-input=1;revisions=267"
+          }
+        ]
+      }
+    ],
+    "floorSequence": "1",
+    "throughSequence": "1",
+    "nextCursor": "1",
+    "readMonotonicNanoseconds": "30133594482",
+    "lagged": false,
+    "warningCount": "0",
+    "errorCount": "0",
+    "droppedCount": "0",
+    "telemetry": {
+      "inFlightOperation": "input",
+      "inFlightAgeMs": "2",
+      "lastProductAdmissionLatencyMs": "5",
+      "lastInputAdmissionLatencyMs": "0",
+      "queuedInputBatches": 0,
+      "queuedInputEvents": 0,
+      "inputBatchCapacity": 256,
+      "oldestInputAgeMs": null,
+      "inputOverflowPending": false,
+      "runtimeProgressRateMillihertz": "44473",
+      "runtimeProgressAgeMs": "19",
+      "runtimeProgressUnavailableReason": null,
+      "workerUpdate": {
+        "workerPid": "2128497",
+        "readout": {
+          "artifact": "rusty.product.runtime-readout",
+          "runtime": {
+            "instanceId": "2128086",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "mode": "realtime",
+          "state": "running",
+          "admittedSimulationSteps": "1510",
+          "admittedPresentations": "0",
+          "droppedRealtimeSteps": "198",
+          "clockRegressions": "0",
+          "scaledRemainder": 932363720,
+          "lastObservedTimeNs": "28482206654",
+          "fault": null
+        },
+        "phases": {
+          "operationDurationUs": "4535",
+          "outputConversionDurationUs": "69",
+          "outputEncodeWriteDurationUs": "43",
+          "inputQueueAgeUs": "16721"
+        },
+        "shellDeliveryIntervalUs": "5040",
+        "shellOutputDecodeDurationUs": "120",
+        "shellOutputQueueDurationUs": "14",
+        "shellPublicationDurationUs": "54",
+        "ageMs": "19"
+      },
+      "connections": 3,
+      "subscribers": 1,
+      "outputQueueItems": 256,
+      "outputQueueCapacity": 256,
+      "outputQueueFloor": "1434",
+      "outputBindingActive": true,
+      "updateAttribution": {
+        "sampleCount": "1101",
+        "callbackDurationUsP50": "3641",
+        "callbackDurationUsP95": "4983",
+        "callbackDurationUsMax": "1578437",
+        "latest": {
+          "runtime": {
+            "instanceId": "2128086",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "1509",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "203",
+          "callbackDurationUs": "2939",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "93",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowest": {
+          "runtime": {
+            "instanceId": "2128086",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "1063",
+          "admittedStepCount": "2",
+          "postCallbackDurationUs": "7516",
+          "callbackDurationUs": "1578437",
+          "characterStepCalls": "4",
+          "characterStepDurationUs": "126",
+          "characterStepCastCount": "4",
+          "characterStepCandidateCount": "12",
+          "characterStepNarrowPhaseCount": "12",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowestAgeMs": "8852",
+        "slowest": {
+          "runtime": {
+            "instanceId": "2128086",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "1063",
+          "admittedStepCount": "2",
+          "postCallbackDurationUs": "7516",
+          "callbackDurationUs": "1578437",
+          "characterStepCalls": "4",
+          "characterStepDurationUs": "126",
+          "characterStepCastCount": "4",
+          "characterStepCandidateCount": "12",
+          "characterStepNarrowPhaseCount": "12",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "slowestAgeMs": "8852"
+      }
+    }
+  },
+  "initialCursor": "1",
+  "checkpointCursor": "1",
+  "reads": 1
+}

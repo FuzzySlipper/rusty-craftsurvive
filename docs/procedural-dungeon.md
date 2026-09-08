@@ -146,3 +146,11 @@ warning-free full browser-console or timing capture.
 Verification: generated bindings, attributed-triangle conservation and native
 mesh ownership/recovery tests, focused Clippy, UI check, packaged Release build,
 and Engine CI passed. The Engine pair was verified and published together.
+
+### Worker delivery follow-up — Engine #7894
+
+The current installed pair is `0.1.0-dev.c62aeeff6897`. Timing observations now
+wait behind their associated worker output, and reconnect history retains whole
+publications so a later progress pulse cannot truncate a large mesh transfer.
+The earlier captured warnings above remain historical evidence; the follow-up
+and its limits are recorded in [worker delivery evidence](evidence/worker-delivery-7894/README.md).

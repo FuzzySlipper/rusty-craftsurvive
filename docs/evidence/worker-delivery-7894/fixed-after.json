@@ -1,0 +1,130 @@
+{
+  "events": [],
+  "floorSequence": "1",
+  "throughSequence": "1",
+  "nextCursor": "1",
+  "readMonotonicNanoseconds": "58337185550",
+  "lagged": false,
+  "warningCount": "0",
+  "errorCount": "0",
+  "droppedCount": "0",
+  "telemetry": {
+    "inFlightOperation": null,
+    "inFlightAgeMs": null,
+    "lastProductAdmissionLatencyMs": "0",
+    "lastInputAdmissionLatencyMs": "0",
+    "queuedInputBatches": 0,
+    "queuedInputEvents": 0,
+    "inputBatchCapacity": 256,
+    "oldestInputAgeMs": null,
+    "inputOverflowPending": false,
+    "runtimeProgressRateMillihertz": "43893",
+    "runtimeProgressAgeMs": "14",
+    "runtimeProgressUnavailableReason": null,
+    "workerUpdate": {
+      "workerPid": "2128497",
+      "readout": {
+        "artifact": "rusty.product.runtime-readout",
+        "runtime": {
+          "instanceId": "2128086",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "mode": "realtime",
+        "state": "running",
+        "admittedSimulationSteps": "2852",
+        "admittedPresentations": "0",
+        "droppedRealtimeSteps": "549",
+        "clockRegressions": "0",
+        "scaledRemainder": 268665460,
+        "lastObservedTimeNs": "56687811683",
+        "fault": null
+      },
+      "phases": {
+        "operationDurationUs": "7856",
+        "outputConversionDurationUs": "30",
+        "outputEncodeWriteDurationUs": "29",
+        "inputQueueAgeUs": null
+      },
+      "shellDeliveryIntervalUs": "7396",
+      "shellOutputDecodeDurationUs": "31",
+      "shellOutputQueueDurationUs": "12",
+      "shellPublicationDurationUs": "22",
+      "ageMs": "14"
+    },
+    "connections": 3,
+    "subscribers": 1,
+    "outputQueueItems": 256,
+    "outputQueueCapacity": 256,
+    "outputQueueFloor": "3230",
+    "outputBindingActive": true,
+    "updateAttribution": {
+      "sampleCount": "2048",
+      "callbackDurationUsP50": "3639",
+      "callbackDurationUsP95": "8645",
+      "callbackDurationUsMax": "2014454",
+      "latest": {
+        "runtime": {
+          "instanceId": "2128086",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "2850",
+        "admittedStepCount": "2",
+        "postCallbackDurationUs": "311",
+        "callbackDurationUs": "4984",
+        "characterStepCalls": "4",
+        "characterStepDurationUs": "132",
+        "characterStepCastCount": "4",
+        "characterStepCandidateCount": "12",
+        "characterStepNarrowPhaseCount": "12",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "rollingSlowest": {
+        "runtime": {
+          "instanceId": "2128086",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "2198",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "10530",
+        "callbackDurationUs": "2014454",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "89",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "6",
+        "characterStepNarrowPhaseCount": "6",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "rollingSlowestAgeMs": "11505",
+      "slowest": {
+        "runtime": {
+          "instanceId": "2128086",
+          "generation": "1",
+          "controlRevision": "1"
+        },
+        "simulationStep": "2198",
+        "admittedStepCount": "1",
+        "postCallbackDurationUs": "10530",
+        "callbackDurationUs": "2014454",
+        "characterStepCalls": "2",
+        "characterStepDurationUs": "89",
+        "characterStepCastCount": "2",
+        "characterStepCandidateCount": "6",
+        "characterStepNarrowPhaseCount": "6",
+        "voxelResidencyCalls": "0",
+        "voxelResidencyDurationUs": "0",
+        "voxelScenePresentationCalls": "0",
+        "voxelScenePresentationDurationUs": "0"
+      },
+      "slowestAgeMs": "11505"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "project": "rusty-craftsurvive",
   "serve": {
-    "command": "exec ./.runtime/runtime-pack-5c71990e-dungeon-split/bin/rusty dev --runtime ./.runtime/runtime-pack-5c71990e-dungeon-split --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --debugger --bind-host {host} --port {port}",
+    "command": "exec ./.runtime/runtime-pack-c62aeeff-delivery-sprites/bin/rusty dev --runtime ./.runtime/runtime-pack-c62aeeff-delivery-sprites --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --debugger --bind-host {host} --port {port}",
     "preferredPort": 0,
     "healthUrl": "/product-ui/main.js",
     "readyText": "Rusty CraftSurvive",

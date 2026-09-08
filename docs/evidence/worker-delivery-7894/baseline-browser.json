@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "attachment",
+    "body": "{\"hostState\":\"ready\",\"runtimeProgress\":\"0\",\"transportState\":\"open\",\"outputState\":\"open\",\"pageEvents\":[],\"attachment\":{\"id\":\"browser-b085e48840c6359524fcaa77c0d96f31\",\"baseline\":{\"runtime\":{\"instanceId\":\"1945127\",\"generation\":\"1\",\"controlRevision\":\"3\"},\"nextInputSequence\":\"36986\",\"publicationFrontiers\":[{\"stream\":\"presentation-world\",\"revision\":380}]}}}"
+  },
+  {
+    "kind": "command",
+    "command": "craft.courtyard.study dungeon",
+    "elapsedMs": 7013,
+    "result": "queued environment study=dungeon"
+  },
+  {
+    "kind": "command",
+    "command": "craft.courtyard.detail fine",
+    "elapsedMs": 7007,
+    "result": "queued detail sampling=fine"
+  },
+  {
+    "kind": "command",
+    "command": "craft.courtyard.study dungeon-split",
+    "elapsedMs": 7017,
+    "result": "queued environment study=dungeon-split"
+  },
+  {
+    "kind": "command",
+    "command": "craft.courtyard.detail normal",
+    "elapsedMs": 7008,
+    "result": "queued detail sampling=normal"
+  }
+]
