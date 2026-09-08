@@ -1,0 +1,32 @@
+{
+  "action_id": "34724874-fdb6-45f3-b52b-146c91962d0d",
+  "backend": "wolf-input-api",
+  "cancelled": false,
+  "completed_steps": 3,
+  "elapsed_ms": 2505,
+  "ended_at": "2026-09-08T11:29:25Z",
+  "event": "input",
+  "lease_id": "cc7dddbe-37fb-4328-afb4-d86cf3abd1e0",
+  "release_errors": [],
+  "started_at": "2026-09-08T11:29:23Z",
+  "steps": [
+    {
+      "height": 720,
+      "kind": "point",
+      "width": 1280,
+      "x": 640,
+      "y": 460
+    },
+    {
+      "button": 1,
+      "kind": "click",
+      "ms": 100
+    },
+    {
+      "kind": "gamepad",
+      "ly": 1,
+      "ms": 2400
+    }
+  ],
+  "time": "2026-09-08T11:29:25Z"
+}

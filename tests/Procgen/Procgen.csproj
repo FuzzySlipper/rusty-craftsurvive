@@ -10,5 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/CraftSurvive.Procgen/CraftSurvive.Procgen.csproj" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/LevelGeneration/CaveLevelPlan.cs" Link="CaveLevelPlan.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/LevelGeneration/DungeonLevelPlan.cs" Link="DungeonLevelPlan.cs" />
   </ItemGroup>
 </Project>

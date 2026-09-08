@@ -1,0 +1,44 @@
+{
+  "task": 7892,
+  "engineRevision": "623cc45f2b4875b91fc80a74197c68bd1574eff6",
+  "runtime": "CoreCLR packaged contributor pair",
+  "lease": "cc7dddbe-37fb-4328-afb4-d86cf3abd1e0",
+  "captures": [
+    {
+      "label": "dressed",
+      "artifact": "dressed.png",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/cc7dddbe-37fb-4328-afb4-d86cf3abd1e0/dca3b1c3-1fe5-43c1-81ea-97bb73e77a03.png"
+    },
+    {
+      "label": "walk",
+      "artifact": "walk.png",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/cc7dddbe-37fb-4328-afb4-d86cf3abd1e0/b317792e-978e-48aa-8081-873d58279766.png"
+    },
+    {
+      "label": "row",
+      "artifact": "row.png",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/cc7dddbe-37fb-4328-afb4-d86cf3abd1e0/6afc04f0-d2cd-4773-bef1-18bf649079b5.png"
+    },
+    {
+      "label": "middle",
+      "artifact": "middle.png",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/cc7dddbe-37fb-4328-afb4-d86cf3abd1e0/f422a75e-0622-4c87-b764-d82aba549666.png"
+    },
+    {
+      "label": "far",
+      "artifact": "far.png",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/cc7dddbe-37fb-4328-afb4-d86cf3abd1e0/6159ea01-01d2-4873-acf6-e8c06c8c3409.png"
+    },
+    {
+      "label": "corner",
+      "artifact": "corner.png",
+      "source": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/cc7dddbe-37fb-4328-afb4-d86cf3abd1e0/b326bccb-4f99-4e4a-ae96-1c88275aa28e.png"
+    }
+  ],
+  "notes": [
+    "Native movement required canvas focus; initial unfocused action did not move player.",
+    "walk/row are native movement; middle/far/corner use explicit inspection positioning, not traversal proof.",
+    "The long east run crosses the existing32m world-origin rebase; local player X changes accordingly.",
+    "No FPS or complete remote browser console capture claim. Engine timing drops tracked in #7894."
+  ]
+}

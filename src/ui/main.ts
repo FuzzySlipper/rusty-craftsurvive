@@ -143,6 +143,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const detailStudy = button('Small stonework');
   const motifStudy = button('Flat motifs');
   const caveStudy = button('Cave');
+  const dungeonStudy = button('Dungeon');
+  const dungeonLayoutStudy = button('Dungeon layout');
   const levelStudy = button('Generated cave');
   const levelLayoutStudy = button('Cave layout');
   const levelWeatheredStudy = button('Weathered cave');
@@ -190,6 +192,10 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const levelRightView = button('Level right');
   const levelGoalView = button('Level goal');
   const levelRoofView = button('Level roof');
+  const dungeonStartView = button('Start room');
+  const dungeonMiddleView = button('Middle room');
+  const dungeonFarView = button('Far room');
+  const dungeonEntranceView = button('Entrance');
   const refresh = button('Refresh');
   const actionRows = document.createElement('div');
   actionRows.style.cssText = 'display:grid;gap:.3rem;';
@@ -198,7 +204,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Test wall', original, materialRegions, layered),
     actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
     actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
-    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy, levelStudy, levelLayoutStudy,
+    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy, dungeonStudy, dungeonLayoutStudy, levelStudy, levelLayoutStudy,
       levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy),
     actionRow('Level seed', seed11, seed29, seed47),
     actionRow('Carved volume', volumePassagesStudy, volumeChambersStudy, volumeStudy, sampledVolumeStudy),
@@ -208,6 +214,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Cave views', caveEntranceView, columnView, carvedWallView, terracesView),
     actionRow('Volume views', volumeEntryView, volumeRoomView, volumeBackView, volumeRoofView, volumeCutLeftView, volumeCutRightView),
     actionRow('Level views', levelEntryView, levelHubView, levelLeftView, levelRightView, levelGoalView, levelRoofView),
+    actionRow('Dungeon views', dungeonStartView, dungeonMiddleView, dungeonFarView, dungeonEntranceView),
     actionRow('Layout', originalDimensions, reshape),
     actionRow('Views', viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView, samplesView),
     actionRow('Readout', refresh));
@@ -226,13 +233,14 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   let disposed = false;
   const allActions = [balanced, faceted, soft, original, materialRegions, layered, centroidBoundaries, interpolatedBoundaries,
     cutoffNegative, cutoffZero, cutoffPositive, stoneworksStudy, referenceStudy, samplingStudy, levelStudy, levelLayoutStudy,
-    levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy,
+    dungeonStudy, dungeonLayoutStudy, levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy,
     seed11, seed29, seed47, coarseDetail, normalDetail,
     fineDetail, originalDimensions, reshape, viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView,
     samplesView, detailStudy, motifStudy, caveStudy, originalSamples, mediumSamples, fineSamples, detailsView, ...detailViews, tinyView,
     bricksView, caveEntranceView, columnView, carvedWallView, terracesView, volumePassagesStudy, volumeChambersStudy, volumeStudy,
     sampledVolumeStudy, volumeEntryView, volumeRoomView, volumeBackView, volumeRoofView, volumeCutLeftView, volumeCutRightView,
-    levelEntryView, levelHubView, levelLeftView, levelRightView, levelGoalView, levelRoofView, refresh];
+    levelEntryView, levelHubView, levelLeftView, levelRightView, levelGoalView, levelRoofView,
+    dungeonStartView, dungeonMiddleView, dungeonFarView, dungeonEntranceView, refresh];
   const execute = async (label: string, command: string, resultKind: 'queued' | 'requested' | 'readout'): Promise<void> => {
     if (disposed) return;
     for (const action of allActions) action.disabled = true;
@@ -273,6 +281,8 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   detailStudy.addEventListener('click', () => void execute('Small stonework', 'craft.courtyard.study detail', 'queued'));
   motifStudy.addEventListener('click', () => void execute('Flat motifs', 'craft.courtyard.study motifs', 'queued'));
   caveStudy.addEventListener('click', () => void execute('Cave study', 'craft.courtyard.study cave', 'queued'));
+  dungeonStudy.addEventListener('click', () => void execute('Dungeon study', 'craft.courtyard.study dungeon', 'queued'));
+  dungeonLayoutStudy.addEventListener('click', () => void execute('Dungeon layout study', 'craft.courtyard.study dungeon-layout', 'queued'));
   levelStudy.addEventListener('click', () => void execute('Generated cave level', 'craft.courtyard.study level', 'queued'));
   levelLayoutStudy.addEventListener('click', () => void execute('Bare cave layout', 'craft.courtyard.study level-layout', 'queued'));
   levelWeatheredStudy.addEventListener('click', () => void execute('Weathered cave level', 'craft.courtyard.study level-weathered', 'queued'));
@@ -308,6 +318,10 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   levelRightView.addEventListener('click', () => void execute('Level right room view', 'craft.courtyard.inspect level-right', 'requested'));
   levelGoalView.addEventListener('click', () => void execute('Level goal view', 'craft.courtyard.inspect level-goal', 'requested'));
   levelRoofView.addEventListener('click', () => void execute('Level roof view', 'craft.courtyard.inspect level-roof', 'requested'));
+  dungeonStartView.addEventListener('click', () => void execute('Dungeon start room', 'craft.courtyard.inspect dungeon-0', 'requested'));
+  dungeonMiddleView.addEventListener('click', () => void execute('Dungeon middle room', 'craft.courtyard.inspect dungeon-5', 'requested'));
+  dungeonFarView.addEventListener('click', () => void execute('Dungeon far room', 'craft.courtyard.inspect dungeon-11', 'requested'));
+  dungeonEntranceView.addEventListener('click', () => void execute('Dungeon entrance', 'craft.courtyard.inspect dungeon-entry', 'requested'));
   coarseDetail.addEventListener('click', () => void execute('Coarse sampling plaques', 'craft.courtyard.detail coarse', 'queued'));
   normalDetail.addEventListener('click', () => void execute('Normal sampling plaques', 'craft.courtyard.detail normal', 'queued'));
   fineDetail.addEventListener('click', () => void execute('Fine sampling plaques', 'craft.courtyard.detail fine', 'queued'));

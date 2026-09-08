@@ -1,5 +1,7 @@
 # Procedural cave levels
 
+For the larger twelve-room architectural test, see [Enclosed dungeon test](procedural-dungeon.md).
+
 CraftSurvive now combines level and aesthetic experiments. Select **Generated
 cave**, choose seed **11**, **29** or **47**, then **Entry** and walk in. The
 **Cave layout** study retains the same rooms/routes without rock courses or

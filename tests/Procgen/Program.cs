@@ -18,6 +18,7 @@ GenerationPolicyAdmissionIsComplete();
 CraftSurvive.Procgen.Generation.GenerationProbe.Verify();
 CraftSurvive.Procgen.Workloads.WorkloadProbe.Verify();
 CaveLevelPlanChecks.Verify();
+DungeonLevelPlanChecks.Verify();
 
 Console.WriteLine("CraftSurvive.Procgen checks passed.");
 

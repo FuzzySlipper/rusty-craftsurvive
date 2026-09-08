@@ -35,6 +35,7 @@ internal sealed class CourtyardScene : IDisposable
     private const float MaxMaterialCutoff = 0.15f;
     private string generationError = "none";
     private CaveLevelPlan? levelPlan;
+    private DungeonLevelPlan? dungeonPlan;
     private string volumeProbes = "not-built";
     private readonly IEngineContext engine;
     private readonly CourtyardMaterials materials;
@@ -77,7 +78,7 @@ internal sealed class CourtyardScene : IDisposable
         ApplyStudyLighting();
     }
 
-    internal bool IsGeneratedLevel => GeneratedCaveRecipe.IsStudy(settings.Study);
+    internal bool IsGeneratedLevel => GeneratedCaveRecipe.IsStudy(settings.Study) || GeneratedDungeonRecipe.IsStudy(settings.Study);
 
     internal IEnumerable<AppearanceFact> Facts => parts.Select((part, index) => new AppearanceFact(
         FirstObjectId + (ulong)index, false, 0, part.Placement with { Translation = part.Placement.Translation + translation },
@@ -85,8 +86,8 @@ internal sealed class CourtyardScene : IDisposable
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout" or "level-weathered" or "level-weathered-strata" or "level-disrupted"))
-            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, level-layout, level-weathered, level-weathered-strata, or level-disrupted.");
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout" or "level-weathered" or "level-weathered-strata" or "level-disrupted" or "dungeon" or "dungeon-layout"))
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, level-layout, level-weathered, level-weathered-strata, level-disrupted, dungeon, or dungeon-layout.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
     }
@@ -150,6 +151,18 @@ internal sealed class CourtyardScene : IDisposable
 
     internal (Vector3 Eye, Vector3 Target) InspectionView(string angle)
     {
+        if (angle.StartsWith("dungeon-", StringComparison.Ordinal))
+        {
+            DungeonLevelPlan plan = dungeonPlan ?? GeneratedDungeonRecipe.Plan(engine, settings.Seed);
+            string station = angle[8..];
+            if (station == "entry") return (new(0, 4.55f, -10), plan.Rooms[0].Eye);
+            if (station == "roof") return (new(24, 18, -12), new(24, 7, 14));
+            int index = int.Parse(station, CultureInfo.InvariantCulture);
+            DungeonRoom room = plan.Rooms[index];
+            DungeonRoute route = plan.Routes.First(route => route.From == index || route.To == index);
+            Vector3 target = plan.Rooms[route.From == index ? route.To : route.From].Eye;
+            return (room.Eye, target with { Y = room.Eye.Y });
+        }
         if (angle.StartsWith("level-", StringComparison.Ordinal))
         {
             CaveLevelPlan plan = levelPlan ?? GeneratedCaveRecipe.Plan(engine, settings.Seed);
@@ -264,12 +277,14 @@ internal sealed class CourtyardScene : IDisposable
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
-    internal string ReadLevelPlan() => levelPlan is not { } plan ? "level inactive" : string.Join("\n",
+    internal string ReadLevelPlan() => dungeonPlan is { } dungeon ? string.Join("\n",
+        dungeon.Rooms.Select(room => $"room={room.Id};min={room.Minimum};max={room.Maximum}")
+        .Concat(dungeon.Routes.Select(route => $"corridor={route.From}->{route.To};start={route.Start};end={route.End}"))) : levelPlan is not { } plan ? "level inactive" : string.Join("\n",
         plan.Rooms.Select(room => FormattableString.Invariant($"room={room.Id};center={room.Center.X:F2},{room.Center.Y:F2},{room.Center.Z:F2};radii={room.Radii.X:F2},{room.Radii.Y:F2},{room.Radii.Z:F2}"))
         .Concat(plan.Routes.Select(route => $"route={route.Id};from={route.From};to={route.To};points=" + string.Join("/", route.Points.Select(point => FormattableString.Invariant($"{point.X:F2},{point.Y:F2},{point.Z:F2}"))))));
 
     internal string ReadDetailParts() => string.Join("\n", parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)
-        || p.Name.StartsWith("level ", StringComparison.Ordinal) || p.Name.StartsWith("volume ", StringComparison.Ordinal) || p.Name.StartsWith("cave ", StringComparison.Ordinal) || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
+        || p.Name.StartsWith("dungeon ", StringComparison.Ordinal) || p.Name.StartsWith("level ", StringComparison.Ordinal) || p.Name.StartsWith("volume ", StringComparison.Ordinal) || p.Name.StartsWith("cave ", StringComparison.Ordinal) || p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Select(p => FormattableString.Invariant(
             $"{p.Name};triangles={p.Stats.Triangles};vertices={p.Stats.Vertices};boundaryEdges={p.Stats.BoundaryEdges};nonManifoldEdges={p.Stats.NonManifoldEdges};inconsistentWindingEdges={p.Stats.InconsistentWindingEdges};groups={p.Stats.MaterialGroups};actualCell={p.Stats.SampleSpacing:F5};seconds={p.Stats.GenerationSeconds:F4}")));
 
     private void Build(CourtyardSettings next)
@@ -280,6 +295,7 @@ internal sealed class CourtyardScene : IDisposable
         {
             string nextVolumeProbes = "not-built";
             CaveLevelPlan? nextLevelPlan = null;
+            DungeonLevelPlan? nextDungeonPlan = null;
             testGenerationSeconds = 0;
             if (next.Study == "reference")
             {
@@ -296,6 +312,12 @@ internal sealed class CourtyardScene : IDisposable
                     new(Vector3.Zero, Quaternion.Identity, Vector3.One));
                 if (next.Study == "detail") DetailStudyRecipe.Build(writer, stoneworksMaterials, next);
                 else DetailStudyRecipe.BuildFlatComparison(writer, stoneworksMaterials, next);
+            }
+            else if (GeneratedDungeonRecipe.IsStudy(next.Study))
+            {
+                var built = GeneratedDungeonRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
+                nextVolumeProbes = built.Probes;
+                nextDungeonPlan = built.Plan;
             }
             else if (GeneratedCaveRecipe.IsStudy(next.Study))
             {
@@ -323,6 +345,7 @@ internal sealed class CourtyardScene : IDisposable
             generationSeconds = watch.Elapsed.TotalSeconds;
             volumeProbes = nextVolumeProbes;
             levelPlan = nextLevelPlan;
+            dungeonPlan = nextDungeonPlan;
             generation++;
         }
         catch
@@ -386,11 +409,24 @@ internal sealed class CourtyardScene : IDisposable
                (new(1f, 0.84f, 0.62f), 2.1f, new(-12f, 22f, -8f)),
                (new(1f, 0.49f, 0.19f), 16f, new(-1.8f, 7.4f, 17f)),
                (new(0.55f, 0.74f, 1f), 20f, new(0f, 8.6f, 28f))];
+        if (GeneratedDungeonRecipe.IsStudy(settings.Study) && dungeonPlan is { } dungeon)
+        {
+            // Ambient fill keeps an enclosed inspection useful. Room lights
+            // provide depth cues without assigning shadows to every point light.
+            profile = new (Vector3 Color, float Intensity, Vector3 Position)[] {
+                (new(0.76f, 0.80f, 0.92f), 0.65f, Vector3.Zero),
+                (Vector3.One, 0f, new(-12, 22, -8)) }
+                .Concat(dungeon.Rooms.Select(room => (room.Index % 3 == 0 ? new Vector3(1f, 0.68f, 0.35f) : new Vector3(0.68f, 0.79f, 1f),
+                    42f, room.Center with { Y = room.Maximum.Y - 0.7f }))).ToArray();
+        }
+        while (lights.Count < profile.Length)
+            AddLight(LightKind.Point, profile[lights.Count].Color, profile[lights.Count].Intensity, profile[lights.Count].Position, Vector3.Zero);
         for (int index = 0; index < lights.Count; index++)
         {
             (Light owner, LightDescriptor descriptor) = lights[index];
-            descriptor = descriptor with { Color = profile[index].Color, Intensity = profile[index].Intensity,
-                Position = profile[index].Position };
+            descriptor = index < profile.Length
+                ? descriptor with { Enabled = true, Color = profile[index].Color, Intensity = profile[index].Intensity, Position = profile[index].Position }
+                : descriptor with { Enabled = false };
             lights[index] = (owner, descriptor);
             engine.Graphics.UpdateLight(new LightUpdateRequest(owner, new LightRequest(FirstLightId + (ulong)index,
                 false, 0, descriptor with { Position = descriptor.Position + translation })));
