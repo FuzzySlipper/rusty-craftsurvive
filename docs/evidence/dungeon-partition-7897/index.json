@@ -1,0 +1,39 @@
+{
+  "task": 7897,
+  "engineTask": 7896,
+  "engineRevision": "5c71990e89f8322eedaddeccab3f61eda82a629a",
+  "sdk": "0.1.0-dev.5c71990e89f8",
+  "session": "7c33e124-3d34-415b-9a76-b436afc110de",
+  "scene": {
+    "seed": 11,
+    "partitionCell": [
+      14,
+      14,
+      14
+    ],
+    "partitionOrigin": [
+      -7,
+      -1,
+      -7
+    ],
+    "sourceFieldAndCollisionUnchanged": true
+  },
+  "observations": {
+    "whole-start": "whole-start-observation.json",
+    "split-start": "split-start-observation.json",
+    "whole-middle-west": "whole-middle-west-observation.json",
+    "split-middle-west": "split-middle-west-observation.json",
+    "split-fine-start": "split-fine-start-observation.json",
+    "walk": "walk-observation.json"
+  },
+  "notes": [
+    "Counters are per submission including multiple rendering passes, not visible pixel triangle counts.",
+    "Warmup records can retain previous mesh statistics until browser realizes the replacement; comparison uses final realized samples.",
+    "Preliminary captures used origin y=0 and had57sections. Final origin y=-1 produces31sections.",
+    "No GPU timer available (completionOnly); short remote submission-rate samples do not establish a performance improvement.",
+    "Native6.5second forward action reached localx45.892 grounded, without rebase at32m. No continuous hitch trace was recorded.",
+    "Source restaging produced recoverable old-binding rejection and browser transitions; final attachment recovered ready.",
+    "Fine regeneration produced recoverable browser reattachments and worker timing observation drops; see Engine7894. No diagnostic errors or ring drops.",
+    "No full browser-console capture available through GPU harness."
+  ]
+}

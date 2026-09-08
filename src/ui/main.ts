@@ -144,6 +144,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   const motifStudy = button('Flat motifs');
   const caveStudy = button('Cave');
   const dungeonStudy = button('Dungeon');
+  const dungeonSplitStudy = button('Dungeon split');
   const dungeonLayoutStudy = button('Dungeon layout');
   const levelStudy = button('Generated cave');
   const levelLayoutStudy = button('Cave layout');
@@ -204,7 +205,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
     actionRow('Test wall', original, materialRegions, layered),
     actionRow('Boundaries', centroidBoundaries, interpolatedBoundaries),
     actionRow('Cutoff', cutoffNegative, cutoffZero, cutoffPositive),
-    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy, dungeonStudy, dungeonLayoutStudy, levelStudy, levelLayoutStudy,
+    actionRow('Study', stoneworksStudy, referenceStudy, samplingStudy, detailStudy, motifStudy, caveStudy, dungeonStudy, dungeonSplitStudy, dungeonLayoutStudy, levelStudy, levelLayoutStudy,
       levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy),
     actionRow('Level seed', seed11, seed29, seed47),
     actionRow('Carved volume', volumePassagesStudy, volumeChambersStudy, volumeStudy, sampledVolumeStudy),
@@ -233,7 +234,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   let disposed = false;
   const allActions = [balanced, faceted, soft, original, materialRegions, layered, centroidBoundaries, interpolatedBoundaries,
     cutoffNegative, cutoffZero, cutoffPositive, stoneworksStudy, referenceStudy, samplingStudy, levelStudy, levelLayoutStudy,
-    dungeonStudy, dungeonLayoutStudy, levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy,
+    dungeonStudy, dungeonSplitStudy, dungeonLayoutStudy, levelWeatheredStudy, levelWeatheredStrataStudy, levelDisruptedStudy,
     seed11, seed29, seed47, coarseDetail, normalDetail,
     fineDetail, originalDimensions, reshape, viewTestWall, grazingView, arrivalView, plasterView, arcadeView, carvingView,
     samplesView, detailStudy, motifStudy, caveStudy, originalSamples, mediumSamples, fineSamples, detailsView, ...detailViews, tinyView,
@@ -281,6 +282,7 @@ function mountCourtyardControls(host: HTMLElement, transport: LiveDebugTransport
   detailStudy.addEventListener('click', () => void execute('Small stonework', 'craft.courtyard.study detail', 'queued'));
   motifStudy.addEventListener('click', () => void execute('Flat motifs', 'craft.courtyard.study motifs', 'queued'));
   caveStudy.addEventListener('click', () => void execute('Cave study', 'craft.courtyard.study cave', 'queued'));
+  dungeonSplitStudy.addEventListener('click', () => void execute('Dungeon split study', 'craft.courtyard.study dungeon-split', 'queued'));
   dungeonStudy.addEventListener('click', () => void execute('Dungeon study', 'craft.courtyard.study dungeon', 'queued'));
   dungeonLayoutStudy.addEventListener('click', () => void execute('Dungeon layout study', 'craft.courtyard.study dungeon-layout', 'queued'));
   levelStudy.addEventListener('click', () => void execute('Generated cave level', 'craft.courtyard.study level', 'queued'));

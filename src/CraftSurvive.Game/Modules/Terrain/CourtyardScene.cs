@@ -80,14 +80,15 @@ internal sealed class CourtyardScene : IDisposable
 
     internal bool IsGeneratedLevel => GeneratedCaveRecipe.IsStudy(settings.Study) || GeneratedDungeonRecipe.IsStudy(settings.Study);
 
-    internal IEnumerable<AppearanceFact> Facts => parts.Select((part, index) => new AppearanceFact(
-        FirstObjectId + (ulong)index, false, 0, part.Placement with { Translation = part.Placement.Translation + translation },
-        part.Appearance, true, RenderLayer.Scene));
+    internal IEnumerable<AppearanceFact> Facts => parts.SelectMany(part => part.Visuals.Select(visual => (part, visual)))
+        .Select((entry, index) => new AppearanceFact(FirstObjectId + (ulong)index, false, 0,
+            entry.part.Placement with { Translation = entry.part.Placement.Translation + translation },
+            entry.visual.Appearance, true, RenderLayer.Scene));
 
     internal string QueueStudy(string study)
     {
-        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout" or "level-weathered" or "level-weathered-strata" or "level-disrupted" or "dungeon" or "dungeon-layout"))
-            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, level-layout, level-weathered, level-weathered-strata, level-disrupted, dungeon, or dungeon-layout.");
+        if (study is not ("stoneworks" or "reference" or "sampling" or "detail" or "motifs" or "cave" or "volume" or "volume-passages" or "volume-chambers" or "volume-sampled" or "level" or "level-layout" or "level-weathered" or "level-weathered-strata" or "level-disrupted" or "dungeon" or "dungeon-layout" or "dungeon-split"))
+            throw new ArgumentException("Study must be stoneworks, reference, sampling, detail, motifs, cave, volume-passages, volume-chambers, volume, volume-sampled, level, level-layout, level-weathered, level-weathered-strata, level-disrupted, dungeon, dungeon-split, or dungeon-layout.");
         pending = (pending ?? settings) with { Study = study };
         return $"queued environment study={study}";
     }
@@ -273,7 +274,7 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"volumeProbes={volumeProbes};volumeCell={(settings.Study == "volume-sampled" ? VolumeCaveRecipe.SampledCell(settings.Detail) : VolumeCaveRecipe.Cell(settings.Detail)):F3};boundedLeafVertices={parts.Sum(p => (long)p.Stats.BoundedLeafVertices)};boundaryEdges={parts.Sum(p => (long)p.Stats.BoundaryEdges)};nonManifoldEdges={parts.Sum(p => (long)p.Stats.NonManifoldEdges)};inconsistentWindingEdges={parts.Sum(p => (long)p.Stats.InconsistentWindingEdges)};caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"volumeProbes={volumeProbes};volumeCell={(settings.Study == "volume-sampled" ? VolumeCaveRecipe.SampledCell(settings.Detail) : VolumeCaveRecipe.Cell(settings.Detail)):F3};boundedLeafVertices={parts.Sum(p => (long)p.Stats.BoundedLeafVertices)};boundaryEdges={parts.Sum(p => (long)p.Stats.BoundaryEdges)};nonManifoldEdges={parts.Sum(p => (long)p.Stats.NonManifoldEdges)};inconsistentWindingEdges={parts.Sum(p => (long)p.Stats.InconsistentWindingEdges)};caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};renderSections={parts.Sum(p => p.Visuals.Count)};partitionCell={(settings.Study == "dungeon-split" ? 14 : 0)};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 
@@ -315,7 +316,7 @@ internal sealed class CourtyardScene : IDisposable
             }
             else if (GeneratedDungeonRecipe.IsStudy(next.Study))
             {
-                var built = GeneratedDungeonRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement));
+                var built = GeneratedDungeonRecipe.Compose(engine, stoneworksMaterials, next, surface => AddPart(surface, replacement, next.Study == "dungeon-split"));
                 nextVolumeProbes = built.Probes;
                 nextDungeonPlan = built.Plan;
             }
@@ -355,7 +356,7 @@ internal sealed class CourtyardScene : IDisposable
         }
     }
 
-    private void AddPart(RecipeSurface surface, List<Part> output)
+    private void AddPart(RecipeSurface surface, List<Part> output, bool partition = false)
     {
         MeshResource mesh = engine.ImplicitSurfaces.Generate(new ImplicitGenerateRequest(surface.Field, surface.Root,
             surface.Min - new Vector3(DomainPadding), surface.Max + new Vector3(DomainPadding),
@@ -364,7 +365,7 @@ internal sealed class CourtyardScene : IDisposable
                 surface.Regions.Length > 0 && surface.Sampling.MaterialBoundaries == ImplicitMaterialBoundaryMode.Interpolated
                     ? surface.Sampling.MaterialSampleSpacing : 0f,
             MaxExtractionVertices: surface.Sampling.MaxExtractionVertices, MaxExtractionTriangles: surface.Sampling.MaxExtractionTriangles));
-        PublishPart(surface.Name, mesh, () => engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement, output);
+        PublishPart(surface.Name, mesh, () => engine.ImplicitSurfaces.ReadGeneration(surface.Field), surface.Placement, output, partition);
     }
 
     private void AddSampledPart(SampledRecipeSurface surface, List<Part> output)
@@ -374,15 +375,29 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     private void PublishPart(string name, MeshResource mesh, Func<ImplicitGenerationReadout> readGeneration,
-        Transform placement, List<Part> output)
+        Transform placement, List<Part> output, bool partition = false)
     {
-        Appearance? appearance = null;
+        List<VisualPart> visuals = [];
         try
         {
-            appearance = engine.Graphics.CreateMeshAppearance(mesh);
-            output.Add(new Part(name, mesh, appearance, readGeneration(), placement));
+            if (partition)
+            {
+                // Partition presentation only. The original extraction remains
+                // the collision source, with identical topology and statistics.
+                using MeshPartition sections = engine.Graphics.PartitionMesh(new MeshPartitionRequest(
+                    mesh, DungeonPartitionOrigin, DungeonPartitionSize));
+                uint count = engine.Graphics.ReadMeshPartition(sections).PartCount;
+                for (uint i = 0; i < count; i++)
+                {
+                    MeshResource section = engine.Graphics.TakeMeshPartitionPart(new MeshPartitionPartRequest(sections, i));
+                    try { visuals.Add(new VisualPart(engine.Graphics.CreateMeshAppearance(section), section)); }
+                    catch { section.Dispose(); throw; }
+                }
+            }
+            else visuals.Add(new VisualPart(engine.Graphics.CreateMeshAppearance(mesh), null));
+            output.Add(new Part(name, mesh, visuals, readGeneration(), placement));
         }
-        catch { appearance?.Dispose(); mesh.Dispose(); throw; }
+        catch { foreach (VisualPart visual in visuals) visual.Dispose(); mesh.Dispose(); throw; }
     }
 
     private void ApplyStudyLighting()
@@ -469,9 +484,17 @@ internal sealed class CourtyardScene : IDisposable
         materials.Dispose();
     }
 
-    private sealed record Part(string Name, MeshResource Mesh, Appearance Appearance, ImplicitGenerationReadout Stats, Transform Placement) : IDisposable
+    private static readonly Vector3 DungeonPartitionSize = new(14f, 14f, 14f);
+    private static readonly Vector3 DungeonPartitionOrigin = new(-7f, -1f, -7f);
+
+    private sealed record VisualPart(Appearance Appearance, MeshResource? Mesh) : IDisposable
     {
-        public void Dispose() { Appearance.Dispose(); Mesh.Dispose(); }
+        public void Dispose() { Appearance.Dispose(); Mesh?.Dispose(); }
+    }
+
+    private sealed record Part(string Name, MeshResource Mesh, List<VisualPart> Visuals, ImplicitGenerationReadout Stats, Transform Placement) : IDisposable
+    {
+        public void Dispose() { foreach (VisualPart visual in Visuals) visual.Dispose(); Mesh.Dispose(); }
     }
 
 }

@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Rusty.Engine" Version="0.1.0-dev.623cc45f2b48" />
+    <PackageReference Include="Rusty.Engine" Version="0.1.0-dev.5c71990e89f8" />
     <!-- Pure product rules only; no alternative Engine host or binding. -->
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="TerrainConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="TerrainConfiguration.cs" />

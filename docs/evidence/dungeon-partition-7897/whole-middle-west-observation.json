@@ -1,0 +1,90 @@
+{
+  "artifact_id": "bc4aa971-7025-4779-93eb-58d391acc2d7",
+  "capture_ended_at_ns": 1788870962581040957,
+  "capture_started_at_ns": 1788870962272742513,
+  "event": "observation",
+  "frame_freshness": "not measured",
+  "game_frame_id": null,
+  "game_readiness": "unknown",
+  "height": 720,
+  "lease_id": "7c33e124-3d34-415b-9a76-b436afc110de",
+  "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/7c33e124-3d34-415b-9a76-b436afc110de/bc4aa971-7025-4779-93eb-58d391acc2d7.png",
+  "source": "remote Wolf stream decoded by Moonlight into private X11 window",
+  "target": {
+    "last_input": {
+      "action_id": "e14f9db5-b323-4435-b1cb-3f0a47e013a2",
+      "backend": "wolf-input-api",
+      "cancelled": false,
+      "completed_steps": 3,
+      "elapsed_ms": 202,
+      "ended_at": "2026-09-08T12:33:21Z",
+      "event": "input",
+      "lease_id": "7c33e124-3d34-415b-9a76-b436afc110de",
+      "release_errors": [],
+      "started_at": "2026-09-08T12:33:21Z",
+      "steps": [
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 640,
+          "y": 460
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 100
+        },
+        {
+          "keys": [
+            9
+          ],
+          "kind": "hold",
+          "ms": 100
+        }
+      ],
+      "time": "2026-09-08T12:33:21Z"
+    },
+    "last_release": {
+      "errors": [],
+      "event": "release",
+      "lease_id": "cc7dddbe-37fb-4328-afb4-d86cf3abd1e0",
+      "reason": "requested",
+      "released": true,
+      "time": "2026-09-08T11:35:56Z"
+    },
+    "lease": {
+      "baseline_lobbies": [],
+      "client_id": "7411603768457197485",
+      "expires_at": 1788871262.2482514,
+      "firefox_launch_name": "Firefox playtest 7c33e124-3d34-415b-9a76-b436afc110de",
+      "firefox_lobby_id": "ee0cf705-5cba-489f-b0a4-16d771774836",
+      "gamepad": true,
+      "id": "7c33e124-3d34-415b-9a76-b436afc110de",
+      "lobbies": [
+        "ee0cf705-5cba-489f-b0a4-16d771774836"
+      ],
+      "ttl_seconds": 300
+    },
+    "lobbies": [
+      {
+        "connected_sessions": [
+          "7411603768457197485"
+        ],
+        "id": "ee0cf705-5cba-489f-b0a4-16d771774836",
+        "name": "Firefox playtest 7c33e124-3d34-415b-9a76-b436afc110de"
+      }
+    ],
+    "sessions": [
+      {
+        "app_id": "134906179",
+        "client_id": "7411603768457197485",
+        "video_height": 720,
+        "video_refresh_rate": 30,
+        "video_width": 1280
+      }
+    ],
+    "target_time": "2026-09-08T12:36:02Z"
+  },
+  "width": 1280
+}

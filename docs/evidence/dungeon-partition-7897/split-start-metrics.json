@@ -1,0 +1,698 @@
+[
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 99.88000000000466,
+      "intervalStatus": "available",
+      "renderSequence": 102,
+      "submissionRateHz": 14.347327049493922,
+      "syncSubmissionMs": 2,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 34,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 17,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 1,
+      "state": "measuring",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 182
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 163
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 284
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 167
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 175334
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 966.5599999999977,
+      "intervalStatus": "available",
+      "renderSequence": 134,
+      "submissionRateHz": 12.842986160947115,
+      "syncSubmissionMs": 24,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 239,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 222,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 0,
+      "state": "waiting",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 75
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 195
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 122988
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 1066.6199999999953,
+      "intervalStatus": "available",
+      "renderSequence": 135,
+      "submissionRateHz": 11.715900074023182,
+      "syncSubmissionMs": 19,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 14,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 0,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 0,
+      "state": "waiting",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 77
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 193
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 125718
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 1066.6199999999953,
+      "intervalStatus": "available",
+      "renderSequence": 135,
+      "submissionRateHz": 11.715900074023182,
+      "syncSubmissionMs": 19,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 14,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 0,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 0,
+      "state": "waiting",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 77
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 193
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 125718
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 65.88000000000466,
+      "intervalStatus": "available",
+      "renderSequence": 138,
+      "submissionRateHz": 11.249625012499576,
+      "syncSubmissionMs": 1,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 33,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 16,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 0,
+      "state": "waiting",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 77
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 193
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 125718
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 65.88000000000466,
+      "intervalStatus": "available",
+      "renderSequence": 138,
+      "submissionRateHz": 11.249625012499576,
+      "syncSubmissionMs": 1,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 33,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 16,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 0,
+      "state": "waiting",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 77
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 193
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 125718
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 65.88000000000466,
+      "intervalStatus": "available",
+      "renderSequence": 138,
+      "submissionRateHz": 11.249625012499576,
+      "syncSubmissionMs": 1,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 33,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 16,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 0,
+      "state": "waiting",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 77
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 193
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 125718
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  },
+  {
+    "available": true,
+    "canvas": {
+      "backingHeight": 590,
+      "backingWidth": 1276,
+      "cssHeight": 590,
+      "cssWidth": 1276,
+      "effectivePixelRatio": 1
+    },
+    "frame": {
+      "intervalMs": 65.94000000000233,
+      "intervalStatus": "available",
+      "renderSequence": 149,
+      "submissionRateHz": 11.405875744702117,
+      "syncSubmissionMs": 1,
+      "syncSubmissionStatus": "available"
+    },
+    "pacing": {
+      "completionAgeMs": 31,
+      "completionFenceMode": "active",
+      "effectiveDurationMs": 14,
+      "mode": "completionOnly",
+      "pendingMeasurementCount": 0,
+      "pendingSubmissionCount": 1,
+      "state": "measuring",
+      "timerDurationMs": null
+    },
+    "renderer": {
+      "class": "accelerated",
+      "name": "Radeon HD 3200 Graphics, or similar",
+      "vendor": "AMD"
+    },
+    "resources": {
+      "definedTextureCount": 15,
+      "materialFallbackCount": 0,
+      "skyBackground": {
+        "contentHash": "sha256:7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "resource": "texture-resource/7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898",
+        "textureId": "texture/csharp-product-7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+      },
+      "spriteAtlasCount": 0,
+      "spriteFallbackCount": 0,
+      "voxelSpecializedMaterialCount": 0
+    },
+    "schemaVersion": 1,
+    "statistics": {
+      "animatedInstanceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 1
+      },
+      "drawCallCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 77
+      },
+      "geometryResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 36
+      },
+      "materialResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 193
+      },
+      "renderHandleCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 48
+      },
+      "schemaVersion": 1,
+      "textureResourceCount": {
+        "scope": "liveResident",
+        "status": "available",
+        "value": 18
+      },
+      "triangleCount": {
+        "scope": "perSubmission",
+        "status": "available",
+        "value": 125718
+      }
+    },
+    "widget": {
+      "visible": true
+    }
+  }
+]

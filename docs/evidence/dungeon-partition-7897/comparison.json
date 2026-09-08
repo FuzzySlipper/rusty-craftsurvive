@@ -1,0 +1,93 @@
+[
+  {
+    "sample": "whole-start-final",
+    "renderSequence": 30,
+    "submittedTriangles": 209234,
+    "draws": 9,
+    "geometryResources": 5,
+    "renderSections": 2,
+    "sourceTriangles": 104616,
+    "sourceVertices": 68963,
+    "generationSeconds": 0.44,
+    "submissionRateHz": 11.920108782029688,
+    "gpuTimerAvailable": false
+  },
+  {
+    "sample": "split-start",
+    "renderSequence": 149,
+    "submittedTriangles": 125718,
+    "draws": 77,
+    "geometryResources": 36,
+    "renderSections": 31,
+    "sourceTriangles": 104616,
+    "sourceVertices": 68963,
+    "generationSeconds": 0.421,
+    "submissionRateHz": 11.405875744702117,
+    "gpuTimerAvailable": false
+  },
+  {
+    "sample": "whole-middle-west",
+    "renderSequence": 637,
+    "submittedTriangles": 209256,
+    "draws": 10,
+    "geometryResources": 5,
+    "renderSections": 2,
+    "sourceTriangles": 104616,
+    "sourceVertices": 68963,
+    "generationSeconds": 0.44,
+    "submissionRateHz": 12.366934681329205,
+    "gpuTimerAvailable": false
+  },
+  {
+    "sample": "split-middle-west",
+    "renderSequence": 472,
+    "submittedTriangles": 79907,
+    "draws": 51,
+    "geometryResources": 36,
+    "renderSections": 31,
+    "sourceTriangles": 104616,
+    "sourceVertices": 68963,
+    "generationSeconds": 0.421,
+    "submissionRateHz": 13.264124997797943,
+    "gpuTimerAvailable": false
+  },
+  {
+    "sample": "whole-fine-start",
+    "renderSequence": 197,
+    "submittedTriangles": 588710,
+    "draws": 9,
+    "geometryResources": 5,
+    "renderSections": 2,
+    "sourceTriangles": 294354,
+    "sourceVertices": 212501,
+    "generationSeconds": 1.549,
+    "submissionRateHz": 11.17100973259827,
+    "gpuTimerAvailable": false
+  },
+  {
+    "sample": "split-fine-start",
+    "renderSequence": 432,
+    "submittedTriangles": 342359,
+    "draws": 85,
+    "geometryResources": 36,
+    "renderSections": 31,
+    "sourceTriangles": 294354,
+    "sourceVertices": 212501,
+    "generationSeconds": 1.624,
+    "submissionRateHz": 14.195849488505797,
+    "gpuTimerAvailable": false
+  },
+  {
+    "sample": "split-restored",
+    "renderSequence": 946,
+    "submittedTriangles": 125718,
+    "draws": 77,
+    "geometryResources": 36,
+    "renderSections": 31,
+    "sourceTriangles": 104616,
+    "sourceVertices": 68963,
+    "generationSeconds": 0.403,
+    "submissionRateHz": 12.190592291355163,
+    "gpuTimerAvailable": false
+  }
+]

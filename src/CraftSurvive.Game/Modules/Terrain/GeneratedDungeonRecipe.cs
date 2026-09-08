@@ -13,7 +13,7 @@ internal static class GeneratedDungeonRecipe
     private const float JointDepth = 0.16f;
     private const float TextureRepeats = 0.65f;
     private static readonly Transform Identity = new(Vector3.Zero, Quaternion.Identity, Vector3.One);
-    internal static bool IsStudy(string study) => study is "dungeon" or "dungeon-layout";
+    internal static bool IsStudy(string study) => study is "dungeon" or "dungeon-layout" or "dungeon-split";
     internal static DungeonLevelPlan Plan(IEngineContext engine, ulong seed) => DungeonLevelPlan.Create(seed,
         key => engine.Random.DrawKeyed(new(seed, "dungeon.level", key, 0, (long)DrawResolution)).Value / DrawResolution);
 
@@ -25,7 +25,7 @@ internal static class GeneratedDungeonRecipe
         RecipeWriter writer = new(engine.ImplicitSurfaces,
             new(cell, settings.CreaseDegrees, TextureRepeats, settings.MaterialBoundaryMode, settings.MaterialSampleSpacing), emit);
         using ImplicitRecipe field = writer.Begin();
-        bool dressed = settings.Study == "dungeon";
+        bool dressed = settings.Study != "dungeon-layout";
         ImplicitNode air = field.Box(plan.Rooms[0].Minimum, plan.Rooms[0].Maximum);
         foreach (DungeonRoom room in plan.Rooms.Skip(1)) air = field.Union(air, field.Box(room.Minimum, room.Maximum));
         foreach (DungeonRoute route in plan.Routes)

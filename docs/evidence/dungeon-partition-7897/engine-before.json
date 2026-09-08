@@ -1,0 +1,269 @@
+{
+  "checkpoint": {
+    "status": "complete",
+    "batch": {
+      "events": [],
+      "floorSequence": "1",
+      "throughSequence": "0",
+      "nextCursor": "0",
+      "readMonotonicNanoseconds": "26588886588",
+      "lagged": false,
+      "warningCount": "0",
+      "errorCount": "0",
+      "droppedCount": "0",
+      "telemetry": {
+        "inFlightOperation": null,
+        "inFlightAgeMs": null,
+        "lastProductAdmissionLatencyMs": "3",
+        "lastInputAdmissionLatencyMs": null,
+        "queuedInputBatches": 0,
+        "queuedInputEvents": 0,
+        "inputBatchCapacity": 256,
+        "oldestInputAgeMs": null,
+        "inputOverflowPending": false,
+        "runtimeProgressRateMillihertz": "46724",
+        "runtimeProgressAgeMs": "11",
+        "runtimeProgressUnavailableReason": null,
+        "workerUpdate": {
+          "workerPid": "1945598",
+          "readout": {
+            "artifact": "rusty.product.runtime-readout",
+            "runtime": {
+              "instanceId": "1945126",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "mode": "realtime",
+            "state": "running",
+            "admittedSimulationSteps": "1377",
+            "admittedPresentations": "0",
+            "droppedRealtimeSteps": "120",
+            "clockRegressions": "0",
+            "scaledRemainder": 404564640,
+            "lastObservedTimeNs": "24956743545",
+            "fault": null
+          },
+          "phases": {
+            "operationDurationUs": "2593",
+            "outputConversionDurationUs": "25",
+            "outputEncodeWriteDurationUs": "20",
+            "inputQueueAgeUs": null
+          },
+          "shellDeliveryIntervalUs": "2732",
+          "shellOutputDecodeDurationUs": "23",
+          "shellOutputQueueDurationUs": "11",
+          "shellPublicationDurationUs": "16",
+          "ageMs": "11"
+        },
+        "connections": 2,
+        "subscribers": 1,
+        "outputQueueItems": 256,
+        "outputQueueCapacity": 256,
+        "outputQueueFloor": "1236",
+        "outputBindingActive": true,
+        "updateAttribution": {
+          "sampleCount": "1108",
+          "callbackDurationUsP50": "1853",
+          "callbackDurationUsP95": "4329",
+          "callbackDurationUsMax": "1126244",
+          "latest": {
+            "runtime": {
+              "instanceId": "1945126",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "1376",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "156",
+            "callbackDurationUs": "1595",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "122",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowest": {
+            "runtime": {
+              "instanceId": "1945126",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "520",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "4560",
+            "callbackDurationUs": "1126244",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "91",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowestAgeMs": "15024",
+          "slowest": {
+            "runtime": {
+              "instanceId": "1945126",
+              "generation": "1",
+              "controlRevision": "1"
+            },
+            "simulationStep": "520",
+            "admittedStepCount": "1",
+            "postCallbackDurationUs": "4560",
+            "callbackDurationUs": "1126244",
+            "characterStepCalls": "2",
+            "characterStepDurationUs": "91",
+            "characterStepCastCount": "2",
+            "characterStepCandidateCount": "6",
+            "characterStepNarrowPhaseCount": "6",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "slowestAgeMs": "15024"
+        }
+      }
+    },
+    "initialCursor": "0",
+    "checkpointCursor": "0",
+    "reads": 1
+  },
+  "batch": {
+    "events": [],
+    "floorSequence": "1",
+    "throughSequence": "0",
+    "nextCursor": "0",
+    "readMonotonicNanoseconds": "26588886588",
+    "lagged": false,
+    "warningCount": "0",
+    "errorCount": "0",
+    "droppedCount": "0",
+    "telemetry": {
+      "inFlightOperation": null,
+      "inFlightAgeMs": null,
+      "lastProductAdmissionLatencyMs": "3",
+      "lastInputAdmissionLatencyMs": null,
+      "queuedInputBatches": 0,
+      "queuedInputEvents": 0,
+      "inputBatchCapacity": 256,
+      "oldestInputAgeMs": null,
+      "inputOverflowPending": false,
+      "runtimeProgressRateMillihertz": "46724",
+      "runtimeProgressAgeMs": "11",
+      "runtimeProgressUnavailableReason": null,
+      "workerUpdate": {
+        "workerPid": "1945598",
+        "readout": {
+          "artifact": "rusty.product.runtime-readout",
+          "runtime": {
+            "instanceId": "1945126",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "mode": "realtime",
+          "state": "running",
+          "admittedSimulationSteps": "1377",
+          "admittedPresentations": "0",
+          "droppedRealtimeSteps": "120",
+          "clockRegressions": "0",
+          "scaledRemainder": 404564640,
+          "lastObservedTimeNs": "24956743545",
+          "fault": null
+        },
+        "phases": {
+          "operationDurationUs": "2593",
+          "outputConversionDurationUs": "25",
+          "outputEncodeWriteDurationUs": "20",
+          "inputQueueAgeUs": null
+        },
+        "shellDeliveryIntervalUs": "2732",
+        "shellOutputDecodeDurationUs": "23",
+        "shellOutputQueueDurationUs": "11",
+        "shellPublicationDurationUs": "16",
+        "ageMs": "11"
+      },
+      "connections": 2,
+      "subscribers": 1,
+      "outputQueueItems": 256,
+      "outputQueueCapacity": 256,
+      "outputQueueFloor": "1236",
+      "outputBindingActive": true,
+      "updateAttribution": {
+        "sampleCount": "1108",
+        "callbackDurationUsP50": "1853",
+        "callbackDurationUsP95": "4329",
+        "callbackDurationUsMax": "1126244",
+        "latest": {
+          "runtime": {
+            "instanceId": "1945126",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "1376",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "156",
+          "callbackDurationUs": "1595",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "122",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowest": {
+          "runtime": {
+            "instanceId": "1945126",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "520",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "4560",
+          "callbackDurationUs": "1126244",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "91",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowestAgeMs": "15024",
+        "slowest": {
+          "runtime": {
+            "instanceId": "1945126",
+            "generation": "1",
+            "controlRevision": "1"
+          },
+          "simulationStep": "520",
+          "admittedStepCount": "1",
+          "postCallbackDurationUs": "4560",
+          "callbackDurationUs": "1126244",
+          "characterStepCalls": "2",
+          "characterStepDurationUs": "91",
+          "characterStepCastCount": "2",
+          "characterStepCandidateCount": "6",
+          "characterStepNarrowPhaseCount": "6",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "slowestAgeMs": "15024"
+      }
+    }
+  },
+  "findings": []
+}

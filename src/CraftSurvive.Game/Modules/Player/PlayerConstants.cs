@@ -18,7 +18,8 @@ internal static class PlayerConstants
 
     internal const float StandingEyeHeight = 1.55f;
     internal const float CrouchedEyeHeight = 0.85f;
-    internal const float RebaseThreshold = 32f;
+    // Keep person-scale coordinates precise without rebasing during ordinary room traversal.
+    internal const float RebaseThreshold = 1024f;
     internal const double ControllerStepSeconds = 1d / 120d;
     internal const double ControllerStepEpsilon = 0.000001d;
 

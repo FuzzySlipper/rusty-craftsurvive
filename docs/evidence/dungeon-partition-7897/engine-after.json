@@ -1,0 +1,1719 @@
+{
+  "checkpoint": {
+    "status": "complete",
+    "batch": {
+      "events": [
+        {
+          "sequence": "10",
+          "monotonicNanoseconds": "205574335365",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6026"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-672f765211f31e639edb2ed90d57d37f"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-334d12154556516d4972c2b78f994b85"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "11",
+          "monotonicNanoseconds": "205801690059",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "12",
+          "monotonicNanoseconds": "207819000412",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6026"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-672f765211f31e639edb2ed90d57d37f"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "13",
+          "monotonicNanoseconds": "207830734135",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6031"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-672f765211f31e639edb2ed90d57d37f"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=1945127/1/2;next-input=1;revisions=302"
+            }
+          ]
+        },
+        {
+          "sequence": "14",
+          "monotonicNanoseconds": "207840437424",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6032"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-672f765211f31e639edb2ed90d57d37f"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "15",
+          "monotonicNanoseconds": "207859989491",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6032"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-672f765211f31e639edb2ed90d57d37f"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=1945127/1/2;next-input=1;revisions=302"
+            }
+          ]
+        },
+        {
+          "sequence": "16",
+          "monotonicNanoseconds": "210300437625",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6157"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-672f765211f31e639edb2ed90d57d37f"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "17",
+          "monotonicNanoseconds": "212423913122",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6157"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "18",
+          "monotonicNanoseconds": "212429206513",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6160"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=1945127/1/3;next-input=1;revisions=302"
+            }
+          ]
+        },
+        {
+          "sequence": "19",
+          "monotonicNanoseconds": "228361568604",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "20",
+          "monotonicNanoseconds": "233361909709",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "worker-runtime",
+          "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+          "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+        },
+        {
+          "sequence": "21",
+          "monotonicNanoseconds": "233469513242",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6998"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "22",
+          "monotonicNanoseconds": "237575511421",
+          "severity": "warning",
+          "disposition": "degraded",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "degraded"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "6998"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-ce511e7f4dd357db8503af4da78fc7c0"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+            },
+            {
+              "key": "baseline-established",
+              "value": "false"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "none"
+            }
+          ]
+        },
+        {
+          "sequence": "23",
+          "monotonicNanoseconds": "237583829273",
+          "severity": "info",
+          "disposition": "accepted",
+          "source": "browser-host",
+          "code": "BROWSER_HOST_STATUS",
+          "message": "Product Browser Host transition snapshot",
+          "fields": [
+            {
+              "key": "host-state",
+              "value": "ready"
+            },
+            {
+              "key": "runtime-progress",
+              "value": "7002"
+            },
+            {
+              "key": "transport",
+              "value": "open"
+            },
+            {
+              "key": "output",
+              "value": "open"
+            },
+            {
+              "key": "attachment-id",
+              "value": "browser-ce511e7f4dd357db8503af4da78fc7c0"
+            },
+            {
+              "key": "replaces-attachment-id",
+              "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+            },
+            {
+              "key": "baseline-established",
+              "value": "true"
+            },
+            {
+              "key": "baseline-facts",
+              "value": "runtime=1945127/1/3;next-input=6242;revisions=310"
+            }
+          ]
+        }
+      ],
+      "floorSequence": "1",
+      "throughSequence": "23",
+      "nextCursor": "23",
+      "readMonotonicNanoseconds": "292245375385",
+      "lagged": false,
+      "warningCount": "17",
+      "errorCount": "0",
+      "droppedCount": "0",
+      "telemetry": {
+        "inFlightOperation": null,
+        "inFlightAgeMs": null,
+        "lastProductAdmissionLatencyMs": "12",
+        "lastInputAdmissionLatencyMs": "0",
+        "queuedInputBatches": 0,
+        "queuedInputEvents": 0,
+        "inputBatchCapacity": 256,
+        "oldestInputAgeMs": null,
+        "inputOverflowPending": false,
+        "runtimeProgressRateMillihertz": "35023",
+        "runtimeProgressAgeMs": "9",
+        "runtimeProgressUnavailableReason": null,
+        "workerUpdate": {
+          "workerPid": "1970566",
+          "readout": {
+            "artifact": "rusty.product.runtime-readout",
+            "runtime": {
+              "instanceId": "1945127",
+              "generation": "1",
+              "controlRevision": "3"
+            },
+            "mode": "realtime",
+            "state": "running",
+            "admittedSimulationSteps": "9044",
+            "admittedPresentations": "0",
+            "droppedRealtimeSteps": "468",
+            "clockRegressions": "0",
+            "scaledRemainder": 168480040,
+            "lastObservedTimeNs": "158536142055",
+            "fault": null
+          },
+          "phases": {
+            "operationDurationUs": "11798",
+            "outputConversionDurationUs": "21",
+            "outputEncodeWriteDurationUs": "17",
+            "inputQueueAgeUs": null
+          },
+          "shellDeliveryIntervalUs": "11935",
+          "shellOutputDecodeDurationUs": "23",
+          "shellOutputQueueDurationUs": "10",
+          "shellPublicationDurationUs": "16",
+          "ageMs": "9"
+        },
+        "connections": 2,
+        "subscribers": 1,
+        "outputQueueItems": 256,
+        "outputQueueCapacity": 256,
+        "outputQueueFloor": "14432",
+        "outputBindingActive": true,
+        "updateAttribution": {
+          "sampleCount": "2048",
+          "callbackDurationUsP50": "8210",
+          "callbackDurationUsP95": "9210",
+          "callbackDurationUsMax": "13477",
+          "latest": {
+            "runtime": {
+              "instanceId": "1945127",
+              "generation": "1",
+              "controlRevision": "3"
+            },
+            "simulationStep": "9042",
+            "admittedStepCount": "2",
+            "postCallbackDurationUs": "218",
+            "callbackDurationUs": "8240",
+            "characterStepCalls": "4",
+            "characterStepDurationUs": "127",
+            "characterStepCastCount": "4",
+            "characterStepCandidateCount": "12",
+            "characterStepNarrowPhaseCount": "12",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowest": {
+            "runtime": {
+              "instanceId": "1945127",
+              "generation": "1",
+              "controlRevision": "3"
+            },
+            "simulationStep": "7683",
+            "admittedStepCount": "2",
+            "postCallbackDurationUs": "204",
+            "callbackDurationUs": "13477",
+            "characterStepCalls": "4",
+            "characterStepDurationUs": "75",
+            "characterStepCastCount": "4",
+            "characterStepCandidateCount": "12",
+            "characterStepNarrowPhaseCount": "12",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "rollingSlowestAgeMs": "22654",
+          "slowest": {
+            "runtime": {
+              "instanceId": "1945127",
+              "generation": "1",
+              "controlRevision": "3"
+            },
+            "simulationStep": "5498",
+            "admittedStepCount": "2",
+            "postCallbackDurationUs": "15654",
+            "callbackDurationUs": "1862256",
+            "characterStepCalls": "4",
+            "characterStepDurationUs": "114",
+            "characterStepCastCount": "4",
+            "characterStepCandidateCount": "12",
+            "characterStepNarrowPhaseCount": "12",
+            "voxelResidencyCalls": "0",
+            "voxelResidencyDurationUs": "0",
+            "voxelScenePresentationCalls": "0",
+            "voxelScenePresentationDurationUs": "0"
+          },
+          "slowestAgeMs": "58780"
+        }
+      }
+    },
+    "initialCursor": "23",
+    "checkpointCursor": "23",
+    "reads": 1
+  },
+  "batch": {
+    "events": [
+      {
+        "sequence": "10",
+        "monotonicNanoseconds": "205574335365",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6026"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-672f765211f31e639edb2ed90d57d37f"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-334d12154556516d4972c2b78f994b85"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "11",
+        "monotonicNanoseconds": "205801690059",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "12",
+        "monotonicNanoseconds": "207819000412",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6026"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-672f765211f31e639edb2ed90d57d37f"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "13",
+        "monotonicNanoseconds": "207830734135",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6031"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-672f765211f31e639edb2ed90d57d37f"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=1945127/1/2;next-input=1;revisions=302"
+          }
+        ]
+      },
+      {
+        "sequence": "14",
+        "monotonicNanoseconds": "207840437424",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6032"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-672f765211f31e639edb2ed90d57d37f"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "15",
+        "monotonicNanoseconds": "207859989491",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6032"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-672f765211f31e639edb2ed90d57d37f"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=1945127/1/2;next-input=1;revisions=302"
+          }
+        ]
+      },
+      {
+        "sequence": "16",
+        "monotonicNanoseconds": "210300437625",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6157"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-672f765211f31e639edb2ed90d57d37f"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "17",
+        "monotonicNanoseconds": "212423913122",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6157"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "18",
+        "monotonicNanoseconds": "212429206513",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6160"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=1945127/1/3;next-input=1;revisions=302"
+          }
+        ]
+      },
+      {
+        "sequence": "19",
+        "monotonicNanoseconds": "228361568604",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "20",
+        "monotonicNanoseconds": "233361909709",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "worker-runtime",
+        "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+        "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow"
+      },
+      {
+        "sequence": "21",
+        "monotonicNanoseconds": "233469513242",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6998"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "22",
+        "monotonicNanoseconds": "237575511421",
+        "severity": "warning",
+        "disposition": "degraded",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "degraded"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "6998"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-ce511e7f4dd357db8503af4da78fc7c0"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+          },
+          {
+            "key": "baseline-established",
+            "value": "false"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "none"
+          }
+        ]
+      },
+      {
+        "sequence": "23",
+        "monotonicNanoseconds": "237583829273",
+        "severity": "info",
+        "disposition": "accepted",
+        "source": "browser-host",
+        "code": "BROWSER_HOST_STATUS",
+        "message": "Product Browser Host transition snapshot",
+        "fields": [
+          {
+            "key": "host-state",
+            "value": "ready"
+          },
+          {
+            "key": "runtime-progress",
+            "value": "7002"
+          },
+          {
+            "key": "transport",
+            "value": "open"
+          },
+          {
+            "key": "output",
+            "value": "open"
+          },
+          {
+            "key": "attachment-id",
+            "value": "browser-ce511e7f4dd357db8503af4da78fc7c0"
+          },
+          {
+            "key": "replaces-attachment-id",
+            "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+          },
+          {
+            "key": "baseline-established",
+            "value": "true"
+          },
+          {
+            "key": "baseline-facts",
+            "value": "runtime=1945127/1/3;next-input=6242;revisions=310"
+          }
+        ]
+      }
+    ],
+    "floorSequence": "1",
+    "throughSequence": "23",
+    "nextCursor": "23",
+    "readMonotonicNanoseconds": "292245375385",
+    "lagged": false,
+    "warningCount": "17",
+    "errorCount": "0",
+    "droppedCount": "0",
+    "telemetry": {
+      "inFlightOperation": null,
+      "inFlightAgeMs": null,
+      "lastProductAdmissionLatencyMs": "12",
+      "lastInputAdmissionLatencyMs": "0",
+      "queuedInputBatches": 0,
+      "queuedInputEvents": 0,
+      "inputBatchCapacity": 256,
+      "oldestInputAgeMs": null,
+      "inputOverflowPending": false,
+      "runtimeProgressRateMillihertz": "35023",
+      "runtimeProgressAgeMs": "9",
+      "runtimeProgressUnavailableReason": null,
+      "workerUpdate": {
+        "workerPid": "1970566",
+        "readout": {
+          "artifact": "rusty.product.runtime-readout",
+          "runtime": {
+            "instanceId": "1945127",
+            "generation": "1",
+            "controlRevision": "3"
+          },
+          "mode": "realtime",
+          "state": "running",
+          "admittedSimulationSteps": "9044",
+          "admittedPresentations": "0",
+          "droppedRealtimeSteps": "468",
+          "clockRegressions": "0",
+          "scaledRemainder": 168480040,
+          "lastObservedTimeNs": "158536142055",
+          "fault": null
+        },
+        "phases": {
+          "operationDurationUs": "11798",
+          "outputConversionDurationUs": "21",
+          "outputEncodeWriteDurationUs": "17",
+          "inputQueueAgeUs": null
+        },
+        "shellDeliveryIntervalUs": "11935",
+        "shellOutputDecodeDurationUs": "23",
+        "shellOutputQueueDurationUs": "10",
+        "shellPublicationDurationUs": "16",
+        "ageMs": "9"
+      },
+      "connections": 2,
+      "subscribers": 1,
+      "outputQueueItems": 256,
+      "outputQueueCapacity": 256,
+      "outputQueueFloor": "14432",
+      "outputBindingActive": true,
+      "updateAttribution": {
+        "sampleCount": "2048",
+        "callbackDurationUsP50": "8210",
+        "callbackDurationUsP95": "9210",
+        "callbackDurationUsMax": "13477",
+        "latest": {
+          "runtime": {
+            "instanceId": "1945127",
+            "generation": "1",
+            "controlRevision": "3"
+          },
+          "simulationStep": "9042",
+          "admittedStepCount": "2",
+          "postCallbackDurationUs": "218",
+          "callbackDurationUs": "8240",
+          "characterStepCalls": "4",
+          "characterStepDurationUs": "127",
+          "characterStepCastCount": "4",
+          "characterStepCandidateCount": "12",
+          "characterStepNarrowPhaseCount": "12",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowest": {
+          "runtime": {
+            "instanceId": "1945127",
+            "generation": "1",
+            "controlRevision": "3"
+          },
+          "simulationStep": "7683",
+          "admittedStepCount": "2",
+          "postCallbackDurationUs": "204",
+          "callbackDurationUs": "13477",
+          "characterStepCalls": "4",
+          "characterStepDurationUs": "75",
+          "characterStepCastCount": "4",
+          "characterStepCandidateCount": "12",
+          "characterStepNarrowPhaseCount": "12",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "rollingSlowestAgeMs": "22654",
+        "slowest": {
+          "runtime": {
+            "instanceId": "1945127",
+            "generation": "1",
+            "controlRevision": "3"
+          },
+          "simulationStep": "5498",
+          "admittedStepCount": "2",
+          "postCallbackDurationUs": "15654",
+          "callbackDurationUs": "1862256",
+          "characterStepCalls": "4",
+          "characterStepDurationUs": "114",
+          "characterStepCastCount": "4",
+          "characterStepCandidateCount": "12",
+          "characterStepNarrowPhaseCount": "12",
+          "voxelResidencyCalls": "0",
+          "voxelResidencyDurationUs": "0",
+          "voxelScenePresentationCalls": "0",
+          "voxelScenePresentationDurationUs": "0"
+        },
+        "slowestAgeMs": "58780"
+      }
+    }
+  },
+  "findings": [
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "10",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6026"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-672f765211f31e639edb2ed90d57d37f"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-334d12154556516d4972c2b78f994b85"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+      "replacesAttachmentId": "browser-334d12154556516d4972c2b78f994b85",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "fresh-baseline",
+        "attachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+        "evidence": {
+          "warningSequence": "10",
+          "recoverySequence": "13",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+          "recoveryAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "replacesAttachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+          "recoverySource": "browser-host"
+        }
+      }
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+      "disposition": "degraded",
+      "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow",
+      "sequence": "11"
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "12",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6026"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-672f765211f31e639edb2ed90d57d37f"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+      "replacesAttachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "same-attachment-baseline",
+        "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+        "evidence": {
+          "warningSequence": "12",
+          "recoverySequence": "13",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "recoveryAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "replacesAttachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+          "recoverySource": "browser-host"
+        }
+      }
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "14",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6032"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-672f765211f31e639edb2ed90d57d37f"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+      "replacesAttachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "same-attachment-baseline",
+        "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+        "evidence": {
+          "warningSequence": "14",
+          "recoverySequence": "15",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "recoveryAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "replacesAttachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+          "recoverySource": "browser-host"
+        }
+      }
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "16",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6157"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-672f765211f31e639edb2ed90d57d37f"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+      "replacesAttachmentId": "browser-672f765211f31e639edb2ed90d57d37f",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "fresh-baseline",
+        "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+        "evidence": {
+          "warningSequence": "16",
+          "recoverySequence": "18",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "recoveryAttachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+          "replacesAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "recoverySource": "browser-host"
+        }
+      }
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "17",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6157"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+      "replacesAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "same-attachment-baseline",
+        "attachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+        "evidence": {
+          "warningSequence": "17",
+          "recoverySequence": "18",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+          "recoveryAttachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+          "replacesAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+          "recoverySource": "browser-host"
+        }
+      }
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+      "disposition": "degraded",
+      "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow",
+      "sequence": "19"
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "DEV_HOST_WORKER_TELEMETRY_DROPPED",
+      "disposition": "degraded",
+      "message": "shell publication queue could not retain the worker timing observation; displayed sample age may grow",
+      "sequence": "20"
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "21",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6998"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-154541559cd0c56cb9c436c20f5b118e"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+      "replacesAttachmentId": "browser-154541559cd0c56cb9c436c20f5b118e",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "fresh-baseline",
+        "attachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+        "evidence": {
+          "warningSequence": "21",
+          "recoverySequence": "23",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+          "recoveryAttachmentId": "browser-ce511e7f4dd357db8503af4da78fc7c0",
+          "replacesAttachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+          "recoverySource": "browser-host"
+        }
+      }
+    },
+    {
+      "source": "engine",
+      "kind": "structured",
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "disposition": "degraded",
+      "message": "Product Browser Host transition snapshot",
+      "sequence": "22",
+      "fields": [
+        {
+          "key": "host-state",
+          "value": "degraded"
+        },
+        {
+          "key": "runtime-progress",
+          "value": "6998"
+        },
+        {
+          "key": "transport",
+          "value": "open"
+        },
+        {
+          "key": "output",
+          "value": "open"
+        },
+        {
+          "key": "attachment-id",
+          "value": "browser-ce511e7f4dd357db8503af4da78fc7c0"
+        },
+        {
+          "key": "replaces-attachment-id",
+          "value": "browser-70fb2598b791249e401a4b5a2e85dac2"
+        },
+        {
+          "key": "baseline-established",
+          "value": "false"
+        },
+        {
+          "key": "baseline-facts",
+          "value": "none"
+        }
+      ],
+      "attachmentId": "browser-ce511e7f4dd357db8503af4da78fc7c0",
+      "replacesAttachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+      "recovery": {
+        "status": "recovered",
+        "scope": "attachment",
+        "method": "same-attachment-baseline",
+        "attachmentId": "browser-ce511e7f4dd357db8503af4da78fc7c0",
+        "evidence": {
+          "warningSequence": "22",
+          "recoverySequence": "23",
+          "recoveryCode": "BROWSER_HOST_STATUS",
+          "attachmentId": "browser-ce511e7f4dd357db8503af4da78fc7c0",
+          "recoveryAttachmentId": "browser-ce511e7f4dd357db8503af4da78fc7c0",
+          "replacesAttachmentId": "browser-70fb2598b791249e401a4b5a2e85dac2",
+          "recoverySource": "browser-host"
+        }
+      }
+    }
+  ]
+}
