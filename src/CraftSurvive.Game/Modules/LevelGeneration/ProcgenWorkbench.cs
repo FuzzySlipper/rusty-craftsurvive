@@ -111,6 +111,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         cursor = 0;
         mode = "inspection";
         history.Clear();
+        // Replacing the collision world can turn the previous player position
+        // into solid rock. Establish the new entrance before the next solver step.
+        PlaceAtEntrance(next);
         CheckRealization();
     }
 
@@ -124,6 +127,12 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         replayLabel = "Completing witness";
         cursor = 0;
         mode = "walking";
+        PlaceAtEntrance(plan);
+        CheckRealization();
+    }
+
+    private void PlaceAtEntrance(WorkbenchCandidate plan)
+    {
         WorkbenchRoom start = plan.Rooms.Single(r => r.Id == plan.StartRoom);
         WorkbenchRoute first = plan.Routes.First(r => !r.RequiresSwitch && (r.From == start.Id || r.To == start.Id));
         WorkbenchRoom next = plan.Rooms.Single(r => r.Id == (first.From == start.Id ? first.To : first.From));
@@ -132,7 +141,6 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
             ? WorkbenchRecipe.Point(layout.Markers.Single(m => m.Id == "goal").Position)
             : WorkbenchRecipe.Center(next);
         player.ViewFrom(eye, target with { Y = eye.Y });
-        CheckRealization();
     }
 
     private void Step()
@@ -223,6 +231,7 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         {
             WorkbenchCandidate plan = RequireActive();
             int clear = 0, clearTotal = 0, blocked = 0, blockedTotal = 0;
+            var failures = new List<string>();
             void Probe(WorkbenchRoom a, WorkbenchRoom b, bool expectedBlocked)
             {
                 Vector3 from = WorkbenchRecipe.Center(a), to = WorkbenchRecipe.Center(b);
@@ -233,6 +242,7 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
                     {
                         Vector3 start = new Vector3(from.X, a.Minimum.Y + height, from.Z) + lateral * offset;
                         bool hit = RayHits(start, start + direction * Vector3.Distance(from, to));
+                        if (hit != expectedBlocked && failures.Count < 12) failures.Add($"{a.Id}–{b.Id}@{height:F2}/{offset:F1}");
                         if (expectedBlocked) { blockedTotal++; if (hit) blocked++; }
                         else { clearTotal++; if (!hit) clear++; }
                     }
@@ -241,10 +251,11 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
                 Probe(plan.Rooms.Single(r => r.Id == route.From), plan.Rooms.Single(r => r.Id == route.To), route.RequiresSwitch && !physical.SwitchOpen);
             for (int a = 0; a < plan.Rooms.Length; a++)
                 for (int b = a + 1; b < plan.Rooms.Length; b++)
-                    if (!plan.Routes.Any(r => (r.From == plan.Rooms[a].Id && r.To == plan.Rooms[b].Id)
+                    if ((plan.Motif != WorkbenchExperiment.LargeMotif || NeighboringGridRooms(plan, plan.Rooms[a], plan.Rooms[b]))
+                        && !plan.Routes.Any(r => (r.From == plan.Rooms[a].Id && r.To == plan.Rooms[b].Id)
                         || (r.To == plan.Rooms[a].Id && r.From == plan.Rooms[b].Id))) Probe(plan.Rooms[a], plan.Rooms[b], true);
             routes = $"{clear}/{clearTotal} clear mesh rays ({(clear == clearTotal ? "pass" : "FAIL")})";
-            separations = $"{blocked}/{blockedTotal} blocked mesh rays ({(blocked == blockedTotal ? "pass" : "FAIL")}); shortcut {(physical.SwitchOpen ? "open" : "closed")}";
+            separations = $"{blocked}/{blockedTotal} blocked mesh rays ({(blocked == blockedTotal ? "pass" : "FAIL")}); gates {(physical.SwitchOpen ? "open" : "closed")}; failures: {string.Join(", ", failures)}";
         }
         catch (Exception failure) { routes = separations = $"unavailable: {failure.Message}"; }
         try
@@ -260,6 +271,18 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
             else information = "No before-access sightline contract for this motif.";
         }
         catch (Exception failure) { information = $"unavailable: {failure.Message}"; }
+    }
+
+    private static bool NeighboringGridRooms(WorkbenchCandidate plan, WorkbenchRoom a, WorkbenchRoom b)
+    {
+        WorkbenchPoint from = WorkbenchLayout.Center(a), to = WorkbenchLayout.Center(b);
+        if (from.X != to.X && from.Z != to.Z) return false;
+        // Only a missing edge between consecutive rooms on a row/column is a
+        // protected wall. Distant collinear rooms may intentionally share a hall.
+        return !plan.Rooms.Any(r => r.Id != a.Id && r.Id != b.Id &&
+            (from.X == to.X
+                ? WorkbenchLayout.Center(r).X == from.X && WorkbenchLayout.Center(r).Z > MathF.Min(from.Z, to.Z) && WorkbenchLayout.Center(r).Z < MathF.Max(from.Z, to.Z)
+                : WorkbenchLayout.Center(r).Z == from.Z && WorkbenchLayout.Center(r).X > MathF.Min(from.X, to.X) && WorkbenchLayout.Center(r).X < MathF.Max(from.X, to.X)));
     }
 
     private void Record(string value)
@@ -280,13 +303,13 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
             legal, witness, cursor, Active && candidate is not null && WorkbenchExperiment.Complete(candidate, state),
             candidate?.Rooms ?? [], candidate?.Routes ?? [],
             new(analysis is null ? "not run" : $"{(analysis.Completable ? "PASS" : "FAIL")}: completing witness {analysis.Witness.Length} actions; {analysis.ReachableStates} reachable states; {analysis.UnrecoverableStates} cannot complete",
-                routes, separations, information, "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."), history.ToArray(), candidate?.Motif ?? "none", world,
+                routes, separations, information, "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens world gates. Large-complex separations cover omitted neighboring grid edges, not arbitrary non-neighbor room pairs.", terrain.ReadWorkbenchBuild()), history.ToArray(), candidate?.Motif ?? "none", world,
                 new(player.WorldPosition.X, player.WorldPosition.Y, player.WorldPosition.Z), layout, analysis, replayLabel, replay ?? new("none", false));
         return JsonSerializer.Serialize(result, WorkbenchUiJson.Default.WorkbenchReadout);
     }
 }
 
-internal sealed record WorkbenchChecks(string Model, string Routes, string Separations, string Information, string Coverage);
+internal sealed record WorkbenchChecks(string Model, string Routes, string Separations, string Information, string Coverage, string Build);
 internal sealed record WorkbenchReadout(long Revision, string Identity, string Source, string Seed, string Status, string Error,
     bool Active, string Mode, WorkbenchState State, string PhysicalRoom, bool PhysicalSwitchOpen, string[] LegalActions,
     string[] Witness, int Cursor, bool Completed, WorkbenchRoom[] Rooms, WorkbenchRoute[] Routes, WorkbenchChecks Checks, string[] History,

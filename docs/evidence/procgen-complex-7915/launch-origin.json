@@ -1,0 +1,8 @@
+{
+  "session": "4ac0155f-db3b-4f16-b824-8f6ce45f3d72",
+  "profile": "rusty-craftsurvive",
+  "url": "http://192.168.1.22:37300/",
+  "browser_url": "http://localhost:37300/",
+  "browser_startup": "kiosk",
+  "note": "Wolf managed loopback TCP forwarder; controller test is localhost-origin, not plain LAN startup acceptance."
+}

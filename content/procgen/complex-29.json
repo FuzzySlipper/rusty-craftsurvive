@@ -1,0 +1,798 @@
+{
+  "schema": "craftsurvive.workbench_candidate.v2",
+  "seed": 29,
+  "motif": "branching-complex",
+  "rooms": [
+    {
+      "id": "start",
+      "minimum": {
+        "x": -42.5,
+        "y": 3,
+        "z": -38.5
+      },
+      "maximum": {
+        "x": -32.5,
+        "y": 7,
+        "z": -31.5
+      }
+    },
+    {
+      "id": "r01",
+      "minimum": {
+        "x": -26,
+        "y": 3,
+        "z": -39
+      },
+      "maximum": {
+        "x": -19,
+        "y": 7,
+        "z": -31
+      }
+    },
+    {
+      "id": "r02",
+      "minimum": {
+        "x": -11.5,
+        "y": 3,
+        "z": -38.5
+      },
+      "maximum": {
+        "x": -3.5,
+        "y": 7,
+        "z": -31.5
+      }
+    },
+    {
+      "id": "r03",
+      "minimum": {
+        "x": 4.5,
+        "y": 3,
+        "z": -38.5
+      },
+      "maximum": {
+        "x": 10.5,
+        "y": 7,
+        "z": -31.5
+      }
+    },
+    {
+      "id": "r04",
+      "minimum": {
+        "x": 19.5,
+        "y": 3,
+        "z": -39
+      },
+      "maximum": {
+        "x": 25.5,
+        "y": 7,
+        "z": -31
+      }
+    },
+    {
+      "id": "r05",
+      "minimum": {
+        "x": 33,
+        "y": 3,
+        "z": -39.5
+      },
+      "maximum": {
+        "x": 42,
+        "y": 7,
+        "z": -30.5
+      }
+    },
+    {
+      "id": "control",
+      "minimum": {
+        "x": -42,
+        "y": 3,
+        "z": -24
+      },
+      "maximum": {
+        "x": -33,
+        "y": 7,
+        "z": -18
+      }
+    },
+    {
+      "id": "r07",
+      "minimum": {
+        "x": -25.5,
+        "y": 3,
+        "z": -26
+      },
+      "maximum": {
+        "x": -19.5,
+        "y": 7,
+        "z": -16
+      }
+    },
+    {
+      "id": "r08",
+      "minimum": {
+        "x": -10.5,
+        "y": 3,
+        "z": -24.5
+      },
+      "maximum": {
+        "x": -4.5,
+        "y": 7,
+        "z": -17.5
+      }
+    },
+    {
+      "id": "r09",
+      "minimum": {
+        "x": 3,
+        "y": 3,
+        "z": -25
+      },
+      "maximum": {
+        "x": 12,
+        "y": 7,
+        "z": -17
+      }
+    },
+    {
+      "id": "r10",
+      "minimum": {
+        "x": 18,
+        "y": 3,
+        "z": -26
+      },
+      "maximum": {
+        "x": 27,
+        "y": 7,
+        "z": -16
+      }
+    },
+    {
+      "id": "r11",
+      "minimum": {
+        "x": 32.5,
+        "y": 3,
+        "z": -24.5
+      },
+      "maximum": {
+        "x": 42.5,
+        "y": 7,
+        "z": -17.5
+      }
+    },
+    {
+      "id": "r12",
+      "minimum": {
+        "x": -41.5,
+        "y": 3,
+        "z": -10
+      },
+      "maximum": {
+        "x": -33.5,
+        "y": 7,
+        "z": -4
+      }
+    },
+    {
+      "id": "r13",
+      "minimum": {
+        "x": -27,
+        "y": 3,
+        "z": -11
+      },
+      "maximum": {
+        "x": -18,
+        "y": 7,
+        "z": -3
+      }
+    },
+    {
+      "id": "r14",
+      "minimum": {
+        "x": -10.5,
+        "y": 3,
+        "z": -12
+      },
+      "maximum": {
+        "x": -4.5,
+        "y": 7,
+        "z": -2
+      }
+    },
+    {
+      "id": "r15",
+      "minimum": {
+        "x": 4.5,
+        "y": 3,
+        "z": -12
+      },
+      "maximum": {
+        "x": 10.5,
+        "y": 7,
+        "z": -2
+      }
+    },
+    {
+      "id": "r16",
+      "minimum": {
+        "x": 19.5,
+        "y": 3,
+        "z": -12
+      },
+      "maximum": {
+        "x": 25.5,
+        "y": 7,
+        "z": -2
+      }
+    },
+    {
+      "id": "r17",
+      "minimum": {
+        "x": 33.5,
+        "y": 3,
+        "z": -11
+      },
+      "maximum": {
+        "x": 41.5,
+        "y": 7,
+        "z": -3
+      }
+    },
+    {
+      "id": "r18",
+      "minimum": {
+        "x": -41.5,
+        "y": 3,
+        "z": 4
+      },
+      "maximum": {
+        "x": -33.5,
+        "y": 7,
+        "z": 10
+      }
+    },
+    {
+      "id": "r19",
+      "minimum": {
+        "x": -27.5,
+        "y": 3,
+        "z": 2
+      },
+      "maximum": {
+        "x": -17.5,
+        "y": 7,
+        "z": 12
+      }
+    },
+    {
+      "id": "r20",
+      "minimum": {
+        "x": -12.5,
+        "y": 3,
+        "z": 2.5
+      },
+      "maximum": {
+        "x": -2.5,
+        "y": 7,
+        "z": 11.5
+      }
+    },
+    {
+      "id": "r21",
+      "minimum": {
+        "x": 4,
+        "y": 3,
+        "z": 4
+      },
+      "maximum": {
+        "x": 11,
+        "y": 7,
+        "z": 10
+      }
+    },
+    {
+      "id": "r22",
+      "minimum": {
+        "x": 19,
+        "y": 3,
+        "z": 2
+      },
+      "maximum": {
+        "x": 26,
+        "y": 7,
+        "z": 12
+      }
+    },
+    {
+      "id": "r23",
+      "minimum": {
+        "x": 32.5,
+        "y": 3,
+        "z": 3.5
+      },
+      "maximum": {
+        "x": 42.5,
+        "y": 7,
+        "z": 10.5
+      }
+    },
+    {
+      "id": "r24",
+      "minimum": {
+        "x": -42.5,
+        "y": 3,
+        "z": 17.5
+      },
+      "maximum": {
+        "x": -32.5,
+        "y": 7,
+        "z": 24.5
+      }
+    },
+    {
+      "id": "r25",
+      "minimum": {
+        "x": -26,
+        "y": 3,
+        "z": 16
+      },
+      "maximum": {
+        "x": -19,
+        "y": 7,
+        "z": 26
+      }
+    },
+    {
+      "id": "r26",
+      "minimum": {
+        "x": -11,
+        "y": 3,
+        "z": 17
+      },
+      "maximum": {
+        "x": -4,
+        "y": 7,
+        "z": 25
+      }
+    },
+    {
+      "id": "r27",
+      "minimum": {
+        "x": 4.5,
+        "y": 3,
+        "z": 17.5
+      },
+      "maximum": {
+        "x": 10.5,
+        "y": 7,
+        "z": 24.5
+      }
+    },
+    {
+      "id": "r28",
+      "minimum": {
+        "x": 18.5,
+        "y": 3,
+        "z": 17
+      },
+      "maximum": {
+        "x": 26.5,
+        "y": 7,
+        "z": 25
+      }
+    },
+    {
+      "id": "r29",
+      "minimum": {
+        "x": 34.5,
+        "y": 3,
+        "z": 18
+      },
+      "maximum": {
+        "x": 40.5,
+        "y": 7,
+        "z": 24
+      }
+    },
+    {
+      "id": "r30",
+      "minimum": {
+        "x": -42.5,
+        "y": 3,
+        "z": 31.5
+      },
+      "maximum": {
+        "x": -32.5,
+        "y": 7,
+        "z": 38.5
+      }
+    },
+    {
+      "id": "r31",
+      "minimum": {
+        "x": -27.5,
+        "y": 3,
+        "z": 31.5
+      },
+      "maximum": {
+        "x": -17.5,
+        "y": 7,
+        "z": 38.5
+      }
+    },
+    {
+      "id": "r32",
+      "minimum": {
+        "x": -10.5,
+        "y": 3,
+        "z": 30.5
+      },
+      "maximum": {
+        "x": -4.5,
+        "y": 7,
+        "z": 39.5
+      }
+    },
+    {
+      "id": "r33",
+      "minimum": {
+        "x": 4.5,
+        "y": 3,
+        "z": 30
+      },
+      "maximum": {
+        "x": 10.5,
+        "y": 7,
+        "z": 40
+      }
+    },
+    {
+      "id": "r34",
+      "minimum": {
+        "x": 19.5,
+        "y": 3,
+        "z": 32
+      },
+      "maximum": {
+        "x": 25.5,
+        "y": 7,
+        "z": 38
+      }
+    },
+    {
+      "id": "goal",
+      "minimum": {
+        "x": 32.5,
+        "y": 3,
+        "z": 32
+      },
+      "maximum": {
+        "x": 42.5,
+        "y": 7,
+        "z": 38
+      }
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-00-01",
+      "from": "start",
+      "to": "r01",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-01-07",
+      "from": "r01",
+      "to": "r07",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-07-08",
+      "from": "r07",
+      "to": "r08",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-08-14",
+      "from": "r08",
+      "to": "r14",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-14-20",
+      "from": "r14",
+      "to": "r20",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-20-26",
+      "from": "r20",
+      "to": "r26",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-26-27",
+      "from": "r26",
+      "to": "r27",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-21-27",
+      "from": "r21",
+      "to": "r27",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-15-21",
+      "from": "r15",
+      "to": "r21",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-09-15",
+      "from": "r09",
+      "to": "r15",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-09-10",
+      "from": "r09",
+      "to": "r10",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-04-10",
+      "from": "r04",
+      "to": "r10",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-04-05",
+      "from": "r04",
+      "to": "r05",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-05-11",
+      "from": "r05",
+      "to": "r11",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-11-17",
+      "from": "r11",
+      "to": "r17",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-17-23",
+      "from": "r17",
+      "to": "r23",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-23-29",
+      "from": "r23",
+      "to": "r29",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-28-29",
+      "from": "r28",
+      "to": "r29",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-22-28",
+      "from": "r22",
+      "to": "r28",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-16-22",
+      "from": "r16",
+      "to": "r22",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-28-34",
+      "from": "r28",
+      "to": "r34",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-33-34",
+      "from": "r33",
+      "to": "r34",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-32-33",
+      "from": "r32",
+      "to": "r33",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-31-32",
+      "from": "r31",
+      "to": "r32",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-25-31",
+      "from": "r25",
+      "to": "r31",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-19-25",
+      "from": "r19",
+      "to": "r25",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-18-19",
+      "from": "r18",
+      "to": "r19",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-18-24",
+      "from": "r18",
+      "to": "r24",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-24-30",
+      "from": "r24",
+      "to": "r30",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-12-18",
+      "from": "r12",
+      "to": "r18",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-12-13",
+      "from": "r12",
+      "to": "r13",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-06-12",
+      "from": "control",
+      "to": "r12",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-03-04",
+      "from": "r03",
+      "to": "r04",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-02-03",
+      "from": "r02",
+      "to": "r03",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-29-35",
+      "from": "r29",
+      "to": "goal",
+      "width": 3,
+      "requiresSwitch": true
+    },
+    {
+      "id": "route-30-31",
+      "from": "r30",
+      "to": "r31",
+      "width": 4,
+      "requiresSwitch": true
+    },
+    {
+      "id": "route-20-21",
+      "from": "r20",
+      "to": "r21",
+      "width": 4,
+      "requiresSwitch": true
+    },
+    {
+      "id": "route-10-16",
+      "from": "r10",
+      "to": "r16",
+      "width": 3,
+      "requiresSwitch": true
+    },
+    {
+      "id": "route-14-15",
+      "from": "r14",
+      "to": "r15",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-27-28",
+      "from": "r27",
+      "to": "r28",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-02-08",
+      "from": "r02",
+      "to": "r08",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-13-14",
+      "from": "r13",
+      "to": "r14",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-24-25",
+      "from": "r24",
+      "to": "r25",
+      "width": 3,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-01-02",
+      "from": "r01",
+      "to": "r02",
+      "width": 4,
+      "requiresSwitch": false
+    },
+    {
+      "id": "route-07-13",
+      "from": "r07",
+      "to": "r13",
+      "width": 3,
+      "requiresSwitch": false
+    }
+  ],
+  "switchRoom": "control",
+  "startRoom": "start",
+  "goalRoom": "goal",
+  "switchEnabled": true,
+  "recoveryEnabled": false,
+  "previewOpening": false
+}

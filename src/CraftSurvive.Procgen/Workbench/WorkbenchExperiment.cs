@@ -41,6 +41,7 @@ public static class WorkbenchExperiment
     public const string CurrentMotif = "four-room-return-shortcut";
     public const string RecoveryMotif = "spent-key-recovery";
     public const string PreviewMotif = "visible-before-access";
+    public const string LargeMotif = "branching-complex";
     private const float Floor = 3f;
     private const float Roof = 7f;
     private const float CorridorWidth = 3f;
@@ -50,8 +51,7 @@ public static class WorkbenchExperiment
     private const float MaximumHalfWidth = 4f;
     private const int RoomCount = 4;
     private const int StatesPerRoom = 32;
-    private const int MaximumStates = RoomCount * StatesPerRoom;
-    private static readonly string[] SupportedMotifs = [CurrentMotif, RecoveryMotif, PreviewMotif];
+    private static readonly string[] SupportedMotifs = [CurrentMotif, RecoveryMotif, PreviewMotif, LargeMotif];
     private static readonly string[] ExpectedRooms = ["start", "relay", "control", "goal"];
     private static (string Id, string From, string To, bool RequiresSwitch)[] ExpectedRoutesFor(string motif) =>
     [
@@ -64,7 +64,9 @@ public static class WorkbenchExperiment
     public static WorkbenchCandidate Generate(ulong seed, string motif = CurrentMotif, bool counterexample = false)
     {
         if (!SupportedMotifs.Contains(motif, StringComparer.Ordinal))
-            throw new ArgumentOutOfRangeException(nameof(motif), motif, "The workbench only supports its three named motifs.");
+            throw new ArgumentOutOfRangeException(nameof(motif), motif, "The workbench only supports its named motifs.");
+        if (StringComparer.Ordinal.Equals(motif, LargeMotif))
+            return LargeWorkbenchGenerator.Generate(seed, counterexample);
         var xSpacing = MinimumSpacing + (seed % 5UL);
         var zSpacing = MinimumSpacing + ((seed / 5UL) % 5UL);
         var halfWidth = (seed % 3UL) switch { 0UL => 3f, 1UL => 3.5f, _ => 4f };
@@ -91,6 +93,8 @@ public static class WorkbenchExperiment
     public static string[] Validate(WorkbenchCandidate candidate)
     {
         if (candidate is null) return ["candidate_missing"];
+        if (StringComparer.Ordinal.Equals(candidate.Motif, LargeMotif))
+            return LargeWorkbenchGenerator.Validate(candidate);
         var errors = new List<string>();
         Require(StringComparer.Ordinal.Equals(candidate.Schema, CurrentSchema), "schema_invalid", errors);
         Require(SupportedMotifs.Contains(candidate.Motif, StringComparer.Ordinal), "motif_invalid", errors);
@@ -154,6 +158,11 @@ public static class WorkbenchExperiment
     {
         EnsureValid(candidate);
         EnsureState(candidate, state);
+        return LegalActionsUnchecked(candidate, state).ToArray();
+    }
+
+    private static IEnumerable<string> LegalActionsUnchecked(WorkbenchCandidate candidate, WorkbenchState state)
+    {
         var actions = new List<string>();
         foreach (var route in candidate.Routes)
         {
@@ -178,12 +187,19 @@ public static class WorkbenchExperiment
             if (StringComparer.Ordinal.Equals(candidate.Motif, PreviewMotif) && StringComparer.Ordinal.Equals(state.Room, candidate.StartRoom) && candidate.PreviewOpening && !state.Observed)
                 actions.Add("observe");
         }
-        return actions.ToArray();
+        return actions;
     }
 
     public static WorkbenchState Apply(WorkbenchCandidate candidate, WorkbenchState state, string action)
     {
-        if (string.IsNullOrWhiteSpace(action) || !LegalActions(candidate, state).Contains(action, StringComparer.Ordinal))
+        EnsureValid(candidate);
+        EnsureState(candidate, state);
+        return ApplyUnchecked(candidate, state, action);
+    }
+
+    private static WorkbenchState ApplyUnchecked(WorkbenchCandidate candidate, WorkbenchState state, string action)
+    {
+        if (string.IsNullOrWhiteSpace(action) || !LegalActionsUnchecked(candidate, state).Contains(action, StringComparer.Ordinal))
             throw new InvalidOperationException("The requested workbench action is not legal in this state.");
         if (StringComparer.Ordinal.Equals(action, "activate"))
             return state with { SwitchOpen = true, Token = StringComparer.Ordinal.Equals(candidate.Motif, RecoveryMotif) ? false : state.Token };
@@ -199,6 +215,11 @@ public static class WorkbenchExperiment
     public static bool Complete(WorkbenchCandidate candidate, WorkbenchState state)
     {
         EnsureValid(candidate);
+        return CompleteUnchecked(candidate, state);
+    }
+
+    private static bool CompleteUnchecked(WorkbenchCandidate candidate, WorkbenchState state)
+    {
         if (state is null || !candidate.Rooms.Any(room => StringComparer.Ordinal.Equals(room.Id, state.Room)))
             return false;
         return StringComparer.Ordinal.Equals(state.Room, candidate.GoalRoom) && state.SwitchOpen && (!StringComparer.Ordinal.Equals(candidate.Motif, RecoveryMotif) || state.Spent);
@@ -207,21 +228,28 @@ public static class WorkbenchExperiment
     public static string[] Witness(WorkbenchCandidate candidate)
     {
         var search = Explore(candidate);
-        var completion = search.Order.FirstOrDefault(index => Complete(candidate, Decode(index)));
-        return completion == 0 && !Complete(candidate, Decode(0)) ? [] : Trace(search, completion);
+        var completion = -1;
+        foreach (var index in search.Order)
+        {
+            if (!CompleteUnchecked(candidate, Decode(candidate, index))) continue;
+            completion = index;
+            break;
+        }
+        return completion < 0 ? [] : Trace(search, completion);
     }
 
     public static WorkbenchAnalysis Analyze(WorkbenchCandidate candidate)
     {
         var search = Explore(candidate);
         var witness = Witness(candidate);
-        var canReachCompletion = new bool[MaximumStates];
-        var reverse = Enumerable.Range(0, MaximumStates).Select(_ => new List<int>()).ToArray();
+        var maximumStates = MaximumStateCount(candidate);
+        var canReachCompletion = new bool[maximumStates];
+        var reverse = Enumerable.Range(0, maximumStates).Select(_ => new List<int>()).ToArray();
         foreach (var index in search.Order)
         foreach (var destination in search.Next[index])
             reverse[destination].Add(index);
         var pending = new Queue<int>();
-        foreach (var index in search.Order.Where(index => Complete(candidate, Decode(index))))
+        foreach (var index in search.Order.Where(index => CompleteUnchecked(candidate, Decode(candidate, index))))
         {
             canReachCompletion[index] = true;
             pending.Enqueue(index);
@@ -252,8 +280,22 @@ public static class WorkbenchExperiment
     private static IEnumerable<WorkbenchContract> Contracts(WorkbenchCandidate candidate, string[] witness)
     {
         var initial = Initial(candidate);
+        yield return new WorkbenchContract("completion", "a valid action witness reaches completion", witness.Length > 0 && CompleteUnchecked(candidate, ApplyAll(candidate, initial, witness)), witness.Length > 0 ? "The bounded state enumeration found a complete witness." : "No bounded state path reaches completion.");
+        if (StringComparer.Ordinal.Equals(candidate.Motif, LargeMotif))
+        {
+            var closed = ReachableRooms(candidate, switchOpen: false);
+            var controlReachable = closed.Contains(candidate.SwitchRoom);
+            var goalLocked = !closed.Contains(candidate.GoalRoom);
+            yield return new WorkbenchContract(
+                "goal-locked-before-control",
+                "the goal remains unreachable until the distant control is activated",
+                controlReachable && goalLocked,
+                controlReachable && goalLocked
+                    ? "All goal incident routes are gated while the control remains reachable through the closed tree."
+                    : "The closed route graph does not keep the goal locked while preserving access to control.");
+            yield break;
+        }
         var shortcutRejected = !LegalActions(candidate, initial).Contains("move:goal", StringComparer.Ordinal) && Throws(() => Apply(candidate, initial, "move:goal"));
-        yield return new WorkbenchContract("completion", "a valid action witness reaches completion", witness.Length > 0 && Complete(candidate, ApplyAll(candidate, initial, witness)), witness.Length > 0 ? "The bounded state enumeration found a complete witness." : "No bounded state path reaches completion.");
         yield return new WorkbenchContract("locked-shortcut", "the goal-start shortcut rejects before activation", shortcutRejected, shortcutRejected ? "move:goal is absent and rejected from the initial state." : "The shortcut was available before opening the switch.");
         if (StringComparer.Ordinal.Equals(candidate.Motif, RecoveryMotif))
             yield return RecoveryContract(candidate);
@@ -300,22 +342,30 @@ public static class WorkbenchExperiment
         if (StringComparer.Ordinal.Equals(candidate.Motif, RecoveryMotif))
         {
             foreach (int index in unrecoverable)
-                if (Decode(index) is { Spent: true, Token: false }) return index;
+                if (Decode(candidate, index) is { Spent: true, Token: false }) return index;
         }
-        return unrecoverable.Length > 0 ? unrecoverable[0] : Encode(Initial(candidate));
+        if (StringComparer.Ordinal.Equals(candidate.Motif, LargeMotif))
+        {
+            foreach (int index in unrecoverable)
+                if (StringComparer.Ordinal.Equals(Decode(candidate, index).Room, candidate.SwitchRoom)) return index;
+        }
+        return unrecoverable.Length > 0 ? unrecoverable[0] : Encode(candidate, Initial(candidate));
     }
 
-    // Explicitly 4 rooms x 5 boolean facts: a bounded experiment, not an API for general search.
+    // The state space is room count x 5 boolean facts: a bounded experiment,
+    // not an API for general search.
     private static Search Explore(WorkbenchCandidate candidate)
     {
         EnsureValid(candidate);
-        var prior = new int?[MaximumStates];
-        var via = new string?[MaximumStates];
-        var next = Enumerable.Range(0, MaximumStates).Select(_ => new List<int>()).ToArray();
+        var maximumStates = MaximumStateCount(candidate);
+        var prior = new int?[maximumStates];
+        var via = new string?[maximumStates];
+        var next = Enumerable.Range(0, maximumStates).Select(_ => new List<int>()).ToArray();
         var order = new List<int>();
-        var reached = new bool[MaximumStates];
+        var reached = new bool[maximumStates];
         var pending = new Queue<int>();
-        var start = Encode(Initial(candidate));
+        var startState = Initial(candidate);
+        var start = Encode(candidate, startState);
         reached[start] = true;
         prior[start] = start;
         pending.Enqueue(start);
@@ -323,10 +373,10 @@ public static class WorkbenchExperiment
         {
             var index = pending.Dequeue();
             order.Add(index);
-            var state = Decode(index);
-            foreach (var action in LegalActions(candidate, state))
+            var state = Decode(candidate, index);
+            foreach (var action in LegalActionsUnchecked(candidate, state))
             {
-                var destination = Encode(Apply(candidate, state, action));
+                var destination = Encode(candidate, ApplyUnchecked(candidate, state, action));
                 next[index].Add(destination);
                 if (reached[destination]) continue;
                 reached[destination] = true;
@@ -338,17 +388,19 @@ public static class WorkbenchExperiment
         return new Search(start, prior, via, next, order);
     }
 
-    private static int Encode(WorkbenchState state)
+    private static int MaximumStateCount(WorkbenchCandidate candidate) => candidate.Rooms.Length * StatesPerRoom;
+
+    private static int Encode(WorkbenchCandidate candidate, WorkbenchState state)
     {
-        var room = Array.IndexOf(ExpectedRooms, state.Room);
+        var room = Array.FindIndex(candidate.Rooms, value => StringComparer.Ordinal.Equals(value.Id, state.Room));
         if (room < 0) throw new InvalidOperationException("Workbench state references an unknown room.");
         var bits = (state.SwitchOpen ? 1 : 0) | (state.Token ? 2 : 0) | (state.Spent ? 4 : 0) | (state.Recovered ? 8 : 0) | (state.Observed ? 16 : 0);
         return room * StatesPerRoom + bits;
     }
-    private static WorkbenchState Decode(int index)
+    private static WorkbenchState Decode(WorkbenchCandidate candidate, int index)
     {
         var bits = index % StatesPerRoom;
-        return new WorkbenchState(ExpectedRooms[index / StatesPerRoom], (bits & 1) != 0, (bits & 2) != 0, (bits & 4) != 0, (bits & 8) != 0, (bits & 16) != 0);
+        return new WorkbenchState(candidate.Rooms[index / StatesPerRoom].Id, (bits & 1) != 0, (bits & 2) != 0, (bits & 4) != 0, (bits & 8) != 0, (bits & 16) != 0);
     }
     private static string[] Trace(Search search, int destination)
     {
@@ -360,8 +412,29 @@ public static class WorkbenchExperiment
     }
     private static WorkbenchState ApplyAll(WorkbenchCandidate candidate, WorkbenchState state, IEnumerable<string> actions)
     {
-        foreach (var action in actions) state = Apply(candidate, state, action);
+        foreach (var action in actions) state = ApplyUnchecked(candidate, state, action);
         return state;
+    }
+
+    private static HashSet<string> ReachableRooms(WorkbenchCandidate candidate, bool switchOpen)
+    {
+        var reachable = new HashSet<string>(StringComparer.Ordinal) { candidate.StartRoom };
+        var pending = new Queue<string>();
+        pending.Enqueue(candidate.StartRoom);
+        while (pending.Count > 0)
+        {
+            var current = pending.Dequeue();
+            foreach (var route in candidate.Routes)
+            {
+                if (route.RequiresSwitch && !switchOpen) continue;
+                var next = StringComparer.Ordinal.Equals(route.From, current) ? route.To
+                    : StringComparer.Ordinal.Equals(route.To, current) ? route.From
+                    : null;
+                if (next is null || !reachable.Add(next)) continue;
+                pending.Enqueue(next);
+            }
+        }
+        return reachable;
     }
 
     private static bool Throws(Action action)

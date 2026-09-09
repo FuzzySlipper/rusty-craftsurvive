@@ -117,3 +117,19 @@ crypto-property inspection; the Engine regression test covers absent
 `randomUUID`. Four nonfatal WebGL ReadPixels performance warnings were retained;
 Engine diagnostics reported zero warnings/errors/drops. This is functional LAN
 startup evidence, separate from the earlier localhost-origin GPU evidence.
+
+## Large branching complex (#7915)
+
+The workbench now also supports a seeded 36-room/45-route planar complex.
+The retained seeds have 10 loops, 3–4 dead ends and 19–21 branching rooms;
+room dimensions vary independently. A single switch opens three optional
+shortcuts plus the goal entrance. This does not combine independent resources,
+multiple switches or nested progression. Vertical routes and mixed chamber
+shapes remain tentative #7916.
+
+The first two samples build approximately 30–31 thousand triangles in about one
+second in the local C# mesh/collision path. This is not browser-ready latency or
+GPU frame-time evidence. Loading and gate changes still replace the entire level
+synchronously. Loading resets the physical player to the new entrance; model
+trace stepping does not move them. Large-map zoom/focus is inspection state only.
+See `docs/evidence/procgen-complex-7915/` for scoped geometry and native checks.

@@ -83,6 +83,9 @@ internal sealed class CourtyardScene : IDisposable
     internal bool IsGeneratedLevel => settings.Study == "workbench" || GeneratedCaveRecipe.IsStudy(settings.Study) || GeneratedDungeonRecipe.IsStudy(settings.Study);
     internal WorkbenchCandidate? ActiveWorkbench => settings.Study == "workbench" ? settings.Workbench : null;
 
+    internal string ReadWorkbenchBuild() => FormattableString.Invariant(
+        $"generation={generation}; parts={parts.Count}; triangles={triangleCount}; vertices={vertexCount}; buildSeconds={generationSeconds:F3}; collision=generated-mesh-copy");
+
     internal void ApplyWorkbench(WorkbenchCandidate candidate, bool switchOpen)
     {
         CourtyardSettings next = settings with { Study = "workbench", Workbench = candidate, SwitchOpen = switchOpen };

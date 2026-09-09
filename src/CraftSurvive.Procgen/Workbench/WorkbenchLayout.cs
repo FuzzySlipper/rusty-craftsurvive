@@ -50,10 +50,12 @@ public static class WorkbenchLayout
         }
         WorkbenchRoom control = candidate.Rooms.Single(r => r.Id == candidate.SwitchRoom);
         WorkbenchRoom goal = candidate.Rooms.Single(r => r.Id == candidate.GoalRoom);
-        WorkbenchPoint goalPoint = Center(goal) with { Y = goal.Minimum.Y, Z = goal.Maximum.Z - MarkerInset };
+        WorkbenchPoint goalPoint = candidate.Motif == WorkbenchExperiment.LargeMotif ? CornerMarker(goal)
+            : Center(goal) with { Y = goal.Minimum.Y, Z = goal.Maximum.Z - MarkerInset };
         var markers = new List<WorkbenchMarker>
         {
-            new("switch", control.Id, "activate", EastMarker(control), "Open gate"),
+            new("switch", control.Id, "activate", candidate.Motif == WorkbenchExperiment.LargeMotif
+                ? CornerMarker(control) : EastMarker(control), "Open gates"),
             new("goal", goal.Id, "", goalPoint, "Goal"),
         };
         if (candidate.Motif == WorkbenchExperiment.RecoveryMotif)
@@ -75,6 +77,8 @@ public static class WorkbenchLayout
         (room.Minimum.X + room.Maximum.X) / 2f,
         (room.Minimum.Y + room.Maximum.Y) / 2f,
         (room.Minimum.Z + room.Maximum.Z) / 2f);
+    private static WorkbenchPoint CornerMarker(WorkbenchRoom room) =>
+        new(room.Maximum.X - MarkerInset, room.Minimum.Y, room.Maximum.Z - MarkerInset);
     private static WorkbenchPoint EastMarker(WorkbenchRoom room) =>
         Center(room) with { X = room.Maximum.X - MarkerInset, Y = room.Minimum.Y };
 }

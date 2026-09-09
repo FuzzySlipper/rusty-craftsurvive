@@ -5,6 +5,7 @@ using CraftSurvive.Procgen.Workbench;
 foreach (var motif in new[] { WorkbenchExperiment.CurrentMotif, WorkbenchExperiment.RecoveryMotif, WorkbenchExperiment.PreviewMotif })
     PositiveMotif(motif);
 
+LargeMotifTests();
 CounterexamplesFailContracts();
 StrictCandidateJson();
 
@@ -72,6 +73,59 @@ static void CounterexamplesFailContracts()
     }
 }
 
+static void LargeMotifTests()
+{
+    var seeds = new[] { 0UL, 1UL, 11UL, 29UL, 42UL, 83UL, 99UL, ulong.MaxValue };
+    var topologySignatures = new HashSet<string>(StringComparer.Ordinal);
+    foreach (var seed in seeds)
+    {
+        var candidate = WorkbenchExperiment.Generate(seed, WorkbenchExperiment.LargeMotif);
+        True(WorkbenchExperiment.Validate(candidate).Length == 0, $"large motif {seed} must be structurally valid");
+        True(candidate.Rooms.Length == 36 && candidate.Routes.Length is >= 44 and <= 48, $"large motif {seed} must contain the full grid and about ten loops");
+        True(candidate.Rooms.Select(room => room.Id).Distinct(StringComparer.Ordinal).Count() == 36, $"large motif {seed} room IDs must be unique");
+        True(candidate.Routes.Where(route => route.From == candidate.GoalRoom || route.To == candidate.GoalRoom).All(route => route.RequiresSwitch), $"large motif {seed} must gate every goal edge");
+        True(candidate.Routes.Any(route => route.RequiresSwitch && route.From != candidate.GoalRoom && route.To != candidate.GoalRoom), $"large motif {seed} must include a gated optional shortcut");
+        True(ClosedReachable(candidate).Count == 35 && !ClosedReachable(candidate).Contains(candidate.GoalRoom), $"large motif {seed} must leave every non-goal room reachable while the goal stays locked");
+        True(OpenReachable(candidate).Count == 36, $"large motif {seed} must become fully connected after activation");
+        var repeated = WorkbenchExperiment.Generate(seed, WorkbenchExperiment.LargeMotif);
+        Equal(WorkbenchCandidateJson.Identity(candidate), WorkbenchCandidateJson.Identity(repeated), $"large motif {seed} generation must be deterministic");
+        topologySignatures.Add(TopologySignature(candidate));
+        var encoded = WorkbenchCandidateJson.Serialize(candidate);
+        True(encoded.Length <= 64 * 1024, $"large motif {seed} artifact must remain below the 64 KiB workbench limit");
+        var roundTrip = WorkbenchCandidateJson.Deserialize(encoded);
+        Equal(WorkbenchCandidateJson.Identity(candidate), WorkbenchCandidateJson.Identity(roundTrip), $"large motif {seed} strict v2 roundtrip must preserve identity");
+
+        var witness = WorkbenchExperiment.Witness(candidate);
+        True(witness.Length > 0, $"large motif {seed} must have a bounded completion witness");
+        True(WorkbenchExperiment.Complete(candidate, ApplyAll(candidate, witness)), $"large motif {seed} witness must complete");
+        var analysis = WorkbenchExperiment.Analyze(candidate);
+        True(analysis.Completable && analysis.UnrecoverableStates == 0 && analysis.Contracts.All(contract => contract.Passed), $"large motif {seed} contracts must pass without unrecoverable states");
+        True(analysis.ReachableStates > 36, $"large motif {seed} bounded search should include switch-state variation");
+    }
+    True(topologySignatures.Count >= 2, "large seeded samples must vary their route topology");
+
+    var invalid = WorkbenchExperiment.Generate(83, WorkbenchExperiment.LargeMotif);
+    var duplicateRoom = invalid with { Rooms = invalid.Rooms.Select((room, index) => index == 1 ? room with { Id = invalid.Rooms[2].Id } : room).ToArray() };
+    True(WorkbenchExperiment.Validate(duplicateRoom).Length > 0, "large duplicate room IDs must return validation errors");
+    var nullRoom = invalid with { Rooms = invalid.Rooms.Select((room, index) => index == 1 ? null! : room).ToArray() };
+    True(WorkbenchExperiment.Validate(nullRoom).Length > 0, "large null rooms must return validation errors");
+    var overlapRoom = invalid with { Rooms = invalid.Rooms.Select((room, index) => index == 1 ? room with { Minimum = invalid.Rooms[0].Minimum, Maximum = invalid.Rooms[0].Maximum } : room).ToArray() };
+    True(WorkbenchExperiment.Validate(overlapRoom).Length > 0, "large overlapping rooms must return validation errors");
+    var duplicateRoute = invalid with { Routes = invalid.Routes.Select((route, index) => index == 1 ? route with { From = invalid.Routes[0].From, To = invalid.Routes[0].To } : route).ToArray() };
+    True(WorkbenchExperiment.Validate(duplicateRoute).Length > 0, "large duplicate route pairs must return validation errors");
+    var offAxis = invalid with { Routes = invalid.Routes.Select((route, index) => index == 0 ? route with { To = "goal" } : route).ToArray() };
+    True(WorkbenchExperiment.Validate(offAxis).Length > 0, "large non-adjacent route endpoints must return validation errors");
+    var badWidth = invalid with { Routes = invalid.Routes.Select((route, index) => index == 0 ? route with { Width = 2f } : route).ToArray() };
+    True(WorkbenchExperiment.Validate(badWidth).Length > 0, "large narrow routes must return validation errors");
+
+    var counterexample = WorkbenchExperiment.Generate(83, WorkbenchExperiment.LargeMotif, counterexample: true);
+    True(WorkbenchExperiment.Validate(counterexample).Length == 0, "large counterexample must remain structurally valid");
+    var failure = WorkbenchExperiment.Analyze(counterexample);
+    True(!failure.Completable && failure.Counterexamples.Length > 0 && failure.Contracts.Any(contract => !contract.Passed), "large counterexample must fail behavioral contracts");
+    foreach (var trace in failure.Counterexamples)
+        True(!WorkbenchExperiment.Complete(counterexample, ApplyAll(counterexample, trace.Actions)), $"large counterexample '{trace.Requirement}' must replay to an incomplete state");
+}
+
 static void StrictCandidateJson()
 {
     var candidate = WorkbenchExperiment.Generate(11, WorkbenchExperiment.PreviewMotif);
@@ -127,6 +181,27 @@ static WorkbenchState ApplyAll(WorkbenchCandidate candidate, IEnumerable<string>
     var state = WorkbenchExperiment.Initial(candidate);
     foreach (var action in actions) state = WorkbenchExperiment.Apply(candidate, state, action);
     return state;
+}
+
+static HashSet<string> ClosedReachable(WorkbenchCandidate candidate) => Reachable(candidate, false);
+static HashSet<string> OpenReachable(WorkbenchCandidate candidate) => Reachable(candidate, true);
+static string TopologySignature(WorkbenchCandidate candidate) => string.Join('|', candidate.Routes.OrderBy(route => route.Id, StringComparer.Ordinal).Select(route => $"{route.Id}:{route.From}>{route.To}:{route.RequiresSwitch}"));
+static HashSet<string> Reachable(WorkbenchCandidate candidate, bool switchOpen)
+{
+    var reachable = new HashSet<string>(StringComparer.Ordinal) { candidate.StartRoom };
+    var pending = new Queue<string>();
+    pending.Enqueue(candidate.StartRoom);
+    while (pending.Count > 0)
+    {
+        var current = pending.Dequeue();
+        foreach (var route in candidate.Routes)
+        {
+            if (route.RequiresSwitch && !switchOpen) continue;
+            var next = route.From == current ? route.To : route.To == current ? route.From : null;
+            if (next is not null && reachable.Add(next)) pending.Enqueue(next);
+        }
+    }
+    return reachable;
 }
 static void ExpectIllegal(Action action, string detail)
 {

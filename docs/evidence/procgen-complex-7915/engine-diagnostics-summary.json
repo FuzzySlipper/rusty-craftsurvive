@@ -1,0 +1,26 @@
+{
+  "source": "/home/agent/.cache/den-serve/sessions/rusty-craftsurvive-aa08338ce2f8/rusty-craftsurvive-20260909T093724.847319808Z/rusty-engine-diagnostics.ndjson",
+  "counts": [
+    {
+      "severity": "info",
+      "code": "BROWSER_HOST_STATUS",
+      "count": 7
+    },
+    {
+      "severity": "warning",
+      "code": "BROWSER_HOST_STATUS",
+      "count": 13
+    },
+    {
+      "severity": "warning",
+      "code": "BROWSER_LOCAL_REQUEST_UNAVAILABLE",
+      "count": 1
+    },
+    {
+      "severity": "warning",
+      "code": "BROWSER_RENDERER_DIAGNOSTICS_UNAVAILABLE",
+      "count": 1
+    }
+  ],
+  "scope": "Final served host during diagnostics and independent native run; not browser-console or frame-pacing proof."
+}

@@ -2,7 +2,7 @@ import type { LiveDebugTransport } from '@rusty-engine/live-debug';
 import { mountProcgenWorkbenchMap, type ProcgenReadout } from './workbench-map.js';
 
 const READOUT_INTERVAL_MS = 1_000;
-const DEFAULT_CANDIDATE_PATH = 'procgen/workbench-11.json';
+const DEFAULT_CANDIDATE_PATH = 'procgen/complex-29.json';
 
 /** Mounts the C#-owned procedural candidate readout; this DOM panel retains no game state. */
 export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTransport): Readonly<{ dispose(): void }> {
@@ -41,6 +41,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   const sample = document.createElement('select');
   sample.setAttribute('aria-label', 'Candidate sample');
   const samples = [
+    'procgen/complex-29.json', 'procgen/complex-83.json',
     'procgen/workbench-11.json', 'procgen/recovery-11.json', 'procgen/preview-11.json',
     'procgen/workbench-failure-11.json', 'procgen/recovery-failure-11.json', 'procgen/preview-failure-11.json',
   ];
@@ -241,10 +242,11 @@ function renderReadout(host: HTMLElement, readout: ProcgenReadout): void {
   const facts = document.createElement('dl');
   facts.style.cssText = 'display:grid;gap:.2rem .6rem;grid-template-columns:max-content minmax(0,1fr);margin:.45rem 0;';
   const stateLabel = modelReplayMode(readout.mode) ? 'Model state' : 'Walking state';
-  const rows: readonly [string, string][] = [
+  const rows: readonly (readonly [string, string])[] = [
     ['Revision', String(readout.revision)], ['Identity', readout.identity], ['Motif', readout.motif], ['Source', readout.source], ['Seed', readout.seed],
     ['Status', readout.status], ['Error', readout.error], ['Active', readout.active ? 'Active' : 'Inactive'], ['Mode', readout.mode],
     [stateLabel, stateText(readout.state)], ['Model state', stateText(readout.modelState)], ['Physical state', stateText(readout.physicalState)], ['Player position', vector(readout.playerPosition)],
+    ...(readout.checks.build !== undefined && readout.checks.build.trim().length > 0 ? [['Voxel build', readout.checks.build] as const] : []),
     [readout.replayLabel + ' cursor', String(readout.cursor) + (readout.completed ? ' · reported complete' : '')],
     ['Legal actions', textList(readout.legalActions)],
   ];
@@ -254,9 +256,11 @@ function renderReadout(host: HTMLElement, readout: ProcgenReadout): void {
     facts.append(term, description);
   }
 
-  const checks = table('Reported checks', ['Check', 'Report'], [
+  const checkRows: (readonly [string, string])[] = [
     ['Model', readout.checks.model], ['Routes', readout.checks.routes], ['Separations', readout.checks.separations], ['Coverage', readout.checks.coverage], ['Information', readout.checks.information],
-  ]);
+  ];
+  if (readout.checks.build !== undefined && readout.checks.build.trim().length > 0) checkRows.unshift(['Build', readout.checks.build]);
+  const checks = table('Reported checks', ['Check', 'Report'], checkRows);
   const rooms = table('Rooms', ['Room', 'Minimum (x, y, z)', 'Maximum (x, y, z)'], readout.rooms.map((room) => [
     room.id, vector(room.minimum), vector(room.maximum),
   ]));

@@ -30,6 +30,8 @@ jobs:
           cp .runtime/ci-pair/sdk-feed/*.nupkg .runtime/sdk-feed/
       - name: Check procedural planning and cave/dungeon layouts
         run: dotnet run --project tests/Procgen -c Release
+      - name: Check workbench motifs and complex layouts
+        run: dotnet run --project tests/Workbench -c Release
       - name: Check offline generation artifacts
         run: dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
       - name: Check terrain materials and residency cache

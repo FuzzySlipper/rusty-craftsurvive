@@ -150,7 +150,7 @@ internal static class ProcgenTool
         if (!values.ContainsKey("--seed") || !values.ContainsKey("--out") || !values.ContainsKey("--receipt") || !ulong.TryParse(values["--seed"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seed))
             throw new ArtifactValidationException("usage", "generate-workbench requires an unsigned --seed, --out, and --receipt.");
         var motif = values.GetValueOrDefault("--motif", WorkbenchExperiment.CurrentMotif);
-        if (motif is not (WorkbenchExperiment.CurrentMotif or WorkbenchExperiment.RecoveryMotif or WorkbenchExperiment.PreviewMotif)) throw new ArtifactValidationException("usage", "generate-workbench accepts only the named return-shortcut, spent-key-recovery, or visible-before-access motifs.");
+        if (motif is not (WorkbenchExperiment.CurrentMotif or WorkbenchExperiment.RecoveryMotif or WorkbenchExperiment.PreviewMotif or WorkbenchExperiment.LargeMotif)) throw new ArtifactValidationException("usage", "generate-workbench accepts only the named return-shortcut, spent-key-recovery, visible-before-access, or branching-complex motifs.");
         var counterexample = false;
         if (values.TryGetValue("--counterexample", out var counterexampleText) && !bool.TryParse(counterexampleText, out counterexample)) throw new ArtifactValidationException("usage", "--counterexample must be true or false.");
         return new WorkbenchCommand(seed, motif, counterexample, values["--out"], values["--receipt"]);

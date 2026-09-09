@@ -4,6 +4,32 @@ CraftSurvive is the active experiment and FPS testbed. Procgen remains donor
 history. Den #7906 established the candidate-to-world loop; #7907 adds three
 bounded motifs, explicit recovery/failure analysis, and a visual construction plan.
 
+## Large branching complex (#7915)
+
+The default sample is now `procgen/complex-29.json`: a seeded 36-room complex
+on a 6×6 grid, with branching corridors, additional loops and varied rectangular
+room bounds. `complex-83.json` gives a second topology. This increases layout and
+voxel construction load while keeping one floor and one shared control state.
+The small motifs remain selectable regression samples.
+
+Loading places the physical player at the new entrance, even during model
+inspection, so a changed layout cannot leave the old position inside a wall.
+Load the complex, **Expand map**, and inspect the layout or graph. Follow the
+model witness to find the control station, then physically approach its bronze
+marker and use **E / Y** to open the gated routes. The goal is marked in red.
+Model stepping remains separate from physical walking. Map inspection and witness
+instructions are assistance, not a blind exploration test.
+
+The readout reports construction time, triangles and vertices for the applied
+Engine mesh/collision build. Loading and opening gates synchronously rebuild the
+level; this slice does not claim streaming or frame-budgeted generation.
+For the grid complex, separation probes test omitted connections between
+neighboring rooms. Distant collinear rooms may intentionally share a hallway,
+so absence of a direct graph edge is not interpreted as a wall between them.
+
+Generate more examples with `generate-workbench --seed 101 --motif branching-complex`
+and the same explicit `--out` / `--receipt` options below.
+
 ## Inspect and play
 
 Open **Procgen workbench**, select a sample and **Load candidate**. The map shows
@@ -49,8 +75,7 @@ dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- \
   --receipt "$PWD/content/procgen/recovery-29.receipt.json"
 ```
 
-Motifs are `four-room-return-shortcut`, `spent-key-recovery`, and
-`visible-before-access`. Optional `--counterexample true` generates that motif's
+Motifs are `four-room-return-shortcut`, `spent-key-recovery`, `visible-before-access`, and `branching-complex`. Optional `--counterexample true` generates that motif's
 intentional failure variant. Omitting `--motif` retains the shortcut default.
 Wait for normal content staging, then load its `procgen/*.json` path. Game loads
 only Engine-admitted product content; the Tool owns explicit filesystem output.
@@ -63,8 +88,8 @@ input. Seed gives shallow spacing/width variants, not a promise of diversity.
 
 ## Ownership and verification
 
-- Pure `WorkbenchExperiment` owns the three fixed motifs and bounded 128-state
-  enumeration. It reports completing witnesses, reachable states unable to
+- Pure `WorkbenchExperiment` owns the three fixed motifs and the bounded complex
+  experiment (at most 36 rooms × 32 state combinations). It reports completing witnesses, reachable states unable to
   complete, separate contracts and reproducible counterexamples. This is not a
   general planner API. No generic mechanism was needed for Engine promotion.
 - Pure `WorkbenchLayout` resolves the room/passage/gate/window volumes and
@@ -93,6 +118,8 @@ Focused checks: `tests/Workbench`, `tests/Procgen`, Tool `--self-check`, UI
 typecheck, Game Release build and ordinary CoreCLR staging. GPU interaction uses
 the crew-services Wolf profile. Evidence for #7906 and #7907 is retained separately
 under `docs/evidence/procgen-workbench` and `docs/evidence/procgen-motifs-7907`.
+The larger #7915 sample measurements and scoped native evidence are retained in
+`docs/evidence/procgen-complex-7915`.
 
 GPU acceptance: guided native keyboard map controls and controller completion of
 both new motifs passed. An independent observer inspected the original images;
@@ -107,12 +134,14 @@ to build a framework before experimenting. Den is the durable task record.
 
 | Task | Next experiment | What determines whether to expand |
 | --- | --- | --- |
-| #7907 | Three motifs, state contracts and map inspection | Current slice; use its actual failures to select the next experiment |
+| #7907 | Three motifs, state contracts and map inspection | Completed baseline; retained as small regression samples |
 | #7908 | Protected passages and separations after realization | Which mesh/controller mismatches sampled rays miss |
 | #7909 | Candidate comparison and small semantic repairs | Repeated failures worth expressing as design operations |
 | #7910 | Small agent selection/editing/adversarial trial | Stable motifs, checks and tools, then human calibration |
 | #7911 | Resolved level bank and scoped runtime variation | Measured artifact sizes and meaningful structural diversity |
 | #7912 | Engine promotion checkpoint | Concrete reusable mechanisms demonstrated by consumers |
+| #7915 | Seeded 36-room complex | Current scale experiment: topology variety, mesh costs and guided traversal |
+| #7916 | Vertical routes and mixed chamber shapes | Select height/shape complexity after the large complex exposes practical limits |
 
 The longer-term direction is propose → diagnose → repair → compare → publish.
 Preserve progression, spatial and information requirements as distinct concepts.
