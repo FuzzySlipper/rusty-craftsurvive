@@ -108,4 +108,12 @@ The saved Wolf launch receipt used `browser_url: http://localhost:37300/`,
 although its advertised URL was `http://192.168.1.22:37300/`. Thus the GPU runs
 validated native gameplay under a localhost browser origin, not LAN-origin
 startup. Future LAN acceptance must inspect the actual browser origin.
-The LAN demo remains blocked pending an upstream paired release.
+Engine #7914 replaces the surface identity call with LAN-compatible
+`getRandomValues` in pair `0.1.0-dev.538724836d65`, now installed together
+with its SDK. The managed LAN host runs that pair. A crew-services browser session verified
+`http://192.168.1.22:37300/` renders the courtyard without page errors. Evidence:
+`/home/agent/.codex/lan-7914/`. The browser backend does not expose direct
+crypto-property inspection; the Engine regression test covers absent
+`randomUUID`. Four nonfatal WebGL ReadPixels performance warnings were retained;
+Engine diagnostics reported zero warnings/errors/drops. This is functional LAN
+startup evidence, separate from the earlier localhost-origin GPU evidence.

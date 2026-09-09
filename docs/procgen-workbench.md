@@ -84,7 +84,7 @@ clearance, jumping, climbing, terrain destruction or all bypasses. Switch change
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
-Current installed Engine pair: `0.1.0-dev.cda0274a1f6d`, downloaded as the published
+Current installed Engine pair: `0.1.0-dev.538724836d65`, downloaded as the published
 matched archive and verified with its checksum and pair verifier. Game and
 TerrainResidency pins, both host manifests and current setup instructions agree.
 No Engine source checkout is needed by the product.
