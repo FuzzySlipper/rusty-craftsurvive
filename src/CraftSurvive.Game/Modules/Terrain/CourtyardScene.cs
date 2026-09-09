@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.LevelGeneration;
+using CraftSurvive.Procgen.Workbench;
 using Rusty.Engine;
 using Rusty.Engine.Implicit;
 
@@ -11,7 +12,8 @@ internal readonly record struct CourtyardSettings(
     string Treatment, float Width, float DoorWidth, float DoorOffset, ulong Seed,
     float CellSize, float CreaseDegrees, string Masonry = "layered",
     ImplicitMaterialBoundaryMode MaterialBoundaryMode = ImplicitMaterialBoundaryMode.Interpolated,
-    float MaterialCutoff = 0f, string Study = "stoneworks", string Detail = "normal", float MaterialSampleSpacing = 0f)
+    float MaterialCutoff = 0f, string Study = "stoneworks", string Detail = "normal", float MaterialSampleSpacing = 0f,
+    WorkbenchCandidate? Workbench = null, bool SwitchOpen = false)
 {
     internal static CourtyardSettings Default => new("soft", 24f, 3.4f, 0f, 0x4352414654UL, 0.20f, 110f);
 
@@ -78,7 +80,18 @@ internal sealed class CourtyardScene : IDisposable
         ApplyStudyLighting();
     }
 
-    internal bool IsGeneratedLevel => GeneratedCaveRecipe.IsStudy(settings.Study) || GeneratedDungeonRecipe.IsStudy(settings.Study);
+    internal bool IsGeneratedLevel => settings.Study == "workbench" || GeneratedCaveRecipe.IsStudy(settings.Study) || GeneratedDungeonRecipe.IsStudy(settings.Study);
+    internal WorkbenchCandidate? ActiveWorkbench => settings.Study == "workbench" ? settings.Workbench : null;
+
+    internal void ApplyWorkbench(WorkbenchCandidate candidate, bool switchOpen)
+    {
+        CourtyardSettings next = settings with { Study = "workbench", Workbench = candidate, SwitchOpen = switchOpen };
+        Build(next);
+        settings = next;
+        pending = null;
+        generationError = "none";
+        ApplyStudyLighting();
+    }
 
     internal IEnumerable<AppearanceFact> Facts => parts.SelectMany(part => part.Visuals.Select(visual => (part, visual)))
         .Select((entry, index) => new AppearanceFact(FirstObjectId + (ulong)index, false, 0,
@@ -298,7 +311,13 @@ internal sealed class CourtyardScene : IDisposable
             CaveLevelPlan? nextLevelPlan = null;
             DungeonLevelPlan? nextDungeonPlan = null;
             testGenerationSeconds = 0;
-            if (next.Study == "reference")
+            if (next.Study == "workbench")
+            {
+                WorkbenchRecipe.Compose(engine, stoneworksMaterials,
+                    next.Workbench ?? throw new InvalidOperationException("No resolved workbench candidate."),
+                    next.SwitchOpen, surface => AddPart(surface, replacement));
+            }
+            else if (next.Study == "reference")
             {
                 CourtyardRecipe recipe = new(engine, materials);
                 recipe.Compose(next, surface => AddPart(surface, replacement));
@@ -433,6 +452,15 @@ internal sealed class CourtyardScene : IDisposable
                 (Vector3.One, 0f, new(-12, 22, -8)) }
                 .Concat(dungeon.Rooms.Select(room => (room.Index % 3 == 0 ? new Vector3(1f, 0.68f, 0.35f) : new Vector3(0.68f, 0.79f, 1f),
                     42f, room.Center with { Y = room.Maximum.Y - 0.7f }))).ToArray();
+        }
+        if (settings.Study == "workbench" && settings.Workbench is { } workbench)
+        {
+            profile = new (Vector3 Color, float Intensity, Vector3 Position)[] {
+                (new(0.76f, 0.80f, 0.92f), 0.7f, Vector3.Zero),
+                (Vector3.One, 0f, new(-12, 22, -8)) }
+                .Concat(workbench.Rooms.Select(room => (room.Id == workbench.SwitchRoom
+                    ? new Vector3(1f, 0.72f, 0.4f) : new Vector3(0.68f, 0.79f, 1f),
+                    32f, WorkbenchRecipe.Center(room) with { Y = room.Maximum.Y - 0.7f }))).ToArray();
         }
         while (lights.Count < profile.Length)
             AddLight(LightKind.Point, profile[lights.Count].Color, profile[lights.Count].Intensity, profile[lights.Count].Position, Vector3.Zero);

@@ -1,0 +1,149 @@
+{
+  "action_id": "065fab5c-730f-48e6-8540-8770a6bdeb8c",
+  "backend": "wolf-input-api",
+  "cancelled": false,
+  "completed_steps": 18,
+  "elapsed_ms": 3539,
+  "ended_at": "2026-09-09T08:28:00Z",
+  "event": "input",
+  "input_delivery": {
+    "backend": "wolf-input-api",
+    "completed_steps": 18,
+    "game_consumption": "unknown",
+    "outcome": "target-reported",
+    "requested_steps": 18,
+    "state": "target-reported"
+  },
+  "lease_id": "a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+  "pointer_lock": {
+    "backend": "wolf-input-api",
+    "observability": "unavailable",
+    "reason": "the native Wolf target exposes no browser pointer-lock readback",
+    "state": "unknown"
+  },
+  "release_errors": [],
+  "started_at": "2026-09-09T08:27:56Z",
+  "steps": [
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        40
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        40
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        13
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "kind": "wait",
+      "ms": 1200
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        13
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "kind": "wait",
+      "ms": 1200
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 70
+    },
+    {
+      "keys": [
+        13
+      ],
+      "kind": "hold",
+      "ms": 70
+    }
+  ],
+  "time": "2026-09-09T08:28:00Z"
+}

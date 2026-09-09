@@ -2,6 +2,12 @@
 
 Pure deterministic graph planning, layout generation, and bounded workload utilities used by CraftSurvive's level-planning lane. This local library has no Rusty.Engine, host, UI, filesystem, or adjacent-repository dependency.
 
+`Workbench/` adds the local four-room return-shortcut experiment and bounded
+state witness. Its new strict resolved artifact and CLI live in Artifacts/Tool;
+the CraftSurvive Game and DOM companion consume it. See
+[Procgen workbench](../../docs/procgen-workbench.md). The donor exclusions below
+describe the original migration, not a prohibition on the new Game workbench.
+
 `CraftSurvive.Procgen.Artifacts` and `CraftSurvive.Procgen.Tool` retain the donor's offline strict-artifact generation and atomic file-pair writer. They reference only this local library; the Tool's self-check consumes [the one retained workload corpus](../../tests/Procgen/fixtures/csharp-workload-corpus.v1.json). Product, workbench, and UI code are intentionally absent.
 
 ## Donor consultation

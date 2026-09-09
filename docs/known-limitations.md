@@ -1,5 +1,18 @@
 # Known limitations
 
+- The [Procgen workbench](procgen-workbench.md) (#7906/#7907) supports three
+  fixed four-room motifs and 128 possible product states, not a general puzzle
+  solver. Schema v2 deliberately requires regenerated v1 samples. The diagram
+  shows resolved construction inputs, not extracted triangles. Abstract trace
+  stepping never changes the physical player or resource/gate state.
+  Realized-mesh route/separation checks use nine straight rays per relationship;
+  the preview adds one lookout-to-goal sightline. Neither proves all capsule
+  paths, bypasses or human recognition/gaze. Physical observation adds proximity
+  and a current eye-to-goal ray, not an attention model. Key spend/recovery is
+  shown in the workbench state; station props do not animate depletion.
+  Switch activation rebuilds the small scene synchronously. Broader spatial
+  checks, repair tools, agent trials and curated banks remain #7908–#7912.
+
 The current C# lane is a deliberately bounded continuation. These limits
 describe the landed product; they are not invitations to recreate a parallel
 runtime or test infrastructure.
@@ -84,3 +97,15 @@ a late renderer-observation binding mismatch; Engine #7865 owns that follow-up.
 Some streamed screenshots lagged requested inspection poses, so exact view/frame
 binding remains unverified. The input/capture/release evidence is retained in
 `docs/evidence/procedural-levels/` with those limits explicitly marked.
+
+## LAN startup regression found after GPU acceptance
+
+The user subsequently reported `globalThis.crypto.randomUUID is not a function`
+on plain LAN HTTP. Engine #7914 owns the unconditional presentation-surface ID
+call in `render/packages/renderer-host/src/surface.ts:841`, shipped in pair
+`0.1.0-dev.cda0274a1f6d`. No product UI call or downstream shim is involved.
+The saved Wolf launch receipt used `browser_url: http://localhost:37300/`,
+although its advertised URL was `http://192.168.1.22:37300/`. Thus the GPU runs
+validated native gameplay under a localhost browser origin, not LAN-origin
+startup. Future LAN acceptance must inspect the actual browser origin.
+The LAN demo remains blocked pending an upstream paired release.

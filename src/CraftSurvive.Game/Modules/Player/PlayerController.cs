@@ -273,6 +273,8 @@ internal sealed class PlayerController : IDisposable
     }
 
     internal EntityWorld EntityWorld => entityWorld;
+    internal Vector3 WorldPosition => playerGlobal.ToWorldVector();
+    internal Vector3 WorldEyePosition => WorldPosition + Vector3.UnitY * EyeOffset(motion.Stance);
 
     /// <summary>
     /// Returns the current platform fact for the product's single complete

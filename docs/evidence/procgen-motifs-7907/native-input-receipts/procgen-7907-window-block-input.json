@@ -1,0 +1,50 @@
+{
+  "action_id": "9717ca02-8a57-4fe5-9252-827b42f92d29",
+  "backend": "wolf-input-api",
+  "cancelled": false,
+  "completed_steps": 4,
+  "elapsed_ms": 1706,
+  "ended_at": "2026-09-09T08:18:10Z",
+  "event": "input",
+  "input_delivery": {
+    "backend": "wolf-input-api",
+    "completed_steps": 4,
+    "game_consumption": "unknown",
+    "outcome": "target-reported",
+    "requested_steps": 4,
+    "state": "target-reported"
+  },
+  "lease_id": "88f76e45-e62a-484e-beb5-80dccca058a5",
+  "pointer_lock": {
+    "backend": "wolf-input-api",
+    "observability": "unavailable",
+    "reason": "the native Wolf target exposes no browser pointer-lock readback",
+    "state": "unknown"
+  },
+  "release_errors": [],
+  "started_at": "2026-09-09T08:18:08Z",
+  "steps": [
+    {
+      "height": 720,
+      "kind": "point",
+      "width": 1280,
+      "x": 950,
+      "y": 450
+    },
+    {
+      "kind": "wait",
+      "ms": 200
+    },
+    {
+      "button": 1,
+      "kind": "click",
+      "ms": 100
+    },
+    {
+      "kind": "gamepad",
+      "ly": 1,
+      "ms": 1400
+    }
+  ],
+  "time": "2026-09-09T08:18:10Z"
+}

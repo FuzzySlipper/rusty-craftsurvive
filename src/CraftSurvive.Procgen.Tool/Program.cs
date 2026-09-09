@@ -1,6 +1,7 @@
 using CraftSurvive.Procgen.Artifacts;
 using CraftSurvive.Procgen;
 using CraftSurvive.Procgen.Generation;
+using CraftSurvive.Procgen.Workbench;
 using CraftSurvive.Procgen.Workloads;
 
 return await ProcgenTool.RunAsync(args);
@@ -19,6 +20,8 @@ internal static class ProcgenTool
             }
             if (args.Length > 0 && StringComparer.Ordinal.Equals(args[0], "generate-workload-corpus"))
                 return Task.FromResult(GenerateWorkloadCorpus(ParseWorkloadCorpus(args)));
+            if (args.Length > 0 && StringComparer.Ordinal.Equals(args[0], "generate-workbench"))
+                return Task.FromResult(GenerateWorkbench(ParseWorkbench(args)));
             var command = ParseGenerate(args);
             var requestBytes = File.ReadAllBytes(command.RequestPath);
             var request = ArtifactJson.DeserializeRequest(requestBytes);
@@ -113,8 +116,49 @@ internal static class ProcgenTool
         return new WorkloadCorpusCommand(values["--out"], values["--receipt"]);
     }
 
+    private static int GenerateWorkbench(WorkbenchCommand command)
+    {
+        var candidate = WorkbenchExperiment.Generate(command.Seed, command.Motif, command.Counterexample);
+        var candidateBytes = WorkbenchCandidateJson.Serialize(candidate);
+        var candidateHash = ArtifactIdentity.HashBytes(candidateBytes);
+        var receipt = new ArtifactReceipt(
+            ArtifactReceipt.CurrentKind,
+            "generate-workbench",
+            true,
+            0,
+            ArtifactIdentity.HashBytes(System.Text.Encoding.UTF8.GetBytes($"workbench-seed:{command.Seed}:motif:{command.Motif}:counterexample:{command.Counterexample.ToString().ToLowerInvariant()}")),
+            candidateHash,
+            Path.GetFullPath(command.CandidatePath),
+            Path.GetFullPath(command.ReceiptPath),
+            WorkbenchCandidateJson.Identity(candidate),
+            null);
+        var write = AtomicArtifactWriter.WritePair(command.CandidatePath, candidateBytes, command.ReceiptPath, ArtifactJson.SerializeReceipt(receipt));
+        foreach (var cleanupFailure in write.CleanupFailures) Console.Error.WriteLine($"warning: artifacts committed but a recoverable backup cleanup failed: {cleanupFailure}");
+        Console.WriteLine($"generated workbench candidate={candidateHash} identity={receipt.ResultIdentity}");
+        return 0;
+    }
+
+    private static WorkbenchCommand ParseWorkbench(IReadOnlyList<string> args)
+    {
+        if (args.Count is < 7 or > 11 || args.Count % 2 == 0 || !StringComparer.Ordinal.Equals(args[0], "generate-workbench")) throw new ArtifactValidationException("usage", "Usage: generate-workbench --seed <unsigned-seed> --out <candidate.json> --receipt <receipt.json> [--motif <motif>] [--counterexample true|false].");
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var index = 1; index < args.Count; index += 2)
+        {
+            var key = args[index];
+            if (key is not ("--seed" or "--out" or "--receipt" or "--motif" or "--counterexample") || !values.TryAdd(key, args[index + 1]) || string.IsNullOrWhiteSpace(args[index + 1])) throw new ArtifactValidationException("usage", "Each option must appear at most once with a nonempty value.");
+        }
+        if (!values.ContainsKey("--seed") || !values.ContainsKey("--out") || !values.ContainsKey("--receipt") || !ulong.TryParse(values["--seed"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var seed))
+            throw new ArtifactValidationException("usage", "generate-workbench requires an unsigned --seed, --out, and --receipt.");
+        var motif = values.GetValueOrDefault("--motif", WorkbenchExperiment.CurrentMotif);
+        if (motif is not (WorkbenchExperiment.CurrentMotif or WorkbenchExperiment.RecoveryMotif or WorkbenchExperiment.PreviewMotif)) throw new ArtifactValidationException("usage", "generate-workbench accepts only the named return-shortcut, spent-key-recovery, or visible-before-access motifs.");
+        var counterexample = false;
+        if (values.TryGetValue("--counterexample", out var counterexampleText) && !bool.TryParse(counterexampleText, out counterexample)) throw new ArtifactValidationException("usage", "--counterexample must be true or false.");
+        return new WorkbenchCommand(seed, motif, counterexample, values["--out"], values["--receipt"]);
+    }
+
     private sealed record GenerateCommand(string RequestPath, string ResultPath, string ReceiptPath);
     private sealed record WorkloadCorpusCommand(string CorpusPath, string ReceiptPath);
+    private sealed record WorkbenchCommand(ulong Seed, string Motif, bool Counterexample, string CandidatePath, string ReceiptPath);
 }
 
 internal static class ToolSelfCheck

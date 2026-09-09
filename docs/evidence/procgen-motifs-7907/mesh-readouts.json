@@ -1,0 +1,2140 @@
+[
+  {
+    "revision": 1,
+    "identity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+    "source": "procgen/workbench-11.json",
+    "seed": "11",
+    "status": "applied",
+    "error": "",
+    "active": true,
+    "mode": "inspection",
+    "state": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "physicalRoom": "passage / outside rooms",
+    "physicalSwitchOpen": false,
+    "legalActions": [
+      "move:relay"
+    ],
+    "witness": [
+      "move:relay",
+      "move:control",
+      "activate",
+      "move:goal"
+    ],
+    "cursor": 0,
+    "completed": false,
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); shortcut closed",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."
+    },
+    "history": [
+      "r1: load"
+    ],
+    "motif": "four-room-return-shortcut",
+    "physicalState": {
+      "room": "passage / outside rooms",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "playerPosition": {
+      "x": 0.00013990424,
+      "y": 3.9051187,
+      "z": -6.999762
+    },
+    "layout": {
+      "volumes": [
+        {
+          "id": "start",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "relay",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "control",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "goal",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "start-relay",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 1.5
+          }
+        },
+        {
+          "id": "relay-control",
+          "kind": "passage",
+          "minimum": {
+            "x": 11.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 7.5
+          }
+        }
+      ],
+      "markers": [
+        {
+          "id": "switch",
+          "room": "control",
+          "action": "activate",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Open gate"
+        },
+        {
+          "id": "goal",
+          "room": "goal",
+          "action": "",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 17.2
+          },
+          "label": "Goal"
+        }
+      ],
+      "gateRoute": "goal-start"
+    },
+    "analysis": {
+      "completable": true,
+      "reachableStates": 8,
+      "unrecoverableStates": 0,
+      "witness": [
+        "move:relay",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        }
+      ],
+      "counterexamples": []
+    },
+    "replayLabel": "Completing witness",
+    "modelState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    }
+  },
+  {
+    "revision": 2,
+    "identity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+    "source": "procgen/recovery-11.json",
+    "seed": "11",
+    "status": "applied",
+    "error": "",
+    "active": true,
+    "mode": "inspection",
+    "state": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "physicalRoom": "passage / outside rooms",
+    "physicalSwitchOpen": false,
+    "legalActions": [
+      "move:relay"
+    ],
+    "witness": [
+      "move:relay",
+      "spend",
+      "move:control",
+      "move:goal",
+      "recover",
+      "move:control",
+      "activate",
+      "move:goal"
+    ],
+    "cursor": 0,
+    "completed": false,
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); shortcut closed",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."
+    },
+    "history": [
+      "r2: load"
+    ],
+    "motif": "spent-key-recovery",
+    "physicalState": {
+      "room": "passage / outside rooms",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "playerPosition": {
+      "x": 0.00013990424,
+      "y": 2.9551196,
+      "z": -6.999762
+    },
+    "layout": {
+      "volumes": [
+        {
+          "id": "start",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "relay",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "control",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "goal",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "start-relay",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 1.5
+          }
+        },
+        {
+          "id": "relay-control",
+          "kind": "passage",
+          "minimum": {
+            "x": 11.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 7.5
+          }
+        }
+      ],
+      "markers": [
+        {
+          "id": "switch",
+          "room": "control",
+          "action": "activate",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Open gate"
+        },
+        {
+          "id": "goal",
+          "room": "goal",
+          "action": "",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 17.2
+          },
+          "label": "Goal"
+        },
+        {
+          "id": "spend",
+          "room": "relay",
+          "action": "spend",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 0
+          },
+          "label": "Spend key (irreversible)"
+        },
+        {
+          "id": "recover",
+          "room": "goal",
+          "action": "recover",
+          "position": {
+            "x": -3.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Recover one key"
+        }
+      ],
+      "gateRoute": "goal-start"
+    },
+    "analysis": {
+      "completable": true,
+      "reachableStates": 16,
+      "unrecoverableStates": 0,
+      "witness": [
+        "move:relay",
+        "spend",
+        "move:control",
+        "move:goal",
+        "recover",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "recovery",
+          "requirement": "the spent token recovers exactly once before activation",
+          "passed": true,
+          "evidence": "spend and recover each become unavailable after one legal use."
+        }
+      ],
+      "counterexamples": []
+    },
+    "replayLabel": "Completing witness",
+    "modelState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    }
+  },
+  {
+    "revision": 3,
+    "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "source": "procgen/preview-11.json",
+    "seed": "11",
+    "status": "applied",
+    "error": "",
+    "active": true,
+    "mode": "inspection",
+    "state": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "physicalRoom": "passage / outside rooms",
+    "physicalSwitchOpen": false,
+    "legalActions": [
+      "move:relay",
+      "observe"
+    ],
+    "witness": [
+      "observe",
+      "move:relay",
+      "move:control",
+      "activate",
+      "move:goal"
+    ],
+    "cursor": 0,
+    "completed": false,
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": true
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); shortcut closed",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."
+    },
+    "history": [
+      "r3: load"
+    ],
+    "motif": "visible-before-access",
+    "physicalState": {
+      "room": "passage / outside rooms",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "playerPosition": {
+      "x": 0.00013990424,
+      "y": 0.9184542,
+      "z": -6.999762
+    },
+    "layout": {
+      "volumes": [
+        {
+          "id": "start",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "relay",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "control",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "goal",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "start-relay",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 1.5
+          }
+        },
+        {
+          "id": "relay-control",
+          "kind": "passage",
+          "minimum": {
+            "x": 11.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": 6,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 7,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 7.5
+          }
+        },
+        {
+          "id": "goal-start-window",
+          "kind": "window",
+          "minimum": {
+            "x": -0.65,
+            "y": 4.25,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 0.65,
+            "y": 4.75,
+            "z": 7.5
+          }
+        }
+      ],
+      "markers": [
+        {
+          "id": "switch",
+          "room": "control",
+          "action": "activate",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Open gate"
+        },
+        {
+          "id": "goal",
+          "room": "goal",
+          "action": "",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 17.2
+          },
+          "label": "Goal"
+        },
+        {
+          "id": "lookout",
+          "room": "start",
+          "action": "observe",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 0
+          },
+          "label": "Acknowledge visible goal"
+        }
+      ],
+      "gateRoute": "goal-start"
+    },
+    "analysis": {
+      "completable": true,
+      "reachableStates": 10,
+      "unrecoverableStates": 0,
+      "witness": [
+        "observe",
+        "move:relay",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "preview",
+          "requirement": "the opening must be observed before activation",
+          "passed": true,
+          "evidence": "activate is unavailable until the label-model observation action occurs."
+        }
+      ],
+      "counterexamples": []
+    },
+    "replayLabel": "Completing witness",
+    "modelState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    }
+  },
+  {
+    "revision": 4,
+    "identity": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede",
+    "source": "procgen/workbench-failure-11.json",
+    "seed": "11",
+    "status": "applied",
+    "error": "",
+    "active": true,
+    "mode": "inspection",
+    "state": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "physicalRoom": "passage / outside rooms",
+    "physicalSwitchOpen": false,
+    "legalActions": [
+      "move:relay"
+    ],
+    "witness": [],
+    "cursor": 0,
+    "completed": false,
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "checks": {
+      "model": "FAIL: completing witness 0 actions; 4 reachable states; 4 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); shortcut closed",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."
+    },
+    "history": [
+      "r4: load"
+    ],
+    "motif": "four-room-return-shortcut",
+    "physicalState": {
+      "room": "passage / outside rooms",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "playerPosition": {
+      "x": 0.00013990424,
+      "y": -2.2448776,
+      "z": -6.999762
+    },
+    "layout": {
+      "volumes": [
+        {
+          "id": "start",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "relay",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "control",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "goal",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "start-relay",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 1.5
+          }
+        },
+        {
+          "id": "relay-control",
+          "kind": "passage",
+          "minimum": {
+            "x": 11.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 7.5
+          }
+        }
+      ],
+      "markers": [
+        {
+          "id": "switch",
+          "room": "control",
+          "action": "activate",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Open gate"
+        },
+        {
+          "id": "goal",
+          "room": "goal",
+          "action": "",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 17.2
+          },
+          "label": "Goal"
+        }
+      ],
+      "gateRoute": "goal-start"
+    },
+    "analysis": {
+      "completable": false,
+      "reachableStates": 4,
+      "unrecoverableStates": 4,
+      "witness": [],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": false,
+          "evidence": "No bounded state path reaches completion."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        }
+      ],
+      "counterexamples": [
+        {
+          "requirement": "a valid action witness reaches completion",
+          "actions": [
+            "move:relay"
+          ],
+          "reason": "No bounded state path reaches completion."
+        },
+        {
+          "requirement": "reachable-state-cannot-complete",
+          "actions": [
+            "move:relay"
+          ],
+          "reason": "A reachable fixed experiment state has no path to completion."
+        }
+      ]
+    },
+    "replayLabel": "Completing witness",
+    "modelState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    }
+  },
+  {
+    "revision": 5,
+    "identity": "a1df423f166b02a071d7bb7dfba4d6ad7f9a10f24fc23dd605cb989c7379dadb",
+    "source": "procgen/recovery-failure-11.json",
+    "seed": "11",
+    "status": "applied",
+    "error": "",
+    "active": true,
+    "mode": "inspection",
+    "state": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "physicalRoom": "passage / outside rooms",
+    "physicalSwitchOpen": false,
+    "legalActions": [
+      "move:relay"
+    ],
+    "witness": [],
+    "cursor": 0,
+    "completed": false,
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "checks": {
+      "model": "FAIL: completing witness 0 actions; 8 reachable states; 8 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); shortcut closed",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."
+    },
+    "history": [
+      "r5: load"
+    ],
+    "motif": "spent-key-recovery",
+    "physicalState": {
+      "room": "passage / outside rooms",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "playerPosition": {
+      "x": 0.00013990424,
+      "y": -6.534879,
+      "z": -6.999762
+    },
+    "layout": {
+      "volumes": [
+        {
+          "id": "start",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "relay",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "control",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "goal",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "start-relay",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 1.5
+          }
+        },
+        {
+          "id": "relay-control",
+          "kind": "passage",
+          "minimum": {
+            "x": 11.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 7.5
+          }
+        }
+      ],
+      "markers": [
+        {
+          "id": "switch",
+          "room": "control",
+          "action": "activate",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Open gate"
+        },
+        {
+          "id": "goal",
+          "room": "goal",
+          "action": "",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 17.2
+          },
+          "label": "Goal"
+        },
+        {
+          "id": "spend",
+          "room": "relay",
+          "action": "spend",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 0
+          },
+          "label": "Spend key (irreversible)"
+        }
+      ],
+      "gateRoute": "goal-start"
+    },
+    "analysis": {
+      "completable": false,
+      "reachableStates": 8,
+      "unrecoverableStates": 8,
+      "witness": [],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": false,
+          "evidence": "No bounded state path reaches completion."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "recovery",
+          "requirement": "the spent token recovers exactly once before activation",
+          "passed": false,
+          "evidence": "The recovery sequence cannot restore one spent token exactly once."
+        }
+      ],
+      "counterexamples": [
+        {
+          "requirement": "a valid action witness reaches completion",
+          "actions": [
+            "move:relay",
+            "spend"
+          ],
+          "reason": "No bounded state path reaches completion."
+        },
+        {
+          "requirement": "the spent token recovers exactly once before activation",
+          "actions": [
+            "move:relay",
+            "spend"
+          ],
+          "reason": "The recovery sequence cannot restore one spent token exactly once."
+        },
+        {
+          "requirement": "reachable-state-cannot-complete",
+          "actions": [
+            "move:relay",
+            "spend"
+          ],
+          "reason": "A reachable fixed experiment state has no path to completion."
+        }
+      ]
+    },
+    "replayLabel": "Completing witness",
+    "modelState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    }
+  },
+  {
+    "revision": 6,
+    "identity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+    "source": "procgen/preview-failure-11.json",
+    "seed": "11",
+    "status": "applied",
+    "error": "",
+    "active": true,
+    "mode": "inspection",
+    "state": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "physicalRoom": "passage / outside rooms",
+    "physicalSwitchOpen": false,
+    "legalActions": [
+      "move:relay"
+    ],
+    "witness": [],
+    "cursor": 0,
+    "completed": false,
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": true
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "checks": {
+      "model": "FAIL: completing witness 0 actions; 3 reachable states; 3 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); shortcut closed",
+      "information": "Lookout-to-goal mesh sightline: occluded (FAIL); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate."
+    },
+    "history": [
+      "r6: load"
+    ],
+    "motif": "visible-before-access",
+    "physicalState": {
+      "room": "passage / outside rooms",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "playerPosition": {
+      "x": 0.00013990424,
+      "y": -11.681544,
+      "z": -6.999762
+    },
+    "layout": {
+      "volumes": [
+        {
+          "id": "start",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "relay",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": -4
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 4
+          }
+        },
+        {
+          "id": "control",
+          "kind": "room",
+          "minimum": {
+            "x": 9,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 17,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "goal",
+          "kind": "room",
+          "minimum": {
+            "x": -4,
+            "y": 3,
+            "z": 10
+          },
+          "maximum": {
+            "x": 4,
+            "y": 7,
+            "z": 18
+          }
+        },
+        {
+          "id": "start-relay",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 1.5
+          }
+        },
+        {
+          "id": "relay-control",
+          "kind": "passage",
+          "minimum": {
+            "x": 11.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 14.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "control-goal-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": 6,
+            "y": 3,
+            "z": 12.5
+          },
+          "maximum": {
+            "x": 7,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start",
+          "kind": "passage",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": -1.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 15.5
+          }
+        },
+        {
+          "id": "goal-start-gate",
+          "kind": "gate",
+          "minimum": {
+            "x": -1.5,
+            "y": 3,
+            "z": 6.5
+          },
+          "maximum": {
+            "x": 1.5,
+            "y": 7,
+            "z": 7.5
+          }
+        }
+      ],
+      "markers": [
+        {
+          "id": "switch",
+          "room": "control",
+          "action": "activate",
+          "position": {
+            "x": 16.2,
+            "y": 3,
+            "z": 14
+          },
+          "label": "Open gate"
+        },
+        {
+          "id": "goal",
+          "room": "goal",
+          "action": "",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 17.2
+          },
+          "label": "Goal"
+        },
+        {
+          "id": "lookout",
+          "room": "start",
+          "action": "observe",
+          "position": {
+            "x": 0,
+            "y": 3,
+            "z": 0
+          },
+          "label": "Acknowledge visible goal"
+        }
+      ],
+      "gateRoute": "goal-start"
+    },
+    "analysis": {
+      "completable": false,
+      "reachableStates": 3,
+      "unrecoverableStates": 3,
+      "witness": [],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": false,
+          "evidence": "No bounded state path reaches completion."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "preview",
+          "requirement": "the opening must be observed before activation",
+          "passed": false,
+          "evidence": "The preview observation cannot establish the required activation condition."
+        }
+      ],
+      "counterexamples": [
+        {
+          "requirement": "a valid action witness reaches completion",
+          "actions": [
+            "move:relay"
+          ],
+          "reason": "No bounded state path reaches completion."
+        },
+        {
+          "requirement": "the opening must be observed before activation",
+          "actions": [
+            "move:relay"
+          ],
+          "reason": "The preview observation cannot establish the required activation condition."
+        },
+        {
+          "requirement": "reachable-state-cannot-complete",
+          "actions": [
+            "move:relay"
+          ],
+          "reason": "A reachable fixed experiment state has no path to completion."
+        }
+      ]
+    },
+    "replayLabel": "Completing witness",
+    "modelState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    }
+  }
+]

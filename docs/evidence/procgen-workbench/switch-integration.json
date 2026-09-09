@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-09-09T03:47:14.435Z",
+  "scope": "Debug-assisted teleport/proximity/mesh transition; NOT physical walking or native-input evidence",
+  "setupNote": "Earlier probe incorrectly teleported the character center to Y3.05, intersecting floorY3, and triggered Spatial.ProposeCharacterStep failure/runtime replacement. Correct probe uses centerY3.95, matching the ordinary standing controller pose.",
+  "evidence": [
+    {
+      "command": "craft.procgen.load procgen/workbench-11.json",
+      "status": 200,
+      "text": "queued load; read applied status before the next action"
+    },
+    {
+      "command": "craft.procgen.readout",
+      "status": 200,
+      "text": "{\"revision\":1,\"identity\":\"75b7ebe791cf1a1dc51cbb42b1f730aa2285ba4d0dc00acdd07e7112bd18d3ae\",\"source\":\"procgen/workbench-11.json\",\"seed\":\"11\",\"status\":\"applied\",\"error\":\"\",\"active\":true,\"mode\":\"inspection\",\"state\":{\"room\":\"start\",\"switchOpen\":false},\"physicalRoom\":\"passage / outside rooms\",\"physicalSwitchOpen\":false,\"legalActions\":[\"move:relay\"],\"witness\":[\"move:relay\",\"move:control\",\"activate\",\"move:goal\"],\"cursor\":0,\"completed\":false,\"rooms\":[{\"id\":\"start\",\"minimum\":{\"x\":-4,\"y\":3,\"z\":-4},\"maximum\":{\"x\":4,\"y\":7,\"z\":4}},{\"id\":\"relay\",\"minimum\":{\"x\":9,\"y\":3,\"z\":-4},\"maximum\":{\"x\":17,\"y\":7,\"z\":4}},{\"id\":\"control\",\"minimum\":{\"x\":9,\"y\":3,\"z\":10},\"maximum\":{\"x\":17,\"y\":7,\"z\":18}},{\"id\":\"goal\",\"minimum\":{\"x\":-4,\"y\":3,\"z\":10},\"maximum\":{\"x\":4,\"y\":7,\"z\":18}}],\"routes\":[{\"id\":\"start-relay\",\"from\":\"start\",\"to\":\"relay\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"relay-control\",\"from\":\"relay\",\"to\":\"control\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"control-goal\",\"from\":\"control\",\"to\":\"goal\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"goal-start\",\"from\":\"goal\",\"to\":\"start\",\"width\":3,\"requiresSwitch\":true}],\"checks\":{\"model\":\"legal completing witness: 4 actions; four-room two-state motif only\",\"routes\":\"27/27 clear mesh rays (pass)\",\"separations\":\"27/27 blocked mesh rays (pass); shortcut closed\",\"coverage\":\"Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate.\"},\"history\":[\"r1: load\"]}"
+    },
+    {
+      "command": "craft.player.teleport 14 3.95 14",
+      "status": 200,
+      "text": "player=14.000,3.950,14.000"
+    },
+    {
+      "command": "craft.procgen.use 1",
+      "status": 200,
+      "text": "queued use; read applied status before the next action"
+    },
+    {
+      "command": "craft.procgen.readout",
+      "status": 200,
+      "text": "{\"revision\":2,\"identity\":\"75b7ebe791cf1a1dc51cbb42b1f730aa2285ba4d0dc00acdd07e7112bd18d3ae\",\"source\":\"procgen/workbench-11.json\",\"seed\":\"11\",\"status\":\"applied\",\"error\":\"\",\"active\":true,\"mode\":\"walking\",\"state\":{\"room\":\"control\",\"switchOpen\":true},\"physicalRoom\":\"control\",\"physicalSwitchOpen\":true,\"legalActions\":[\"move:relay\",\"move:goal\"],\"witness\":[\"move:relay\",\"move:control\",\"activate\",\"move:goal\"],\"cursor\":0,\"completed\":false,\"rooms\":[{\"id\":\"start\",\"minimum\":{\"x\":-4,\"y\":3,\"z\":-4},\"maximum\":{\"x\":4,\"y\":7,\"z\":4}},{\"id\":\"relay\",\"minimum\":{\"x\":9,\"y\":3,\"z\":-4},\"maximum\":{\"x\":17,\"y\":7,\"z\":4}},{\"id\":\"control\",\"minimum\":{\"x\":9,\"y\":3,\"z\":10},\"maximum\":{\"x\":17,\"y\":7,\"z\":18}},{\"id\":\"goal\",\"minimum\":{\"x\":-4,\"y\":3,\"z\":10},\"maximum\":{\"x\":4,\"y\":7,\"z\":18}}],\"routes\":[{\"id\":\"start-relay\",\"from\":\"start\",\"to\":\"relay\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"relay-control\",\"from\":\"relay\",\"to\":\"control\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"control-goal\",\"from\":\"control\",\"to\":\"goal\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"goal-start\",\"from\":\"goal\",\"to\":\"start\",\"width\":3,\"requiresSwitch\":true}],\"checks\":{\"model\":\"legal completing witness: 4 actions; four-room two-state motif only\",\"routes\":\"36/36 clear mesh rays (pass)\",\"separations\":\"18/18 blocked mesh rays (pass); shortcut open\",\"coverage\":\"Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate.\"},\"history\":[\"r1: load\",\"r2: use\"]}"
+    },
+    {
+      "command": "craft.procgen.enter 2",
+      "status": 200,
+      "text": "queued enter; read applied status before the next action"
+    },
+    {
+      "command": "craft.procgen.readout",
+      "status": 200,
+      "text": "{\"revision\":3,\"identity\":\"75b7ebe791cf1a1dc51cbb42b1f730aa2285ba4d0dc00acdd07e7112bd18d3ae\",\"source\":\"procgen/workbench-11.json\",\"seed\":\"11\",\"status\":\"applied\",\"error\":\"\",\"active\":true,\"mode\":\"walking\",\"state\":{\"room\":\"start\",\"switchOpen\":false},\"physicalRoom\":\"start\",\"physicalSwitchOpen\":false,\"legalActions\":[\"move:relay\"],\"witness\":[\"move:relay\",\"move:control\",\"activate\",\"move:goal\"],\"cursor\":0,\"completed\":false,\"rooms\":[{\"id\":\"start\",\"minimum\":{\"x\":-4,\"y\":3,\"z\":-4},\"maximum\":{\"x\":4,\"y\":7,\"z\":4}},{\"id\":\"relay\",\"minimum\":{\"x\":9,\"y\":3,\"z\":-4},\"maximum\":{\"x\":17,\"y\":7,\"z\":4}},{\"id\":\"control\",\"minimum\":{\"x\":9,\"y\":3,\"z\":10},\"maximum\":{\"x\":17,\"y\":7,\"z\":18}},{\"id\":\"goal\",\"minimum\":{\"x\":-4,\"y\":3,\"z\":10},\"maximum\":{\"x\":4,\"y\":7,\"z\":18}}],\"routes\":[{\"id\":\"start-relay\",\"from\":\"start\",\"to\":\"relay\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"relay-control\",\"from\":\"relay\",\"to\":\"control\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"control-goal\",\"from\":\"control\",\"to\":\"goal\",\"width\":3,\"requiresSwitch\":false},{\"id\":\"goal-start\",\"from\":\"goal\",\"to\":\"start\",\"width\":3,\"requiresSwitch\":true}],\"checks\":{\"model\":\"legal completing witness: 4 actions; four-room two-state motif only\",\"routes\":\"27/27 clear mesh rays (pass)\",\"separations\":\"27/27 blocked mesh rays (pass); shortcut closed\",\"coverage\":\"Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens the world gate.\"},\"history\":[\"r1: load\",\"r2: use\",\"r3: enter\"]}"
+    }
+  ]
+}

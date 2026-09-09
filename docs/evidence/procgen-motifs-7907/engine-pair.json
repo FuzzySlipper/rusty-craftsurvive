@@ -1,0 +1,28 @@
+{
+  "artifact": "rusty.engine.csharp-pair",
+  "schemaVersion": 1,
+  "target": "linux-x64",
+  "sourceRevision": "cda0274a1f6de41bca51b035c97eaa7b6adbef09",
+  "package": {
+    "id": "Rusty.Engine",
+    "version": "0.1.0-dev.cda0274a1f6d",
+    "path": "sdk-feed/Rusty.Engine.0.1.0-dev.cda0274a1f6d.nupkg",
+    "repositoryType": "git",
+    "repositoryUrl": "https://github.com/FuzzySlipper/rusty-engine.git",
+    "repositoryCommit": "cda0274a1f6de41bca51b035c97eaa7b6adbef09",
+    "sdkBuildIdentity": "rusty-engine-sdk/v1",
+    "protocolVersion": 1,
+    "fingerprint": "145406c3ff0a11f7b147d8854341b2a538f93c219df4fd710993e05065d85ad6"
+  },
+  "runtime": {
+    "path": "runtime-pack",
+    "sourceRevision": "cda0274a1f6de41bca51b035c97eaa7b6adbef09",
+    "abi": {
+      "buildIdentity": "rusty-engine-host/v1",
+      "engineApiBytes": 3128,
+      "fingerprint": "145406c3ff0a11f7b147d8854341b2a538f93c219df4fd710993e05065d85ad6",
+      "productApiBytes": 144,
+      "protocolVersion": 1
+    }
+  }
+}

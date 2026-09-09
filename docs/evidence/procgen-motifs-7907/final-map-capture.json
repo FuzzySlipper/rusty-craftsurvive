@@ -1,0 +1,341 @@
+{
+  "application_renderer": "unavailable",
+  "capture_id": "e28c38db-6448-4ed3-843c-caa3c5cda697",
+  "engine_presentation": {
+    "available": true,
+    "command": "engine.renderer.presentation",
+    "completed_at": "2026-09-09T08:28:00.174308046Z",
+    "evidence_path": "/home/agent/.local/state/crew-playtest/presentation-c97fd0ca-39bd-4195-872b-7eb89560226a.json",
+    "facts": {
+      "available": true,
+      "captureCorrelation": "unavailable",
+      "observationAgeMs": 433,
+      "observationRuntime": {
+        "controlRevision": "1",
+        "generation": "1",
+        "instanceId": "3994208"
+      },
+      "presentation": {
+        "captureCorrelation": "unavailable",
+        "gpuCompletion": "unavailable",
+        "pendingRealizations": 0,
+        "realizedPublicationFrontiers": [
+          {
+            "revision": 177,
+            "stream": "presentation-world"
+          }
+        ],
+        "realizedViewRevision": 2881,
+        "state": "submitted",
+        "submitted": {
+          "fallbackCamera": {
+            "pose": {
+              "pitchDegrees": 0,
+              "position": [
+                0,
+                1.62,
+                8
+              ],
+              "yawDegrees": 0
+            },
+            "projection": {
+              "far": 100,
+              "fovYDegrees": 55,
+              "near": 0.1
+            }
+          },
+          "publicationFrontiers": [
+            {
+              "revision": 177,
+              "stream": "presentation-world"
+            }
+          ],
+          "renderSequence": 3699,
+          "resources": {
+            "materialFallbackCount": 0,
+            "spriteFallbackCount": 0
+          },
+          "sourceTimeMs": 66417.16,
+          "viewRevision": 2881,
+          "viewport": {
+            "backingHeight": 720,
+            "backingWidth": 1280,
+            "cssHeight": 720,
+            "cssWidth": 1280
+          },
+          "views": {
+            "cameras": [
+              {
+                "id": "csharp-camera-1",
+                "pose": {
+                  "pitchDegrees": 0,
+                  "position": [
+                    -1.835536675614524e-16,
+                    4.580999374389648,
+                    4.0133001941418612e-22
+                  ],
+                  "yawDegrees": -180.00000500895632
+                },
+                "projection": {
+                  "far": 1000,
+                  "fovYDegrees": 70,
+                  "kind": "perspective",
+                  "near": 0.05
+                }
+              }
+            ],
+            "presentations": [],
+            "resources": {
+              "presentationCount": 0,
+              "targetCount": 0
+            },
+            "revision": 2881,
+            "schemaVersion": 1,
+            "targets": [],
+            "views": [
+              {
+                "cameraId": "csharp-camera-1",
+                "id": "csharp-view-0",
+                "order": 0,
+                "target": {
+                  "kind": "primary"
+                },
+                "viewport": {
+                  "height": 1,
+                  "width": 1,
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ]
+          }
+        },
+        "surfaceId": "bbae7d89-2267-4c1b-a864-a0713649dd8a"
+      },
+      "runtime": {
+        "controlRevision": "1",
+        "generation": "1",
+        "instanceId": "3994208"
+      },
+      "schemaVersion": 1,
+      "worldReadiness": "unavailable"
+    },
+    "frame_correlation": "unavailable",
+    "http_status": 200,
+    "observation_completed_at": "2026-09-09T08:28:00.180067347Z",
+    "observation_requested_at": "2026-09-09T08:28:00.165384761Z",
+    "origin": "http://192.168.1.22:37300",
+    "query_id": "c97fd0ca-39bd-4195-872b-7eb89560226a",
+    "raw_result": "{\n  \"available\": true,\n  \"captureCorrelation\": \"unavailable\",\n  \"observationAgeMs\": 433,\n  \"observationRuntime\": {\n    \"controlRevision\": \"1\",\n    \"generation\": \"1\",\n    \"instanceId\": \"3994208\"\n  },\n  \"presentation\": {\n    \"captureCorrelation\": \"unavailable\",\n    \"gpuCompletion\": \"unavailable\",\n    \"pendingRealizations\": 0,\n    \"realizedPublicationFrontiers\": [\n      {\n        \"revision\": 177,\n        \"stream\": \"presentation-world\"\n      }\n    ],\n    \"realizedViewRevision\": 2881,\n    \"state\": \"submitted\",\n    \"submitted\": {\n      \"fallbackCamera\": {\n        \"pose\": {\n          \"pitchDegrees\": 0,\n          \"position\": [\n            0,\n            1.62,\n            8\n          ],\n          \"yawDegrees\": 0\n        },\n        \"projection\": {\n          \"far\": 100,\n          \"fovYDegrees\": 55,\n          \"near\": 0.1\n        }\n      },\n      \"publicationFrontiers\": [\n        {\n          \"revision\": 177,\n          \"stream\": \"presentation-world\"\n        }\n      ],\n      \"renderSequence\": 3699,\n      \"resources\": {\n        \"materialFallbackCount\": 0,\n        \"spriteFallbackCount\": 0\n      },\n      \"sourceTimeMs\": 66417.16,\n      \"viewRevision\": 2881,\n      \"viewport\": {\n        \"backingHeight\": 720,\n        \"backingWidth\": 1280,\n        \"cssHeight\": 720,\n        \"cssWidth\": 1280\n      },\n      \"views\": {\n        \"cameras\": [\n          {\n            \"id\": \"csharp-camera-1\",\n            \"pose\": {\n              \"pitchDegrees\": 0,\n              \"position\": [\n                -1.835536675614524e-16,\n                4.580999374389648,\n                4.0133001941418612e-22\n              ],\n              \"yawDegrees\": -180.00000500895632\n            },\n            \"projection\": {\n              \"far\": 1000,\n              \"fovYDegrees\": 70,\n              \"kind\": \"perspective\",\n              \"near\": 0.05\n            }\n          }\n        ],\n        \"presentations\": [],\n        \"resources\": {\n          \"presentationCount\": 0,\n          \"targetCount\": 0\n        },\n        \"revision\": 2881,\n        \"schemaVersion\": 1,\n        \"targets\": [],\n        \"views\": [\n          {\n            \"cameraId\": \"csharp-camera-1\",\n            \"id\": \"csharp-view-0\",\n            \"order\": 0,\n            \"target\": {\n              \"kind\": \"primary\"\n            },\n            \"viewport\": {\n              \"height\": 1,\n              \"width\": 1,\n              \"x\": 0,\n              \"y\": 0\n            }\n          }\n        ]\n      }\n    },\n    \"surfaceId\": \"bbae7d89-2267-4c1b-a864-a0713649dd8a\"\n  },\n  \"runtime\": {\n    \"controlRevision\": \"1\",\n    \"generation\": \"1\",\n    \"instanceId\": \"3994208\"\n  },\n  \"schemaVersion\": 1,\n  \"worldReadiness\": \"unavailable\"\n}",
+    "requested_at": "2026-09-09T08:28:00.167322361Z",
+    "session_id": "a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+    "source": "Engine browser feedback; separate from screenshot"
+  },
+  "engine_presentation_state": "submitted",
+  "engine_readiness": "unavailable",
+  "frame_correlation": "unavailable",
+  "gpu_completion": "unavailable",
+  "hardware_acceleration": "unavailable",
+  "label": "final-served-expanded-preview-map",
+  "metadata_path": "/home/agent/.local/state/crew-playtest/capture-e28c38db-6448-4ed3-843c-caa3c5cda697.json",
+  "observation": {
+    "artifact_id": "612cb3b6-d8a5-4c5c-8a46-508f5dc04a06",
+    "capture_ended_at_ns": 1788942480456882770,
+    "capture_started_at_ns": 1788942480363099159,
+    "event": "observation",
+    "frame_freshness": "not measured",
+    "game_frame_id": null,
+    "game_readiness": "unknown",
+    "height": 720,
+    "lease_id": "a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+    "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/a5f7410a-20d7-428f-b0b8-65c80ed9d9ef/612cb3b6-d8a5-4c5c-8a46-508f5dc04a06.png",
+    "source": "remote Wolf stream decoded by Moonlight into private X11 window",
+    "target": {
+      "last_input": {
+        "action_id": "065fab5c-730f-48e6-8540-8770a6bdeb8c",
+        "backend": "wolf-input-api",
+        "cancelled": false,
+        "completed_steps": 18,
+        "elapsed_ms": 3539,
+        "ended_at": "2026-09-09T08:28:00Z",
+        "event": "input",
+        "lease_id": "a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+        "release_errors": [],
+        "started_at": "2026-09-09T08:27:56Z",
+        "steps": [
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              40
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              40
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              13
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "kind": "wait",
+            "ms": 1200
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              13
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "kind": "wait",
+            "ms": 1200
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              9
+            ],
+            "kind": "hold",
+            "ms": 70
+          },
+          {
+            "keys": [
+              13
+            ],
+            "kind": "hold",
+            "ms": 70
+          }
+        ],
+        "time": "2026-09-09T08:28:00Z"
+      },
+      "last_release": {
+        "errors": [],
+        "event": "release",
+        "lease_id": "88f76e45-e62a-484e-beb5-80dccca058a5",
+        "reason": "requested",
+        "released": true,
+        "time": "2026-09-09T08:26:28Z"
+      },
+      "lease": {
+        "baseline_lobbies": [],
+        "client_id": "7411603768457197485",
+        "expires_at": 1788942780.333803,
+        "firefox_launch_name": "Firefox playtest a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+        "firefox_lobby_id": "7da302e8-b258-4cb8-854a-0b6e5825eb38",
+        "gamepad": true,
+        "id": "a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+        "lobbies": [
+          "7da302e8-b258-4cb8-854a-0b6e5825eb38"
+        ],
+        "ttl_seconds": 300
+      },
+      "lobbies": [
+        {
+          "connected_sessions": [
+            "7411603768457197485"
+          ],
+          "id": "7da302e8-b258-4cb8-854a-0b6e5825eb38",
+          "name": "Firefox playtest a5f7410a-20d7-428f-b0b8-65c80ed9d9ef"
+        }
+      ],
+      "sessions": [
+        {
+          "app_id": "134906179",
+          "client_id": "7411603768457197485",
+          "video_height": 720,
+          "video_refresh_rate": 30,
+          "video_width": 1280
+        }
+      ],
+      "target_time": "2026-09-09T08:28:00Z"
+    },
+    "width": 1280
+  },
+  "overlay_policy": "preserve",
+  "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/a5f7410a-20d7-428f-b0b8-65c80ed9d9ef/612cb3b6-d8a5-4c5c-8a46-508f5dc04a06.png",
+  "recorded_at": "2026-09-09T08:28:00.489095827Z",
+  "session_id": "a5f7410a-20d7-428f-b0b8-65c80ed9d9ef",
+  "supplied_assistance": [
+    "native keyboard navigation; known sample"
+  ],
+  "supplied_metadata_source": "caller; not independently verified",
+  "supplied_viewpoint": null
+}

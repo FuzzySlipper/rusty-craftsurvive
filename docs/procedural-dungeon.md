@@ -149,7 +149,7 @@ and Engine CI passed. The Engine pair was verified and published together.
 
 ### Worker delivery follow-up — Engine #7894
 
-The current installed pair is `0.1.0-dev.94490b482f96`. Timing observations now
+The current installed pair is `0.1.0-dev.cda0274a1f6d`. Timing observations now
 wait behind their associated worker output, and reconnect history retains whole
 publications so a later progress pulse cannot truncate a large mesh transfer.
 The earlier captured warnings above remain historical evidence; the follow-up

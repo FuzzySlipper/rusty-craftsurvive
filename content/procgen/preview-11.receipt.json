@@ -1,0 +1,12 @@
+{
+  "kind": "craftsurvive_procgen.csharp_receipt.v1",
+  "command": "generate-workbench",
+  "accepted": true,
+  "exitCode": 0,
+  "requestHash": "f5cbf46f5c5267ced47f329b16a7e6f01b2f87354b724ad82e53bb6f5be80788",
+  "resultHash": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+  "resultPath": "/home/dev/rusty-craftsurvive/content/procgen/preview-11.json",
+  "receiptPath": "/home/dev/rusty-craftsurvive/content/procgen/preview-11.receipt.json",
+  "resultIdentity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+  "rejection": null
+}

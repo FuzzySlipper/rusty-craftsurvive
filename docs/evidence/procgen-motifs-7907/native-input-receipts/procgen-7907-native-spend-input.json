@@ -1,0 +1,108 @@
+{
+  "action_id": "0139287f-7564-429b-9278-b00814b2020c",
+  "backend": "wolf-input-api",
+  "cancelled": false,
+  "completed_steps": 12,
+  "elapsed_ms": 3428,
+  "ended_at": "2026-09-09T08:19:57Z",
+  "event": "input",
+  "input_delivery": {
+    "backend": "wolf-input-api",
+    "completed_steps": 12,
+    "game_consumption": "unknown",
+    "outcome": "target-reported",
+    "requested_steps": 12,
+    "state": "target-reported"
+  },
+  "lease_id": "88f76e45-e62a-484e-beb5-80dccca058a5",
+  "pointer_lock": {
+    "backend": "wolf-input-api",
+    "observability": "unavailable",
+    "reason": "the native Wolf target exposes no browser pointer-lock readback",
+    "state": "unknown"
+  },
+  "release_errors": [],
+  "started_at": "2026-09-09T08:19:54Z",
+  "steps": [
+    {
+      "keys": [
+        16,
+        9
+      ],
+      "kind": "hold",
+      "ms": 80
+    },
+    {
+      "keys": [
+        16,
+        9
+      ],
+      "kind": "hold",
+      "ms": 80
+    },
+    {
+      "keys": [
+        16,
+        9
+      ],
+      "kind": "hold",
+      "ms": 80
+    },
+    {
+      "keys": [
+        16,
+        9
+      ],
+      "kind": "hold",
+      "ms": 80
+    },
+    {
+      "keys": [
+        16,
+        9
+      ],
+      "kind": "hold",
+      "ms": 80
+    },
+    {
+      "keys": [
+        13
+      ],
+      "kind": "hold",
+      "ms": 100
+    },
+    {
+      "height": 720,
+      "kind": "point",
+      "width": 1280,
+      "x": 950,
+      "y": 450
+    },
+    {
+      "kind": "wait",
+      "ms": 200
+    },
+    {
+      "button": 1,
+      "kind": "click",
+      "ms": 100
+    },
+    {
+      "kind": "gamepad",
+      "ly": 1,
+      "ms": 2000
+    },
+    {
+      "buttons": [
+        "y"
+      ],
+      "kind": "gamepad",
+      "ms": 100
+    },
+    {
+      "kind": "wait",
+      "ms": 500
+    }
+  ],
+  "time": "2026-09-09T08:19:57Z"
+}

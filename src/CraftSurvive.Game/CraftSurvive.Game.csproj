@@ -7,7 +7,7 @@
     <!-- This is an ordinary product project. The SDK generates the CoreCLR
          and NativeAOT composition below obj; no checked bridge project or
          Engine source tree is part of the normal product build. -->
-    <RustyEngineSdkPackageVersion>0.1.0-dev.94490b482f96</RustyEngineSdkPackageVersion>
+    <RustyEngineSdkPackageVersion>0.1.0-dev.cda0274a1f6d</RustyEngineSdkPackageVersion>
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
     <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
     <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>
@@ -21,11 +21,12 @@
     <RustyEngineProductFixedStepMaxCatchUpSteps>4</RustyEngineProductFixedStepMaxCatchUpSteps>
     <!-- Watch authored inputs, rather than the generated UI output that the
          staging target consumes. -->
-    <RustyEngineWatchPaths>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../CraftSurvive.Procgen'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineWatchPaths>
+    <RustyEngineWatchPaths>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../CraftSurvive.Procgen'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../CraftSurvive.Procgen.Artifacts'));$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineWatchPaths>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../CraftSurvive.Procgen/CraftSurvive.Procgen.csproj" />
+    <ProjectReference Include="../CraftSurvive.Procgen.Artifacts/CraftSurvive.Procgen.Artifacts.csproj" />
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEngineSdkPackageVersion)]">
       <!-- The package is the default. The explicit Engine contributor
            override supplies the same assembly directly and must therefore
@@ -44,6 +45,9 @@
     <RustyEngineProductInputIntent Include="craftsurvive.edit.primary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.edit.secondary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.impulse" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.workbench.use" Value="digital" />
+    <RustyEngineProductInputMapping Include="craftsurvive.workbench.use.key-e" Intent="craftsurvive.workbench.use" Trigger="key:key-e:pressed" />
+    <RustyEngineProductInputMapping Include="craftsurvive.workbench.use.controller-y" Intent="craftsurvive.workbench.use" Trigger="controller-button:button-3:pressed" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-x" Value="axis" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-y" Value="axis" />
     <RustyEngineProductInputIntent Include="craftsurvive.look.analog-x" Value="axis" />

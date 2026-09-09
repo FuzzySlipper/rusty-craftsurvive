@@ -5,6 +5,7 @@ using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Microvoxels;
 using CraftSurvive.Game.Modules.GhostPlate;
 using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.LevelGeneration;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
@@ -24,6 +25,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly SkyBackground sky;
     private readonly EntityWorldDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
+    private readonly ProcgenWorkbench workbench;
+    private readonly ProcgenDebugModule procgenDebug;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
@@ -31,6 +34,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         engine = context.Engine;
         terrain = new TerrainWorld(context.Engine, TerrainConfiguration.Default);
         player = new PlayerController(context.Engine, terrain);
+        workbench = new ProcgenWorkbench(engine, context.Content, terrain, player);
+        procgenDebug = new ProcgenDebugModule(workbench);
         microvoxels = new MicrovoxelPresentation(
             context.Engine,
             context.Content,
@@ -55,6 +60,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
+        RequireRegistration(registrar.Register(procgenDebug));
     }
 
     public void Start()
@@ -117,6 +123,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         terrain.UpdateCourtyard();
+        workbench.Update(update);
         player.Update(update);
         // Publish the complete source fact at its queued transform before the
         // retained ghost operation observes the same desired placement.

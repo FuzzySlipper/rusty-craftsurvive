@@ -1,5 +1,8 @@
 # Procedural cave levels
 
+For offline resolved-candidate inspection and the stateful return-shortcut
+experiment, see [Procgen workbench](procgen-workbench.md).
+
 For the larger twelve-room architectural test, see [Enclosed dungeon test](procedural-dungeon.md).
 
 CraftSurvive now combines level and aesthetic experiments. Select **Generated

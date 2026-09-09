@@ -1,0 +1,12 @@
+{
+  "kind": "craftsurvive_procgen.csharp_receipt.v1",
+  "command": "generate-workbench",
+  "accepted": true,
+  "exitCode": 0,
+  "requestHash": "2d4b83f6de83848065b939a21121154cc7dae3942bf0d3be873086c99f936dd5",
+  "resultHash": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede",
+  "resultPath": "/home/dev/rusty-craftsurvive/content/procgen/workbench-failure-11.json",
+  "receiptPath": "/home/dev/rusty-craftsurvive/content/procgen/workbench-failure-11.receipt.json",
+  "resultIdentity": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede",
+  "rejection": null
+}

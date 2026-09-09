@@ -6,6 +6,7 @@ import {
   type LiveDebugResult,
   type LiveDebugTransport,
 } from '@rusty-engine/live-debug';
+import { mountProcgenWorkbench } from './workbench.js';
 
 const READOUT_INTERVAL_MS = 750;
 const PRESETS = ['accepted', 'current', 'wide', 'strict', 'scene-lighting'];
@@ -109,10 +110,11 @@ export function mountProductUi(root: Element): Readonly<{ dispose(): void }> {
     });
   });
   const courtyard = mountCourtyardControls(panel, transport);
+  const workbench = mountProcgenWorkbench(panel, transport);
   const ghost = mountGhostSettings(panel, transport);
   root.append(panel);
   return Object.freeze({ dispose: () => {
-    disposed = true; courtyard.dispose(); ghost.dispose(); debugPanel?.dispose(); metrics.dispose(); panel.remove();
+    disposed = true; courtyard.dispose(); workbench.dispose(); ghost.dispose(); debugPanel?.dispose(); metrics.dispose(); panel.remove();
   } });
 }
 

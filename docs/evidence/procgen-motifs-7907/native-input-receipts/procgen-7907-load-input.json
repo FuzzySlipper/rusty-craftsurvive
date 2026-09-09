@@ -1,0 +1,64 @@
+{
+  "action_id": "e53b7911-edf6-42ee-bffc-a1e9328c0a69",
+  "backend": "wolf-input-api",
+  "cancelled": false,
+  "completed_steps": 5,
+  "elapsed_ms": 506,
+  "ended_at": "2026-09-09T08:10:49Z",
+  "event": "input",
+  "input_delivery": {
+    "backend": "wolf-input-api",
+    "completed_steps": 5,
+    "game_consumption": "unknown",
+    "outcome": "target-reported",
+    "requested_steps": 5,
+    "state": "target-reported"
+  },
+  "lease_id": "88f76e45-e62a-484e-beb5-80dccca058a5",
+  "pointer_lock": {
+    "backend": "wolf-input-api",
+    "observability": "unavailable",
+    "reason": "the native Wolf target exposes no browser pointer-lock readback",
+    "state": "unknown"
+  },
+  "release_errors": [],
+  "started_at": "2026-09-09T08:10:48Z",
+  "steps": [
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 100
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 100
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 100
+    },
+    {
+      "keys": [
+        9
+      ],
+      "kind": "hold",
+      "ms": 100
+    },
+    {
+      "keys": [
+        13
+      ],
+      "kind": "hold",
+      "ms": 100
+    }
+  ],
+  "time": "2026-09-09T08:10:49Z"
+}

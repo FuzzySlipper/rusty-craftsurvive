@@ -87,6 +87,9 @@ internal sealed class TerrainWorld : IDisposable
     internal string QueueCourtyardMaterialBoundaries(string mode) => courtyard?.QueueMaterialBoundaries(mode) ?? "courtyard inactive";
     internal string QueueCourtyardMaterialCutoff(float cutoff) => courtyard?.QueueMaterialCutoff(cutoff) ?? "courtyard inactive";
     internal bool IsGeneratedLevel => courtyard?.IsGeneratedLevel == true;
+    internal CraftSurvive.Procgen.Workbench.WorkbenchCandidate? ActiveWorkbench => courtyard?.ActiveWorkbench;
+    internal void ApplyWorkbench(CraftSurvive.Procgen.Workbench.WorkbenchCandidate candidate, bool switchOpen) =>
+        (courtyard ?? throw new InvalidOperationException("Workbench requires the courtyard scene.")).ApplyWorkbench(candidate, switchOpen);
     internal string ReadCourtyardLevelPlan() => courtyard?.ReadLevelPlan() ?? "courtyard inactive";
     internal string QueueCourtyardSeed(ulong seed) => courtyard?.QueueSeed(seed) ?? "courtyard inactive";
     internal string QueueCourtyardStudy(string study) => courtyard?.QueueStudy(study) ?? "courtyard inactive";

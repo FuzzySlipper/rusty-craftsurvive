@@ -26,7 +26,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  runtime-pack-2574cc89fd30-gamepad2/  paired `rusty dev` runtime
+  pair-cda0274a1f6d/runtime-pack/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -46,8 +46,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/runtime-pack-2574cc89fd30-gamepad2/bin/rusty dev \
-  --runtime ./.runtime/runtime-pack-2574cc89fd30-gamepad2 \
+./.runtime/pair-cda0274a1f6d/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-cda0274a1f6d/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -56,8 +56,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/runtime-pack-2574cc89fd30-gamepad2/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.2574cc89fd30.gamepad1.nupkg` form one installed,
+`.runtime/pair-cda0274a1f6d/runtime-pack/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.cda0274a1f6d.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -66,7 +66,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/runtime-pack-2574cc89fd30-gamepad2/bin/rusty dev \
+./.runtime/pair-cda0274a1f6d/runtime-pack/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
