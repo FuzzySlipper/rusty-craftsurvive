@@ -6,6 +6,9 @@ namespace CraftSurvive.Game.Modules.Player;
 /// <summary>Named CraftSurvive player policy retained from the Rust donor.</summary>
 internal static class PlayerConstants
 {
+    // One 60 Hz sample of translation delay; orientation stays authoritative and immediate.
+    internal const double CameraPresentationDelaySeconds = 1d / 60d;
+
     internal const uint RuntimeComponentLocalId = 1U;
     internal const double InitialPitchDegrees = -20d;
 

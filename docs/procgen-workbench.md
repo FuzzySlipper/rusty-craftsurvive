@@ -109,7 +109,7 @@ clearance, jumping, climbing, terrain destruction or all bypasses. Switch change
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
-Current installed Engine pair: `0.1.0-dev.a6ac601db5b8`, downloaded as the published
+Current installed Engine pair: `0.1.0-dev.be140ba1ccd2`, downloaded as the published
 matched archive and verified with its checksum and pair verifier. Game and
 TerrainResidency pins, both host manifests and current setup instructions agree.
 No Engine source checkout is needed by the product.
@@ -168,7 +168,7 @@ training a learned generator or promising a universal intermediate format.
 
 ## Realtime pacing follow-up (#7917)
 
-Engine pair `0.1.0-dev.a6ac601db5b8` uses absolute worker deadlines instead of
+Engine pair `0.1.0-dev.a6ac601db5b8` introduced absolute worker deadlines instead of
 adding a full tick sleep after callback/output work. The fixed physics steps
 and input/publication authority remain unchanged. Native GPU-harness runs in
 `complex-29` measured about 54 Hz product publication before and about 60 Hz

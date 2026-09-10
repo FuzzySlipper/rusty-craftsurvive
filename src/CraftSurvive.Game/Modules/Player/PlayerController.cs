@@ -48,6 +48,7 @@ internal sealed class PlayerController : IDisposable
     private int lastInputEventCount;
     private int lastKeyEventCount;
     private int lastPointerEventCount;
+    private ulong totalPointerDeltaEventCount;
     private int lastControllerButtonEventCount;
     private int lastControllerAxisEventCount;
     private int lastClearEventCount;
@@ -65,6 +66,10 @@ internal sealed class PlayerController : IDisposable
     private CharacterStepReceipt? lastMovementStepReceipt;
     private Vector3 lastMovementPositionBefore;
     private Vector3 lastMovementPositionAfter;
+    private CameraInterpolation cameraInterpolation = CameraInterpolation.Position;
+    private double cameraSampleTimeSeconds;
+    private double cameraDelaySeconds = PlayerConstants.CameraPresentationDelaySeconds;
+    private bool cameraCut = true;
     private ulong cameraPublicationCount;
     private ulong lastCameraPublicationUpdate;
     private TerrainWorldEditResult? lastTerrainEdit;
@@ -127,6 +132,8 @@ internal sealed class PlayerController : IDisposable
         updateCount = checked(updateCount + 1UL);
         lastSimulationStep = update.Facts.SimulationStep;
         lastAdmittedStepCount = update.Facts.AdmittedStepCount;
+        cameraSampleTimeSeconds = (update.Facts.SimulationStep + update.Facts.AdmittedStepCount)
+            * update.Facts.FixedDeltaSeconds;
         CaptureInputEvents(update.Input);
         lastUpdatePositionBefore = playerLocal;
         float simulationDeltaSeconds = checked((float)(update.Facts.AdmittedStepCount * update.Facts.FixedDeltaSeconds));
@@ -224,7 +231,7 @@ internal sealed class PlayerController : IDisposable
             : string.Create(CultureInfo.InvariantCulture,
                 $"update={lastMovementUpdate};intent={Format(lastMovementInputFrame.PlanarIntent)};controllerSteps={lastMovementControllerStepCount};before={Format(lastMovementPositionBefore)};after={Format(lastMovementPositionAfter)};step=[{FormatStep(lastMovementStepReceipt)}]");
         return string.Create(CultureInfo.InvariantCulture,
-            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};controllerButtons={lastControllerButtonEventCount};controllerAxes={lastControllerAxisEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
+            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};totalPointerDeltas={totalPointerDeltaEventCount};controllerButtons={lastControllerButtonEventCount};controllerAxes={lastControllerAxisEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPresentation={cameraInterpolation};cameraDelaySeconds={cameraDelaySeconds};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -246,6 +253,7 @@ internal sealed class PlayerController : IDisposable
     internal PlayerRuntimeComponent Teleport(double x, double y, double z)
     {
         EnsureStarted();
+        cameraCut = true;
         playerGlobal = PlayerWorldPosition.FromWorld(x, y, z);
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         playerLocal = playerGlobal.ToLocal(origin);
@@ -339,6 +347,7 @@ internal sealed class PlayerController : IDisposable
                     break;
                 case InputEventKind.PointerDelta:
                     lastPointerEventCount++;
+                    totalPointerDeltaEventCount = checked(totalPointerDeltaEventCount + 1UL);
                     lastInputEvent = string.Create(CultureInfo.InvariantCulture,
                         $"pointer-delta:{inputEvent.X:F3},{inputEvent.Y:F3}");
                     break;
@@ -443,6 +452,7 @@ internal sealed class PlayerController : IDisposable
         }
 
         engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
+        cameraCut = true;
         playerLocal = player.LocalTransform.Translation;
         platformLocal = platform.LocalTransform.Translation;
         Vector3 localTranslation = playerLocal - playerBeforeRebase;
@@ -499,9 +509,29 @@ internal sealed class PlayerController : IDisposable
         new CameraViewport(PlayerConstants.CameraViewportOrigin, PlayerConstants.CameraViewportOrigin,
             PlayerConstants.CameraViewportExtent, PlayerConstants.CameraViewportExtent));
 
+    internal string SetCameraPresentation(string mode, double delaySeconds)
+    {
+        CameraInterpolation selected = mode.ToLowerInvariant() switch
+        {
+            "latest" => CameraInterpolation.Latest,
+            "position" => CameraInterpolation.Position,
+            "pose" => CameraInterpolation.Pose,
+            _ => throw new ArgumentException("Camera mode must be latest, position, or pose.", nameof(mode)),
+        };
+        if (!double.IsFinite(delaySeconds) || delaySeconds <= 0d)
+            throw new ArgumentOutOfRangeException(nameof(delaySeconds), "Delay must be finite and positive.");
+        cameraInterpolation = selected;
+        cameraDelaySeconds = delaySeconds;
+        cameraCut = true;
+        PublishCamera();
+        return FormattableString.Invariant($"cameraPresentation={selected};delaySeconds={delaySeconds}");
+    }
+
     private void PublishCamera()
     {
-        engine.CameraView.UpdateCamera(new CameraUpdateRequest(Camera, CreateCameraDescriptor()));
+        engine.CameraView.UpdateCameraSample(new CameraSampleRequest(Camera, CreateCameraDescriptor(),
+            cameraSampleTimeSeconds, cameraDelaySeconds, cameraInterpolation, cameraCut ? (byte)1 : (byte)0));
+        cameraCut = false;
         cameraPublicationCount = checked(cameraPublicationCount + 1UL);
         lastCameraPublicationUpdate = updateCount;
     }

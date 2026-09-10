@@ -26,7 +26,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  pair-a6ac601db5b8/runtime-pack/  paired `rusty dev` runtime
+  pair-be140ba1ccd2/runtime-pack/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -46,8 +46,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/pair-a6ac601db5b8/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-a6ac601db5b8/runtime-pack \
+./.runtime/pair-be140ba1ccd2/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-be140ba1ccd2/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -56,8 +56,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/pair-a6ac601db5b8/runtime-pack/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.a6ac601db5b8.nupkg` form one installed,
+`.runtime/pair-be140ba1ccd2/runtime-pack/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.be140ba1ccd2.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact.
 
@@ -66,7 +66,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/pair-a6ac601db5b8/runtime-pack/bin/rusty dev \
+./.runtime/pair-be140ba1ccd2/runtime-pack/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 

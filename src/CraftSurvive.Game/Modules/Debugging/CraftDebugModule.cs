@@ -136,6 +136,10 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}");
     }
 
+    [DebugCommand("craft.player.camera", Description = "Selects latest, position, or pose camera presentation and delay in seconds.")]
+    public string SetCameraPresentation(string mode, double delaySeconds)
+        => player.SetCameraPresentation(mode, delaySeconds);
+
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();
 
