@@ -109,7 +109,7 @@ clearance, jumping, climbing, terrain destruction or all bypasses. Switch change
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
-Current installed Engine pair: `0.1.0-dev.538724836d65`, downloaded as the published
+Current installed Engine pair: `0.1.0-dev.a6ac601db5b8`, downloaded as the published
 matched archive and verified with its checksum and pair verifier. Game and
 TerrainResidency pins, both host manifests and current setup instructions agree.
 No Engine source checkout is needed by the product.
@@ -165,3 +165,22 @@ training a learned generator or promising a universal intermediate format.
 - Deliberate deviations: no old Product/host import, historical fixture decoder,
   CA page parity or handwritten UI transport. This motif uses its own bounded
   state model; the donor's monotone reachability closure is not a general solver.
+
+## Realtime pacing follow-up (#7917)
+
+Engine pair `0.1.0-dev.a6ac601db5b8` uses absolute worker deadlines instead of
+adding a full tick sleep after callback/output work. The fixed physics steps
+and input/publication authority remain unchanged. Native GPU-harness runs in
+`complex-29` measured about 54 Hz product publication before and about 60 Hz
+after during look; look receipt intervals improved from 18 ms median to 17 ms.
+The after-look p95 was 18 ms, but combined walk/look still had 34 ms receipt
+and 35 ms applied p95 tails. Host observations stayed near 60 Hz and managed
+callback p95 was about 1.37 ms. These are bounded windows, not a claim that all
+hitching is fixed. Preliminary post-restart courtyard readings were excluded.
+
+Engine #7918 owns opt-in render-time camera presentation; #7919 owns remaining
+delivery-gap diagnosis. Renderer ran around 59 Hz with accelerated classification;
+GPU timer cost was unavailable in its completion-only mode. Native stream was
+30 Hz, so still captures do not certify motion smoothness. Evidence:
+`/home/agent/.codex/pacing-7917/`. Engine warning capture was complete with zero
+warnings/errors/drops; remote browser console remained unavailable.
