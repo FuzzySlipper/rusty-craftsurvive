@@ -1,0 +1,1007 @@
+[
+  {
+    "sample": "workbench-11",
+    "phase": "intact",
+    "candidateIdentity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "d4a137fb56c63a880696c20a58b3401886c129aa90ca25a64ae7ec117698877e",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=2; projectionHash=6992313455422849539; assets=3; instances=3; currentCollision=2; currentStaticMesh=2",
+      "stateIdentity": "8dd330bac55d5a9b64ab40bcd6e4f22ba5ec9b7fefd54743278f78f2053186d9"
+    },
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=2; parts=3; triangles=10506; vertices=8941; buildSeconds=0.094; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "workbench-11",
+    "phase": "breach",
+    "candidateIdentity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "9703ea7d2d38d976dae0c08c1f4269db9c34ba37e1281210c571c15199766036",
+      "treatment": "side-breach",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=3; projectionHash=4117505678854227339; assets=3; instances=3; currentCollision=3; currentStaticMesh=3",
+      "stateIdentity": "8dd330bac55d5a9b64ab40bcd6e4f22ba5ec9b7fefd54743278f78f2053186d9"
+    },
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=3; parts=3; triangles=10558; vertices=8976; buildSeconds=0.087; collision=generated-mesh-copy",
+      "realization": "FAIL: 34/38 scoped body checks; 4 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": [
+      {
+        "id": "goal-start/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      }
+    ]
+  },
+  {
+    "sample": "workbench-11",
+    "phase": "repair",
+    "candidateIdentity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "d4a137fb56c63a880696c20a58b3401886c129aa90ca25a64ae7ec117698877e",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=4; projectionHash=6992313455422849539; assets=3; instances=3; currentCollision=4; currentStaticMesh=4",
+      "stateIdentity": "8dd330bac55d5a9b64ab40bcd6e4f22ba5ec9b7fefd54743278f78f2053186d9"
+    },
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=4; parts=3; triangles=10506; vertices=8941; buildSeconds=0.085; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "workbench-11",
+    "phase": "open",
+    "candidateIdentity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+    "physicalState": {
+      "room": "control",
+      "switchOpen": true,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "a38c4282837142a60b55b33bc2e70fb2a62eca9a8ffb2290f11f11110498ec01",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "open",
+      "spatialRevision": "collision=5; projectionHash=8011422345214691699; assets=3; instances=3; currentCollision=5; currentStaticMesh=5",
+      "stateIdentity": "bb05a214e0a351a0aa30a06ae0f38912abca7ff94bb4bde592b2b3653798d503"
+    },
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "36/36 clear mesh rays (pass)",
+      "separations": "18/18 blocked mesh rays (pass); gates open; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=5; parts=3; triangles=10458; vertices=8829; buildSeconds=0.089; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "preview-11",
+    "phase": "intact",
+    "candidateIdentity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "1790c6baa0df1828ea0311bcbced880ccbe172dbfaf434d861cd8f9799583181",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=6; projectionHash=16740501564924859033; assets=4; instances=4; currentCollision=6; currentStaticMesh=6",
+      "stateIdentity": "4107f2a3ddc79b1eadad7a1333eb805835d8745a5f6a4765737da6079e057c6d"
+    },
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=6; parts=4; triangles=10678; vertices=9191; buildSeconds=0.083; collision=generated-mesh-copy",
+      "realization": "PASS: 48/48 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 48,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "preview-11",
+    "phase": "breach",
+    "candidateIdentity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "9bd30bd03824713aa971a8332714b17e451732ceee6407cf810587a7b083fded",
+      "treatment": "side-breach",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=7; projectionHash=13884288020113377825; assets=4; instances=4; currentCollision=7; currentStaticMesh=7",
+      "stateIdentity": "4107f2a3ddc79b1eadad7a1333eb805835d8745a5f6a4765737da6079e057c6d"
+    },
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=7; parts=4; triangles=10690; vertices=9198; buildSeconds=0.087; collision=generated-mesh-copy",
+      "realization": "FAIL: 44/48 scoped body checks; 4 failures; 0 unavailable",
+      "probeCount": 48,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": [
+      {
+        "id": "goal-start/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      }
+    ]
+  },
+  {
+    "sample": "preview-11",
+    "phase": "repair",
+    "candidateIdentity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "1790c6baa0df1828ea0311bcbced880ccbe172dbfaf434d861cd8f9799583181",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=8; projectionHash=16740501564924859033; assets=4; instances=4; currentCollision=8; currentStaticMesh=8",
+      "stateIdentity": "4107f2a3ddc79b1eadad7a1333eb805835d8745a5f6a4765737da6079e057c6d"
+    },
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=8; parts=4; triangles=10678; vertices=9191; buildSeconds=0.088; collision=generated-mesh-copy",
+      "realization": "PASS: 48/48 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 48,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "preview-11",
+    "phase": "open",
+    "candidateIdentity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "physicalState": {
+      "room": "control",
+      "switchOpen": true,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": true
+    },
+    "realization": {
+      "identity": "669f80abd90bd7d2def6f0728b6d338201a38b48a5eeec1e81ce40b09c1ca0dc",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "open",
+      "spatialRevision": "collision=9; projectionHash=14783005128307641877; assets=4; instances=4; currentCollision=9; currentStaticMesh=9",
+      "stateIdentity": "20be783810978cfc5b05e6d49b2356ff7f6b6ebe559f044c48c2acb040e846ae"
+    },
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "36/36 clear mesh rays (pass)",
+      "separations": "18/18 blocked mesh rays (pass); gates open; failures: ",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate already open; Enter checks before access",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=9; parts=4; triangles=10470; vertices=8859; buildSeconds=0.086; collision=generated-mesh-copy",
+      "realization": "PASS: 48/48 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 48,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "recovery-11",
+    "phase": "intact",
+    "candidateIdentity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "bdcfa7d7b575e43fac7f3776be4654b8a9899a6d766329002d9f2f1b31975fd6",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=10; projectionHash=13244746690046510524; assets=5; instances=5; currentCollision=10; currentStaticMesh=10",
+      "stateIdentity": "0e908e4ab402c44a234c0911f48790c97f3336ed84dc32814e8630d9c996a543"
+    },
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=10; parts=5; triangles=10530; vertices=8989; buildSeconds=0.082; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "recovery-11",
+    "phase": "breach",
+    "candidateIdentity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "c2fa2a1a4f380bfbcc7bec476d0145c57651fc96f70014d696ecd4f11bf89ac1",
+      "treatment": "side-breach",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=11; projectionHash=7427837695445748596; assets=5; instances=5; currentCollision=11; currentStaticMesh=11",
+      "stateIdentity": "0e908e4ab402c44a234c0911f48790c97f3336ed84dc32814e8630d9c996a543"
+    },
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=11; parts=5; triangles=10582; vertices=9024; buildSeconds=0.092; collision=generated-mesh-copy",
+      "realization": "FAIL: 34/38 scoped body checks; 4 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": [
+      {
+        "id": "goal-start/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "goal-start/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      }
+    ]
+  },
+  {
+    "sample": "recovery-11",
+    "phase": "repair",
+    "candidateIdentity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": true,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "bdcfa7d7b575e43fac7f3776be4654b8a9899a6d766329002d9f2f1b31975fd6",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=12; projectionHash=13244746690046510524; assets=5; instances=5; currentCollision=12; currentStaticMesh=12",
+      "stateIdentity": "0e908e4ab402c44a234c0911f48790c97f3336ed84dc32814e8630d9c996a543"
+    },
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=12; parts=5; triangles=10530; vertices=8989; buildSeconds=0.084; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "recovery-11",
+    "phase": "open",
+    "candidateIdentity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+    "physicalState": {
+      "room": "control",
+      "switchOpen": true,
+      "token": false,
+      "spent": true,
+      "recovered": true,
+      "observed": false
+    },
+    "realization": {
+      "identity": "ce173630366bb70b14d257a02f3e2a8d9eea904c3ca243cccc569774651083ca",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "open",
+      "spatialRevision": "collision=13; projectionHash=14221814241561100500; assets=5; instances=5; currentCollision=13; currentStaticMesh=13",
+      "stateIdentity": "8b4e6cf89c6465112ef99c13873db7bf3ccc8cf01575f5fa2766a860b8ee4217"
+    },
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "36/36 clear mesh rays (pass)",
+      "separations": "18/18 blocked mesh rays (pass); gates open; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=13; parts=5; triangles=10482; vertices=8877; buildSeconds=0.080; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "complex-29",
+    "phase": "intact",
+    "candidateIdentity": "bc5051a47e5bf97a2f636f8232765f956087c6da87da36d1ccc13fed44d567b7",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "cc91361f4bfafbc37cec570489f68ce300cbad5780a044cee922cce71a97a05a",
+      "treatment": "intact",
+      "breachRoute": "route-29-35",
+      "gateState": "closed",
+      "spatialRevision": "collision=14; projectionHash=18189233951001913227; assets=3; instances=3; currentCollision=14; currentStaticMesh=14",
+      "stateIdentity": "768685a06b518ac433456c20f98c306a9ba06466c211309d09e7b93a963d4953"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "369/369 clear mesh rays (pass)",
+      "separations": "171/171 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=14; parts=3; triangles=30544; vertices=32270; buildSeconds=0.956; collision=generated-mesh-copy",
+      "realization": "PASS: 340/340 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "complex-29",
+    "phase": "breach",
+    "candidateIdentity": "bc5051a47e5bf97a2f636f8232765f956087c6da87da36d1ccc13fed44d567b7",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "92dcbd3d53658f89456634253d13d57574ef771de225a3c87194acb77052b3f7",
+      "treatment": "side-breach",
+      "breachRoute": "route-29-35",
+      "gateState": "closed",
+      "spatialRevision": "collision=15; projectionHash=201672368853604587; assets=3; instances=3; currentCollision=15; currentStaticMesh=15",
+      "stateIdentity": "768685a06b518ac433456c20f98c306a9ba06466c211309d09e7b93a963d4953"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "369/369 clear mesh rays (pass)",
+      "separations": "171/171 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=15; parts=3; triangles=30548; vertices=32290; buildSeconds=0.986; collision=generated-mesh-copy",
+      "realization": "FAIL: 336/340 scoped body checks; 4 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": [
+      {
+        "id": "route-29-35/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 21
+        },
+        "to": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 35
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "route-29-35/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 35
+        },
+        "to": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 21
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "route-29-35/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 26.5
+        },
+        "to": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 29.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "route-29-35/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 29.5
+        },
+        "to": {
+          "x": 38.55,
+          "y": 3.955,
+          "z": 26.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      }
+    ]
+  },
+  {
+    "sample": "complex-29",
+    "phase": "repair",
+    "candidateIdentity": "bc5051a47e5bf97a2f636f8232765f956087c6da87da36d1ccc13fed44d567b7",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "cc91361f4bfafbc37cec570489f68ce300cbad5780a044cee922cce71a97a05a",
+      "treatment": "intact",
+      "breachRoute": "route-29-35",
+      "gateState": "closed",
+      "spatialRevision": "collision=16; projectionHash=18189233951001913227; assets=3; instances=3; currentCollision=16; currentStaticMesh=16",
+      "stateIdentity": "768685a06b518ac433456c20f98c306a9ba06466c211309d09e7b93a963d4953"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "369/369 clear mesh rays (pass)",
+      "separations": "171/171 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=16; parts=3; triangles=30544; vertices=32270; buildSeconds=0.933; collision=generated-mesh-copy",
+      "realization": "PASS: 340/340 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "complex-29",
+    "phase": "open",
+    "candidateIdentity": "bc5051a47e5bf97a2f636f8232765f956087c6da87da36d1ccc13fed44d567b7",
+    "physicalState": {
+      "room": "control",
+      "switchOpen": true,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "89bcfbbc06aa6d0846fee963fd965aef2d56f323eefa33ffacf57dacd1896bf9",
+      "treatment": "intact",
+      "breachRoute": "route-29-35",
+      "gateState": "open",
+      "spatialRevision": "collision=17; projectionHash=4105775868660764567; assets=3; instances=3; currentCollision=17; currentStaticMesh=17",
+      "stateIdentity": "6259dc029bc594fc3d54e1de7680cf9ab7b13d503143fcfce428e18f6b00fd96"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "405/405 clear mesh rays (pass)",
+      "separations": "135/135 blocked mesh rays (pass); gates open; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=17; parts=3; triangles=30276; vertices=31608; buildSeconds=0.853; collision=generated-mesh-copy",
+      "realization": "PASS: 340/340 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "complex-83",
+    "phase": "intact",
+    "candidateIdentity": "9764a5b589b7af8f97c635fa828d2609bf4f83115d7abc73ebc6ee90b0f7d842",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "49699a94578d329ef5c59b1b6a6e5c884e23df12187bb733e564666cc72930a5",
+      "treatment": "intact",
+      "breachRoute": "route-29-35",
+      "gateState": "closed",
+      "spatialRevision": "collision=18; projectionHash=15785662970363786075; assets=3; instances=3; currentCollision=18; currentStaticMesh=18",
+      "stateIdentity": "35f19bec750feac9c09686706c237a4331a4dcdac7066f854f52bcf958e78c79"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "369/369 clear mesh rays (pass)",
+      "separations": "171/171 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=18; parts=3; triangles=30730; vertices=32273; buildSeconds=0.974; collision=generated-mesh-copy",
+      "realization": "PASS: 340/340 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "complex-83",
+    "phase": "breach",
+    "candidateIdentity": "9764a5b589b7af8f97c635fa828d2609bf4f83115d7abc73ebc6ee90b0f7d842",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "f8051bd2dc7c5bbd8d14e060992e8a5be4582fd9ae34ac302b9de6c2c35edf11",
+      "treatment": "side-breach",
+      "breachRoute": "route-29-35",
+      "gateState": "closed",
+      "spatialRevision": "collision=19; projectionHash=3836747258672633475; assets=3; instances=3; currentCollision=19; currentStaticMesh=19",
+      "stateIdentity": "35f19bec750feac9c09686706c237a4331a4dcdac7066f854f52bcf958e78c79"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "369/369 clear mesh rays (pass)",
+      "separations": "171/171 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=19; parts=3; triangles=30806; vertices=32318; buildSeconds=0.985; collision=generated-mesh-copy",
+      "realization": "FAIL: 336/340 scoped body checks; 4 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": [
+      {
+        "id": "route-29-35/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 21
+        },
+        "to": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 35
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "route-29-35/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 35
+        },
+        "to": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 21
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "route-29-35/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 26.5
+        },
+        "to": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 29.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      },
+      {
+        "id": "route-29-35/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 29.5
+        },
+        "to": {
+          "x": 39.05,
+          "y": 3.955,
+          "z": 26.5
+        },
+        "expected": "blocked",
+        "observed": "clear",
+        "passed": false
+      }
+    ]
+  },
+  {
+    "sample": "complex-83",
+    "phase": "repair",
+    "candidateIdentity": "9764a5b589b7af8f97c635fa828d2609bf4f83115d7abc73ebc6ee90b0f7d842",
+    "physicalState": {
+      "room": "start",
+      "switchOpen": false,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "49699a94578d329ef5c59b1b6a6e5c884e23df12187bb733e564666cc72930a5",
+      "treatment": "intact",
+      "breachRoute": "route-29-35",
+      "gateState": "closed",
+      "spatialRevision": "collision=20; projectionHash=15785662970363786075; assets=3; instances=3; currentCollision=20; currentStaticMesh=20",
+      "stateIdentity": "35f19bec750feac9c09686706c237a4331a4dcdac7066f854f52bcf958e78c79"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "369/369 clear mesh rays (pass)",
+      "separations": "171/171 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=20; parts=3; triangles=30730; vertices=32273; buildSeconds=0.927; collision=generated-mesh-copy",
+      "realization": "PASS: 340/340 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": []
+  },
+  {
+    "sample": "complex-83",
+    "phase": "open",
+    "candidateIdentity": "9764a5b589b7af8f97c635fa828d2609bf4f83115d7abc73ebc6ee90b0f7d842",
+    "physicalState": {
+      "room": "control",
+      "switchOpen": true,
+      "token": false,
+      "spent": false,
+      "recovered": false,
+      "observed": false
+    },
+    "realization": {
+      "identity": "4a614ebdc9c36b4f0b703cdb2f312eb5d2f934e2481007c5cc9d65d8e5bea15f",
+      "treatment": "intact",
+      "breachRoute": "route-29-35",
+      "gateState": "open",
+      "spatialRevision": "collision=21; projectionHash=3650437283558450787; assets=3; instances=3; currentCollision=21; currentStaticMesh=21",
+      "stateIdentity": "7788b43753ac09efec2e1c0eb83684ae6c70940d3c9599cc69f156d315fda550"
+    },
+    "checks": {
+      "model": "PASS: completing witness 15 actions; 71 reachable states; 0 cannot complete",
+      "routes": "405/405 clear mesh rays (pass)",
+      "separations": "135/135 blocked mesh rays (pass); gates open; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=21; parts=3; triangles=30636; vertices=31642; buildSeconds=0.925; collision=generated-mesh-copy",
+      "realization": "PASS: 340/340 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 340,
+      "omittedProbes": 276
+    },
+    "nonpassingReportedProbes": []
+  }
+]

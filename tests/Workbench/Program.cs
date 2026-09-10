@@ -8,8 +8,63 @@ foreach (var motif in new[] { WorkbenchExperiment.CurrentMotif, WorkbenchExperim
 LargeMotifTests();
 CounterexamplesFailContracts();
 StrictCandidateJson();
+RealizationRequirements();
 
 Console.WriteLine("CraftSurvive workbench checks passed.");
+
+static void RealizationRequirements()
+{
+    var orientations = new HashSet<bool>();
+    foreach (string motif in new[] { WorkbenchExperiment.CurrentMotif, WorkbenchExperiment.RecoveryMotif,
+        WorkbenchExperiment.PreviewMotif, WorkbenchExperiment.LargeMotif })
+    foreach (ulong seed in new[] { 0UL, 1UL, 29UL, 83UL })
+    {
+        WorkbenchCandidate candidate = WorkbenchExperiment.Generate(seed, motif);
+        if (motif == WorkbenchExperiment.LargeMotif && seed == 0)
+        {
+            // An equally valid west-entry goal exercises the perpendicular cut.
+            string fixtureGateId = WorkbenchRealization.BreachRoute(candidate);
+            candidate = candidate with { Routes = candidate.Routes.Select(r => r.Id == fixtureGateId
+                ? new WorkbenchRoute("route-34-35", "r34", "goal", r.Width, true) : r).ToArray() };
+            True(WorkbenchExperiment.Validate(candidate).Length == 0, "west-entry fixture remains a valid candidate");
+        }
+        string identity = WorkbenchCandidateJson.Identity(candidate);
+        WorkbenchLayoutData intact = WorkbenchRealization.Resolve(candidate, WorkbenchRealization.Intact);
+        WorkbenchLayoutData breached = WorkbenchRealization.Resolve(candidate, WorkbenchRealization.SideBreach);
+        WorkbenchVolume aperture = breached.Volumes.Single(v => v.Kind == "breach");
+        True(intact.Volumes.All(v => v.Kind != "breach"), "intact realization has no fault geometry");
+        True(breached.Volumes.Length == intact.Volumes.Length + 1, "breach only adds one treatment aperture");
+        Equal(identity, WorkbenchCandidateJson.Identity(candidate), "treatment must not weaken intended candidate graph");
+        WorkbenchProbe[] closed = WorkbenchProbePlan.Create(candidate, false, 1.75f, 0.3f);
+        WorkbenchProbe[] open = WorkbenchProbePlan.Create(candidate, true, 1.75f, 0.3f);
+        True(closed.Select(p => p.Id).Distinct().Count() == closed.Length, "probe IDs must be unique");
+        True(closed.Length == open.Length && closed.Zip(open).All(pair => pair.First.Id == pair.Second.Id
+            && pair.First.From == pair.Second.From && pair.First.To == pair.Second.To), "state changes requirements, not sample positions");
+        True(closed.Where(p => p.Kind == "protected-gate").All(p => p.ExpectedBlocked)
+            && open.Where(p => p.Kind == "protected-gate").All(p => !p.ExpectedBlocked), "every gate is blocked before control and clear after control");
+        True(open.Where(p => p.Kind == "protected-separation").All(p => p.ExpectedBlocked), "ungated wall requirements survive control activation");
+        string target = WorkbenchRealization.BreachRoute(candidate);
+        WorkbenchVolume gate = intact.Volumes.Single(v => v.Id == target + "-gate");
+        WorkbenchRoute route = candidate.Routes.Single(r => r.Id == target);
+        WorkbenchPoint a = WorkbenchLayout.Center(candidate.Rooms.Single(r => r.Id == route.From));
+        WorkbenchPoint b = WorkbenchLayout.Center(candidate.Rooms.Single(r => r.Id == route.To));
+        bool alongX = a.X != b.X;
+        orientations.Add(alongX);
+        float center = alongX ? a.Z : a.X;
+        True((alongX ? aperture.Minimum.Z : aperture.Minimum.X) > center + 0.4f,
+            "deliberate side breach must evade the legacy center-biased +/-0.4 rays");
+        True(aperture.Minimum.Y == gate.Minimum.Y && aperture.Maximum.Y - aperture.Minimum.Y > 1.75f,
+            "side aperture must reach the floor and provide standing headroom");
+        True(closed.Any(p => p.Id.StartsWith(target + "/gate", StringComparison.Ordinal)
+            && (alongX ? p.From.Z > aperture.Minimum.Z + 0.3f && p.From.Z < aperture.Maximum.Z - 0.3f
+                : p.From.X > aperture.Minimum.X + 0.3f && p.From.X < aperture.Maximum.X - 0.3f)),
+            "intent-derived gate samples must include a standing body center inside the aperture");
+        Equal(System.Text.Json.JsonSerializer.Serialize(intact),
+            System.Text.Json.JsonSerializer.Serialize(WorkbenchRealization.Resolve(candidate, WorkbenchRealization.Intact)),
+            "repair returns identical intended geometry");
+    }
+    True(orientations.Count == 2, "treatment requirements exercise both gate orientations");
+}
 
 static void PositiveMotif(string motif)
 {

@@ -82,6 +82,8 @@ internal sealed class TerrainWorld : IDisposable
     internal void TranslateCourtyard(Vector3 delta) => courtyard?.Translate(delta);
     internal string QueueCourtyardShadows(bool enabled) => courtyard?.QueueShadows(enabled) ?? "courtyard inactive";
     internal string ReadWorkbenchBuild() => courtyard?.ReadWorkbenchBuild() ?? "courtyard inactive";
+    internal CollisionReplaceReceipt WorkbenchCollision =>
+        (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).CollisionReceipt;
     internal string ReadCourtyard() => courtyard?.Readout() ?? "courtyard inactive";
     internal string QueueCourtyardTreatment(string treatment) => courtyard?.QueueTreatment(treatment) ?? "courtyard inactive";
     internal string QueueCourtyardMasonry(string mode) => courtyard?.QueueMasonry(mode) ?? "courtyard inactive";
@@ -89,8 +91,8 @@ internal sealed class TerrainWorld : IDisposable
     internal string QueueCourtyardMaterialCutoff(float cutoff) => courtyard?.QueueMaterialCutoff(cutoff) ?? "courtyard inactive";
     internal bool IsGeneratedLevel => courtyard?.IsGeneratedLevel == true;
     internal CraftSurvive.Procgen.Workbench.WorkbenchCandidate? ActiveWorkbench => courtyard?.ActiveWorkbench;
-    internal void ApplyWorkbench(CraftSurvive.Procgen.Workbench.WorkbenchCandidate candidate, bool switchOpen) =>
-        (courtyard ?? throw new InvalidOperationException("Workbench requires the courtyard scene.")).ApplyWorkbench(candidate, switchOpen);
+    internal void ApplyWorkbench(CraftSurvive.Procgen.Workbench.WorkbenchCandidate candidate, bool switchOpen, string treatment = CraftSurvive.Procgen.Workbench.WorkbenchRealization.Intact) =>
+        (courtyard ?? throw new InvalidOperationException("Workbench requires the courtyard scene.")).ApplyWorkbench(candidate, switchOpen, treatment);
     internal string ReadCourtyardLevelPlan() => courtyard?.ReadLevelPlan() ?? "courtyard inactive";
     internal string QueueCourtyardSeed(ulong seed) => courtyard?.QueueSeed(seed) ?? "courtyard inactive";
     internal string QueueCourtyardStudy(string study) => courtyard?.QueueStudy(study) ?? "courtyard inactive";

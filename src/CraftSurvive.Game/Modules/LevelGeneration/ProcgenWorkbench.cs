@@ -2,6 +2,7 @@ using System.Numerics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Security.Cryptography;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Procgen.Artifacts;
@@ -28,7 +29,12 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
     private (string Action, string Argument)? pending;
     private const float UseDistance = 3f;
     private const int MaxHistory = 24;
+    private const int MaxReadoutProbes = 64;
     private const float SightTargetMargin = 0.5f;
+    private string treatment = WorkbenchRealization.Intact;
+    private WorkbenchProbeResult[] probes = [];
+    private string realizationSummary = "not run";
+    private string spatialRevision = "unavailable";
     internal bool Active => candidate is not null && ReferenceEquals(terrain.ActiveWorkbench, candidate);
 
     internal string QueueLoad(string path)
@@ -74,6 +80,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
                 case "counterexample": SelectTrace(true); break;
                 case "witness": SelectTrace(false); break;
                 case "use": Use(); break;
+                case "breach": Treat(WorkbenchRealization.SideBreach); break;
+                case "repair": Treat(WorkbenchRealization.Intact); break;
+                case "check": CheckRealization(); break;
                 default: throw new InvalidOperationException("Unknown workbench action.");
             }
             revision++;
@@ -104,6 +113,7 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         identity = nextIdentity;
         analysis = nextAnalysis;
         layout = nextLayout;
+        treatment = WorkbenchRealization.Intact;
         witness = nextAnalysis.Witness;
         replayLabel = "Completing witness";
         replay = WorkbenchExperiment.Initial(next);
@@ -120,7 +130,24 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
     private void Enter()
     {
         WorkbenchCandidate plan = RequireActive();
-        if (physical.SwitchOpen) terrain.ApplyWorkbench(plan, false);
+        if (physical.SwitchOpen) terrain.ApplyWorkbench(plan, false, treatment);
+        physical = WorkbenchExperiment.Initial(plan);
+        replay = WorkbenchExperiment.Initial(plan);
+        witness = analysis!.Witness;
+        replayLabel = "Completing witness";
+        cursor = 0;
+        mode = "walking";
+        PlaceAtEntrance(plan);
+        CheckRealization();
+    }
+
+    private void Treat(string nextTreatment)
+    {
+        WorkbenchCandidate plan = RequireActive();
+        WorkbenchLayoutData nextLayout = WorkbenchRealization.Resolve(plan, nextTreatment);
+        terrain.ApplyWorkbench(plan, false, nextTreatment);
+        treatment = nextTreatment;
+        layout = nextLayout;
         physical = WorkbenchExperiment.Initial(plan);
         replay = WorkbenchExperiment.Initial(plan);
         witness = analysis!.Witness;
@@ -188,7 +215,7 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         if (marker.Action == "observe" && !GoalVisibleFrom(player.WorldEyePosition))
             throw new InvalidOperationException("The goal is occluded from this lookout position; acknowledge it through the opening.");
         WorkbenchState after = WorkbenchExperiment.Apply(plan, before, marker.Action);
-        if (after.SwitchOpen != physical.SwitchOpen) terrain.ApplyWorkbench(plan, after.SwitchOpen);
+        if (after.SwitchOpen != physical.SwitchOpen) terrain.ApplyWorkbench(plan, after.SwitchOpen, treatment);
         physical = after;
         Record("physical: " + marker.Action);
         mode = "walking";
@@ -226,6 +253,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
 
     private void CheckRealization()
     {
+        probes = [];
+        realizationSummary = "unavailable";
+        spatialRevision = "unavailable";
         routes = separations = information = "not run";
         try
         {
@@ -251,7 +281,7 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
                 Probe(plan.Rooms.Single(r => r.Id == route.From), plan.Rooms.Single(r => r.Id == route.To), route.RequiresSwitch && !physical.SwitchOpen);
             for (int a = 0; a < plan.Rooms.Length; a++)
                 for (int b = a + 1; b < plan.Rooms.Length; b++)
-                    if ((plan.Motif != WorkbenchExperiment.LargeMotif || NeighboringGridRooms(plan, plan.Rooms[a], plan.Rooms[b]))
+                    if ((plan.Motif != WorkbenchExperiment.LargeMotif || WorkbenchProbePlan.NeighboringGridRooms(plan, plan.Rooms[a], plan.Rooms[b]))
                         && !plan.Routes.Any(r => (r.From == plan.Rooms[a].Id && r.To == plan.Rooms[b].Id)
                         || (r.To == plan.Rooms[a].Id && r.From == plan.Rooms[b].Id))) Probe(plan.Rooms[a], plan.Rooms[b], true);
             routes = $"{clear}/{clearTotal} clear mesh rays ({(clear == clearTotal ? "pass" : "FAIL")})";
@@ -271,18 +301,18 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
             else information = "No before-access sightline contract for this motif.";
         }
         catch (Exception failure) { information = $"unavailable: {failure.Message}"; }
-    }
-
-    private static bool NeighboringGridRooms(WorkbenchCandidate plan, WorkbenchRoom a, WorkbenchRoom b)
-    {
-        WorkbenchPoint from = WorkbenchLayout.Center(a), to = WorkbenchLayout.Center(b);
-        if (from.X != to.X && from.Z != to.Z) return false;
-        // Only a missing edge between consecutive rooms on a row/column is a
-        // protected wall. Distant collinear rooms may intentionally share a hall.
-        return !plan.Rooms.Any(r => r.Id != a.Id && r.Id != b.Id &&
-            (from.X == to.X
-                ? WorkbenchLayout.Center(r).X == from.X && WorkbenchLayout.Center(r).Z > MathF.Min(from.Z, to.Z) && WorkbenchLayout.Center(r).Z < MathF.Max(from.Z, to.Z)
-                : WorkbenchLayout.Center(r).Z == from.Z && WorkbenchLayout.Center(r).X > MathF.Min(from.X, to.X) && WorkbenchLayout.Center(r).X < MathF.Max(from.X, to.X)));
+        try
+        {
+            probes = WorkbenchSpatialChecks.Run(engine, terrain.Session, RequireActive(), physical.SwitchOpen);
+            SpatialProjectionReadout projection = engine.Spatial.ReadProjection(new(terrain.Session));
+            CollisionReplaceReceipt collision = terrain.WorkbenchCollision;
+            spatialRevision = FormattableString.Invariant($"collision={collision.RevisionAfter}; projectionHash={collision.ProjectionHash}; assets={collision.AssetCount}; instances={collision.InstanceCount}; currentCollision={projection.CollisionRevision}; currentStaticMesh={projection.StaticMeshRevision}");
+            if (projection.StaticMeshRevision != collision.RevisionAfter)
+                throw new InvalidOperationException("Collision projection changed since realization; checks are not bound to the current mesh.");
+            int failures = probes.Count(p => p.Passed == false), unknown = probes.Count(p => p.Passed is null);
+            realizationSummary = $"{(unknown > 0 ? "UNAVAILABLE" : failures > 0 ? "FAIL" : "PASS")}: {probes.Count(p => p.Passed == true)}/{probes.Length} scoped body checks; {failures} failures; {unknown} unavailable";
+        }
+        catch (Exception failure) { realizationSummary = "UNAVAILABLE: " + failure.Message; }
     }
 
     private void Record(string value)
@@ -303,18 +333,27 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
             legal, witness, cursor, Active && candidate is not null && WorkbenchExperiment.Complete(candidate, state),
             candidate?.Rooms ?? [], candidate?.Routes ?? [],
             new(analysis is null ? "not run" : $"{(analysis.Completable ? "PASS" : "FAIL")}: completing witness {analysis.Witness.Length} actions; {analysis.ReachableStates} reachable states; {analysis.UnrecoverableStates} cannot complete",
-                routes, separations, information, "Realized collision mesh: nine straight rays per route/separation. Not exhaustive navigation, capsule clearance, jump/climb/destruction, or proof of all bypasses. Model stepping never moves the player or opens world gates. Large-complex separations cover omitted neighboring grid edges, not arbitrary non-neighbor room pairs.", terrain.ReadWorkbenchBuild()), history.ToArray(), candidate?.Motif ?? "none", world,
-                new(player.WorldPosition.X, player.WorldPosition.Y, player.WorldPosition.Z), layout, analysis, replayLabel, replay ?? new("none", false));
+                routes, separations, information, WorkbenchSpatialChecks.Coverage, terrain.ReadWorkbenchBuild(), realizationSummary,
+                probes.OrderBy(p => p.Passed == false ? 0 : p.Passed is null ? 1 : 2).Take(MaxReadoutProbes).ToArray(),
+                probes.Length, Math.Max(0, probes.Length - MaxReadoutProbes)), history.ToArray(), candidate?.Motif ?? "none", world,
+                new(player.WorldPosition.X, player.WorldPosition.Y, player.WorldPosition.Z), layout, analysis, replayLabel, replay ?? new("none", false),
+                new(RealizationIdentity(), treatment, candidate is null ? "none" : WorkbenchRealization.BreachRoute(candidate), physical.SwitchOpen ? "open" : "closed", spatialRevision,
+                    Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"workbench-route-requirements.v1|{identity}|switch={physical.SwitchOpen}")))));
         return JsonSerializer.Serialize(result, WorkbenchUiJson.Default.WorkbenchReadout);
     }
+
+    private string RealizationIdentity() => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+        $"{WorkbenchRealization.RecipeVersion}|{identity}|{treatment}|{(physical.SwitchOpen ? "open" : "closed")}")));
 }
 
-internal sealed record WorkbenchChecks(string Model, string Routes, string Separations, string Information, string Coverage, string Build);
+internal sealed record WorkbenchRealizationReadout(string Identity, string Treatment, string BreachRoute, string GateState, string SpatialRevision, string StateIdentity);
+internal sealed record WorkbenchChecks(string Model, string Routes, string Separations, string Information, string Coverage, string Build,
+    string Realization, WorkbenchProbeResult[] Probes, int ProbeCount, int OmittedProbes);
 internal sealed record WorkbenchReadout(long Revision, string Identity, string Source, string Seed, string Status, string Error,
     bool Active, string Mode, WorkbenchState State, string PhysicalRoom, bool PhysicalSwitchOpen, string[] LegalActions,
     string[] Witness, int Cursor, bool Completed, WorkbenchRoom[] Rooms, WorkbenchRoute[] Routes, WorkbenchChecks Checks, string[] History,
     string Motif, WorkbenchState PhysicalState, WorkbenchPoint PlayerPosition, WorkbenchLayoutData Layout, WorkbenchAnalysis? Analysis, string ReplayLabel,
-    WorkbenchState ModelState);
+    WorkbenchState ModelState, WorkbenchRealizationReadout Realization);
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(WorkbenchReadout))]
 internal partial class WorkbenchUiJson : JsonSerializerContext;

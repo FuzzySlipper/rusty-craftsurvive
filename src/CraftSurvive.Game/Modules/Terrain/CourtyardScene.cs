@@ -13,7 +13,7 @@ internal readonly record struct CourtyardSettings(
     float CellSize, float CreaseDegrees, string Masonry = "layered",
     ImplicitMaterialBoundaryMode MaterialBoundaryMode = ImplicitMaterialBoundaryMode.Interpolated,
     float MaterialCutoff = 0f, string Study = "stoneworks", string Detail = "normal", float MaterialSampleSpacing = 0f,
-    WorkbenchCandidate? Workbench = null, bool SwitchOpen = false)
+    WorkbenchCandidate? Workbench = null, bool SwitchOpen = false, string WorkbenchTreatment = WorkbenchRealization.Intact)
 {
     internal static CourtyardSettings Default => new("soft", 24f, 3.4f, 0f, 0x4352414654UL, 0.20f, 110f);
 
@@ -56,6 +56,7 @@ internal sealed class CourtyardScene : IDisposable
     private ulong vertexCount;
     private uint correctionCount;
     private int generation;
+    private CollisionReplaceReceipt collisionReceipt;
     private double testGenerationSeconds;
 
     internal CourtyardScene(IEngineContext engine)
@@ -86,9 +87,11 @@ internal sealed class CourtyardScene : IDisposable
     internal string ReadWorkbenchBuild() => FormattableString.Invariant(
         $"generation={generation}; parts={parts.Count}; triangles={triangleCount}; vertices={vertexCount}; buildSeconds={generationSeconds:F3}; collision=generated-mesh-copy");
 
-    internal void ApplyWorkbench(WorkbenchCandidate candidate, bool switchOpen)
+    internal CollisionReplaceReceipt CollisionReceipt => collisionReceipt;
+
+    internal void ApplyWorkbench(WorkbenchCandidate candidate, bool switchOpen, string treatment = WorkbenchRealization.Intact)
     {
-        CourtyardSettings next = settings with { Study = "workbench", Workbench = candidate, SwitchOpen = switchOpen };
+        CourtyardSettings next = settings with { Study = "workbench", Workbench = candidate, SwitchOpen = switchOpen, WorkbenchTreatment = treatment };
         Build(next);
         settings = next;
         pending = null;
@@ -318,7 +321,7 @@ internal sealed class CourtyardScene : IDisposable
             {
                 WorkbenchRecipe.Compose(engine, stoneworksMaterials,
                     next.Workbench ?? throw new InvalidOperationException("No resolved workbench candidate."),
-                    next.SwitchOpen, surface => AddPart(surface, replacement));
+                    next.SwitchOpen, next.WorkbenchTreatment, surface => AddPart(surface, replacement));
             }
             else if (next.Study == "reference")
             {
@@ -357,7 +360,7 @@ internal sealed class CourtyardScene : IDisposable
                 FirstObjectId + (ulong)i, new MeshResourceReference(p.Mesh), 0, 0, 0, 0)).ToArray();
             StaticMeshInstance[] instances = replacement.Select((p, i) => new StaticMeshInstance(
                 FirstObjectId + (ulong)i, FirstObjectId + (ulong)i, p.Placement with { Translation = p.Placement.Translation + translation })).ToArray();
-            engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(spatial, assets,
+            collisionReceipt = engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(spatial, assets,
                 ReadOnlyMemory<Vector3>.Empty, ReadOnlyMemory<Triangle>.Empty, instances));
             retired.AddRange(parts);
             parts.Clear();

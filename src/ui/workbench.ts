@@ -1,5 +1,5 @@
 import type { LiveDebugTransport } from '@rusty-engine/live-debug';
-import { mountProcgenWorkbenchMap, type ProcgenReadout } from './workbench-map.js';
+import { mountProcgenWorkbenchMap, type ProcgenProbe, type ProcgenReadout } from './workbench-map.js';
 
 const READOUT_INTERVAL_MS = 1_000;
 const DEFAULT_CANDIDATE_PATH = 'procgen/complex-29.json';
@@ -61,13 +61,19 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   inspectFailure.setAttribute('aria-label', 'Select the abstract failure trace');
   const useSwitch = button('Interact (E / Y)');
   useSwitch.setAttribute('aria-label', 'Interact near the current world marker using E or controller Y');
+  const breach = button('Introduce side bypass');
+  breach.setAttribute('aria-label', 'Introduce the realization side bypass');
+  const repair = button('Repair realization');
+  repair.setAttribute('aria-label', 'Repair the realization and restore the intended gate');
+  const check = button('Check realization');
+  check.setAttribute('aria-label', 'Rerun the realization spatial checks');
   const refresh = button('Refresh');
   refresh.setAttribute('aria-label', 'Refresh C# procedural candidate readout');
   const expandMap = button('Expand map');
   expandMap.setAttribute('aria-pressed', 'false');
   const actions = document.createElement('div');
   actions.style.cssText = 'align-items:end;display:flex;flex-wrap:wrap;gap:.3rem;margin:.35rem 0;';
-  actions.append(candidateLabel, sample, load, enter, reset, inspectWitness, inspectFailure, step, useSwitch, refresh, expandMap);
+  actions.append(candidateLabel, sample, load, enter, reset, inspectWitness, inspectFailure, step, useSwitch, breach, repair, check, refresh, expandMap);
 
   const receipt = document.createElement('p');
   receipt.setAttribute('aria-live', 'polite');
@@ -79,6 +85,10 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   const readoutHost = document.createElement('div');
   readoutHost.setAttribute('aria-label', 'Latest procedural candidate facts');
   const map = mountProcgenWorkbenchMap(readoutHost);
+  const realizationNotice = document.createElement('p');
+  realizationNotice.setAttribute('aria-live', 'polite');
+  realizationNotice.style.cssText = 'background:rgb(52 31 34 / 72%);border-left:3px solid #ff6c70;margin:.35rem 0;padding:.3rem .45rem;overflow-wrap:anywhere;';
+  realizationNotice.hidden = true;
   const analysisNotice = document.createElement('p');
   analysisNotice.setAttribute('aria-live', 'polite');
   analysisNotice.textContent = 'Progression analysis awaits a candidate.';
@@ -87,7 +97,8 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   details.setAttribute('aria-label', 'Resolved candidate text details');
   const summary = document.createElement('summary'); summary.textContent = 'Details and analysis';
   const detailHost = document.createElement('div'); detailHost.style.cssText = 'margin-top:.35rem;';
-  details.append(summary, detailHost); readoutHost.append(analysisNotice, details);
+  details.append(summary, detailHost); readoutHost.append(realizationNotice, analysisNotice, details);
+  readoutHost.prepend(realizationNotice);
   panel.append(heading, description, actions, receipt, readoutNotice, readoutHost);
   host.append(toggle, panel);
 
@@ -100,7 +111,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   let poll: ReturnType<typeof setInterval> | null = null;
   let request: AbortController | null = null;
   let mapExpanded = false;
-  const actionButtons = [load, enter, reset, inspectWitness, inspectFailure, step, useSwitch, refresh, expandMap];
+  const actionButtons = [load, enter, reset, inspectWitness, inspectFailure, step, useSwitch, breach, repair, check, refresh, expandMap];
 
   const updateButtons = (): void => {
     const unavailable = readout === null || !readout.active || pendingReadout(readout.status);
@@ -109,7 +120,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
     candidatePath.disabled = mutating;
     sample.disabled = mutating;
     refresh.disabled = mutating;
-    for (const action of [enter, reset, useSwitch]) action.disabled = mutating || unavailable;
+    for (const action of [enter, reset, useSwitch, breach, repair, check]) action.disabled = mutating || unavailable;
     inspectWitness.disabled = mutating || unavailable || readout === null || readout.analysis === null || readout.analysis.witness.length === 0;
     inspectFailure.disabled = mutating || unavailable || readout === null || readout.analysis === null || readout.analysis.counterexamples.length === 0;
     step.disabled = mutating || unavailable || readout === null || readout.cursor >= readout.witness.length;
@@ -118,6 +129,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
     readout = next;
     description.hidden = next.active;
     map.render(next);
+    renderRealizationNotice(realizationNotice, next);
     renderAnalysisNotice(analysisNotice, next.analysis);
     renderReadout(detailHost, next);
     readoutNotice.textContent = readoutSummary(next);
@@ -142,6 +154,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
         const failure = message(error, 'C# procgen readout failed.');
         readout = null;
         map.unavailable(failure);
+        realizationNotice.hidden = true;
         analysisNotice.textContent = 'Latest analysis unavailable: ' + failure;
         renderUnavailable(detailHost, failure);
         readoutNotice.textContent = 'Readout unavailable: ' + failure;
@@ -224,6 +237,9 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   inspectFailure.addEventListener('click', () => { const revision = currentRevision(); if (revision !== null) void mutate('Inspect failure', 'craft.procgen.counterexample ' + revision); });
   step.addEventListener('click', () => { const revision = currentRevision(); if (revision !== null) void mutate('Step trace', 'craft.procgen.step ' + revision); });
   useSwitch.addEventListener('click', () => { const revision = currentRevision(); if (revision !== null) void mutate('Interact', 'craft.procgen.use ' + revision); });
+  breach.addEventListener('click', () => { const revision = currentRevision(); if (revision !== null) void mutate('Introduce side bypass', 'craft.procgen.breach ' + revision); });
+  repair.addEventListener('click', () => { const revision = currentRevision(); if (revision !== null) void mutate('Repair realization', 'craft.procgen.repair ' + revision); });
+  check.addEventListener('click', () => { const revision = currentRevision(); if (revision !== null) void mutate('Check realization', 'craft.procgen.check ' + revision); });
   refresh.addEventListener('click', () => void refreshReadout(true));
   updateButtons();
 
@@ -246,6 +262,7 @@ function renderReadout(host: HTMLElement, readout: ProcgenReadout): void {
     ['Revision', String(readout.revision)], ['Identity', readout.identity], ['Motif', readout.motif], ['Source', readout.source], ['Seed', readout.seed],
     ['Status', readout.status], ['Error', readout.error], ['Active', readout.active ? 'Active' : 'Inactive'], ['Mode', readout.mode],
     [stateLabel, stateText(readout.state)], ['Model state', stateText(readout.modelState)], ['Physical state', stateText(readout.physicalState)], ['Player position', vector(readout.playerPosition)],
+    ...realizationRows(readout.realization),
     ...(readout.checks.build !== undefined && readout.checks.build.trim().length > 0 ? [['Voxel build', readout.checks.build] as const] : []),
     [readout.replayLabel + ' cursor', String(readout.cursor) + (readout.completed ? ' · reported complete' : '')],
     ['Legal actions', textList(readout.legalActions)],
@@ -260,7 +277,9 @@ function renderReadout(host: HTMLElement, readout: ProcgenReadout): void {
     ['Model', readout.checks.model], ['Routes', readout.checks.routes], ['Separations', readout.checks.separations], ['Coverage', readout.checks.coverage], ['Information', readout.checks.information],
   ];
   if (readout.checks.build !== undefined && readout.checks.build.trim().length > 0) checkRows.unshift(['Build', readout.checks.build]);
+  if (readout.checks.realization !== undefined && readout.checks.realization.trim().length > 0) checkRows.unshift(['Realization', readout.checks.realization]);
   const checks = table('Reported checks', ['Check', 'Report'], checkRows);
+  const probes = renderProbeChecks(readout.checks.probes ?? []);
   const rooms = table('Rooms', ['Room', 'Minimum (x, y, z)', 'Maximum (x, y, z)'], readout.rooms.map((room) => [
     room.id, vector(room.minimum), vector(room.maximum),
   ]));
@@ -273,7 +292,59 @@ function renderReadout(host: HTMLElement, readout: ProcgenReadout): void {
   const analysis = renderAnalysis(readout.analysis);
   const historyHeading = document.createElement('h3'); historyHeading.textContent = 'Activity'; historyHeading.style.cssText = 'font-size:1em;margin:.55rem 0 .2rem;';
   const history = list(readout.history);
-  host.replaceChildren(facts, checks, analysis, rooms, connections, markers, witnessHeading, witness, historyHeading, history);
+  host.replaceChildren(facts, checks, probes, analysis, rooms, connections, markers, witnessHeading, witness, historyHeading, history);
+}
+
+function renderRealizationNotice(host: HTMLElement, readout: ProcgenReadout): void {
+  const realization = readout.realization;
+  const probes = readout.checks.probes ?? [];
+  const failures = probes.filter((probe) => probe.passed === false).map((probe) => probe.id);
+  const unknown = probes.some((probe) => probe.passed === null) || readout.checks.realization?.startsWith('UNAVAILABLE') === true;
+  if (realization === undefined && readout.checks.realization === undefined && probes.length === 0) {
+    host.hidden = true;
+    host.textContent = '';
+    return;
+  }
+  host.hidden = false;
+  const gate = realization?.gateState ?? 'Unavailable';
+  const treatment = realization?.treatment ?? 'No treatment reported';
+  const summary = readout.checks.realization?.trim() || 'No realization summary reported';
+  const omitted = readout.checks.omittedProbes ?? 0;
+  const failureText = failures.length > 0 ? ' · failing checks: ' + failures.join(', ') : unknown ? ' · some checks unavailable' : ' · no failing probe checks';
+  host.textContent = 'Realization · ' + treatment + ' · gate ' + gate + ' · ' + summary + failureText
+    + (omitted > 0 ? ' · Showing ' + probes.length + ' probe rows; ' + omitted + ' omitted (failures and unknowns first).' : '');
+  host.style.borderLeftColor = failures.length > 0 ? '#ff6c70' : unknown ? '#e4bd72' : '#67d6a4';
+  host.style.background = failures.length > 0 ? 'rgb(52 31 34 / 72%)' : unknown ? 'rgb(58 48 28 / 72%)' : 'rgb(24 52 43 / 72%)';
+}
+
+function realizationRows(realization: ProcgenReadout['realization']): readonly (readonly [string, string])[] {
+  if (realization === undefined) return [];
+  return [
+    ['Realization identity', realization.identity],
+    ['Requirement state identity', realization.stateIdentity ?? 'Unavailable'],
+    ['Realization treatment', realization.treatment],
+    ['Breach route', realization.breachRoute],
+    ['Gate state', realization.gateState],
+    ['Spatial revision', realization.spatialRevision],
+  ];
+}
+
+function renderProbeChecks(probes: readonly ProcgenProbe[]): HTMLElement {
+  const rows = probes.map((probe) => [
+    probe.id,
+    probe.kind,
+    vector(probe.from),
+    vector(probe.to),
+    probe.expected,
+    probe.observed,
+    probe.passed === true ? 'passed' : probe.passed === false ? 'FAILED' : 'unknown',
+  ] as const);
+  if (rows.length > 0) return table('Realization probes', ['ID', 'Kind', 'From', 'To', 'Expected', 'Observed', 'Result'], rows);
+  const section = document.createElement('section');
+  const heading = document.createElement('h3'); heading.textContent = 'Realization probes'; heading.style.cssText = 'font-size:1em;margin:.55rem 0 .2rem;';
+  const notice = document.createElement('p'); notice.textContent = 'No named realization probes reported.'; notice.style.margin = '.3rem 0';
+  section.append(heading, notice);
+  return section;
 }
 
 function renderUnavailable(host: HTMLElement, reason: string): void {

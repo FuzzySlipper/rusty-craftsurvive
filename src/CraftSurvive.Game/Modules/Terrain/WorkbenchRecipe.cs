@@ -13,14 +13,14 @@ internal static class WorkbenchRecipe
     internal static Vector3 Center(WorkbenchRoom room) => (Point(room.Minimum) + Point(room.Maximum)) * 0.5f;
 
     internal static void Compose(IEngineContext engine, StoneworksMaterials materials,
-        WorkbenchCandidate candidate, bool switchOpen, Action<RecipeSurface> emit)
+        WorkbenchCandidate candidate, bool switchOpen, string treatment, Action<RecipeSurface> emit)
     {
         const float Cell = 0.25f, Shell = 1f;
         RecipeWriter writer = new(engine.ImplicitSurfaces, new(Cell, 0f, 0.5f, ImplicitMaterialBoundaryMode.Interpolated), emit);
         using ImplicitRecipe field = writer.Begin();
         Vector3 min = candidate.Rooms.Select(r => Point(r.Minimum)).Aggregate(Vector3.Min) - new Vector3(Shell);
         Vector3 max = candidate.Rooms.Select(r => Point(r.Maximum)).Aggregate(Vector3.Max) + new Vector3(Shell);
-        WorkbenchLayoutData layout = WorkbenchLayout.Resolve(candidate);
+        WorkbenchLayoutData layout = WorkbenchRealization.Resolve(candidate, treatment);
         WorkbenchVolume[] rooms = layout.Volumes.Where(v => v.Kind == "room").ToArray();
         WorkbenchRoom first = candidate.Rooms[0];
         ImplicitNode Box(WorkbenchVolume volume) => field.Box(Point(volume.Minimum), Point(volume.Maximum));
@@ -35,6 +35,8 @@ internal static class WorkbenchRecipe
                 ImplicitNode barrier = Box(gate);
                 WorkbenchVolume? window = layout.Volumes.SingleOrDefault(v => v.Kind == "window" && v.Id == volume.Id + "-window");
                 if (window is not null) barrier = field.Subtract(barrier, Box(window));
+                WorkbenchVolume? breach = layout.Volumes.SingleOrDefault(v => v.Id == volume.Id + "-breach");
+                if (breach is not null) barrier = field.Subtract(barrier, Box(breach));
                 passage = field.Subtract(passage, barrier);
             }
             air = field.Union(air, passage);

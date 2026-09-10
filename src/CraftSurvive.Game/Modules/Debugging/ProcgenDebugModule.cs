@@ -23,4 +23,10 @@ public sealed class ProcgenDebugModule : IDebugCommandModule
     public string Witness(long revision) => workbench.QueueAction("witness", revision);
     [DebugCommand("craft.procgen.use", Description = "Interacts with a nearby motif station using the physical state.")]
     public string Use(long revision) => workbench.QueueAction("use", revision);
+    [DebugCommand("craft.procgen.breach", Description = "Introduces a side aperture in one closed gate without changing candidate intent; resets the physical run.")]
+    public string Breach(long revision) => workbench.QueueAction("breach", revision);
+    [DebugCommand("craft.procgen.repair", Description = "Restores the intended closed gates and resets the physical run.")]
+    public string Repair(long revision) => workbench.QueueAction("repair", revision);
+    [DebugCommand("craft.procgen.check", Description = "Checks the current realized mesh against candidate/state route and separation requirements.")]
+    public string Check(long revision) => workbench.QueueAction("check", revision);
 }

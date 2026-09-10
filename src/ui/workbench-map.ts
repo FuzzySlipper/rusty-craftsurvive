@@ -7,6 +7,15 @@ export type ProcgenState = Readonly<{
   recovered: boolean;
   observed: boolean;
 }>;
+export type ProcgenProbe = Readonly<{
+  id: string;
+  kind: string;
+  from: ProcgenPoint;
+  to: ProcgenPoint;
+  expected: string;
+  observed: string;
+  passed: boolean | null;
+}>;
 export type ProcgenReadout = Readonly<{
   revision: number;
   identity: string;
@@ -28,7 +37,18 @@ export type ProcgenReadout = Readonly<{
   completed: boolean;
   rooms: readonly Readonly<{ id: string; minimum: ProcgenPoint; maximum: ProcgenPoint }> [];
   routes: readonly Readonly<{ id: string; from: string; to: string; width: number; requiresSwitch: boolean }> [];
-  checks: Readonly<{ model: string; routes: string; separations: string; coverage: string; information: string; build?: string }>;
+  checks: Readonly<{
+    model: string;
+    routes: string;
+    separations: string;
+    coverage: string;
+    information: string;
+    build?: string;
+    realization?: string;
+    probes?: readonly ProcgenProbe[];
+    probeCount?: number;
+    omittedProbes?: number;
+  }>;
   history: readonly string[];
   analysis: Readonly<{
     completable: boolean;
@@ -43,10 +63,19 @@ export type ProcgenReadout = Readonly<{
     markers: readonly Readonly<{ id: string; room: string; action: string; position: ProcgenPoint; label: string }> [];
     gateRoute: string;
   }>;
+  realization?: Readonly<{
+    identity: string;
+    treatment: string;
+    breachRoute: string;
+    gateState: string;
+    spatialRevision: string;
+    stateIdentity?: string;
+  }>;
 }>;
 
 type LayerName = 'rooms' | 'passages' | 'gates' | 'markers' | 'grid';
 type Overlay = 'both' | 'model' | 'world';
+type ProbeOverlay = 'failures' | 'all' | 'off';
 type Zoom = 'fit' | '2' | '3';
 type Focus = 'fit' | 'selected' | 'player';
 
@@ -69,12 +98,13 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
   controls.style.cssText = 'align-items:center;display:flex;flex-wrap:wrap;gap:.45rem;margin:.4rem 0;';
   const view = select('View', [['layout', 'Layout'], ['graph', 'Graph']]);
   const overlay = select('State overlay', [['both', 'Model + world'], ['model', 'Model only'], ['world', 'World only']]);
+  const probeOverlay = select('Check probes', [['failures', 'Reported failures'], ['all', 'Reported probes'], ['off', 'Off']]);
   const zoom = select('Zoom', [['fit', 'Fit'], ['2', '2×'], ['3', '3×']]);
   const focus = select('Center on', [['fit', 'Whole layout'], ['selected', 'Selected room'], ['player', 'Player']]);
   const room = select('Room', [['', 'All rooms']]);
   const layers = new Map<LayerName, HTMLInputElement>();
   for (const layer of ['rooms', 'passages', 'gates', 'markers', 'grid'] as const) layers.set(layer, checkbox(layer[0].toUpperCase() + layer.slice(1), true));
-  controls.append(view.field, overlay.field, zoom.field, focus.field, room.field, ...Array.from(layers.values()).map((input) => input.parentElement!));
+  controls.append(view.field, overlay.field, probeOverlay.field, zoom.field, focus.field, room.field, ...Array.from(layers.values()).map((input) => input.parentElement!));
   const inspect = document.createElement('p');
   inspect.setAttribute('aria-live', 'polite');
   inspect.textContent = 'Select a room to inspect its bounds.';
@@ -86,7 +116,7 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.style.cssText = 'background:rgb(7 12 18);border:1px solid #263b50;border-radius:.3rem;display:block;height:16rem;width:100%;';
   const legend = document.createElement('p');
-  legend.textContent = 'Plan: loaded candidate volumes. Amber bar: closed gate; dashed green: open gate. Cyan diamond: player. Magenta dot: model state. Blue dot: world state. Dashed cyan: preview aperture / sightline.';
+  legend.textContent = 'Plan: loaded candidate volumes. Amber/green bar: intended gate (closed/open). Red overlay: realization side bypass. Cyan diamond: player. Magenta dot: model state. Blue dot: world state. Probe lines: green pass, red fail, amber unknown.';
   legend.style.cssText = 'color:#aec4d7;margin:.35rem 0 0;';
   section.append(header, controls, inspect, svg, legend);
   host.append(section);
@@ -95,11 +125,13 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
   let selectedRoom: string | null = null;
   let zoomMode: Zoom = 'fit';
   let focusMode: Focus = 'fit';
+  let probeOverlayMode: ProbeOverlay = 'failures';
   let roomSignature = '';
   const rerender = (): void => { if (latest !== null) draw(svg, latest, state()); };
-  const state = (): Readonly<{ view: string; overlay: Overlay; zoom: Zoom; focus: Focus; layers: ReadonlySet<LayerName>; selectedRoom: string | null }> => ({
+  const state = (): Readonly<{ view: string; overlay: Overlay; probeOverlay: ProbeOverlay; zoom: Zoom; focus: Focus; layers: ReadonlySet<LayerName>; selectedRoom: string | null }> => ({
     view: view.control.value,
     overlay: overlay.control.value as Overlay,
+    probeOverlay: probeOverlayMode,
     zoom: zoomMode,
     focus: focusMode,
     layers: new Set(Array.from(layers.entries()).filter(([, input]) => input.checked).map(([name]) => name)),
@@ -107,6 +139,7 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
   });
   view.control.addEventListener('change', rerender);
   overlay.control.addEventListener('change', rerender);
+  probeOverlay.control.addEventListener('change', () => { probeOverlayMode = probeOverlay.control.value as ProbeOverlay; rerender(); });
   zoom.control.addEventListener('change', () => { zoomMode = zoom.control.value as Zoom; rerender(); });
   focus.control.addEventListener('change', () => { focusMode = focus.control.value as Focus; rerender(); });
   room.control.addEventListener('change', () => {
@@ -164,7 +197,7 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
   });
 }
 
-function draw(svg: SVGSVGElement, readout: ProcgenReadout, state: Readonly<{ view: string; overlay: Overlay; zoom: Zoom; focus: Focus; layers: ReadonlySet<LayerName>; selectedRoom: string | null }>): void {
+function draw(svg: SVGSVGElement, readout: ProcgenReadout, state: Readonly<{ view: string; overlay: Overlay; probeOverlay: ProbeOverlay; zoom: Zoom; focus: Focus; layers: ReadonlySet<LayerName>; selectedRoom: string | null }>): void {
   const focused = document.activeElement instanceof Element ? document.activeElement.closest('[data-room-id]')?.getAttribute('data-room-id') : null;
   const volumes = readout.layout.volumes;
   const bounds = extent(volumes.length > 0 ? volumes : readout.rooms);
@@ -174,19 +207,20 @@ function draw(svg: SVGSVGElement, readout: ProcgenReadout, state: Readonly<{ vie
   if (state.layers.has('grid')) nodes.push(grid(bounds, transform));
   if (state.view === 'graph') drawGraph(nodes, readout, transform, state);
   else drawLayout(nodes, readout, transform, state);
+  drawProbeOverlays(nodes, readout, transform, state.probeOverlay);
   drawOverlays(nodes, readout, transform, state.overlay);
   svg.replaceChildren(...nodes);
   if (focused !== null) Array.from(svg.querySelectorAll<SVGElement>('[data-room-id]')).find((room) => room.getAttribute('data-room-id') === focused)?.focus({ preventScroll: true });
 }
 
 function drawLayout(nodes: SVGElement[], readout: ProcgenReadout, transform: Transform, state: Readonly<{ layers: ReadonlySet<LayerName>; selectedRoom: string | null }>): void {
-  const kindOrder = ['passage', 'room', 'gate', 'window'];
+  const kindOrder = ['passage', 'room', 'gate', 'window', 'breach'];
   const large = isLargeLayout(readout);
   const roomLabelSize = large ? Math.max(10, Math.min(16, transform.scale * 2.5)) : 24;
   for (const kind of kindOrder) for (const volume of readout.layout.volumes.filter((item) => item.kind === kind)) {
     if (kind === 'room' && !state.layers.has('rooms')) continue;
     if (kind === 'passage' && !state.layers.has('passages')) continue;
-    if ((kind === 'gate' || kind === 'window') && !state.layers.has('gates')) continue;
+    if ((kind === 'gate' || kind === 'breach' || kind === 'window') && !state.layers.has('gates')) continue;
     const rect = volumeRect(volume, transform);
     rect.dataset.volumeKind = kind;
     if (kind === 'room') {
@@ -207,6 +241,11 @@ function drawLayout(nodes: SVGElement[], readout: ProcgenReadout, transform: Tra
       rect.setAttribute('fill', open ? '#3c9e87' : '#d58e42'); rect.setAttribute('fill-opacity', open ? '.14' : '.9'); rect.setAttribute('stroke', open ? '#7af1ce' : '#ffe0a5'); rect.setAttribute('stroke-width', '2.5');
       if (open) rect.setAttribute('stroke-dasharray', '6 4');
       nodes.push(rect);
+    } else if (kind === 'breach') {
+      if (readout.physicalState.switchOpen) continue;
+      rect.setAttribute('fill', '#ff4f5e'); rect.setAttribute('fill-opacity', '.75'); rect.setAttribute('stroke', '#ffb0b5'); rect.setAttribute('stroke-width', '3');
+      rect.setAttribute('aria-label', 'Realization side bypass aperture');
+      nodes.push(rect, text(transform.x(centerX(volume)), transform.z(centerZ(volume)) - 7, 'side bypass', '#ffb0b5', large ? '11' : '16'));
     } else {
       rect.setAttribute('fill', '#8cddf0'); rect.setAttribute('fill-opacity', '.18'); rect.setAttribute('stroke', '#8cddf0'); rect.setAttribute('stroke-dasharray', '5 4');
       nodes.push(rect, text(transform.x(centerX(volume)), transform.z(centerZ(volume)) - 7, 'preview aperture · ' + readout.layout.gateRoute, '#a8efff', large ? '11' : '16'));
@@ -249,6 +288,22 @@ function drawGraph(nodes: SVGElement[], readout: ProcgenReadout, transform: Tran
     circle.setAttribute('fill', state.selectedRoom === room.id ? '#355e89' : '#203c55'); circle.setAttribute('stroke', '#d7edfc'); circle.setAttribute('stroke-width', '2'); nodes.push(circle, text(transform.x(centerX(room)), transform.z(centerZ(room)) + (large ? roomRadius + 18 : 44), room.id, '#fff', String(roomLabelSize)));
   }
   if (state.layers.has('markers')) for (const marker of readout.layout.markers) drawMarker(nodes, marker, transform);
+}
+
+function drawProbeOverlays(nodes: SVGElement[], readout: ProcgenReadout, transform: Transform, mode: ProbeOverlay): void {
+  if (mode === 'off') return;
+  const probes = readout.checks.probes ?? [];
+  for (const probe of probes) {
+    if (mode === 'failures' && probe.passed !== false) continue;
+    const line = element('line');
+    line.setAttribute('x1', String(transform.x(probe.from.x))); line.setAttribute('y1', String(transform.z(probe.from.z)));
+    line.setAttribute('x2', String(transform.x(probe.to.x))); line.setAttribute('y2', String(transform.z(probe.to.z)));
+    const color = probe.passed === true ? '#67e6a1' : probe.passed === false ? '#ff5964' : '#e8b65c';
+    line.setAttribute('stroke', color); line.setAttribute('stroke-width', '3'); line.setAttribute('stroke-dasharray', probe.passed === null ? '5 4' : '');
+    line.setAttribute('aria-label', probe.id + ' ' + probe.kind + ': ' + probe.observed + ' (expected ' + probe.expected + ')');
+    const accessibleProbe = element('title'); accessibleProbe.textContent = probe.id + ': ' + probe.kind + ' · ' + (probe.passed === true ? 'pass' : probe.passed === false ? 'fail' : 'unknown'); line.append(accessibleProbe);
+    nodes.push(line);
+  }
 }
 
 function drawOverlays(nodes: SVGElement[], readout: ProcgenReadout, transform: Transform, overlay: Overlay): void {

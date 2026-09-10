@@ -102,10 +102,10 @@ input. Seed gives shallow spacing/width variants, not a promise of diversity.
 - DOM UI retains only display preferences and copied readouts, uses the packaged
   live-debug transport, and preserves map controls across background refreshes.
 
-Actual mesh checks cast nine straight rays per route/separation, at three heights
-and lateral offsets. Gate rays must hit while closed and routes must clear while
-open. Nonadjacent diagonals must hit. These do not exhaustively certify capsule
-clearance, jumping, climbing, terrain destruction or all bypasses. Switch changes
+Actual mesh checks retain nine straight rays per route/separation and add the
+Engine standing-capsule queries described below. Required connections must clear;
+closed gates and selected forbidden room pairs must block. These are sampled
+clearance checks, not exhaustive navigation or proof against every bypass. Switch changes
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
@@ -127,6 +127,50 @@ their pointer activation attempt was inconclusive. Map/readout assistance and
 submitted-presentation metadata are recorded separately from visible evidence.
 See the #7907 evidence README for exact scope and cleanup.
 
+## Realization faults and scoped checks (#7908)
+
+Load a candidate, then use **Introduce side bypass**. This cuts a one-unit-wide,
+standing-height aperture at the side of one closed gate while preserving its
+center. Candidate identity and graph requirements remain unchanged. **Repair
+realization** restores the intact geometry; both actions close the gates and
+return the player to the entrance. Tab switches between UI inspection and
+gameplay input in the browser. **Check realization** reruns current Engine
+queries without rebuilding. Model witness/failure inspection remains separate.
+
+The red map aperture shows the treatment; red probe lines show failed measured
+requirements. The graph continues to show intended connections. Opening all
+gates removes the gate protection requirement, so the same passage must then
+be clear. The treatment remains selected until repaired or another candidate is
+loaded, including across Enter/reset.
+
+`WorkbenchProbePlan` derives positions only from candidate intent and gate state,
+never from the injected aperture. `WorkbenchSpatialChecks` uses Engine
+`OverlapCapsule` and `CastCapsule` with the player's standing height 1.75 and
+radius 0.30. It checks both directions on three passage lanes, five gate lanes,
+and selected forbidden room pairs. Initial overlap or nonconverged casts are
+unavailable, never a passing separation. These read-only queries do not move the
+player or run a downstream collision/navigation implementation.
+
+Five retained samples (all three small motifs plus both large seeds) were checked
+intact, breached, repaired and open. Each breach produces four failures while
+legacy rays still pass. Each repair restores the original collision projection
+hash. The large seeds run 340 body checks each; UI readouts retain at most 64
+rows, failures/unknowns first, and explicitly report omitted rows. Summary counts
+cover the complete probe set, including rows not drawn in the map.
+
+Provenance consists of the candidate identity, requirement-state identity
+(candidate plus switch state), realization identity (recipe version, candidate,
+treatment and switch state), and the Engine `ReplaceCollision` revision and
+projection hash checked against the current static-mesh revision. Other physical
+resource/observation flags remain in the readout, but do not change these geometric
+requirements. Evidence and controller scope: [#7908 evidence](evidence/procgen-realization-7908/README.md).
+
+The standing casts establish clearance only at the sampled positions. They do
+not prove a controller path exists everywhere, nor cover jumping, climbing,
+crouch-only paths, destruction, or movable-prop bypasses. Those require separate
+scenarios. This is one reversible realization fault/repair experiment, not the
+semantic candidate editor proposed in #7909.
+
 ## Tentative expansion
 
 These are hypotheses to revise after the first working slice, not requirements
@@ -135,7 +179,7 @@ to build a framework before experimenting. Den is the durable task record.
 | Task | Next experiment | What determines whether to expand |
 | --- | --- | --- |
 | #7907 | Three motifs, state contracts and map inspection | Completed baseline; retained as small regression samples |
-| #7908 | Protected passages and separations after realization | Which mesh/controller mismatches sampled rays miss |
+| #7908 | Side-breach detection and restored realization | Scoped standing-capsule baseline; further bypass types need explicit scenarios |
 | #7909 | Candidate comparison and small semantic repairs | Repeated failures worth expressing as design operations |
 | #7910 | Small agent selection/editing/adversarial trial | Stable motifs, checks and tools, then human calibration |
 | #7911 | Resolved level bank and scoped runtime variation | Measured artifact sizes and meaningful structural diversity |

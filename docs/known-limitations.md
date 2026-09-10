@@ -5,13 +5,18 @@
   solver. Schema v2 deliberately requires regenerated v1 samples. The diagram
   shows resolved construction inputs, not extracted triangles. Abstract trace
   stepping never changes the physical player or resource/gate state.
-  Realized-mesh route/separation checks use nine straight rays per relationship;
-  the preview adds one lookout-to-goal sightline. Neither proves all capsule
-  paths, bypasses or human recognition/gaze. Physical observation adds proximity
+  Realized-mesh route/separation checks retain nine straight rays and now add
+  bidirectional standing-capsule samples for routes, gate cross-sections and
+  selected forbidden pairs (#7908). A side-gate breach is detected and reversible;
+  this does not prove all navigation paths or jump/climb/crouch/destruction/prop
+  bypasses. The preview adds one lookout-to-goal sightline, not proof of human
+  recognition/gaze. Physical observation adds proximity
   and a current eye-to-goal ray, not an attention model. Key spend/recovery is
   shown in the workbench state; station props do not animate depletion.
-  Switch activation rebuilds the small scene synchronously. Broader spatial
-  checks, repair tools, agent trials and curated banks remain #7908–#7912.
+  Switch activation and realization treatments rebuild the scene synchronously.
+  Readouts retain at most 64 probe rows, failures/unknowns first, with full summary
+  counts and explicit omissions. Semantic repair tools, agent trials and curated
+  banks remain #7909–#7912.
 
 The current C# lane is a deliberately bounded continuation. These limits
 describe the landed product; they are not invitations to recreate a parallel
