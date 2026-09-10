@@ -89,3 +89,19 @@ retired browser connection failing after whole-host replacement, including a
 terminal transport diagnostic from that excluded attempt. A fresh native
 browser completed the final run. These findings preclude a clean diagnostics
 claim; they do not invalidate the explicitly separated fresh-session results.
+
+### Whole-host restart recovery (#7921)
+
+The Engine browser now discards the retired SSE cursor on stream interruption
+and attaches a fresh retained baseline. A native Wolf test kept the same browser
+and lease across host replacement (1323073 → 1335539), recovered renderer
+observations without reload, and consumed controller and mouse look afterward.
+The recreated canvas needed an ordinary focus click before gameplay input;
+no browser navigation or reacquisition was used. Full process replacement
+restarts product state, so the dungeon returned to the initial courtyard.
+Evidence is under `/home/agent/.codex/recovery-7921/`.
+
+The current pair `0.1.0-dev.c31d8e4ac9c4` also adds socket-failure attribution.
+The separate historical startup NetworkError (#7920) did not recur during a
+fresh startup and complex-29 load; its original cause remains unproven.
+Do not describe the diagnostic additions or a clean repeat as fixing that event.
