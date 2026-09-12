@@ -1,0 +1,63 @@
+{
+  "status": "human-calibration-recorded",
+  "verbatim": "B01: completed, enjoyment/clarity: 5 I appreciate showing off the goal always a good design idea. 2: completed, clarity 4, enjoy 3, pretty straightforward. 3: completed clarity 4, enjoy 2, straightforward not much to it. 4: completed maybe? clarity 1, enjoy 1, not really sure on this one pretty confusing. 5: completed clarity/enjoy 3 straight forward. 6: this one seemed bugged",
+  "ratings": [
+    {
+      "label": "B01",
+      "completion": "completed",
+      "enjoyment": 5,
+      "clarity": 5,
+      "note": "I appreciate showing off the goal always a good design idea.",
+      "helpUsed": null
+    },
+    {
+      "label": "B02",
+      "completion": "completed",
+      "enjoyment": 3,
+      "clarity": 4,
+      "note": "pretty straightforward.",
+      "helpUsed": null
+    },
+    {
+      "label": "B03",
+      "completion": "completed",
+      "enjoyment": 2,
+      "clarity": 4,
+      "note": "straightforward not much to it.",
+      "helpUsed": null
+    },
+    {
+      "label": "B04",
+      "completion": "uncertain",
+      "enjoyment": 1,
+      "clarity": 1,
+      "note": "completed maybe? not really sure on this one pretty confusing.",
+      "helpUsed": null
+    },
+    {
+      "label": "B05",
+      "completion": "completed",
+      "enjoyment": 3,
+      "clarity": 3,
+      "note": "straight forward.",
+      "helpUsed": null
+    },
+    {
+      "label": "B06",
+      "completion": "not-reported",
+      "enjoyment": null,
+      "clarity": null,
+      "note": "Initially seemed bugged; clarified as seeming exactly the same as B01.",
+      "helpUsed": null
+    }
+  ],
+  "equivalenceGroups": [
+    [
+      "B01",
+      "B06"
+    ]
+  ],
+  "costPerEnjoyableLevel": null,
+  "note": "B06 score and completion not supplied; B04 completion uncertain; help use not supplied. B01/B06 explicitly perceived equivalent. No missing values inferred.",
+  "clarificationVerbatim": "it seemed exactly the same as b01 shoulda mentioned that"
+}

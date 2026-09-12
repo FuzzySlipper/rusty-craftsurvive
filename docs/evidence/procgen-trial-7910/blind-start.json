@@ -1,0 +1,19 @@
+{
+  "identity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+  "revision": 8,
+  "source": "procgen/trial-B05.json",
+  "playerPosition": {
+    "x": 4.322652e-05,
+    "y": 3.8760014,
+    "z": 7.669007e-14
+  },
+  "physicalState": {
+    "room": "start",
+    "switchOpen": false,
+    "token": false,
+    "spent": false,
+    "recovered": false,
+    "observed": false
+  },
+  "mode": "walking"
+}

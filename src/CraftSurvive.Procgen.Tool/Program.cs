@@ -24,6 +24,8 @@ internal static class ProcgenTool
                 return Task.FromResult(GenerateWorkbench(ParseWorkbench(args)));
             if (args.Length > 0 && StringComparer.Ordinal.Equals(args[0], "repair-workbench"))
                 return Task.FromResult(RepairWorkbench(ParseWorkbenchRepair(args)));
+            if (args.Length > 0 && args[0].StartsWith("trial-", StringComparison.Ordinal))
+                return Task.FromResult(TrialCommands.Run(args));
             var command = ParseGenerate(args);
             var requestBytes = File.ReadAllBytes(command.RequestPath);
             var request = ArtifactJson.DeserializeRequest(requestBytes);

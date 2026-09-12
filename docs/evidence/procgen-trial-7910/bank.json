@@ -1,0 +1,1194 @@
+{
+  "schema": "craftsurvive.workbench_trial_bank.v1",
+  "identity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "entries": [
+    {
+      "id": "C01",
+      "identity": "dbaaabbf0476393d7d0b42fd52502a4d6b1cd903cda9a0ea362035e32247f223",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 29,
+        "motif": "spent-key-recovery",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 16
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 16
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C02",
+      "identity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 11,
+        "motif": "four-room-return-shortcut",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 18
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 18
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C03",
+      "identity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 11,
+        "motif": "visible-before-access",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 18
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 18
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": true
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C04",
+      "identity": "62bc94efcc3d00dc2ebec2f3965b7035550f1fbd2b1737dd2a4883e69f147a54",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 29,
+        "motif": "four-room-return-shortcut",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 16
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 16
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C05",
+      "identity": "a1df423f166b02a071d7bb7dfba4d6ad7f9a10f24fc23dd605cb989c7379dadb",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 11,
+        "motif": "spent-key-recovery",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 18
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 18
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C06",
+      "identity": "6834df12f426a19a74ad18974be284264a30b39b2f62d8daa1fccb9f8d1dcd2f",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 29,
+        "motif": "visible-before-access",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 16
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 16
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": true
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": true
+      }
+    },
+    {
+      "id": "C07",
+      "identity": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 11,
+        "motif": "four-room-return-shortcut",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 18
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 18
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": false,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C08",
+      "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 11,
+        "motif": "visible-before-access",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 18
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 18
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": true
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": true
+      }
+    },
+    {
+      "id": "C09",
+      "identity": "26474b173da7e85f948dc8ec9e0148f4e0448d77709db4a7da62c6690c372e47",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 29,
+        "motif": "four-room-return-shortcut",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 16
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 16
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": false,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C10",
+      "identity": "abf4c2e47af4fef82cc776dd6ffb217b7d787be4b6094786e1148a616d1f65c3",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 29,
+        "motif": "spent-key-recovery",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 16
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 16
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": true,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C11",
+      "identity": "f14bfa39999ac2678c1b8702f31f6d46c5395e2ff9d031bd69cfbb9875a8a3d2",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 29,
+        "motif": "visible-before-access",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 12,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 20,
+              "y": 7,
+              "z": 16
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 8
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 16
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": true
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": false,
+        "previewOpening": false
+      }
+    },
+    {
+      "id": "C12",
+      "identity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+      "candidate": {
+        "schema": "craftsurvive.workbench_candidate.v2",
+        "seed": 11,
+        "motif": "spent-key-recovery",
+        "rooms": [
+          {
+            "id": "start",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "relay",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": -4
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 4
+            }
+          },
+          {
+            "id": "control",
+            "minimum": {
+              "x": 9,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 17,
+              "y": 7,
+              "z": 18
+            }
+          },
+          {
+            "id": "goal",
+            "minimum": {
+              "x": -4,
+              "y": 3,
+              "z": 10
+            },
+            "maximum": {
+              "x": 4,
+              "y": 7,
+              "z": 18
+            }
+          }
+        ],
+        "routes": [
+          {
+            "id": "start-relay",
+            "from": "start",
+            "to": "relay",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "relay-control",
+            "from": "relay",
+            "to": "control",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "control-goal",
+            "from": "control",
+            "to": "goal",
+            "width": 3,
+            "requiresSwitch": false
+          },
+          {
+            "id": "goal-start",
+            "from": "goal",
+            "to": "start",
+            "width": 3,
+            "requiresSwitch": true
+          }
+        ],
+        "switchRoom": "control",
+        "startRoom": "start",
+        "goalRoom": "goal",
+        "switchEnabled": true,
+        "recoveryEnabled": true,
+        "previewOpening": false
+      }
+    }
+  ]
+}

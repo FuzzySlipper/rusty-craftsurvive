@@ -1,0 +1,24 @@
+{
+  "schema": "craftsurvive.workbench_trial_submission.v1",
+  "bankIdentity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "lane": "selection",
+  "agent": "fixed failing-stratum control",
+  "model": "none",
+  "choices": [
+    {
+      "candidateId": "C07",
+      "operation": "",
+      "reason": "First failing ID in this motif; deliberate negative control, not an agent choice."
+    },
+    {
+      "candidateId": "C01",
+      "operation": "",
+      "reason": "First failing ID in this motif; deliberate negative control, not an agent choice."
+    },
+    {
+      "candidateId": "C03",
+      "operation": "",
+      "reason": "First failing ID in this motif; deliberate negative control, not an agent choice."
+    }
+  ]
+}

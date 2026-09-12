@@ -1,0 +1,336 @@
+[
+  {
+    "label": "B01",
+    "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "revision": 1,
+    "analysis": {
+      "completable": true,
+      "reachableStates": 10,
+      "unrecoverableStates": 0,
+      "witness": [
+        "observe",
+        "move:relay",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "preview",
+          "requirement": "the opening must be observed before activation",
+          "passed": true,
+          "evidence": "activate is unavailable until the label-model observation action occurs."
+        }
+      ],
+      "counterexamples": []
+    },
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=2; parts=4; triangles=10678; vertices=9191; buildSeconds=0.100; collision=generated-mesh-copy",
+      "realization": "PASS: 48/48 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 48,
+      "omittedProbes": 0
+    },
+    "realization": {
+      "identity": "1790c6baa0df1828ea0311bcbced880ccbe172dbfaf434d861cd8f9799583181",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=2; projectionHash=16740501564924859033; assets=4; instances=4; currentCollision=2; currentStaticMesh=2",
+      "stateIdentity": "4107f2a3ddc79b1eadad7a1333eb805835d8745a5f6a4765737da6079e057c6d"
+    }
+  },
+  {
+    "label": "B02",
+    "identity": "abf4c2e47af4fef82cc776dd6ffb217b7d787be4b6094786e1148a616d1f65c3",
+    "revision": 2,
+    "analysis": {
+      "completable": true,
+      "reachableStates": 16,
+      "unrecoverableStates": 0,
+      "witness": [
+        "move:relay",
+        "spend",
+        "move:control",
+        "move:goal",
+        "recover",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "recovery",
+          "requirement": "the spent token recovers exactly once before activation",
+          "passed": true,
+          "evidence": "spend and recover each become unavailable after one legal use."
+        }
+      ],
+      "counterexamples": []
+    },
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=3; parts=5; triangles=9230; vertices=7756; buildSeconds=0.080; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "realization": {
+      "identity": "fed5fe035b8278d5c661076315bd17c5a304c42af978b86fa4b5eaf10f3053c4",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=3; projectionHash=16651993647103670164; assets=5; instances=5; currentCollision=3; currentStaticMesh=3",
+      "stateIdentity": "f28145630db7471742e57c6b5b741228a7bd4f5433c561c31517a92d05659a1e"
+    }
+  },
+  {
+    "label": "B03",
+    "identity": "62bc94efcc3d00dc2ebec2f3965b7035550f1fbd2b1737dd2a4883e69f147a54",
+    "revision": 3,
+    "analysis": {
+      "completable": true,
+      "reachableStates": 8,
+      "unrecoverableStates": 0,
+      "witness": [
+        "move:relay",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        }
+      ],
+      "counterexamples": []
+    },
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=4; parts=3; triangles=9206; vertices=7708; buildSeconds=0.081; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "realization": {
+      "identity": "253f8387f4e0577874dc7891327813e318d46251d3fc926e475eb0b22881673b",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=4; projectionHash=10570742744942413283; assets=3; instances=3; currentCollision=4; currentStaticMesh=4",
+      "stateIdentity": "44077ba0f4855ee3f7e6acc99d84dfc563863cba68fd9f03d12b73af263dba40"
+    }
+  },
+  {
+    "label": "B04",
+    "identity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+    "revision": 4,
+    "analysis": {
+      "completable": true,
+      "reachableStates": 16,
+      "unrecoverableStates": 0,
+      "witness": [
+        "move:relay",
+        "spend",
+        "move:control",
+        "move:goal",
+        "recover",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "recovery",
+          "requirement": "the spent token recovers exactly once before activation",
+          "passed": true,
+          "evidence": "spend and recover each become unavailable after one legal use."
+        }
+      ],
+      "counterexamples": []
+    },
+    "checks": {
+      "model": "PASS: completing witness 8 actions; 16 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=5; parts=5; triangles=10530; vertices=8989; buildSeconds=0.088; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "realization": {
+      "identity": "bdcfa7d7b575e43fac7f3776be4654b8a9899a6d766329002d9f2f1b31975fd6",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=5; projectionHash=13244746690046510524; assets=5; instances=5; currentCollision=5; currentStaticMesh=5",
+      "stateIdentity": "0e908e4ab402c44a234c0911f48790c97f3336ed84dc32814e8630d9c996a543"
+    }
+  },
+  {
+    "label": "B05",
+    "identity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd",
+    "revision": 5,
+    "analysis": {
+      "completable": true,
+      "reachableStates": 8,
+      "unrecoverableStates": 0,
+      "witness": [
+        "move:relay",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        }
+      ],
+      "counterexamples": []
+    },
+    "checks": {
+      "model": "PASS: completing witness 4 actions; 8 reachable states; 0 cannot complete",
+      "routes": "27/27 clear mesh rays (pass)",
+      "separations": "27/27 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "No before-access sightline contract for this motif.",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=6; parts=3; triangles=10506; vertices=8941; buildSeconds=0.087; collision=generated-mesh-copy",
+      "realization": "PASS: 38/38 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 38,
+      "omittedProbes": 0
+    },
+    "realization": {
+      "identity": "d4a137fb56c63a880696c20a58b3401886c129aa90ca25a64ae7ec117698877e",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=6; projectionHash=6992313455422849539; assets=3; instances=3; currentCollision=6; currentStaticMesh=6",
+      "stateIdentity": "8dd330bac55d5a9b64ab40bcd6e4f22ba5ec9b7fefd54743278f78f2053186d9"
+    }
+  },
+  {
+    "label": "B06",
+    "identity": "6834df12f426a19a74ad18974be284264a30b39b2f62d8daa1fccb9f8d1dcd2f",
+    "revision": 6,
+    "analysis": {
+      "completable": true,
+      "reachableStates": 10,
+      "unrecoverableStates": 0,
+      "witness": [
+        "observe",
+        "move:relay",
+        "move:control",
+        "activate",
+        "move:goal"
+      ],
+      "contracts": [
+        {
+          "kind": "completion",
+          "requirement": "a valid action witness reaches completion",
+          "passed": true,
+          "evidence": "The bounded state enumeration found a complete witness."
+        },
+        {
+          "kind": "locked-shortcut",
+          "requirement": "the goal-start shortcut rejects before activation",
+          "passed": true,
+          "evidence": "move:goal is absent and rejected from the initial state."
+        },
+        {
+          "kind": "preview",
+          "requirement": "the opening must be observed before activation",
+          "passed": true,
+          "evidence": "activate is unavailable until the label-model observation action occurs."
+        }
+      ],
+      "counterexamples": []
+    },
+    "checks": {
+      "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+      "routes": "18/18 clear mesh rays (pass)",
+      "separations": "36/36 blocked mesh rays (pass); gates closed; failures: ",
+      "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+      "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+      "build": "generation=7; parts=4; triangles=9326; vertices=7952; buildSeconds=0.077; collision=generated-mesh-copy",
+      "realization": "PASS: 48/48 scoped body checks; 0 failures; 0 unavailable",
+      "probeCount": 48,
+      "omittedProbes": 0
+    },
+    "realization": {
+      "identity": "0dde0b3978a79f7a879b6118982d275d59867073ac20cf06cfd11fe370d81a6d",
+      "treatment": "intact",
+      "breachRoute": "goal-start",
+      "gateState": "closed",
+      "spatialRevision": "collision=7; projectionHash=10059312983501016633; assets=4; instances=4; currentCollision=7; currentStaticMesh=7",
+      "stateIdentity": "236d3b337ed9f3c274cf4cf179c579bc32cb6d8d0696759d6b04bd310c7aed4f"
+    }
+  }
+]

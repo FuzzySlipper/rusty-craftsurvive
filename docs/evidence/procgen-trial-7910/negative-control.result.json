@@ -1,0 +1,122 @@
+{
+  "schema": "craftsurvive.workbench_trial_evaluation.v1",
+  "protocol": "workbench-selection-repair.v1",
+  "bankIdentity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "lane": "selection",
+  "agent": "fixed failing-stratum control",
+  "model": "none",
+  "results": [
+    {
+      "candidateId": "C07",
+      "parentIdentity": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede",
+      "resultIdentity": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede",
+      "motif": "four-room-return-shortcut",
+      "operation": "",
+      "repairCost": 0,
+      "accepted": false,
+      "geometryIdentity": "663775deaa39ffbe94993dcda9735c28e42c6b02b941f01f6cdecefae8973fbc",
+      "routePatternIdentity": "66cc144f017104f3a0d52912f661b69f61a07c525cf299400601acfe397998f5",
+      "failedRequirements": [
+        "a valid action witness reaches completion"
+      ],
+      "counterexamples": [
+        {
+          "requirement": "a valid action witness reaches completion",
+          "actions": [],
+          "reason": "No bounded state path reaches completion."
+        },
+        {
+          "requirement": "reachable-state-cannot-complete",
+          "actions": [],
+          "reason": "A reachable fixed experiment state has no path to completion."
+        }
+      ],
+      "repair": null
+    },
+    {
+      "candidateId": "C01",
+      "parentIdentity": "dbaaabbf0476393d7d0b42fd52502a4d6b1cd903cda9a0ea362035e32247f223",
+      "resultIdentity": "dbaaabbf0476393d7d0b42fd52502a4d6b1cd903cda9a0ea362035e32247f223",
+      "motif": "spent-key-recovery",
+      "operation": "",
+      "repairCost": 0,
+      "accepted": false,
+      "geometryIdentity": "6dfd38717cb01defc16f18c2927f9aa9dd7174bcd3e1ba73f582a3905310bac5",
+      "routePatternIdentity": "66cc144f017104f3a0d52912f661b69f61a07c525cf299400601acfe397998f5",
+      "failedRequirements": [
+        "a valid action witness reaches completion",
+        "the spent token recovers exactly once before activation"
+      ],
+      "counterexamples": [
+        {
+          "requirement": "a valid action witness reaches completion",
+          "actions": [
+            "move:relay",
+            "spend"
+          ],
+          "reason": "No bounded state path reaches completion."
+        },
+        {
+          "requirement": "the spent token recovers exactly once before activation",
+          "actions": [
+            "move:relay",
+            "spend"
+          ],
+          "reason": "The recovery sequence cannot restore one spent token exactly once."
+        },
+        {
+          "requirement": "reachable-state-cannot-complete",
+          "actions": [
+            "move:relay",
+            "spend"
+          ],
+          "reason": "A reachable fixed experiment state has no path to completion."
+        }
+      ],
+      "repair": null
+    },
+    {
+      "candidateId": "C03",
+      "parentIdentity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+      "resultIdentity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+      "motif": "visible-before-access",
+      "operation": "",
+      "repairCost": 0,
+      "accepted": false,
+      "geometryIdentity": "7571b56d05f7e7782e114a30cd9d93e9a6a554b603c4feb3132a7b38e7a67705",
+      "routePatternIdentity": "a767ae099c6aaeccd1f649c6f78bb88007e579dc585bcbcab22b375b66978e3b",
+      "failedRequirements": [
+        "a valid action witness reaches completion",
+        "the opening must be observed before activation"
+      ],
+      "counterexamples": [
+        {
+          "requirement": "a valid action witness reaches completion",
+          "actions": [],
+          "reason": "No bounded state path reaches completion."
+        },
+        {
+          "requirement": "the opening must be observed before activation",
+          "actions": [],
+          "reason": "The preview observation cannot establish the required activation condition."
+        },
+        {
+          "requirement": "reachable-state-cannot-complete",
+          "actions": [],
+          "reason": "A reachable fixed experiment state has no path to completion."
+        }
+      ],
+      "repair": null
+    }
+  ],
+  "accepted": 0,
+  "distinctAcceptedCandidates": 0,
+  "acceptedMotifs": 0,
+  "distinctGeometries": 0,
+  "distinctRoutePatterns": 0,
+  "repairCost": 0,
+  "repairFieldsPerAcceptedCandidate": null,
+  "physicalAcceptance": "Not evaluated by this offline report; use recorded Engine/world observations.",
+  "humanCalibration": "Pending blind human ratings; technical acceptance does not establish enjoyment or perceived diversity.",
+  "costPerEnjoyableLevel": null
+}

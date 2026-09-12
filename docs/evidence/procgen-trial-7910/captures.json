@@ -1,0 +1,30 @@
+[
+  {
+    "name": "blind-start",
+    "artifactId": "8b43f1bf-3781-4e17-8c15-4e9bd4d04f9b",
+    "captureId": null,
+    "original": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/b6c8f1b6-eb78-44c0-a8ea-fc5046365b5f/8b43f1bf-3781-4e17-8c15-4e9bd4d04f9b.png",
+    "sidecar": null
+  },
+  {
+    "name": "blind-end",
+    "artifactId": "ec3f57c8-56a9-4475-bb3a-15dddbd74f8c",
+    "captureId": "322c0e73-0f45-4435-bb41-90ac20ee31ba",
+    "original": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/b6c8f1b6-eb78-44c0-a8ea-fc5046365b5f/ec3f57c8-56a9-4475-bb3a-15dddbd74f8c.png",
+    "sidecar": "/home/agent/.local/state/crew-playtest/capture-322c0e73-0f45-4435-bb41-90ac20ee31ba.json"
+  },
+  {
+    "name": "intact-stop",
+    "artifactId": "d0356a14-8b0f-46bf-a3ce-eb97b3de8a91",
+    "captureId": "f84e11df-4219-429f-a2d5-ec5baf5a40c1",
+    "original": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/b6c8f1b6-eb78-44c0-a8ea-fc5046365b5f/d0356a14-8b0f-46bf-a3ce-eb97b3de8a91.png",
+    "sidecar": "/home/agent/.local/state/crew-playtest/capture-f84e11df-4219-429f-a2d5-ec5baf5a40c1.json"
+  },
+  {
+    "name": "breach-crossed",
+    "artifactId": "3cc303c8-1372-4944-a372-7853236effc5",
+    "captureId": "36e72891-0bf4-4795-a720-b54a21faee56",
+    "original": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/b6c8f1b6-eb78-44c0-a8ea-fc5046365b5f/3cc303c8-1372-4944-a372-7853236effc5.png",
+    "sidecar": "/home/agent/.local/state/crew-playtest/capture-36e72891-0bf4-4795-a720-b54a21faee56.json"
+  }
+]

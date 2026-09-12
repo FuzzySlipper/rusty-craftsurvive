@@ -1,0 +1,41 @@
+{
+  "warning": "Keep separate from blind participant instructions until ratings are recorded.",
+  "assignments": [
+    {
+      "label": "B01",
+      "path": "procgen/trial-B01.json",
+      "candidateId": "C08",
+      "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744"
+    },
+    {
+      "label": "B02",
+      "path": "procgen/trial-B02.json",
+      "candidateId": "C10",
+      "identity": "abf4c2e47af4fef82cc776dd6ffb217b7d787be4b6094786e1148a616d1f65c3"
+    },
+    {
+      "label": "B03",
+      "path": "procgen/trial-B03.json",
+      "candidateId": "C04",
+      "identity": "62bc94efcc3d00dc2ebec2f3965b7035550f1fbd2b1737dd2a4883e69f147a54"
+    },
+    {
+      "label": "B04",
+      "path": "procgen/trial-B04.json",
+      "candidateId": "C12",
+      "identity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63"
+    },
+    {
+      "label": "B05",
+      "path": "procgen/trial-B05.json",
+      "candidateId": "C02",
+      "identity": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd"
+    },
+    {
+      "label": "B06",
+      "path": "procgen/trial-B06.json",
+      "candidateId": "C06",
+      "identity": "6834df12f426a19a74ad18974be284264a30b39b2f62d8daa1fccb9f8d1dcd2f"
+    }
+  ]
+}

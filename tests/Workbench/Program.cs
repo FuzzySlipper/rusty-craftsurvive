@@ -9,9 +9,45 @@ LargeMotifTests();
 CounterexamplesFailContracts();
 StrictCandidateJson();
 WorkbenchRepairTests();
+WorkbenchTrialTests();
 RealizationRequirements();
 
 Console.WriteLine("CraftSurvive workbench checks passed.");
+
+static void WorkbenchTrialTests()
+{
+    TrialBank bank = WorkbenchTrial.Generate();
+    Equal(bank.Identity, WorkbenchTrial.Generate().Identity, "Trial bank must be reproducible and bind every resolved candidate.");
+    TrialObservation[] observations = WorkbenchTrial.Inspect(bank);
+    True(observations.Count(o => o.Accepted) == 6 && observations.Count(o => !o.Accepted) == 6, "Trial bank must contain paired passing/failing strata.");
+    TrialSubmission baseline = WorkbenchTrial.Baseline(bank);
+    TrialEvaluation deterministic = WorkbenchTrial.Evaluate(bank, baseline);
+    True(deterministic.Accepted == 3 && deterministic.RepairCost == 0, "Deterministic selection must establish a no-edit accepted baseline.");
+    True(deterministic.CostPerEnjoyableLevel is null, "Offline acceptance must not invent human enjoyment or financial cost.");
+    var failed = observations.Where(o => !o.Accepted).GroupBy(o => o.Motif).Select(group => group.First()).ToArray();
+    TrialSubmission selectionFailure = baseline with { Lane = "selection", Choices = failed.Select(o => new TrialChoice(o.Id, "", "Negative control")).ToArray() };
+    TrialEvaluation rejected = WorkbenchTrial.Evaluate(bank, selectionFailure);
+    True(rejected.Accepted == 0 && rejected.Results.All(r => r.Counterexamples.Length > 0), "Selected failures must retain executable counterexamples, not gain acceptance.");
+    TrialSubmission repaired = selectionFailure with { Lane = "repair-challenge", Choices = failed.Select(o => new TrialChoice(o.Id, o.Operations.Single(), "One-operation challenge")).ToArray() };
+    TrialEvaluation repair = WorkbenchTrial.Evaluate(bank, repaired);
+    True(repair.Accepted == 3 && repair.RepairCost == 3, "Matched failed stratum must be repaired through canonical one-field operations.");
+    foreach (TrialResult result in repair.Results)
+    {
+        TrialEntry parent = bank.Entries.Single(e => e.Id == result.CandidateId);
+        Equal(WorkbenchTrial.GeometryIdentity(parent.Candidate), result.GeometryIdentity, "Repairs must not count preserved geometry as added structural variation.");
+        WorkbenchRepairJson.Deserialize(WorkbenchRepairJson.Serialize(result.Repair!));
+    }
+    var sameGeometry = bank.Entries.GroupBy(e => WorkbenchTrial.GeometryIdentity(e.Candidate)).First(g => g.Count() > 1).ToArray();
+    True(sameGeometry.Select(e => e.Identity).Distinct().Count() > 1, "Different identities or mechanic flags must not be confused with new room/passage structure.");
+    ExpectArtifact(() => WorkbenchTrial.Evaluate(bank, repaired with { Lane = "selection" }), "Selection lane cannot smuggle repairs.");
+    ExpectArtifact(() => WorkbenchTrial.Evaluate(bank, baseline with { Choices = [baseline.Choices[0], baseline.Choices[0], baseline.Choices[2]] }), "Duplicate motif choices must reject.");
+    ExpectArtifact(() => WorkbenchTrial.Evaluate(bank, baseline with { BankIdentity = "changed" }), "A submission cannot change its retained bank.");
+    ExpectArtifact(() => WorkbenchTrial.Validate(bank with { Entries = bank.Entries.Select((e, i) => i == 0 ? e with { Candidate = e.Candidate with { Seed = 100 } } : e).ToArray() }), "Bank candidate tampering must reject.");
+    var injected = JsonNode.Parse(WorkbenchTrialJson.SerializeSubmission(baseline))!.AsObject();
+    injected["acceptance"] = "always-pass";
+    ExpectArtifact(() => WorkbenchTrialJson.ReadSubmission(System.Text.Encoding.UTF8.GetBytes(injected.ToJsonString())), "Agents cannot author new acceptance fields.");
+    WorkbenchTrialJson.ReadBank(WorkbenchTrialJson.SerializeBank(bank));
+}
 
 static void RealizationRequirements()
 {

@@ -1,0 +1,72 @@
+{
+  "protocol": "workbench-selection-repair.v1",
+  "bankIdentity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "lanes": [
+    {
+      "lane": "deterministic",
+      "agent": "fixed first-passing-by-id",
+      "model": "none",
+      "accepted": 3,
+      "distinctAcceptedCandidates": 3,
+      "acceptedMotifs": 3,
+      "distinctGeometries": 3,
+      "distinctRoutePatterns": 2,
+      "repairCost": 0,
+      "repairFieldsPerAcceptedCandidate": 0,
+      "costPerEnjoyableLevel": null
+    },
+    {
+      "lane": "selection",
+      "agent": "trial_selection",
+      "model": "unknown",
+      "accepted": 3,
+      "distinctAcceptedCandidates": 3,
+      "acceptedMotifs": 3,
+      "distinctGeometries": 2,
+      "distinctRoutePatterns": 2,
+      "repairCost": 0,
+      "repairFieldsPerAcceptedCandidate": 0,
+      "costPerEnjoyableLevel": null
+    },
+    {
+      "lane": "editing",
+      "agent": "trial_editing",
+      "model": "unknown",
+      "accepted": 3,
+      "distinctAcceptedCandidates": 3,
+      "acceptedMotifs": 3,
+      "distinctGeometries": 3,
+      "distinctRoutePatterns": 2,
+      "repairCost": 0,
+      "repairFieldsPerAcceptedCandidate": 0,
+      "costPerEnjoyableLevel": null
+    },
+    {
+      "lane": "repair-challenge",
+      "agent": "trial_editing_challenge",
+      "model": "unknown",
+      "accepted": 3,
+      "distinctAcceptedCandidates": 3,
+      "acceptedMotifs": 3,
+      "distinctGeometries": 3,
+      "distinctRoutePatterns": 2,
+      "repairCost": 3,
+      "repairFieldsPerAcceptedCandidate": 1,
+      "costPerEnjoyableLevel": null
+    },
+    {
+      "lane": "selection",
+      "agent": "fixed failing-stratum control",
+      "model": "none",
+      "accepted": 0,
+      "distinctAcceptedCandidates": 0,
+      "acceptedMotifs": 0,
+      "distinctGeometries": 0,
+      "distinctRoutePatterns": 0,
+      "repairCost": 0,
+      "repairFieldsPerAcceptedCandidate": null,
+      "costPerEnjoyableLevel": null
+    }
+  ],
+  "interpretation": "Technical metrics only; do not unblind participant assignments before ratings. One run per lane, not model performance statistics."
+}

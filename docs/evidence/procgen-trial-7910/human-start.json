@@ -1,0 +1,848 @@
+{
+  "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+  "revision": 13,
+  "source": "procgen/trial-B01.json",
+  "playerPosition": {
+    "x": -2.220446e-16,
+    "y": 3.9059997,
+    "z": 4.0133002e-22
+  },
+  "physicalState": {
+    "room": "start",
+    "switchOpen": false,
+    "token": false,
+    "spent": false,
+    "recovered": false,
+    "observed": false
+  },
+  "mode": "walking",
+  "checks": {
+    "model": "PASS: completing witness 5 actions; 10 reachable states; 0 cannot complete",
+    "routes": "18/18 clear mesh rays (pass)",
+    "separations": "36/36 blocked mesh rays (pass); gates closed; failures: ",
+    "information": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition",
+    "coverage": "Actual Engine mesh queries: legacy nine-ray checks plus bidirectional standing-capsule casts (height 1.75, radius 0.30), three lanes per route, five lanes across each gate and selected forbidden room pairs. Endpoints must be clear. Sampled horizontal clearance is not exhaustive navigation or a controller trajectory. Jump, climb, crouch-only routes, destruction and movable-prop bypasses are not covered. Model replay does not change the world.",
+    "build": "generation=11; parts=4; triangles=10678; vertices=9191; buildSeconds=0.090; collision=generated-mesh-copy",
+    "realization": "PASS: 48/48 scoped body checks; 0 failures; 0 unavailable",
+    "probes": [
+      {
+        "id": "start-relay/lane-1/forward",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": -1.0500001
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": -1.0500001
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "start-relay/lane-1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": -1.0500001
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": -1.0500001
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "start-relay/lane0/forward",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "start-relay/lane0/reverse",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "start-relay/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 1.0500001
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 1.0500001
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "start-relay/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 1.0500001
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 1.0500001
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "relay-control/lane-1/forward",
+        "kind": "route",
+        "from": {
+          "x": 11.95,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 11.95,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "relay-control/lane-1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 11.95,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 11.95,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "relay-control/lane0/forward",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "relay-control/lane0/reverse",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "relay-control/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 14.05,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 14.05,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "relay-control/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 14.05,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 14.05,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "clear",
+        "observed": "clear",
+        "passed": true
+      },
+      {
+        "id": "control-goal/lane-1/forward",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/lane-1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/lane0/forward",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/lane0/reverse",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate-2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 5,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "to": {
+          "x": 8,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate-2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 8,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "to": {
+          "x": 5,
+          "y": 3.955,
+          "z": 12.95
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate-1/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 5,
+          "y": 3.955,
+          "z": 13.475
+        },
+        "to": {
+          "x": 8,
+          "y": 3.955,
+          "z": 13.475
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate-1/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 8,
+          "y": 3.955,
+          "z": 13.475
+        },
+        "to": {
+          "x": 5,
+          "y": 3.955,
+          "z": 13.475
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate0/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 5,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 8,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate0/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 8,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 5,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate1/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 5,
+          "y": 3.955,
+          "z": 14.525
+        },
+        "to": {
+          "x": 8,
+          "y": 3.955,
+          "z": 14.525
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate1/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 8,
+          "y": 3.955,
+          "z": 14.525
+        },
+        "to": {
+          "x": 5,
+          "y": 3.955,
+          "z": 14.525
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 5,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "to": {
+          "x": 8,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "control-goal/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 8,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "to": {
+          "x": 5,
+          "y": 3.955,
+          "z": 15.05
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/lane-1/forward",
+        "kind": "route",
+        "from": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/lane-1/reverse",
+        "kind": "route",
+        "from": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/lane0/forward",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/lane0/reverse",
+        "kind": "route",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/lane1/forward",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/lane1/reverse",
+        "kind": "route",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate-2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate-2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": -1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate-1/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": -0.52500004,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": -0.52500004,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate-1/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": -0.52500004,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": -0.52500004,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate0/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate0/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate1/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 0.52500004,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": 0.52500004,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate1/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 0.52500004,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": 0.52500004,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate2/forward",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "goal-start/gate2/reverse",
+        "kind": "protected-gate",
+        "from": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 8.5
+        },
+        "to": {
+          "x": 1.0500001,
+          "y": 3.955,
+          "z": 5.5
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "start/control/forward",
+        "kind": "protected-separation",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "start/control/reverse",
+        "kind": "protected-separation",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "relay/goal/forward",
+        "kind": "protected-separation",
+        "from": {
+          "x": 13,
+          "y": 3.955,
+          "z": 0
+        },
+        "to": {
+          "x": 0,
+          "y": 3.955,
+          "z": 14
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      },
+      {
+        "id": "relay/goal/reverse",
+        "kind": "protected-separation",
+        "from": {
+          "x": 0,
+          "y": 3.955,
+          "z": 14
+        },
+        "to": {
+          "x": 13,
+          "y": 3.955,
+          "z": 0
+        },
+        "expected": "blocked",
+        "observed": "blocked",
+        "passed": true
+      }
+    ],
+    "probeCount": 48,
+    "omittedProbes": 0
+  }
+}

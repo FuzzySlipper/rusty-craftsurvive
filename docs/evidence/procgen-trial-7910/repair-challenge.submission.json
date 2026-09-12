@@ -1,0 +1,24 @@
+{
+  "schema": "craftsurvive.workbench_trial_submission.v1",
+  "bankIdentity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "lane": "repair-challenge",
+  "agent": "trial_editing_challenge",
+  "model": "unknown",
+  "choices": [
+    {
+      "candidateId": "C07",
+      "operation": "restore-switch",
+      "reason": "Inspection identifies restore-switch as the applicable canonical repair for the missing completion path; it changes only switchEnabled=true."
+    },
+    {
+      "candidateId": "C01",
+      "operation": "restore-recovery",
+      "reason": "Inspection identifies restore-recovery as the applicable canonical repair for the spent-token recovery failure; it changes only recoveryEnabled=true."
+    },
+    {
+      "candidateId": "C03",
+      "operation": "restore-preview",
+      "reason": "Inspection identifies restore-preview as the applicable canonical repair for the missing observation gate; it changes only previewOpening=true."
+    }
+  ]
+}

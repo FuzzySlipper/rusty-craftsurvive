@@ -1,0 +1,24 @@
+{
+  "schema": "craftsurvive.workbench_trial_submission.v1",
+  "bankIdentity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "lane": "editing",
+  "agent": "trial_editing",
+  "model": "unknown",
+  "choices": [
+    {
+      "candidateId": "C04",
+      "operation": "",
+      "reason": "The native switch state supports the shortcut motif. I prefer seed 29's wider horizontal loop and shorter direct return because the spatial contrast is more legible; this is a qualitative layout preference, not a measured fun result."
+    },
+    {
+      "candidateId": "C08",
+      "operation": "",
+      "reason": "The native preview state supports the visible-before-access motif. I prefer seed 11's tighter footprint for a concise preview-to-access traversal; this is a qualitative spatial preference, not a measured fun result."
+    },
+    {
+      "candidateId": "C12",
+      "operation": "",
+      "reason": "The native recovery state supports the spent-key recovery motif. I prefer seed 11's tighter loop because the repeated recovery traversal is shorter; this is a qualitative play-space preference, not a measured fun result."
+    }
+  ]
+}

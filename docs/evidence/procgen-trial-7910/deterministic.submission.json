@@ -1,0 +1,24 @@
+{
+  "schema": "craftsurvive.workbench_trial_submission.v1",
+  "bankIdentity": "b27472c6ed8c910e158c5d85a5f9325fd21defa335841f64f4e837bf8b3cbf0a",
+  "lane": "deterministic",
+  "agent": "fixed first-passing-by-id",
+  "model": "none",
+  "choices": [
+    {
+      "candidateId": "C02",
+      "operation": "",
+      "reason": "First contract-passing ID for this motif; no edits."
+    },
+    {
+      "candidateId": "C10",
+      "operation": "",
+      "reason": "First contract-passing ID for this motif; no edits."
+    },
+    {
+      "candidateId": "C06",
+      "operation": "",
+      "reason": "First contract-passing ID for this motif; no edits."
+    }
+  ]
+}
