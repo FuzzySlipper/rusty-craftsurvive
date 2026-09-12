@@ -1,0 +1,16 @@
+{
+  "active_count": 0,
+  "capacity": 2,
+  "observed_at": "2026-09-12T05:44:30.004336156Z",
+  "queued_starts": 0,
+  "slots": [
+    {
+      "occupied": false,
+      "slot_id": "slot-1"
+    },
+    {
+      "occupied": false,
+      "slot_id": "slot-2"
+    }
+  ]
+}

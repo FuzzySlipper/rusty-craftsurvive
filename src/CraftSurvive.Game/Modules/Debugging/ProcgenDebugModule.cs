@@ -29,4 +29,14 @@ public sealed class ProcgenDebugModule : IDebugCommandModule
     public string Repair(long revision) => workbench.QueueAction("repair", revision);
     [DebugCommand("craft.procgen.check", Description = "Checks the current realized mesh against candidate/state route and separation requirements.")]
     public string Check(long revision) => workbench.QueueAction("check", revision);
+    [DebugCommand("craft.procgen.bank", Description = "Lists up to sixteen staged candidates with offline progression diagnostics; does not load a world.")]
+    public string Bank() => workbench.Bank();
+    [DebugCommand("craft.procgen.reference", Description = "Pins the current plan, state and diagnostics as a frozen comparison observation.")]
+    public string Reference(long revision) => workbench.QueueAction("reference", revision);
+    [DebugCommand("craft.procgen.comparison", Description = "Reads the frozen baseline, resolved decision differences and applicable semantic repairs.")]
+    public string Comparison() => workbench.Comparison();
+    [DebugCommand("craft.procgen.mend", Description = "Applies one canonical semantic repair, retains its parent, and rebuilds at the entrance.")]
+    public string Mend(long revision, string operation) => workbench.QueueMend(revision, operation);
+    [DebugCommand("craft.procgen.export", Description = "Exports the last applied semantic repair receipt with full parent/result artifacts for offline retention.")]
+    public string Export() => workbench.ExportRepair();
 }

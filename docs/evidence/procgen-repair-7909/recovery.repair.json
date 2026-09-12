@@ -1,0 +1,213 @@
+{
+  "schema": "craftsurvive.workbench_repair_receipt.v1",
+  "parent": {
+    "schema": "craftsurvive.workbench_candidate.v2",
+    "seed": 11,
+    "motif": "spent-key-recovery",
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "switchRoom": "control",
+    "startRoom": "start",
+    "goalRoom": "goal",
+    "switchEnabled": true,
+    "recoveryEnabled": false,
+    "previewOpening": false
+  },
+  "result": {
+    "schema": "craftsurvive.workbench_candidate.v2",
+    "seed": 11,
+    "motif": "spent-key-recovery",
+    "rooms": [
+      {
+        "id": "start",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "relay",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": -4
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 4
+        }
+      },
+      {
+        "id": "control",
+        "minimum": {
+          "x": 9,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 17,
+          "y": 7,
+          "z": 18
+        }
+      },
+      {
+        "id": "goal",
+        "minimum": {
+          "x": -4,
+          "y": 3,
+          "z": 10
+        },
+        "maximum": {
+          "x": 4,
+          "y": 7,
+          "z": 18
+        }
+      }
+    ],
+    "routes": [
+      {
+        "id": "start-relay",
+        "from": "start",
+        "to": "relay",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "relay-control",
+        "from": "relay",
+        "to": "control",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "control-goal",
+        "from": "control",
+        "to": "goal",
+        "width": 3,
+        "requiresSwitch": false
+      },
+      {
+        "id": "goal-start",
+        "from": "goal",
+        "to": "start",
+        "width": 3,
+        "requiresSwitch": true
+      }
+    ],
+    "switchRoom": "control",
+    "startRoom": "start",
+    "goalRoom": "goal",
+    "switchEnabled": true,
+    "recoveryEnabled": true,
+    "previewOpening": false
+  },
+  "parentIdentity": "a1df423f166b02a071d7bb7dfba4d6ad7f9a10f24fc23dd605cb989c7379dadb",
+  "resultIdentity": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63",
+  "operation": "restore-recovery",
+  "cost": 1,
+  "changedField": "recoveryEnabled",
+  "before": {
+    "completable": false,
+    "reachableStates": 8,
+    "unrecoverableStates": 8,
+    "failedRequirements": [
+      "a valid action witness reaches completion",
+      "the spent token recovers exactly once before activation"
+    ]
+  },
+  "after": {
+    "completable": true,
+    "reachableStates": 16,
+    "unrecoverableStates": 0,
+    "failedRequirements": []
+  }
+}

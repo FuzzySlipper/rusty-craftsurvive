@@ -1,0 +1,35 @@
+{
+  "result": {
+    "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "source": "procgen/preview-repaired.repair.json",
+    "status": "applied",
+    "revision": 1
+  },
+  "parent": {
+    "identity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+    "source": "procgen/preview-repaired.repair.json (retained parent)",
+    "status": "offline parent",
+    "checks": {
+      "model": "Retained offline analysis; see contracts",
+      "routes": "unobserved",
+      "separations": "unobserved",
+      "information": "unobserved",
+      "coverage": "No physical observations were retained in the semantic receipt.",
+      "build": "unobserved",
+      "realization": "UNAVAILABLE: offline parent",
+      "probes": [],
+      "probeCount": 0,
+      "omittedProbes": 0
+    }
+  },
+  "repair": {
+    "parentIdentity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+    "resultIdentity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "operation": "restore-preview",
+    "cost": 1,
+    "changedField": "previewOpening"
+  },
+  "differences": [
+    "Preview opening: False \u2192 True"
+  ]
+}

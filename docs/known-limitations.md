@@ -15,8 +15,11 @@
   shown in the workbench state; station props do not animate depletion.
   Switch activation and realization treatments rebuild the scene synchronously.
   Readouts retain at most 64 probe rows, failures/unknowns first, with full summary
-  counts and explicit omissions. Semantic repair tools, agent trials and curated
-  banks remain #7909–#7912.
+  counts and explicit omissions. Candidate comparison and three one-field repairs
+  now cover the retained small-motif failures (#7909); repairs preserve resolved
+  geometry and reset the run. The bank is bounded to sixteen admitted artifacts.
+  Exported receipts retain decisions, not physical observations or screenshots.
+  Structural editing, agent trials and broader curation remain #7910–#7912.
 
 The current C# lane is a deliberately bounded continuation. These limits
 describe the landed product; they are not invitations to recreate a parallel

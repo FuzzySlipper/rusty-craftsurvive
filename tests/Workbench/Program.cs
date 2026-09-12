@@ -8,6 +8,7 @@ foreach (var motif in new[] { WorkbenchExperiment.CurrentMotif, WorkbenchExperim
 LargeMotifTests();
 CounterexamplesFailContracts();
 StrictCandidateJson();
+WorkbenchRepairTests();
 RealizationRequirements();
 
 Console.WriteLine("CraftSurvive workbench checks passed.");
@@ -231,6 +232,59 @@ static void StrictCandidateJson()
     ExpectArtifact(() => WorkbenchCandidateJson.Serialize(invalidRoute), "invalid locked route must reject artifact serialization");
 }
 
+static void WorkbenchRepairTests()
+{
+    var repairs = new[]
+    {
+        ("workbench-failure-11.json", WorkbenchRepair.RestoreSwitch, "switchEnabled"),
+        ("recovery-failure-11.json", WorkbenchRepair.RestoreRecovery, "recoveryEnabled"),
+        ("preview-failure-11.json", WorkbenchRepair.RestorePreview, "previewOpening"),
+    };
+    foreach (var (fixture, operation, changedField) in repairs)
+    {
+        var parent = WorkbenchCandidateJson.Deserialize(File.ReadAllBytes(RepositoryFile("content", "procgen", fixture)));
+        Equal(operation, WorkbenchRepair.Operations(parent).Single(), $"{fixture} must expose only its fixture-backed repair");
+        var result = WorkbenchRepair.Apply(parent, operation);
+        True(WorkbenchExperiment.Analyze(result).Contracts.All(contract => contract.Passed), $"{fixture} repair must restore its bounded behavioral contracts");
+        var parentNode = JsonNode.Parse(WorkbenchCandidateJson.Serialize(parent))!.AsObject();
+        var resultNode = JsonNode.Parse(WorkbenchCandidateJson.Serialize(result))!.AsObject();
+        parentNode.Remove(changedField);
+        resultNode.Remove(changedField);
+        Equal(parentNode.ToJsonString(), resultNode.ToJsonString(), $"{fixture} repair must preserve all unrelated resolved decisions");
+
+        var receipt = WorkbenchRepairJson.Create(parent, operation);
+        Equal(WorkbenchRepairReceipt.CurrentSchema, receipt.Schema, "repair receipt must identify its schema");
+        True(receipt.Cost == 1, "repair receipt must retain one semantic field cost");
+        Equal(changedField, receipt.ChangedField, "repair receipt must name its semantic field");
+        Equal(receipt.ResultIdentity, WorkbenchCandidateJson.Identity(result), "repair receipt must retain canonical result identity");
+        var encodedReceipt = WorkbenchRepairJson.Serialize(receipt);
+        var decodedReceipt = WorkbenchRepairJson.Deserialize(encodedReceipt);
+        Equal(receipt.ResultIdentity, decodedReceipt.ResultIdentity, "repair receipt must strictly roundtrip");
+
+        var tampered = JsonNode.Parse(encodedReceipt)!.AsObject();
+        tampered["cost"] = 2;
+        ExpectArtifact(() => WorkbenchRepairJson.Deserialize(System.Text.Encoding.UTF8.GetBytes(tampered.ToJsonString())), "tampered repair receipt cost must reject");
+        tampered = JsonNode.Parse(encodedReceipt)!.AsObject();
+        tampered["parentIdentity"] = "tampered";
+        ExpectArtifact(() => WorkbenchRepairJson.Deserialize(System.Text.Encoding.UTF8.GetBytes(tampered.ToJsonString())), "tampered repair receipt parent identity must reject");
+        tampered = JsonNode.Parse(encodedReceipt)!.AsObject();
+        tampered["resultIdentity"] = "tampered";
+        ExpectArtifact(() => WorkbenchRepairJson.Deserialize(System.Text.Encoding.UTF8.GetBytes(tampered.ToJsonString())), "tampered repair receipt result identity must reject");
+        tampered = JsonNode.Parse(encodedReceipt)!.AsObject();
+        tampered["result"]![changedField] = false;
+        ExpectArtifact(() => WorkbenchRepairJson.Deserialize(System.Text.Encoding.UTF8.GetBytes(tampered.ToJsonString())), "tampered repair result must reject");
+        tampered = JsonNode.Parse(encodedReceipt)!.AsObject();
+        tampered["before"] = null;
+        ExpectArtifact(() => WorkbenchRepairJson.Deserialize(System.Text.Encoding.UTF8.GetBytes(tampered.ToJsonString())), "null repair analysis must reject as an artifact validation error");
+        ExpectIllegal(() => WorkbenchRepair.Apply(result, operation), "a repeated repair must reject as a no-op");
+    }
+
+    var previewWithMissingSwitch = WorkbenchExperiment.Generate(11, WorkbenchExperiment.PreviewMotif) with { SwitchEnabled = false };
+    True(WorkbenchRepair.Operations(previewWithMissingSwitch).Contains(WorkbenchRepair.RestoreSwitch, StringComparer.Ordinal), "switch repair must apply to every motif whose activation semantics use the switch");
+    var invalid = WorkbenchExperiment.Generate(11) with { Schema = "invalid" };
+    ExpectIllegal(() => WorkbenchRepair.Operations(invalid), "invalid repair parents must reject before operation selection");
+}
+
 static WorkbenchState ApplyAll(WorkbenchCandidate candidate, IEnumerable<string> actions)
 {
     var state = WorkbenchExperiment.Initial(candidate);
@@ -269,6 +323,16 @@ static void ExpectArtifact(Action action, string detail)
     var threw = false;
     try { action(); } catch (ArtifactValidationException) { threw = true; }
     if (!threw) throw new InvalidOperationException(detail);
+}
+static string RepositoryFile(params string[] pathSegments)
+{
+    foreach (var root in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+    for (var current = new DirectoryInfo(root); current is not null; current = current.Parent)
+    {
+        var candidate = Path.Combine(current.FullName, Path.Combine(pathSegments));
+        if (File.Exists(candidate)) return candidate;
+    }
+    throw new InvalidOperationException($"Could not find checked repository artifact '{Path.Combine(pathSegments)}'.");
 }
 static void Equal(string left, string right, string detail) { if (!StringComparer.Ordinal.Equals(left, right)) throw new InvalidOperationException(detail); }
 static void NotEqual(string left, string right, string detail) { if (StringComparer.Ordinal.Equals(left, right)) throw new InvalidOperationException(detail); }

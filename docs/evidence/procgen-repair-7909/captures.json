@@ -1,0 +1,110 @@
+[
+  {
+    "name": "world-before",
+    "captureId": "dea541c6-8008-4449-8835-b251e47984f8",
+    "metadataPath": "/home/agent/.local/state/crew-playtest/capture-dea541c6-8008-4449-8835-b251e47984f8.json",
+    "originalPath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/25ed2d71-a35b-45cd-ad75-a73d2f3c9f34/87886eab-a32d-4620-a1a0-7124525d37c6.png",
+    "label": "preview-before-final",
+    "comparison": null,
+    "enginePresentation": {
+      "available": false,
+      "reason": "not requested; set engine_presentation or profile presentation_observations"
+    },
+    "frameCorrelation": "unavailable",
+    "observation": {
+      "artifact_id": "87886eab-a32d-4620-a1a0-7124525d37c6",
+      "capture_started_at_ns": 1789191646353865498,
+      "capture_ended_at_ns": 1789191646471114663,
+      "source": "remote Wolf stream decoded by Moonlight into private X11 window",
+      "frame_freshness": "not measured",
+      "width": 1280,
+      "height": 720
+    }
+  },
+  {
+    "name": "world-after",
+    "captureId": "35d530ea-34f3-4a38-b9c7-6e312547b0a6",
+    "metadataPath": "/home/agent/.local/state/crew-playtest/capture-35d530ea-34f3-4a38-b9c7-6e312547b0a6.json",
+    "originalPath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/25ed2d71-a35b-45cd-ad75-a73d2f3c9f34/b97f95ef-909f-43d1-a2e2-2e6e3adb62a3.png",
+    "label": "preview-after-final",
+    "comparison": {
+      "baseline_capture_id": "dea541c6-8008-4449-8835-b251e47984f8",
+      "baseline_path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/25ed2d71-a35b-45cd-ad75-a73d2f3c9f34/87886eab-a32d-4620-a1a0-7124525d37c6.png",
+      "engine_presentation": {
+        "baseline_available": false,
+        "current_available": false,
+        "frame_correlation": "unavailable",
+        "same_runtime": "unknown",
+        "same_submitted_cameras": "unknown",
+        "same_submitted_view_layout": "unknown",
+        "same_submitted_view_revision": "unknown",
+        "same_submitted_viewport": "unknown",
+        "same_surface": "unknown"
+      },
+      "readiness_comparable": "unknown",
+      "same_observed_canvases": "unknown",
+      "same_observed_viewport": "unknown",
+      "same_pixel_dimensions": true,
+      "same_supplied_viewpoint": true,
+      "visual_verdict": "not assessed; inspect both original images"
+    },
+    "enginePresentation": {
+      "available": false,
+      "reason": "not requested; set engine_presentation or profile presentation_observations"
+    },
+    "frameCorrelation": "unavailable",
+    "observation": {
+      "artifact_id": "b97f95ef-909f-43d1-a2e2-2e6e3adb62a3",
+      "capture_started_at_ns": 1789191805700461249,
+      "capture_ended_at_ns": 1789191805818770911,
+      "source": "remote Wolf stream decoded by Moonlight into private X11 window",
+      "frame_freshness": "not measured",
+      "width": 1280,
+      "height": 720
+    }
+  },
+  {
+    "name": "layout-comparison",
+    "captureId": "b6f40bd4-2abf-47ec-bac2-feea3f4c732a",
+    "metadataPath": "/home/agent/.local/state/crew-playtest/capture-b6f40bd4-2abf-47ec-bac2-feea3f4c732a.json",
+    "originalPath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/25ed2d71-a35b-45cd-ad75-a73d2f3c9f34/3f580eb2-c3b4-4d41-92ab-a8e539cbe937.png",
+    "label": "final-semantic-comparison",
+    "comparison": null,
+    "enginePresentation": {
+      "available": false,
+      "reason": "not requested; set engine_presentation or profile presentation_observations"
+    },
+    "frameCorrelation": "unavailable",
+    "observation": {
+      "artifact_id": "3f580eb2-c3b4-4d41-92ab-a8e539cbe937",
+      "capture_started_at_ns": 1789191739236566044,
+      "capture_ended_at_ns": 1789191739344498166,
+      "source": "remote Wolf stream decoded by Moonlight into private X11 window",
+      "frame_freshness": "not measured",
+      "width": 1280,
+      "height": 720
+    }
+  },
+  {
+    "name": "graph-and-receipt",
+    "captureId": "51a86022-b17f-4d07-bfb4-a1307d474b69",
+    "metadataPath": "/home/agent/.local/state/crew-playtest/capture-51a86022-b17f-4d07-bfb4-a1307d474b69.json",
+    "originalPath": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/25ed2d71-a35b-45cd-ad75-a73d2f3c9f34/e9e6a615-4f37-4c5e-908d-7e770f9ab5a1.png",
+    "label": "final-graph-and-receipt",
+    "comparison": null,
+    "enginePresentation": {
+      "available": false,
+      "reason": "not requested; set engine_presentation or profile presentation_observations"
+    },
+    "frameCorrelation": "unavailable",
+    "observation": {
+      "artifact_id": "e9e6a615-4f37-4c5e-908d-7e770f9ab5a1",
+      "capture_started_at_ns": 1789191770434613567,
+      "capture_ended_at_ns": 1789191770542238820,
+      "source": "remote Wolf stream decoded by Moonlight into private X11 window",
+      "frame_freshness": "not measured",
+      "width": 1280,
+      "height": 720
+    }
+  }
+]

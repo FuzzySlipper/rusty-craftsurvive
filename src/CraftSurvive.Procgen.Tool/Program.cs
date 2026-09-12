@@ -22,6 +22,8 @@ internal static class ProcgenTool
                 return Task.FromResult(GenerateWorkloadCorpus(ParseWorkloadCorpus(args)));
             if (args.Length > 0 && StringComparer.Ordinal.Equals(args[0], "generate-workbench"))
                 return Task.FromResult(GenerateWorkbench(ParseWorkbench(args)));
+            if (args.Length > 0 && StringComparer.Ordinal.Equals(args[0], "repair-workbench"))
+                return Task.FromResult(RepairWorkbench(ParseWorkbenchRepair(args)));
             var command = ParseGenerate(args);
             var requestBytes = File.ReadAllBytes(command.RequestPath);
             var request = ArtifactJson.DeserializeRequest(requestBytes);
@@ -156,9 +158,49 @@ internal static class ProcgenTool
         return new WorkbenchCommand(seed, motif, counterexample, values["--out"], values["--receipt"]);
     }
 
+    private static int RepairWorkbench(WorkbenchRepairCommand command)
+    {
+        var inputPath = Path.GetFullPath(command.InputPath);
+        if (StringComparer.Ordinal.Equals(inputPath, Path.GetFullPath(command.ResultPath))
+            || StringComparer.Ordinal.Equals(inputPath, Path.GetFullPath(command.ReceiptPath)))
+            throw new ArtifactValidationException("repair_input_alias", "Repair input must be distinct from both result and receipt outputs.");
+        var parent = WorkbenchCandidateJson.Deserialize(File.ReadAllBytes(inputPath));
+        WorkbenchRepairReceipt receipt;
+        try
+        {
+            receipt = WorkbenchRepairJson.Create(parent, command.Operation);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new ArtifactValidationException("workbench_repair_invalid", exception.Message);
+        }
+        var write = AtomicArtifactWriter.WritePair(
+            command.ResultPath,
+            WorkbenchCandidateJson.Serialize(receipt.Result),
+            command.ReceiptPath,
+            WorkbenchRepairJson.Serialize(receipt));
+        foreach (var cleanupFailure in write.CleanupFailures) Console.Error.WriteLine($"warning: artifacts committed but a recoverable backup cleanup failed: {cleanupFailure}");
+        Console.WriteLine($"repaired workbench candidate operation={receipt.Operation} identity={receipt.ResultIdentity}");
+        return 0;
+    }
+
+    private static WorkbenchRepairCommand ParseWorkbenchRepair(IReadOnlyList<string> args)
+    {
+        if (args.Count != 9 || !StringComparer.Ordinal.Equals(args[0], "repair-workbench")) throw new ArtifactValidationException("usage", "Usage: repair-workbench --input <parent.json> --operation <operation> --out <result.json> --receipt <receipt.json>.");
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var index = 1; index < args.Count; index += 2)
+        {
+            var key = args[index];
+            if (key is not ("--input" or "--operation" or "--out" or "--receipt") || !values.TryAdd(key, args[index + 1]) || string.IsNullOrWhiteSpace(args[index + 1])) throw new ArtifactValidationException("usage", "Each repair option must appear exactly once with a nonempty value.");
+        }
+        if (values.Count != 4) throw new ArtifactValidationException("usage", "repair-workbench requires --input, --operation, --out, and --receipt.");
+        return new WorkbenchRepairCommand(values["--input"], values["--operation"], values["--out"], values["--receipt"]);
+    }
+
     private sealed record GenerateCommand(string RequestPath, string ResultPath, string ReceiptPath);
     private sealed record WorkloadCorpusCommand(string CorpusPath, string ReceiptPath);
     private sealed record WorkbenchCommand(ulong Seed, string Motif, bool Counterexample, string CandidatePath, string ReceiptPath);
+    private sealed record WorkbenchRepairCommand(string InputPath, string Operation, string ResultPath, string ReceiptPath);
 }
 
 internal static class ToolSelfCheck
@@ -228,6 +270,22 @@ internal static class ToolSelfCheck
             var committedCorpusPath = RepositoryFile("tests", "Procgen", "fixtures", "csharp-workload-corpus.v1.json");
             EqualBytes(generatedCorpusBytes, File.ReadAllBytes(committedCorpusPath), "checked workload corpus must regenerate through the owning C# path");
             ArtifactJson.DeserializeWorkloadCorpus(File.ReadAllBytes(committedCorpusPath));
+
+            var workbenchInput = Path.Combine(root, "workbench-parent.json");
+            var workbenchResult = Path.Combine(root, "workbench-result.json");
+            var workbenchReceipt = Path.Combine(root, "workbench-repair.receipt.json");
+            var workbenchFailure = WorkbenchExperiment.Generate(991, WorkbenchExperiment.CurrentMotif, counterexample: true);
+            File.WriteAllBytes(workbenchInput, WorkbenchCandidateJson.Serialize(workbenchFailure));
+            var workbenchInputBytes = File.ReadAllBytes(workbenchInput);
+            Equal(0, ProcgenTool.RunAsync(new[] { "repair-workbench", "--input", workbenchInput, "--operation", WorkbenchRepair.RestoreSwitch, "--out", workbenchResult, "--receipt", workbenchReceipt }).GetAwaiter().GetResult(), "CLI workbench repair must publish the canonical repair pair");
+            EqualBytes(workbenchInputBytes, File.ReadAllBytes(workbenchInput), "CLI workbench repair must preserve its input artifact");
+            var repairedWorkbench = WorkbenchCandidateJson.Deserialize(File.ReadAllBytes(workbenchResult));
+            True(repairedWorkbench.SwitchEnabled, "CLI workbench repair must restore only the named candidate fact");
+            var repairedReceipt = WorkbenchRepairJson.Deserialize(File.ReadAllBytes(workbenchReceipt));
+            Equal(WorkbenchCandidateJson.Identity(repairedWorkbench), repairedReceipt.ResultIdentity, "CLI repair result and strict receipt must roundtrip as a coherent pair");
+            Equal(2, ProcgenTool.RunAsync(new[] { "repair-workbench", "--input", workbenchResult, "--operation", WorkbenchRepair.RestoreSwitch, "--out", Path.Combine(root, "workbench-noop.json"), "--receipt", Path.Combine(root, "workbench-noop.receipt.json") }).GetAwaiter().GetResult(), "CLI workbench repair must reject a repeat no-op");
+            Equal(2, ProcgenTool.RunAsync(new[] { "repair-workbench", "--input", workbenchInput, "--operation", WorkbenchRepair.RestoreSwitch, "--out", workbenchInput, "--receipt", Path.Combine(root, "workbench-alias.receipt.json") }).GetAwaiter().GetResult(), "CLI workbench repair must reject input/result aliases");
+            Equal(2, ProcgenTool.RunAsync(new[] { "repair-workbench", "--input", workbenchInput, "--operation", WorkbenchRepair.RestoreSwitch, "--out", Path.Combine(root, "workbench-alias.json"), "--receipt", workbenchInput }).GetAwaiter().GetResult(), "CLI workbench repair must reject input/receipt aliases");
         }
         finally
         {

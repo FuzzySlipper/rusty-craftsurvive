@@ -1,0 +1,260 @@
+[
+  {
+    "name": "final-mend7909-input",
+    "receipt": {
+      "action_id": "b685db74-615b-41d1-8217-1650f3a991d8",
+      "backend": "wolf-input-api",
+      "cancelled": false,
+      "completed_steps": 10,
+      "elapsed_ms": 1618,
+      "ended_at": "2026-09-12T05:42:18Z",
+      "event": "input",
+      "input_delivery": {
+        "backend": "wolf-input-api",
+        "completed_steps": 10,
+        "game_consumption": "unknown",
+        "outcome": "target-reported",
+        "requested_steps": 10,
+        "state": "target-reported"
+      },
+      "lease_id": "25ed2d71-a35b-45cd-ad75-a73d2f3c9f34",
+      "pointer_lock": {
+        "backend": "wolf-input-api",
+        "observability": "unavailable",
+        "reason": "the native Wolf target exposes no browser pointer-lock readback",
+        "state": "unknown"
+      },
+      "release_errors": [],
+      "slot_id": "slot-1",
+      "started_at": "2026-09-12T05:42:17Z",
+      "steps": [
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 310,
+          "y": 75
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "keys": [
+            36
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "keys": [
+            40
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "keys": [
+            40
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "keys": [
+            40
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "keys": [
+            13
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 297,
+          "y": 235
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "kind": "wait",
+          "ms": 1200
+        }
+      ],
+      "time": "2026-09-12T05:42:19Z"
+    }
+  },
+  {
+    "name": "final-graph7909-input",
+    "receipt": {
+      "action_id": "e6e89267-3faa-4806-8e7a-4ba80e6935fb",
+      "backend": "wolf-input-api",
+      "cancelled": false,
+      "completed_steps": 11,
+      "elapsed_ms": 3448,
+      "ended_at": "2026-09-12T05:42:50Z",
+      "event": "input",
+      "input_delivery": {
+        "backend": "wolf-input-api",
+        "completed_steps": 11,
+        "game_consumption": "unknown",
+        "outcome": "target-reported",
+        "requested_steps": 11,
+        "state": "target-reported"
+      },
+      "lease_id": "25ed2d71-a35b-45cd-ad75-a73d2f3c9f34",
+      "pointer_lock": {
+        "backend": "wolf-input-api",
+        "observability": "unavailable",
+        "reason": "the native Wolf target exposes no browser pointer-lock readback",
+        "state": "unknown"
+      },
+      "release_errors": [],
+      "slot_id": "slot-1",
+      "started_at": "2026-09-12T05:42:46Z",
+      "steps": [
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 110,
+          "y": 466
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "keys": [
+            40
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "keys": [
+            13
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 725,
+          "y": 466
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "keys": [
+            40
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "keys": [
+            13
+          ],
+          "kind": "hold",
+          "ms": 50
+        },
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 434,
+          "y": 230
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "kind": "wait",
+          "ms": 3000
+        }
+      ],
+      "time": "2026-09-12T05:42:50Z"
+    }
+  },
+  {
+    "name": "final-close7909-input",
+    "receipt": {
+      "action_id": "18c3b313-51b5-47be-b9d5-f90191c463eb",
+      "backend": "wolf-input-api",
+      "cancelled": false,
+      "completed_steps": 5,
+      "elapsed_ms": 663,
+      "ended_at": "2026-09-12T05:43:25Z",
+      "event": "input",
+      "input_delivery": {
+        "backend": "wolf-input-api",
+        "completed_steps": 5,
+        "game_consumption": "unknown",
+        "outcome": "target-reported",
+        "requested_steps": 5,
+        "state": "target-reported"
+      },
+      "lease_id": "25ed2d71-a35b-45cd-ad75-a73d2f3c9f34",
+      "pointer_lock": {
+        "backend": "wolf-input-api",
+        "observability": "unavailable",
+        "reason": "the native Wolf target exposes no browser pointer-lock readback",
+        "state": "unknown"
+      },
+      "release_errors": [],
+      "slot_id": "slot-1",
+      "started_at": "2026-09-12T05:43:24Z",
+      "steps": [
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 405,
+          "y": 103
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "height": 720,
+          "kind": "point",
+          "width": 1280,
+          "x": 280,
+          "y": 110
+        },
+        {
+          "button": 1,
+          "kind": "click",
+          "ms": 80
+        },
+        {
+          "kind": "wait",
+          "ms": 500
+        }
+      ],
+      "time": "2026-09-12T05:43:25Z"
+    }
+  }
+]

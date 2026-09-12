@@ -15,6 +15,10 @@ namespace CraftSurvive.Game.Modules.LevelGeneration;
 internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent content, TerrainWorld terrain, PlayerController player)
 {
     private WorkbenchCandidate? candidate;
+    private WorkbenchReadout? reference;
+    private WorkbenchCandidate? referenceCandidate;
+    private WorkbenchRepairReceipt? repairReceipt;
+    private WorkbenchBankEntry[]? bank;
     private WorkbenchState? replay;
     private WorkbenchState physical = new("none", false);
     private WorkbenchLayoutData layout = new([], [], "");
@@ -29,6 +33,8 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
     private (string Action, string Argument)? pending;
     private const float UseDistance = 3f;
     private const int MaxHistory = 24;
+    private const int MaxArtifactBytes = 64 * 1024;
+    private const int MaxBankEntries = 16;
     private const int MaxReadoutProbes = 64;
     private const float SightTargetMargin = 0.5f;
     private string treatment = WorkbenchRealization.Intact;
@@ -50,6 +56,14 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         if (expectedRevision != revision) throw new InvalidOperationException("Candidate changed; refresh before acting.");
         if (!Active) throw new InvalidOperationException("Load a candidate before acting; another study may be active.");
         return Queue(action, "");
+    }
+
+    internal string QueueMend(long expectedRevision, string operation)
+    {
+        if (expectedRevision != revision || !Active) throw new InvalidOperationException("Candidate changed; refresh before acting.");
+        if (!WorkbenchRepair.Operations(RequireActive()).Contains(operation, StringComparer.Ordinal))
+            throw new InvalidOperationException("This repair is not applicable to the current candidate.");
+        return Queue("mend", operation);
     }
 
     private string Queue(string action, string argument)
@@ -74,6 +88,8 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
             switch (command.Action)
             {
                 case "load": Load(command.Argument); break;
+                case "reference": PinReference(); break;
+                case "mend": Mend(command.Argument); break;
                 case "enter":
                 case "reset": Enter(); break;
                 case "step": Step(); break;
@@ -102,8 +118,32 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         foreach (ProductContentFile file in content.Files.Span)
             if (Encoding.UTF8.GetString(file.Path.Span) == path) { found = file; break; }
         ProductContentFile selected = found ?? throw new InvalidOperationException($"Content path {path} was not staged. Generate the offline artifact, then reload the product.");
-        if (selected.Bytes.Length > 65536) throw new InvalidOperationException("Workbench candidate exceeds 64 KiB.");
-        WorkbenchCandidate next = WorkbenchCandidateJson.Deserialize(selected.Bytes.Span);
+        (WorkbenchCandidate next, WorkbenchRepairReceipt? retained) = ReadArtifact(selected.Bytes.Span);
+        ApplyCandidate(next, path);
+        repairReceipt = retained;
+        if (retained is not null)
+        {
+            referenceCandidate = retained.Parent;
+            WorkbenchState initial = WorkbenchExperiment.Initial(retained.Parent);
+            WorkbenchAnalysis parentAnalysis = WorkbenchExperiment.Analyze(retained.Parent);
+            reference = ReadFacts() with
+            {
+                Identity = retained.ParentIdentity, Source = path + " (retained parent)",
+                Seed = retained.Parent.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                Active = false, Status = "offline parent", Mode = "inspection", State = initial, ModelState = initial,
+                PhysicalState = new("unobserved", false), PhysicalRoom = "unobserved", PhysicalSwitchOpen = false,
+                PlayerPosition = new(0, 0, 0), Completed = false, LegalActions = WorkbenchExperiment.LegalActions(retained.Parent, initial),
+                Witness = parentAnalysis.Witness, Rooms = retained.Parent.Rooms, Routes = retained.Parent.Routes,
+                Layout = WorkbenchLayout.Resolve(retained.Parent), Analysis = parentAnalysis, Motif = retained.Parent.Motif,
+                History = [], Realization = new("unobserved", "unobserved", "unobserved", "unobserved", "unobserved", "unobserved"),
+                Checks = new("Retained offline analysis; see contracts", "unobserved", "unobserved", "unobserved",
+                    "No physical observations were retained in the semantic receipt.", "unobserved", "UNAVAILABLE: offline parent", [], 0, 0)
+            };
+        }
+    }
+
+    private void ApplyCandidate(WorkbenchCandidate next, string path)
+    {
         string nextIdentity = WorkbenchCandidateJson.Identity(next);
         WorkbenchAnalysis nextAnalysis = WorkbenchExperiment.Analyze(next);
         WorkbenchLayoutData nextLayout = WorkbenchLayout.Resolve(next);
@@ -321,7 +361,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         if (history.Count > MaxHistory) history.RemoveAt(0);
     }
 
-    internal string Readout()
+    internal string Readout() => JsonSerializer.Serialize(ReadFacts(), WorkbenchUiJson.Default.WorkbenchReadout);
+
+    private WorkbenchReadout ReadFacts()
     {
         string room = PhysicalRoom();
         bool model = mode.StartsWith("model", StringComparison.Ordinal) || mode == "inspection";
@@ -339,7 +381,115 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
                 new(player.WorldPosition.X, player.WorldPosition.Y, player.WorldPosition.Z), layout, analysis, replayLabel, replay ?? new("none", false),
                 new(RealizationIdentity(), treatment, candidate is null ? "none" : WorkbenchRealization.BreachRoute(candidate), physical.SwitchOpen ? "open" : "closed", spatialRevision,
                     Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"workbench-route-requirements.v1|{identity}|switch={physical.SwitchOpen}")))));
-        return JsonSerializer.Serialize(result, WorkbenchUiJson.Default.WorkbenchReadout);
+        return result;
+    }
+
+    private void PinReference()
+    {
+        referenceCandidate = RequireActive();
+        reference = ReadFacts();
+    }
+
+    private void Mend(string operation)
+    {
+        WorkbenchCandidate parent = RequireActive();
+        WorkbenchRepairReceipt receipt = WorkbenchRepairJson.Create(parent, operation);
+        WorkbenchReadout before = ReadFacts();
+        string parentSource = source;
+        ApplyCandidate(receipt.Result, parentSource + " (session repair)");
+        // Publish the comparison only after the replacement world succeeds.
+        referenceCandidate = parent;
+        reference = before;
+        repairReceipt = receipt;
+        Record($"semantic repair: {operation}; cost {receipt.Cost}; parent {receipt.ParentIdentity}");
+    }
+
+    internal string ExportRepair()
+    {
+        if (pending is not null) throw new InvalidOperationException("Wait for the pending command before exporting.");
+        if (repairReceipt is null || !Active || repairReceipt.ResultIdentity != identity)
+            throw new InvalidOperationException("There is no applied semantic repair to export.");
+        return Encoding.UTF8.GetString(WorkbenchRepairJson.Serialize(repairReceipt));
+    }
+
+    internal string Comparison()
+    {
+        WorkbenchComparison value = new(revision, identity, reference,
+            referenceCandidate is null || candidate is null ? [] : CompareCandidates(referenceCandidate, candidate),
+            Active ? WorkbenchRepair.Operations(candidate!) : [],
+            repairReceipt is null ? null : new(repairReceipt.ParentIdentity, repairReceipt.ResultIdentity,
+                repairReceipt.Operation, repairReceipt.Cost, repairReceipt.ChangedField));
+        return JsonSerializer.Serialize(value, WorkbenchUiJson.Default.WorkbenchComparison);
+    }
+
+    private static string[] CompareCandidates(WorkbenchCandidate before, WorkbenchCandidate after)
+    {
+        List<string> differences = [];
+        void Field<T>(string label, T a, T b)
+        {
+            if (!EqualityComparer<T>.Default.Equals(a, b)) differences.Add($"{label}: {a} → {b}");
+        }
+        Field("Seed", before.Seed, after.Seed);
+        Field("Motif", before.Motif, after.Motif);
+        Field("Start room", before.StartRoom, after.StartRoom);
+        Field("Goal room", before.GoalRoom, after.GoalRoom);
+        Field("Switch room", before.SwitchRoom, after.SwitchRoom);
+        Field("Switch enabled", before.SwitchEnabled, after.SwitchEnabled);
+        Field("Recovery enabled", before.RecoveryEnabled, after.RecoveryEnabled);
+        Field("Preview opening", before.PreviewOpening, after.PreviewOpening);
+        foreach (string id in before.Rooms.Select(r => r.Id).Union(after.Rooms.Select(r => r.Id)).Order(StringComparer.Ordinal))
+        {
+            WorkbenchRoom? a = before.Rooms.SingleOrDefault(r => r.Id == id), b = after.Rooms.SingleOrDefault(r => r.Id == id);
+            if (a != b) differences.Add($"Room {id}: {(a is null ? "added" : b is null ? "removed" : "bounds changed")}");
+        }
+        foreach (string id in before.Routes.Select(r => r.Id).Union(after.Routes.Select(r => r.Id)).Order(StringComparer.Ordinal))
+        {
+            WorkbenchRoute? a = before.Routes.SingleOrDefault(r => r.Id == id), b = after.Routes.SingleOrDefault(r => r.Id == id);
+            if (a != b) differences.Add($"Route {id}: {(a is null ? "added" : b is null ? "removed" : "endpoints, width or condition changed")}");
+        }
+        if (differences.Count == 0) differences.Add("No resolved candidate decisions changed.");
+        return differences.ToArray();
+    }
+
+    private static (WorkbenchCandidate Candidate, WorkbenchRepairReceipt? Receipt) ReadArtifact(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length > MaxArtifactBytes) throw new InvalidOperationException("Workbench artifact exceeds the runtime limit of 64 KiB.");
+        using JsonDocument document = JsonDocument.Parse(bytes.ToArray());
+        if (document.RootElement.ValueKind == JsonValueKind.Object
+            && document.RootElement.TryGetProperty("schema", out JsonElement schema)
+            && schema.ValueKind == JsonValueKind.String && schema.GetString() == WorkbenchRepairReceipt.CurrentSchema)
+        {
+            WorkbenchRepairReceipt receipt = WorkbenchRepairJson.Deserialize(bytes);
+            return (receipt.Result, receipt);
+        }
+        return (WorkbenchCandidateJson.Deserialize(bytes), null);
+    }
+
+    internal string Bank()
+    {
+        if (bank is null)
+        {
+            List<WorkbenchBankEntry> entries = [];
+            // Admitted, resolved artifacts only. Receipts and unrelated JSON are not candidates.
+            foreach (ProductContentFile file in content.Files.Span)
+            {
+                string path = Encoding.UTF8.GetString(file.Path.Span);
+                if (!path.StartsWith("procgen/", StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.Ordinal)
+                    || path.EndsWith(".receipt.json", StringComparison.Ordinal)) continue;
+                if (entries.Count == MaxBankEntries) break;
+                try
+                {
+                    WorkbenchCandidate item = ReadArtifact(file.Bytes.Span).Candidate;
+                    WorkbenchAnalysis report = WorkbenchExperiment.Analyze(item);
+                    entries.Add(new(path, WorkbenchCandidateJson.Identity(item), item.Motif,
+                        item.Seed.ToString(System.Globalization.CultureInfo.InvariantCulture), item.Rooms.Length, item.Routes.Length,
+                        report.Completable, report.Contracts.Where(c => !c.Passed).Select(c => c.Requirement).ToArray(), ""));
+                }
+                catch (Exception failure) { entries.Add(new(path, "unavailable", "unknown", "unknown", 0, 0, false, [], failure.Message)); }
+            }
+            bank = entries.OrderBy(e => e.Path, StringComparer.Ordinal).ToArray();
+        }
+        return JsonSerializer.Serialize(bank, WorkbenchUiJson.Default.WorkbenchBankEntryArray);
     }
 
     private string RealizationIdentity() => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
@@ -354,6 +504,12 @@ internal sealed record WorkbenchReadout(long Revision, string Identity, string S
     string[] Witness, int Cursor, bool Completed, WorkbenchRoom[] Rooms, WorkbenchRoute[] Routes, WorkbenchChecks Checks, string[] History,
     string Motif, WorkbenchState PhysicalState, WorkbenchPoint PlayerPosition, WorkbenchLayoutData Layout, WorkbenchAnalysis? Analysis, string ReplayLabel,
     WorkbenchState ModelState, WorkbenchRealizationReadout Realization);
+internal sealed record WorkbenchBankEntry(string Path, string Identity, string Motif, string Seed, int Rooms, int Routes,
+    bool Completable, string[] Failures, string Error);
+internal sealed record WorkbenchRepairSummary(string ParentIdentity, string ResultIdentity, string Operation, int Cost, string ChangedField);
+internal sealed record WorkbenchComparison(long Revision, string Identity, WorkbenchReadout? Reference, string[] Differences, string[] Operations, WorkbenchRepairSummary? Repair);
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(WorkbenchReadout))]
+[JsonSerializable(typeof(WorkbenchComparison))]
+[JsonSerializable(typeof(WorkbenchBankEntry[]))]
 internal partial class WorkbenchUiJson : JsonSerializerContext;

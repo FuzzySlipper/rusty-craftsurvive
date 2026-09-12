@@ -1,5 +1,6 @@
 import type { LiveDebugTransport } from '@rusty-engine/live-debug';
 import { mountProcgenWorkbenchMap, type ProcgenProbe, type ProcgenReadout } from './workbench-map.js';
+import { mountProcgenWorkbenchComparison } from './workbench-comparison.js';
 
 const READOUT_INTERVAL_MS = 1_000;
 const DEFAULT_CANDIDATE_PATH = 'procgen/complex-29.json';
@@ -47,6 +48,14 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   ];
   for (const path of samples) { const option = document.createElement('option'); option.value = path; option.textContent = path.replace('procgen/', '').replace('.json', ''); sample.append(option); }
   sample.value = DEFAULT_CANDIDATE_PATH;
+  const updateSamples = (paths: readonly string[]): void => {
+    const selected = candidatePath.value;
+    const entries = Array.from(new Set(paths));
+    sample.replaceChildren(...entries.map((path) => {
+      const option = document.createElement('option'); option.value = path; option.textContent = path.replace('procgen/', '').replace('.json', ''); return option;
+    }));
+    sample.value = entries.includes(selected) ? selected : entries[0] ?? '';
+  };
   const load = button('Load candidate');
   load.setAttribute('aria-label', 'Load candidate from content path');
   const enter = button('Enter');
@@ -99,7 +108,21 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
   const detailHost = document.createElement('div'); detailHost.style.cssText = 'margin-top:.35rem;';
   details.append(summary, detailHost); readoutHost.append(realizationNotice, analysisNotice, details);
   readoutHost.prepend(realizationNotice);
-  panel.append(heading, description, actions, receipt, readoutNotice, readoutHost);
+  const comparisonHost = document.createElement('div');
+  comparisonHost.setAttribute('aria-label', 'Candidate comparison and targeted repair');
+  const comparison = mountProcgenWorkbenchComparison(comparisonHost, transport, {
+    load: (path) => { candidatePath.value = path; if (Array.from(sample.options).some((option) => option.value === path)) sample.value = path; void mutate('Load candidate', 'craft.procgen.load ' + path); },
+    pin: (revision) => { void mutate('Pin baseline', 'craft.procgen.reference ' + String(revision)); },
+    mend: (revision, operation) => { void mutate('Apply ' + operation, 'craft.procgen.mend ' + String(revision) + ' ' + operation); },
+    export: async () => {
+      if (readFinished !== null) await readFinished;
+      const result = await transport.execute('craft.procgen.export');
+      if (!result.succeeded) throw new Error(result.message);
+      return result.message;
+    },
+    bank: (entries) => updateSamples(entries.map((entry) => entry.path)),
+  });
+  panel.append(heading, description, actions, receipt, readoutNotice, comparisonHost, readoutHost);
   host.append(toggle, panel);
 
   let disposed = false;
@@ -124,6 +147,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
     inspectWitness.disabled = mutating || unavailable || readout === null || readout.analysis === null || readout.analysis.witness.length === 0;
     inspectFailure.disabled = mutating || unavailable || readout === null || readout.analysis === null || readout.analysis.counterexamples.length === 0;
     step.disabled = mutating || unavailable || readout === null || readout.cursor >= readout.witness.length;
+    comparison.setMutating(mutating);
   };
   const showReadout = (next: ProcgenReadout): void => {
     readout = next;
@@ -133,6 +157,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
     renderAnalysisNotice(analysisNotice, next.analysis);
     renderReadout(detailHost, next);
     readoutNotice.textContent = readoutSummary(next);
+    comparison.observe(next);
     updateButtons();
   };
   const refreshReadout = async (announceError: boolean): Promise<void> => {
@@ -158,6 +183,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
         analysisNotice.textContent = 'Latest analysis unavailable: ' + failure;
         renderUnavailable(detailHost, failure);
         readoutNotice.textContent = 'Readout unavailable: ' + failure;
+        comparison.unavailable(failure);
       }
     } finally {
       if (request === abort) request = null;
@@ -167,8 +193,8 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
       if (!disposed) updateButtons();
     }
   };
-  const mutate = async (label: string, command: string): Promise<void> => {
-    if (disposed || !open || mutating) return;
+  const mutate = async (label: string, command: string): Promise<boolean> => {
+    if (disposed || !open || mutating) return false;
     mutating = true;
     updateButtons();
     receipt.textContent = label + ' pending…';
@@ -176,13 +202,15 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
       // Serialize behind the current read; never drop an ordinary user action
       // just because the observation timer happened to run first.
       if (readFinished !== null) await readFinished;
-      if (disposed) return;
+      if (disposed) return false;
       const result = await transport.execute(command);
-      if (disposed) return;
+      if (disposed) return false;
       if (!result.succeeded) throw new Error(result.message);
       receipt.textContent = label + ': ' + result.message;
+      return true;
     } catch (error: unknown) {
       if (!disposed) receipt.textContent = label + ' failed: ' + message(error, 'Workbench command failed.');
+      return false;
     } finally {
       if (!disposed) {
         mutating = false;
@@ -203,6 +231,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
     panel.hidden = false;
     toggle.setAttribute('aria-expanded', 'true');
     void refreshReadout(true);
+    comparison.refreshBank();
     poll = setInterval(() => { void refreshReadout(false); }, READOUT_INTERVAL_MS);
   };
   const closePanel = (): void => {
@@ -249,6 +278,7 @@ export function mountProcgenWorkbench(host: HTMLElement, transport: LiveDebugTra
     for (const buttonElement of actionButtons) buttonElement.disabled = true;
     sample.disabled = true; candidatePath.disabled = true;
     map.dispose();
+    comparison.dispose();
     toggle.remove();
     panel.remove();
   } });

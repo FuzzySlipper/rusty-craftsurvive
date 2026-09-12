@@ -1,0 +1,24 @@
+{
+  "before": {
+    "identity": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58",
+    "revision": 1,
+    "playerPosition": {
+      "x": -2.220446e-16,
+      "y": 3.9059997,
+      "z": 4.0133002e-22
+    },
+    "source": "procgen/preview-failure-11.json"
+  },
+  "after": {
+    "identity": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744",
+    "revision": 2,
+    "playerPosition": {
+      "x": -2.220446e-16,
+      "y": 3.9059997,
+      "z": 4.0133002e-22
+    },
+    "source": "procgen/preview-failure-11.json (session repair)"
+  },
+  "beforeSightline": "Lookout-to-goal mesh sightline: occluded (FAIL); gate closed; one eye-height ray, not proof of human recognition",
+  "afterSightline": "Lookout-to-goal mesh sightline: clear (pass); gate closed; one eye-height ray, not proof of human recognition"
+}

@@ -169,7 +169,65 @@ The standing casts establish clearance only at the sampled positions. They do
 not prove a controller path exists everywhere, nor cover jumping, climbing,
 crouch-only paths, destruction, or movable-prop bypasses. Those require separate
 scenarios. This is one reversible realization fault/repair experiment, not the
-semantic candidate editor proposed in #7909.
+semantic repairs described below.
+
+## Candidate comparison and semantic repairs (#7909)
+
+The workbench browses up to sixteen admitted offline artifacts with their motif,
+size, identity and progression failures. **Pin baseline** retains the current
+plan, player pose, model state and checks as a frozen observation. Load another
+candidate to compare its room/passage map, progression contracts and resolved
+decision differences. The baseline's mesh checks describe its recorded world,
+not the currently loaded world. Comparing both 36-room seeds stays within the
+bounded debug channel by reading the comparison separately from live facts.
+
+Three operations address the retained small-motif failures:
+
+| Operation | Changed decision | Failure addressed |
+| --- | --- | --- |
+| `restore-switch` | `switchEnabled: false → true` | Missing activation of the return shortcut (also applicable to the preview motif) |
+| `restore-recovery` | `recoveryEnabled: false → true` | Spending the key leaves no way to recover it |
+| `restore-preview` | `previewOpening: false → true` | The goal cannot be observed before access |
+
+Only applicable operations are offered. A repair pins its parent automatically,
+changes exactly one semantic field, and rebuilds the result at its entrance with
+the gates closed. Cost is one changed semantic field, not a geometric or runtime
+cost estimate. Rooms, routes, seed, other semantic flags and acceptance rules
+remain byte-equivalent under the canonical candidate codec. Unknown,
+inapplicable, repeated and stale-revision operations are rejected. This is a
+bounded set of design operations; new routes or arbitrary barrier placement need
+new failure evidence before expanding it.
+
+**Prepare repair receipt**, then **Download repair receipt**, retains the full parent and result, both canonical
+identities, operation, cost, changed field and before/after progression summaries.
+Edits are session-local until exported. The strict C# codec reproduces the repair
+and rejects altered result/provenance/analysis. To reopen an exported receipt,
+place it under `content/procgen/` (for example `preview-repaired.repair.json`), let
+the ordinary host restage, then load its content path. Its parent appears as an
+offline reference with physical checks explicitly unavailable; the repaired
+result gets a fresh world and checks. A retained preview receipt is included in
+the bank. Generation receipts ending `.receipt.json` are omitted from the bank;
+an explicit content path can still load a semantic repair receipt with that name.
+
+The same operation can be performed offline without replacing its input:
+
+```bash
+dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- repair-workbench \
+  --input content/procgen/preview-failure-11.json --operation restore-preview \
+  --out /absolute/output/preview.json --receipt /absolute/output/preview.repair.json
+```
+
+Optional local before/after screenshots can be attached for visual comparison.
+These are manually selected, unverified images, labelled with the observed
+candidate/revision; they do not become model or mesh acceptance evidence.
+The original files remain external and attachments are transient. Semantic
+receipts retain resolved decisions, not screenshots or a complete physical run.
+
+Focused runtime evidence covers all three repairs, unchanged room/route arrays,
+passing repaired progression contracts, a preview sightline changing from
+occluded to clear, receipt retention and comparison of both large seeds.
+See [#7909 evidence](evidence/procgen-repair-7909/README.md) for visible testing
+and its precise scope.
 
 ## Tentative expansion
 
@@ -180,7 +238,7 @@ to build a framework before experimenting. Den is the durable task record.
 | --- | --- | --- |
 | #7907 | Three motifs, state contracts and map inspection | Completed baseline; retained as small regression samples |
 | #7908 | Side-breach detection and restored realization | Scoped standing-capsule baseline; further bypass types need explicit scenarios |
-| #7909 | Candidate comparison and small semantic repairs | Repeated failures worth expressing as design operations |
+| #7909 | Candidate comparison and three one-field semantic repairs | Completed bounded baseline; add structural edits only for repeated failures |
 | #7910 | Small agent selection/editing/adversarial trial | Stable motifs, checks and tools, then human calibration |
 | #7911 | Resolved level bank and scoped runtime variation | Measured artifact sizes and meaningful structural diversity |
 | #7912 | Engine promotion checkpoint | Concrete reusable mechanisms demonstrated by consumers |

@@ -78,9 +78,14 @@ type Overlay = 'both' | 'model' | 'world';
 type ProbeOverlay = 'failures' | 'all' | 'off';
 type Zoom = 'fit' | '2' | '3';
 type Focus = 'fit' | 'selected' | 'player';
+type MapOptions = Readonly<{
+  title?: string;
+  compact?: boolean;
+  captionPrefix?: string;
+}>;
 
 /** Renders resolved layout facts as a schematic SVG, without owning any game or graph state. */
-export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
+export function mountProcgenWorkbenchMap(host: HTMLElement, options: MapOptions = {}): Readonly<{
   render(readout: ProcgenReadout): void;
   expand(expanded: boolean): void;
   unavailable(reason: string): void;
@@ -88,14 +93,14 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
 }> {
   const section = document.createElement('section');
   section.setAttribute('aria-label', 'Resolved layout');
-  section.style.cssText = 'background:linear-gradient(145deg,rgb(18 26 35),rgb(10 15 22));border:1px solid #40566f;border-radius:.45rem;margin:.45rem 0;max-width:100%;padding:.45rem;';
+  section.style.cssText = 'background:linear-gradient(145deg,rgb(18 26 35),rgb(10 15 22));border:1px solid #40566f;border-radius:.45rem;margin:' + (options.compact ? '0' : '.45rem 0') + ';max-width:100%;padding:.45rem;';
   const header = document.createElement('header');
   header.style.cssText = 'align-items:center;display:flex;flex-wrap:wrap;gap:.4rem;justify-content:space-between;';
-  const title = document.createElement('strong'); title.textContent = 'Resolved layout';
+  const title = document.createElement('strong'); title.textContent = options.title ?? 'Resolved layout';
   const caption = document.createElement('span'); caption.textContent = 'Awaiting layout facts'; caption.style.cssText = 'color:#a9bed0;font-size:.9em;';
   header.append(title, caption);
   const controls = document.createElement('div');
-  controls.style.cssText = 'align-items:center;display:flex;flex-wrap:wrap;gap:.45rem;margin:.4rem 0;';
+  controls.style.cssText = 'align-items:center;display:flex;flex-wrap:wrap;gap:.45rem;margin:' + (options.compact ? '.25rem 0' : '.4rem 0') + ';';
   const view = select('View', [['layout', 'Layout'], ['graph', 'Graph']]);
   const overlay = select('State overlay', [['both', 'Model + world'], ['model', 'Model only'], ['world', 'World only']]);
   const probeOverlay = select('Check probes', [['failures', 'Reported failures'], ['all', 'Reported probes'], ['off', 'Off']]);
@@ -105,18 +110,24 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
   const layers = new Map<LayerName, HTMLInputElement>();
   for (const layer of ['rooms', 'passages', 'gates', 'markers', 'grid'] as const) layers.set(layer, checkbox(layer[0].toUpperCase() + layer.slice(1), true));
   controls.append(view.field, overlay.field, probeOverlay.field, zoom.field, focus.field, room.field, ...Array.from(layers.values()).map((input) => input.parentElement!));
+  if (options.compact) {
+    for (const field of [overlay.field, probeOverlay.field, zoom.field, focus.field, room.field]) field.hidden = true;
+    for (const input of layers.values()) input.parentElement!.hidden = true;
+  }
   const inspect = document.createElement('p');
   inspect.setAttribute('aria-live', 'polite');
   inspect.textContent = 'Select a room to inspect its bounds.';
-  inspect.style.cssText = 'background:rgb(4 9 14 / 55%);border-radius:.25rem;margin:.25rem 0;padding:.3rem .4rem;overflow-wrap:anywhere;';
+  inspect.style.cssText = 'background:rgb(4 9 14 / 55%);border-radius:.25rem;margin:.25rem 0;padding:.3rem .4rem;overflow-wrap:anywhere;' + (options.compact ? 'font-size:.9em;' : '');
   const svg = document.createElementNS(svgNs, 'svg');
   svg.setAttribute('role', 'img');
   svg.setAttribute('aria-label', 'Top-down resolved candidate plan');
   svg.setAttribute('viewBox', '0 0 640 620');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  svg.style.cssText = 'background:rgb(7 12 18);border:1px solid #263b50;border-radius:.3rem;display:block;height:16rem;width:100%;';
+  svg.style.cssText = 'background:rgb(7 12 18);border:1px solid #263b50;border-radius:.3rem;display:block;height:' + (options.compact ? '12rem' : '16rem') + ';width:100%;';
   const legend = document.createElement('p');
-  legend.textContent = 'Plan: loaded candidate volumes. Amber/green bar: intended gate (closed/open). Red overlay: realization side bypass. Cyan diamond: player. Magenta dot: model state. Blue dot: world state. Probe lines: green pass, red fail, amber unknown.';
+  legend.textContent = options.compact
+    ? 'Resolved-plan snapshot. Amber/green: gate. Cyan: player. Magenta/blue: model/world state.'
+    : 'Plan: loaded candidate volumes. Amber/green bar: intended gate (closed/open). Red overlay: realization side bypass. Cyan diamond: player. Magenta dot: model state. Blue dot: world state. Probe lines: green pass, red fail, amber unknown.';
   legend.style.cssText = 'color:#aec4d7;margin:.35rem 0 0;';
   section.append(header, controls, inspect, svg, legend);
   host.append(section);
@@ -181,7 +192,8 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
       }
       const nextRoom = selectedRoom ?? '';
       if (room.control.value !== nextRoom) room.control.value = nextRoom;
-      caption.textContent = (readout.active ? '' : 'Inactive · ') + shortIdentity(readout.identity) + ' · seed ' + readout.seed + ' · ' + readout.motif + ' · ' + layoutSummary(readout);
+      const offlinePlan = noPhysicalObservation(readout);
+      caption.textContent = (options.captionPrefix ?? '') + (offlinePlan ? 'Retained offline plan; no physical observation · ' : readout.active ? '' : 'Inactive · ') + shortIdentity(readout.identity) + ' · seed ' + readout.seed + ' · ' + readout.motif + ' · ' + layoutSummary(readout);
       updateInspection(inspect, readout, selectedRoom);
       rerender();
     },
@@ -192,7 +204,7 @@ export function mountProcgenWorkbenchMap(host: HTMLElement): Readonly<{
       inspect.textContent = 'Layout unavailable: ' + reason;
       if (latest === null) svg.replaceChildren();
     },
-    expand: (expanded) => { svg.style.height = expanded ? 'max(16rem, calc(100vh - 290px))' : '16rem'; },
+    expand: (expanded) => { svg.style.height = expanded ? 'max(16rem, calc(100vh - 290px))' : (options.compact ? '12rem' : '16rem'); },
     dispose: () => section.remove(),
   });
 }
@@ -309,7 +321,7 @@ function drawProbeOverlays(nodes: SVGElement[], readout: ProcgenReadout, transfo
 function drawOverlays(nodes: SVGElement[], readout: ProcgenReadout, transform: Transform, overlay: Overlay): void {
   const rooms = new Map(readout.rooms.map((room) => [room.id, room]));
   if (overlay === 'both' || overlay === 'model') drawState(nodes, rooms.get(readout.modelState.room), transform, readout.modelState, 'model', -9, -9);
-  if (overlay === 'both' || overlay === 'world') {
+  if (!noPhysicalObservation(readout) && (overlay === 'both' || overlay === 'world')) {
     drawState(nodes, rooms.get(readout.physicalState.room), transform, readout.physicalState, 'world', 9, -9);
     const player = element('path'); const x = transform.x(readout.playerPosition.x), y = transform.z(readout.playerPosition.z);
     player.setAttribute('d', `M ${x} ${y - 8} L ${x + 8} ${y} L ${x} ${y + 8} L ${x - 8} ${y} Z`); player.setAttribute('fill', '#6de2ff'); player.setAttribute('stroke', '#eafcff'); player.setAttribute('stroke-width', '1.5'); player.setAttribute('aria-label', 'Physical player position'); nodes.push(player);
@@ -372,6 +384,7 @@ function isConnectedRoute(readout: ProcgenReadout, volumeId: string, selectedRoo
   return readout.routes.some((route) => route.id === routeId && (route.from === selectedRoom || route.to === selectedRoom));
 }
 function isLargeLayout(readout: ProcgenReadout): boolean { return readout.rooms.length > 16 || readout.routes.length > 24; }
+function noPhysicalObservation(readout: ProcgenReadout): boolean { return readout.status === 'offline parent' || readout.physicalState.room === 'unobserved'; }
 function grid(bounds: Bounds, transform: Transform): SVGElement {
   const group = element('g'); group.setAttribute('stroke', '#203347'); group.setAttribute('stroke-width', '1');
   const step = 5; const minX = Math.floor(bounds.minimum.x / step) * step, maxX = Math.ceil(bounds.maximum.x / step) * step, minZ = Math.floor(bounds.minimum.z / step) * step, maxZ = Math.ceil(bounds.maximum.z / step) * step;
