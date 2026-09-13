@@ -117,7 +117,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
 
     private void Load(string path)
     {
-        if (!content.TryReadFile(path, out ProductContentFile selected))
+        using ProductContentBundle bundle = content.OpenBundle(ContentDirectory);
+        if (!path.StartsWith(ContentDirectory + "/", StringComparison.Ordinal) ||
+            !bundle.TryReadFile(path[(ContentDirectory.Length + 1)..], out ProductContentFile selected))
             throw new InvalidOperationException($"Content path {path} was not staged. Generate the offline artifact, then reload the product.");
         (WorkbenchCandidate next, WorkbenchRepairReceipt? retained) = ReadArtifact(selected.Bytes.Span);
         ApplyCandidate(next, path);
@@ -493,10 +495,12 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
 
     private ProductContentFile[] ReadBankFiles()
     {
-        ProductContentFile[] files = content.ReadDirectory(ContentDirectory, recursive: true)
+        using ProductContentBundle bundle = content.OpenBundle(ContentDirectory);
+        ProductContentFile[] files = bundle.ReadDirectory(recursive: true)
+            .Select(file => file with { Path = Encoding.UTF8.GetBytes($"{ContentDirectory}/{file.RelativePath}") })
             .Where(file => file.Name != ContentIndexName && file.Name.EndsWith(".json", StringComparison.Ordinal)
                 && !file.Name.EndsWith(".receipt.json", StringComparison.Ordinal)).ToArray();
-        if (!content.TryReadFile($"{ContentDirectory}/{ContentIndexName}", out ProductContentFile index)) return files;
+        if (!bundle.TryReadFile(ContentIndexName, out ProductContentFile index)) return files;
 
         // Curation lives in authored content. New unlisted artifacts remain discoverable
         // after the preferred entries, in Engine's deterministic directory order.

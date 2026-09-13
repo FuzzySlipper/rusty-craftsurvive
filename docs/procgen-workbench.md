@@ -118,7 +118,7 @@ clearance checks, not exhaustive navigation or proof against every bypass. Switc
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
-Current installed Engine pair: `0.1.0-dev.041d70cc9255`, downloaded as the published
+Current installed Engine pair: `0.1.0-dev.baf031173e19`, downloaded as the published
 matched archive and verified with its checksum and pair verifier. Game and
 TerrainResidency pins, both host manifests and current setup instructions agree.
 No Engine source checkout is needed by the product.
@@ -295,3 +295,10 @@ GPU timer cost was unavailable in its completion-only mode. Native stream was
 30 Hz, so still captures do not certify motion smoothness. Evidence:
 `/home/agent/.codex/pacing-7917/`. Engine warning capture was complete with zero
 warnings/errors/drops; remote browser console remained unavailable.
+
+## Build content collection
+
+The game project declares the `procgen` ProductContent bundle. Engine staging
+generates its inventory; `content/procgen/_index.json` remains the product-owned
+curation index. Bank discovery and artifact loads open and dispose the bundle
+for each read. See [bundle evidence](evidence/product-content-8253/README.md).
