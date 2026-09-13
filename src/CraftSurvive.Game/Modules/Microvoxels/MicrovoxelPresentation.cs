@@ -308,14 +308,7 @@ internal sealed class MicrovoxelPresentation : IDisposable
 
     private ProductContentFile SelectContentFile(string expectedPath)
     {
-        foreach (ProductContentFile candidate in content.Files.Span)
-        {
-            if (string.Equals(Encoding.UTF8.GetString(candidate.Path.Span), expectedPath,
-                    StringComparison.Ordinal))
-            {
-                return candidate;
-            }
-        }
+        if (content.TryReadFile(expectedPath, out ProductContentFile candidate)) return candidate;
 
         throw new InvalidOperationException(
             $"CraftSurvive product content does not include the selected microvoxel source `{expectedPath}`.");

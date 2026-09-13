@@ -1,5 +1,14 @@
 # Offline procgen workbench
 
+The candidate bank reads Engine `ProductContent.ReadDirectory("procgen",
+recursive: true)`. Optional `content/procgen/_index.json` lists preferred paths
+relative to that directory in its `first` array. Those appear first; unlisted
+artifacts follow in ordinal path order, within the existing sixteen-entry bank
+limit. Edit this content index to curate the bank without changing C# filenames.
+Receipts and the index itself are excluded. Missing index references are reported
+as content errors. Named artifact and microvoxel reads use Engine's admitted
+snapshot, never the working directory or executable path (Engine #8186).
+
 CraftSurvive is the active experiment and FPS testbed. Procgen remains donor
 history. Den #7906 established the candidate-to-world loop; #7907 adds three
 bounded motifs, explicit recovery/failure analysis, and a visual construction plan.
@@ -109,7 +118,7 @@ clearance checks, not exhaustive navigation or proof against every bypass. Switc
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
-Current installed Engine pair: `0.1.0-dev.2e4255bd3ad5`, downloaded as the published
+Current installed Engine pair: `0.1.0-dev.041d70cc9255`, downloaded as the published
 matched archive and verified with its checksum and pair verifier. Game and
 TerrainResidency pins, both host manifests and current setup instructions agree.
 No Engine source checkout is needed by the product.

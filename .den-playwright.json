@@ -1,7 +1,7 @@
 {
   "project": "rusty-craftsurvive",
   "serve": {
-    "command": "exec ./.runtime/pair-2e4255bd3ad5/runtime-pack/bin/rusty dev --runtime ./.runtime/pair-2e4255bd3ad5/runtime-pack --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --debugger --bind-host {host} --port {port}",
+    "command": "exec ./.runtime/pair-041d70cc9255/runtime-pack/bin/rusty dev --runtime ./.runtime/pair-041d70cc9255/runtime-pack --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --debugger --bind-host {host} --port {port}",
     "preferredPort": 0,
     "healthUrl": "/product-ui/main.js",
     "readyText": "Rusty CraftSurvive",

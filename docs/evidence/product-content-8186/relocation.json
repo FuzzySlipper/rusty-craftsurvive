@@ -1,0 +1,382 @@
+{
+  "engineRevision": "041d70cc9255",
+  "source": "/home/dev/rusty-craftsurvive/.runtime/product-content-8186/Product",
+  "relocated": "/home/dev/rusty-craftsurvive/.runtime/product-content-8186/relocated/Product",
+  "fileCount": 92,
+  "payloadBytes": 78045128,
+  "archiveBytes": 37457824,
+  "packMilliseconds": 4878,
+  "extractMilliseconds": 151,
+  "allPayloadHashesEqual": true,
+  "archiveSha256": "008b3e46581f1313b780b52277d2852c0b3c48ad0bfeee836ba561d95ef67c69",
+  "files": {
+    "content/animations/UAL1_Standard-License.txt": {
+      "bytes": 332,
+      "sha256": "6d01f55c6e4c49a2c9963e147e561945ae2c83958c8ca667d90a6bffdbfac061"
+    },
+    "content/animations/UAL1_Standard.glb": {
+      "bytes": 7618436,
+      "sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997"
+    },
+    "content/animations/spatial-wizard.glb": {
+      "bytes": 2228108,
+      "sha256": "b04f1dc32af87a6f5fb8d02cd1261a54a791ac93275fcc5a71e1f93cc23f9aca"
+    },
+    "content/animations/tripo-wizard.glb": {
+      "bytes": 3946880,
+      "sha256": "f72afe0ca67e95fc62c0435f9745011fc57ae1dabb0c7c302d4b72f365508dee"
+    },
+    "content/animations/tripo-wizard2.glb": {
+      "bytes": 4189452,
+      "sha256": "482fddd3a7045a1625f8b237e463b2532edb6390a23c226f8e59cb46e1bad735"
+    },
+    "content/procgen/_index.json": {
+      "bytes": 124,
+      "sha256": "b992362311cdc49853f0555e58089f34ab3889da35659e28fe7f3a5a5c4b2ace"
+    },
+    "content/procgen/complex-29.json": {
+      "bytes": 12921,
+      "sha256": "bc5051a47e5bf97a2f636f8232765f956087c6da87da36d1ccc13fed44d567b7"
+    },
+    "content/procgen/complex-29.receipt.json": {
+      "bytes": 573,
+      "sha256": "5f1f802d1b0c4afc5bb1d796d6b44e30599b2c7d566604f35ef68a0b0b7b78c2"
+    },
+    "content/procgen/complex-83.json": {
+      "bytes": 12897,
+      "sha256": "9764a5b589b7af8f97c635fa828d2609bf4f83115d7abc73ebc6ee90b0f7d842"
+    },
+    "content/procgen/complex-83.receipt.json": {
+      "bytes": 573,
+      "sha256": "6571cd1b8438486073faa2a6f6c3341468d0af647c39f1869e73a2e689d72c6c"
+    },
+    "content/procgen/preview-11.json": {
+      "bytes": 1563,
+      "sha256": "ca78e68554eefed16cb63f42ce57deb007437963132c3ae73c698050ee5c7744"
+    },
+    "content/procgen/preview-11.receipt.json": {
+      "bytes": 573,
+      "sha256": "7915f976415ec73ecff3cb9bb1482e0a77aab47d5c7ddf8b137ea9a703c70651"
+    },
+    "content/procgen/preview-failure-11.json": {
+      "bytes": 1564,
+      "sha256": "599df810b0c3dded4df7d009b6d6f9e071b443845cf7db0e88c91012d79b6b58"
+    },
+    "content/procgen/preview-failure-11.receipt.json": {
+      "bytes": 589,
+      "sha256": "bc399d1b28bc3b279e7bf090ebe2b7e6c02c9652c917172704dfa687bfcc8e83"
+    },
+    "content/procgen/preview-repaired.repair.json": {
+      "bytes": 4219,
+      "sha256": "de1a587fd054fdc45d5b0abe7864af9f36b90fd2f45f39f2086bf1bcc15e1ee9"
+    },
+    "content/procgen/recovery-11.json": {
+      "bytes": 1561,
+      "sha256": "20ff34d7af68eea84cf0271bf02a9bc2852c06263ef8f4fdb209ab107ce69f63"
+    },
+    "content/procgen/recovery-11.receipt.json": {
+      "bytes": 575,
+      "sha256": "f2a7cb91b17668876d5cf87f037b07dbee6786afec7f734840a6a2c192bc25bd"
+    },
+    "content/procgen/recovery-failure-11.json": {
+      "bytes": 1562,
+      "sha256": "a1df423f166b02a071d7bb7dfba4d6ad7f9a10f24fc23dd605cb989c7379dadb"
+    },
+    "content/procgen/recovery-failure-11.receipt.json": {
+      "bytes": 591,
+      "sha256": "8257c0870efe58adc8edde4b3486734ab08716918acfd99472d99fb04407b6a4"
+    },
+    "content/procgen/trial-B01.json": {
+      "bytes": 1564,
+      "sha256": "96f7d1e6481082427dbf9c27ac88cb89e7d0d8a448b94700224c63c87a07d2ae"
+    },
+    "content/procgen/trial-B02.json": {
+      "bytes": 1562,
+      "sha256": "6d20e87e4bf8f50ed930ea1b39755a61c75dc9fa5d557a0b58b86a3348eb7a32"
+    },
+    "content/procgen/trial-B03.json": {
+      "bytes": 1570,
+      "sha256": "51a74f75e8dc1c4ecd51ba7023ebcdcb3ccca89506228026c099bf8889730992"
+    },
+    "content/procgen/trial-B04.json": {
+      "bytes": 1562,
+      "sha256": "d091cce9fd03e1d2a42116d2df5c462cc3b3bdbfb7c4ad2bf263225e8f326240"
+    },
+    "content/procgen/trial-B05.json": {
+      "bytes": 1570,
+      "sha256": "9f1429b706b93b567f9b7bbe0e301de96e152af5711808be481352a628ce2908"
+    },
+    "content/procgen/trial-B06.json": {
+      "bytes": 1564,
+      "sha256": "ee536df4ff15795952dc710582da7d955659f7ce919832d664e04bea2e9a5409"
+    },
+    "content/procgen/workbench-11.json": {
+      "bytes": 1569,
+      "sha256": "2e3510258b04b305eeafa3db14f8f1048e9668d299501fc72aad0e66166dadbd"
+    },
+    "content/procgen/workbench-11.receipt.json": {
+      "bytes": 577,
+      "sha256": "3d8e6cb6df950d3c7caac8db9760e33292263de68a093857d8d066c518470989"
+    },
+    "content/procgen/workbench-failure-11.json": {
+      "bytes": 1570,
+      "sha256": "7b7480907e6c90a459e68464c2e8c310881ab9baa58c86e2eb17584eb4079ede"
+    },
+    "content/procgen/workbench-failure-11.receipt.json": {
+      "bytes": 593,
+      "sha256": "93d382bf59d067ad6489316c6f5e52aec39dc8ae30dbff68ce010845a9769313"
+    },
+    "content/textures/README.md": {
+      "bytes": 2270,
+      "sha256": "8da374f13369ad6074835cc986521e5550ca38c669d5d4fae633782bb7629179"
+    },
+    "content/textures/courtyard/courtyard-ground.png": {
+      "bytes": 304,
+      "sha256": "f9b33f25140f50b2e644e5591e5932d45e173220995e60cb78f9bb1864d5c5c0"
+    },
+    "content/textures/courtyard/courtyard-mortar.png": {
+      "bytes": 300,
+      "sha256": "109bf8a26bf7ff94c5d41015c58de02f0e6df2c8b4941caf95a03e2a905c3e1b"
+    },
+    "content/textures/courtyard/courtyard-moss.png": {
+      "bytes": 310,
+      "sha256": "e61d6339f5a74ec369334f2fe29d5ff5dc20fcf5a68429929141af5075319bcf"
+    },
+    "content/textures/courtyard/courtyard-plaster.png": {
+      "bytes": 314,
+      "sha256": "b6e052c1ffe3bed26894a14813d0b15a98a1faf98063fc27298682dbbf342373"
+    },
+    "content/textures/courtyard/courtyard-stone.png": {
+      "bytes": 314,
+      "sha256": "848fa498a979486b1628a1fafe4ab2d29388fe003d41e797480bdb20c695e549"
+    },
+    "content/textures/courtyard/courtyard-wood.png": {
+      "bytes": 295,
+      "sha256": "231772a462efd32626bb41e322bb5aea81d35ec26267c7e2814cba8afbb18052"
+    },
+    "content/textures/sky-panorama.png": {
+      "bytes": 1539469,
+      "sha256": "7d4af2fe298830f748b373aa2b8336838cb85ba146e3bf14e884919ae2d43898"
+    },
+    "content/textures/source/craftsurvive-sky-panorama-gpt.png": {
+      "bytes": 1381775,
+      "sha256": "5fd0f484a759a925aea143f774b7765f84c8dfbb4e6f8732114f895be6e13a7d"
+    },
+    "content/textures/source/dirt-gpt.png": {
+      "bytes": 1399492,
+      "sha256": "5dc2d3b76d27145698fa18e2bd31084220c0ecc1e1495e3a56973c0552f679e7"
+    },
+    "content/textures/source/forest-wisp.png": {
+      "bytes": 2793,
+      "sha256": "6e0ef6cb18d69e311d86af23f018b08c14f25894d46acfea85bb36e5a767f3c2"
+    },
+    "content/textures/source/grass-side-gpt.png": {
+      "bytes": 1161310,
+      "sha256": "bf626f735f0b86946016326171a71defa041788a7d0df22a80ba4e736afb4aaf"
+    },
+    "content/textures/source/grass-top-gpt.png": {
+      "bytes": 2099322,
+      "sha256": "c7a7dd8996f085d2135d3272c27c48f78134d3d7f09b8a67571f61f2f591fd09"
+    },
+    "content/textures/source/stone-gpt.png": {
+      "bytes": 1373262,
+      "sha256": "6d3059ed057d7d4953fc59159ff94c21ac0dbfd90482012d8f7c1d141072fa31"
+    },
+    "content/textures/stoneworks/stoneworks-brick.png": {
+      "bytes": 297,
+      "sha256": "30c7af4ddaa5a922669047585854a4413044621d70c0f5389b040365b837168c"
+    },
+    "content/textures/stoneworks/stoneworks-bronze.png": {
+      "bytes": 339,
+      "sha256": "c962220e515a00af9eb1625ba0aef75913b2f8da2facfe8fa5d0c8bd69b543fc"
+    },
+    "content/textures/stoneworks/stoneworks-limestone.png": {
+      "bytes": 282,
+      "sha256": "e1dda27a90568ba6f908a2e067201eb6247a6db1b270e6083339a2e76100d44f"
+    },
+    "content/textures/stoneworks/stoneworks-mortar.png": {
+      "bytes": 238,
+      "sha256": "950bf3feb72443c00c4b39eb5b6e8826e14f43da3830826116652648e26289ca"
+    },
+    "content/textures/stoneworks/stoneworks-moss.png": {
+      "bytes": 281,
+      "sha256": "1d3b676fa2953822d2b7c5c4164f2a81628db0ba7cd5e4eb886bd7ed9e1f67d2"
+    },
+    "content/textures/stoneworks/stoneworks-paving.png": {
+      "bytes": 307,
+      "sha256": "84272022a72eee10b2cacf6e5d2e8222208dcb65ee0b34bbdbaa04ed537cd7ac"
+    },
+    "content/textures/stoneworks/stoneworks-plaster.png": {
+      "bytes": 300,
+      "sha256": "d6bf71292f77557ff161518da3e99bfb1b9bc47c7f95f9afa303047f1ed60aed"
+    },
+    "content/textures/stoneworks/stoneworks-timber.png": {
+      "bytes": 308,
+      "sha256": "0dda31e5f942a11e737834164313447b651e838e4193b03246e45722852ebd85"
+    },
+    "content/textures/terrain-atlas.json": {
+      "bytes": 696,
+      "sha256": "1756f7fc98cf95ac8f2d3a626d8134b45ceee1f12681ce482850428e35ba1f4a"
+    },
+    "content/textures/terrain-atlas.png": {
+      "bytes": 40555,
+      "sha256": "d722b7c2af1168cd3d77a5bbcc351156a94c3b77c803fd4641e53eb98d41bf2f"
+    },
+    "content/voxels/image-c2c81b70 (3).png.vox": {
+      "bytes": 63912,
+      "sha256": "659ade6aea1d33b652cc2ae860066c4c8a79d76475c29a563a0ed5362d86fd04"
+    },
+    "content/voxels/image-c2c81b70__3__png.glb": {
+      "bytes": 4031680,
+      "sha256": "d301441a52cbeb4ebf8d25b003430c536444da468ba0d3fd211dd90f3cc4f726"
+    },
+    "content/voxels/image-c2c81b70__3__png.wgvox": {
+      "bytes": 116830,
+      "sha256": "e70dfb57b01ef24a8c28640f3470d04ef1ce1a49c361984954ddf86d3238ab7b"
+    },
+    "content/voxels/model-woodland-shrine-gpt-vengsolid64.vengi": {
+      "bytes": 28526,
+      "sha256": "2ed2cfe7e6531d700ddb4c2049d328425448aa06742334c6e844cb7c23d81827"
+    },
+    "content/voxels/sorceress-59bf193f-1776472753534.png.vox": {
+      "bytes": 213256,
+      "sha256": "3e0b4d4c7f1b60c64fb9ae1e1d31fc8039c081c4ab93c2caef9325a74a4b8b7a"
+    },
+    "content/voxels/sorceress-59bf193f-1776472753534_png.glb": {
+      "bytes": 3086092,
+      "sha256": "5be1eececa64a934e5bf85a973ed28e3f9131499880605ba390a32041cc113b7"
+    },
+    "content/voxels/sorceress-59bf193f-1776472753534_png.wgvox": {
+      "bytes": 197091,
+      "sha256": "1c0c29aafa27ba6f20c2cf9ec15bec1b9279f7b64d6ccd3d23276248bd8ab226"
+    },
+    "content/voxels/sorceress-f096a45a-1776472755784.png.vox": {
+      "bytes": 877132,
+      "sha256": "bdaa5f1fab0028051611a24bc87a9813d4d9797bd6e3f6db0e531b08642279ba"
+    },
+    "content/voxels/sorceress-f096a45a-1776472755784_png.glb": {
+      "bytes": 10761500,
+      "sha256": "86f44376f8e498f328326427bba3aa7c3f63a30b53a292b3fa2b9bd420cb99d7"
+    },
+    "content/voxels/sorceress-f096a45a-1776472755784_png.wgvox": {
+      "bytes": 715636,
+      "sha256": "a3c8520ca2d6e5d7d0291daf04f44389a878072ef41a805e1138cc7989d0d168"
+    },
+    "content/voxels/sorceress-f9475537-1776473914630.png.vox": {
+      "bytes": 55856,
+      "sha256": "0ff92eda7ffeeea6a303a516555a87f5e17eaba69cc1a472044a27c067c1a0f9"
+    },
+    "content/voxels/sorceress-f9475537-1776473914630_png.glb": {
+      "bytes": 3125452,
+      "sha256": "79c92cb65b209e6327f443791cfd796d393a6fed5d758b54267ccbf3228f683d"
+    },
+    "content/voxels/sorceress-f9475537-1776473914630_png.wgvox": {
+      "bytes": 77886,
+      "sha256": "b7f46450f283cf9e7d37cbd2dbe0f1e34bc98b7f1d058524a3121da61b040604"
+    },
+    "content/voxels/sorceress-shrine.glb": {
+      "bytes": 2296440,
+      "sha256": "6e33e90a6ade949ceab7fe934fa06d2b9e4fc328f40a7b6d52d7a743a6eeb271"
+    },
+    "content/voxels/sorceress-shrine.vox": {
+      "bytes": 217920,
+      "sha256": "42b7d619f667eb21c916fbff566203651cef2481fdcc9b71a9b4b87dbd0c27df"
+    },
+    "content/voxels/source-tripo-p2.glb": {
+      "bytes": 4515088,
+      "sha256": "be114f1eb91f4113a07193db11f00091008d2b389cc8b9cfbfb34cbd8a2519c3"
+    },
+    "content/voxels/voxel tree 3d model.glb": {
+      "bytes": 3883824,
+      "sha256": "75c1f1caf5917cf12718a0574d3141416965589e5eaf3dc78a007bf30aea8ad9"
+    },
+    "content/voxels/woodland-shrine-gpt-vengi-model-solid64.vox": {
+      "bytes": 124722,
+      "sha256": "3960c2684b571426966b02ea809b577997c1dcb99cf2e2e115bc3a9b3fd928d1"
+    },
+    "content/voxels/woodland-shrine-gpt-vengi-solid64.glb": {
+      "bytes": 3239760,
+      "sha256": "9a55ea0a4770603c0c4a9f655b497e8afd520e01bce6988a6a8c19878f2b2fd1"
+    },
+    "content/voxels/woodland-shrine-nano-model-solid64.vengi": {
+      "bytes": 26807,
+      "sha256": "87446824ca198abf991fccd4b62e1012622f31fd084e7d4de517f16e27f2ca61"
+    },
+    "content/voxels/woodland-shrine-nano-model-solid64.vox": {
+      "bytes": 99682,
+      "sha256": "a0a38ff44c6f753df55c772bbf957841fe82d074128dbd9b0e07deaebadd20c6"
+    },
+    "content/voxels/woodland-shrine-nano-vengi-solid64.glb": {
+      "bytes": 3328880,
+      "sha256": "f950dbd9bedd1291dc0d31304c4d306b040a1aa79e86ad590de0126e05b2eb3f"
+    },
+    "coreclr/CraftSurvive.Game.dll": {
+      "bytes": 499712,
+      "sha256": "1c3b43196d6df4a144067dbf94c30c177d67988261edf1ef902285abc5de25d7"
+    },
+    "coreclr/CraftSurvive.Game.pdb": {
+      "bytes": 159520,
+      "sha256": "4c9b59d79df35f1e7f3b3701425f95309f54dcfd50e577aa4fb23e4c8ae3d565"
+    },
+    "coreclr/CraftSurvive.Procgen.Artifacts.dll": {
+      "bytes": 604160,
+      "sha256": "329deef57fa643e66fc5d3c3b2ba4cd3804451964141e9cf64d4872695ae8878"
+    },
+    "coreclr/CraftSurvive.Procgen.Artifacts.pdb": {
+      "bytes": 356012,
+      "sha256": "f61e4deca86cc47d37b01868a735dba245fa992919ae68e2d7a878039f58ab2d"
+    },
+    "coreclr/CraftSurvive.Procgen.dll": {
+      "bytes": 367104,
+      "sha256": "aeae9dc8badf399ab34f902b462fe12397b0177a1fc0f89086f2d5b282cfa005"
+    },
+    "coreclr/CraftSurvive.Procgen.pdb": {
+      "bytes": 78820,
+      "sha256": "61cbe46d760d01f12345ce68ec8ed1c3fb1f943cf7153eedc80ac3da42127b03"
+    },
+    "coreclr/Rusty.Engine.Product.deps.json": {
+      "bytes": 2379,
+      "sha256": "6fd079a9227bcd16135e537ce31422775cbd65e6eeb1e00fdde693a4cd5e0fd9"
+    },
+    "coreclr/Rusty.Engine.Product.dll": {
+      "bytes": 582144,
+      "sha256": "d1842db2508ef4211d46a15d79c7838493be5cdcf1efe8311f522be87107e1be"
+    },
+    "coreclr/Rusty.Engine.Product.pdb": {
+      "bytes": 254024,
+      "sha256": "377d4c20eb523e1e01fb9dbf01b787a15d5c6839360d7a1ccf26b3780975998c"
+    },
+    "coreclr/Rusty.Engine.Product.runtimeconfig.json": {
+      "bytes": 330,
+      "sha256": "9950d4583cfc9a106857c0d5b8a75b53e8774852b57b80bc3823a74d44a4d87f"
+    },
+    "coreclr/Rusty.Engine.dll": {
+      "bytes": 1824768,
+      "sha256": "6fc113933c6a117d18fcdcc6c5eb033cea4367171f250a9055e95d2f10e85e2b"
+    },
+    "native/Rusty.Engine.Product.so": {
+      "bytes": 5061976,
+      "sha256": "46360b3368a2aa7940a400b3bd7d340caac151d92f7714e3283e84ea5d58fb51"
+    },
+    "product.json": {
+      "bytes": 3625,
+      "sha256": "16fd48bec420b1a0b9311d70356dbb54a9da8cae745644c8ef4544a4c31501c1"
+    },
+    "ui/main.js": {
+      "bytes": 41436,
+      "sha256": "ff7e27ead8f5249468c6e588566e2f35f365bd820646814904fd61dd4f9c3845"
+    },
+    "ui/workbench-comparison.js": {
+      "bytes": 25453,
+      "sha256": "7e0410c76b2ce8be1ea6424b355c34046737dda1aa46d7f35f9a216bc174ea1d"
+    },
+    "ui/workbench-map.js": {
+      "bytes": 27463,
+      "sha256": "5667ea9645a8f9d37fd8d8760daacada85f79de93c0bbad4baeda33192856360"
+    },
+    "ui/workbench.js": {
+      "bytes": 30303,
+      "sha256": "a2a9f49673b041a1b685c64664e9ed1a8ad38af03c4aa98f072fb7dbe5550060"
+    }
+  }
+}

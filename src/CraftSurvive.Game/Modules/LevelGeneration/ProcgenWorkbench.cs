@@ -33,6 +33,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
     private (string Action, string Argument)? pending;
     private const float UseDistance = 3f;
     private const int MaxHistory = 24;
+    private const string ContentDirectory = "procgen";
+    private const string ContentIndexName = "_index.json";
+    private const string IndexFirstProperty = "first";
     private const int MaxArtifactBytes = 64 * 1024;
     private const int MaxBankEntries = 16;
     private const int MaxReadoutProbes = 64;
@@ -114,10 +117,8 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
 
     private void Load(string path)
     {
-        ProductContentFile? found = null;
-        foreach (ProductContentFile file in content.Files.Span)
-            if (Encoding.UTF8.GetString(file.Path.Span) == path) { found = file; break; }
-        ProductContentFile selected = found ?? throw new InvalidOperationException($"Content path {path} was not staged. Generate the offline artifact, then reload the product.");
+        if (!content.TryReadFile(path, out ProductContentFile selected))
+            throw new InvalidOperationException($"Content path {path} was not staged. Generate the offline artifact, then reload the product.");
         (WorkbenchCandidate next, WorkbenchRepairReceipt? retained) = ReadArtifact(selected.Bytes.Span);
         ApplyCandidate(next, path);
         repairReceipt = retained;
@@ -471,11 +472,9 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
         {
             List<WorkbenchBankEntry> entries = [];
             // Admitted, resolved artifacts only. Receipts and unrelated JSON are not candidates.
-            foreach (ProductContentFile file in content.Files.Span)
+            foreach (ProductContentFile file in ReadBankFiles())
             {
-                string path = Encoding.UTF8.GetString(file.Path.Span);
-                if (!path.StartsWith("procgen/", StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.Ordinal)
-                    || path.EndsWith(".receipt.json", StringComparison.Ordinal)) continue;
+                string path = file.RelativePath;
                 if (entries.Count == MaxBankEntries) break;
                 try
                 {
@@ -487,9 +486,30 @@ internal sealed class ProcgenWorkbench(IEngineContext engine, ProductContent con
                 }
                 catch (Exception failure) { entries.Add(new(path, "unavailable", "unknown", "unknown", 0, 0, false, [], failure.Message)); }
             }
-            bank = entries.OrderBy(e => e.Path, StringComparer.Ordinal).ToArray();
+            bank = entries.ToArray();
         }
         return JsonSerializer.Serialize(bank, WorkbenchUiJson.Default.WorkbenchBankEntryArray);
+    }
+
+    private ProductContentFile[] ReadBankFiles()
+    {
+        ProductContentFile[] files = content.ReadDirectory(ContentDirectory, recursive: true)
+            .Where(file => file.Name != ContentIndexName && file.Name.EndsWith(".json", StringComparison.Ordinal)
+                && !file.Name.EndsWith(".receipt.json", StringComparison.Ordinal)).ToArray();
+        if (!content.TryReadFile($"{ContentDirectory}/{ContentIndexName}", out ProductContentFile index)) return files;
+
+        // Curation lives in authored content. New unlisted artifacts remain discoverable
+        // after the preferred entries, in Engine's deterministic directory order.
+        using JsonDocument document = JsonDocument.Parse(index.Bytes);
+        Dictionary<string, int> priority = new(StringComparer.Ordinal);
+        HashSet<string> available = files.Select(file => file.RelativePath).ToHashSet(StringComparer.Ordinal);
+        foreach (JsonElement entry in document.RootElement.GetProperty(IndexFirstProperty).EnumerateArray())
+        {
+            string path = $"{ContentDirectory}/{entry.GetString()}";
+            if (!available.Contains(path)) throw new InvalidOperationException($"Workbench index references an unavailable artifact: {path}");
+            priority.Add(path, priority.Count);
+        }
+        return files.OrderBy(file => priority.GetValueOrDefault(file.RelativePath, int.MaxValue)).ToArray();
     }
 
     private string RealizationIdentity() => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
