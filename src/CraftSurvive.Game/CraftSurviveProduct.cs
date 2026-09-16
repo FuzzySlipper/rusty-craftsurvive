@@ -23,7 +23,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly MicrovoxelPresentation microvoxels;
     private readonly GhostPlateActor ghost;
     private readonly SkyBackground sky;
-    private readonly EntityWorldDebugModule entityDebug = new();
+    private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
     private readonly ProcgenWorkbench workbench;
     private readonly ProcgenDebugModule procgenDebug;
@@ -44,7 +44,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             context.Engine,
             GhostPlateConfiguration.Default);
         sky = new SkyBackground(context.Engine);
-        entityDebug.RegisterWorld("craft", player.EntityWorld);
+        entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));

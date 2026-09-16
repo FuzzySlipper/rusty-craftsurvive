@@ -21,7 +21,7 @@ internal sealed class PlayerController : IDisposable
     private readonly TerrainWorld terrain;
     private readonly PlayerSceneDefaults sceneDefaults;
     private readonly PlayerInputState input = new();
-    private readonly EntityWorld entityWorld = new([RuntimeComponent]);
+    private readonly EntityStore entityWorld = new([RuntimeComponent]);
     private readonly EntityId playerEntity;
     private readonly CharacterControllerConfig controllerConfig;
     private readonly LookConfig lookConfig;
@@ -280,7 +280,7 @@ internal sealed class PlayerController : IDisposable
         return Teleport(eye.X, eye.Y - EyeOffset(CharacterStance.Standing), eye.Z);
     }
 
-    internal EntityWorld EntityWorld => entityWorld;
+    internal EntityStore EntityStore => entityWorld;
     internal Vector3 WorldPosition => playerGlobal.ToWorldVector();
     internal Vector3 WorldEyePosition => WorldPosition + Vector3.UnitY * EyeOffset(motion.Stance);
 
