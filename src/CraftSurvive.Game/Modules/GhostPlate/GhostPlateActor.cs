@@ -14,6 +14,7 @@ internal sealed class GhostPlateActor : IDisposable
     private readonly IEngineContext engine;
     private readonly GhostPlateConfiguration sourceConfiguration;
     private readonly Appearance sourceAppearance;
+    private readonly RenderResource sourceResource;
 
     private GhostPlatePresentation? presentation;
     private GhostPlatePlacement desiredPlacement;
@@ -36,10 +37,18 @@ internal sealed class GhostPlateActor : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         sourceConfiguration = configuration;
 
-        RenderResourceHandle sourceResource = engine.Animation.OpenAnimatedMesh(
+        sourceResource = engine.Animation.OpenAnimatedMesh(
             new AnimatedMeshResourceRequest(configuration.SourceContentPath));
-        sourceAppearance = engine.Animation.CreateAnimatedMeshAppearance(
-            new AnimatedMeshAppearanceRequest(sourceResource));
+        try
+        {
+            sourceAppearance = engine.Animation.CreateAnimatedMeshAppearance(
+                new AnimatedMeshAppearanceRequest(sourceResource));
+        }
+        catch
+        {
+            sourceResource.Dispose();
+            throw;
+        }
 
         desiredPlacement = configuration.Placement;
         appliedPlacement = desiredPlacement;
@@ -400,6 +409,7 @@ internal sealed class GhostPlateActor : IDisposable
         }
 
         sourceAppearance.Dispose();
+        sourceResource.Dispose();
         disposed = true;
         started = false;
     }

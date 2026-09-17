@@ -137,7 +137,7 @@ internal sealed class CourtyardMaterials : IDisposable
         for (int index = 0; index < paths.Length; index++)
         {
             RenderResourceInfo texture = engine.Graphics.OpenResource(new RenderResourceRequest(paths[index], TextureFilter.Nearest, TextureWrap.Repeat));
-            if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Value == 0)
+            if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Handle.Value == 0)
             {
                 throw new InvalidOperationException($"Courtyard texture '{paths[index]}' must open as a non-empty Engine texture resource.");
             }

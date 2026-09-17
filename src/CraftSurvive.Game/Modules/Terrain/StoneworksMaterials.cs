@@ -98,7 +98,7 @@ internal sealed class StoneworksMaterials : IDisposable
         {
             RenderResourceInfo texture = engine.Graphics.OpenResource(
                 new RenderResourceRequest(Definitions[index].ContentPath, TextureFilter.Nearest, TextureWrap.Repeat));
-            if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Value == 0)
+            if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Handle.Value == 0)
             {
                 throw new InvalidOperationException($"Stoneworks texture '{Definitions[index].ContentPath}' must open as a non-empty Engine texture resource.");
             }
