@@ -7,7 +7,7 @@
     <!-- This is an ordinary product project. The SDK generates the CoreCLR
          and NativeAOT composition below obj; no checked bridge project or
          Engine source tree is part of the normal product build. -->
-    <RustyEngineSdkPackageVersion>0.1.0-dev.bcf02594620c</RustyEngineSdkPackageVersion>
+    <RustyEngineSdkPackageVersion>0.1.0-dev.b9c281937b26</RustyEngineSdkPackageVersion>
     <RustyEngineProductEntryType>CraftSurvive.Game.CraftSurviveProduct</RustyEngineProductEntryType>
     <RustyEngineProductId>rusty-craftsurvive</RustyEngineProductId>
     <RustyEngineProductTitle>Rusty CraftSurvive</RustyEngineProductTitle>
@@ -47,6 +47,16 @@
     <RustyEngineProductInputIntent Include="craftsurvive.edit.secondary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.impulse" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.workbench.use" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.rope.attach" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.rope.release" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.rope.shorten" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.rope.lengthen" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.rope.station" Value="digital" />
+    <RustyEngineProductInputMapping Include="craftsurvive.rope.attach" Intent="craftsurvive.rope.attach" Trigger="key:key-r:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.rope.release" Intent="craftsurvive.rope.release" Trigger="key:key-t:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.rope.shorten" Intent="craftsurvive.rope.shorten" Trigger="key:key-q:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.rope.lengthen" Intent="craftsurvive.rope.lengthen" Trigger="key:key-z:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.rope.station" Intent="craftsurvive.rope.station" Trigger="key:key-v:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.workbench.use.key-e" Intent="craftsurvive.workbench.use" Trigger="key:key-e:pressed" />
     <RustyEngineProductInputMapping Include="craftsurvive.workbench.use.controller-y" Intent="craftsurvive.workbench.use" Trigger="controller-button:button-3:pressed" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-x" Value="axis" />

@@ -438,7 +438,6 @@ internal sealed class TerrainWorld : IDisposable
         engine.Persistence.Save(new PersistenceSaveRequest(
             PersistenceStore,
             TerrainConstants.OverlayPersistenceKey,
-            TerrainConstants.PersistenceSchemaVersion,
             PersistenceRevisionGuard.Any,
             0,
             bytes));

@@ -3,6 +3,7 @@ using System.Numerics;
 using Rusty.Engine;
 using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Ropes;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Player;
@@ -21,6 +22,7 @@ internal sealed class PlayerController : IDisposable
     private readonly TerrainWorld terrain;
     private readonly PlayerSceneDefaults sceneDefaults;
     private readonly PlayerInputState input = new();
+    internal RopePlayground Ropes { get; }
     private readonly EntityStore entityWorld = new([RuntimeComponent]);
     private readonly EntityId playerEntity;
     private readonly CharacterControllerConfig controllerConfig;
@@ -78,6 +80,7 @@ internal sealed class PlayerController : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
+        Ropes = new(engine, terrain);
         sceneDefaults = PlayerConstants.ForScene(terrain.IsCourtyard);
         controllerConfig = CreateControllerConfig(engine.Spatial.DefaultCharacterControllerConfig());
         lookConfig = new LookConfig(
@@ -123,6 +126,7 @@ internal sealed class PlayerController : IDisposable
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
+        Ropes.Start();
         started = true;
     }
 
@@ -135,6 +139,8 @@ internal sealed class PlayerController : IDisposable
         cameraSampleTimeSeconds = (update.Facts.SimulationStep + update.Facts.AdmittedStepCount)
             * update.Facts.FixedDeltaSeconds;
         CaptureInputEvents(update.Input);
+        Ropes.Input(update.Input);
+        Ropes.BeginUpdate();
         lastUpdatePositionBefore = playerLocal;
         float simulationDeltaSeconds = checked((float)(update.Facts.AdmittedStepCount * update.Facts.FixedDeltaSeconds));
         PlayerInputFrame frame = input.Consume(update.Input, simulationDeltaSeconds);
@@ -156,12 +162,18 @@ internal sealed class PlayerController : IDisposable
                 ? WithSprintSpeed(controllerConfig)
                 : controllerConfig;
             commandSequence = checked(commandSequence + 1UL);
+            CharacterTetherRequest tether = Ropes.BeforeStep(playerLocal, (float)PlayerConstants.ControllerStepSeconds);
+            if (tether.Enabled) stepConfig = stepConfig with
+            {
+                ExternalMotion = stepConfig.ExternalMotion with { ExternalDecayPerSecond = 0f, AuthoredMass = RopePlayground.CharacterMass, MaximumDynamicImpulse = RopePlayground.MaximumReactionImpulse },
+            };
             CharacterStepReceipt receipt = engine.Spatial.ProposeCharacterStep(new CharacterStepRequest(
                 terrain.Session,
                 playerLocal,
                 motion,
                 CurrentSupport(),
                 CurrentPlatformObstacle(),
+                ReadOnlyMemory<CharacterMeshInstance>.Empty,
                 stepConfig,
                 new CharacterControllerCommand(
                     frame.PlanarIntent,
@@ -173,7 +185,8 @@ internal sealed class PlayerController : IDisposable
                     impulsePending ? lookReceipt.Right * PlayerConstants.ImpulseSpeed
                         + Vector3.UnitY * PlayerConstants.ImpulseLift : Vector3.Zero,
                     (float)PlayerConstants.ControllerStepSeconds,
-                    commandSequence)));
+                    commandSequence)) with { Tether = tether });
+            Ropes.AfterStep(receipt, (float)PlayerConstants.ControllerStepSeconds);
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
             jumpPending = false;
@@ -249,7 +262,18 @@ internal sealed class PlayerController : IDisposable
         terrain.PublishPlayerUi(ToUiFacts());
     }
 
-    /// <summary>Moves the live player through the same product-owned state and Engine publication lane used by gameplay.</summary>
+    /// <summary>Restarts a courtyard trial without replacing Engine-owned dynamic objects.</summary>
+    internal string ResetRopePlayground()
+    {
+        if (!Ropes.Active) return "Rope playground is only available in the courtyard.";
+        Ropes.ResetAttachment();
+        look = new LookState(DegreesToRadians(sceneDefaults.InitialYawDegrees), DegreesToRadians(PlayerConstants.InitialPitchDegrees));
+        Vector3 spawn = sceneDefaults.InitialEyePosition - Vector3.UnitY * EyeOffset(CharacterStance.Standing);
+        Teleport(spawn.X, spawn.Y, spawn.Z);
+        return "Returned to the court; attachment released.";
+    }
+
+    /// <summary>Moves the live player through the ordinary product state and Engine publication lane.</summary>
     internal PlayerRuntimeComponent Teleport(double x, double y, double z)
     {
         EnsureStarted();
@@ -308,6 +332,7 @@ internal sealed class PlayerController : IDisposable
 
     public void Dispose()
     {
+        Ropes.Dispose();
         if (camera is not null)
         {
             engine.CameraView.ClearActiveCamera(new ClearActiveCameraRequest(0U));
@@ -451,14 +476,16 @@ internal sealed class PlayerController : IDisposable
             throw new InvalidOperationException("Engine world-origin preparation did not retain CraftSurvive roots.");
         }
 
-        engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
+        WorldOriginCommitReceipt committed = engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
         cameraCut = true;
         playerLocal = player.LocalTransform.Translation;
         platformLocal = platform.LocalTransform.Translation;
         Vector3 localTranslation = playerLocal - playerBeforeRebase;
         terrain.TranslateCourtyard(localTranslation);
+        Ropes.Rebase(terrain.Session, committed, localTranslation);
         motion = motion with
         {
+            TetherAnchorPoint = motion.TetherAnchorPoint + localTranslation,
             SupportPreviousTranslation = motion.SupportPreviousTranslation + localTranslation,
             FallOriginY = motion.FallOriginY + localTranslation.Y,
             PeakY = motion.PeakY + localTranslation.Y,

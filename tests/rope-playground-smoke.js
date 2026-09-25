@@ -1,0 +1,36 @@
+async function facts(label) {
+  const result = await browser({op:'inspect',selector:'#craft-rope-readout'});
+  const text = result.targets[0]?.text ?? '';
+  checkpoint(label, text);
+  if (text.includes('Unavailable') || !text.includes('active=True')) throw new Error('readout unavailable: '+text);
+  return Object.fromEntries(text.split(';').map(x=>x.trim().split('=')));
+}
+await browser({op:'click',selector:'button:text-is("Reset to court")'});
+await sleep(750);
+checkpoint('initial', await capture({label:'smoke-initial'}));
+await browser({op:'click',selector:'button:text-is("Court anchor")'});
+await browser({op:'click',selector:'button:text-is("Attach (R)")'});
+await sleep(750);
+const attached = await facts('attached');
+if (!['slack','taut'].includes(attached.state)) throw new Error('attachment did not persist');
+await browser({op:'click',selector:'button:text-is("Reel to 4m")'});
+await sleep(10000);
+await sleep(10000);
+const reeled = await facts('reeled');
+if (!(Number(reeled.maximum) < Number(attached.maximum) - 3)) throw new Error('reel did not shorten');
+checkpoint('reeled-frame',await capture({label:'smoke2-reeled'}));
+await browser({op:'click',selector:'button:text-is("Let out to 9m")'});
+await sleep(5000);
+const lengthened = await facts('lengthened');
+if (!(Number(lengthened.maximum) > Number(reeled.maximum) + 0.5)) throw new Error('lengthening failed');
+await browser({op:'click',selector:'button:text-is("Release (T)")'});
+await sleep(750);
+const released = await facts('released');
+if (!['detached','released'].includes(released.state)) throw new Error('release failed');
+if (!(Number(released.releases)>0)) throw new Error('release counter missing');
+checkpoint('released-frame',await capture({label:'smoke2-released'}));
+await browser({op:'click',selector:'button:text-is("Reset to court")'});
+await sleep(750);
+const reset = await facts('reset');
+if (reset.state !== 'detached' || Number(reset.maximum) !== 0) throw new Error('reset retained the attachment');
+return {pass:true,attached,reeled,lengthened,released,reset};

@@ -32,6 +32,19 @@ public sealed class CraftDebugModule : IDebugCommandModule
         this.execution = execution;
     }
 
+    [DebugCommand("craft.rope.inspect", Description = "Reads the live rope playground and Engine budgets.")]
+    public string InspectRope() => player.Ropes.Readout();
+    [DebugCommand("craft.rope.attach", Description = "Queues the same attachment action as R.")]
+    public string AttachRope() => player.Ropes.Attach();
+    [DebugCommand("craft.rope.release", Description = "Queues the same release action as T.")]
+    public string ReleaseRope() => player.Ropes.Release();
+    [DebugCommand("craft.rope.reset", Description = "Returns to the courtyard spawn and releases the rope for another trial.")]
+    public string ResetRope() => player.ResetRopePlayground();
+    [DebugCommand("craft.rope.station", Description = "Selects fixed0, terrain1, or dynamic2, as V does.")]
+    public string RopeStation(int station) => player.Ropes.Select(station);
+    [DebugCommand("craft.rope.length", Description = "Sets the rate-limited target length, 2 to 10 metres.")]
+    public string RopeLength(float length) => player.Ropes.SetLength(length);
+
     [DebugCommand("craft.ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
     public string SetGhostPreset(string preset) => ghost.QueuePreset(preset);
 

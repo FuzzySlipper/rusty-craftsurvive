@@ -1,0 +1,241 @@
+[
+  {
+    "name": "final-browser",
+    "script_id": "fdd4914a-0791-4c08-b730-2d13f1764734",
+    "events_path": "/home/agent/.local/state/crew-playtest/scripts/fdd4914a-0791-4c08-b730-2d13f1764734/events.jsonl",
+    "captures": [
+      {
+        "capture_id": "b9ffd413-079b-4a1b-ae18-bf3708fe8f21",
+        "label": "smoke2-initial",
+        "path": "/home/agent/.local/state/crew-playtest/browser/2b7deaee-1501-44e3-82b1-495e4f02bcd3/2b0f8117-99b9-455d-959e-b4b1591c813c.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-b9ffd413-079b-4a1b-ae18-bf3708fe8f21.json",
+        "session_id": "2b7deaee-1501-44e3-82b1-495e4f02bcd3"
+      },
+      {
+        "capture_id": "1c8116f1-6cbd-470c-a627-3746a7a78378",
+        "label": "smoke2-reeled",
+        "path": "/home/agent/.local/state/crew-playtest/browser/2b7deaee-1501-44e3-82b1-495e4f02bcd3/203f5ffb-e48c-49e4-b90a-9ba9e72e1904.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-1c8116f1-6cbd-470c-a627-3746a7a78378.json",
+        "session_id": "2b7deaee-1501-44e3-82b1-495e4f02bcd3"
+      },
+      {
+        "capture_id": "414d278e-76fa-4c95-8b9b-6d641ffcd065",
+        "label": "smoke2-released",
+        "path": "/home/agent/.local/state/crew-playtest/browser/2b7deaee-1501-44e3-82b1-495e4f02bcd3/e76912d7-eba2-4bd6-8c9f-6fe6d489a804.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-414d278e-76fa-4c95-8b9b-6d641ffcd065.json",
+        "session_id": "2b7deaee-1501-44e3-82b1-495e4f02bcd3"
+      }
+    ],
+    "pair": "b9c281937b26",
+    "scope": "Final collision-bound world"
+  },
+  {
+    "name": "final-native-swing",
+    "script_id": "93f49806-5829-460c-be6a-3e694b1fcdd1",
+    "events_path": "/home/agent/.local/state/crew-playtest/scripts/93f49806-5829-460c-be6a-3e694b1fcdd1/events.jsonl",
+    "captures": [
+      {
+        "capture_id": "02fe1c51-54e6-4fb1-bf52-79720828e1a8",
+        "label": "final-native-initial",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/987bb5d3-3191-4c5e-86a6-6a540f937d19.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-02fe1c51-54e6-4fb1-bf52-79720828e1a8.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "96514461-9314-4eb8-9c5d-afec9817ba31",
+        "label": "final-native-reeled",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/83de188d-2489-4835-9e07-d59fc2341126.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-96514461-9314-4eb8-9c5d-afec9817ba31.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "5b0eaa53-f4ad-47b0-9019-2eed6885f070",
+        "label": "final-native-arc-0",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/d7825fd8-492e-4401-b873-3f5154be4da6.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-5b0eaa53-f4ad-47b0-9019-2eed6885f070.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "5c4789d7-8417-4c1d-8873-e80ce0d3620f",
+        "label": "final-native-arc-1",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/7524575f-1f57-4507-9091-019bab12b8cd.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-5c4789d7-8417-4c1d-8873-e80ce0d3620f.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "fb2881a7-9ff1-45a9-b937-ce3b72c72b96",
+        "label": "final-native-arc-2",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/a0368bc3-67fc-4934-b2e7-aa5d76d74225.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-fb2881a7-9ff1-45a9-b937-ce3b72c72b96.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "ff3d3729-adbb-418b-b12a-76ddf8b6eed7",
+        "label": "final-native-arc-3",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/28c33805-868c-433c-b00d-76c16368e971.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-ff3d3729-adbb-418b-b12a-76ddf8b6eed7.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "559314a2-2800-46ed-83a5-cd255055f794",
+        "label": "final-native-arc-4",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/0cac2f0f-4339-47cd-99b1-9aa06782ebe5.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-559314a2-2800-46ed-83a5-cd255055f794.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "b42eb328-b9fa-4a06-a5a7-485ffe12844a",
+        "label": "final-native-arc-5",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/fa8a62eb-aa18-4588-ac44-ddb830c39d03.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-b42eb328-b9fa-4a06-a5a7-485ffe12844a.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "1cff0a09-a77d-4a09-a862-eedfc0f19523",
+        "label": "final-native-release",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/702b4339-d39d-4767-92aa-fb3945a860e6.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-1cff0a09-a77d-4a09-a862-eedfc0f19523.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      },
+      {
+        "capture_id": "ce542c81-9346-41a3-aa21-9d3fa778fc52",
+        "label": "final-native-landing",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/bbdf972b-4396-44a4-8040-4d1c488837f9/6f830425-c7d5-48ab-a750-6f7653db6024.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-ce542c81-9346-41a3-aa21-9d3fa778fc52.json",
+        "session_id": "bbdf972b-4396-44a4-8040-4d1c488837f9"
+      }
+    ],
+    "pair": "b9c281937b26",
+    "scope": "Final collision-bound world"
+  },
+  {
+    "name": "final-browser-reset",
+    "script_id": "8dea97df-6550-4172-8d00-f6c6bf03047b",
+    "events_path": "/home/agent/.local/state/crew-playtest/scripts/8dea97df-6550-4172-8d00-f6c6bf03047b/events.jsonl",
+    "captures": [
+      {
+        "capture_id": "3244724d-0c52-47c1-8e5d-c0ad45f8fd9a",
+        "label": "smoke-initial",
+        "path": "/home/agent/.local/state/crew-playtest/browser/dd478ba8-31d6-4ddb-9012-c24380fe54a9/5d8abf25-fb9b-47e0-b15c-644608d9b16b.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-3244724d-0c52-47c1-8e5d-c0ad45f8fd9a.json",
+        "session_id": "dd478ba8-31d6-4ddb-9012-c24380fe54a9"
+      },
+      {
+        "capture_id": "751e2579-7cb3-45bd-a1da-e45623c778c9",
+        "label": "smoke2-reeled",
+        "path": "/home/agent/.local/state/crew-playtest/browser/dd478ba8-31d6-4ddb-9012-c24380fe54a9/aed35705-5be0-4f8f-af39-be2be84a143b.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-751e2579-7cb3-45bd-a1da-e45623c778c9.json",
+        "session_id": "dd478ba8-31d6-4ddb-9012-c24380fe54a9"
+      },
+      {
+        "capture_id": "540ec51c-dfc3-47a4-a44b-06b4ab3b4f9c",
+        "label": "smoke2-released",
+        "path": "/home/agent/.local/state/crew-playtest/browser/dd478ba8-31d6-4ddb-9012-c24380fe54a9/859ca623-e7c5-4edb-998c-7f25161c7d2d.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-540ec51c-dfc3-47a4-a44b-06b4ab3b4f9c.json",
+        "session_id": "dd478ba8-31d6-4ddb-9012-c24380fe54a9"
+      }
+    ],
+    "pair": "b9c281937b26",
+    "scope": "Final collision-bound world"
+  },
+  {
+    "name": "final-native-dynamic",
+    "script_id": "bed66011-8c24-44c9-a238-9b2f0c04bec3",
+    "events_path": "/home/agent/.local/state/crew-playtest/scripts/bed66011-8c24-44c9-a238-9b2f0c04bec3/events.jsonl",
+    "captures": [
+      {
+        "capture_id": "8fe72e3c-c785-4c97-8af9-a67151545fce",
+        "label": "dynamic-loaded",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/3d037a28-3612-4892-bda9-8647a3419fd5.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-8fe72e3c-c785-4c97-8af9-a67151545fce.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "1148abd9-cba3-4fa0-83ca-d86c31475442",
+        "label": "dynamic-reaction",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/754338a0-5c6b-469c-8a64-7abea03875a2.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-1148abd9-cba3-4fa0-83ca-d86c31475442.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "9bc7000d-8c89-414b-ac83-db50228a9ac2",
+        "label": "dynamic-lengthening",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/2929b5b1-c612-4881-b1b3-e51f17e52246.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-9bc7000d-8c89-414b-ac83-db50228a9ac2.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "63f68645-a615-4915-9e5b-04fbd94c7484",
+        "label": "dynamic-repeat-0",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/13c0cecc-5dbe-4173-a3e3-8d94d0d9c6e0.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-63f68645-a615-4915-9e5b-04fbd94c7484.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "204135ec-14da-4f77-9348-b2512c0a1d94",
+        "label": "dynamic-repeat-1",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/cc40f35c-aea9-46fa-9be3-e129a35c85b7.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-204135ec-14da-4f77-9348-b2512c0a1d94.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "694ddbdd-afc7-4106-adaa-661a20b18ef5",
+        "label": "dynamic-repeat-2",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/2f9aeeb2-f71d-4f94-adf1-ea7c6a95ce0f.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-694ddbdd-afc7-4106-adaa-661a20b18ef5.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      }
+    ],
+    "pair": "b9c281937b26",
+    "scope": "Final collision-bound world"
+  },
+  {
+    "name": "final-native-terrain",
+    "script_id": "64455727-1f2f-4ffc-b228-fa47ae282b29",
+    "events_path": "/home/agent/.local/state/crew-playtest/scripts/64455727-1f2f-4ffc-b228-fa47ae282b29/events.jsonl",
+    "captures": [
+      {
+        "capture_id": "e977cfcd-2d99-4d8b-a33e-3cd0c22e9c73",
+        "label": "terrain-wall",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/f9d64695-7bd0-4c81-8f1c-7c6298932485.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-e977cfcd-2d99-4d8b-a33e-3cd0c22e9c73.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "f908c04d-eda7-4494-8749-b97c85ee4117",
+        "label": "terrain-ledge",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/1a4e486d-bc6e-4461-859b-92c1aa43bc7b.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-f908c04d-eda7-4494-8749-b97c85ee4117.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "b550ef8e-e7d7-44ca-8657-0d8994e932d4",
+        "label": "terrain-lengthened",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/2d89d77b-4652-4379-bd81-29d33f9584f5.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-b550ef8e-e7d7-44ca-8657-0d8994e932d4.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      },
+      {
+        "capture_id": "695210cf-6878-4ba8-bb14-59a6932b4660",
+        "label": "terrain-ground",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/061888fa-602f-41b0-b311-daca7db70689.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-695210cf-6878-4ba8-bb14-59a6932b4660.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      }
+    ],
+    "pair": "b9c281937b26",
+    "scope": "Final collision-bound world"
+  },
+  {
+    "name": "final-native-chain",
+    "assistance": "craft.rope.reset; craft.player.teleport -5 3.92 -3",
+    "captures": [
+      {
+        "capture_id": "17dbffe7-7223-4010-a576-a8b2cd8ec952",
+        "path": "/home/dev/dsh-crew/experiments/wolf-den-srv/controller/state/c18107a8-cb85-41dc-89c1-5e3fa4a00cf3/5b8f9c9a-1be2-477f-afc8-3e4a258a4a50.png",
+        "metadata_path": "/home/agent/.local/state/crew-playtest/capture-17dbffe7-7223-4010-a576-a8b2cd8ec952.json",
+        "session_id": "c18107a8-cb85-41dc-89c1-5e3fa4a00cf3"
+      }
+    ]
+  }
+]

@@ -1,0 +1,12 @@
+await keyboard.hold(['R'],100);
+await keyboard.hold(['Q'],10000);
+await keyboard.hold(['W'],1200);
+checkpoint('wall-approach',await capture({label:'terrain-wall'}));
+await keyboard.hold(['A'],1200);
+checkpoint('ledge',await capture({label:'terrain-ledge'}));
+await keyboard.hold(['Z'],3000);
+await sleep(1500);
+checkpoint('loaded-lengthening',await capture({label:'terrain-lengthened'}));
+await keyboard.hold(['T'],100);
+await sleep(1500);
+checkpoint('ground',await capture({label:'terrain-ground'}));

@@ -17,6 +17,9 @@ Combined level and voxel-art experiments are described in
 [Procedural cave levels](docs/procedural-levels.md). CraftSurvive is now the active
 home for the retained Rusty Procgen algorithms and offline artifact tool.
 
+The near-spawn [rope playground](docs/rope-playground.md) explores Engine-owned
+tethers, character swing coupling, dynamic reactions and a short articulated rope.
+
 ## Repository shape
 
 ```text

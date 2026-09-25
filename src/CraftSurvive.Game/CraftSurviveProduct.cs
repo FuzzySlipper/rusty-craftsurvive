@@ -220,6 +220,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             engine.Graphics.PublishSnapshot(
             [
                 ..terrain.CourtyardFacts,
+                ..player.Ropes.Facts,
                 player.PlatformAppearanceFact,
                 useDesiredGhostSource
                     ? ghost.DesiredSourceAppearanceFact
@@ -228,7 +229,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             return;
         }
 
-        engine.Graphics.PublishSnapshot([..terrain.CourtyardFacts, player.PlatformAppearanceFact]);
+        engine.Graphics.PublishSnapshot([..terrain.CourtyardFacts, ..player.Ropes.Facts, player.PlatformAppearanceFact]);
     }
 
     private enum ProductLifecycleState
