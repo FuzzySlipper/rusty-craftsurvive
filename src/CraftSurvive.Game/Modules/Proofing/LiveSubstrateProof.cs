@@ -181,7 +181,7 @@ internal sealed class LiveSubstrateProof
                 // to teleport, land and be read.
                 try
                 {
-                    AdvanceSwimProof();
+                    Tick(AdvanceSwimProof);
                 }
                 catch (Exception exception)
                 {
@@ -209,22 +209,7 @@ internal sealed class LiveSubstrateProof
 
                 try
                 {
-                    // Tick cost, measured where the product spends it: the residency
-                    // synchronisation it runs every update. Engine render and frame time
-                    // are not in this figure and are not claimed to be.
-                    long before = Stopwatch.GetTimestamp();
-                    AdvanceResidencyPreparation();
-                    double elapsed = Stopwatch.GetElapsedTime(before).TotalMilliseconds;
-                    tickCount++;
-                    tickTotalMs += elapsed;
-                    tickMaximumMs = Math.Max(tickMaximumMs, elapsed);
-                    if (tickCount % TickReportInterval == 0)
-                    {
-                        // Reported as we go, not only at the end: the proof's own paced
-                        // stages can hold the finish open, and a figure nobody sees is not
-                        // evidence.
-                        ReportTickCost();
-                    }
+                    Tick(AdvanceResidencyPreparation);
                 }
                 catch (Exception exception)
                 {
@@ -587,8 +572,28 @@ internal sealed class LiveSubstrateProof
     }
 
     /// <summary>
-    /// The product's own per-update cost while the world streams, reported at the end so
-    /// the figures cover the whole run rather than one quiet moment.
+    /// Times one update of the product's own streaming work. Both the residency
+    /// synchronisation and the earlier proof stages run through here, because this proof
+    /// spends most of its updates in those stages: a figure measured only where the flow
+    /// rarely goes is a figure that never prints. Engine render and frame time are not in
+    /// it and are not claimed to be.
+    /// </summary>
+    private void Tick(Action work)
+    {
+        long before = Stopwatch.GetTimestamp();
+        work();
+        double elapsed = Stopwatch.GetElapsedTime(before).TotalMilliseconds;
+        tickCount++;
+        tickTotalMs += elapsed;
+        tickMaximumMs = Math.Max(tickMaximumMs, elapsed);
+        if (tickCount % TickReportInterval == 0)
+        {
+            ReportTickCost();
+        }
+    }
+
+    /// <summary>
+    /// The product's own per-update streaming cost, reported as the run goes.
     /// </summary>
     private void ReportTickCost()
     {
