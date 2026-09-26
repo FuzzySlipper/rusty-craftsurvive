@@ -76,6 +76,7 @@ internal sealed class LiveSubstrateProof
     private const float MarkerAlpha = 1f;
     private const string PersistenceProofScope = "craftsurvive.proof";
     private const string PersistenceProofKey = "proof/roundtrip";
+    private const float EditAimLiftVoxels = 4f;
     private static readonly bool PlantStaleFromEnvironment = string.Equals(
         Environment.GetEnvironmentVariable("CRAFTSURVIVE_PLANT_STALE"), "1", StringComparison.Ordinal);
     private const int ResidencyDiagnosticFrames = 60;
@@ -195,6 +196,30 @@ internal sealed class LiveSubstrateProof
         Report($"planted a {stale.Length}-byte stale world overlay for the next start to discard");
     }
 
+    /// <summary>
+    /// Apply one edit through the world's own edit path rather than through the
+    /// Engine, then report what the world has saved. This is the caller of
+    /// `SaveOverlay`, so it is what makes the saved world real: the next start must
+    /// report a restored overlay rather than none.
+    /// </summary>
+    private void ProveWorldEditSave(EngineVoxelAddress site)
+    {
+        Vector3 origin = new(site.X + SampleCellCenter, site.Y + EditAimLiftVoxels, site.Z + SampleCellCenter);
+        TerrainWorldEditResult result = terrain.TryEditFromView(
+            origin,
+            -Vector3.UnitY,
+            TerrainEditKind.Set,
+            TerrainConstants.StoneMaterial,
+            0,
+            _ => false);
+        Report($"world edit through the product path: {TerrainWorld.FormatEditReadout(result)}");
+        Require(result is TerrainWorldEditApplied, "a product edit did not apply");
+
+        (bool present, int bytes) = terrain.OverlaySaved();
+        Require(present, "a product edit did not save the world overlay");
+        Report($"world overlay saved by that edit: {bytes} bytes");
+    }
+
     private void ReportOverlayOutcome() =>
         Report($"saved world overlay: {terrain.OverlayRestoreOutcome}");
 
@@ -213,6 +238,15 @@ internal sealed class LiveSubstrateProof
         Report($"site {Format(site)}");
         ProvePerCellState(session, site);
         ProveDirectLight(session, site);
+        try
+        {
+            ProveWorldEditSave(site);
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the world edit save proof threw {exception.GetType().Name}: {exception.Message}");
+        }
+
         ProveSwimMode(session, site);
         ProveNavigation(session);
         ClearSite(session, site);

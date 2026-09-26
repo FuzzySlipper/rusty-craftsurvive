@@ -468,6 +468,20 @@ internal sealed class TerrainWorld : IDisposable
         }
     }
 
+    /// <summary>
+    /// Whether the world's overlay is saved, and how many bytes it holds. It exists
+    /// so the live lane can show that a product edit reached the store, which is the
+    /// half of the save path an Engine-level edit never touches.
+    /// </summary>
+    internal (bool Present, int Bytes) OverlaySaved()
+    {
+        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
+            PersistenceStore,
+            TerrainConstants.OverlayPersistenceKey));
+        PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
+        return info.Present ? (true, engine.Persistence.ReadBlobBytes(blob).Length) : (false, 0);
+    }
+
     /// <summary>What happened to the saved overlay at startup, for evidence.</summary>
     internal string OverlayRestoreOutcome => overlayRestoreOutcome;
 
