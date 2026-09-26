@@ -35,8 +35,13 @@ internal static class TerrainConstants
     internal const int ChunkEdgeLength = 16;
     internal const int ChunkPlaneLength = ChunkEdgeLength * ChunkEdgeLength;
     internal const int ChunkVolume = ChunkPlaneLength * ChunkEdgeLength;
-    internal const int RequestedChunkRadius = 1;
-    internal const int RetainedChunkRadius = 2;
+    // Sized against the measured live figure in `docs/live-proofs.md`: generation
+    // costs about 2.2 ms per 16-cubed chunk on the current machine, so a 5x5 request
+    // window is roughly 55 ms of generation work spread across the bounded
+    // operations below, and the retained ring is one wider so a boundary crossing
+    // reuses chunks instead of regenerating them.
+    internal const int RequestedChunkRadius = 2;
+    internal const int RetainedChunkRadius = 3;
     internal const int MaximumResidencyOperationsPerTick = 16;
     internal const int MaximumResidentChunks = 64;
 

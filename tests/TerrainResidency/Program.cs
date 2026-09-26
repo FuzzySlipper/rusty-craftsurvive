@@ -173,8 +173,10 @@ void CheckAgainstFullScan(TerrainChunkAddress location)
 {
     var snapshot = state.Snapshot();
     var populated = new List<TerrainChunkAddress>();
-    for (long x = location.X - 2; x <= location.X + 2; x++)
-    for (long z = location.Z - 2; z <= location.Z + 2; z++)
+    // Scanned to the policy's retained radius, so the full scan covers every
+    // neighbourhood the plan can retain.
+    for (long x = location.X - TerrainConstants.RetainedChunkRadius; x <= location.X + TerrainConstants.RetainedChunkRadius; x++)
+    for (long z = location.Z - TerrainConstants.RetainedChunkRadius; z <= location.Z + TerrainConstants.RetainedChunkRadius; z++)
     for (long y = -1; y <= 1; y++)
     {
         TerrainChunkAddress address = new(x, y, z);
@@ -184,10 +186,14 @@ void CheckAgainstFullScan(TerrainChunkAddress location)
         if (generated.SolidVoxelCount > 0) populated.Add(address);
     }
     var ordered = populated.OrderBy(a => ((a.X-location.X)*(a.X-location.X)+(a.Z-location.Z)*(a.Z-location.Z), a.Y, a)).ToArray();
-    var expectedRequested = ordered.Where(a => Math.Abs(a.X-location.X) <= 1 && Math.Abs(a.Z-location.Z) <= 1);
+    // Derived from the policy's own radius, so widening the stream window does not
+    // silently invalidate this check.
+    var expectedRequested = ordered.Where(a =>
+        Math.Abs(a.X - location.X) <= TerrainConstants.RequestedChunkRadius
+        && Math.Abs(a.Z - location.Z) <= TerrainConstants.RequestedChunkRadius);
     var plan = policy.PlanFor(location, state);
     Require(plan.Requested.SequenceEqual(expectedRequested), "request priority/occupancy differs from full scan");
-    Require(plan.Retained.SequenceEqual(ordered.Take(64)), "retained priority/occupancy differs from full scan");
+    Require(plan.Retained.SequenceEqual(ordered.Take(TerrainConstants.MaximumResidentChunks)), "retained priority/occupancy differs from full scan");
 }
 
 static void Require(bool condition, string message)
