@@ -55,8 +55,9 @@ large-complex slices, and the LAN startup regression - are in Den, project
   operation rather than a test artefact. Filed upstream with the table of
   transaction sizes and the diagnostics that do not appear.
 
-Both are live limits of the installed pair, not bugs in this repository, and both
-have owning tasks upstream.
+Both are live limits of the installed pair, not bugs in this repository. The
+passable-material limit is `rusty-engine` #8685 and the edit-transaction stall is
+`rusty-engine` #8684; this repository keeps no copy of their state.
 
 ## Player and input
 
