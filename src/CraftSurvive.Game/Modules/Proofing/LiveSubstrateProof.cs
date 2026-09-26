@@ -155,9 +155,9 @@ internal sealed class LiveSubstrateProof
                     // already left by the next step. This is a proof-harness allowance,
                     // not a product behaviour - the product reads exactly one cell.
                     List<VoxelEdit> soak = [];
-                    for (long dx = -1; dx <= 1; dx++)
+                    for (long dx = 0; dx <= 0; dx++)
                     for (long dy = -1; dy <= 1; dy++)
-                    for (long dz = -1; dz <= 1; dz++)
+                    for (long dz = 0; dz <= 0; dz++)
                     {
                         soak.Add(new VoxelEdit(
                             (ushort)Content.BlockId.Water,
