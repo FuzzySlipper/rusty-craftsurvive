@@ -101,7 +101,7 @@ internal sealed class LiveSubstrateProof
     private bool swimDone;
     private const int MaximumSwimAttempts = 5;
     private const int MaximumSwimUpdates = 900;
-    private const int SoakAfterUpdates = 20;
+    private const int SoakAfterUpdates = 1;
     private ulong preparation;
     private bool reportedPending;
     private int residencyAttempts;
@@ -174,6 +174,15 @@ internal sealed class LiveSubstrateProof
 
     private void Finish()
     {
+        // A run that ends before the swim sequence completes is not a passing run,
+        // however green its other lines are: this is the guard against a gate that
+        // never fires reading as success.
+        if (!swimDone)
+        {
+            failures.Add(
+                $"the run finished before the swim proof completed ({swimUpdates} updates, stage {swimStage})");
+        }
+
         completed = true;
         ReportAll();
     }
@@ -392,14 +401,24 @@ internal sealed class LiveSubstrateProof
     private void SoakSwimCell(EngineVoxelAddress cell)
     {
         VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        VoxelEdit[] soak =
-        [
-            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set, cell, (ushort)Content.BlockId.Water),
-            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set,
-                new EngineVoxelAddress(cell.X, cell.Y - 1, cell.Z), (ushort)Content.BlockId.Water),
-        ];
+        // A 3x3 layer at the controller's own cell height, not one voxel: the character
+        // is still settling while this proof runs and crosses a cell boundary between
+        // updates, so a single cell is water the player has already left. Nine cells is
+        // a proof-harness allowance - the product reads exactly one cell - and it is
+        // kept small because a much larger transaction (27 cells) stalled the update
+        // loop outright.
+        List<VoxelEdit> soak = [];
+        for (long dx = -1; dx <= 1; dx++)
+        for (long dz = -1; dz <= 1; dz++)
+        {
+            soak.Add(new VoxelEdit(
+                (ushort)Content.BlockId.Water,
+                VoxelEditKind.Set,
+                new EngineVoxelAddress(cell.X + dx, cell.Y, cell.Z + dz),
+                (ushort)Content.BlockId.Water));
+        }
         VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
-            terrain.Session, before.SourceRevision, soak));
+            terrain.Session, before.SourceRevision, soak.ToArray()));
         swimCell = cell;
         swimStage = 1;
         Report(
@@ -409,12 +428,17 @@ internal sealed class LiveSubstrateProof
     private void ClearSwimCell()
     {
         VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        VoxelEdit[] clear =
-        [
-            new VoxelEdit(VoxelEditKind.Clear, swimCell, 0),
-            new VoxelEdit(VoxelEditKind.Clear, new EngineVoxelAddress(swimCell.X, swimCell.Y - 1, swimCell.Z), 0),
-        ];
-        engine.Voxel.ApplyEdits(new VoxelEditTransaction(terrain.Session, before.SourceRevision, clear));
+        List<VoxelEdit> clear = [];
+        for (long dx = -1; dx <= 1; dx++)
+        for (long dz = -1; dz <= 1; dz++)
+        {
+            clear.Add(new VoxelEdit(
+                VoxelEditKind.Clear,
+                new EngineVoxelAddress(swimCell.X + dx, swimCell.Y, swimCell.Z + dz),
+                0));
+        }
+
+        engine.Voxel.ApplyEdits(new VoxelEditTransaction(terrain.Session, before.SourceRevision, clear.ToArray()));
     }
 
     private void ReportOverlayOutcome() =>
