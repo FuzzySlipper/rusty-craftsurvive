@@ -169,9 +169,16 @@ internal sealed class LiveSubstrateProof
     {
         PersistenceStore store = engine.Persistence.OpenStore(new PersistenceOpenRequest(PersistenceProofScope));
         byte[] written = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        Stopwatch saveWatch = Stopwatch.StartNew();
         engine.Persistence.Save(new PersistenceSaveRequest(
             store, PersistenceProofKey, PersistenceRevisionGuard.Any, 0, written));
+        saveWatch.Stop();
+        Stopwatch loadWatch = Stopwatch.StartNew();
         using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store, PersistenceProofKey));
+        loadWatch.Stop();
+        Report(string.Create(
+            CultureInfo.InvariantCulture,
+            $"save/load latency: {saveWatch.Elapsed.TotalMilliseconds:F2} ms save, {loadWatch.Elapsed.TotalMilliseconds:F2} ms load for 16 bytes"));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         if (!info.Present)
         {
@@ -248,6 +255,10 @@ internal sealed class LiveSubstrateProof
         Report(string.Create(
             CultureInfo.InvariantCulture,
             $"generation budget: {SampleCount} chunks in {stopwatch.Elapsed.TotalMilliseconds:F1} ms ({millisecondsPerChunk:F3} ms/chunk, {checksum} solid voxels); resident chunks {scene.ResidentChunkCount}, mesh revision {scene.MeshRevision}"));
+        long residentPayloadBytes = (long)scene.ResidentChunkCount * TerrainConstants.ChunkVolume * sizeof(ushort);
+        Report(string.Create(
+            CultureInfo.InvariantCulture,
+            $"resident payload: {residentPayloadBytes / 1024} KiB of product chunk payload for {scene.ResidentChunkCount} chunks at {TerrainConstants.ChunkVolume * sizeof(ushort) / 1024} KiB each (product-side payload only; Engine mesh, collision and renderer memory is not included)"));
     }
 
     private void ReportOverlayOutcome() =>
@@ -840,6 +851,7 @@ internal sealed class LiveSubstrateProof
         SpatialSession? dungeon = null;
         try
         {
+            Stopwatch dimensionWatch = Stopwatch.StartNew();
             dungeon = engine.Spatial.CreateSession(new SpatialSessionConfig(
                 TerrainConstants.VoxelSize,
                 DungeonChunkSize,
@@ -873,7 +885,11 @@ internal sealed class LiveSubstrateProof
                 cell.MaterialSlot == TerrainConstants.StoneMaterial,
                 $"the second session reads material {cell.MaterialSlot}, expected {TerrainConstants.StoneMaterial}");
 
+            dimensionWatch.Stop();
             VoxelSceneReadout dungeonScene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(dungeon));
+            Report(string.Create(
+                CultureInfo.InvariantCulture,
+                $"dimension load: session created and one chunk admitted in {dimensionWatch.Elapsed.TotalMilliseconds:F2} ms"));
             Report($"dimension: second session built with its own residency, resident chunks {dungeonScene.ResidentChunkCount}, solid voxels {admitted.ResidentSolidVoxelCount}, authority {admitted.AuthorityHash}");
         }
         finally
