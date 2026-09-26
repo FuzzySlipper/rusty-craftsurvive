@@ -98,10 +98,13 @@ internal sealed class LiveSubstrateProof
     private int swimStage;
     private int swimAttempts;
     private int swimUpdates;
+    private int swimPaceUpdates;
+    private bool finishRequested;
     private bool swimDone;
     private const int MaximumSwimAttempts = 5;
     private const int MaximumSwimUpdates = 900;
-    private const int SoakAfterUpdates = 1;
+    private const int SoakAfterUpdates = 10;
+    private const int MaximumSwimPaceUpdates = 120;
     private ulong preparation;
     private bool reportedPending;
     private int residencyAttempts;
@@ -151,6 +154,11 @@ internal sealed class LiveSubstrateProof
                 try
                 {
                     AdvanceSwimProof();
+                    if (finishRequested && (swimDone || swimPaceUpdates >= MaximumSwimPaceUpdates))
+                    {
+                        RequestFinish();
+                        return;
+                    }
                 }
                 catch (Exception exception)
                 {
@@ -165,11 +173,28 @@ internal sealed class LiveSubstrateProof
                 catch (Exception exception)
                 {
                     failures.Add($"residency preparation threw {exception.GetType().Name}: {exception.Message}");
-                    Finish();
+                    RequestFinish();
                 }
 
                 break;
         }
+    }
+
+    /// <summary>
+    /// Asks the proof to finish. The residency flow reaches its end after about two
+    /// updates, which is far too soon for a sequence that has to wait for the
+    /// character to settle, so the request is held until the swim proof completes or
+    /// its own pace cap expires. Everything else about finishing is unchanged.
+    /// </summary>
+    private void RequestFinish()
+    {
+        if (swimDone || swimPaceUpdates >= MaximumSwimPaceUpdates)
+        {
+            Finish();
+            return;
+        }
+
+        finishRequested = true;
     }
 
     private void Finish()
@@ -336,6 +361,7 @@ internal sealed class LiveSubstrateProof
         // now - water under a moving player still tests the product's read - and if
         // the whole sequence never completes, the proof fails rather than passing
         // quietly.
+        swimPaceUpdates++;
         if (++swimUpdates > MaximumSwimUpdates)
         {
             failures.Add(
@@ -401,22 +427,16 @@ internal sealed class LiveSubstrateProof
     private void SoakSwimCell(EngineVoxelAddress cell)
     {
         VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        // A 3x3 layer at the controller's own cell height, not one voxel: the character
-        // is still settling while this proof runs and crosses a cell boundary between
-        // updates, so a single cell is water the player has already left. Nine cells is
-        // a proof-harness allowance - the product reads exactly one cell - and it is
-        // kept small because a much larger transaction (27 cells) stalled the update
-        // loop outright.
-        List<VoxelEdit> soak = [];
-        for (long dx = -1; dx <= 1; dx++)
-        for (long dz = -1; dz <= 1; dz++)
-        {
-            soak.Add(new VoxelEdit(
-                (ushort)Content.BlockId.Water,
-                VoxelEditKind.Set,
-                new EngineVoxelAddress(cell.X + dx, cell.Y, cell.Z + dz),
-                (ushort)Content.BlockId.Water));
-        }
+        // Two cells, at the controller's own cell and the one below it. Kept this
+        // small deliberately: a multi-cell transaction stalls the update loop
+        // (rusty-engine #8684), and with the proof paced the character has settled, so
+        // the cell it reports is the cell it is standing in.
+        List<VoxelEdit> soak =
+        [
+            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set, cell, (ushort)Content.BlockId.Water),
+            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set,
+                new EngineVoxelAddress(cell.X, cell.Y - 1, cell.Z), (ushort)Content.BlockId.Water),
+        ];
         VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
             terrain.Session, before.SourceRevision, soak.ToArray()));
         swimCell = cell;
@@ -428,15 +448,11 @@ internal sealed class LiveSubstrateProof
     private void ClearSwimCell()
     {
         VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        List<VoxelEdit> clear = [];
-        for (long dx = -1; dx <= 1; dx++)
-        for (long dz = -1; dz <= 1; dz++)
-        {
-            clear.Add(new VoxelEdit(
-                VoxelEditKind.Clear,
-                new EngineVoxelAddress(swimCell.X + dx, swimCell.Y, swimCell.Z + dz),
-                0));
-        }
+        List<VoxelEdit> clear =
+        [
+            new VoxelEdit(VoxelEditKind.Clear, swimCell, 0),
+            new VoxelEdit(VoxelEditKind.Clear, new EngineVoxelAddress(swimCell.X, swimCell.Y - 1, swimCell.Z), 0),
+        ];
 
         engine.Voxel.ApplyEdits(new VoxelEditTransaction(terrain.Session, before.SourceRevision, clear.ToArray()));
     }
@@ -967,7 +983,7 @@ internal sealed class LiveSubstrateProof
         }
 
         RunEntityProjectionStage();
-        Finish();
+        RequestFinish();
     }
 
     private void RunEntityProjectionStage()
