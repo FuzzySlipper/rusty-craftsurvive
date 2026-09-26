@@ -13,6 +13,7 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/TerrainGeneratorContract.cs" Link="Content/TerrainGeneratorContract.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="TerrainConfiguration.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainRecipe.cs" Link="TerrainRecipe.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainChunk.cs" Link="TerrainChunk.cs" />

@@ -620,6 +620,15 @@ internal sealed class LiveSubstrateProof
     {
         try
         {
+            ProveGenerationDeterminism();
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the generation determinism proof threw {exception.GetType().Name}: {exception.Message}");
+        }
+
+        try
+        {
             ProveDimensionLoad(session);
         }
         catch (Exception exception)
@@ -641,6 +650,21 @@ internal sealed class LiveSubstrateProof
         {
             failures.Add($"the entity projection threw {exception.GetType().Name}: {exception.Message}");
         }
+    }
+
+    /// <summary>
+    /// Proves generation determinism through the Engine's own keyed RNG in a live
+    /// session: the same chunks, generated in the live process, must hash to a
+    /// stable value, and a second pass must agree. The managed lane pins the same
+    /// snapshot through a test draw port, so this is the half that exercises the
+    /// real draw path.
+    /// </summary>
+    private void ProveGenerationDeterminism()
+    {
+        string first = TerrainGenerationSnapshot.Hash(terrain.Recipe);
+        string second = TerrainGenerationSnapshot.Hash(terrain.Recipe);
+        Require(first == second, "live generation produced two different snapshots in one session");
+        Report($"generation determinism: snapshot {first} across the live Engine keyed RNG");
     }
 
     private void ProveCancellation(SpatialSession session)

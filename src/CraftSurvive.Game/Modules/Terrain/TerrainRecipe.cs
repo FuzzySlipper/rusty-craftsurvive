@@ -1,4 +1,6 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
+using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -9,13 +11,19 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal sealed class TerrainRecipe
 {
     private readonly TerrainConfiguration configuration;
+    private readonly ITerrainDraws draws;
     private readonly long radius;
+    private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
 
-    internal TerrainRecipe(TerrainConfiguration configuration)
+    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws)
     {
         this.configuration = configuration.Validate();
+        this.draws = draws ?? throw new ArgumentNullException(nameof(draws));
         radius = configuration.Size / 2;
     }
+
+    /// <summary>The versioned identity every feature draw is keyed from.</summary>
+    internal TerrainGeneratorContract Contract => configuration.Contract;
 
     internal TerrainConfiguration Configuration => configuration;
 
@@ -43,6 +51,14 @@ internal sealed class TerrainRecipe
 
         ushort material = NaturalMaterialAt(address, column);
         AddLandmarks(address.X, address.Y, address.Z, column.Surface, ref material);
+
+        // Features only fill air, so they never displace terrain: a canopy that
+        // meets a slope loses to the slope rather than leaving a floating leaf.
+        if (material == TerrainConstants.EmptyMaterial)
+        {
+            material = FeatureMaterialAt(address.X, address.Y, address.Z, column.Surface);
+        }
+
         return material;
     }
 
@@ -169,6 +185,128 @@ internal sealed class TerrainRecipe
             return (value * TerrainConstants.CoordinateHashMultiplier) ^ (value >> TerrainConstants.FinalHashShift);
         }
     }
+
+    /// <summary>
+    /// The surface feature covering one air voxel, or empty. Every candidate anchor
+    /// cell within one cell of this voxel decides for itself whether it owns a tree,
+    /// using only its own coordinates and the world's contract, so two chunks that
+    /// share a tree agree about it without communicating and without an order.
+    /// </summary>
+    private ushort FeatureMaterialAt(long x, long y, long z, long surface)
+    {
+        long cell = TerrainConstants.FeatureCellSize;
+        long cellX = FloorDivide(x, cell);
+        long cellZ = FloorDivide(z, cell);
+        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
+        {
+            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
+            {
+                if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
+                {
+                    continue;
+                }
+
+                long trunkX = (anchorX * cell) + tree.OffsetX;
+                long trunkZ = (anchorZ * cell) + tree.OffsetZ;
+                long ground = TerrainSurface(trunkX, trunkZ);
+                long baseY = ground + 1;
+                long crownY = baseY + tree.Height;
+
+                if (x == trunkX && z == trunkZ && y >= baseY && y < crownY)
+                {
+                    return Placeable(BlockId.Log);
+                }
+
+                long dx = x - trunkX;
+                long dz = z - trunkZ;
+                long dy = y - crownY;
+                if ((dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius)
+                {
+                    return Placeable(BlockId.Leaves);
+                }
+            }
+        }
+
+        return TerrainConstants.EmptyMaterial;
+    }
+
+    /// <summary>
+    /// Whether one anchor cell owns a tree, and its shape. Decisions are cached
+    /// because every voxel in the neighbourhood asks the same nine questions;
+    /// clearing the cache is always safe because a decision is a pure function of
+    /// the cell and the contract.
+    /// </summary>
+    private TreeShape? TreeAt(long anchorX, long anchorZ)
+    {
+        if (featureCells.TryGetValue((anchorX, anchorZ), out TreeShape? cached))
+        {
+            return cached;
+        }
+
+        TreeShape? shape = DecideTree(anchorX, anchorZ);
+        if (featureCells.Count >= TerrainConstants.FeatureCacheLimit)
+        {
+            featureCells.Clear();
+        }
+
+        featureCells[(anchorX, anchorZ)] = shape;
+        return shape;
+    }
+
+    private TreeShape? DecideTree(long anchorX, long anchorZ)
+    {
+        // The surface is sampled at the candidate trunk column, so a cell whose
+        // ground is not grass - water, sand, stone, or outside the world - owns no
+        // tree. That keeps forests on soil and out of lakes without a biome pass.
+        long originX = anchorX * TerrainConstants.FeatureCellSize;
+        long originZ = anchorZ * TerrainConstants.FeatureCellSize;
+        long offsetX = Contract.DrawLong(draws, "tree.offset.x", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
+            0, TerrainConstants.FeatureCellSize - 1);
+        long offsetZ = Contract.DrawLong(draws, "tree.offset.z", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
+            0, TerrainConstants.FeatureCellSize - 1);
+        long trunkX = originX + offsetX;
+        long trunkZ = originZ + offsetZ;
+        if (trunkX < -radius || trunkX > radius || trunkZ < -radius || trunkZ > radius)
+        {
+            return null;
+        }
+
+        long ground = TerrainSurface(trunkX, trunkZ);
+        if (NaturalMaterialAt(new VoxelAddress(trunkX, ground, trunkZ), ColumnAt(trunkX, trunkZ))
+            != TerrainConstants.GrassMaterial)
+        {
+            return null;
+        }
+
+        if (!Contract.DrawUnit(draws, "tree.present", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
+            TerrainConstants.FeatureCellOneIn))
+        {
+            return null;
+        }
+
+        long height = Contract.DrawLong(draws, "tree.height", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
+            TerrainConstants.TreeMinimumHeight, TerrainConstants.TreeMinimumHeight + TerrainConstants.TreeHeightRange - 1);
+        long canopy = Contract.DrawLong(draws, "tree.canopy", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
+            TerrainConstants.TreeCanopyRadius - 1, TerrainConstants.TreeCanopyRadius);
+        return new TreeShape(offsetX, offsetZ, height, canopy);
+    }
+
+    /// <summary>
+    /// A feature voxel is only placed when its block can be bound to the scene. The
+    /// decision and its draws still happen, so the contract stays exercised and the
+    /// world returns unchanged the moment the Engine's material capacity admits the
+    /// block; until then a tree would be a voxel whose slot has no material, which
+    /// fails the scene projection instead of drawing nothing. With only grass, dirt
+    /// and stone bound, this means no tree is placed today: the feature layer is
+    /// implemented, drawn and proven, but dormant.
+    /// </summary>
+    private static ushort Placeable(BlockId id) =>
+        BlockRegistry.IsBound(id) ? (ushort)id : TerrainConstants.EmptyMaterial;
+
+    private static long FloorDivide(long value, long divisor) =>
+        value >= 0 ? value / divisor : ((value - divisor + 1) / divisor);
+
+    private readonly record struct TreeShape(long OffsetX, long OffsetZ, long Height, long CanopyRadius);
 
     private static bool IsInRange(long value, long minimum, long maximum) => value >= minimum && value <= maximum;
 }

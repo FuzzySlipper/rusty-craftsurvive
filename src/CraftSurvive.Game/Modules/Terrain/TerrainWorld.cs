@@ -37,7 +37,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
-        recipe = configuration.CreateRecipe();
+        recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random));
         chunkGenerator = new TerrainChunkGenerator(recipe);
         residencyPolicy = new TerrainResidencyPolicy(recipe, chunkGenerator);
         overlay = new TerrainOverlayState(configuration.Seed);
@@ -46,6 +46,9 @@ internal sealed class TerrainWorld : IDisposable
         if (configuration.Scene == TerrainSceneMode.ExperimentalCourtyard) courtyard = new CourtyardScene(engine);
         else atlasCatalog = new TerrainAtlasCatalog(engine, content);
     }
+
+    /// <summary>The generation recipe, so the live proof can hash real chunks.</summary>
+    internal TerrainRecipe Recipe => recipe;
 
     internal void Start()
     {

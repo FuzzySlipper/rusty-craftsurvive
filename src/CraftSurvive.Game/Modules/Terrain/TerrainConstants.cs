@@ -8,6 +8,15 @@ internal static class TerrainConstants
     internal const int MaximumSize = 128;
     internal const uint GenerationVersion = 2;
 
+    // Surface features are decided per anchor cell, never per chunk: a tree that
+    // overhangs a boundary must be the same tree whichever chunk asks first.
+    internal const int FeatureCellSize = 8;
+    internal const int FeatureCellOneIn = 24;
+    internal const int TreeMinimumHeight = 3;
+    internal const int TreeHeightRange = 3;
+    internal const int TreeCanopyRadius = 2;
+    internal const int FeatureCacheLimit = 4096;
+
     internal const int ChunkEdgeLength = 16;
     internal const int ChunkPlaneLength = ChunkEdgeLength * ChunkEdgeLength;
     internal const int ChunkVolume = ChunkPlaneLength * ChunkEdgeLength;

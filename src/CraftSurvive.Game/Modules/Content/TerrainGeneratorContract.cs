@@ -1,0 +1,86 @@
+using Rusty.Engine;
+
+namespace CraftSurvive.Game.Modules.Content;
+
+/// <summary>
+/// The versioned identity of a generated world, and the only way generation draws
+/// a random value.
+///
+/// Two properties matter and both come from the Engine's keyed RNG rather than a
+/// product hash:
+/// <list type="bullet">
+/// <item>A draw is a pure function of (seed, version, scope, key). It holds no
+/// stream position, so a chunk produces the same voxels no matter which chunks
+/// were generated before it.</item>
+/// <item>Every draw names its purpose and its coordinates, so a feature that
+/// overhangs a chunk boundary is decided once, by the cell that owns it, and every
+/// chunk that overlaps it reads the same answer.</item>
+/// </list>
+/// A change to generation is a version bump, which changes every draw key and so
+/// regenerates the world deliberately rather than silently.
+/// </summary>
+internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Version, int Extent)
+{
+    /// <summary>
+    /// The current generation version. Version 2 was the pre-registry height field
+    /// with hand-placed landmarks; version 3 is that field plus surface features
+    /// drawn from the Engine's keyed RNG.
+    /// </summary>
+    internal const uint CurrentVersion = 3;
+
+    private const string GenerationScope = "craftsurvive.terrain";
+
+    /// <summary>Coordinate keys are stable text, so a draw names its own inputs.</summary>
+    internal static string CoordinateKey(long x, long z) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{x},{z}");
+
+    /// <summary>
+    /// A keyed draw in [minimum, maximum]. The version is mixed into the seed so a
+    /// version bump redraws everything, and the key carries the coordinates so two
+    /// chunks never disagree about the same feature.
+    /// </summary>
+    internal long DrawLong(ITerrainDraws draws, string purpose, string key, long minimum, long maximum)
+    {
+        ArgumentNullException.ThrowIfNull(draws);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (maximum < minimum)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), maximum, "A draw range must not be inverted.");
+        }
+
+        return draws.Draw($"{GenerationScope}.{purpose}", key, MixVersion(Seed), minimum, maximum);
+    }
+
+    /// <summary>A one-in-N draw, the shape most feature placement needs.</summary>
+    internal bool DrawUnit(ITerrainDraws draws, string purpose, string key, long oneIn) =>
+        DrawLong(draws, purpose, key, 0, oneIn - 1) == 0;
+
+    private ulong MixVersion(ulong seed) => seed ^ (Version * 0x9e3779b97f4a7c15UL);
+}
+
+/// <summary>
+/// The generation draw port. Generation needs one thing from a random source - a
+/// stateless, keyed, reproducible value - and nothing else, so this is the whole
+/// contract rather than the Engine's stream API.
+/// </summary>
+internal interface ITerrainDraws
+{
+    long Draw(string scope, string key, ulong seed, long minimum, long maximum);
+}
+
+/// <summary>
+/// The Engine-backed implementation: every draw is an Engine keyed draw, so the
+/// product owns placement policy and the Engine owns reproducibility. Nothing else
+/// in generation touches randomness.
+/// </summary>
+internal sealed class EngineTerrainDraws(IRandomService random) : ITerrainDraws
+{
+    private readonly IRandomService random = random ?? throw new ArgumentNullException(nameof(random));
+
+    public long Draw(string scope, string key, ulong seed, long minimum, long maximum)
+    {
+        KeyedRngReceipt receipt = random.DrawKeyed(new KeyedRngRequest(seed, scope, key, minimum, maximum));
+        return receipt.Value;
+    }
+}

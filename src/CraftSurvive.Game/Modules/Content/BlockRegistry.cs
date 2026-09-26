@@ -110,6 +110,24 @@ internal static class BlockRegistry
 
     internal static ushort MaximumSlot => (ushort)(Definitions.Length - 1);
 
+    /// <summary>
+    /// Whether a block's material can be bound to the scene today. Generation may
+    /// only place blocks that are bound, because a voxel whose slot has no material
+    /// fails the scene projection.
+    /// </summary>
+    internal static bool IsBound(BlockId id)
+    {
+        foreach (BlockDefinition block in BoundBlocks)
+        {
+            if (block.Id == id)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     internal static BlockDefinition Get(BlockId id)
     {
         int index = (int)id;

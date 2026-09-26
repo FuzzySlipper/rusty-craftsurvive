@@ -1,3 +1,5 @@
+using Rusty.Engine;
+
 namespace CraftSurvive.Game.Modules.Terrain;
 
 internal enum TerrainSceneMode
@@ -45,7 +47,7 @@ internal static class TerrainSceneSelection
     }
 }
 
-internal readonly record struct TerrainConfiguration(ulong Seed, int Size, TerrainSceneMode Scene)
+internal readonly record struct TerrainConfiguration(ulong Seed, int Size, TerrainSceneMode Scene, uint GeneratorVersion)
 {
     /// <summary>
     /// Reads the product-owned startup selection. TerrainWorld captures this
@@ -61,16 +63,18 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, Terra
     internal static TerrainConfiguration ExperimentalCourtyard => new(
         TerrainConstants.DefaultSeed,
         TerrainConstants.DefaultSize,
-        TerrainSceneMode.ExperimentalCourtyard);
+        TerrainSceneMode.ExperimentalCourtyard,
+        Content.TerrainGeneratorContract.CurrentVersion);
 
     /// <summary>A generated cubic world, selected explicitly for development and proofs.</summary>
     internal static TerrainConfiguration TraversalShowcase => new(
         TerrainConstants.DefaultSeed,
         TerrainConstants.DefaultSize,
-        TerrainSceneMode.TraversalShowcase);
+        TerrainSceneMode.TraversalShowcase,
+        Content.TerrainGeneratorContract.CurrentVersion);
 
     internal TerrainConfiguration(ulong seed, int size)
-        : this(seed, size, TerrainSceneMode.TraversalShowcase)
+        : this(seed, size, TerrainSceneMode.TraversalShowcase, Content.TerrainGeneratorContract.CurrentVersion)
     {
     }
 
@@ -95,5 +99,8 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, Terra
         return this;
     }
 
-    internal TerrainRecipe CreateRecipe() => new(this.Validate());
+    internal TerrainRecipe CreateRecipe(Content.ITerrainDraws draws) => new(this.Validate(), draws);
+
+    /// <summary>The versioned identity generation draws from.</summary>
+    internal Content.TerrainGeneratorContract Contract => new(Seed, GeneratorVersion, Size);
 }
