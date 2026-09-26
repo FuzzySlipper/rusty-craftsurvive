@@ -192,7 +192,8 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     }
 
     Require(falseEmpties == 0, $"{falseEmpties} chunks were called empty but generate voxels");
-    Console.WriteLine($"Chunk content predicate agreed with generation on all {compared} chunks ({falseContents} conservatively non-empty)");
+    Require(falseContents == 0, $"{falseContents} chunks were called content but generate nothing");
+    Console.WriteLine($"Chunk content predicate matched generation exactly on all {compared} chunks");
 }
 
 var configuration = TerrainConfiguration.TraversalShowcase;

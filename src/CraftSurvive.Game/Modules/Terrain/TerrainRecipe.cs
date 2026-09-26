@@ -206,33 +206,77 @@ internal sealed class TerrainRecipe
                 {
                     return true;
                 }
+            }
+        }
 
-                // Surface features stand on the ground and reach a bounded distance above
-                // it; a chunk that overlaps that reach is not empty.
-                if (FeatureReachOverlaps(surface, yMinimum))
+        return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
+    }
+
+    /// <summary>
+    /// Whether any tree's voxels fall inside the chunk, using the generator's own cached
+    /// per-cell decisions rather than a bound. This is exact for features - the same
+    /// `TreeAt` answer the generator uses, tested against the same trunk and canopy
+    /// conditions - which is what allows the residency policy to trust it for retention
+    /// once it is wired in.
+    /// </summary>
+    private bool ChunkFeaturesReach(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
+    {
+        long cell = TerrainConstants.FeatureCellSize;
+        long reach = TerrainConstants.TreeCanopyRadius;
+        long firstCellX = FloorDivide(xStart - reach, cell);
+        long lastCellX = FloorDivide(xEnd + reach, cell);
+        long firstCellZ = FloorDivide(zStart - reach, cell);
+        long lastCellZ = FloorDivide(zEnd + reach, cell);
+        for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
+        {
+            for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
+            {
+                if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
+                {
+                    continue;
+                }
+
+                long trunkX = (anchorX * cell) + tree.OffsetX;
+                long trunkZ = (anchorZ * cell) + tree.OffsetZ;
+                long crownY = TerrainSurface(trunkX, trunkZ) + 1 + tree.Height;
+                long baseY = crownY - tree.Height;
+
+                // The trunk: a column of log voxels.
+                if (trunkX >= xStart && trunkX <= xEnd && trunkZ >= zStart && trunkZ <= zEnd
+                    && baseY <= yMaximum && crownY - 1 >= yMinimum)
                 {
                     return true;
+                }
+
+                // The canopy: a sphere centred at the top of the trunk. Tested voxel by
+                // voxel over the overlap, because a bounding box would claim leaves in
+                // the corners the generator leaves empty.
+                long canopyXMinimum = Math.Max(xStart, trunkX - tree.CanopyRadius);
+                long canopyXMaximum = Math.Min(xEnd, trunkX + tree.CanopyRadius);
+                long canopyYMinimum = Math.Max(yMinimum, crownY - tree.CanopyRadius);
+                long canopyYMaximum = Math.Min(yMaximum, crownY + tree.CanopyRadius);
+                long canopyZMinimum = Math.Max(zStart, trunkZ - tree.CanopyRadius);
+                long canopyZMaximum = Math.Min(zEnd, trunkZ + tree.CanopyRadius);
+                for (long x = canopyXMinimum; x <= canopyXMaximum; x++)
+                {
+                    for (long y = canopyYMinimum; y <= canopyYMaximum; y++)
+                    {
+                        for (long z = canopyZMinimum; z <= canopyZMaximum; z++)
+                        {
+                            long dx = x - trunkX;
+                            long dy = y - crownY;
+                            long dz = z - trunkZ;
+                            if ((dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius)
+                            {
+                                return true;
+                            }
+                        }
+                    }
                 }
             }
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// Whether a feature anchored at this column could reach into a chunk whose lowest
-    /// layer is <paramref name="yMinimum"/>. Trees are the only feature, their height and
-    /// canopy are bounded by constants, and the predicate must not depend on whether this
-    /// particular anchor was drawn a tree: assuming one wherever one could stand is what
-    /// keeps the answer conservative. The comparison is against the chunk's *bottom*, not
-    /// its top - a feature reaches into a chunk if any part of it is above the chunk's
-    /// floor, which is the mistake the lane caught the first time.
-    /// </summary>
-    private static bool FeatureReachOverlaps(long surface, long yMinimum)
-    {
-        long top = surface + 1 + TerrainConstants.TreeMinimumHeight + TerrainConstants.TreeHeightRange
-            + TerrainConstants.TreeCanopyRadius;
-        return top >= yMinimum;
     }
 
     /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
