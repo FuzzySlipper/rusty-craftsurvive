@@ -34,6 +34,30 @@ large-complex slices, and the LAN startup regression - are in Den, project
   concurrent writers, and a stale blob currently fails the load instead of reporting
   itself; the versioned envelope is S2's.
 
+## Platform limits confirmed by measurement
+
+- **No passable voxel material exists.** Collision stops at every non-empty voxel
+  whatever the material declares, so water is solid, a player stands on a lake
+  instead of swimming in it, and a ladder, door or any other non-blocking block
+  cannot be authored. Measured with a downward raycast through a three-layer
+  lake that stops at the top face of the water voxel rather than at the lake bed,
+  while the water material is declared non-solid, non-collidable and
+  non-occluding in `BlockRegistry` and those flags reach its
+  `AuthoredMaterialInput`. Filed upstream with the consumer's evidence and an
+  acceptance fixture; until it is honoured, swimming is unreachable from
+  generated terrain and the swim policy's positive case cannot be demonstrated.
+- **A multi-cell edit transaction stalls the update loop.** One
+  `VoxelEditTransaction` carrying nine or more edits reports `Accepted` and then
+  no further product update runs: no failing status, no worker EOF, no
+  crash-budget message, no exception. One and two-edit transactions are
+  unaffected. This matters to this product specifically because manipulation is
+  place-blocks plus *detonate charges*, where a multi-cell edit is the intended
+  operation rather than a test artefact. Filed upstream with the table of
+  transaction sizes and the diagnostics that do not appear.
+
+Both are live limits of the installed pair, not bugs in this repository, and both
+have owning tasks upstream.
+
 ## Player and input
 
 - The product owns a 120 Hz controller cadence, first-person look, sprint, crouch,
