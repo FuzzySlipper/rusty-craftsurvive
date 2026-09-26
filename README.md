@@ -123,6 +123,18 @@ Every other scene is reached explicitly with `CRAFTSURVIVE_SCENE`:
   for generation, residency, edits and the live proofs in
   [live-proofs.md](docs/live-proofs.md), not the shipping world.
 
+The authoring lane is exercised by one documented flow — the study scene plus the
+focused lanes that cover its recipe and artifacts:
+
+```sh
+CRAFTSURVIVE_SCENE=courtyard ./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-c30c1ef18861/runtime-pack \
+  --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --bind-host 127.0.0.1 --port 37300
+dotnet run --project tests/Workbench -c Release    # level plans and authored recipes
+dotnet run --project tests/Procgen -c Release      # generator and artifact checks
+pnpm run audit:textures                            # authored texture hashes
+```
+
 The Courtyard/Stoneworks studies, the procgen workbench, the level plans, and the
 offline artifact bank are the **authoring lane**: they are how dungeons and set
 pieces get made for the RPG, and they are expected to keep working as such. They

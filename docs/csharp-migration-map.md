@@ -17,6 +17,21 @@ src/ui/main.ts             DOM-only companion UI
 content/                   canonical terrain, sky, and voxel content
 ```
 
+## Boot scene and the authoring lane
+
+The product's boot scene is chosen in exactly one place,
+`TerrainSceneSelection.Default` in `Modules/Terrain/TerrainConfiguration.cs`.
+S2 of campaign #8595 flips that constant to the adventurer's generated cubic
+world; nothing else moves. Every other scene is reached explicitly with
+`CRAFTSURVIVE_SCENE` — `courtyard` for the authored Stoneworks/Reference study,
+`traversal` for the generated cubic world used by development and the live proofs.
+
+The Courtyard/Stoneworks studies, the procgen workbench, the level plans, and the
+offline artifact bank are the authoring lane that produces dungeon and set-piece
+content. They stay usable and are not the game's world. See
+[README](../README.md#scenes-and-the-authoring-lane) for the documented flow and
+[docs/survival-direction.md](survival-direction.md) for the campaign direction.
+
 The Engine host owns canvas, renderer resources, frame construction, input
 delivery, and runtime integration. Product C# publishes product facts through
 named SDK services; neither C# nor UI code recreates those mechanisms.
