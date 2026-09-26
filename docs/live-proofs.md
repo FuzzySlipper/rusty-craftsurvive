@@ -30,7 +30,11 @@ It runs once on the first update and prints an evidence block. Expected output:
 [proof] direct light: lit luminance=301.1256 from 1 light(s); unlit luminance=0.0000 from 0 light(s)
 [proof] swim step inside the volume: mode=Swimming immersion=0.499 headSubmerged=True
 [proof] swim step outside the volume: mode=Walking immersion=0.000 headSubmerged=False
+[proof] navigation replace: walkable cells=926 revision=1 hash=10117220357098119954 over world box (-8.00, 2.32, -4.00)..(24.00, 14.32, 28.00)
+[proof] navigation query: outcome=Reached kind=CollisionDerived cells=5 visited=23 revision=1 from cell (16, 4, 16)
 [proof] cleanup: cleared the proof cell, status Accepted
+[proof] entity projection validation: an entity without Transform was refused: Appearance entity 1 must be active with a Transform component.
+[proof] entity projection: publishing a standalone snapshot is refused while the product retains a ghost plate (...); projections require whole-snapshot ownership
 [proof] live substrate proof PASSED
 ```
 
@@ -50,6 +54,19 @@ What that establishes:
   it the same command falls back to `Walking` with zero immersion. **Swimming and
   submersion need no water material at all** — only a volume and a mode. The water
   *material* is a separate, purely visual concern.
+- **Navigation works, but only after the product publishes a walkable
+  projection.** `RequestNavigationPath` alone answers `ProjectionUnavailable`
+  with `kind=None`; calling `ReplaceCollisionNavigation` over a world box first
+  derives 926 walkable cells from the same voxel authority collision uses, after
+  which the same query answers `Reached` with a five-cell path. Query cells are
+  relative to the published box, not world voxel coordinates.
+- **Entity projection requires whole-snapshot ownership.** `EntityGraphicsProjection`
+  replaces the complete appearance snapshot, and the Engine refuses a snapshot that
+  drops a projected animation target or a ghost plate's source object. A product
+  that publishes its own snapshot each frame — as this one does — cannot also
+  publish a standalone projection; adopting projections means moving all appearance
+  publication onto that path, and the projecting store must register
+  `EngineComponentTypes.Transform` with every projected entity carrying it.
 
 The proof edits real voxels and clears its cell afterwards, so a passing run
 leaves the world as it found it.
@@ -61,6 +78,10 @@ leaves the world as it found it.
   `src/CraftSurvive.Game/obj/Rusty.Engine/Product/` can still be what runs, so the
   Engine reports validation failures for code that no longer exists. If an error
   does not match the source, remove that directory to force a clean restage.
+- **A killed run can leave staging half-done.** Killing `rusty dev` mid-flight
+  occasionally makes the next start fail with
+  `Rusty Engine did not stage ProductContent at .../Product.next/content`. It is a
+  race, not a code problem: start the run again.
 - **A stale persistence blob fails the whole product.** Changing the authored
   catalog invalidates `.runtime/persistence/craftsurvive/terrain/overlay`, and
   `Persistence.Load` then fails the run instead of discarding an unreadable

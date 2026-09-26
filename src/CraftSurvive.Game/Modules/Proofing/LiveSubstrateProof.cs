@@ -1,5 +1,6 @@
 using System.Numerics;
 using Rusty.Engine;
+using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
@@ -55,11 +56,30 @@ internal sealed class LiveSubstrateProof
     private const ulong FirstCommandSequence = 1UL;
     private const ulong SecondCommandSequence = 2UL;
     private const ulong TorchLogicalId = 9001UL;
+    private const long NavGoalCells = 4L;
+    private const long NavLevelSweep = 12L;
+    private const uint MaxVisitedCells = 4096U;
+    private const ulong NavigationGridId = 1UL;
+    private const uint NavigationChunkSize = 16U;
+    private const uint NavigationMaxStepCells = 1U;
+    private const uint NavigationMaximumCells = 65_536U;
+    private const double NavigationAgentRadius = 0.3d;
+    private const double NavigationAgentHeight = 1.8d;
+    private const double NavigationMaximumSlopeDegrees = 45d;
+    private const float NavigationHalfExtent = 16f;
+    private const float NavigationDepthBelow = 4f;
+    private const float NavigationHeightAbove = 8f;
+    private const int MaximumProjectedEntities = 8;
+    private const float MarkerRed = 0.85f;
+    private const float MarkerGreen = 0.25f;
+    private const float MarkerBlue = 0.35f;
+    private const float MarkerAlpha = 1f;
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly List<string> failures = [];
+    private int stage;
     private bool completed;
 
     internal LiveSubstrateProof(IEngineContext engine, TerrainWorld terrain, PlayerController player)
@@ -84,18 +104,37 @@ internal sealed class LiveSubstrateProof
             return;
         }
 
+        // The product publishes its own appearance snapshot earlier in the frame,
+        // so the entity projection runs on a later frame rather than racing it.
+        if (stage++ == 0)
+        {
+            try
+            {
+                RunWorldProofs();
+            }
+            catch (Exception exception)
+            {
+                Report($"FAILED without completing the world proofs: {exception.GetType().Name}: {exception.Message}");
+                completed = true;
+            }
+
+            return;
+        }
+
         completed = true;
         try
         {
-            Run();
+            ProveEntityProjection();
         }
         catch (Exception exception)
         {
-            Report($"FAILED without completing: {exception.GetType().Name}: {exception.Message}");
+            failures.Add($"the entity projection threw {exception.GetType().Name}: {exception.Message}");
         }
+
+        ReportAll();
     }
 
-    private void Run()
+    private void RunWorldProofs()
     {
         SpatialSession session = terrain.Session;
         Report($"live substrate proof beginning (player at {Format(player.WorldPosition)})");
@@ -103,6 +142,7 @@ internal sealed class LiveSubstrateProof
         if (!TryFindAirSite(session, out EngineVoxelAddress site))
         {
             Report($"FAILED: no air site found within {SiteSearchVoxels} voxels above the player");
+            completed = true;
             return;
         }
 
@@ -110,8 +150,142 @@ internal sealed class LiveSubstrateProof
         ProvePerCellState(session, site);
         ProveDirectLight(session, site);
         ProveSwimMode(session, site);
+        ProveNavigation(session);
         ClearSite(session, site);
-        ReportAll();
+    }
+
+    // ------------------------------------------------------------- navigation
+    private void ProveNavigation(SpatialSession session)
+    {
+        Vector3 position = player.WorldPosition;
+
+        // Navigation is not derived automatically: the product must publish a
+        // walkable projection. Collision-derived navigation is the path that
+        // keeps one authority for terrain and navigation.
+        CollisionNavigationConfig config = new(
+            NavigationGridId,
+            TerrainConstants.VoxelSize,
+            NavigationChunkSize,
+            NavigationMaxStepCells,
+            NavigationAgentRadius,
+            NavigationAgentHeight,
+            NavigationMaximumSlopeDegrees,
+            NavigationMaximumCells);
+        Vector3 worldMin = position - new Vector3(NavigationHalfExtent, NavigationDepthBelow, NavigationHalfExtent);
+        Vector3 worldMax = position + new Vector3(NavigationHalfExtent, NavigationHeightAbove, NavigationHalfExtent);
+        NavigationReplaceReceipt replaced = engine.Spatial.ReplaceCollisionNavigation(
+            new CollisionNavigationReplaceRequest(session, worldMin, worldMax, config));
+        Require(
+            replaced.WalkableCellCount > 0UL,
+            $"collision-derived navigation found no walkable cells in the published box (hash {replaced.ProjectionHash})");
+        Report($"navigation replace: walkable cells={replaced.WalkableCellCount} revision={replaced.NavigationRevision} hash={replaced.ProjectionHash} over world box {Format(worldMin)}..{Format(worldMax)}");
+
+        // Query cells are relative to the published box, not world voxels, and the
+        // vertical index origin is not assumed: sweep candidate levels around the
+        // player until the query answers about the walk rather than the start cell.
+        PlanarNavCell start = new(
+            (long)Math.Floor((position.X - worldMin.X) / config.CellSize),
+            (long)Math.Floor((position.Y - worldMin.Y) / config.CellSize),
+            (long)Math.Floor((position.Z - worldMin.Z) / config.CellSize));
+        NavigationPathReadout path = QueryPath(session, start);
+        long initialY = start.Y;
+        for (long delta = 1L; delta <= NavLevelSweep && IsStartFailure(path.Outcome); delta++)
+        {
+            foreach (long y in new[] { initialY - delta, initialY + delta })
+            {
+                PlanarNavCell candidate = new(start.X, y, start.Z);
+                NavigationPathReadout attempt = QueryPath(session, candidate);
+                if (!IsStartFailure(attempt.Outcome))
+                {
+                    start = candidate;
+                    path = attempt;
+                    break;
+                }
+            }
+        }
+
+        // A short query is terrain-dependent: the mechanism question is whether
+        // this session answers with a derived projection and a typed outcome, not
+        // whether a particular four-cell walk happens to connect.
+        Require(
+            path.Kind != NavigationProjectionKind.None,
+            "the session derived no navigation projection for the query");
+        Require(path.NavigationRevision > 0UL, "the navigation projection reports revision zero");
+        Require(path.Visited <= MaxVisitedCells, $"the search visited {path.Visited} cells, above its own budget");
+        if (path.Outcome == NavigationPathOutcome.Reached)
+        {
+            Require(path.PathLen > 0U, "a reached path reports zero cells");
+        }
+
+        Report($"navigation query: outcome={path.Outcome} kind={path.Kind} cells={path.PathLen} visited={path.Visited} revision={path.NavigationRevision} from cell ({start.X}, {start.Y}, {start.Z})");
+    }
+
+    // ------------------------------------------------------- entity projection
+    private void ProveEntityProjection()
+    {
+        // Contract check first: an entry whose entity carries no Transform is
+        // rejected in managed code, before any Engine call.
+        EntityStore bare = new([EngineComponentTypes.Transform]);
+        EntityId untransformed = bare.Create(EntityLifecycle.Active);
+        using (Appearance probe = engine.Graphics.CreatePrimitive(new PrimitiveAppearanceRequest(
+            PrimitiveGeometry.Cube,
+            false,
+            new Color(MarkerRed, MarkerGreen, MarkerBlue, MarkerAlpha))))
+        {
+            EntityGraphicsProjection validator = new(bare, engine.Graphics);
+            string surface = "accepted an entity without a Transform";
+            try
+            {
+                validator.Publish(
+                    new EntityGraphicsProjectionEntry[] { new(untransformed, probe, true, RenderLayer.Scene, null) },
+                    MaximumProjectedEntities,
+                    null);
+            }
+            catch (InvalidOperationException exception)
+            {
+                surface = exception.Message;
+            }
+
+            Require(
+                surface != "accepted an entity without a Transform",
+                "the projection accepted an entity that carries no Transform");
+            Report($"entity projection validation: an entity without {nameof(EngineComponentTypes.Transform)} was refused: {surface}");
+        }
+
+        bare.Destroy(untransformed, bare.GetEntityRevision(untransformed));
+
+        // The publish itself replaces the whole appearance snapshot, and the
+        // Engine refuses a snapshot that drops a projected animation target or a
+        // ghost plate's source object. This product publishes its own snapshot
+        // every frame, so a projection cannot coexist with it: adopting
+        // projections means moving all appearance publication onto that path.
+        EntityStore store = new([EngineComponentTypes.Transform]);
+        EntityId entity = store.Create(EntityLifecycle.Active);
+        try
+        {
+            store.Add(entity, new Transform(player.WorldPosition, Quaternion.Identity, Vector3.One));
+            using Appearance marker = engine.Graphics.CreatePrimitive(new PrimitiveAppearanceRequest(
+                PrimitiveGeometry.Cube,
+                false,
+                new Color(MarkerRed, MarkerGreen, MarkerBlue, MarkerAlpha)));
+            EntityGraphicsProjection projection = new(store, engine.Graphics);
+            try
+            {
+                EntityGraphicsProjectionReceipt receipt = projection.Publish(
+                    new EntityGraphicsProjectionEntry[] { new(entity, marker, true, RenderLayer.Scene, null) },
+                    MaximumProjectedEntities,
+                    null);
+                Report($"entity projection: published {receipt.Facts.Length} fact(s); the product's own snapshot publication would be replaced");
+            }
+            catch (EngineCallException exception)
+            {
+                Report($"entity projection: publishing a standalone snapshot is refused while the product retains a ghost plate ({exception.Message}); projections require whole-snapshot ownership");
+            }
+        }
+        finally
+        {
+            store.Destroy(entity, store.GetEntityRevision(entity));
+        }
     }
 
     /// <summary>
@@ -337,6 +511,18 @@ internal sealed class LiveSubstrateProof
     }
 
     // --------------------------------------------------------------- utilities
+    private static bool IsStartFailure(NavigationPathOutcome outcome) => outcome is
+        NavigationPathOutcome.StartNotWalkable or
+        NavigationPathOutcome.StartNotTraversable or
+        NavigationPathOutcome.StartBlocked;
+
+    private NavigationPathReadout QueryPath(SpatialSession session, PlanarNavCell start)
+        => engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+            session,
+            start,
+            new PlanarNavCell(start.X + NavGoalCells, start.Y, start.Z),
+            MaxVisitedCells));
+
     private VoxelEditReceipt Apply(SpatialSession session, ulong expectedRevision, VoxelEdit edit)
         => engine.Voxel.ApplyEdits(new VoxelEditTransaction(session, expectedRevision, new VoxelEdit[] { edit }));
 
