@@ -29,11 +29,12 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)), chunk.Materials.Span[i]);
         hash.AppendData(bytes);
     }
-    // Moved deliberately at generation version 4, the first version that places
-    // surface features: trees stand in the ground band these snapshots cover.
+    // Moved deliberately twice: at version 4, the first version that places surface
+    // features, and at version 5, which adds water bodies. Both stand in the ground
+    // band these snapshots cover.
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "2E27EEA73F7655939DF17B0E4C252FFFB8CBC170B7106645F9FBEF2C152AB5C5"
-        : "BB9780295CC26830DFA40B59577FA7B3F9084B26BD77A5DE04503EA47EAE06B5";
+        ? "24398E9F3F017F2B056F6DF6B7D1C6D9DDAA1A3DC452225E2A15448F6198D3C8"
+        : "8D0C5C23964D5BB2A27823062182B9D67895EC91500999161D87B5E1DFE715FE";
     Require(Convert.ToHexString(hash.GetHashAndReset()) == expected, "authored material snapshot changed");
 }
 
@@ -76,6 +77,7 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     var generator = new TerrainChunkGenerator(config.CreateRecipe(new TestDraws(config.Seed)));
     var overlay = new TerrainOverlayState(config.Seed);
     long featureVoxels = 0;
+    long waterVoxels = 0;
     using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     byte[] bytes = new byte[TerrainConstants.ChunkVolume * sizeof(ushort)];
     // A 64x64 column window, so the snapshot contains whole anchor cells and the
@@ -95,6 +97,9 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
             ushort material = chunk.Materials.Span[i];
             if (material == (ushort)BlockId.Log || material == (ushort)BlockId.Leaves)
                 featureVoxels++;
+
+            if (material == (ushort)BlockId.Water)
+                waterVoxels++;
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)), material);
         }
 
@@ -106,10 +111,11 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // through the Engine's keyed RNG. The two agree today because no feature voxel
     // is placed yet, so both hash the field - the contract is what they pin.
 
-    const string ExpectedFeatureHash = "B23DE176C79233DBC5F0F6AB4F85C6C3BF73A69DB4B5E919637DA8C28469E544";
-    Console.WriteLine($"Terrain surface features placed and deterministic: {featureVoxels} voxels, {featureHash}");
+    const string ExpectedFeatureHash = "8DEF46945BC133D9E07FA5502AA97C216198541E99891BF9BC62E19309F39ED8";
+    Console.WriteLine($"Terrain features and water placed and deterministic: {featureVoxels} feature voxels, {waterVoxels} water voxels, {featureHash}");
     Require(featureVoxels > 0, "the surface feature pass placed no feature voxel");
-    Require(featureHash == ExpectedFeatureHash, "surface feature snapshot changed");
+    Require(waterVoxels > 0, "the water pass placed no water voxel");
+    Require(featureHash == ExpectedFeatureHash, "surface and water snapshot changed");
 }
 
 var configuration = TerrainConfiguration.TraversalShowcase;

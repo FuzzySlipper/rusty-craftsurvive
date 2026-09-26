@@ -25,6 +25,12 @@ internal static class TerrainConstants
     internal const int MaximumResidencyOperationsPerTick = 16;
     internal const int MaximumResidentChunks = 64;
 
+    /// <summary>
+    /// The world's water level. It is part of the generation contract rather than a
+    /// per-chunk decision, so every chunk agrees about where the sea ends.
+    /// </summary>
+    internal const int WaterLevel = 2;
+
     internal const int TerrainDepth = 9;
     internal const int TerrainSummitHeight = 12;
     internal const int TerrainHeadroom = 16;

@@ -52,6 +52,17 @@ internal sealed class TerrainRecipe
         ushort material = NaturalMaterialAt(address, column);
         AddLandmarks(address.X, address.Y, address.Z, column.Surface, ref material);
 
+        // Water fills open air at or below the world's water level, so it pools in
+        // basins and along coasts. It deliberately does not flood enclosed space
+        // below the ground - a cave under the sea stays a cave - because it only
+        // fills where the column's own surface is below the water line.
+        if (material == TerrainConstants.EmptyMaterial
+            && address.Y <= TerrainConstants.WaterLevel
+            && address.Y > column.Surface)
+        {
+            return (ushort)BlockId.Water;
+        }
+
         // Features only fill air, so they never displace terrain: a canopy that
         // meets a slope loses to the slope rather than leaving a floating leaf.
         if (material == TerrainConstants.EmptyMaterial)
@@ -272,6 +283,12 @@ internal sealed class TerrainRecipe
         }
 
         long ground = TerrainSurface(trunkX, trunkZ);
+        if (ground <= TerrainConstants.WaterLevel)
+        {
+            // A submerged column is not soil, so no tree stands in the water.
+            return null;
+        }
+
         if (NaturalMaterialAt(new VoxelAddress(trunkX, ground, trunkZ), ColumnAt(trunkX, trunkZ))
             != TerrainConstants.GrassMaterial)
         {
