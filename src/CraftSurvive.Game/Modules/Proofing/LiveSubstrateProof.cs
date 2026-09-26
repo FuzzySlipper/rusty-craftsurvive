@@ -103,7 +103,7 @@ internal sealed class LiveSubstrateProof
     private bool swimDone;
     private const int MaximumSwimAttempts = 300;
     private const int WaterSearchRadius = 40;
-    private const float SwimDropHeight = 1.4f;
+    private const float SwimDropHeight = 1.7f;
     private const int ReportedSwimAttempts = 20;
     private const int MaximumSwimUpdates = 900;
     private const int MaximumSwimPaceUpdates = 120;
