@@ -55,10 +55,15 @@ the adaptive extractor can still leave a flat surface coarsely tessellated.
 
 ## Validation
 
-`dotnet run --project tests/ArchitecturalRecipes -c Release` checks that bay
-partitioning preserves occupied brick intervals and that rotated/resized
-openings retain their dimensions and center. `pnpm run check:ui` and the normal
-product Release build check integration. All three checks pass.
+`dotnet run --project tests/Workbench -c Release` exercises the authored
+recipes this study feeds, and `pnpm run check:ui` plus a normal product Release
+build check integration. All of those pass today.
+
+The bay-partitioning check that once ran as `tests/ArchitecturalRecipes` no
+longer exists: that path held build output only, with no tracked source, so no
+run of it could have validated anything. Campaign #8595's S1 removed the dead
+directory rather than leave a validation step in this document that cannot be
+run.
 
 ## Visual iteration
 
