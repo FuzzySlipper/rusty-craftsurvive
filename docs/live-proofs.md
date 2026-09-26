@@ -45,6 +45,8 @@ recorded in the task campaign rather than here. Expected output:
 [proof] resident payload: 384 KiB of product chunk payload for 48 chunks at 8 KiB each
 [proof] save/load latency: 5.56 ms save, 0.03 ms load for one 8 KiB chunk payload
 [proof] player movement: mode=Walking immersion=0.000 headSubmerged=False climbAttached=False
+[proof] chunk cache: 4096 voxels stored and read back in 2.85 ms write, 0.41 ms read, identical to fresh generation
+[proof] product tick cost over 20 updates with 54 resident chunks: mean 3.549 ms, worst 58.496 ms in the product's residency synchronisation (Engine render and frame time are not included)
 [proof] dimension load: session created and one chunk admitted in 1.22 ms
 [proof] residency preparation attempt 1: started for chunk (5, 0, 0), status Pending, resident chunks 18, source revision 5
 [proof] residency preparation: committed on attempt 1, resident chunks 18 -> 19
