@@ -18,6 +18,8 @@ internal sealed class TerrainWorld : IDisposable
     private readonly TerrainRecipe recipe;
     private readonly CourtyardScene? courtyard;
     private readonly TerrainChunkGenerator chunkGenerator;
+    private readonly TerrainChunkCache chunkCache;
+    private readonly Queue<TerrainChunkAddress> pendingCacheWrites = new();
     private readonly TerrainResidencyPolicy residencyPolicy;
     private readonly TerrainOverlayState overlay;
     private readonly Dictionary<TerrainChunkAddress, VoxelChunkLease> leases = [];
@@ -39,7 +41,8 @@ internal sealed class TerrainWorld : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random));
-        chunkGenerator = new TerrainChunkGenerator(recipe);
+        chunkCache = new TerrainChunkCache(engine, recipe.Contract);
+        chunkGenerator = new TerrainChunkGenerator(recipe, chunkCache);
         residencyPolicy = new TerrainResidencyPolicy(recipe, chunkGenerator);
         overlay = new TerrainOverlayState(configuration.Seed);
         // Authored content is selected during Product Create so the Engine
@@ -346,6 +349,8 @@ internal sealed class TerrainWorld : IDisposable
 
     private bool Synchronize(TerrainChunkAddress center)
     {
+        DrainCacheWrites();
+
         if (courtyard is not null) return false;
         TerrainResidencyPlan plan = residencyPolicy.PlanFor(center, overlay);
 
@@ -376,6 +381,14 @@ internal sealed class TerrainWorld : IDisposable
             if (plan.Retained.Contains(address) || leases.ContainsKey(address) || operations.Count == plan.MaximumOperationsPerTick)
             {
                 continue;
+            }
+
+            // A chunk leaving the resident set is exactly the chunk worth keeping: it is
+            // about to cost generation again if the player turns around. Edited chunks are
+            // skipped because the read path refuses them anyway.
+            if (!overlay.Snapshot().TouchesChunk(address) && !pendingCacheWrites.Contains(address))
+            {
+                pendingCacheWrites.Enqueue(address);
             }
 
             operations.Add(new VoxelResidencyOperation(
@@ -409,6 +422,30 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         return operations.Count > 0;
+    }
+
+    /// <summary>
+    /// Writes at most one evicted chunk to the cache per update. Measured at roughly
+    /// 1.5 ms to regenerate plus 3 ms to store, this is deliberately off the path of a
+    /// chunk becoming visible: a frame may be a little busier, but nothing a player is
+    /// waiting to see is ever delayed by a cache write.
+    /// </summary>
+    private void DrainCacheWrites()
+    {
+        if (pendingCacheWrites.Count == 0)
+        {
+            return;
+        }
+
+        TerrainChunkAddress address = pendingCacheWrites.Dequeue();
+        if (residentChunks.ContainsKey(address))
+        {
+            // It came back before we got to it, so there is nothing to preserve.
+            return;
+        }
+
+        TerrainChunk chunk = chunkGenerator.Generate(address, overlay.Snapshot());
+        chunkCache.Write(address, chunk.Materials.Span);
     }
 
     private void RefreshResidentChunks(IEnumerable<TerrainChunkAddress> addresses)
