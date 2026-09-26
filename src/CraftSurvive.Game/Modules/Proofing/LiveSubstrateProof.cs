@@ -104,6 +104,8 @@ internal sealed class LiveSubstrateProof
     private const int MaximumSwimAttempts = 300;
     private const int WaterSearchRadius = 60;
     private const int WaterDepth = 3;
+    private const float RaycastLift = 6f;
+    private const float RaycastReach = 16f;
     private const float SwimDropHeight = 1.7f;
     private const int ReportedSwimAttempts = 20;
     private const int MaximumSwimUpdates = 900;
@@ -411,6 +413,7 @@ internal sealed class LiveSubstrateProof
             // Dropped so the *feet* cell is the water layer: the product reads the voxel
             // at the controller's own Y, and a body standing on the bottom of a
             // one-layer lake would have its feet in the ground, not in the water.
+            ReportWaterRaycast(surfaceX, surfaceZ, surfaceY);
             player.Teleport(surfaceX + 0.5, TerrainConstants.WaterLevel + SwimDropHeight, surfaceZ + 0.5);
             Report(
                 $"swim setup: teleported the player into generated water at ({surfaceX}, {surfaceZ}) " +
@@ -455,6 +458,30 @@ internal sealed class LiveSubstrateProof
         }
 
         swimDone = true;
+    }
+
+    /// <summary>
+    /// Casts straight down through a water column and reports where the ray stops.
+    /// This is the measurement that separates the two possible reasons a character
+    /// rests on the surface of a lake: a hit at the water line means collision treats
+    /// water voxels as solid, a hit at the lake bed means collision passes through
+    /// them and something else is holding the character up.
+    /// </summary>
+    private void ReportWaterRaycast(long x, long z, long groundY)
+    {
+        Vector3 origin = new(x + 0.5f, TerrainConstants.WaterLevel + RaycastLift, z + 0.5f);
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            terrain.Session,
+            origin,
+            -Vector3.UnitY,
+            RaycastReach,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty,
+            ReadOnlyMemory<ulong>.Empty,
+            ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        Report(
+            $"water raycast at ({x}, {z}) where the ground is y={groundY} and water fills up to " +
+            $"y={TerrainConstants.WaterLevel}: {hit}");
     }
 
     /// <summary>
