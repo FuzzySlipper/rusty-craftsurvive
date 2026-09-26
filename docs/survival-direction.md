@@ -344,13 +344,13 @@ measurement.
 
 **Threading is not a product decision.** The default design is step-budgeted
 generation on the product update thread: generate at most N chunk payloads per
-tick within the residency budget. Computing chunk payloads on a product-owned
-worker is *not* approved design — it would be a downstream substitute for the
-missing Engine thread/affinity contract (G5), and `AGENTS.md` is explicit that a
-missing capability is a valid result while a substitute is not. Slice 1b's
-threading portion is therefore **blocked pending G5**; the need to overlap
-generation with the frame is the upstream request, not something to implement
-here.
+tick within the residency budget. **This was written while G5 was missing and is
+now superseded**: the affinity contract landed at pair `c30c1ef18861`, so the
+product may overlap projection building through Engine-owned
+`Voxel.StartResidencyPreparation` / `PollResidencyPreparation` /
+`CommitResidencyPreparation`, and may run pure generation on product-owned
+workers using copied, product-owned values only. Engine services remain
+callback-confined; a product-owned worker that calls them stays forbidden.
 
 ### 4.3 Block content model (`Modules/Content`)
 
@@ -619,12 +619,13 @@ is decided in the product, not just in this document.
   flowing, swimmable or not, whether oceans and rivers are in the generation
   contract, whether buckets exist, and whether lava is lethal. Recommended V1
   default unless §6 decides otherwise: static generated water with no flow, no
-  buckets, lava present and damaging on contact, and swimming as the G8
-  buoyancy approximation. **§10 adopts that default for the chosen direction**,
-  so static water, swimming, and drowning are in scope while flowing water stays
-  an open decision; the only remaining question is whether the static
-  blend-material water voxel actually renders and passes the solver as the flags
-  suggest (S0's staged proof, not an upstream request until it fails).
+  buckets, lava present and damaging on contact — with swimming now an Engine
+  movement mode rather than a buoyancy approximation. **§10 adopts that default
+  for the chosen direction**, so static water, swimming, and drowning are in
+  scope while flowing water stays an open decision; the only remaining question is
+  whether the static blend-material water voxel actually renders and passes the
+  solver as the flags suggest (S0's staged proof, not an upstream request until
+  it fails).
 - **Explosions and fire, stated once** — *Slice 2*: which blocks resist blast,
   whether fire spreads between blocks, and whether TNT and creeper-style blasts
   are in V1 or explicitly out. Either answer is fine; silence is not, because
@@ -761,13 +762,50 @@ in cube mode cannot assume it resumes under a DC session. That belongs in the
 
 ## 5. What must be requested upstream
 
-Each item is a capability the SDK does not expose at pair `b9c281937b26`. Per
-`AGENTS.md` these become owning Engine requests; they are **not** to be
-substituted in product code. G1–G3 bound visual fidelity and G8 bounds movement
-fidelity; the others bound scale or quality. Absence here is asserted against
-the *packaged SDK surface and its package README* — the Engine repository may
-hold additional prose, so G5 and G6 are requests for a published contract rather
-than necessarily for new code.
+**Status after adopting pair `c30c1ef18861` (2026-09-26): every request below
+except G7 has landed.** The entries are retained as the record of what was asked
+and why; they are no longer a list of gaps. What landed, and where it differs
+from the original request:
+
+- **G1** → `Voxel.SampleDirectLighting(VoxelLightSampleRequest)`: a CPU
+  direct-light proxy over the product's own retained `LightDescriptor`s, with
+  optional collision occlusion, plus `RustyEngineProductDefaultWorldLights=disabled`
+  for a dark unlit world. It is *not* a sky/block-light lattice. Sealed rooms go
+  dark because the default rig is off and nothing lights them, not because light
+  propagates; ambient is unoccluded, so ambient alone cannot darken a cave.
+- **G2** → fifteen per-cell state bits (two quarter turns about +Y plus a
+  0–8191 variant/stage) via `VoxelCellState.Encode`, readable and writable
+  through `VoxelEdit.State`, `VoxelReadout.State`, and a parallel
+  `VoxelResidencyTransaction.States` array, with variant face materials and
+  history schema 4. Collision stays cube occupancy, and nonzero state requires
+  `GreedyCubes` — this campaign's branch.
+- **G3** → `CameraView.SetSkyBackgroundBlend(new(day, night, amount))`: two
+  authored panoramas crossfaded by a product-owned clock value, surviving fresh
+  host attachment, at two samples per visible sky pixel.
+- **G5** → a callback-confined affinity contract (no Engine service call from
+  `Task.Run`, timers, finalizers, or async continuations — read-only queries and
+  `Dispose` included), plus Engine-owned `Voxel.StartResidencyPreparation`,
+  `PollResidencyPreparation`, `CommitResidencyPreparation`, and
+  `CancelResidencyPreparation`, where commit rechecks source, collider, rebase,
+  and lease generations and rejects stale candidates rather than overwriting
+  newer state.
+- **G6** → measured residency, remesh, and geometry-diversity budgets.
+- **G8** → first-class swim, climb, and fly modes selected through
+  `CharacterControllerCommand.Movement`, with `CharacterStepReceipt.Movement`
+  reporting accepted mode, immersion, and `HeadSubmerged`.
+- **G7 (fluids) remains unrequested and unimplemented**, which matches the §10
+  decision: static water needs no simulation, and flowing water is an open
+  question rather than an assumed feature.
+
+Two consequences for the slices above. §4.2's and §7's "threading is blocked
+pending G5" is superseded: background residency preparation exists, so S2 may
+overlap projection building while product generation stays restricted to copied,
+product-owned data off the callback lane. And §4.11's water default changes
+shape: swimming and submersion are Engine behaviour now, so the product supplies
+the water volume and owns breath and drowning consequences, rather than
+composing buoyancy itself.
+
+The detailed entries below are the original requests, kept as the record.
 
 - **G1 — Per-voxel lighting.** No type in the SDK carries a per-voxel light
   level: voxels are `(address, materialSlot)`, `VoxelSceneReadout` reports mesh
@@ -822,19 +860,17 @@ than necessarily for new code.
   whether a static blend-material water voxel renders and passes the character
   solver as expected — an S0 staged proof, not an upstream request until it
   fails.
-- **G8 — Movement modes: swim, climb, fly.** The character service provides
-  walking, jumping, crouching, step-up, slopes and platforms, but no swimming or
-  water handling, no climbing/ladders, and no flight mode. **§10 revived this
-  request for the chosen direction and it is active as #8609**: water bodies and
-  ladders are both in the initial scope, with product-composed buoyancy and
-  mandatory non-climbing fallbacks until it lands. A survival clone with
-  rivers it cannot cross, or an adventurer who cannot climb, is exactly the gap
-  this direction would otherwise inherit.
-  water needs either a product-composed approximation over the existing
-  `ProposeCharacterStep` (buoyancy as external motion, slower intent, breath as a
-  product track) or an Engine movement-mode addition. Requested capability: a
-  documented position on which movement modes the character service supports, and
-  swim/climb if the answer is "none". Consumer: water, ladders, creative flight.
+- **G8 — Movement modes: swim, climb, fly.** Originally requested because the
+  character service provided walking, jumping, crouching, step-up, slopes,
+  platforms, and tethering but no swimming, climbing, or flight. **Landed at pair
+  `c30c1ef18861` as #8609**: `CharacterControllerCommand.Movement` selects
+  walking, swimming, climbing, or flying; the product supplies the water volume
+  (an environmental AABB with buoyancy, drag, and gravity scale) or a climb rail,
+  and reads immersion and `HeadSubmerged` back from
+  `CharacterStepReceipt.Movement`. Water is environmental input, not a fluid
+  simulation, and the product keeps breath, stamina, and drowning consequences.
+  Ladders and rails are therefore usable in the vertical dungeons, and no
+  non-climbing fallback is needed as a schedule dependency.
 
 ## 6. Decisions this direction depends on
 
@@ -856,12 +892,18 @@ including for the decisions still open.
 | Lighting | Request G1 vs accept flat lighting + point lights + emissive materials | G1 is the single biggest visual-fidelity gap, and it gates §4.6's spawn threshold |
 | Per-block state | Entity-based block entities only vs request G2 | Entity-only means no oriented stairs/logs without extra geometry |
 | Surface mode | Greedy cubes for Slice 1 with a bounded DC evaluation later (§4.12) vs DC-first | The mode is selectable per session **at creation** (no live switch) and collision/navigation stay on the grid, so cubes-first is low-regret for the world model — but selection visuals, per-face materials, edit cost, and stored character continuations all differ, and the content model (not the mesher) is where a later DC world would be blocked |
-| Water and movement | Static water + product-composed buoyancy vs request G8 | Determines whether oceans, swimming, and drowning are in V1 or deferred |
+| Water and movement | Settled: static water with Engine swim mode (`CharacterControllerCommand.Movement`) vs deferring water | Engine-owned swim/submersion means the product supplies the water volume and owns breath; flowing water stays unfiled |
 | Enchanting and brewing | Explicit V1 non-goal vs in scope | Decides whether XP needs a spend sink, which changes §4.5 and the content floor |
 | Save policy | Regenerate-on-version-bump vs migrate saved worlds | The project already regenerated v1 procgen samples; extending that to a survival world means worlds are disposable |
 | Procgen testbed fate | Retire to an authoring lane vs keep as a playable mode | Affects the default boot path and doc surface |
 
 ## 7. Slice sequence (design level)
+
+**Superseded in numbering by §10 and campaign #8595**, which re-cut these slices
+for the adopted direction (S0–S10). The sequence below is retained as the design
+rationale, with two facts corrected: G5 landed, so streamed residency may use
+Engine-owned background preparation, and G8 landed, so swimming and climbing are
+Engine movement modes rather than product approximations.
 
 Each slice is a bounded, provable increment in the existing style: named product
 owner, named Engine mechanisms, explicit evidence, explicit limits.
@@ -869,7 +911,7 @@ owner, named Engine mechanisms, explicit evidence, explicit limits.
 | Slice | Content | Exit evidence |
 | --- | --- | --- |
 | 0. Decisions | Settle §6; file G1–G8 as owning tasks with consumers; run a minimal staged proof that the mechanism layer is usable (one `InventoryStore` + `StatsComponent` + `StateMachine` instance, one entity with an `EntityGraphicsProjection`, one `RequestNavigationPath` against a real `SpatialSession`) | Filed requests; direction doc updated; a staged harness result that either confirms or corrects §3 before Slices 2–4 are priced |
-| 1. World spine | Split deliberately, because this is the largest slice: **1a** block registry with its shape and transparency classes, the first 2–3 biomes, 3D generation contract with its ore table, **1b** streamed residency with cache, prefetch, cancellation and a measured budget, **1c** save envelope v1 (world identity + terrain + player continuation) with its generation-version, backup, and corruption-recovery policy, spawn search, the border/void policy, and the fluid scope in generation | Walk-out test through the registered live lane (§4.10), golden chunk hashes, save/load equivalence, throughput and tick-budget numbers, and the 1a tables landed as named product data; #6853's acceptance list is the starting contract. **1b's threading portion is blocked pending G5** — no product worker (§4.2) |
+| 1. World spine | Split deliberately, because this is the largest slice: **1a** block registry with its shape and transparency classes, the first 2–3 biomes, 3D generation contract with its ore table, **1b** streamed residency with cache, prefetch, cancellation and a measured budget, **1c** save envelope v1 (world identity + terrain + player continuation) with its generation-version, backup, and corruption-recovery policy, spawn search, the border/void policy, and the fluid scope in generation | Walk-out test through the registered live lane (§4.10), golden chunk hashes, save/load equivalence, throughput and tick-budget numbers, and the 1a tables landed as named product data; #6853's acceptance list is the starting contract. **1b's threading may use Engine-owned background residency preparation (G5 landed at `c30c1ef18861`), and product-owned workers are allowed for copied, product-owned payloads only** |
 | 2. Item loop | Break/place with drops and tool gating, inventory/hotbar, crafting table, chests, durability, armour slots, item entities and pickup, and the explosion/fire verdict — with their break-time and fuel tables | Mine → craft → place → persist → reload, with transaction invariants tested and the tuning tables present |
 | 3. Survival pressure | Health/hunger/damage/death/respawn, nutrition, XP, day/night clock, light policy, growth ticks, farming and cooking, sleep, and the water/swimming policy — with the food, day-length, and hunger tuning landed | Survive a scripted cycle, starve/die/respawn, renewable wood and food across reload |
 | 4. Creatures | One passive and one hostile mob, spawn caps, despawn rules, daylight burning, and light thresholds, navigation, senses, FSM behaviour, combat, drops, animation | Spawn/despawn invariants, pathing witness, kill/drop loop, live-mob save/load, with the cap and threshold tables present |
@@ -905,7 +947,8 @@ is testbed furniture and should not survive into the world model.
 
 **Refuse.** A second renderer, a custom transport, product-side P/Invoke, UI-held
 gameplay state, per-voxel state smuggled through material slots, and any
-downstream substitute for G1–G8. If flowing fluids, per-voxel light, swimming, or
+downstream substitute for a missing Engine capability. Of the original G1–G8
+requests, only flowing fluids remains unimplemented; if flowing water or
 multiplayer matter, the request is upstream, not a workaround.
 
 ## 9. Variant: exploration-first, construction-second
@@ -1056,28 +1099,38 @@ possible. Enchanting and brewing are out. The existing Courtyard/procgen
 experiments retire to an authoring lane rather than the boot experience, and the
 three tentative procgen expansions are folded into that lane as authoring work.
 
-**What water needs, and what it does not.** The flags exist, at two layers:
-`AuthoredMaterialInput` separates `Solid`, `Collidable`, and `Occludes`, the
-authored voxel-surface input carries an alpha mode (`Opaque`/`Mask`/`Blend`) with
-`AlphaCutoff`, and voxel slots bind to a render material — the layer where
-`DoubleSided` lives. Static water is therefore **expected** to be expressible
-with no Engine change: a non-solid, non-collidable, non-occluding volume with a
-blend material, product-composed buoyancy and drag, and submersion detected by
-reading the voxel at the player position. That is an inference from flag
-existence, not demonstrated behaviour, and three specific things are unproven:
+**What water needs, and what it does not.** Two separate things. For **looking**
+like water, the flags exist at two layers: `AuthoredMaterialInput` separates
+`Solid`, `Collidable`, and `Occludes`, the authored voxel-surface input carries
+an alpha mode (`Opaque`/`Mask`/`Blend`) with `AlphaCutoff`, and voxel slots bind
+to a render material — the layer where `DoubleSided` lives. For **behaving** like
+water, pair `c30c1ef18861` made swimming first-class: the product selects the
+swim mode on `CharacterControllerCommand.Movement`, supplies the water volume as
+an environmental AABB with buoyancy and drag, and reads immersion and
+`HeadSubmerged` back from `CharacterStepReceipt.Movement`. The Engine owns the
+solver; the product owns the volume, the breath timer, and the drowning
+consequence. That replaces the earlier plan of detecting submersion by reading
+the voxel under the player and composing buoyancy by hand.
+
+What remains unproven is the *rendering and passthrough* half — that a voxel
+marked non-solid, non-collidable, and non-occluding still emits a visible surface
+while the character passes through it, that a blend voxel surface sorts
+correctly in the GreedyCubes path, and that double-sidedness is reachable for a
+voxel-bound material. Those are S0's staged checks, not upstream requests.
 that the GreedyCubes path renders a blend voxel surface with correct sorting,
 that a non-solid non-occluding voxel still emits a visible surface while the
 character passes through it, and that double-sidedness is reachable for a
 voxel-bound material. S0 proves those three before S2 relies on them, and
 whatever fails becomes the upstream request instead of a downstream workaround.
 
-*Flowing* water — currents, spread, source blocks, buckets — would be a genuinely
-new Engine capability and is deliberately unfiled because static water is the
-working assumption. Underwater tint or fog has no mechanism either: it belongs
-with the lighting and atmosphere gaps (#8607, #8608) and is recorded as a known
-gap rather than assumed. Vertical dungeons depend on the climb half of #8609;
-until it lands, every vertical route needs a non-climbing fallback so no dungeon
-is gated on unfinished Engine work.
+*Flowing* water — currents, spread, source blocks, buckets — remains a genuinely
+new Engine capability and is deliberately unfiled, because static water is the
+working assumption. Underwater tint or fog still has no dedicated mechanism: the
+lighting work provides a CPU direct-light readout rather than a rendered
+underwater effect, so it stays a known gap rather than an assumed feature.
+Vertical dungeons no longer depend on unlanded work — the climb half of #8609
+shipped — so ladders and rails are usable now; keep a non-climbing fallback only
+as level-design redundancy, not as a schedule dependency.
 
 **How manipulation works, and why it matters here.** Blasts and similar
 infrequent, high-impact actions arrive as one bounded revisioned edit
