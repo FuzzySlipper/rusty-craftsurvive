@@ -16,7 +16,12 @@ internal static class TerrainConstants
     /// a declared contract change rather than a silent one.
     /// </summary>
     internal const int MaximumSize = 65_536;
-    internal const uint GenerationVersion = 2;
+    /// <summary>
+    /// The generation version recorded in a saved overlay. It is the generator
+    /// contract's version, so bumping generation invalidates older saves by
+    /// construction rather than by remembering to update a second number.
+    /// </summary>
+    internal const uint GenerationVersion = Content.TerrainGeneratorContract.CurrentVersion;
 
     // Surface features are decided per anchor cell, never per chunk: a tree that
     // overhangs a boundary must be the same tree whichever chunk asks first.
@@ -73,6 +78,12 @@ internal static class TerrainConstants
     internal const uint VoxelChunkSize = ChunkEdgeLength;
     internal const string PersistenceScope = "craftsurvive";
     internal const string OverlayPersistenceKey = "terrain/overlay";
+
+    /// <summary>
+    /// Where the previous overlay generation is kept. One backup, so a discarded
+    /// save is recoverable without keeping a history.
+    /// </summary>
+    internal const string OverlayBackupPersistenceKey = "terrain/overlay.backup";
     internal const uint PersistenceSchemaVersion = OverlaySchemaVersion;
     internal const string UiStreamName = "craftsurvive.terrain";
     internal const string UiStreamContract = "craftsurvive.terrain.v1";

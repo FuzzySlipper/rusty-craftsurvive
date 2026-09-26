@@ -120,7 +120,8 @@ internal sealed class LiveSubstrateProof
             case 0:
                 try
                 {
-                    RunWorldProofs();
+                    ReportOverlayOutcome();
+        RunWorldProofs();
                 }
                 catch (Exception exception)
                 {
@@ -149,6 +150,9 @@ internal sealed class LiveSubstrateProof
         completed = true;
         ReportAll();
     }
+
+    private void ReportOverlayOutcome() =>
+        Report($"saved world overlay: {terrain.OverlayRestoreOutcome}");
 
     private void RunWorldProofs()
     {

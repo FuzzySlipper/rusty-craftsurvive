@@ -31,6 +31,7 @@ internal sealed class TerrainWorld : IDisposable
     private TerrainPlayerUiFacts? playerUi;
     private ulong uiSequence;
     private bool started;
+    private string overlayRestoreOutcome = "none";
     private static readonly TerrainChunkAddress FixedResidencyCenter = new(0, 0, 0);
 
     internal TerrainWorld(IEngineContext engine, ProductContent content, TerrainConfiguration configuration)
@@ -450,8 +451,39 @@ internal sealed class TerrainWorld : IDisposable
             return;
         }
 
-        overlay.Restore(TerrainOverlayCodec.Decode(recipe.Configuration.Seed,
-            engine.Persistence.ReadBlobBytes(blob).Span));
+        byte[] bytes = engine.Persistence.ReadBlobBytes(blob).ToArray();
+        try
+        {
+            overlay.Restore(TerrainOverlayCodec.Decode(recipe.Configuration.Seed, bytes));
+            overlayRestoreOutcome = "restored";
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+        {
+            // Worlds are disposable under the settled save policy: a save that does
+            // not match this world's identity is discarded and the world regenerates,
+            // rather than the mismatch reaching the load call and failing the
+            // product. The previous generation is kept as one backup.
+            PreserveOverlayBackup(bytes);
+            overlayRestoreOutcome = $"discarded: {exception.Message}";
+        }
+    }
+
+    /// <summary>What happened to the saved overlay at startup, for evidence.</summary>
+    internal string OverlayRestoreOutcome => overlayRestoreOutcome;
+
+    private void PreserveOverlayBackup(byte[] bytes)
+    {
+        if (bytes.Length == 0)
+        {
+            return;
+        }
+
+        engine.Persistence.Save(new PersistenceSaveRequest(
+            PersistenceStore,
+            TerrainConstants.OverlayBackupPersistenceKey,
+            PersistenceRevisionGuard.Any,
+            0,
+            bytes));
     }
 
     private void SaveOverlay()
