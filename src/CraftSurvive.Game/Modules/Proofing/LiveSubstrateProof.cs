@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
 using Rusty.Engine.Entities;
@@ -220,6 +222,34 @@ internal sealed class LiveSubstrateProof
         Report($"world overlay saved by that edit: {bytes} bytes");
     }
 
+    /// <summary>
+    /// Measures what generation and residency actually cost in the live product, so
+    /// S2's budgets are numbers rather than intentions. Throughput is measured over
+    /// product-owned chunks on copied values; the residency figures come from the
+    /// Engine's own scene readout.
+    /// </summary>
+    private void ProveGenerationBudgets(SpatialSession session)
+    {
+        var generator = new TerrainChunkGenerator(terrain.Recipe);
+        TerrainOverlayState overlay = new(terrain.Recipe.Contract.Seed);
+        TerrainOverlaySnapshot snapshot = overlay.Snapshot();
+        const int SampleCount = 64;
+        long checksum = 0;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        for (int index = 0; index < SampleCount; index++)
+        {
+            TerrainChunk chunk = generator.Generate(new TerrainChunkAddress(index % 8, 0, index / 8), snapshot);
+            checksum += chunk.SolidVoxelCount;
+        }
+
+        stopwatch.Stop();
+        double millisecondsPerChunk = stopwatch.Elapsed.TotalMilliseconds / SampleCount;
+        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
+        Report(string.Create(
+            CultureInfo.InvariantCulture,
+            $"generation budget: {SampleCount} chunks in {stopwatch.Elapsed.TotalMilliseconds:F1} ms ({millisecondsPerChunk:F3} ms/chunk, {checksum} solid voxels); resident chunks {scene.ResidentChunkCount}, mesh revision {scene.MeshRevision}"));
+    }
+
     private void ReportOverlayOutcome() =>
         Report($"saved world overlay: {terrain.OverlayRestoreOutcome}");
 
@@ -245,6 +275,15 @@ internal sealed class LiveSubstrateProof
         catch (Exception exception)
         {
             failures.Add($"the world edit save proof threw {exception.GetType().Name}: {exception.Message}");
+        }
+
+        try
+        {
+            ProveGenerationBudgets(session);
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the generation budget measurement threw {exception.GetType().Name}: {exception.Message}");
         }
 
         ProveSwimMode(session, site);
