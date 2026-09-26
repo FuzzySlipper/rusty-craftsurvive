@@ -20,7 +20,10 @@ CRAFTSURVIVE_SCENE=traversal CRAFTSURVIVE_PROOF=substrate \
   --bind-host 127.0.0.1 --port 37321
 ```
 
-It runs once on the first update and prints an evidence block. Expected output:
+It runs once on the first update and prints an evidence block. The shape below is
+the durable list of what the proof establishes; the exact figures move with the
+machine and the generation version, and the run that produced the current ones is
+recorded in the task campaign rather than here. Expected output:
 
 ```
 [proof] live substrate proof beginning (player at (8.00, 6.32, 12.00))
@@ -33,6 +36,16 @@ It runs once on the first update and prints an evidence block. Expected output:
 [proof] navigation replace: walkable cells=926 revision=1 hash=10117220357098119954 over world box (-8.00, 2.32, -4.00)..(24.00, 14.32, 28.00)
 [proof] navigation query: outcome=Reached kind=CollisionDerived cells=5 visited=23 revision=1 from cell (16, 4, 16)
 [proof] cleanup: cleared the proof cell, status Accepted
+[proof] saved world overlay: none
+[proof] world edit through the product path: outcome=accepted;target=8,12,12;changed=1;...
+[proof] world overlay saved by that edit: 110 bytes
+[proof] persistence round trip: wrote and read back 8192 bytes through the Engine store
+[proof] generation determinism: snapshot 1D8E7D5D... across the live Engine keyed RNG
+[proof] generation budget: 64 chunks in 87.6 ms (...); resident chunks 48, mesh revision 6
+[proof] resident payload: 384 KiB of product chunk payload for 48 chunks at 8 KiB each
+[proof] save/load latency: 5.56 ms save, 0.03 ms load for one 8 KiB chunk payload
+[proof] player movement: mode=Walking immersion=0.000 headSubmerged=False climbAttached=False
+[proof] dimension load: session created and one chunk admitted in 1.22 ms
 [proof] residency preparation attempt 1: started for chunk (5, 0, 0), status Pending, resident chunks 18, source revision 5
 [proof] residency preparation: committed on attempt 1, resident chunks 18 -> 19
 [proof] residency preparation: a second preparation for chunk (6, 0, 0) cancelled cleanly
