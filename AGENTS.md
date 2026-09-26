@@ -24,9 +24,9 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 
 ## Installed development pair
 
-- `.runtime/pair-9c8c9585ec52/runtime-pack/` is the current runtime pack. Its `bin/rusty dev`
+- `.runtime/pair-6edeecefb13c/runtime-pack/` is the current runtime pack. Its `bin/rusty dev`
   command is the only normal loader and stages the CoreCLR product.
-- `.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.9c8c9585ec52.nupkg` is the exact SDK
+- `.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.6edeecefb13c.nupkg` is the exact SDK
   package pinned through `eng/EnginePair.props`, which the product project and the
   focused managed checks all consume. Do not substitute a package,
   runtime pack, or backup directory independently; update the pair together.

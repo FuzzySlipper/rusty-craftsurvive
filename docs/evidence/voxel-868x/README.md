@@ -9,3 +9,5 @@ Independent browser evidence shows water and grassy voxel banks. The short W inp
 Engine fixture separately proves bounded embedded-character rejection retains the native penetration diagnostic. Direct CoreCLR exploratory signal/crash limitations remain tracked in Engine task 8686, outside this supervised development run.
 
 Follow-up: adopted current Engine pair 9c8c9585ec5277dae16315b667ecb101e0aa9d46, which prevents the supervised worker from duplicating the host diagnostic file writer. Repeated the same batch/swim probe and real SIGINT exit0; see corrected-pair files. Earlier browser evidence remains labeled d7e; no visual code changed in this follow-up.
+
+Current pair6edeecefb13c8c7eac2ceb5ae290db9b40d58846 additionally drains pending worker diagnostics at host shutdown. Repeated batch/swim probe and true SIGINT exit0: drain-fix files. No voxel behavior changed in this follow-up.
