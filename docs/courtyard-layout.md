@@ -14,8 +14,9 @@ roots, moss and material choices are runtime recipe data. Collision copies
 these generated Engine meshes into the existing Spatial session. This scene
 uses explicit whole-scene regeneration; the old voxel edit tools apply only
 to the retained voxel scene mode. The visible 45° stair-nose bevels are part
-of those same generated collision meshes. They work around the hard vertical
-riser solver limitation tracked by Engine #7831; that limitation is not fixed.
+of those same generated collision meshes. They were authored to work around a
+hard vertical-riser solver limitation that Engine #7831 has since resolved, so
+they are now geometry rather than a workaround.
 
 Normal first-person controls remain WASD, mouse look, Space to jump, Shift to
 sprint and Control to crouch. The generated debug panel exposes:

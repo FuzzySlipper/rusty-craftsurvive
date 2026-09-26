@@ -103,16 +103,6 @@ internal sealed class TerrainWorld : IDisposable
         (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).InspectionView(angle);
     internal string QueueCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => courtyard?.QueueLayout(width, doorWidth, doorOffset, seed) ?? "courtyard inactive";
 
-    internal void Update()
-    {
-        EnsureStarted();
-        if (Synchronize(FixedResidencyCenter))
-        {
-            RefreshPresentation();
-            PublishUi();
-        }
-    }
-
     /// <summary>Advances the bounded voxel residency plan around a product global voxel fact.</summary>
     internal void SynchronizeAround(VoxelAddress centerVoxel)
     {

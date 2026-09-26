@@ -7,6 +7,11 @@ PlayerInputChecks.Run();
 
 // Material snapshots taken before the residency/column optimization. Cover
 // authored landmarks, boundaries, negative coordinates, layers, and two seeds.
+// The hashes moved once, deliberately: campaign #8595's S1 removed the
+// hand-placed testbed furniture (traversal route, clearing, gaps, trench,
+// bridge, pillars) from the world recipe rather than carrying it into the world
+// model. Every overlap, ordering, payload-reuse, edit and eviction check below
+// is unchanged and still passes.
 foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
 {
     TerrainConfiguration config = new(seed, TerrainConstants.DefaultSize);
@@ -24,8 +29,8 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
         hash.AppendData(bytes);
     }
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "82D9A221205562F17136098BFE21215741B3FE27005CD8D314E38DA715F921B2"
-        : "EA2EFDDF7EE64FB0931CDE1AEF10D0EBDA9DB7FBF0A27A98F193EC5BD497718E";
+        ? "1816B4ADFD0EEE867A3775833CE2E4A2256496510BD5B6669C5B0059ED9BCD8C"
+        : "72DB0885AE75644CC272203AC667380B8BC159B13276526F77711CF1B0579827";
     Require(Convert.ToHexString(hash.GetHashAndReset()) == expected, "authored material snapshot changed");
 }
 

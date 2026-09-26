@@ -29,7 +29,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  pair-baf031173e19/runtime-pack/  paired `rusty dev` runtime
+  pair-c30c1ef18861/runtime-pack/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -49,8 +49,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/pair-baf031173e19/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-baf031173e19/runtime-pack \
+./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-c30c1ef18861/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -59,17 +59,20 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/pair-baf031173e19/runtime-pack/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.baf031173e19.nupkg` form one installed,
+`.runtime/pair-c30c1ef18861/runtime-pack/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.c30c1ef18861.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
-do not select a backup pack or replace only one artifact.
+do not select a backup pack or replace only one artifact. The declared version
+lives in one place, `eng/EnginePair.props`, consumed by the product project, the
+focused managed checks, and the verification workflow, so a pair bump cannot
+leave one of them behind.
 
 Engine contributors can opt into a source build only with an explicit Engine
 source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/pair-baf031173e19/runtime-pack/bin/rusty dev \
+./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -103,6 +106,29 @@ This is a runnable continuation lane, not a claim of complete survival
 gameplay or broad interactive certification. See
 [`docs/known-limitations.md`](docs/known-limitations.md) for the deliberately
 bounded product surface.
+
+## Scenes and the authoring lane
+
+The boot scene is chosen in exactly one place, `TerrainSceneSelection.Default`
+in `Modules/Terrain/TerrainConfiguration.cs`. It is the courtyard study today;
+S2 of campaign #8595 flips it to the adventurer's generated cubic world, and no
+other file changes when that happens.
+
+Every other scene is reached explicitly with `CRAFTSURVIVE_SCENE`:
+
+- `courtyard` — the authored Stoneworks/Reference study. This is the authoring
+  lane's scene: fixed geometry for evaluating materials, masonry, plaza and
+  stair work.
+- `traversal` — the generated cubic world. It is a development and proof target
+  for generation, residency, edits and the live proofs in
+  [live-proofs.md](docs/live-proofs.md), not the shipping world.
+
+The Courtyard/Stoneworks studies, the procgen workbench, the level plans, and the
+offline artifact bank are the **authoring lane**: they are how dungeons and set
+pieces get made for the RPG, and they are expected to keep working as such. They
+are not the game's world, and the generator no longer carries hand-placed testbed
+furniture — the old traversal route, clearing, gaps, trench, bridge and pillars
+were removed from the world recipe rather than inherited by the world model.
 
 ## Working on the product
 

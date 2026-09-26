@@ -42,74 +42,7 @@ internal sealed class TerrainRecipe
         }
 
         ushort material = NaturalMaterialAt(address, column);
-        long x = address.X;
-        long y = address.Y;
-        long z = address.Z;
-
-        if (IsInRange(x, TerrainConstants.RouteXMinimum, TerrainConstants.RouteXMaximum)
-            && IsInRange(z, TerrainConstants.RouteZMinimum, TerrainConstants.RouteZMaximum)
-            && y >= MinimumMaterialY)
-        {
-            material = RouteMaterialAt(y, TerrainConstants.RouteTop);
-        }
-
-        if (IsInRange(z, TerrainConstants.RouteTurnZMinimum, TerrainConstants.RouteTurnZMaximum)
-            && y >= MinimumMaterialY)
-        {
-            material = RouteMaterialAt(y, TerrainConstants.RouteTop);
-        }
-
-        if (IsInRange(x, TerrainConstants.ClearingMinimum, TerrainConstants.ClearingMaximum)
-            && IsInRange(z, TerrainConstants.ClearingMinimum, TerrainConstants.ClearingMaximum)
-            && y >= MinimumMaterialY)
-        {
-            material = RouteMaterialAt(y, TerrainConstants.RouteTop);
-        }
-
-        // Keep the renderer comparison fixtures on a deliberately boring,
-        // walkable pad beside the old traversal route. Their silhouettes and
-        // ground contact should never depend on the procedural height field.
-        if (IsInRange(x, TerrainConstants.ShowcaseXMinimum, TerrainConstants.ShowcaseXMaximum)
-            && IsInRange(z, TerrainConstants.ShowcaseZMinimum, TerrainConstants.ShowcaseZMaximum)
-            && y >= MinimumMaterialY)
-        {
-            material = RouteMaterialAt(y, TerrainConstants.ShowcaseTop);
-        }
-
-        if (IsInRange(x, TerrainConstants.RouteGapXMinimum, TerrainConstants.RouteGapXMaximum)
-            && ((z == TerrainConstants.RouteFirstGapZ && y == TerrainConstants.RouteFirstGapY)
-                || (z == TerrainConstants.RouteSecondGapZ && y == TerrainConstants.RouteSecondGapY)))
-        {
-            material = TerrainConstants.EmptyMaterial;
-        }
-
-        if (IsInRange(x, TerrainConstants.RouteXMinimum, TerrainConstants.RouteXMaximum)
-            && IsInRange(z, TerrainConstants.RouteTrenchZMinimum, TerrainConstants.RouteTrenchZMaximum)
-            && y >= MinimumMaterialY)
-        {
-            material = RouteMaterialAt(y, TerrainConstants.RouteTrenchTop);
-        }
-
-        if (IsInRange(x, TerrainConstants.RouteGapXMinimum, TerrainConstants.RouteGapXMaximum)
-            && z == TerrainConstants.RouteBridgeZ
-            && IsInRange(y, TerrainConstants.RouteBridgeYMinimum, TerrainConstants.RouteBridgeYMaximum))
-        {
-            material = TerrainConstants.StoneMaterial;
-        }
-
-        if (x == TerrainConstants.LeftPillarX && z == TerrainConstants.PillarZ
-            && IsInRange(y, TerrainConstants.LeftPillarYMinimum, TerrainConstants.LeftPillarYMaximum))
-        {
-            material = TerrainConstants.DirtMaterial;
-        }
-
-        if (x == TerrainConstants.RightPillarX && z == TerrainConstants.PillarZ
-            && IsInRange(y, TerrainConstants.RightPillarYMinimum, TerrainConstants.RightPillarYMaximum))
-        {
-            material = TerrainConstants.StoneMaterial;
-        }
-
-        AddLandmarks(x, y, z, column.Surface, ref material);
+        AddLandmarks(address.X, address.Y, address.Z, column.Surface, ref material);
         return material;
     }
 
@@ -236,14 +169,6 @@ internal sealed class TerrainRecipe
             return (value * TerrainConstants.CoordinateHashMultiplier) ^ (value >> TerrainConstants.FinalHashShift);
         }
     }
-
-    private static ushort RouteMaterialAt(long y, long top) => y <= top
-        ? y == top
-            ? TerrainConstants.GrassMaterial
-            : y >= TerrainConstants.RouteDirtMinimum
-                ? TerrainConstants.DirtMaterial
-                : TerrainConstants.StoneMaterial
-        : TerrainConstants.EmptyMaterial;
 
     private static bool IsInRange(long value, long minimum, long maximum) => value >= minimum && value <= maximum;
 }
