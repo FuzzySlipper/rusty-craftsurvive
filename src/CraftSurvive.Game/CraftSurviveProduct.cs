@@ -6,6 +6,7 @@ using CraftSurvive.Game.Modules.Microvoxels;
 using CraftSurvive.Game.Modules.GhostPlate;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.LevelGeneration;
+using CraftSurvive.Game.Modules.Proofing;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
@@ -27,6 +28,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly CraftDebugModule productDebug;
     private readonly ProcgenWorkbench workbench;
     private readonly ProcgenDebugModule procgenDebug;
+    private readonly LiveSubstrateProof? substrateProof;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
@@ -54,6 +56,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             ghost,
             microvoxels,
             context.Debugging);
+        if (LiveSubstrateProof.Requested)
+        {
+            substrateProof = new LiveSubstrateProof(context.Engine, terrain, player);
+        }
     }
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
@@ -131,6 +137,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         terrain.ReleaseRetiredCourtyard();
         ghost.Update();
         microvoxels.Update();
+        substrateProof?.Update();
         return ProductUpdateResult.None;
     }
 
