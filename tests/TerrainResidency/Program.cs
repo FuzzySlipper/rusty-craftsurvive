@@ -128,6 +128,36 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(featureHash == ExpectedFeatureHash, "surface, water and border snapshot changed");
 }
 
+// The chunk cache's payload and key, proven lossless before anything is wired to a
+// store: a cache that silently corrupts a chunk is worse than no cache at all.
+{
+    TerrainConfiguration config = new(TerrainConstants.DefaultSeed, TerrainConstants.DefaultSize);
+    var generator = new TerrainChunkGenerator(config.CreateRecipe(new TestDraws(config.Seed)));
+    TerrainOverlaySnapshot snapshot = new TerrainOverlayState(config.Seed).Snapshot();
+    TerrainChunkAddress address = new(1, 0, -2);
+    TerrainChunk chunk = generator.Generate(address, snapshot);
+    byte[] encoded = TerrainChunkCachePayload.Encode(chunk.Materials.Span);
+    Require(encoded.Length == TerrainChunkCachePayload.HeaderLength + (chunk.Materials.Length * sizeof(ushort)),
+        "the cached payload is not the size of the chunk it carries");
+    Require(TerrainChunkCachePayload.TryDecode(encoded, out ushort[] decoded), "a freshly encoded payload did not decode");
+    Require(decoded.AsSpan().SequenceEqual(chunk.Materials.Span), "a chunk did not survive the cache payload round trip");
+
+    // A payload that is truncated, extended or foreign must be refused rather than
+    // reinterpreted: a partial chunk would be a silently wrong world.
+    Require(!TerrainChunkCachePayload.TryDecode(encoded.AsSpan(0, encoded.Length - 2), out _), "a truncated payload was accepted");
+    Require(!TerrainChunkCachePayload.TryDecode([1, 2, 3, 4, 5, 6, 7, 8], out _), "a foreign payload was accepted");
+    Require(!TerrainChunkCachePayload.TryDecode(ReadOnlySpan<byte>.Empty, out _), "an empty payload was accepted");
+
+    string key = TerrainChunkCacheKey.For(config.Contract, address);
+    Require(key == TerrainChunkCacheKey.For(config.Contract, address), "a cache key is not stable for the same chunk");
+    Require(key != TerrainChunkCacheKey.For(config.Contract, new TerrainChunkAddress(1, 0, -1)), "two chunks share a cache key");
+    Require(key != TerrainChunkCacheKey.For(config.Contract with { Version = config.Contract.Version + 1 }, address),
+        "a generation version bump did not change the cache key");
+    Require(key != TerrainChunkCacheKey.For(config.Contract with { Seed = config.Contract.Seed + 1 }, address),
+        "a different world seed did not change the cache key");
+    Console.WriteLine($"Chunk cache payload and key verified: {encoded.Length} bytes, key {key}");
+}
+
 var configuration = TerrainConfiguration.TraversalShowcase;
 var recipe = configuration.CreateRecipe(new TestDraws(configuration.Seed));
 var chunkGenerator = new TerrainChunkGenerator(recipe);
