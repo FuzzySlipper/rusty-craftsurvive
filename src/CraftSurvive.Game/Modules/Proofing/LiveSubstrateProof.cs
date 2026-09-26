@@ -168,7 +168,14 @@ internal sealed class LiveSubstrateProof
     private void ProvePersistenceRoundTrip()
     {
         PersistenceStore store = engine.Persistence.OpenStore(new PersistenceOpenRequest(PersistenceProofScope));
-        byte[] written = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        // A full chunk payload, not a token: S2 asks whether the Engine's persistence
+        // primitive can carry generated chunks, so the measurement is the cache's real
+        // unit of work rather than a convenient small blob.
+        byte[] written = new byte[TerrainConstants.ChunkVolume * sizeof(ushort)];
+        for (int index = 0; index < written.Length; index++)
+        {
+            written[index] = (byte)(index * 31);
+        }
         Stopwatch saveWatch = Stopwatch.StartNew();
         engine.Persistence.Save(new PersistenceSaveRequest(
             store, PersistenceProofKey, PersistenceRevisionGuard.Any, 0, written));
@@ -178,7 +185,7 @@ internal sealed class LiveSubstrateProof
         loadWatch.Stop();
         Report(string.Create(
             CultureInfo.InvariantCulture,
-            $"save/load latency: {saveWatch.Elapsed.TotalMilliseconds:F2} ms save, {loadWatch.Elapsed.TotalMilliseconds:F2} ms load for 16 bytes"));
+            $"save/load latency: {saveWatch.Elapsed.TotalMilliseconds:F2} ms save, {loadWatch.Elapsed.TotalMilliseconds:F2} ms load for one {written.Length / 1024} KiB chunk payload"));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         if (!info.Present)
         {
