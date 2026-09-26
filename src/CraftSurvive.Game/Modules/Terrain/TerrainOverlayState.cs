@@ -103,6 +103,33 @@ internal sealed class TerrainOverlaySnapshot
 
     internal TerrainOverlayEntry[] Entries => entries.ToArray();
 
+    /// <summary>
+    /// Whether any edit falls inside this chunk. The cache may only serve a chunk that
+    /// carries no player edits: a cached payload is the generator's output, so serving
+    /// it for a chunk the player has changed would silently undo their change.
+    /// </summary>
+    internal bool TouchesChunk(TerrainChunkAddress chunk)
+    {
+        int lower = 0;
+        int upper = entries.Length - 1;
+        int first = entries.Length;
+        while (lower <= upper)
+        {
+            int middle = lower + ((upper - lower) / 2);
+            if (entries[middle].Address.Chunk.CompareTo(chunk) >= 0)
+            {
+                first = middle;
+                upper = middle - 1;
+            }
+            else
+            {
+                lower = middle + 1;
+            }
+        }
+
+        return first < entries.Length && entries[first].Address.Chunk.Equals(chunk);
+    }
+
     internal bool TryGetMaterial(VoxelAddress address, out ushort material)
     {
         int lower = 0;

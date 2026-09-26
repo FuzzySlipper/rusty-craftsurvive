@@ -45,14 +45,29 @@ internal sealed class TerrainChunk
 internal sealed class TerrainChunkGenerator
 {
     private readonly TerrainRecipe recipe;
+    private readonly TerrainChunkCache? cache;
 
-    internal TerrainChunkGenerator(TerrainRecipe recipe)
+    internal TerrainChunkGenerator(TerrainRecipe recipe, TerrainChunkCache? cache = null)
     {
         this.recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
+        this.cache = cache;
     }
+
+    /// <summary>Chunks served from the cache rather than generated, for evidence.</summary>
+    internal int CacheHits { get; private set; }
 
     internal TerrainChunk Generate(TerrainChunkAddress address, TerrainOverlaySnapshot overlay)
     {
+        // Read-through: a chunk this world already generated comes back from the store
+        // instead of being computed again. The cache is an optimisation, so a miss is
+        // simply generation - and a hit is only trusted because the cache refuses any
+        // payload whose shape does not match a chunk.
+        if (cache is not null && !overlay.TouchesChunk(address) && cache.TryRead(address, out ushort[] cached))
+        {
+            CacheHits++;
+            return new TerrainChunk(address, cached);
+        }
+
         ArgumentNullException.ThrowIfNull(overlay);
         ushort[] materials = new ushort[TerrainConstants.ChunkVolume];
         VoxelAddress origin = address.Origin;

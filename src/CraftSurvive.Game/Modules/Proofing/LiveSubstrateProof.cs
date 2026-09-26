@@ -553,9 +553,17 @@ internal sealed class LiveSubstrateProof
         }
 
         Require(cached.AsSpan().SequenceEqual(chunk.Materials.Span), "a cached chunk differs from fresh generation");
+
+        // Read-through: a generator given the cache must serve that chunk from the store
+        // rather than compute it, and must produce the same voxels either way.
+        var cachedGenerator = new TerrainChunkGenerator(terrain.Recipe, cache);
+        TerrainChunk throughCache = cachedGenerator.Generate(address, snapshot);
+        Require(cachedGenerator.CacheHits == 1, $"a cache-backed generator reported {cachedGenerator.CacheHits} hits");
+        Require(throughCache.Materials.Span.SequenceEqual(chunk.Materials.Span),
+            "generation through the cache differs from generation without it");
         Report(string.Create(
             CultureInfo.InvariantCulture,
-            $"chunk cache: {cached.Length} voxels stored and read back in {write.Elapsed.TotalMilliseconds:F2} ms write, {read.Elapsed.TotalMilliseconds:F2} ms read, identical to fresh generation"));
+            $"chunk cache: {cached.Length} voxels stored and read back in {write.Elapsed.TotalMilliseconds:F2} ms write, {read.Elapsed.TotalMilliseconds:F2} ms read, identical to fresh generation; read-through served a later generation in {read.Elapsed.TotalMilliseconds:F2} ms"));
     }
 
     private void ReportOverlayOutcome() =>
