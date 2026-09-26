@@ -25,9 +25,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// The current generation version. Version 2 was the pre-registry height field
     /// with hand-placed landmarks; version 3 added surface features drawn from the
     /// Engine's keyed RNG; version 4 placed them; version 5 adds water bodies at a
-    /// water level that is part of this contract.
+    /// water level that is part of this contract; version 6 gives the finite world
+    /// an authored bedrock floor and border wall.
     /// </summary>
-    internal const uint CurrentVersion = 5;
+    internal const uint CurrentVersion = 6;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

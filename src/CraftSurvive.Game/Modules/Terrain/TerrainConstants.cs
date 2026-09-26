@@ -3,9 +3,19 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal static class TerrainConstants
 {
     internal const ulong DefaultSeed = 0x4352_4146_5453_5552UL;
-    internal const int DefaultSize = 96;
+    /// <summary>
+    /// The finite world's extent in voxels per side: 10,240 is 640 chunks of 16, or
+    /// about 105 km2 at one-metre voxels. Generation is chunk-local and residency is
+    /// on demand, so the extent costs nothing until a chunk near it is requested.
+    /// </summary>
+    internal const int DefaultSize = 10_240;
     internal const int MinimumSize = 32;
-    internal const int MaximumSize = 128;
+    /// <summary>
+    /// The largest extent the product accepts. A finite world of about 100 km2 is
+    /// 10,240 voxels per side; the ceiling is set well above it so a larger world is
+    /// a declared contract change rather than a silent one.
+    /// </summary>
+    internal const int MaximumSize = 65_536;
     internal const uint GenerationVersion = 2;
 
     // Surface features are decided per anchor cell, never per chunk: a tree that
@@ -30,6 +40,16 @@ internal static class TerrainConstants
     /// per-chunk decision, so every chunk agrees about where the sea ends.
     /// </summary>
     internal const int WaterLevel = 2;
+
+    /// <summary>
+    /// The finite world's authored edges. The floor is bedrock rather than an
+    /// invisible plane, and the wall is the same material as the world's own rock so
+    /// the border reads as terrain instead of as a bug. Nothing can be placed or
+    /// blasted through either: bedrock refuses both by its block properties.
+    /// </summary>
+    internal const int WorldFloorThickness = 1;
+    internal const int WorldWallThickness = 2;
+    internal const int WorldWallTop = 6;
 
     internal const int TerrainDepth = 9;
     internal const int TerrainSummitHeight = 12;

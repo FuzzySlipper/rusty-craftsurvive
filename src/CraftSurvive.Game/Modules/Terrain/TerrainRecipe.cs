@@ -27,7 +27,9 @@ internal sealed class TerrainRecipe
 
     internal TerrainConfiguration Configuration => configuration;
 
-    internal long MinimumMaterialY => -TerrainConstants.TerrainDepth;
+    private const long MinimumMaterialYValue = -TerrainConstants.TerrainDepth;
+
+    internal long MinimumMaterialY => MinimumMaterialYValue;
 
     internal long MaximumMaterialY => TerrainConstants.TerrainSummitHeight + TerrainConstants.TerrainHeadroom;
 
@@ -47,6 +49,11 @@ internal sealed class TerrainRecipe
         if (address.X < -radius || address.X > radius || address.Z < -radius || address.Z > radius)
         {
             return TerrainConstants.EmptyMaterial;
+        }
+
+        if (IsWorldFloor(address.Y) || IsWorldWall(address.X, address.Z, address.Y))
+        {
+            return (ushort)BlockId.Bedrock;
         }
 
         ushort material = NaturalMaterialAt(address, column);
@@ -71,6 +78,28 @@ internal sealed class TerrainRecipe
         }
 
         return material;
+    }
+
+    /// <summary>The world's floor: bedrock under everything, at the stated depth.</summary>
+    private static bool IsWorldFloor(long y) => y < MinimumMaterialYValue + TerrainConstants.WorldFloorThickness;
+
+    /// <summary>
+    /// The world's border wall. It stands at the extent edge on all four sides up to
+    /// a stated height, so the finite world has an authored edge rather than a void
+    /// the player can walk into.
+    /// </summary>
+    private static bool IsWorldWall(long x, long z, long y)
+    {
+        if (y > TerrainConstants.WorldWallTop || y < MinimumMaterialYValue)
+        {
+            return false;
+        }
+
+        long limit = TerrainConstants.DefaultSize / 2;
+        long inner = limit - TerrainConstants.WorldWallThickness;
+        bool onEdge = x <= -inner || x >= inner || z <= -inner || z >= inner;
+        bool inside = x >= -limit && x <= limit && z >= -limit && z <= limit;
+        return onEdge && inside;
     }
 
     private ushort NaturalMaterialAt(VoxelAddress address, TerrainColumn column)
