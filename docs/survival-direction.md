@@ -1,159 +1,30 @@
 # Survival direction: what a Minecraft-like game requires here
 
-This is a design-level assessment, not a plan of record and not an
-implementation task. It answers one question: **if CraftSurvive should become a
-proper survival game rather than a procgen testbed, what has to exist, who owns
-it, and where is the Engine boundary?**
+This is the durable design record for turning CraftSurvive from a procgen testbed
+into an adventurer RPG on a cubic world. It states the target, what the product must
+build, the settled decisions, and the boundary with the Engine.
 
-## Summary
+Work state does not live here. Den campaign **#8595** (slices #8596-#8606) is the
+work record of record, with upstream requests in the `rusty-engine` project; live
+evidence is in [live-proofs.md](live-proofs.md). The assessment-era sections of this
+document — the current-state survey, the capability finding, the upstream request
+list, the first slice sequence, the unchosen exploration-first variant, and the
+evidence appendix — are in Den as `history/survival-direction-campaign-record`.
 
-- **Where it is.** A capability testbed with a real game shell and a thin game:
-  a 96 m bounded voxel arena in an opt-in mode, a procgen artifact bank, an art
-  study scene as the default, and no inventory, survival stat, creature,
-  crafting, time-of-day, or audio anywhere in the product. §1.
-- **What that means.** The Engine SDK already ships the mechanism layer —
-  entities/components, items/inventory/equipment/stats/effects, navigation,
-  perception, a bare FSM, dynamics, lights, audio, animation, presentation,
-  persistence, scheduling, deterministic RNG, and a variant of the world-spine
-  work already specified in Den #6853. The work is therefore mostly product
-  policy, content, and authority design, not systems engineering. §3.
-- **What the product must build.** A real world model and block/content
-  registry, budgeted streaming, the item/crafting loop, survival rules,
-  creatures, a time/light policy, a versioned save envelope, a HUD, and
-  performance gates. §4.
-- **What must go upstream.** Eight named Engine gaps, of which per-voxel
-  lighting (G1), per-voxel block state (G2), time-of-day sky (G3), and movement
-  modes like swimming (G8) bound fidelity; multiplayer (G4) and the threading
-  contract (G5) bound scope. §5.
-- **What blocks the start.** The decisions in §6 — scope, world scale,
-  dimensions, content floor, lighting, water, surface mode, save policy — plus
-  one staged proof that the mechanism layer is actually usable from this product
-  (§7 Slice 0). Until the threading contract exists, chunk generation stays
-  step-budgeted on the update thread; a product-owned worker is a forbidden
-  substitute, not a plan.
-- **A variant raised later, and it is the cheaper one.** §9 records an
-  exploration-first concept that drops mining and keeps blocky construction as a
-  minor, rapid verb over smooth terrain. It is *potentially* less constrained by a
-  blocky prototype than the main direction is: mesh-collision terrain and a voxel
-  build session share one session handle — used exclusively per scene mode today,
-  never simultaneously — and the concept reuses this repository's strongest
-  existing lane. Its gate is two staged verifications, not a design breakthrough.
-- **What was chosen.** §10 records the settled direction — a cubic-world
-  adventurer RPG with exploration and encounters primary, crafting and survival
-  secondary, slow/irregular bomb-driven manipulation, a finite ~100 km² streamed
-  world, static water with swimming and drowning, vertical authored dungeons
-  behind a load transition, and the old experiments retired to an authoring lane
-  (procgen tasks included). Den campaign **#8595** (slices #8596–#8606) is the
-  work record, with upstream requests #8607–#8612 in `rusty-engine`; #8609 (swim
-  and climb) is active rather than parked.
+- **Direction.** A cubic-world adventurer RPG: exploration and encounters primary,
+  crafting and survival secondary, slow and irregular bomb-driven manipulation rather
+  than per-block mining, a finite ~100 km² streamed world, static water with swimming
+  and drowning, vertical authored dungeons behind a load transition, and the old
+  experiments retired to an authoring lane. §10.
+- **Target.** §2 states the design acceptance; §4 the module-level work.
+- **Decisions.** §6 records the settled content floor, manipulation model, world
+  extent, save policy, surface mode and water path, plus the constraints the live
+  proofs established.
+- **Boundary.** §8 records what stays, what retires and what is refused.
 
-Evidence base: the checked product at commit `a4ac8ad`, the SDK pair installed
-at the time of writing — `0.1.0-dev.b9c281937b26`, superseded since by
-`eng/EnginePair.props` — whose public surface was inspected by reflection (1,126
-public types), and the Den task ledger for `rusty-craftsurvive` (77 tasks: 66 done,
-8 cancelled, 3 planned). Per `AGENTS.md`, an absent Engine mechanism is listed
-as an upstream request in §5 rather than designed around downstream.
+Section numbering is kept from the full record so citations in Den tasks stay valid;
+numbers missing here live in the Den record above.
 
-## 1. What the project is today
-
-CraftSurvive is a **capability testbed with a game-shaped shell**. The shell is
-real: a lifecycle product, a first-person controller, a revision-checked edit
-path, persistence, UI projection, debug commands, CI, and an evidence culture
-with receipts. The *game* is a set of bounded studies.
-
-| Lane | What it owns today | State |
-| --- | --- | --- |
-| Default scene (`CRAFTSURVIVE_SCENE` unset or `courtyard`) | `CourtyardScene` implicit-mesh art studies: stoneworks, masonry layers, material boundaries, stepped and volume-carved caves | Not an editable voxel world. Whole-scene regeneration |
-| Voxel lane (`CRAFTSURVIVE_SCENE=traversal`) | `TerrainWorld`, `TerrainRecipe`, residency, edits, overlay persistence | A 96×96 generated arena of height noise and proportional landmarks; the hand-placed traversal fixtures were removed in S1 |
-| Level generation | `ProcgenWorkbench`, `CaveLevelPlan`, `DungeonLevelPlan`, `CraftSurvive.Procgen`, artifact bank | Rooms/routes carved into a bounded rock solid: 6-room cave, 12-room dungeon, 36-room complex |
-| Presentation studies | `GhostPlateActor` (GLB wizard), `MicrovoxelPresentation` (`.vox` shrine), `RopePlayground` | Art and mechanism demonstrations |
-| UI (`src/ui/main.ts`) | Live-debug panel, Ghost Settings, procgen workbench, rope controls | A testbed console, not a game HUD |
-
-Out of the box — `rusty dev` with no environment — the product boots into the
-Courtyard scene, which is **not** an editable voxel world: in that mode voxel
-residency, presentation and persistence are all disabled and terrain edits
-cannot produce a voxel hit at all. The voxel numbers below describe the opt-in
-`CRAFTSURVIVE_SCENE=traversal` lane. Any reader planning voxel work should assume
-the arena is one environment variable away, not the default experience.
-
-Concrete limits of the voxel lane, from
-`src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs`:
-
-- World: `DefaultSize = 96` (max 128) with a footprint of ±Size/2 (±48 m at the
-  default, ±64 m at the maximum), a vertical band of `-9..28`, and three
-  materials (grass 1, dirt 2, stone 3) out of a 4,096-value material space
-  (0 = empty, max 4,095).
-- Chunks: 16³, requested radius 1 (3×3 horizontal × full vertical band),
-  retained radius 2, at most 64 resident chunks, 16 residency operations/tick.
-- Edits: reach 8 m, brush radius ≤ 2, sparse overlay capped at 65,536 entries
-  and 8 MiB, schema v1, one blob key `terrain/overlay`.
-- Generation in the voxel lane is **2.5D**: `TerrainRecipe.ColumnAt(x, z)` computes a
-  surface and slope per column, with no biome or structure pass. The Engine's
-  `Implicit`/sampled-volume path is a real 3D density mechanism, but it is used
-  by the Courtyard mesh studies and produces meshes, not per-voxel materials
-  (§3), so it is not the voxel world's generator today.
-- Player: 120 Hz controller cadence, 60 Hz product step, 1 m voxels, world-origin
-  rebase at 1,024 m, product envelope ±1,000,000 m.
-
-Testbed signals worth naming, because they set the tone for any survival work:
-61 `craft.*` debug commands are the primary interface to the product; the
-procgen lane's output is an offline artifact bank with receipts and bounded
-readouts; and the Den ledger has no survival task — the only open tasks
-(#7911, #7912, #7916) are tentative procgen expansions.
-
-Two pieces of housekeeping to fix independently of this direction, both
-symptoms of a tree that has been reshaped repeatedly:
-
-- Pair references had drifted across six documents, and the declared version now
-  lives in one place, `eng/EnginePair.props`, which the product project, the
-  focused managed checks, and the verification workflow all consume. That
-  consolidation landed in S1 along with pair updates to `README.md`,
-  `docs/csharp-migration-map.md`, `docs/controller-playtest.md`,
-  `docs/procedural-dungeon.md`, and `docs/procgen-workbench.md`; provenance lines
-  that record which pair produced a study stay attributed to that pair rather than
-  being rewritten. `.runtime/` still retains roughly thirty `pair-*` directories
-  as history.
-- `tests/ArchitecturalRecipes/` exists on disk as build output only: no tracked
-  source, no project file, and no CI lane references it. It should be removed
-  rather than mistaken for a live check.
-- Two vestigial surfaces are worth clearing before a survival lane builds on
-  them: `TerrainWorld.Update()` (fixed-centre residency tick) has no call site —
-  residency actually follows the player through `SynchronizeAround` — and the
-  product publishes a structured UI projection on `craftsurvive.terrain` every
-  update that no file under `src/ui/` consumes. Neither is urgent, but both
-  mislead a reader about how the product works today.
-
-### 1.1 This is not the first time the project reached for a world
-
-The Den ledger is prior art and should be mined before anything is designed
-again. Two examples matter for the target in §2:
-
-- **#6853, "Extend bounded chunk streaming to unbounded deterministic terrain"
-  (done, 2026-08-13)** already specified and accepted the world spine: versioned
-  deterministic generation from a seed and signed chunk coordinates, biome and
-  material semantics, structures/features, durable edit overlays, save/load and
-  generation-version migration, requested-set/priority/prefetch/cancellation/
-  cache policy, a documented numeric envelope, and long-traverse memory/frame
-  budgets. That capability lived in the lane retired by the C# migration
-  campaign (#7491), and the current tree has no trace of it: no biome, prefetch,
-  streaming, or generated-chunk cache code exists in `Modules/`. Known
-  limitations states the same positively ("no background generation worker,
-  generated chunk disk cache, biome framework, or general procgen framework").
-  Slice 1 in §7 is therefore a *re-achievement in the C# lane*, not a new design
-  — and its acceptance criteria already exist.
-- **#6935, "Emit bounded voxel debris when breaking blocks" (done)** adopted
-  Engine particles for block break in the retired lane. The current product
-  contains no debris or particle code at all, so the feedback half of the item
-  loop is a re-adoption rather than a design.
-
-Other ledger entries that remain directly relevant: #6849 (Engine FPS controller
-adoption, which already names stamina/damage/audio as product-owned), #7659
-(authored terrain atlas and sky on the C# path), #6844 (edit latency and atlas
-face orientation), and #7731 (incremental residency that reuses generated
-chunks). Registering the retirement precedent is the point: the C# migration
-deliberately preserved "the current playable voxel/edit semantics … not every
-historical rendering laboratory", so the survival direction is partly a
-*restoration* list with a known cost, not a greenfield design.
 
 ## 2. The target, stated as design acceptance
 
@@ -201,59 +72,6 @@ Explicit non-goals at this level: multiplayer, redstone-grade simulation
 large content catalogue beyond the floor above. Those are scope decisions
 (§6), not oversights.
 
-## 3. The provisional finding: the mechanism layer already exists
-
-The most important fact for this decision is that **Rusty.Engine already ships
-most of the mechanism a survival game needs**. If that holds, the work is
-predominantly *policy, content, and authority design* — the product's side of the
-line — not systems engineering. The finding is provisional in one specific
-sense: it rests on the SDK's public types and constructors, and the product has
-not yet admitted a single `Mechanics`, `Entities`, `StateMachine`, or
-`Interaction` object through a staged run (the only entity in the tree today is
-the player's own one-component store). §7 therefore puts a minimal staged proof
-in Slice 0 before Slices 2–4 are treated as conventional.
-
-| Survival need | Engine family (evidence) | What remains product work |
-| --- | --- | --- |
-| Creatures, components, per-entity state | `Rusty.Engine.Entities`: `EntityStore` (typed components, revisions, containment, lifecycle/tombstones), `Actor`, `EntityGraphicsProjection`, `EntityCharacterController`, `EntityMotionResolver`, `EntityDynamicsAdapter`, `EntityTriggerProjection`, `EntityOriginRebaser` | Mob catalogue, per-mob components, spawn rules, simulation order |
-| Items, inventory, equipment | `Rusty.Engine.Mechanics`: `ItemDefinition` (fungible/unique, capacity costs, classifications, equipment policy), `InventoryStore` (`Grant`/`Consume`/`SplitFungible`/`MergeFungible`/`TransferFungible`/`MaterializeUnique`), `InventoryState` with capacity limits, `EquipmentState` and slot definitions | Item catalogue, drop tables, stack rules, UI mapping |
-| Health, hunger, stamina, XP | `Mechanics`: `StatsComponent` with `Stat` and `Track` (`Spend`/`Restore`, `MaximumChangePolicy`), contributions (add/multiply/min/max) with sources. These are generic vitals: the SDK contains no Health, Damage, Combat, Weapon, Armour, Death, Hunger, or Food type | Which tracks exist, drain/regen rates, damage model |
-| Status effects (poison, regeneration) | `Mechanics`: `EffectDefinition`, `ActiveEffect`, stacking policies and groups, provenance | Effect catalogue and application rules |
-| Mob pathfinding | `Rusty.Engine.Navigation*` plus `ISpatialService.RequestNavigationPath`, `EvaluateNavigationStep`, volumetric traversal configs; the voxel scene reports `NavigationRevision`/`NavigationCellCount`. Grid/volumetric search with explicit failure outcomes — no polygon mesh, no crowd avoidance, no path follower, so waypoint following and avoidance stay product-side | Goal selection and movement intent |
-| Mob senses | `Rusty.Engine.Perception`: observer/target pair queries with occlusion and facing (`PerceptionPairKind`) | Aggro rules, awareness, memory, target scoring |
-| Mob behaviour | `Rusty.Engine.StateMachine`: definitions, instances, transition requests and receipts — a bare FSM with no guards, entry/exit actions, timers, hierarchy, blackboard, or serialization | Behaviour graphs, conditions, timers, and all state payload |
-| Physics for drops and props | `Rusty.Engine.Dynamics` via `IDynamicsService` (bodies, chains, tethers; a `DynamicsWorld` comes from `IDynamicsService.CreateWorld`, it is not constructed directly), plus `IKinematicService` and `IMotionService` | Spawn/despawn and pickup policy |
-| Torches, sun, ambient | Light is **not** a service: `IGraphicsService.CreateLight`/`UpdateLight` with `LightDescriptor` — `Ambient`/`Directional`/`Point`/`Spot`, range/decay/penumbra, shadow intent; materials carry `Emissive`/`EmissionColor` | Time-of-day policy — and see gap G1 for per-voxel light |
-| Sound | `Rusty.Engine.Audio`: clips from content, voices, buses, 3D emitter descriptors | Event → sound mapping |
-| Player and mob animation | `Rusty.Engine.Animation`: clips, controllers, graphs, parameters, cues, triggers; animated voxel objects via `IVoxelContentService`. No skeletal skinning, IK, or root motion — animated meshes from content and animated `.vox` objects are the supported paths | Clip selection and state mapping |
-| HUD, nameplates, damage numbers | `Rusty.Engine.Presentation`: billboards, structured billboards, meters, status cues, fonts, collision-aware particles; `IUiService` projections for DOM chrome | Layout and information design |
-| Block appearance | `AuthoredMaterialInput` (colour, texture, roughness, **emissive**), `AuthoredVoxelSurfaceInput` (atlas region, tile scale, alpha mode/cutoff), `VoxelSceneMaterialBinding` and per-face bindings | Block catalog and atlas authoring |
-| World persistence | `Rusty.Engine.Persistence` blobs with revision guards; `ProductStateStore<TState>` with `JsonProductStateCodec<TState>`/`IProductStateCodec<T>`; `VoxelHistoryPersistenceStore.Save`/`LoadAndRestore`; `IContentStoreService` snapshots. No world or entity snapshot format, no migration, no save cadence, no multi-key transaction | Save envelope, migration policy |
-| Deterministic worldgen | `IRandomService` keyed/scoped draws (`DrawKeyed`, `CreateScoped`, `ForkScoped`) | Field design and draw discipline |
-| 3D density fields (not the voxel path) | `IImplicitSurfacesService`: `CreateField` with box/sphere/ellipsoid/capsule/frustum/plane, union/intersection/difference/smooth-union/offset/transform/`DisplaceWaves`, `Sample`, `Generate` to a `MeshResource`, plus `CreateSampledVolume`/`RasterizeSampledVolume`/`SampleSampledVolume`/`ReadSampledVolume` and enclosure/join/mesh-integrity audits. This is the mechanism the Courtyard cave studies already use through `Rusty.Engine.Implicit`; it is **not** the voxel world's generator because it produces meshes and density lattices, not per-voxel material chunks | Whether to reuse it for structure/cave shaping that is later rasterized into voxel materials, or keep voxel generation separate |
-| Scheduled world work | `Rusty.Engine.Application.SimulationScheduler` (the `ScheduleAt`/`ScheduleAfter`/`ScheduleRepeating*`/`WaitSteps`/`WaitUntil`/`ResumeNextStep` family) over `UpdatePipeline`/`UpdatePhase` with `ProductUpdateFacts` fixed-step facts. Both are product-composed — `new UpdatePipeline(engine, phases)`, `new SimulationScheduler()` — since the host injects neither | What is scheduled, and at which phase |
-| Voxel world authority | `IVoxelService`: residency operations with material payloads, revisioned `ApplyEdits`, chunk leases, dirty-chunk reads, **undo/redo history with export/restore**, scene readout with collision *and navigation* revisions; `VoxelAnnotationKind` includes `SpawnArea`, `Hazard`, `NavigationHint` | Recipe, admission policy, streaming budget |
-| Structure/prop content | `AuthoredPrefabRegistry`, `AuthoredScenePlan`, `IVoxelContentService` (`.vox` assets, animated objects), `StaticMeshInstance` | Templates and placement rules |
-| Verification capture | `IRenderOutputService.CaptureImage`/`ExportSceneGlb`, `IDiagnosticsService.Publish`, `EntityStoreDiagnostics`, spatial map snapshots as ASCII/JSON | Evidence automation for the lanes below |
-
-Two consequences follow. First, a survival slice should be designed as
-**product policy over named Engine services**, exactly as the current terrain
-and player lanes already are. Second, several "missing features" that look like
-big engineering (inventory, stats, pathfinding, AI, audio, animation) are
-already available and should not be rebuilt.
-
-A caveat that changes Slice 4's cost: the entity, mechanics, and state-machine
-types are **product-composed**, and every adapter needs its owning Engine
-service and session handed to it. `EntityCharacterController(EntityStore,
-ISpatialService)`, `EntityMotionResolver(EntityStore, IMotionService, collider
-component)`, `EntityDynamicsAdapter(EntityStore, IDynamicsService,
-DynamicsWorld, …)`, `EntityTriggerProjection(EntityStore, ISpatialService,
-SpatialSession, …)`, `EntityGraphicsProjection(EntityStore, IGraphicsService)`,
-and `EntityOriginRebaser(EntityStore, IWorldOriginService, SpatialSession, …)`.
-`IEngineContext` exposes no Mechanics/Entities/StateMachine service — those are
-managed types the product news up — and light goes through `IGraphicsService`.
-So a mob is integration work against four or five services plus session
-lifetime, not catalogue content alone, and Slice 4 should be estimated that way.
 
 ## 4. What the product must build
 
@@ -761,176 +579,45 @@ one session configuration is not automatically valid under another — a save ma
 in cube mode cannot assume it resumes under a DC session. That belongs in the
 §4.8 save policy as an explicit compatibility rule, not as an assumption.
 
-## 5. What must be requested upstream
-
-**Status after adopting pair `c30c1ef18861` (2026-09-26): every request below
-except G7 has landed.** The entries are retained as the record of what was asked
-and why; they are no longer a list of gaps. What landed, and where it differs
-from the original request:
-
-- **G1** → `Voxel.SampleDirectLighting(VoxelLightSampleRequest)`: a CPU
-  direct-light proxy over the product's own retained `LightDescriptor`s, with
-  optional collision occlusion, plus `RustyEngineProductDefaultWorldLights=disabled`
-  for a dark unlit world. It is *not* a sky/block-light lattice. Sealed rooms go
-  dark because the default rig is off and nothing lights them, not because light
-  propagates; ambient is unoccluded, so ambient alone cannot darken a cave.
-- **G2** → fifteen per-cell state bits (two quarter turns about +Y plus a
-  0–8191 variant/stage) via `VoxelCellState.Encode`, readable and writable
-  through `VoxelEdit.State`, `VoxelReadout.State`, and a parallel
-  `VoxelResidencyTransaction.States` array, with variant face materials and
-  history schema 4. Collision stays cube occupancy, and nonzero state requires
-  `GreedyCubes` — this campaign's branch.
-- **G3** → `CameraView.SetSkyBackgroundBlend(new(day, night, amount))`: two
-  authored panoramas crossfaded by a product-owned clock value, surviving fresh
-  host attachment, at two samples per visible sky pixel.
-- **G5** → a callback-confined affinity contract (no Engine service call from
-  `Task.Run`, timers, finalizers, or async continuations — read-only queries and
-  `Dispose` included), plus Engine-owned `Voxel.StartResidencyPreparation`,
-  `PollResidencyPreparation`, `CommitResidencyPreparation`, and
-  `CancelResidencyPreparation`, where commit rechecks source, collider, rebase,
-  and lease generations and rejects stale candidates rather than overwriting
-  newer state.
-- **G6** → measured residency, remesh, and geometry-diversity budgets.
-- **G8** → first-class swim, climb, and fly modes selected through
-  `CharacterControllerCommand.Movement`, with `CharacterStepReceipt.Movement`
-  reporting accepted mode, immersion, and `HeadSubmerged`.
-- **G7 (fluids) remains unrequested and unimplemented**, which matches the §10
-  decision: static water needs no simulation, and flowing water is an open
-  question rather than an assumed feature.
-
-Two consequences for the slices above. §4.2's and §7's "threading is blocked
-pending G5" is superseded: background residency preparation exists, so S2 may
-overlap projection building while product generation stays restricted to copied,
-product-owned data off the callback lane. And §4.11's water default changes
-shape: swimming and submersion are Engine behaviour now, so the product supplies
-the water volume and owns breath and drowning consequences, rather than
-composing buoyancy itself.
-
-The detailed entries below are the original requests, kept as the record.
-
-- **G1 — Per-voxel lighting.** No type in the SDK carries a per-voxel light
-  level: voxels are `(address, materialSlot)`, `VoxelSceneReadout` reports mesh
-  and navigation revisions but no light, and scene lighting is limited to
-  `LightDescriptor`s created through `IGraphicsService` plus emissive materials.
-  A Minecraft-style cave darkening and torch gradient is therefore not
-  expressible. Requested capability: a per-voxel light channel (sky and block
-  light, or an equivalent mesher-produced irradiance/AO attribute on the cube
-  surface) with read/write and persistence. Consumer: caves, torches, mob spawn
-  light rules.
-- **G2 — Per-voxel block state.** Orientation, variant, and growth stage have no
-  representation; the material slot is the entire per-voxel payload. Requested
-  capability: either a small generic per-voxel state payload with mesh/atlas
-  selection and persistence, or a documented Engine position that block state is
-  an entity concern (including budget guidance). Consumer: stairs, logs, doors,
-  crops.
-- **G3 — Time-of-day sky and atmosphere.** The sky is a single authored
-  panorama (`SetSkyBackground`, `ClearSkyBackground`, `SetBackgroundColor`);
-  there is no sun/moon direction, sky tint, fog, or star surface. A directional
-  light can move; the sky cannot follow it. Requested capability: time-of-day sky
-  parameters bound to the product clock. Consumer: day/night cycle.
-- **G4 — Multiplayer/networking.** There is no transport, replication, or
-  session surface anywhere in the SDK. The LAN host can serve browsers, but they
-  attach to one host-owned product session (`IEngineProduct.Attach` republishes
-  the retained world); there is no per-client player, world replication, or
-  authority handoff. A multiplayer clone is an entire Engine service family.
-  Consumer: only if multiplayer is in scope (§6).
-- **G5 — Threading/affinity contract for streaming.** `SimulationScheduler`
-  callbacks are step-bound (`ScheduledWorkContext` carries only `ProductUpdateFacts`
-  and `SimulationStep`), and nothing in the SDK states which calls may be made
-  off the product thread. Requested capability: a published affinity contract
-  and/or an Engine-owned generation hook that lets generation overlap the frame.
-  Consumer: chunk streaming at scale. **Until that contract exists, this
-  direction does not authorize a product-owned generation worker** (§4.2); the
-  default is step-budgeted generation inside the update callback, and Slice 1b
-  is blocked rather than substituted.
-- **G6 — Measured residency limits (mostly product measurement).** The SDK does
-  expose the counters needed to measure: `VoxelSceneReadout` reports resident
-  chunk and solid-voxel counts, dirty chunks, and rebuilt/reused/removed mesh
-  chunks, and `VoxelResidencyReceipt` reports the same per transaction. What is
-  missing is a *stated* Engine budget — a documented practical ceiling on
-  resident chunks, per-tick remesh work, and mesh memory — so the product can
-  size a world scale instead of discovering the wall in playtest. Memory per
-  chunk of the product's own payload representation is product measurement, not
-  an Engine gap, and should not be filed as one.
-- **G7 — Fluids (optional).** No fluid or cellular-automata surface exists.
-  Water/lava that spreads must be product simulation expressed as voxel edit
-  transactions; the honest first target is static fluids with an explicit
-  follow-up request if flowing fluids are required. **§10 settles this for the
-  chosen direction**: static water only, flowing water unfiled and left as an
-  open decision. The remaining uncertainty is not whether flow is needed but
-  whether a static blend-material water voxel renders and passes the character
-  solver as expected — an S0 staged proof, not an upstream request until it
-  fails.
-- **G8 — Movement modes: swim, climb, fly.** Originally requested because the
-  character service provided walking, jumping, crouching, step-up, slopes,
-  platforms, and tethering but no swimming, climbing, or flight. **Landed at pair
-  `c30c1ef18861` as #8609**: `CharacterControllerCommand.Movement` selects
-  walking, swimming, climbing, or flying; the product supplies the water volume
-  (an environmental AABB with buoyancy, drag, and gravity scale) or a climb rail,
-  and reads immersion and `HeadSubmerged` back from
-  `CharacterStepReceipt.Movement`. Water is environmental input, not a fluid
-  simulation, and the product keeps breath, stamina, and drowning consequences.
-  Ladders and rails are therefore usable in the vertical dungeons, and no
-  non-climbing fallback is needed as a schedule dependency.
 
 ## 6. Decisions this direction depends on
 
-These change the plan materially and should be settled before Slice 1 work
-starts. **Several are now settled for the chosen direction** — scope
-(single-player), world scale (finite ~100 km²), dimensions (authored dungeon
-loads), surface mode (cubic), and enchanting/brewing (out) — and are recorded in
-§10 with the Den campaign that carries them. The content floor is re-weighted for
-that branch but still unconfirmed. The rows below stay as the reasoning,
-including for the decisions still open.
+Every decision this direction owed is settled. This section is the durable record of
+what was decided and what bounds it.
 
-| Decision | Options | Consequence |
+| Decision | Settled answer | Consequence |
 | --- | --- | --- |
-| Scope | Single-player only vs multiplayer later | Multiplayer adds G4, a whole Engine family; single-player keeps this a product-side programme |
-| World scale | Infinite-feeling (streamed, seed-only) vs finite bounded world (e.g. 8×8 km) | Finite worlds allow a simple save and no streaming budget; infinite worlds need §4.2 and G5/G6, plus a border/void policy (§4.11). The choice cannot be committed before §4.2's measurements exist — and #6853's documented envelope belongs to the retired lane, so whether it transfers to the C# lane is itself an open question |
-| Dimensions | Overworld only, with a reserved dimension id vs genuinely single-dimension | Retrofitting a second dimension later forks generation, persistence, and spawn logic; a reserved id costs almost nothing in Slice 1 |
-| Content floor | **Settled 2026-09-26**: 12–16 blocks, 6–10 items, 2 creatures, one biome family plus cave and dungeon tilesets ([S0 record](s0-decisions.md)) | Prices Slices 2, 4 and 6; the atlas is the binding constraint, not lighting |
-| Fidelity target | MC-like *feel* (loop, mood, scale) vs mechanics-complete vs content-complete | Determines how many blocks/items/mobs are in scope, and whether lighting (G1) is blocking |
-| Lighting | Request G1 vs accept flat lighting + point lights + emissive materials | G1 is the single biggest visual-fidelity gap, and it gates §4.6's spawn threshold |
-| Per-block state | Entity-based block entities only vs request G2 | Entity-only means no oriented stairs/logs without extra geometry |
-| Surface mode | **Settled**: Greedy cubes for Slice 1 with a bounded DC evaluation later (§4.12) vs DC-first; per-cell state requires GreedyCubes, which removes DC from the initial scope | The mode is selectable per session **at creation** (no live switch) and collision/navigation stay on the grid; per-cell orientation, rotation and growth stage are GreedyCubes-only, so cubes-first now has a hard dependency rather than a preference |
-| Water and movement | **Settled and proven**: static water with Engine swim mode (`CharacterControllerCommand.Movement`); no water material needed for behaviour ([live proofs](live-proofs.md)) | Engine-owned swim/submersion means the product supplies the water volume and owns breath; only the water *appearance* needs authored tiles |
-| Enchanting and brewing | Explicit V1 non-goal vs in scope | Decides whether XP needs a spend sink, which changes §4.5 and the content floor |
-| Save policy | **Settled 2026-09-26**: worlds are disposable; version the envelope and discard on mismatch, keeping one backup ([S0 record](s0-decisions.md)) | The live lane proved a catalog change currently fails the whole product rather than reporting a stale blob, so S2 must make the reset deliberate |
-| Procgen testbed fate | Retire to an authoring lane vs keep as a playable mode | Affects the default boot path and doc surface |
+| Content floor | 12-16 blocks, 6-10 items, 2 creatures, one biome family plus cave and dungeon tilesets | The atlas is the binding constraint, not lighting: every block type costs a region in one atlas image |
+| Manipulation | Adventurer manipulation: place blocks and detonate charges; no general break-and-collect | Charges and blasts stay; any general break-time table goes; block-breaking survives only where a slice names a target |
+| World extent | Finite ~100 km² (10 km x 10 km at one-metre voxels, 625 x 625 chunks per layer) with an authored hard border | Residency is on demand; navigation is published per box rather than for the whole extent |
+| Save policy | Worlds are disposable: version the envelope, detect a mismatch explicitly, discard and regenerate, keep one previous backup | The live lane showed that changing the authored catalog currently fails the whole product instead of reporting a stale blob |
+| Surface mode | Greedy cubes now, dual contouring as a later projection | Per-cell orientation, rotation and growth stage are GreedyCubes-only, so cubes-first is a dependency rather than a preference |
+| Water and movement | Static water with Engine swim mode; no water material needed for behaviour | The product supplies the volume and owns breath and drowning; only the appearance needs authored tiles |
 
-## 7. Slice sequence (design level)
+Multiplayer stays outside the initial scope, and enchanting and brewing are explicit
+V1 non-goals.
 
-**Superseded in numbering by §10 and campaign #8595**, which re-cut these slices
-for the adopted direction (S0–S10). The sequence below is retained as the design
-rationale, with two facts corrected: G5 landed, so streamed residency may use
-Engine-owned background preparation, and G8 landed, so swimming and climbing are
-Engine movement modes rather than product approximations.
+### 6.1 Constraints the live proofs established
 
-Each slice is a bounded, provable increment in the existing style: named product
-owner, named Engine mechanisms, explicit evidence, explicit limits.
+These are settled too: they bound the decisions above rather than remaining open
+questions. Evidence is in [live-proofs.md](live-proofs.md).
 
-| Slice | Content | Exit evidence |
-| --- | --- | --- |
-| 0. Decisions | Settle §6; file G1–G8 as owning tasks with consumers; run a minimal staged proof that the mechanism layer is usable (one `InventoryStore` + `StatsComponent` + `StateMachine` instance, one entity with an `EntityGraphicsProjection`, one `RequestNavigationPath` against a real `SpatialSession`) | Filed requests; direction doc updated; a staged harness result that either confirms or corrects §3 before Slices 2–4 are priced |
-| 1. World spine | Split deliberately, because this is the largest slice: **1a** block registry with its shape and transparency classes, the first 2–3 biomes, 3D generation contract with its ore table, **1b** streamed residency with cache, prefetch, cancellation and a measured budget, **1c** save envelope v1 (world identity + terrain + player continuation) with its generation-version, backup, and corruption-recovery policy, spawn search, the border/void policy, and the fluid scope in generation | Walk-out test through the registered live lane (§4.10), golden chunk hashes, save/load equivalence, throughput and tick-budget numbers, and the 1a tables landed as named product data; #6853's acceptance list is the starting contract. **1b's threading may use Engine-owned background residency preparation (G5 landed at `c30c1ef18861`), and product-owned workers are allowed for copied, product-owned payloads only** |
-| 2. Item loop | Break/place with drops and tool gating, inventory/hotbar, crafting table, chests, durability, armour slots, item entities and pickup, and the explosion/fire verdict — with their break-time and fuel tables | Mine → craft → place → persist → reload, with transaction invariants tested and the tuning tables present |
-| 3. Survival pressure | Health/hunger/damage/death/respawn, nutrition, XP, day/night clock, light policy, growth ticks, farming and cooking, sleep, and the water/swimming policy — with the food, day-length, and hunger tuning landed | Survive a scripted cycle, starve/die/respawn, renewable wood and food across reload |
-| 4. Creatures | One passive and one hostile mob, spawn caps, despawn rules, daylight burning, and light thresholds, navigation, senses, FSM behaviour, combat, drops, animation | Spawn/despawn invariants, pathing witness, kill/drop loop, live-mob save/load, with the cap and threshold tables present |
-| 5. Feedback | HUD and screens (including world creation/selection), audio, particles, third-person/animation, lighting polish, debug-command disposition | A browser playtest through the `.den-playwright.json` lane covering the core loop without `craft.*` commands, plus the registered live check; `pnpm run check:ui` only guards that the DOM still compiles |
-| 6. Content scale | More biomes on top of the 1a set, larger block/item/mob catalogue including extra shape families, structures fed from the procgen lane | Bounded content review; generator version policy exercised |
+- **One atlas per voxel scene.** Every block material needs its own region in that
+  scene's atlas image, and a material whose surface resolves through a second atlas
+  fails the directional projection.
+- **Water behaviour is separable from water appearance.** Swim mode, immersion and
+  `HeadSubmerged` work from a product-supplied volume with no water material at all.
+- **Navigation must be published.** A world without a collision-derived navigation
+  projection answers every path query with `ProjectionUnavailable`, and query cells
+  are relative to the published box.
+- **A dimension is a second session.** One can be created, filled, read and disposed
+  inside the running product without disturbing the loaded world, so a dimension load
+  is a product concern rather than an Engine request.
+- **Background residency preparation is the supported overlap path**, and a commit
+  rejecting a stale candidate is a normal outcome rather than an error.
+- **A refused appearance snapshot stops the update loop.** Anything that must run
+  after a snapshot publish belongs before it.
 
-Slices 1 and 2 are the ones that decide whether the rest is cheap or expensive.
-Slice 0's staged proof is what makes that sentence more than a hope: if the
-Mechanics/Entities integration turns out to carry hidden costs, Slices 2–4 are
-integration projects, and this table should be re-priced rather than trusted.
-
-One optional step is not a slice of its own: after Slice 2's item loop works,
-run a bounded spike on dual-contoured *natural terrain presentation* under the
-existing canonical grid. Its mesh budget is a **pass/fail criterion**, not a
-note — this spike would produce the only voxel-session DC measurement the project
-has (§4.12) — and it is judged on how selection and block outlines read on a
-smooth surface. It answers the surface-mode decision with evidence instead of
-taste, and it must not delay Slice 3.
 
 ## 8. Keep, retire, refuse
 
@@ -952,128 +639,6 @@ downstream substitute for a missing Engine capability. Of the original G1–G8
 requests, only flowing fluids remains unimplemented; if flowing water or
 multiplayer matter, the request is upstream, not a workaround.
 
-## 9. Variant: exploration-first, construction-second
-
-**Status: not the chosen path.** §10 selected the cubic branch and deferred
-mesh-terrain mixing to future work, so this section is retained as the design
-record for that option — including its two staged gates — rather than as a plan.
-It becomes live again only if the cubic branch proves too constraining or if
-someone wants smooth terrain enough to pay for the gate.
-
-This section records a second, narrower concept raised after the main direction
-was written: an MC-ish prototype that **drops mining and large-scale world
-manipulation** as the centre of the game. The world is explored rather than mined
-away; natural terrain is smooth (DC-ish); the player still builds with blocky
-voxels, but as a minor, deliberately *rapid* verb — home bases rather than
-sculpture; and the fiddly high-detail end (iso volumes, microvoxels, authored
-meshes) is deferred to later content rather than being the construction model.
-
-**Why this is *potentially* less constrained than the main direction.** In this
-Engine the two halves are separate subsystems that share one session handle, and
-the structural shape for coexistence exists — but the coexistence itself is not
-demonstrated anywhere in this repository, so read this as a design opening with a
-gate, not a settled capability:
-
-- `SpatialProjectionReadout` reports `ResidentChunkCount`/`ColliderChunkCount`
-  *and* `StaticMeshRevision`/`StaticMeshAssetCount`/`StaticMeshInstanceCount`
-  under one `AuthorityHash` and `CollisionRevision` — the readout is shaped as if
-  a session composes voxel chunks and static-mesh collision rather than choosing
-  between them;
-- mesh collision has two entry points and they are not equivalent:
-  `ApplyCollisionResidency` is additive with an explicit add/remove lifecycle
-  (parallel in form to `VoxelResidencyTransaction`) but the product has **never
-  called it**; `ReplaceCollision`, which the Courtyard scene does use, replaces
-  the whole mesh set and reports only asset/instance counts. Whether
-  `ReplaceCollision` disturbs voxel colliders is the specific unknown;
-- the product passes the *same* `SpatialSession` to the Courtyard mesh scene that
-  it creates for the voxel world (`courtyard?.Start(Session)`), but the two scene
-  modes are used exclusively today: in courtyard mode `Synchronize` returns
-  immediately, overlay restore and voxel presentation are skipped, and no receipt
-  in the tree shows voxel and mesh counts nonzero at the same time.
-
-No doc or signature states that the two are mutually exclusive, so the opening is
-real; the evidence is suggestive, not proof. What follows is therefore a plan to
-test, not a claim that "smooth world, blocky bases" already works: terrain can be
-`Implicit`/DC meshes with copied collision while player construction is a
-canonical voxel session rendered with `GreedyCubes`, in one session and one
-character step — precisely the hybrid §4.12 describes as expressible, promoted
-from set pieces to the world itself. Gate (1) below is what turns that into fact.
-
-**The fork that decides everything: is the terrain editable?**
-
-- **Voxel terrain presented with `VoxelSurfaceMode.DualContouring`.** The world
-  stays the canonical grid, so it remains diggable and saveable exactly as §4.1
-  describes; `CollisionVoxelSize` can be lowered (0.5 m, 0.25 m) for a finer,
-  smoother read at a real cost in chunk count, memory, and remesh work. Mining is
-  de-emphasised by *game design*, not by capability.
-- **`Implicit`/SDF terrain with copied mesh collision.** True sculpted geometry
-  and the cheapest path to the look this repo has already spent months on
-  (stoneworks, volume-carved, sampled-volume, weathered, disrupted). It is **not
-  editable and not voxel-saveable at all**: digging into a cliff is impossible
-  without rasterizing SDF into material chunks, which is not an existing Engine
-  path (§4.12). Choosing this is choosing "the world is a set, not a material".
-
-Both are legitimate for this concept, but they cannot both be assumed. The first
-keeps every later door open at the cost of a lattice-bound surface; the second
-buys the best terrain *now* and makes "I want to dig here" an upstream request
-later.
-
-**What this variant changes in the requirement list.** Sections §4.1–§4.11 stay
-as the branch where the world is voxel material. For the exploration-first
-concept:
-
-- **Shrinks sharply**: ore distribution and progression, mining-speed and tool
-  gating tables, drop economy, and the "edit-heavy, cheap remesh" pressure on the
-  surface mode — §4.12's cost objection largely evaporates because edits become
-  rare and large. The edit-overlay budget (65,536 entries / 8 MiB) is *expected*
-  to be comfortable for bases rather than proven so: confirm it once bases have a
-  stated size.
-- **Moves to the centre**: generation richness (biomes, verticality, landmarks,
-  point-of-interest placement), streaming of *few large meshes* rather than many
-  small edits — so the budget question becomes view distance, memory, and load
-  latency instead of per-tick remesh — plus traversal, lighting and mood,
-  encounters, and discovery state (what you have found, and how the game
-  remembers it, is product state with no home in the current tree).
-- **Stays, with a different owner**: survival pressure (food, light, warmth,
-  danger) and the item loop become expedition supply rather than mining economy;
-  fast construction wants multi-block placement, and `VoxelEditTransaction`
-  already takes a list of edits, so blueprint-style stamping is a product policy
-  rather than a new mechanism.
-- **Navigation flips discipline**: for mixed mesh and voxel collision,
-  `ReplaceCollisionNavigation` (collision-derived, with `AgentRadius`,
-  `AgentHeight`, `MaximumSlopeDegrees`) is the fit, because mobs must path across
-  a mesh cliff and a voxel base in one world — the opposite of §4.12's
-  voxel-derived rule for a pure voxel world. Quality and cost of that projection
-  over large meshes is unverified and belongs in the same staged proof.
-
-**Two staged verifications gate this variant**, both small and both before any
-game code:
-
-1. **One session holding both collision sides.** Admit voxel chunks through
-   `ApplyResidency`, then mesh collision through *each* entry point —
-   `ApplyCollisionResidency` (never used by the product so far) and
-   `ReplaceCollision` (the one the Courtyard uses) — and read the projection with
-   both voxel and mesh counts nonzero. The specific unknown is whether
-   `ReplaceCollision` disturbs voxel colliders. Then: an accepted `ApplyEdits`
-   moves a voxel collider without disturbing mesh instances, a character step
-   crosses the seam between a mesh cliff and a voxel base, the `AuthorityHash`
-   stays coherent, and one frame presents *both* the voxel scene presentation and
-   the mesh appearance facts together, since no product path has ever activated
-   both channels at once.
-2. **Collision-derived navigation over that mix**, with acceptable walkable cell
-   counts, memory, and path quality (`ReplaceCollisionNavigation` with
-   `AgentRadius`, `AgentHeight`, `MaximumSlopeDegrees`).
-
-If (1) fails, the concept needs an upstream request rather than a workaround — do
-not split it into two sessions.
-
-**The honest trade.** This variant needs *less* Engine work than the full
-survival clone and reuses the strongest lane this repository already has (the
-DC/Implicit art studies, microvoxel props, authored set pieces). What it needs
-*more* of is game design: with mining gone, the reasons to explore, the shape of
-survival pressure, and what discovery means must come from somewhere else. That
-is a design cost, not an engineering one — which is exactly why a blocky
-construction prototype does not constrain it.
 
 ## 10. Chosen direction: adventurer RPG on a cubic world
 
@@ -1178,30 +743,4 @@ survival pressure becomes expedition supply; creatures and progression become th
 core rather than one slice among many; lighting becomes the most valuable
 upstream gap because dungeons and caves are the product's set pieces (#8607).
 
-## Appendix: primary evidence
 
-Paths marked `Modules/…` are relative to `src/CraftSurvive.Game/`.
-
-- Product constants and limits: `src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs`,
-  `Modules/Terrain/TerrainRecipe.cs` (column-based 2.5D generation),
-  `Modules/Terrain/TerrainResidencyPolicy.cs` (3×3/5×5 window, 64-chunk cap),
-  `Modules/Terrain/TerrainOverlayState.cs` (65,536-entry overlay).
-- Edit path: `Modules/Terrain/TerrainWorld.cs` (`TryEditFromView`, residency
-  synchronisation, overlay save/restore).
-- Player policy: `Modules/Player/PlayerConstants.cs` (120 Hz step, rebase at
-  1,024 m), `Modules/Player/PlayerController.cs`.
-- Product composition and lifecycle: `src/CraftSurvive.Game/CraftSurviveProduct.cs`.
-- Engine mechanism evidence: public SDK surface of `Rusty.Engine.dll` at the pair
-  installed when this record was written (`Rusty.Engine.Mechanics`, `.Entities`, `.StateMachine`,
-  `Navigation*`, `Perception*`, `Audio*`, `Animation*`, `Presentation*`,
-  `Persistence*`, `Application.*`, `IVoxelService`, and lights through
-  `IGraphicsService`/`LightDescriptor`).
-- Package guidance for interaction: `PACKAGE_README.md` in the installed SDK.
-- Current limits narrative: `docs/known-limitations.md`,
-  `docs/csharp-migration-map.md`, `docs/procedural-levels.md`,
-  `docs/voxel-foundation.md`.
-- Den ledger for `rusty-craftsurvive` (77 tasks: 66 done, 8 cancelled, 3
-  planned), notably #6853 (streaming/world acceptance), #6935 (block debris),
-  #6849 (controller adoption), #6844 and #7731 (edit latency, residency reuse),
-  #7659 (atlas and sky), #7491 (C# migration campaign that retired the prior
-  lane), and planned #7911/#7912/#7916 (procgen only).

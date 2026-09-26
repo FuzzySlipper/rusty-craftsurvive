@@ -14,7 +14,7 @@ primitives through the safe SDK. The small DOM companion is UI-only; it does
 not render game elements, retain game state, or implement a transport or loop.
 
 Combined level and voxel-art experiments are described in
-[Procedural cave levels](docs/procedural-levels.md). CraftSurvive is now the active
+The procedural cave levels. CraftSurvive is now the active
 home for the retained Rusty Procgen algorithms and offline artifact tool.
 
 The near-spawn [rope playground](docs/rope-playground.md) explores Engine-owned
@@ -99,7 +99,7 @@ location.
   collision for the default Stoneworks environment, Reference courtyard and
   Sampling plaques. The SDK's `Rusty.Engine.Implicit` vocabulary separates local frames,
   openings, layered materials and field composition from that runtime owner.
-  See [the recipe study](docs/stoneworks-recipes.md) for controls and evidence.
+  The recipe study that documented those controls is in Den (`history/stoneworks-recipes`).
 - `src/ui/main.ts` mounts DOM guidance, Ghost Settings, and live diagnostics beside the Engine-owned canvas.
 
 This is a runnable continuation lane, not a claim of complete survival
@@ -171,8 +171,8 @@ dotnet msbuild src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   -target:VerifyRustyEngineAot -property:Configuration=Release
 ```
 
-For the deferred owner-machine pacing investigation, see
-[the focused capture recipe](docs/performance-investigation.md).
+For the deferred owner-machine pacing investigation, the capture recipe is in Den
+(`history/performance-investigation`).
 
 ## Ghost Plate comparison
 
@@ -190,22 +190,6 @@ readout; background reads preserve unsaved input. Visibility, relief, direction,
 capture framing/lighting, placement, and size all use the packaged Engine debug
 client and existing `craft.ghost.*` commands.
 
-The runtime courtyard controls, treatment comparison, authoring variation and
-remaining limits are recorded in [the courtyard result](docs/courtyard-verdict.md).
-The newer [layered masonry test](docs/layered-masonry-test.md) compares separate
-bricks over mortar with the original and material-region constructions.
-The [mesh defect investigation](docs/implicit-mesh-defects.md) records the current
-Engine triangulation correction, before/after evidence, and remaining limits.
-The [material boundary comparison](docs/material-boundaries.md) documents the
-new Centroid/Interpolated controls and the plaster/moss sawtooth correction.
-
-The [fine stonework study](docs/fine-stonework.md) adds progressively smaller bricks and carved designs, with separate geometry and material sampling controls.
-The [stepped cave study](docs/stepped-cave.md) composes those techniques into a walkable chamber with layered columns, terraces, hanging tapers and contrasting incisions.
-
-The [volume-first cave study](docs/volume-carved-cave.md) starts with one solid
-enclosure and subtracts connected passages, chambers, and layered recesses.
-Use Courtyard → Carved volume and the Volume views to explore it.
-
-The [reusable voxel foundation](docs/voxel-foundation.md) moves shared recipes
-upstream, repairs escaped adaptive cell vertices, and adds **Sampled volume**
-as a comparison of the same cave through retained Engine density data.
+The runtime courtyard controls and treatment comparison stay in the product; the
+study records that documented them, and every other retired experiment, are kept in
+Den rather than here. See [docs/index.md](docs/index.md) for the map.

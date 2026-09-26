@@ -84,5 +84,5 @@ mechanisms, then stop and file an upstream task if a named capability is
 absent.
 
 See [`known-limitations.md`](known-limitations.md) for current behavioral
-limits and [`donor-provenance.md`](donor-provenance.md) for retained semantic
+limits and the Den record `history/donor-provenance` for retained semantic
 sources.

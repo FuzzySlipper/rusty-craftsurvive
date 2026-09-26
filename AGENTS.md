@@ -97,8 +97,16 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 
 ## Documentation status
 
-The current documentation set is rooted in the checked product and installed
-SDK pair. Start at `docs/csharp-migration-map.md` and
-`docs/known-limitations.md`. Historical experiments may be consulted as
-semantic evidence only; do not recreate a parallel runtime or archive copy in
-the working tree.
+- **Den holds state.** Tasks, campaign slices, decisions, board discussion, and
+  history live in Den project `rusty-craftsurvive`. If a repository document and
+  a task disagree, the task wins.
+- **The repository holds durable references only**: start at
+  [`docs/index.md`](docs/index.md), which maps the four live documents
+  (`survival-direction.md`, `csharp-migration-map.md`, `known-limitations.md`,
+  `live-proofs.md`) and the root `README.md`.
+- Do not record volatile state in a document: current Engine pair, run results,
+  task status, "the current X", or dated observations belong in Den, not in the
+  working tree.
+- Historical, provenance, and superseded material belongs in Den under
+  `history/` slugs. Retired experiments are semantic evidence only; do not
+  recreate a parallel runtime or an archive copy in the working tree.
