@@ -33,6 +33,9 @@ It runs once on the first update and prints an evidence block. Expected output:
 [proof] navigation replace: walkable cells=926 revision=1 hash=10117220357098119954 over world box (-8.00, 2.32, -4.00)..(24.00, 14.32, 28.00)
 [proof] navigation query: outcome=Reached kind=CollisionDerived cells=5 visited=23 revision=1 from cell (16, 4, 16)
 [proof] cleanup: cleared the proof cell, status Accepted
+[proof] residency preparation attempt 1: started for chunk (5, 0, 0), status Pending, resident chunks 18, source revision 5
+[proof] residency preparation: committed on attempt 1, resident chunks 18 -> 19
+[proof] residency preparation: a second preparation for chunk (6, 0, 0) cancelled cleanly
 [proof] entity projection validation: an entity without Transform was refused: Appearance entity 1 must be active with a Transform component.
 [proof] entity projection: publishing a standalone snapshot is refused while the product retains a ghost plate (...); projections require whole-snapshot ownership
 [proof] live substrate proof PASSED
@@ -60,6 +63,12 @@ What that establishes:
   derives 926 walkable cells from the same voxel authority collision uses, after
   which the same query answers `Reached` with a five-cell path. Query cells are
   relative to the published box, not world voxel coordinates.
+- **Background residency preparation works and is the streaming path.** A preparation
+  started for a chunk outside the product's own plan reported `Pending` without
+  blocking the frame, reached `Ready`, committed to `Committed`, and raised the
+  resident chunk count from 18 to 19; a second preparation cancelled cleanly. The
+  product composes the payload and the Engine builds the projection off the
+  admitted update path.
 - **Entity projection requires whole-snapshot ownership.** `EntityGraphicsProjection`
   replaces the complete appearance snapshot, and the Engine refuses a snapshot that
   drops a projected animation target or a ghost plate's source object. A product
@@ -95,6 +104,12 @@ leaves the world as it found it.
   the player's feet plus three voxels is a different cell from the one the player
   stands in, and a character step that starts inside a solid cell is rejected with
   `EngineCallException ... ProposeCharacterStep returned status 0`.
+- **A failed appearance-snapshot publish stops later updates.** When the Engine
+  refuses a snapshot, the runtime records a callback error and the product's update
+  loop does not continue: the proof's later stages never ran, with nothing printed
+  and no error line. Anything that must run after a snapshot publish belongs
+  *before* it, and a rejected snapshot should be treated as fatal to the session
+  rather than as a recoverable per-frame failure.
 - **One atlas per voxel scene.** A scene material whose surface resolves through a
   second atlas fails the directional projection (filed upstream as a robustness
   request). Every block material therefore needs a region in the scene's own

@@ -74,6 +74,9 @@ internal sealed class LiveSubstrateProof
     private const float MarkerGreen = 0.25f;
     private const float MarkerBlue = 0.35f;
     private const float MarkerAlpha = 1f;
+    private const int ResidencyDiagnosticFrames = 60;
+    private const int MaximumResidencyAttempts = 4;
+    private const long ResidencyTargetChunkOffset = 5L;
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
@@ -81,6 +84,10 @@ internal sealed class LiveSubstrateProof
     private readonly List<string> failures = [];
     private int stage;
     private bool completed;
+    private ulong preparation;
+    private bool reportedPending;
+    private int residencyAttempts;
+    private ulong residentBefore;
 
     internal LiveSubstrateProof(IEngineContext engine, TerrainWorld terrain, PlayerController player)
     {
@@ -104,33 +111,40 @@ internal sealed class LiveSubstrateProof
             return;
         }
 
-        // The product publishes its own appearance snapshot earlier in the frame,
-        // so the entity projection runs on a later frame rather than racing it.
-        if (stage++ == 0)
+        // The product publishes its own appearance snapshot earlier in the frame
+        // and keeps admitting residency, so later proofs run on later frames.
+        switch (stage++)
         {
-            try
-            {
-                RunWorldProofs();
-            }
-            catch (Exception exception)
-            {
-                Report($"FAILED without completing the world proofs: {exception.GetType().Name}: {exception.Message}");
-                completed = true;
-            }
+            case 0:
+                try
+                {
+                    RunWorldProofs();
+                }
+                catch (Exception exception)
+                {
+                    failures.Add($"the world proofs threw {exception.GetType().Name}: {exception.Message}");
+                }
 
-            return;
+                break;
+
+            default:
+                try
+                {
+                    AdvanceResidencyPreparation();
+                }
+                catch (Exception exception)
+                {
+                    failures.Add($"residency preparation threw {exception.GetType().Name}: {exception.Message}");
+                    Finish();
+                }
+
+                break;
         }
+    }
 
+    private void Finish()
+    {
         completed = true;
-        try
-        {
-            ProveEntityProjection();
-        }
-        catch (Exception exception)
-        {
-            failures.Add($"the entity projection threw {exception.GetType().Name}: {exception.Message}");
-        }
-
         ReportAll();
     }
 
@@ -508,6 +522,142 @@ internal sealed class LiveSubstrateProof
             dry.Movement.Immersion <= UnlitLuminanceTolerance,
             $"a character outside the water volume reports immersion {dry.Movement.Immersion}");
         Report($"swim step outside the volume: mode={dry.Movement.Mode} immersion={dry.Movement.Immersion:F3} headSubmerged={dry.Movement.HeadSubmerged}");
+    }
+
+    // ------------------------------------------------- background residency
+    /// <summary>
+    /// Proves the Engine-owned preparation path that S2's streaming depends on:
+    /// start a preparation off the update path, poll it without blocking, commit
+    /// it, and cancel a second one. The product re-applies residency while the
+    /// showcase fills, and a commit rechecks generations, so attempts are bounded
+    /// and a rejection is reported as the documented stale-candidate guard rather
+    /// than treated as a failure.
+    /// </summary>
+    private void AdvanceResidencyPreparation()
+    {
+        SpatialSession session = terrain.Session;
+        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
+
+        if (stage % ResidencyDiagnosticFrames == 0)
+        {
+            Report($"residency stage frame {stage}: source revision {scene.SourceRevision}, resident chunks {scene.ResidentChunkCount}");
+        }
+
+        if (preparation == 0UL)
+        {
+            if (residencyAttempts >= MaximumResidencyAttempts)
+            {
+                Report($"residency preparation: no committed preparation after {residencyAttempts} attempt(s)");
+                RunEntityProjectionStage();
+                Finish();
+                return;
+            }
+
+            TerrainChunkAddress target = DistantChunk(ResidencyTargetChunkOffset + residencyAttempts);
+            VoxelResidencyTransaction? transaction = terrain.PlanChunkAdmission(session, target);
+            if (transaction is null)
+            {
+                Report("residency preparation: skipped, this scene does not generate residency");
+                RunEntityProjectionStage();
+                Finish();
+                return;
+            }
+
+            residentBefore = scene.ResidentChunkCount;
+            VoxelPreparationReceipt started = engine.Voxel.StartResidencyPreparation(transaction.Value);
+            preparation = started.Preparation;
+            residencyAttempts++;
+            Require(
+                started.Status is VoxelPreparationStatus.Pending or VoxelPreparationStatus.Ready,
+                $"starting a preparation reported {started.Status}");
+            Report($"residency preparation attempt {residencyAttempts}: started for chunk {target}, status {started.Status}, resident chunks {residentBefore}, source revision {scene.SourceRevision}");
+            return;
+        }
+
+        VoxelPreparationRequest request = new(session, preparation);
+        VoxelPreparationReceipt polled = engine.Voxel.PollResidencyPreparation(request);
+        switch (polled.Status)
+        {
+            case VoxelPreparationStatus.Pending:
+                if (!reportedPending)
+                {
+                    reportedPending = true;
+                    Report("residency preparation: polled while pending, without blocking the frame");
+                }
+
+                return;
+
+            case VoxelPreparationStatus.Ready:
+            {
+                VoxelPreparationReceipt committed = engine.Voxel.CommitResidencyPreparation(request);
+                if (committed.Status != VoxelPreparationStatus.Committed)
+                {
+                    Report($"residency preparation attempt {residencyAttempts}: commit reported {committed.Status}, so this candidate was rejected as stale");
+                    preparation = 0UL;
+                    reportedPending = false;
+                    return;
+                }
+
+                VoxelSceneReadout after = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
+                Require(
+                    after.ResidentChunkCount > residentBefore,
+                    $"a committed preparation left {after.ResidentChunkCount} resident chunks, was {residentBefore}");
+                Report($"residency preparation: committed on attempt {residencyAttempts}, resident chunks {residentBefore} -> {after.ResidentChunkCount}");
+                ProveCancellation(session);
+                RunEntityProjectionStage();
+                Finish();
+                return;
+            }
+
+            default:
+                Report($"residency preparation attempt {residencyAttempts}: poll reported {polled.Status}, so this candidate was dropped");
+                preparation = 0UL;
+                reportedPending = false;
+                return;
+        }
+    }
+
+    private void RunEntityProjectionStage()
+    {
+        try
+        {
+            ProveEntityProjection();
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the entity projection threw {exception.GetType().Name}: {exception.Message}");
+        }
+    }
+
+    private void ProveCancellation(SpatialSession session)
+    {
+        TerrainChunkAddress target = DistantChunk(ResidencyTargetChunkOffset + 1L);
+        VoxelResidencyTransaction? transaction = terrain.PlanChunkAdmission(session, target);
+        if (transaction is null)
+        {
+            return;
+        }
+
+        VoxelPreparationReceipt started = engine.Voxel.StartResidencyPreparation(transaction.Value);
+        Require(
+            started.Status is VoxelPreparationStatus.Pending or VoxelPreparationStatus.Ready,
+            $"starting the cancellation probe reported {started.Status}");
+        VoxelPreparationReceipt cancelled = engine.Voxel.CancelResidencyPreparation(
+            new VoxelPreparationRequest(session, started.Preparation));
+        Require(
+            cancelled.Status == VoxelPreparationStatus.Cancelled,
+            $"cancelling a preparation reported {cancelled.Status}");
+        Report($"residency preparation: a second preparation for chunk {target} cancelled cleanly");
+    }
+
+    private TerrainChunkAddress DistantChunk(long offset)
+    {
+        Vector3 position = player.WorldPosition;
+        long edge = TerrainConstants.ChunkEdgeLength;
+        return new TerrainChunkAddress(
+            (long)Math.Floor(position.X / edge) + offset,
+            (long)Math.Floor(position.Y / edge),
+            (long)Math.Floor(position.Z / edge));
     }
 
     // --------------------------------------------------------------- utilities

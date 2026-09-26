@@ -319,6 +319,32 @@ internal sealed class TerrainWorld : IDisposable
 
     private PersistenceStore PersistenceStore => persistenceStore ?? throw new InvalidOperationException("Terrain persistence store is unavailable.");
 
+    /// <summary>
+    /// Builds the admission the residency policy would apply for one chunk,
+    /// without applying it. This is the staged background-preparation proof's
+    /// entry point: the product composes and owns the payload, and the Engine
+    /// builds the projection off the admitted update path. Returns null in
+    /// courtyard mode, where residency is authored rather than generated.
+    /// </summary>
+    internal VoxelResidencyTransaction? PlanChunkAdmission(SpatialSession session, TerrainChunkAddress address)
+    {
+        if (courtyard is not null)
+        {
+            return null;
+        }
+
+        TerrainResidencyPlan plan = residencyPolicy.PlanFor(address, overlay);
+        List<VoxelResidencyOperation> operations = [];
+        List<uint> materialSlots = [];
+        AddChunkAdmission(plan.Chunk(address), operations, materialSlots);
+        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
+        return new VoxelResidencyTransaction(
+            session,
+            scene.SourceRevision,
+            VoxelResidencyHistoryPolicy.ResetToPublishedAuthority,
+            operations.ToArray(),
+            materialSlots.ToArray());
+    }
     private UiStream UiStream => uiStream ?? throw new InvalidOperationException("Terrain UI stream is unavailable.");
 
     private bool Synchronize(TerrainChunkAddress center)
