@@ -110,18 +110,19 @@ bounded product surface.
 ## Scenes and the authoring lane
 
 The boot scene is chosen in exactly one place, `TerrainSceneSelection.Default`
-in `Modules/Terrain/TerrainConfiguration.cs`. It is the courtyard study today;
-S2 of campaign #8595 flips it to the adventurer's generated cubic world, and no
-other file changes when that happens.
+in `Modules/Terrain/TerrainConfiguration.cs`: the adventurer's generated cubic
+world, which became the default in S2 of campaign #8595. It has the settled block
+floor, water bodies, surface features, an authored bedrock border, and the finite
+extent of about 105 km2 (10,240 voxels per side).
 
 Every other scene is reached explicitly with `CRAFTSURVIVE_SCENE`:
 
 - `courtyard` — the authored Stoneworks/Reference study. This is the authoring
   lane's scene: fixed geometry for evaluating materials, masonry, plaza and
   stair work.
-- `traversal` — the generated cubic world. It is a development and proof target
-  for generation, residency, edits and the live proofs in
-  [live-proofs.md](docs/live-proofs.md), not the shipping world.
+- `traversal` — the generated cubic world, which is also the default. It is the
+  target for generation, residency, edits and the live proofs in
+  [live-proofs.md](docs/live-proofs.md).
 
 The authoring lane is exercised by one documented flow — the study scene plus the
 focused lanes that cover its recipe and artifacts:

@@ -22,11 +22,13 @@ internal static class TerrainSceneSelection
     internal const string EnvironmentVariable = "CRAFTSURVIVE_SCENE";
 
     /// <summary>
-    /// The boot scene. The courtyard remains the default until S2 lands the world
-    /// it switches to, because the traversal showcase is no longer the developer
-    /// target and the adventurer world does not exist yet.
+    /// The boot scene: the adventurer's generated cubic world. It became the
+    /// default in S2 of campaign #8595, once that world had the block floor, water,
+    /// surface features, an authored border and the settled finite extent. The
+    /// courtyard studies are reached explicitly with `CRAFTSURVIVE_SCENE=courtyard`
+    /// and remain the authoring lane.
     /// </summary>
-    internal const TerrainSceneMode Default = TerrainSceneMode.ExperimentalCourtyard;
+    internal const TerrainSceneMode Default = TerrainSceneMode.TraversalShowcase;
 
     /// <summary>
     /// Explicit selection, used by the authoring lane and by proofs. Values are
