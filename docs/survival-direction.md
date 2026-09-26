@@ -163,7 +163,7 @@ measurement.
 **Threading is not a product decision.** The default design is step-budgeted
 generation on the product update thread: generate at most N chunk payloads per
 tick within the residency budget. **This was written while G5 was missing and is
-now superseded**: the affinity contract landed at pair `c30c1ef18861`, so the
+now superseded**: the affinity contract landed at pair `afbe891e1d34`, so the
 product may overlap projection building through Engine-owned
 `Voxel.StartResidencyPreparation` / `PollResidencyPreparation` /
 `CommitResidencyPreparation`, and may run pure generation on product-owned
@@ -670,7 +670,7 @@ like water, the flags exist at two layers: `AuthoredMaterialInput` separates
 `Solid`, `Collidable`, and `Occludes`, the authored voxel-surface input carries
 an alpha mode (`Opaque`/`Mask`/`Blend`) with `AlphaCutoff`, and voxel slots bind
 to a render material — the layer where `DoubleSided` lives. For **behaving** like
-water, pair `c30c1ef18861` made swimming first-class: the product selects the
+water, pair `afbe891e1d34` made swimming first-class: the product selects the
 swim mode on `CharacterControllerCommand.Movement`, supplies the water volume as
 an environmental AABB with buoyancy and drag, and reads immersion and
 `HeadSubmerged` back from `CharacterStepReceipt.Movement`. The Engine owns the

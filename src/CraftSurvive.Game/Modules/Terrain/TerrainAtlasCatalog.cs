@@ -28,12 +28,12 @@ internal sealed class TerrainAtlasCatalog : IDisposable
     private const int FixedEntryCount = 2;
 
     /// <summary>
-    /// Authored materials the directional voxel projection accepts per scene. A
-    /// scene that binds a fifth material fails inside the Engine with a bare status
-    /// and takes the worker down, so the product refuses it here with a message
-    /// that names the limit instead.
+    /// Authored materials the directional voxel projection accepts per scene, raised
+    /// from three base bindings by `rusty-engine` #8667. The product still refuses
+    /// an over-capacity binding here, with a message that names the limit, because
+    /// exceeding it fails inside the Engine with a bare status.
     /// </summary>
-    private const int MaximumMaterials = 4;
+    private const int MaximumMaterials = 16;
 
     private readonly AuthoredCatalog catalog;
     private readonly TerrainAtlasLayout layout;

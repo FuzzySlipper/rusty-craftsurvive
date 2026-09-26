@@ -5,6 +5,6 @@
          all read this value, so bumping the pair cannot leave one of them behind.
          Update it together with the runtime pack under
          .runtime/pair-<revision>/ as AGENTS.md requires. -->
-    <RustyEngineSdkPackageVersion>0.1.0-dev.c30c1ef18861</RustyEngineSdkPackageVersion>
+    <RustyEngineSdkPackageVersion>0.1.0-dev.afbe891e1d34</RustyEngineSdkPackageVersion>
   </PropertyGroup>
 </Project>

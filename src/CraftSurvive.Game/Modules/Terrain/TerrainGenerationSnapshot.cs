@@ -11,12 +11,12 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// </summary>
 internal static class TerrainGenerationSnapshot
 {
-    private const long MinimumX = -2;
+    private const long MinimumX = -3;
     private const long MaximumX = 2;
-    private const long MinimumZ = -2;
+    private const long MinimumZ = -3;
     private const long MaximumZ = 2;
-    private const long MinimumY = 2;
-    private const long MaximumY = 6;
+    private const long MinimumY = -1;
+    private const long MaximumY = 1;
 
     internal static string Hash(TerrainRecipe recipe)
     {

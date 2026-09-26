@@ -23,10 +23,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
 {
     /// <summary>
     /// The current generation version. Version 2 was the pre-registry height field
-    /// with hand-placed landmarks; version 3 is that field plus surface features
-    /// drawn from the Engine's keyed RNG.
+    /// with hand-placed landmarks; version 3 added surface features drawn from the
+    /// Engine's keyed RNG; version 4 is the first version that places them.
     /// </summary>
-    internal const uint CurrentVersion = 3;
+    internal const uint CurrentVersion = 4;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
@@ -52,9 +52,23 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
         return draws.Draw($"{GenerationScope}.{purpose}", key, MixVersion(Seed), minimum, maximum);
     }
 
-    /// <summary>A one-in-N draw, the shape most feature placement needs.</summary>
-    internal bool DrawUnit(ITerrainDraws draws, string purpose, string key, long oneIn) =>
-        DrawLong(draws, purpose, key, 0, oneIn - 1) == 0;
+    /// <summary>
+    /// A one-in-N draw, the shape most feature placement needs. It compares against
+    /// a fraction of a wide range rather than testing a narrow draw for an exact
+    /// value: a narrow modulo is only as uniform as the low bits of whatever
+    /// implements the port, and a biased draw here reads as "this feature is never
+    /// placed", which is exactly how it presented the first time.
+    /// </summary>
+    internal bool DrawUnit(ITerrainDraws draws, string purpose, string key, long oneIn)
+    {
+        if (oneIn < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(oneIn), oneIn, "A one-in-N draw needs N of at least one.");
+        }
+
+        const long Scale = 1_000_000;
+        return DrawLong(draws, purpose, key, 0, Scale - 1) < Scale / oneIn;
+    }
 
     private ulong MixVersion(ulong seed) => seed ^ (Version * 0x9e3779b97f4a7c15UL);
 }

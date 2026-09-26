@@ -95,18 +95,14 @@ internal static class BlockRegistry
         Definitions.Where(definition => !definition.IsAir);
 
     /// <summary>
-    /// Blocks whose materials can actually be bound to a voxel scene today.
-    /// Engine accepts four authored materials per scene in the directional voxel
-    /// projection, and grass alone needs two (side and top), so the bindable set is
-    /// grass, dirt and stone.
-    ///
-    /// The rest of the floor above is declared and its tiles are authored; nothing
-    /// about the world model waits on this. Binding them is the one-line change
-    /// that the capacity request in `rusty-engine` unblocks, which is why the
-    /// subset is named here rather than the registry being trimmed to fit.
+    /// Blocks whose materials are bound to a voxel scene. The Engine admits
+    /// sixteen authored materials per scene (it bound three before the capacity fix
+    /// in `rusty-engine` #8667), and this floor needs exactly sixteen: fifteen
+    /// blocks plus grass's top face. This is therefore the whole registry, and a
+    /// sixteenth *block* would need the Engine capacity raised again - which is why
+    /// the floor is the settled twelve-to-sixteen rather than open-ended.
     /// </summary>
-    internal static IEnumerable<BlockDefinition> BoundBlocks =>
-        Definitions.Where(definition => definition.Id is BlockId.Grass or BlockId.Dirt or BlockId.Stone);
+    internal static IEnumerable<BlockDefinition> BoundBlocks => MaterialBlocks;
 
     internal static ushort MaximumSlot => (ushort)(Definitions.Length - 1);
 

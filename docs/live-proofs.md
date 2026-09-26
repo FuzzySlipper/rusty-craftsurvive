@@ -14,8 +14,8 @@ priced on actually work here:
 
 ```sh
 CRAFTSURVIVE_SCENE=traversal CRAFTSURVIVE_PROOF=substrate \
-  ./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-c30c1ef18861/runtime-pack \
+  ./.runtime/pair-afbe891e1d34/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-afbe891e1d34/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --bind-host 127.0.0.1 --port 37321
 ```
@@ -140,8 +140,8 @@ The lane itself is verified up to session allocation. `playtest games` lists
 
 ```sh
 # 1. serve the world on the lane's declared port
-CRAFTSURVIVE_SCENE=traversal ./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-c30c1ef18861/runtime-pack \
+CRAFTSURVIVE_SCENE=traversal ./.runtime/pair-afbe891e1d34/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-afbe891e1d34/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --bind-host 0.0.0.0 --port 37300
 

@@ -29,9 +29,11 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
             BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)), chunk.Materials.Span[i]);
         hash.AppendData(bytes);
     }
+    // Moved deliberately at generation version 4, the first version that places
+    // surface features: trees stand in the ground band these snapshots cover.
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "1816B4ADFD0EEE867A3775833CE2E4A2256496510BD5B6669C5B0059ED9BCD8C"
-        : "72DB0885AE75644CC272203AC667380B8BC159B13276526F77711CF1B0579827";
+        ? "2E27EEA73F7655939DF17B0E4C252FFFB8CBC170B7106645F9FBEF2C152AB5C5"
+        : "BB9780295CC26830DFA40B59577FA7B3F9084B26BD77A5DE04503EA47EAE06B5";
     Require(Convert.ToHexString(hash.GetHashAndReset()) == expected, "authored material snapshot changed");
 }
 
@@ -73,15 +75,29 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     TerrainConfiguration config = TerrainConfiguration.TraversalShowcase;
     var generator = new TerrainChunkGenerator(config.CreateRecipe(new TestDraws(config.Seed)));
     var overlay = new TerrainOverlayState(config.Seed);
+    long featureVoxels = 0;
     using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     byte[] bytes = new byte[TerrainConstants.ChunkVolume * sizeof(ushort)];
-    for (long x = -2; x <= 2; x++)
-    for (long z = -2; z <= 2; z++)
-    for (long y = 2; y <= 6; y++)
+    // A 64x64 column window, so the snapshot contains whole anchor cells and the
+    // trees they own: a smaller box can legitimately hold no tree at all.
+    // The whole 96x96 world in x/z: 144 anchor cells at one tree in twenty-four
+    // is about six trees, so a deterministic zero here means placement broke
+    // rather than that the sample was unlucky.
+    for (long x = -3; x <= 2; x++)
+    for (long z = -3; z <= 2; z++)
+    // Chunk coordinates: y -1..1 is world y -16..31, the band the ground and its
+    // features actually occupy.
+    for (long y = -1; y <= 1; y++)
     {
         TerrainChunk chunk = generator.Generate(new(x, y, z), overlay.Snapshot());
         for (int i = 0; i < chunk.Materials.Length; i++)
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)), chunk.Materials.Span[i]);
+        {
+            ushort material = chunk.Materials.Span[i];
+            if (material == (ushort)BlockId.Log || material == (ushort)BlockId.Leaves)
+                featureVoxels++;
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)), material);
+        }
+
         hash.AppendData(bytes);
     }
 
@@ -89,8 +105,10 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // Pinned against the managed draw port; the live lane prints the same snapshot
     // through the Engine's keyed RNG. The two agree today because no feature voxel
     // is placed yet, so both hash the field - the contract is what they pin.
-    const string ExpectedFeatureHash = "7B331C02E313C7599D5A90212E17E6D3CB729BD2E1C9B873C302A63C95A2F9BF";
-    Console.WriteLine($"Terrain surface features are deterministic: {featureHash}");
+
+    const string ExpectedFeatureHash = "B23DE176C79233DBC5F0F6AB4F85C6C3BF73A69DB4B5E919637DA8C28469E544";
+    Console.WriteLine($"Terrain surface features placed and deterministic: {featureVoxels} voxels, {featureHash}");
+    Require(featureVoxels > 0, "the surface feature pass placed no feature voxel");
     Require(featureHash == ExpectedFeatureHash, "surface feature snapshot changed");
 }
 
