@@ -36,6 +36,8 @@ It runs once on the first update and prints an evidence block. Expected output:
 [proof] residency preparation attempt 1: started for chunk (5, 0, 0), status Pending, resident chunks 18, source revision 5
 [proof] residency preparation: committed on attempt 1, resident chunks 18 -> 19
 [proof] residency preparation: a second preparation for chunk (6, 0, 0) cancelled cleanly
+[proof] dimension: second session built with its own residency, resident chunks 1, solid voxels 512, authority 6183767077223527439
+[proof] dimension: the first world still reports 19 resident chunks after the second session was disposed
 [proof] entity projection validation: an entity without Transform was refused: Appearance entity 1 must be active with a Transform component.
 [proof] entity projection: publishing a standalone snapshot is refused while the product retains a ghost plate (...); projections require whole-snapshot ownership
 [proof] live substrate proof PASSED
@@ -69,6 +71,12 @@ What that establishes:
   resident chunk count from 18 to 19; a second preparation cancelled cleanly. The
   product composes the payload and the Engine builds the projection off the
   admitted update path.
+- **Dimensions are product-owned and need no runtime restart.** A second
+  `SpatialSession` was created inside the running product with its own
+  configuration and residency (one chunk, 512 solid voxels, its own authority
+  hash), read back through the ordinary voxel API, and disposed — after which the
+  first world still reported its 19 resident chunks. S8's authored dungeons
+  therefore need a load boundary and authored content, not a new Engine mechanism.
 - **Entity projection requires whole-snapshot ownership.** `EntityGraphicsProjection`
   replaces the complete appearance snapshot, and the Engine refuses a snapshot that
   drops a projected animation target or a ghost plate's source object. A product

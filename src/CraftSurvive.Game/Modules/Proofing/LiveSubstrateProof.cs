@@ -76,6 +76,8 @@ internal sealed class LiveSubstrateProof
     private const float MarkerAlpha = 1f;
     private const int ResidencyDiagnosticFrames = 60;
     private const int MaximumResidencyAttempts = 4;
+    private const uint DungeonChunkSize = 8U;
+    private const int DungeonProbeVoxel = 3;
     private const long ResidencyTargetChunkOffset = 5L;
 
     private readonly IEngineContext engine;
@@ -548,8 +550,7 @@ internal sealed class LiveSubstrateProof
             if (residencyAttempts >= MaximumResidencyAttempts)
             {
                 Report($"residency preparation: no committed preparation after {residencyAttempts} attempt(s)");
-                RunEntityProjectionStage();
-                Finish();
+                FinishProof(session);
                 return;
             }
 
@@ -558,8 +559,7 @@ internal sealed class LiveSubstrateProof
             if (transaction is null)
             {
                 Report("residency preparation: skipped, this scene does not generate residency");
-                RunEntityProjectionStage();
-                Finish();
+                FinishProof(session);
                 return;
             }
 
@@ -604,8 +604,7 @@ internal sealed class LiveSubstrateProof
                     $"a committed preparation left {after.ResidentChunkCount} resident chunks, was {residentBefore}");
                 Report($"residency preparation: committed on attempt {residencyAttempts}, resident chunks {residentBefore} -> {after.ResidentChunkCount}");
                 ProveCancellation(session);
-                RunEntityProjectionStage();
-                Finish();
+                FinishProof(session);
                 return;
             }
 
@@ -615,6 +614,21 @@ internal sealed class LiveSubstrateProof
                 reportedPending = false;
                 return;
         }
+    }
+
+    private void FinishProof(SpatialSession session)
+    {
+        try
+        {
+            ProveDimensionLoad(session);
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the dimension load threw {exception.GetType().Name}: {exception.Message}");
+        }
+
+        RunEntityProjectionStage();
+        Finish();
     }
 
     private void RunEntityProjectionStage()
@@ -658,6 +672,66 @@ internal sealed class LiveSubstrateProof
             (long)Math.Floor(position.X / edge) + offset,
             (long)Math.Floor(position.Y / edge),
             (long)Math.Floor(position.Z / edge));
+    }
+
+    // --------------------------------------------------------- dimension load
+    /// <summary>
+    /// Proves the mechanism a "dimension" needs: a second world can be built and
+    /// torn down inside the same runtime, with its own session and residency,
+    /// without restarting the product or disturbing the world already loaded.
+    /// S8's authored dungeons depend on this being product-owned.
+    /// </summary>
+    private void ProveDimensionLoad(SpatialSession primary)
+    {
+        SpatialSession? dungeon = null;
+        try
+        {
+            dungeon = engine.Spatial.CreateSession(new SpatialSessionConfig(
+                TerrainConstants.VoxelSize,
+                DungeonChunkSize,
+                VoxelSurfaceMode.GreedyCubes));
+            uint[] slots = new uint[DungeonChunkSize * DungeonChunkSize * DungeonChunkSize];
+            Array.Fill(slots, (uint)TerrainConstants.StoneMaterial);
+
+            VoxelResidencyReceipt admitted = engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(
+                dungeon,
+                0UL,
+                VoxelResidencyHistoryPolicy.RejectIfNonEmpty,
+                new VoxelResidencyOperation[]
+                {
+                    new(
+                        VoxelResidencyOperationKind.Admit,
+                        new VoxelChunkIdentity(0L, 0L, 0L),
+                        0UL,
+                        0U,
+                        (uint)slots.Length),
+                },
+                slots));
+            Require(
+                admitted.AdmittedCount == 1U,
+                $"a second session admitted {admitted.AdmittedCount} chunk(s), expected 1");
+
+            VoxelReadout cell = engine.Voxel.Read(new VoxelReadRequest(
+                dungeon,
+                new EngineVoxelAddress(DungeonProbeVoxel, DungeonProbeVoxel, DungeonProbeVoxel)));
+            Require(cell.Present, "the second session does not read its own admitted voxel");
+            Require(
+                cell.MaterialSlot == TerrainConstants.StoneMaterial,
+                $"the second session reads material {cell.MaterialSlot}, expected {TerrainConstants.StoneMaterial}");
+
+            VoxelSceneReadout dungeonScene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(dungeon));
+            Report($"dimension: second session built with its own residency, resident chunks {dungeonScene.ResidentChunkCount}, solid voxels {admitted.ResidentSolidVoxelCount}, authority {admitted.AuthorityHash}");
+        }
+        finally
+        {
+            dungeon?.Dispose();
+        }
+
+        VoxelSceneReadout after = engine.Voxel.ReadScene(new VoxelSceneReadRequest(primary));
+        Require(
+            after.ResidentChunkCount > 0UL,
+            "the first world lost its residency while a second session was built and disposed");
+        Report($"dimension: the first world still reports {after.ResidentChunkCount} resident chunks after the second session was disposed");
     }
 
     // --------------------------------------------------------------- utilities
