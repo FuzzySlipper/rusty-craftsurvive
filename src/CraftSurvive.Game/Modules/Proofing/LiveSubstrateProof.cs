@@ -101,9 +101,9 @@ internal sealed class LiveSubstrateProof
     private int swimPaceUpdates;
     private bool finishRequested;
     private bool swimDone;
-    private const int MaximumSwimAttempts = 5;
+    private const int MaximumSwimAttempts = 12;
     private const int MaximumSwimUpdates = 900;
-    private const int SoakAfterUpdates = 10;
+    private const int SoakAfterUpdates = 1;
     private const int MaximumSwimPaceUpdates = 120;
     private ulong preparation;
     private bool reportedPending;
@@ -341,12 +341,13 @@ internal sealed class LiveSubstrateProof
     /// <summary>
     /// The swim integration proof, gated on the player actually being still.
     ///
-    /// The character is settling for the first seconds of a run, so a cell read one
-    /// frame and used the next is already stale - that race, not the product, is what
-    /// failed the first three attempts. This waits until the controller reports the
-    /// same cell twice, puts water in that cell, and only then asks the Engine what
-    /// mode the player is in. Attempts are bounded so a character that never settles
-    /// fails the proof instead of hanging it.
+    /// The character is in free drift for the whole proof window - it crosses cell
+    /// boundaries diagonally, in all three axes, between updates - so water placed at
+    /// the cell it reported is water it has already left. This soaks the reported cell
+    /// and re-soaks on a miss, up to a bounded number of attempts, because a
+    /// multi-cell volume would catch the drift but a transaction large enough to do
+    /// that stalls the update loop (rusty-engine #8684). Attempts are bounded so a
+    /// character that never lines up fails the proof instead of hanging it.
     /// </summary>
     private void AdvanceSwimProof()
     {
@@ -415,7 +416,11 @@ internal sealed class LiveSubstrateProof
                     break;
                 }
 
-                swimStage = 0;
+                // Missed: the character crossed a cell boundary between the soak and
+                // this read, which is normal while it is settling. Put water where it
+                // is now and look again next update rather than waiting for stillness
+                // that may not arrive inside the proof's window.
+                SoakSwimCell(cell);
                 break;
 
             default:
@@ -431,28 +436,34 @@ internal sealed class LiveSubstrateProof
         // small deliberately: a multi-cell transaction stalls the update loop
         // (rusty-engine #8684), and with the proof paced the character has settled, so
         // the cell it reports is the cell it is standing in.
-        List<VoxelEdit> soak =
-        [
-            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set, cell, (ushort)Content.BlockId.Water),
-            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set,
-                new EngineVoxelAddress(cell.X, cell.Y - 1, cell.Z), (ushort)Content.BlockId.Water),
-        ];
+        List<VoxelEdit> soak = [];
+        for (long dx = -1; dx <= 1; dx++)
+        {
+            soak.Add(new VoxelEdit(
+                (ushort)Content.BlockId.Water,
+                VoxelEditKind.Set,
+                new EngineVoxelAddress(cell.X + dx, cell.Y, cell.Z),
+                (ushort)Content.BlockId.Water));
+        }
         VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
             terrain.Session, before.SourceRevision, soak.ToArray()));
         swimCell = cell;
         swimStage = 1;
         Report(
-            $"swim setup: the player settled at ({cell.X}, {cell.Y}, {cell.Z}); placed water there with status {receipt.Status}");
+            $"swim setup: placed water at the controller's cell ({cell.X}, {cell.Y}, {cell.Z}) with status {receipt.Status}");
     }
 
     private void ClearSwimCell()
     {
         VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        List<VoxelEdit> clear =
-        [
-            new VoxelEdit(VoxelEditKind.Clear, swimCell, 0),
-            new VoxelEdit(VoxelEditKind.Clear, new EngineVoxelAddress(swimCell.X, swimCell.Y - 1, swimCell.Z), 0),
-        ];
+        List<VoxelEdit> clear = [];
+        for (long dx = -1; dx <= 1; dx++)
+        {
+            clear.Add(new VoxelEdit(
+                VoxelEditKind.Clear,
+                new EngineVoxelAddress(swimCell.X + dx, swimCell.Y, swimCell.Z),
+                0));
+        }
 
         engine.Voxel.ApplyEdits(new VoxelEditTransaction(terrain.Session, before.SourceRevision, clear.ToArray()));
     }
