@@ -101,8 +101,10 @@ internal sealed class LiveSubstrateProof
     private int swimPaceUpdates;
     private bool finishRequested;
     private bool swimDone;
-    private const int MaximumSwimAttempts = 30;
+    private const int MaximumSwimAttempts = 300;
     private const int WaterSearchRadius = 40;
+    private const float SwimDropHeight = 1.4f;
+    private const int ReportedSwimAttempts = 20;
     private const int MaximumSwimUpdates = 900;
     private const int MaximumSwimPaceUpdates = 120;
     private ulong preparation;
@@ -146,6 +148,37 @@ internal sealed class LiveSubstrateProof
                 catch (Exception exception)
                 {
                     failures.Add($"the world proofs threw {exception.GetType().Name}: {exception.Message}");
+                }
+
+                break;
+
+            case 1:
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+            case 9:
+            case 10:
+            case 11:
+            case 12:
+            case 13:
+            case 14:
+            case 15:
+            case 16:
+                // Consecutive updates, before the residency flow claims this branch and
+                // slows each one down: the swim sequence needs a handful of quick frames
+                // to teleport, land and be read.
+                try
+                {
+                    AdvanceSwimProof();
+                }
+                catch (Exception exception)
+                {
+                    failures.Add($"the swim proof threw {exception.GetType().Name}: {exception.Message}");
+                    swimDone = true;
                 }
 
                 break;
@@ -374,7 +407,10 @@ internal sealed class LiveSubstrateProof
                 return;
             }
 
-            player.Teleport(surfaceX + 0.5, TerrainConstants.WaterLevel + 1.5, surfaceZ + 0.5);
+            // Dropped so the *feet* cell is the water layer: the product reads the voxel
+            // at the controller's own Y, and a body standing on the bottom of a
+            // one-layer lake would have its feet in the ground, not in the water.
+            player.Teleport(surfaceX + 0.5, TerrainConstants.WaterLevel + SwimDropHeight, surfaceZ + 0.5);
             Report(
                 $"swim setup: teleported the player into generated water at ({surfaceX}, {surfaceZ}) " +
                 $"where the ground is at y={surfaceY} and the water level is {TerrainConstants.WaterLevel}");
@@ -383,9 +419,19 @@ internal sealed class LiveSubstrateProof
         }
 
         if (!player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
-            || !player.LastWaterCheck.Contains($"slot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal))
+            || !(player.LastWaterCheck.Contains($"feetSlot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal)
+                || player.LastWaterCheck.Contains("eyesWater=True", StringComparison.Ordinal)))
         {
-            if (++swimAttempts >= MaximumSwimAttempts)
+            // Report every attempt, not just the verdict: a recorded failure that the
+            // proof never gets to print tells the next reader nothing about what the
+            // product actually saw after the teleport.
+            swimAttempts++;
+            if (swimAttempts <= ReportedSwimAttempts)
+            {
+                Report($"swim attempt {swimAttempts}: {player.LastWaterCheck}");
+            }
+
+            if (swimAttempts >= MaximumSwimAttempts)
             {
                 failures.Add(
                     $"the product's water check never saw generated water after {swimAttempts} updates " +

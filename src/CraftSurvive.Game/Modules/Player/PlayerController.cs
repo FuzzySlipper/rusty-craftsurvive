@@ -145,16 +145,35 @@ internal sealed class PlayerController : IDisposable
     private bool TryWaterMovement(Vector3 playerLocal, out CharacterMovementRequest movement)
     {
         movement = default;
+        // The cell the player *stands* in, not the cell their eye is in. Checking the
+        // eye cell meant waist-deep water never triggered a swim: the product asked
+        // about the cell its head was in, which is air above the surface. The eye cell
+        // is still checked as a fallback, so a player whose head is under water swims
+        // as well as one standing in it.
+        long feetY = (long)Math.Floor(playerLocal.Y - EyeOffset(motion.Stance));
         Rusty.Engine.VoxelAddress feet = new(
+            (long)Math.Floor(playerLocal.X),
+            feetY,
+            (long)Math.Floor(playerLocal.Z));
+        Rusty.Engine.VoxelAddress eyes = new(
             (long)Math.Floor(playerLocal.X),
             (long)Math.Floor(playerLocal.Y),
             (long)Math.Floor(playerLocal.Z));
         lastWaterCell = feet;
-        VoxelReadout read = engine.Voxel.Read(new VoxelReadRequest(terrain.Session, feet));
+        VoxelReadout feetRead = engine.Voxel.Read(new VoxelReadRequest(terrain.Session, feet));
+        bool feetWater = feetRead.Present && feetRead.MaterialSlot == (ushort)Content.BlockId.Water;
+        bool eyesWater = false;
+        if (!feetWater)
+        {
+            VoxelReadout eyesRead = engine.Voxel.Read(new VoxelReadRequest(terrain.Session, eyes));
+            eyesWater = eyesRead.Present && eyesRead.MaterialSlot == (ushort)Content.BlockId.Water;
+        }
+
         waterCheck = string.Create(
             CultureInfo.InvariantCulture,
-            $"cell=({feet.X},{feet.Y},{feet.Z});present={read.Present};slot={read.MaterialSlot};water={(ushort)Content.BlockId.Water};from={Format(playerLocal)}");
-        if (!read.Present || read.MaterialSlot != (ushort)Content.BlockId.Water)
+            $"feet=({feet.X},{feet.Y},{feet.Z});feetPresent={feetRead.Present};feetSlot={feetRead.MaterialSlot};" +
+            $"eyes=({eyes.X},{eyes.Y},{eyes.Z});eyesWater={eyesWater};water={(ushort)Content.BlockId.Water};from={Format(playerLocal)}");
+        if (!feetWater && !eyesWater)
         {
             return false;
         }
