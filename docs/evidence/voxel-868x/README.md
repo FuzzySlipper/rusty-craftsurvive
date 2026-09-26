@@ -7,3 +7,5 @@ The opt-in product probe accepted 1/2/3/4/9/27/64 water and stone transactions a
 Independent browser evidence shows water and grassy voxel banks. The short W input produced near-identical captures, so this is not a movement proof. No page errors; browser ReadPixels capture performance warnings occurred. No warning baseline was supplied.
 
 Engine fixture separately proves bounded embedded-character rejection retains the native penetration diagnostic. Direct CoreCLR exploratory signal/crash limitations remain tracked in Engine task 8686, outside this supervised development run.
+
+Follow-up: adopted current Engine pair 9c8c9585ec5277dae16315b667ecb101e0aa9d46, which prevents the supervised worker from duplicating the host diagnostic file writer. Repeated the same batch/swim probe and real SIGINT exit0; see corrected-pair files. Earlier browser evidence remains labeled d7e; no visual code changed in this follow-up.

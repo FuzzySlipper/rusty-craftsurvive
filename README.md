@@ -29,7 +29,7 @@ src/
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
 .runtime/
-  pair-d7e41604a798/runtime-pack/  paired `rusty dev` runtime
+  pair-9c8c9585ec52/runtime-pack/  paired `rusty dev` runtime
   sdk-feed/                   paired Rusty.Engine package feed
 ```
 
@@ -49,8 +49,8 @@ pnpm install --frozen-lockfile
 For a standalone development session, use the installed runtime pack:
 
 ```bash
-./.runtime/pair-d7e41604a798/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-d7e41604a798/runtime-pack \
+./.runtime/pair-9c8c9585ec52/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-9c8c9585ec52/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -59,8 +59,8 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/pair-d7e41604a798/runtime-pack/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.d7e41604a798.nupkg` form one installed,
+`.runtime/pair-9c8c9585ec52/runtime-pack/` and
+`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.9c8c9585ec52.nupkg` form one installed,
 exactly matched pair. Keep the pack, SDK feed, and project version together;
 do not select a backup pack or replace only one artifact. The declared version
 lives in one place, `eng/EnginePair.props`, consumed by the product project, the
@@ -72,7 +72,7 @@ source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/pair-d7e41604a798/runtime-pack/bin/rusty dev \
+./.runtime/pair-9c8c9585ec52/runtime-pack/bin/rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -128,8 +128,8 @@ The authoring lane is exercised by one documented flow — the study scene plus 
 focused lanes that cover its recipe and artifacts:
 
 ```sh
-CRAFTSURVIVE_SCENE=courtyard ./.runtime/pair-d7e41604a798/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-d7e41604a798/runtime-pack \
+CRAFTSURVIVE_SCENE=courtyard ./.runtime/pair-9c8c9585ec52/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-9c8c9585ec52/runtime-pack \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --debugger --bind-host 127.0.0.1 --port 37300
 dotnet run --project tests/Workbench -c Release    # level plans and authored recipes
