@@ -6,6 +6,21 @@ namespace CraftSurvive.Game.Modules.Player;
 /// <summary>Named CraftSurvive player policy retained from the Rust donor.</summary>
 internal static class PlayerConstants
 {
+    /// <summary>
+    /// Water movement, composed by the product and solved by the Engine. The volume is
+    /// an axis-aligned box around the player's own column; submersion and buoyancy are
+    /// the Engine's, and the numbers here are the product's tuning of them.
+    /// </summary>
+    internal const float WaterExtent = 4f;
+    internal const float WaterHeight = 3f;
+    internal const float WaterSpeed = 4f;
+    internal const float WaterAcceleration = 8f;
+    internal const float WaterDrag = 2f;
+    internal const float WaterGravityScale = 1f;
+    internal const float WaterBuoyancy = 1.5f;
+    internal const float WaterVerticalNeutral = 0f;
+    internal const float NoClimbReach = 0f;
+
     // One 60 Hz sample of translation delay; orientation stays authoritative and immediate.
     internal const double CameraPresentationDelaySeconds = 1d / 60d;
 

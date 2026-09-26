@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Content;
 using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
@@ -104,6 +105,71 @@ internal sealed class PlayerController : IDisposable
         PublishRuntimeComponent();
     }
 
+    /// <summary>
+    /// The controller command for this step. Walking is unchanged; when the player's
+    /// own column is water the product composes the water volume from the terrain and
+    /// selects the Engine's swim mode, which is where submersion and buoyancy come
+    /// from. The product owns the volume and the decision, the Engine owns the solver.
+    /// </summary>
+    private CharacterControllerCommand Command(
+        PlayerInputFrame frame,
+        LookState look,
+        bool jumpPending,
+        bool impulsePending,
+        LookReceipt lookReceipt,
+        ulong sequence)
+    {
+        Vector3 impulse = impulsePending
+            ? (lookReceipt.Right * PlayerConstants.ImpulseSpeed) + (Vector3.UnitY * PlayerConstants.ImpulseLift)
+            : Vector3.Zero;
+        float stepSeconds = (float)PlayerConstants.ControllerStepSeconds;
+        if (TryWaterMovement(playerLocal, out CharacterMovementRequest swim))
+        {
+            return new CharacterControllerCommand(
+                swim, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,
+                frame.CrouchRequested, Vector3.Zero, impulse, stepSeconds, sequence);
+        }
+
+        return new CharacterControllerCommand(
+            frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld, frame.CrouchRequested,
+            Vector3.Zero, impulse, stepSeconds, sequence);
+    }
+
+    /// <summary>
+    /// Reads the player's own column and, when it is water, hands back the movement
+    /// request with the water volume around the player. A single voxel read per step
+    /// is the cost of the product owning this decision.
+    /// </summary>
+    private bool TryWaterMovement(Vector3 playerLocal, out CharacterMovementRequest movement)
+    {
+        movement = default;
+        Rusty.Engine.VoxelAddress feet = new(
+            (long)Math.Floor(playerLocal.X),
+            (long)Math.Floor(playerLocal.Y),
+            (long)Math.Floor(playerLocal.Z));
+        VoxelReadout read = engine.Voxel.Read(new VoxelReadRequest(terrain.Session, feet));
+        if (!read.Present || read.MaterialSlot != (ushort)Content.BlockId.Water)
+        {
+            return false;
+        }
+
+        Vector3 center = new(playerLocal.X, MathF.Floor(playerLocal.Y), playerLocal.Z);
+        movement = new CharacterMovementRequest
+        {
+            Mode = CharacterMovementMode.Swimming,
+            VerticalIntent = PlayerConstants.WaterVerticalNeutral,
+            Speed = PlayerConstants.WaterSpeed,
+            Acceleration = PlayerConstants.WaterAcceleration,
+            Drag = PlayerConstants.WaterDrag,
+            Minimum = center - new Vector3(PlayerConstants.WaterExtent, 0f, PlayerConstants.WaterExtent),
+            Maximum = center + new Vector3(PlayerConstants.WaterExtent, PlayerConstants.WaterHeight, PlayerConstants.WaterExtent),
+            GravityScale = PlayerConstants.WaterGravityScale,
+            Buoyancy = PlayerConstants.WaterBuoyancy,
+            ClimbReach = PlayerConstants.NoClimbReach,
+        };
+        return true;
+    }
+
     internal void Start()
     {
         if (started)
@@ -175,17 +241,7 @@ internal sealed class PlayerController : IDisposable
                 CurrentPlatformObstacle(),
                 ReadOnlyMemory<CharacterMeshInstance>.Empty,
                 stepConfig,
-                new CharacterControllerCommand(
-                    frame.PlanarIntent,
-                    look.YawRadians,
-                    jumpPending,
-                    frame.JumpHeld,
-                    frame.CrouchRequested,
-                    Vector3.Zero,
-                    impulsePending ? lookReceipt.Right * PlayerConstants.ImpulseSpeed
-                        + Vector3.UnitY * PlayerConstants.ImpulseLift : Vector3.Zero,
-                    (float)PlayerConstants.ControllerStepSeconds,
-                    commandSequence)) with { Tether = tether });
+                Command(frame, look, jumpPending, impulsePending, lookReceipt, commandSequence)) with { Tether = tether });
             Ropes.AfterStep(receipt, (float)PlayerConstants.ControllerStepSeconds);
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
