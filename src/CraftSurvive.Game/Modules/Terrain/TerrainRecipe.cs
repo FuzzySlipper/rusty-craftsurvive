@@ -152,6 +152,100 @@ internal sealed class TerrainRecipe
 
     private long TerrainSurface(long x, long z) => TerrainHeight(x, z);
 
+    /// <summary>
+    /// Whether a chunk holds any non-empty voxel, answered from the generation contract
+    /// without generating it.
+    ///
+    /// It exists because the residency policy decides what to request and what to keep by
+    /// filtering on a chunk's solid voxel count, so it currently has to generate every
+    /// candidate in its retained ring - 49 chunks, about 70 ms, on the first update of a
+    /// run. This predicate is the cheaper question: a chunk is empty only when nothing the
+    /// generator produces reaches into its vertical span.
+    ///
+    /// It is deliberately conservative. Answering "empty" for a chunk that holds content
+    /// would evict live chunks and thrash the stream, which is a worse failure than
+    /// retaining an empty one, so anything not provably empty answers "content".
+    /// </summary>
+    internal bool ChunkHasContent(TerrainChunkAddress address)
+    {
+        long edge = TerrainConstants.ChunkEdgeLength;
+        long yMinimum = address.Y * edge;
+        long yMaximum = yMinimum + edge - 1;
+
+        // The floor and the border wall are authored everywhere they apply.
+        if (yMinimum <= MinimumMaterialY)
+        {
+            return true;
+        }
+
+        bool waterReaches = yMinimum <= TerrainConstants.WaterLevel;
+        if (yMinimum <= TerrainConstants.WorldWallTop
+            && TouchesWorldEdge(address.X * edge, (address.X * edge) + edge - 1, address.Z * edge, (address.Z * edge) + edge - 1))
+        {
+            return true;
+        }
+
+        long xStart = address.X * edge;
+        long zStart = address.Z * edge;
+        for (long x = xStart; x < xStart + edge; x++)
+        {
+            for (long z = zStart; z < zStart + edge; z++)
+            {
+                if (x < -radius || x > radius || z < -radius || z > radius)
+                {
+                    continue;
+                }
+
+                long surface = TerrainSurface(x, z);
+                if (surface >= yMinimum)
+                {
+                    return true;
+                }
+
+                if (waterReaches && surface < TerrainConstants.WaterLevel)
+                {
+                    return true;
+                }
+
+                // Surface features stand on the ground and reach a bounded distance above
+                // it; a chunk that overlaps that reach is not empty.
+                if (FeatureReachOverlaps(surface, yMinimum))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a feature anchored at this column could reach into a chunk whose lowest
+    /// layer is <paramref name="yMinimum"/>. Trees are the only feature, their height and
+    /// canopy are bounded by constants, and the predicate must not depend on whether this
+    /// particular anchor was drawn a tree: assuming one wherever one could stand is what
+    /// keeps the answer conservative. The comparison is against the chunk's *bottom*, not
+    /// its top - a feature reaches into a chunk if any part of it is above the chunk's
+    /// floor, which is the mistake the lane caught the first time.
+    /// </summary>
+    private static bool FeatureReachOverlaps(long surface, long yMinimum)
+    {
+        long top = surface + 1 + TerrainConstants.TreeMinimumHeight + TerrainConstants.TreeHeightRange
+            + TerrainConstants.TreeCanopyRadius;
+        return top >= yMinimum;
+    }
+
+    /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
+    private bool TouchesWorldEdge(long xMinimum, long xMaximum, long zMinimum, long zMaximum)
+    {
+        long limit = TerrainConstants.DefaultSize / 2;
+        long inner = limit - TerrainConstants.WorldWallThickness;
+        bool xEdge = xMinimum <= -inner || xMaximum >= inner;
+        bool zEdge = zMinimum <= -inner || zMaximum >= inner;
+        bool inside = xMaximum >= -limit && xMinimum <= limit && zMaximum >= -limit && zMinimum <= limit;
+        return (xEdge || zEdge) && inside;
+    }
+
     private long TerrainHeight(long x, long z)
     {
         double broad = ValueNoise(configuration.Seed, x, z, TerrainConstants.BroadNoiseScale);

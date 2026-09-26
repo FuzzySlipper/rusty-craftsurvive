@@ -94,12 +94,10 @@ internal sealed class LiveSubstrateProof
     private readonly List<string> failures = [];
     private int stage;
     private bool completed;
-    private EngineVoxelAddress swimCell;
     private int swimStage;
     private int swimAttempts;
     private int swimUpdates;
     private int swimPaceUpdates;
-    private TerrainOverlaySnapshot? overlaySnapshotForProof;
     private int tickCount;
     private double tickTotalMs;
     private double tickMaximumMs;
@@ -542,7 +540,7 @@ internal sealed class LiveSubstrateProof
     {
         var cache = new TerrainChunkCache(engine, terrain.Recipe.Contract);
         var generator = new TerrainChunkGenerator(terrain.Recipe);
-        TerrainOverlaySnapshot snapshot = overlaySnapshotForProof ?? new TerrainOverlayState(terrain.Recipe.Contract.Seed).Snapshot();
+        TerrainOverlaySnapshot snapshot = new TerrainOverlayState(terrain.Recipe.Contract.Seed).Snapshot();
         TerrainChunkAddress address = new(1, 0, -2);
         TerrainChunk chunk = generator.Generate(address, snapshot);
         Stopwatch write = Stopwatch.StartNew();

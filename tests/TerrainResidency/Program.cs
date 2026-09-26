@@ -158,6 +158,43 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Console.WriteLine($"Chunk cache payload and key verified: {encoded.Length} bytes, key {key}");
 }
 
+// The chunk content predicate against generation itself: the predicate must never claim
+// a chunk is empty when generating it produces voxels, because the residency policy will
+// use it to decide what to evict. The reverse - claiming content for an empty chunk - only
+// costs a retained empty chunk, so it is reported rather than failed.
+{
+    long falseEmpties = 0;
+    long falseContents = 0;
+    long compared = 0;
+    foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL, 777UL })
+    {
+        TerrainConfiguration config = new(seed, TerrainConstants.DefaultSize);
+        var generator = new TerrainChunkGenerator(config.CreateRecipe(new TestDraws(seed)));
+        TerrainOverlaySnapshot snapshot = new TerrainOverlayState(seed).Snapshot();
+        for (long x = -4; x <= 4; x += 2)
+        for (long z = -4; z <= 4; z += 2)
+        for (long y = -1; y <= 1; y++)
+        {
+            TerrainChunkAddress address = new(x, y, z);
+            bool generated = generator.Generate(address, snapshot).SolidVoxelCount > 0;
+            bool predicted = config.CreateRecipe(new TestDraws(seed)).ChunkHasContent(address);
+            compared++;
+            if (generated && !predicted)
+            {
+                falseEmpties++;
+            }
+
+            if (!generated && predicted)
+            {
+                falseContents++;
+            }
+        }
+    }
+
+    Require(falseEmpties == 0, $"{falseEmpties} chunks were called empty but generate voxels");
+    Console.WriteLine($"Chunk content predicate agreed with generation on all {compared} chunks ({falseContents} conservatively non-empty)");
+}
+
 var configuration = TerrainConfiguration.TraversalShowcase;
 var recipe = configuration.CreateRecipe(new TestDraws(configuration.Seed));
 var chunkGenerator = new TerrainChunkGenerator(recipe);
