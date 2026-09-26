@@ -74,6 +74,10 @@ internal sealed class LiveSubstrateProof
     private const float MarkerGreen = 0.25f;
     private const float MarkerBlue = 0.35f;
     private const float MarkerAlpha = 1f;
+    private const string PersistenceProofScope = "craftsurvive.proof";
+    private const string PersistenceProofKey = "proof/roundtrip";
+    private static readonly bool PlantStaleFromEnvironment = string.Equals(
+        Environment.GetEnvironmentVariable("CRAFTSURVIVE_PLANT_STALE"), "1", StringComparison.Ordinal);
     private const int ResidencyDiagnosticFrames = 60;
     private const int MaximumResidencyAttempts = 4;
     private const uint DungeonChunkSize = 8U;
@@ -121,6 +125,7 @@ internal sealed class LiveSubstrateProof
                 try
                 {
                     ReportOverlayOutcome();
+        if (PlantStaleFromEnvironment) PlantStaleOverlay();
         RunWorldProofs();
                 }
                 catch (Exception exception)
@@ -149,6 +154,45 @@ internal sealed class LiveSubstrateProof
     {
         completed = true;
         ReportAll();
+    }
+
+    /// <summary>
+    /// Proves the product can persist and read back through the Engine store at all,
+    /// on its own key so the world's overlay is untouched. It exists because the
+    /// overlay was reported absent on every run: this separates "the store does not
+    /// work" from "the world's save path does not reach it".
+    /// </summary>
+    private void ProvePersistenceRoundTrip()
+    {
+        PersistenceStore store = engine.Persistence.OpenStore(new PersistenceOpenRequest(PersistenceProofScope));
+        byte[] written = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        engine.Persistence.Save(new PersistenceSaveRequest(
+            store, PersistenceProofKey, PersistenceRevisionGuard.Any, 0, written));
+        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store, PersistenceProofKey));
+        PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
+        if (!info.Present)
+        {
+            failures.Add("the persistence store did not retain a blob the product just wrote");
+            return;
+        }
+
+        ReadOnlySpan<byte> read = engine.Persistence.ReadBlobBytes(blob).Span;
+        Require(read.SequenceEqual(written), $"persistence returned {read.Length} bytes that differ from what was written");
+        Report($"persistence round trip: wrote and read back {read.Length} bytes through the Engine store");
+    }
+
+    /// <summary>
+    /// Plants a stale world overlay so the *next* start has to deal with one. This
+    /// is the failure that used to kill the product: a saved world whose identity no
+    /// longer matches. The next run must report it as discarded and keep going.
+    /// </summary>
+    private void PlantStaleOverlay()
+    {
+        PersistenceStore store = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainConstants.PersistenceScope));
+        byte[] stale = [0x53, 0x54, 0x41, 0x4c, 0x45, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08];
+        engine.Persistence.Save(new PersistenceSaveRequest(
+            store, TerrainConstants.OverlayPersistenceKey, PersistenceRevisionGuard.Any, 0, stale));
+        Report($"planted a {stale.Length}-byte stale world overlay for the next start to discard");
     }
 
     private void ReportOverlayOutcome() =>
@@ -622,6 +666,15 @@ internal sealed class LiveSubstrateProof
 
     private void FinishProof(SpatialSession session)
     {
+        try
+        {
+            ProvePersistenceRoundTrip();
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the persistence round trip threw {exception.GetType().Name}: {exception.Message}");
+        }
+
         try
         {
             ProveGenerationDeterminism();
