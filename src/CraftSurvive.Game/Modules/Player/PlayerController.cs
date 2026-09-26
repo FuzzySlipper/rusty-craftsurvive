@@ -32,6 +32,8 @@ internal sealed class PlayerController : IDisposable
     private Appearance? platformAppearance;
     private CharacterMotion motion;
     private LookState look;
+    private string waterCheck = "none";
+    private Rusty.Engine.VoxelAddress lastWaterCell;
     private PlayerWorldPosition playerGlobal;
     private PlayerWorldPosition platformGlobal;
     private Vector3 playerLocal;
@@ -147,7 +149,11 @@ internal sealed class PlayerController : IDisposable
             (long)Math.Floor(playerLocal.X),
             (long)Math.Floor(playerLocal.Y),
             (long)Math.Floor(playerLocal.Z));
+        lastWaterCell = feet;
         VoxelReadout read = engine.Voxel.Read(new VoxelReadRequest(terrain.Session, feet));
+        waterCheck = string.Create(
+            CultureInfo.InvariantCulture,
+            $"cell=({feet.X},{feet.Y},{feet.Z});present={read.Present};slot={read.MaterialSlot};water={(ushort)Content.BlockId.Water};from={Format(playerLocal)}");
         if (!read.Present || read.MaterialSlot != (ushort)Content.BlockId.Water)
         {
             return false;
@@ -469,6 +475,22 @@ internal sealed class PlayerController : IDisposable
     /// all rather than only inferable from the command the product sent.
     /// </summary>
     internal CharacterMovementFact? LastMovementFact => lastStepReceipt?.Movement;
+
+    /// <summary>
+    /// The last water decision this controller made: which cell it read, what the
+    /// Engine reported there, and which slot it was compared against. It exists so a
+    /// disagreement between "the world has water here" and "the Engine says the
+    /// player is walking" resolves to a cell and a slot rather than to a guess.
+    /// </summary>
+    internal string LastWaterCheck => waterCheck;
+
+    /// <summary>
+    /// The cell the last water check read. The controller works in the session's local
+    /// space, which is not the product's world space, so anything that wants to put
+    /// water under the player has to ask where the controller is looking rather than
+    /// derive it from a world position.
+    /// </summary>
+    internal Rusty.Engine.VoxelAddress LastWaterCell => lastWaterCell;
 
     private static string FormatStep(CharacterStepReceipt? step) => step is not CharacterStepReceipt receipt
         ? "none"

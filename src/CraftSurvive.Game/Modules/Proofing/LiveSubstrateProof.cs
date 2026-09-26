@@ -146,17 +146,29 @@ internal sealed class LiveSubstrateProof
                     // Put water in the player's own cell so the *product's* swim policy
                     // sees it on its next step. The product decides from the terrain,
                     // so this exercises the real decision rather than a stand-in.
-                    Vector3 position = player.WorldPosition;
-                    EngineVoxelAddress feet = new(
-                        (long)Math.Floor(position.X),
-                        (long)Math.Floor(position.Y),
-                        (long)Math.Floor(position.Z));
+                    // Where the *controller* looks, in its own space: the product reads
+                    // this cell every step, and a world position is a different space.
+                    EngineVoxelAddress feet = player.LastWaterCell;
                     VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-                    VoxelEditReceipt wet = Apply(
-                        terrain.Session,
-                        before.SourceRevision,
-                        new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set, feet, (ushort)Content.BlockId.Water));
-                    Report($"swim setup: placed water at ({feet.X}, {feet.Y}, {feet.Z}) with status {wet.Status}");
+                    // A block of water, not one cell: the character is still settling at
+                    // this point in the run, so a single cell is somewhere they have
+                    // already left by the next step. This is a proof-harness allowance,
+                    // not a product behaviour - the product reads exactly one cell.
+                    List<VoxelEdit> soak = [];
+                    for (long dx = -1; dx <= 1; dx++)
+                    for (long dy = -1; dy <= 1; dy++)
+                    for (long dz = -1; dz <= 1; dz++)
+                    {
+                        soak.Add(new VoxelEdit(
+                            (ushort)Content.BlockId.Water,
+                            VoxelEditKind.Set,
+                            new EngineVoxelAddress(feet.X + dx, feet.Y + dy, feet.Z + dz),
+                            (ushort)Content.BlockId.Water));
+                    }
+
+                    VoxelEditReceipt wet = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
+                        terrain.Session, before.SourceRevision, soak.ToArray()));
+                    Report($"swim setup: placed water in {soak.Count} cells around ({feet.X}, {feet.Y}, {feet.Z}) with status {wet.Status}");
                     waterSite = wet.Status == VoxelEditStatus.Accepted ? feet : null;
                 }
                 catch (Exception exception)
@@ -171,6 +183,14 @@ internal sealed class LiveSubstrateProof
                 {
                     if (waterSite is EngineVoxelAddress wetCell)
                     {
+                        Report($"product water check at that cell: {player.LastWaterCheck}");
+                        // The integration link this proves: the product's own read sees
+                        // the water. The Engine's verdict is the second half, and S0
+                        // already proves it for a volume the character is inside.
+                        Require(
+                            player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
+                            && player.LastWaterCheck.Contains($"slot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal),
+                            $"the product's water check did not see water: {player.LastWaterCheck}");
                         CharacterMovementFact? fact = player.LastMovementFact;
                         Require(
                             fact is CharacterMovementFact movement && movement.Mode == CharacterMovementMode.Swimming,
