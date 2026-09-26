@@ -62,6 +62,31 @@ string Surface(Action operation)
     }
 }
 
+// Returns the refusal message while reporting the exception type, so a case can
+// assert *why* it was refused rather than only that something was refused.
+string SurfaceMessage(Action operation, out string surface)
+{
+    try
+    {
+        operation();
+        surface = "returned without throwing";
+        return string.Empty;
+    }
+    catch (Exception exception)
+    {
+        surface = exception.GetType().Name;
+        return exception.Message;
+    }
+}
+
+ulong CapacityUsed(InventoryStore store, EntityId who, CapacityMetricId metric)
+{
+    foreach (CapacityUsage usage in store.View(who).Capacity)
+        if (usage.Metric.Equals(metric))
+            return usage.Used;
+    return 0UL;
+}
+
 Console.WriteLine("CraftSurvive substrate proof (campaign #8595 S0) — managed SDK values only");
 Observe($"SDK assembly version: {typeof(InventoryStore).Assembly.GetName().Version}");
 
@@ -129,38 +154,71 @@ Require(
     "a refused consume advanced the store revision");
 Observe($"insufficient consume surfaced as: {insufficientSurface}");
 
-// A per-stack maximum and a per-metric capacity limit are different refusals.
-// This one is the stack maximum: 1000 exceeds MaximumQuantity.
-string stackMaximumSurface = Surface(() => inventory.Grant(owner, stone, spill, 1000UL));
+// A per-stack maximum and a per-metric capacity limit are different refusals
+// with the same exception type, so each case must isolate its cause and the
+// refusal message is asserted too. This one runs against a separate owner whose
+// metric limit cannot trip: 1000 exceeds MaximumQuantity and nothing else.
+EntityId bulkOwner = new(3UL);
+inventory.RegisterInventory(new InventoryState(bulkOwner, [new InventoryCapacityLimit(slots, 100_000UL)]));
+ulong storeRevisionBeforeStackRefusal = inventory.View(owner).StoreRevision;
+string stackMaximumMessage = SurfaceMessage(
+    () => inventory.Grant(bulkOwner, stone, spill, 1000UL),
+    out string stackMaximumSurface);
 Require(
     stackMaximumSurface == nameof(MechanicsException),
     $"a stack-maximum refusal surfaced as {stackMaximumSurface}, expected MechanicsException");
-Require(Held(inventory, owner, spill) == 0UL, "a stack-maximum refusal left a partial stack");
 Require(
-    inventory.View(owner).InventoryRevision == inventoryRevisionBeforeRefusal,
+    stackMaximumMessage.Contains("quantity", StringComparison.OrdinalIgnoreCase),
+    $"a stack-maximum refusal did not name the quantity: {stackMaximumMessage}");
+Require(
+    !stackMaximumMessage.Contains("capacity", StringComparison.OrdinalIgnoreCase),
+    $"a stack-maximum refusal was actually a capacity refusal: {stackMaximumMessage}");
+Require(Held(inventory, bulkOwner, spill) == 0UL, "a stack-maximum refusal left a partial stack");
+Require(
+    inventory.View(bulkOwner).InventoryRevision == 0UL,
     "a stack-maximum refusal advanced the inventory revision");
-Observe($"exceeding the per-stack maximum surfaced as: {stackMaximumSurface}");
+Require(
+    inventory.View(owner).StoreRevision == storeRevisionBeforeStackRefusal,
+    "a stack-maximum refusal advanced the store revision");
+Observe($"exceeding the per-stack maximum surfaced as: {stackMaximumSurface}: {stackMaximumMessage}");
 
 // This one is the capacity limit: 60 fits the stack maximum but 6 held + 60
-// exceeds the metric maximum of 64.
-string capacitySurface = Surface(() => inventory.Grant(owner, stone, spill, 60UL));
+// exceeds the metric maximum of 64. The store-revision baseline is taken here
+// because registering the isolation inventory above legitimately advanced it.
+ulong storeRevisionBeforeCapacityRefusal = inventory.View(owner).StoreRevision;
+string capacityMessage = SurfaceMessage(
+    () => inventory.Grant(owner, stone, spill, 60UL),
+    out string capacitySurface);
 Require(
     capacitySurface == nameof(MechanicsException),
     $"a capacity refusal surfaced as {capacitySurface}, expected MechanicsException");
+Require(
+    capacityMessage.Contains("capacity", StringComparison.OrdinalIgnoreCase),
+    $"a capacity refusal did not name the capacity: {capacityMessage}");
 Require(Held(inventory, owner, spill) == 0UL, "a capacity refusal left a partial stack");
 Require(
     inventory.View(owner).InventoryRevision == inventoryRevisionBeforeRefusal,
     "a capacity refusal advanced the inventory revision");
 Require(
-    inventory.View(owner).StoreRevision == storeRevisionBeforeRefusal,
+    inventory.View(owner).StoreRevision == storeRevisionBeforeCapacityRefusal,
     "a capacity refusal advanced the store revision");
-Observe($"exceeding the metric capacity surfaced as: {capacitySurface}");
+Observe($"exceeding the metric capacity surfaced as: {capacitySurface}: {capacityMessage}");
 
-// The boundary itself must be usable: 6 held + 58 fills the metric exactly.
+// The boundary itself must be usable: 6 held + 58 fills the metric exactly, and
+// one more unit must then be refused, which also guards an off-by-one limit.
 inventory.Grant(owner, stone, spill, 58UL);
 Require(
     Held(inventory, owner, spill) == 58UL,
     $"granting exactly to the capacity boundary left {Held(inventory, owner, spill)}, expected 58");
+Require(
+    CapacityUsed(inventory, owner, slots) == MetricMaximum,
+    $"the filled inventory reports {CapacityUsed(inventory, owner, slots)} used, expected {MetricMaximum}");
+string boundarySurface = Surface(() => inventory.Grant(owner, stone, spare, 1UL));
+Require(
+    boundarySurface == nameof(MechanicsException),
+    $"a grant past the capacity boundary surfaced as {boundarySurface}, expected MechanicsException");
+Require(Held(inventory, owner, spare) == 0UL, "a refused boundary grant left a partial stack");
+Observe("the metric capacity boundary accepts an exact fill and refuses the next unit");
 
 inventory.SplitFungible(owner, main, spare, 3UL);
 Require(
@@ -247,6 +305,15 @@ EquipmentMutationReceipt equipped = inventory.Equip(receiver, relicEntity, [slot
 Require(
     inventory.TryGetEquipment(receiver, out EquipmentState? equipment) && equipment is not null && equipment.Assignments.Count == 1,
     "equipping the item did not record an assignment");
+if (equipment is not null && equipment.Assignments.Count == 1)
+{
+    Require(
+        equipment.Assignments[0].Item.Equals(relicEntity),
+        "the recorded assignment does not reference the equipped item");
+    Require(
+        equipment.Assignments[0].Slot.Equals(handSlot),
+        "the recorded assignment does not reference the requested slot");
+}
 Require(inventory.TryGetItem(relicEntity, out ItemState? _), "equipping destroyed the item entity");
 Observe($"an equipped unique item reports {equipped.GetType().Name} with 1 assignment");
 
