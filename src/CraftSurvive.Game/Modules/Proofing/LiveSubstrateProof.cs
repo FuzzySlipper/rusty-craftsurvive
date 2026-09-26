@@ -268,6 +268,23 @@ internal sealed class LiveSubstrateProof
             $"resident payload: {residentPayloadBytes / 1024} KiB of product chunk payload for {scene.ResidentChunkCount} chunks at {TerrainConstants.ChunkVolume * sizeof(ushort) / 1024} KiB each (product-side payload only; Engine mesh, collision and renderer memory is not included)"));
     }
 
+    /// <summary>
+    /// Reports the Engine's own movement verdict for the live player: which mode it
+    /// put them in and how submerged they are. On dry ground this is the walking
+    /// control that shows the swim policy did not disturb the normal case.
+    /// </summary>
+    private void ReportPlayerMovement()
+    {
+        CharacterMovementFact? fact = player.LastMovementFact;
+        if (fact is not CharacterMovementFact movement)
+        {
+            Report("player movement: no character step has been reported yet");
+            return;
+        }
+
+        Report($"player movement: mode={movement.Mode} immersion={movement.Immersion:F3} headSubmerged={movement.HeadSubmerged} climbAttached={movement.ClimbAttached}");
+    }
+
     private void ReportOverlayOutcome() =>
         Report($"saved world overlay: {terrain.OverlayRestoreOutcome}");
 
@@ -302,6 +319,15 @@ internal sealed class LiveSubstrateProof
         catch (Exception exception)
         {
             failures.Add($"the generation budget measurement threw {exception.GetType().Name}: {exception.Message}");
+        }
+
+        try
+        {
+            ReportPlayerMovement();
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the player movement report threw {exception.GetType().Name}: {exception.Message}");
         }
 
         ProveSwimMode(session, site);

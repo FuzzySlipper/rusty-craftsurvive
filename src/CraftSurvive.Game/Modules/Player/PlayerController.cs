@@ -462,10 +462,18 @@ internal sealed class PlayerController : IDisposable
     private static string Format(Vector3 value) => string.Create(CultureInfo.InvariantCulture,
         $"{value.X:F3},{value.Y:F3},{value.Z:F3}");
 
+    /// <summary>
+    /// The movement facts of the most recent character step: the Engine's answer about
+    /// which mode the player is in and how submerged they are. S7's breath reads
+    /// head submersion from here, and it is what makes the swim policy observable at
+    /// all rather than only inferable from the command the product sent.
+    /// </summary>
+    internal CharacterMovementFact? LastMovementFact => lastStepReceipt?.Movement;
+
     private static string FormatStep(CharacterStepReceipt? step) => step is not CharacterStepReceipt receipt
         ? "none"
         : string.Create(CultureInfo.InvariantCulture,
-            $"attempted={receipt.Step.Attempted};accepted={receipt.Step.Accepted};wish={Format(receipt.WishVelocity)};displacement={Format(receipt.Displacement)};blocked={receipt.BlockFlags};casts={receipt.CastCount}");
+            $"attempted={receipt.Step.Attempted};accepted={receipt.Step.Accepted};wish={Format(receipt.WishVelocity)};displacement={Format(receipt.Displacement)};blocked={receipt.BlockFlags};casts={receipt.CastCount};movement={receipt.Movement.Mode};immersion={receipt.Movement.Immersion:F3};headSubmerged={receipt.Movement.HeadSubmerged}");
 
     private void AdvancePlatform(float stepSeconds)
     {
