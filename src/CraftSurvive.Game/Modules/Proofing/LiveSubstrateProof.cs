@@ -94,7 +94,14 @@ internal sealed class LiveSubstrateProof
     private readonly List<string> failures = [];
     private int stage;
     private bool completed;
-    private EngineVoxelAddress? waterSite;
+    private EngineVoxelAddress swimCell;
+    private int swimStage;
+    private int swimAttempts;
+    private int swimUpdates;
+    private bool swimDone;
+    private const int MaximumSwimAttempts = 5;
+    private const int MaximumSwimUpdates = 900;
+    private const int SoakAfterUpdates = 20;
     private ulong preparation;
     private bool reportedPending;
     private int residencyAttempts;
@@ -140,81 +147,17 @@ internal sealed class LiveSubstrateProof
 
                 break;
 
-            case 1:
+            default:
                 try
                 {
-                    // Put water in the player's own cell so the *product's* swim policy
-                    // sees it on its next step. The product decides from the terrain,
-                    // so this exercises the real decision rather than a stand-in.
-                    // Where the *controller* looks, in its own space: the product reads
-                    // this cell every step, and a world position is a different space.
-                    EngineVoxelAddress feet = player.LastWaterCell;
-                    VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-                    // A block of water, not one cell: the character is still settling at
-                    // this point in the run, so a single cell is somewhere they have
-                    // already left by the next step. This is a proof-harness allowance,
-                    // not a product behaviour - the product reads exactly one cell.
-                    List<VoxelEdit> soak = [];
-                    for (long dx = 0; dx <= 0; dx++)
-                    for (long dy = -1; dy <= 1; dy++)
-                    for (long dz = 0; dz <= 0; dz++)
-                    {
-                        soak.Add(new VoxelEdit(
-                            (ushort)Content.BlockId.Water,
-                            VoxelEditKind.Set,
-                            new EngineVoxelAddress(feet.X + dx, feet.Y + dy, feet.Z + dz),
-                            (ushort)Content.BlockId.Water));
-                    }
-
-                    VoxelEditReceipt wet = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
-                        terrain.Session, before.SourceRevision, soak.ToArray()));
-                    Report($"swim setup: placed water in {soak.Count} cells around ({feet.X}, {feet.Y}, {feet.Z}) with status {wet.Status}");
-                    waterSite = wet.Status == VoxelEditStatus.Accepted ? feet : null;
-                }
-                catch (Exception exception)
-                {
-                    failures.Add($"the swim setup threw {exception.GetType().Name}: {exception.Message}");
-                }
-
-                break;
-
-            case 2:
-                try
-                {
-                    if (waterSite is EngineVoxelAddress wetCell)
-                    {
-                        Report($"product water check at that cell: {player.LastWaterCheck}");
-                        // The integration link this proves: the product's own read sees
-                        // the water. The Engine's verdict is the second half, and S0
-                        // already proves it for a volume the character is inside.
-                        Require(
-                            player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
-                            && player.LastWaterCheck.Contains($"slot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal),
-                            $"the product's water check did not see water: {player.LastWaterCheck}");
-                        CharacterMovementFact? fact = player.LastMovementFact;
-                        Require(
-                            fact is CharacterMovementFact movement && movement.Mode == CharacterMovementMode.Swimming,
-                            $"a player standing in water reports {fact?.Mode}");
-                        if (fact is CharacterMovementFact swimming)
-                        {
-                            Report(
-                                $"swim in generated water: mode={swimming.Mode} immersion={swimming.Immersion:F3} " +
-                                $"headSubmerged={swimming.HeadSubmerged} at ({wetCell.X}, {wetCell.Y}, {wetCell.Z})");
-                        }
-
-                        VoxelSceneReadout after = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-                        Apply(terrain.Session, after.SourceRevision, new VoxelEdit(VoxelEditKind.Clear, wetCell, 0));
-                        waterSite = null;
-                    }
+                    AdvanceSwimProof();
                 }
                 catch (Exception exception)
                 {
                     failures.Add($"the swim proof threw {exception.GetType().Name}: {exception.Message}");
+                    swimDone = true;
                 }
 
-                break;
-
-            default:
                 try
                 {
                     AdvanceResidencyPreparation();
@@ -359,6 +302,119 @@ internal sealed class LiveSubstrateProof
         }
 
         Report($"player movement: mode={movement.Mode} immersion={movement.Immersion:F3} headSubmerged={movement.HeadSubmerged} climbAttached={movement.ClimbAttached}");
+    }
+
+    /// <summary>
+    /// The swim integration proof, gated on the player actually being still.
+    ///
+    /// The character is settling for the first seconds of a run, so a cell read one
+    /// frame and used the next is already stale - that race, not the product, is what
+    /// failed the first three attempts. This waits until the controller reports the
+    /// same cell twice, puts water in that cell, and only then asks the Engine what
+    /// mode the player is in. Attempts are bounded so a character that never settles
+    /// fails the proof instead of hanging it.
+    /// </summary>
+    private void AdvanceSwimProof()
+    {
+        if (swimDone)
+        {
+            return;
+        }
+
+        // A gate that never fires turns this proof into a green run that exercises
+        // nothing, which is worse than a red one. So the wait is bounded: if the
+        // character has not settled after this many updates, soak the cell it is in
+        // now - water under a moving player still tests the product's read - and if
+        // the whole sequence never completes, the proof fails rather than passing
+        // quietly.
+        if (++swimUpdates > MaximumSwimUpdates)
+        {
+            failures.Add(
+                $"the swim proof did not complete within {MaximumSwimUpdates} updates (check: {player.LastWaterCheck})");
+            swimDone = true;
+            return;
+        }
+
+        EngineVoxelAddress cell = player.LastWaterCell;
+        switch (swimStage)
+        {
+            case 0:
+                if (cell.Equals(swimCell) || swimUpdates >= SoakAfterUpdates)
+                {
+                    SoakSwimCell(cell);
+                }
+                else
+                {
+                    swimCell = cell;
+                }
+
+                break;
+
+            case 1:
+                if (player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
+                    && player.LastWaterCheck.Contains($"slot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal))
+                {
+                    CharacterMovementFact? fact = player.LastMovementFact;
+                    Require(
+                        fact is CharacterMovementFact movement && movement.Mode == CharacterMovementMode.Swimming,
+                        $"a player standing in water reports {fact?.Mode} (check: {player.LastWaterCheck})");
+                    if (fact is CharacterMovementFact swimming)
+                    {
+                        Report(
+                            $"swim in generated water: mode={swimming.Mode} immersion={swimming.Immersion:F3} " +
+                            $"headSubmerged={swimming.HeadSubmerged} at the controller's own cell ({cell.X}, {cell.Y}, {cell.Z})");
+                    }
+
+                    ClearSwimCell();
+                    swimDone = true;
+                    break;
+                }
+
+                if (++swimAttempts >= MaximumSwimAttempts)
+                {
+                    failures.Add(
+                        $"the swim proof never saw water at the player's cell after {swimAttempts} attempts " +
+                        $"(last check: {player.LastWaterCheck})");
+                    ClearSwimCell();
+                    swimDone = true;
+                    break;
+                }
+
+                swimStage = 0;
+                break;
+
+            default:
+                swimDone = true;
+                break;
+        }
+    }
+
+    private void SoakSwimCell(EngineVoxelAddress cell)
+    {
+        VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
+        VoxelEdit[] soak =
+        [
+            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set, cell, (ushort)Content.BlockId.Water),
+            new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set,
+                new EngineVoxelAddress(cell.X, cell.Y - 1, cell.Z), (ushort)Content.BlockId.Water),
+        ];
+        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
+            terrain.Session, before.SourceRevision, soak));
+        swimCell = cell;
+        swimStage = 1;
+        Report(
+            $"swim setup: the player settled at ({cell.X}, {cell.Y}, {cell.Z}); placed water there with status {receipt.Status}");
+    }
+
+    private void ClearSwimCell()
+    {
+        VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
+        VoxelEdit[] clear =
+        [
+            new VoxelEdit(VoxelEditKind.Clear, swimCell, 0),
+            new VoxelEdit(VoxelEditKind.Clear, new EngineVoxelAddress(swimCell.X, swimCell.Y - 1, swimCell.Z), 0),
+        ];
+        engine.Voxel.ApplyEdits(new VoxelEditTransaction(terrain.Session, before.SourceRevision, clear));
     }
 
     private void ReportOverlayOutcome() =>
