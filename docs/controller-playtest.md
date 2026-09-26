@@ -101,7 +101,8 @@ no browser navigation or reacquisition was used. Full process replacement
 restarts product state, so the dungeon returned to the initial courtyard.
 Evidence is under `/home/agent/.codex/recovery-7921/`.
 
-The current pair `0.1.0-dev.baf031173e19` also adds socket-failure attribution.
+The pair current when this was recorded (see `eng/EnginePair.props` for the
+installed version today) also added socket-failure attribution.
 The separate historical startup NetworkError (#7920) did not recur during a
 fresh startup and complex-29 load; its original cause remains unproven.
 Do not describe the diagnostic additions or a clean repeat as fixing that event.

@@ -97,9 +97,11 @@ separately for the matched aesthetic screenshots.
   host's five-second operation deadline despite ~1.4–1.7s generation. Engine
   #7833 owns the long-operation/publication issue. The shipped Balanced preset
   was reduced to 0.22m; its return from Soft completed at generation 5.
-- Engine #7831 tracks auto-step rejection at hard vertical mesh risers. These
+- Engine #7831 tracked auto-step rejection at hard vertical mesh risers. These
   stairs have visible 45° bevelled noses and use exactly that mesh for collision.
-  This product choice does not claim to repair the general solver limitation.
+  That upstream limitation has since been resolved, so the bevelled noses are now
+  authored geometry rather than a workaround; this record keeps the original
+  observation as it was made under its own pair.
 - Generation is synchronous and deliberately pauses for explicit rebuilds.
   No seamless mutation, background streaming, peak-memory deadline guarantee,
   complete mesh topology repair or texture baking is claimed.

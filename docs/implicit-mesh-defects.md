@@ -114,7 +114,8 @@ pushing forward. From a separate controlled stair start (0,3.875,3.5), a W-only
 three-second walk reached (0.779,5.890,23.676), grounded in the raised chamber.
 No jump or sprint was used. Before/after screenshots and readouts distinguish
 controlled positioning from the physically traversed segments. This exercises
-the visible beveled stairs; it does not close hard-riser Engine #7831.
+the visible beveled stairs. It did not close hard-riser Engine #7831, which has
+since been resolved upstream; the observation stands as made under its pair.
 
 The session-wide Engine diagnostics contained zero warnings, zero errors,
 zero diagnostic drops and no lag. Its telemetry still recorded dropped

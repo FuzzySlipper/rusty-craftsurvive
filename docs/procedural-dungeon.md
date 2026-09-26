@@ -149,7 +149,8 @@ and Engine CI passed. The Engine pair was verified and published together.
 
 ### Worker delivery follow-up — Engine #7894
 
-The current installed pair is `0.1.0-dev.baf031173e19`. Timing observations now
+The installed pair when this was recorded is superseded; `eng/EnginePair.props`
+names the current one. Timing observations then
 wait behind their associated worker output, and reconnect history retains whole
 publications so a later progress pulse cannot truncate a large mesh transfer.
 The earlier captured warnings above remain historical evidence; the follow-up

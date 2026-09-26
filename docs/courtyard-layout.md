@@ -5,7 +5,8 @@
 value fails product creation. `TerrainWorld` captures this startup choice once.
 `CourtyardScene` owns the new layout recipe and calls the packaged Engine's
 general `ImplicitSurfaces` service. It does not evaluate fields or mesh in C#.
-The current paired runtime and SDK revision is `2e99efa5cbe9`.
+The paired runtime and SDK revision this study was produced with is
+`2e99efa5cbe9`; `eng/EnginePair.props` names the installed pair today.
 
 The route crosses a 24×20m ruined courtyard, climbs six steps through a framed
 opening, follows a 12m covered passage, and enters a 12×10m open chamber with

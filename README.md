@@ -129,7 +129,8 @@ focused lanes that cover its recipe and artifacts:
 ```sh
 CRAFTSURVIVE_SCENE=courtyard ./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
   --runtime ./.runtime/pair-c30c1ef18861/runtime-pack \
-  --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --bind-host 127.0.0.1 --port 37300
+  --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
+  --live-debug --debugger --bind-host 127.0.0.1 --port 37300
 dotnet run --project tests/Workbench -c Release    # level plans and authored recipes
 dotnet run --project tests/Procgen -c Release      # generator and artifact checks
 pnpm run audit:textures                            # authored texture hashes

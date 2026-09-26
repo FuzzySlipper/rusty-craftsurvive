@@ -47,9 +47,10 @@ it, and where is the Engine boundary?**
   work record, with upstream requests #8607–#8612 in `rusty-engine`; #8609 (swim
   and climb) is active rather than parked.
 
-Evidence base: the checked product at commit `a4ac8ad`, the installed SDK pair
-`0.1.0-dev.b9c281937b26` (public surface inspected by reflection: 1,126 public
-types), and the Den task ledger for `rusty-craftsurvive` (77 tasks: 66 done,
+Evidence base: the checked product at commit `a4ac8ad`, the SDK pair installed
+at the time of writing — `0.1.0-dev.b9c281937b26`, superseded since by
+`eng/EnginePair.props` — whose public surface was inspected by reflection (1,126
+public types), and the Den task ledger for `rusty-craftsurvive` (77 tasks: 66 done,
 8 cancelled, 3 planned). Per `AGENTS.md`, an absent Engine mechanism is listed
 as an upstream request in §5 rather than designed around downstream.
 
@@ -63,7 +64,7 @@ with receipts. The *game* is a set of bounded studies.
 | Lane | What it owns today | State |
 | --- | --- | --- |
 | Default scene (`CRAFTSURVIVE_SCENE` unset or `courtyard`) | `CourtyardScene` implicit-mesh art studies: stoneworks, masonry layers, material boundaries, stepped and volume-carved caves | Not an editable voxel world. Whole-scene regeneration |
-| Voxel lane (`CRAFTSURVIVE_SCENE=traversal`) | `TerrainWorld`, `TerrainRecipe`, residency, edits, overlay persistence | A 96×96 arena of height noise plus hand-placed traversal fixtures |
+| Voxel lane (`CRAFTSURVIVE_SCENE=traversal`) | `TerrainWorld`, `TerrainRecipe`, residency, edits, overlay persistence | A 96×96 generated arena of height noise and proportional landmarks; the hand-placed traversal fixtures were removed in S1 |
 | Level generation | `ProcgenWorkbench`, `CaveLevelPlan`, `DungeonLevelPlan`, `CraftSurvive.Procgen`, artifact bank | Rooms/routes carved into a bounded rock solid: 6-room cave, 12-room dungeon, 36-room complex |
 | Presentation studies | `GhostPlateActor` (GLB wizard), `MicrovoxelPresentation` (`.vox` shrine), `RopePlayground` | Art and mechanism demonstrations |
 | UI (`src/ui/main.ts`) | Live-debug panel, Ghost Settings, procgen workbench, rope controls | A testbed console, not a game HUD |
@@ -103,16 +104,15 @@ readouts; and the Den ledger has no survival task — the only open tasks
 Two pieces of housekeeping to fix independently of this direction, both
 symptoms of a tree that has been reshaped repeatedly:
 
-- `README.md` and `docs/csharp-migration-map.md` still name pair
-  `pair-baf031173e19`, while `src/CraftSurvive.Game/CraftSurvive.Game.csproj`,
-  `AGENTS.md`, `.den-serve.json`, and `tests/TerrainResidency` pin
-  `b9c281937b26`. The drift is wider than those two files:
-  `docs/controller-playtest.md`, `docs/procedural-dungeon.md`, and
-  `docs/procgen-workbench.md` also name the old pair, and
-  `docs/courtyard-layout.md` still pins revision `2e99efa5cbe9`. Meanwhile
-  `.runtime/` retains roughly thirty `pair-*` directories and both packages.
-  The documentation set also predates the rope-playground commit, so its
-  "current state" narrative is roughly a month behind the tree.
+- Pair references had drifted across six documents, and the declared version now
+  lives in one place, `eng/EnginePair.props`, which the product project, the
+  focused managed checks, and the verification workflow all consume. That
+  consolidation landed in S1 along with pair updates to `README.md`,
+  `docs/csharp-migration-map.md`, `docs/controller-playtest.md`,
+  `docs/procedural-dungeon.md`, and `docs/procgen-workbench.md`; provenance lines
+  that record which pair produced a study stay attributed to that pair rather than
+  being rewritten. `.runtime/` still retains roughly thirty `pair-*` directories
+  as history.
 - `tests/ArchitecturalRecipes/` exists on disk as build output only: no tracked
   source, no project file, and no CI lane references it. It should be removed
   rather than mistaken for a live check.
@@ -710,10 +710,11 @@ has to be introduced deliberately with the first pathfinding slice.
   extracted geometry. This is a mild advantage, not a defect in the mesh path:
   Engine #7831 ("implemented supported hard-riser stepping", landed 2026-09-08,
   shipped in SDK `0.1.0-dev.11eb8178488c`) fixed the hard-riser case, and the
-  installed pair `b9c281937b26` postdates it. Note that
-  `docs/known-limitations.md` and `docs/courtyard-layout.md` still describe that
-  limitation and its 45° stair-nose mitigation as current; those two lines are
-  stale, like the pair references in §1.
+  installed pair postdates it. The two lines this paragraph originally flagged
+  as stale — the stair-nose mitigation notes in `docs/known-limitations.md` and
+  `docs/courtyard-layout.md` — were corrected in campaign #8595 slice S1, and the
+  same slice corrected the pair references in `README.md` and
+  `docs/csharp-migration-map.md`; both now point at `eng/EnginePair.props`.
 
 **Where the regret would actually come from.** Not from meshing — from the
 *content model*. If "one item is one cube" hard-codes itself into the registry,
@@ -1190,8 +1191,8 @@ Paths marked `Modules/…` are relative to `src/CraftSurvive.Game/`.
 - Player policy: `Modules/Player/PlayerConstants.cs` (120 Hz step, rebase at
   1,024 m), `Modules/Player/PlayerController.cs`.
 - Product composition and lifecycle: `src/CraftSurvive.Game/CraftSurviveProduct.cs`.
-- Engine mechanism evidence: public SDK surface of `Rusty.Engine.dll`, pair
-  `0.1.0-dev.b9c281937b26` (`Rusty.Engine.Mechanics`, `.Entities`, `.StateMachine`,
+- Engine mechanism evidence: public SDK surface of `Rusty.Engine.dll` at the pair
+  installed when this record was written (`Rusty.Engine.Mechanics`, `.Entities`, `.StateMachine`,
   `Navigation*`, `Perception*`, `Audio*`, `Animation*`, `Presentation*`,
   `Persistence*`, `Application.*`, `IVoxelService`, and lights through
   `IGraphicsService`/`LightDescriptor`).

@@ -118,8 +118,9 @@ clearance checks, not exhaustive navigation or proof against every bypass. Switc
 rebuild the small scene synchronously. A different courtyard study deactivates
 the workbench until reloaded. Runtime history is bounded, not a durable replay bank.
 
-Current installed Engine pair: `0.1.0-dev.baf031173e19`, downloaded as the published
-matched archive and verified with its checksum and pair verifier. Game and
+Engine pair installed when this was recorded: `0.1.0-dev.baf031173e19`, downloaded
+as the published matched archive and verified with its checksum and pair verifier;
+`eng/EnginePair.props` names the current pair. Game and
 TerrainResidency pins, both host manifests and current setup instructions agree.
 No Engine source checkout is needed by the product.
 
