@@ -101,9 +101,9 @@ internal sealed class LiveSubstrateProof
     private int swimPaceUpdates;
     private bool finishRequested;
     private bool swimDone;
-    private const int MaximumSwimAttempts = 12;
+    private const int MaximumSwimAttempts = 30;
+    private const int WaterSearchRadius = 40;
     private const int MaximumSwimUpdates = 900;
-    private const int SoakAfterUpdates = 1;
     private const int MaximumSwimPaceUpdates = 120;
     private ulong preparation;
     private bool reportedPending;
@@ -339,15 +339,15 @@ internal sealed class LiveSubstrateProof
     }
 
     /// <summary>
-    /// The swim integration proof, gated on the player actually being still.
+    /// The swim integration proof, run against **generated** water rather than water
+    /// this proof places. That distinction matters twice over: it is what S2 asks for,
+    /// and it avoids the multi-cell edit transaction that stalls the update loop
+    /// (rusty-engine #8684), because a body of water large enough to hold a moving
+    /// character is exactly the transaction that stalls.
     ///
-    /// The character is in free drift for the whole proof window - it crosses cell
-    /// boundaries diagonally, in all three axes, between updates - so water placed at
-    /// the cell it reported is water it has already left. This soaks the reported cell
-    /// and re-soaks on a miss, up to a bounded number of attempts, because a
-    /// multi-cell volume would catch the drift but a transaction large enough to do
-    /// that stalls the update loop (rusty-engine #8684). Attempts are bounded so a
-    /// character that never lines up fails the proof instead of hanging it.
+    /// The product decides: it reads one cell and chooses a movement mode. The Engine
+    /// guarantees: given a swim command with a volume the character is inside, it
+    /// reports Swimming. This asserts the first and observes the second.
     /// </summary>
     private void AdvanceSwimProof()
     {
@@ -356,12 +356,6 @@ internal sealed class LiveSubstrateProof
             return;
         }
 
-        // A gate that never fires turns this proof into a green run that exercises
-        // nothing, which is worse than a red one. So the wait is bounded: if the
-        // character has not settled after this many updates, soak the cell it is in
-        // now - water under a moving player still tests the product's read - and if
-        // the whole sequence never completes, the proof fails rather than passing
-        // quietly.
         swimPaceUpdates++;
         if (++swimUpdates > MaximumSwimUpdates)
         {
@@ -371,101 +365,88 @@ internal sealed class LiveSubstrateProof
             return;
         }
 
-        EngineVoxelAddress cell = player.LastWaterCell;
-        switch (swimStage)
+        if (swimStage == 0)
         {
-            case 0:
-                if (cell.Equals(swimCell) || swimUpdates >= SoakAfterUpdates)
-                {
-                    SoakSwimCell(cell);
-                }
-                else
-                {
-                    swimCell = cell;
-                }
+            if (!TryFindWaterColumn(out long surfaceX, out long surfaceZ, out long surfaceY))
+            {
+                failures.Add($"no generated water column found within {WaterSearchRadius} voxels of the spawn");
+                swimDone = true;
+                return;
+            }
 
-                break;
+            player.Teleport(surfaceX + 0.5, TerrainConstants.WaterLevel + 1.5, surfaceZ + 0.5);
+            Report(
+                $"swim setup: teleported the player into generated water at ({surfaceX}, {surfaceZ}) " +
+                $"where the ground is at y={surfaceY} and the water level is {TerrainConstants.WaterLevel}");
+            swimStage = 1;
+            return;
+        }
 
-            case 1:
-                if (player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
-                    && player.LastWaterCheck.Contains($"slot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal))
+        if (!player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
+            || !player.LastWaterCheck.Contains($"slot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal))
+        {
+            if (++swimAttempts >= MaximumSwimAttempts)
+            {
+                failures.Add(
+                    $"the product's water check never saw generated water after {swimAttempts} updates " +
+                    $"(last check: {player.LastWaterCheck})");
+                swimDone = true;
+            }
+
+            return;
+        }
+
+        CharacterMovementFact? fact = player.LastMovementFact;
+        Require(
+            fact is CharacterMovementFact movement && movement.Mode == CharacterMovementMode.Swimming,
+            $"a player standing in generated water reports {fact?.Mode} (check: {player.LastWaterCheck})");
+        if (fact is CharacterMovementFact swimming)
+        {
+            Report(
+                $"swim in generated water: mode={swimming.Mode} immersion={swimming.Immersion:F3} " +
+                $"headSubmerged={swimming.HeadSubmerged} while the product read {player.LastWaterCheck}");
+        }
+
+        swimDone = true;
+    }
+
+    /// <summary>
+    /// Finds a column the generator filled with water: one whose ground is below the
+    /// water level, so the surface voxel at the water line is water. Product-side
+    /// generation only - no Engine session is involved, which is what the threading
+    /// rule requires.
+    /// </summary>
+    private bool TryFindWaterColumn(out long waterX, out long waterZ, out long groundY)
+    {
+        for (long radius = 2; radius <= WaterSearchRadius; radius += 2)
+        {
+            for (long x = -radius; x <= radius; x += 2)
+            {
+                for (long z = -radius; z <= radius; z += 2)
                 {
-                    CharacterMovementFact? fact = player.LastMovementFact;
-                    Require(
-                        fact is CharacterMovementFact movement && movement.Mode == CharacterMovementMode.Swimming,
-                        $"a player standing in water reports {fact?.Mode} (check: {player.LastWaterCheck})");
-                    if (fact is CharacterMovementFact swimming)
+                    TerrainColumn column = terrain.Recipe.ColumnAt(x, z);
+                    if (column.Surface >= TerrainConstants.WaterLevel)
                     {
-                        Report(
-                            $"swim in generated water: mode={swimming.Mode} immersion={swimming.Immersion:F3} " +
-                            $"headSubmerged={swimming.HeadSubmerged} at the controller's own cell ({cell.X}, {cell.Y}, {cell.Z})");
+                        continue;
                     }
 
-                    ClearSwimCell();
-                    swimDone = true;
-                    break;
+                    ushort material = terrain.Recipe.MaterialAt(
+                        new CraftSurvive.Game.Modules.Terrain.VoxelAddress(x, TerrainConstants.WaterLevel, z), column);
+                    if (material == (ushort)Content.BlockId.Water)
+                    {
+                        waterX = x;
+                        waterZ = z;
+                        groundY = column.Surface;
+                        return true;
+                    }
                 }
-
-                if (++swimAttempts >= MaximumSwimAttempts)
-                {
-                    failures.Add(
-                        $"the swim proof never saw water at the player's cell after {swimAttempts} attempts " +
-                        $"(last check: {player.LastWaterCheck})");
-                    ClearSwimCell();
-                    swimDone = true;
-                    break;
-                }
-
-                // Missed: the character crossed a cell boundary between the soak and
-                // this read, which is normal while it is settling. Put water where it
-                // is now and look again next update rather than waiting for stillness
-                // that may not arrive inside the proof's window.
-                SoakSwimCell(cell);
-                break;
-
-            default:
-                swimDone = true;
-                break;
-        }
-    }
-
-    private void SoakSwimCell(EngineVoxelAddress cell)
-    {
-        VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        // Two cells, at the controller's own cell and the one below it. Kept this
-        // small deliberately: a multi-cell transaction stalls the update loop
-        // (rusty-engine #8684), and with the proof paced the character has settled, so
-        // the cell it reports is the cell it is standing in.
-        List<VoxelEdit> soak = [];
-        for (long dx = -1; dx <= 1; dx++)
-        {
-            soak.Add(new VoxelEdit(
-                (ushort)Content.BlockId.Water,
-                VoxelEditKind.Set,
-                new EngineVoxelAddress(cell.X + dx, cell.Y, cell.Z),
-                (ushort)Content.BlockId.Water));
-        }
-        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
-            terrain.Session, before.SourceRevision, soak.ToArray()));
-        swimCell = cell;
-        swimStage = 1;
-        Report(
-            $"swim setup: placed water at the controller's cell ({cell.X}, {cell.Y}, {cell.Z}) with status {receipt.Status}");
-    }
-
-    private void ClearSwimCell()
-    {
-        VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
-        List<VoxelEdit> clear = [];
-        for (long dx = -1; dx <= 1; dx++)
-        {
-            clear.Add(new VoxelEdit(
-                VoxelEditKind.Clear,
-                new EngineVoxelAddress(swimCell.X + dx, swimCell.Y, swimCell.Z),
-                0));
+            }
         }
 
-        engine.Voxel.ApplyEdits(new VoxelEditTransaction(terrain.Session, before.SourceRevision, clear.ToArray()));
+        waterX = 0;
+        waterZ = 0;
+        groundY = 0;
+        return false;
     }
 
     private void ReportOverlayOutcome() =>
