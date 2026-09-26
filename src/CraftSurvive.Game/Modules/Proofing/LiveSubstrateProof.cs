@@ -102,7 +102,8 @@ internal sealed class LiveSubstrateProof
     private bool finishRequested;
     private bool swimDone;
     private const int MaximumSwimAttempts = 300;
-    private const int WaterSearchRadius = 40;
+    private const int WaterSearchRadius = 60;
+    private const int WaterDepth = 3;
     private const float SwimDropHeight = 1.7f;
     private const int ReportedSwimAttempts = 20;
     private const int MaximumSwimUpdates = 900;
@@ -471,7 +472,11 @@ internal sealed class LiveSubstrateProof
                 for (long z = -radius; z <= radius; z += 2)
                 {
                     TerrainColumn column = terrain.Recipe.ColumnAt(x, z);
-                    if (column.Surface >= TerrainConstants.WaterLevel)
+                    // Depth matters: a one-layer lake leaves a resting player's feet
+                    // in the air above it, which cannot answer a question about
+                    // swimming. This asks for ground at least `WaterDepth` below the
+                    // water line, so the body is in water rather than on top of it.
+                    if (column.Surface > TerrainConstants.WaterLevel - WaterDepth)
                     {
                         continue;
                     }
