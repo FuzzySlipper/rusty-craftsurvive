@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Content;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
@@ -93,6 +94,7 @@ internal sealed class LiveSubstrateProof
     private readonly List<string> failures = [];
     private int stage;
     private bool completed;
+    private EngineVoxelAddress? waterSite;
     private ulong preparation;
     private bool reportedPending;
     private int residencyAttempts;
@@ -134,6 +136,60 @@ internal sealed class LiveSubstrateProof
                 catch (Exception exception)
                 {
                     failures.Add($"the world proofs threw {exception.GetType().Name}: {exception.Message}");
+                }
+
+                break;
+
+            case 1:
+                try
+                {
+                    // Put water in the player's own cell so the *product's* swim policy
+                    // sees it on its next step. The product decides from the terrain,
+                    // so this exercises the real decision rather than a stand-in.
+                    Vector3 position = player.WorldPosition;
+                    EngineVoxelAddress feet = new(
+                        (long)Math.Floor(position.X),
+                        (long)Math.Floor(position.Y),
+                        (long)Math.Floor(position.Z));
+                    VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
+                    VoxelEditReceipt wet = Apply(
+                        terrain.Session,
+                        before.SourceRevision,
+                        new VoxelEdit((ushort)Content.BlockId.Water, VoxelEditKind.Set, feet, (ushort)Content.BlockId.Water));
+                    Report($"swim setup: placed water at ({feet.X}, {feet.Y}, {feet.Z}) with status {wet.Status}");
+                    waterSite = wet.Status == VoxelEditStatus.Accepted ? feet : null;
+                }
+                catch (Exception exception)
+                {
+                    failures.Add($"the swim setup threw {exception.GetType().Name}: {exception.Message}");
+                }
+
+                break;
+
+            case 2:
+                try
+                {
+                    if (waterSite is EngineVoxelAddress wetCell)
+                    {
+                        CharacterMovementFact? fact = player.LastMovementFact;
+                        Require(
+                            fact is CharacterMovementFact movement && movement.Mode == CharacterMovementMode.Swimming,
+                            $"a player standing in water reports {fact?.Mode}");
+                        if (fact is CharacterMovementFact swimming)
+                        {
+                            Report(
+                                $"swim in generated water: mode={swimming.Mode} immersion={swimming.Immersion:F3} " +
+                                $"headSubmerged={swimming.HeadSubmerged} at ({wetCell.X}, {wetCell.Y}, {wetCell.Z})");
+                        }
+
+                        VoxelSceneReadout after = engine.Voxel.ReadScene(new VoxelSceneReadRequest(terrain.Session));
+                        Apply(terrain.Session, after.SourceRevision, new VoxelEdit(VoxelEditKind.Clear, wetCell, 0));
+                        waterSite = null;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    failures.Add($"the swim proof threw {exception.GetType().Name}: {exception.Message}");
                 }
 
                 break;
