@@ -51,6 +51,9 @@ internal sealed class TerrainWorld : IDisposable
         else atlasCatalog = new TerrainAtlasCatalog(engine, content);
     }
 
+    /// <summary>How many chunks the world currently holds resident.</summary>
+    internal int ResidentChunkCount => residentChunks.Count;
+
     /// <summary>The generation recipe, so the live proof can hash real chunks.</summary>
     internal TerrainRecipe Recipe => recipe;
 

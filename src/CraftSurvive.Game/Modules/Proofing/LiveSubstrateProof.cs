@@ -100,6 +100,10 @@ internal sealed class LiveSubstrateProof
     private int swimUpdates;
     private int swimPaceUpdates;
     private TerrainOverlaySnapshot? overlaySnapshotForProof;
+    private int tickCount;
+    private double tickTotalMs;
+    private double tickMaximumMs;
+    private const int TickReportInterval = 5;
     private bool finishRequested;
     private bool swimDone;
     private const int MaximumSwimAttempts = 300;
@@ -205,7 +209,22 @@ internal sealed class LiveSubstrateProof
 
                 try
                 {
+                    // Tick cost, measured where the product spends it: the residency
+                    // synchronisation it runs every update. Engine render and frame time
+                    // are not in this figure and are not claimed to be.
+                    long before = Stopwatch.GetTimestamp();
                     AdvanceResidencyPreparation();
+                    double elapsed = Stopwatch.GetElapsedTime(before).TotalMilliseconds;
+                    tickCount++;
+                    tickTotalMs += elapsed;
+                    tickMaximumMs = Math.Max(tickMaximumMs, elapsed);
+                    if (tickCount % TickReportInterval == 0)
+                    {
+                        // Reported as we go, not only at the end: the proof's own paced
+                        // stages can hold the finish open, and a figure nobody sees is not
+                        // evidence.
+                        ReportTickCost();
+                    }
                 }
                 catch (Exception exception)
                 {
@@ -245,6 +264,7 @@ internal sealed class LiveSubstrateProof
                 $"the run finished before the swim proof completed ({swimUpdates} updates, stage {swimStage})");
         }
 
+        ReportTickCost();
         completed = true;
         ReportAll();
     }
@@ -564,6 +584,27 @@ internal sealed class LiveSubstrateProof
         Report(string.Create(
             CultureInfo.InvariantCulture,
             $"chunk cache: {cached.Length} voxels stored and read back in {write.Elapsed.TotalMilliseconds:F2} ms write, {read.Elapsed.TotalMilliseconds:F2} ms read, identical to fresh generation; read-through served a later generation in {read.Elapsed.TotalMilliseconds:F2} ms"));
+    }
+
+    /// <summary>
+    /// The product's own per-update cost while the world streams, reported at the end so
+    /// the figures cover the whole run rather than one quiet moment.
+    /// </summary>
+    private void ReportTickCost()
+    {
+        if (tickCount == 0)
+        {
+            return;
+        }
+
+        Report(string.Format(
+            CultureInfo.InvariantCulture,
+            "product tick cost over {0} updates with {1} resident chunks: mean {2:F3} ms, worst {3:F3} ms in the "
+            + "product's residency synchronisation (Engine render and frame time are not included)",
+            tickCount,
+            terrain.ResidentChunkCount,
+            tickTotalMs / tickCount,
+            tickMaximumMs));
     }
 
     private void ReportOverlayOutcome() =>
