@@ -133,3 +133,27 @@ against a broker-owned session, using the scripts under `tests/` and the
 [evidence](evidence/) for retained captures. Do not start a competing host on the
 broker-owned port merely to look at one; run the live proof on an ephemeral port
 as shown above.
+
+The lane itself is verified up to session allocation. `playtest games` lists
+`rusty-craftsurvive` at `http://192.168.1.22:37300/`, and the product serves
+`/product-ui/main.js` there. Capturing a sample screenshot needs a free pool slot:
+
+```sh
+# 1. serve the world on the lane's declared port
+CRAFTSURVIVE_SCENE=traversal ./.runtime/pair-c30c1ef18861/runtime-pack/bin/rusty dev \
+  --runtime ./.runtime/pair-c30c1ef18861/runtime-pack \
+  --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
+  --bind-host 0.0.0.0 --port 37300
+
+# 2. allocate a slot, then capture and stop
+playtest start rusty-craftsurvive     # returns SESSION and a screenshot
+playtest observe SESSION              # returns the current frame
+playtest capture SESSION --json '{}'  # retained capture
+playtest stop SESSION
+```
+
+Two caveats recorded on 2026-09-26: the configured pool was fully occupied by other
+projects, so no sample capture is retained yet; and the registered game entry still
+describes "First-person courtyard" while the campaign's world is the traversal
+showcase, so the lane's description and default scene should follow the S2 boot
+switch rather than staying on the retired courtyard.
