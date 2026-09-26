@@ -128,7 +128,9 @@ internal sealed class LiveSubstrateProof
         this.player = player;
     }
 
-    internal static bool Requested => string.Equals(
+    private static bool VoxelEditsRequested => string.Equals(
+        Environment.GetEnvironmentVariable(ActivationVariable), "voxel-edits", StringComparison.OrdinalIgnoreCase);
+    internal static bool Requested => VoxelEditsRequested || string.Equals(
         Environment.GetEnvironmentVariable(ActivationVariable),
         ActivationValue,
         StringComparison.OrdinalIgnoreCase);
@@ -137,6 +139,12 @@ internal sealed class LiveSubstrateProof
     {
         if (completed)
         {
+            return;
+        }
+
+        if (VoxelEditsRequested)
+        {
+            AdvanceVoxelEditsProof();
             return;
         }
 
@@ -381,14 +389,56 @@ internal sealed class LiveSubstrateProof
     /// <summary>
     /// The swim integration proof, run against **generated** water rather than water
     /// this proof places. That distinction matters twice over: it is what S2 asks for,
-    /// and it avoids the multi-cell edit transaction that stalls the update loop
-    /// (rusty-engine #8684), because a body of water large enough to hold a moving
-    /// character is exactly the transaction that stalls.
+    /// while the separate voxel-edits probe exercises direct multi-cell transactions.
     ///
     /// The product decides: it reads one cell and chooses a movement mode. The Engine
     /// guarantees: given a swim command with a volume the character is inside, it
     /// reports Swimming. This asserts the first and observes the second.
     /// </summary>
+    private static readonly int[] VoxelProbeCounts = [1, 2, 3, 4, 9, 27, 64];
+    private int voxelProbeUpdate;
+    private bool voxelProbeReported;
+
+    // An opt-in probe exercises the ordinary product update callback, including
+    // movement and rendering after a direct multi-cell transaction.
+    private void AdvanceVoxelEditsProof()
+    {
+        voxelProbeUpdate++;
+        const int SettleUpdates = 60;
+        const int UpdatesPerCase = 10;
+        if (voxelProbeUpdate < SettleUpdates) return;
+        int elapsed = voxelProbeUpdate - SettleUpdates;
+        int test = elapsed / UpdatesPerCase;
+        if (test >= VoxelProbeCounts.Length * 2)
+        {
+            if (!voxelProbeReported)
+            {
+                Report($"voxel batch proof PASSED: updates={voxelProbeUpdate}; all stone/water transactions continued");
+                voxelProbeReported = true;
+            }
+            AdvanceSwimProof();
+            return;
+        }
+        if (elapsed % UpdatesPerCase == 1)
+            Report($"voxel batch continued: case={test}; updates={voxelProbeUpdate}; {player.LastWaterCheck}");
+        if (elapsed % UpdatesPerCase != 0) return;
+        int count = VoxelProbeCounts[test % VoxelProbeCounts.Length];
+        uint material = (uint)(test < VoxelProbeCounts.Length ? Content.BlockId.Water : Content.BlockId.Stone);
+        EngineVoxelAddress cell = player.LastWaterCell;
+        // Solid fills belong beside the actor. Deliberately enclosing an actor
+        // is separately covered by the Engine penetration-rejection fixture.
+        if (material == (uint)Content.BlockId.Stone)
+            cell = new EngineVoxelAddress(cell.X + 8, cell.Y, cell.Z);
+        VoxelEdit[] edits = Enumerable.Range(0, count).Select(i => new VoxelEdit(
+            material, VoxelEditKind.Set,
+            new EngineVoxelAddress(cell.X - 1 + i % 4, cell.Y + (i / 4) % 4, cell.Z - 1 + i / 16), material)).ToArray();
+        VoxelSceneReadout before = engine.Voxel.ReadScene(new(terrain.Session));
+        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new(terrain.Session, before.SourceRevision, edits));
+        Report($"voxel batch accepted: case={test}; count={count}; material={material}; status={receipt.Status}; changed={receipt.ChangedVoxels}; updates={voxelProbeUpdate}");
+        if (receipt.Status != VoxelEditStatus.Accepted)
+            throw new InvalidOperationException($"Voxel probe transaction was not accepted: {receipt}");
+    }
+
     private void AdvanceSwimProof()
     {
         if (swimDone)
@@ -426,7 +476,7 @@ internal sealed class LiveSubstrateProof
             return;
         }
 
-        if (!player.LastWaterCheck.Contains("present=True", StringComparison.Ordinal)
+        if (!player.LastWaterCheck.Contains("feetPresent=True", StringComparison.Ordinal)
             || !(player.LastWaterCheck.Contains($"feetSlot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal)
                 || player.LastWaterCheck.Contains("eyesWater=True", StringComparison.Ordinal)))
         {
@@ -441,16 +491,8 @@ internal sealed class LiveSubstrateProof
 
             if (swimAttempts >= MaximumSwimAttempts)
             {
-                // The platform cannot currently hold a player in water: collision treats every
-                // non-empty voxel as solid, so the character rests on the lake surface and the
-                // product's read is always the air above it. That is `rusty-engine` #8685, and it
-                // is reported rather than failed - the product's half of the swim policy is
-                // correct and the missing half is upstream. The line is explicit so a green run
-                // cannot be mistaken for a swim verdict.
-                Report(
-                    $"swim verdict unavailable: the player rests on the water surface, so the product's read is the air " +
-                    $"above it - collision does not honour a non-collidable material (rusty-engine #8685). " +
-                    $"Last check: {player.LastWaterCheck}");
+                failures.Add($"swim proof did not observe water: {player.LastWaterCheck}");
+                Report($"swim proof FAILED: {player.LastWaterCheck}");
                 swimDone = true;
             }
 

@@ -70,6 +70,10 @@ internal sealed class TerrainWorld : IDisposable
                 TerrainConstants.VoxelSize,
                 TerrainConstants.VoxelChunkSize,
                 VoxelSurfaceMode.GreedyCubes));
+            engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(
+                session,
+                BlockRegistry.MaterialBlocks.Select(block =>
+                    new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
             persistenceStore = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainConstants.PersistenceScope));
             uiStream = engine.Ui.OpenStream(new UiStreamRequest(
                 TerrainConstants.UiStreamName,
