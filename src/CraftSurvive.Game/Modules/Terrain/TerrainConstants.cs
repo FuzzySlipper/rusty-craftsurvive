@@ -42,7 +42,15 @@ internal static class TerrainConstants
     // reuses chunks instead of regenerating them.
     internal const int RequestedChunkRadius = 2;
     internal const int RetainedChunkRadius = 3;
-    internal const int MaximumResidencyOperationsPerTick = 16;
+    /// <summary>
+    /// How much residency work one update may do. Measured: at 16 the first update
+    /// filled the whole 5x5 window at once and cost 189.5 ms - a visible hitch as the
+    /// world appears - while steady-state streaming settled at 12.7 ms. Four ops keeps
+    /// the worst update in the same range as the steady state and spends a few more
+    /// updates filling the window, which a player experiences as the world arriving
+    /// smoothly rather than stuttering once.
+    /// </summary>
+    internal const int MaximumResidencyOperationsPerTick = 4;
     internal const int MaximumResidentChunks = 64;
 
     /// <summary>
