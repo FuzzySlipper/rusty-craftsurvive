@@ -99,6 +99,7 @@ internal sealed class LiveSubstrateProof
     private int swimAttempts;
     private int swimUpdates;
     private int swimPaceUpdates;
+    private TerrainOverlaySnapshot? overlaySnapshotForProof;
     private bool finishRequested;
     private bool swimDone;
     private const int MaximumSwimAttempts = 300;
@@ -527,6 +528,36 @@ internal sealed class LiveSubstrateProof
         return false;
     }
 
+    /// <summary>
+    /// Proves the chunk cache against the real store with a real generated chunk: write
+    /// one, read it back, and compare it to what the generator produces. The managed lane
+    /// proves the payload format is lossless; this proves the store carries it.
+    /// </summary>
+    private void ProveChunkCacheRoundTrip()
+    {
+        var cache = new TerrainChunkCache(engine, terrain.Recipe.Contract);
+        var generator = new TerrainChunkGenerator(terrain.Recipe);
+        TerrainOverlaySnapshot snapshot = overlaySnapshotForProof ?? new TerrainOverlayState(terrain.Recipe.Contract.Seed).Snapshot();
+        TerrainChunkAddress address = new(1, 0, -2);
+        TerrainChunk chunk = generator.Generate(address, snapshot);
+        Stopwatch write = Stopwatch.StartNew();
+        cache.Write(address, chunk.Materials.Span);
+        write.Stop();
+        Stopwatch read = Stopwatch.StartNew();
+        bool hit = cache.TryRead(address, out ushort[] cached);
+        read.Stop();
+        Require(hit, "the chunk cache did not return a chunk it had just written");
+        if (!hit)
+        {
+            return;
+        }
+
+        Require(cached.AsSpan().SequenceEqual(chunk.Materials.Span), "a cached chunk differs from fresh generation");
+        Report(string.Create(
+            CultureInfo.InvariantCulture,
+            $"chunk cache: {cached.Length} voxels stored and read back in {write.Elapsed.TotalMilliseconds:F2} ms write, {read.Elapsed.TotalMilliseconds:F2} ms read, identical to fresh generation"));
+    }
+
     private void ReportOverlayOutcome() =>
         Report($"saved world overlay: {terrain.OverlayRestoreOutcome}");
 
@@ -552,6 +583,15 @@ internal sealed class LiveSubstrateProof
         catch (Exception exception)
         {
             failures.Add($"the world edit save proof threw {exception.GetType().Name}: {exception.Message}");
+        }
+
+        try
+        {
+            ProveChunkCacheRoundTrip();
+        }
+        catch (Exception exception)
+        {
+            failures.Add($"the chunk cache proof threw {exception.GetType().Name}: {exception.Message}");
         }
 
         try

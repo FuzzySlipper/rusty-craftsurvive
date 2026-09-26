@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using Rusty.Engine;
 using System.Globalization;
 
 namespace CraftSurvive.Game.Modules.Terrain;
@@ -78,5 +79,67 @@ internal static class TerrainChunkCachePayload
 
         materials = decoded;
         return true;
+    }
+}
+
+/// <summary>
+/// Generated chunks kept in the Engine's persistence store, keyed by the generation
+/// contract and the address.
+///
+/// The measured costs decide its shape: one 8 KiB chunk payload saves in about 5.6 ms
+/// and loads in about 0.03 ms, so a read is cheap enough to sit on the path of a chunk
+/// becoming visible while a write is not. This type therefore offers both and leaves
+/// the policy to its caller - nothing here writes on a read.
+/// </summary>
+internal sealed class TerrainChunkCache
+{
+    private readonly IEngineContext engine;
+    private readonly Content.TerrainGeneratorContract contract;
+    private readonly PersistenceStore store;
+
+    internal TerrainChunkCache(IEngineContext engine, Content.TerrainGeneratorContract contract)
+    {
+        this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        this.contract = contract;
+        store = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainChunkCacheKey.Scope));
+    }
+
+    /// <summary>
+    /// Reads a cached chunk, if this world ever wrote one. A payload that does not decode
+    /// counts as a miss rather than as an error: a cache is an optimisation, and a wrong
+    /// one must not be able to stop a world from generating.
+    /// </summary>
+    internal bool TryRead(TerrainChunkAddress address, out ushort[] materials)
+    {
+        materials = [];
+        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
+            store,
+            TerrainChunkCacheKey.For(contract, address)));
+        PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
+        if (!info.Present)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> bytes = engine.Persistence.ReadBlobBytes(blob).Span;
+        if (!TerrainChunkCachePayload.TryDecode(bytes, out ushort[] decoded)
+            || decoded.Length != TerrainConstants.ChunkVolume)
+        {
+            return false;
+        }
+
+        materials = decoded;
+        return true;
+    }
+
+    /// <summary>Writes one chunk payload under this world's key for it.</summary>
+    internal void Write(TerrainChunkAddress address, ReadOnlySpan<ushort> materials)
+    {
+        engine.Persistence.Save(new PersistenceSaveRequest(
+            store,
+            TerrainChunkCacheKey.For(contract, address),
+            PersistenceRevisionGuard.Any,
+            0,
+            TerrainChunkCachePayload.Encode(materials)));
     }
 }
