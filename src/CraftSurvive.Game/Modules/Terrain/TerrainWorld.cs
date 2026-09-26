@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Content;
 using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
@@ -13,6 +14,7 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal sealed class TerrainWorld : IDisposable
 {
     private readonly IEngineContext engine;
+    private readonly ProductContent content;
     private readonly TerrainRecipe recipe;
     private readonly CourtyardScene? courtyard;
     private readonly TerrainChunkGenerator chunkGenerator;
@@ -31,9 +33,10 @@ internal sealed class TerrainWorld : IDisposable
     private bool started;
     private static readonly TerrainChunkAddress FixedResidencyCenter = new(0, 0, 0);
 
-    internal TerrainWorld(IEngineContext engine, TerrainConfiguration configuration)
+    internal TerrainWorld(IEngineContext engine, ProductContent content, TerrainConfiguration configuration)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        this.content = content ?? throw new ArgumentNullException(nameof(content));
         recipe = configuration.CreateRecipe();
         chunkGenerator = new TerrainChunkGenerator(recipe);
         residencyPolicy = new TerrainResidencyPolicy(recipe, chunkGenerator);
@@ -41,7 +44,7 @@ internal sealed class TerrainWorld : IDisposable
         // Authored content is selected during Product Create so the Engine
         // can retain the resource for every later presentation attachment.
         if (configuration.Scene == TerrainSceneMode.ExperimentalCourtyard) courtyard = new CourtyardScene(engine);
-        else atlasCatalog = new TerrainAtlasCatalog(engine);
+        else atlasCatalog = new TerrainAtlasCatalog(engine, content);
     }
 
     internal void Start()
@@ -477,18 +480,35 @@ internal sealed class TerrainWorld : IDisposable
         return readout;
     }
 
-    private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings() => new VoxelSceneMaterialBinding[]
+    /// <summary>
+    /// One binding per registered block. The registry is the block floor and the
+    /// atlas catalog is its material closure, so a block exists in the world only
+    /// once both agree - which the catalog validates when it admits the payload.
+    /// </summary>
+    private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings()
     {
-        new VoxelSceneMaterialBinding(TerrainConstants.GrassMaterial, AtlasCatalog.GrassSide),
-        new VoxelSceneMaterialBinding(TerrainConstants.DirtMaterial, AtlasCatalog.Dirt),
-        new VoxelSceneMaterialBinding(TerrainConstants.StoneMaterial, AtlasCatalog.Stone),
-    };
-
-    private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings() =>
-        new VoxelSceneFaceMaterialBinding[]
+        List<VoxelSceneMaterialBinding> bindings = [];
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
         {
-            new(TerrainConstants.GrassMaterial, SpatialFace.PosY, AtlasCatalog.GrassTop),
-        };
+            bindings.Add(new VoxelSceneMaterialBinding(block.Slot, AtlasCatalog.BaseMaterial(block.Id)));
+        }
+
+        return bindings.ToArray();
+    }
+
+    private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings()
+    {
+        List<VoxelSceneFaceMaterialBinding> bindings = [];
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            if (AtlasCatalog.TopMaterial(block.Id) is Material top)
+            {
+                bindings.Add(new VoxelSceneFaceMaterialBinding(block.Slot, SpatialFace.PosY, top));
+            }
+        }
+
+        return bindings.ToArray();
+    }
 
     private TerrainAtlasCatalog AtlasCatalog => atlasCatalog ?? throw new InvalidOperationException("Terrain atlas catalog is unavailable.");
 

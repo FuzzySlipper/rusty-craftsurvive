@@ -1,16 +1,178 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:d722b7c2af1168cd3d77a5bbcc351156a94c3b77c803fd4641e53eb98d41bf2f",
-  "extent": [128, 128],
-  "tileExtent": [64, 64],
+  "contentHash": "sha256:f29ff0b105f7a903330d6efd41a9ad8aceb7e952d474a907940cbbe73f7f2fa6",
+  "extent": [
+    256,
+    256
+  ],
+  "tileExtent": [
+    64,
+    64
+  ],
   "filter": "nearest",
   "wrap": "clamp",
   "inset": "halfTexel",
   "regions": [
-    { "id": "grass-top", "materialSlot": 1, "contentMin": [0, 0], "source": "source/grass-top-gpt.png" },
-    { "id": "grass-side", "materialSlot": 4, "contentMin": [64, 0], "source": "source/grass-side-gpt.png" },
-    { "id": "dirt", "materialSlot": 2, "contentMin": [0, 64], "source": "source/dirt-gpt.png" },
-    { "id": "stone", "materialSlot": 3, "contentMin": [64, 64], "source": "source/stone-gpt.png" }
+    {
+      "id": "grass-top",
+      "block": "grass",
+      "face": "top",
+      "contentMin": [
+        0,
+        0
+      ],
+      "source": "source/grass-top-gpt.png"
+    },
+    {
+      "id": "grass-side",
+      "block": "grass",
+      "face": "base",
+      "contentMin": [
+        64,
+        0
+      ],
+      "source": "source/grass-side-gpt.png"
+    },
+    {
+      "id": "dirt",
+      "block": "dirt",
+      "face": "base",
+      "contentMin": [
+        0,
+        64
+      ],
+      "source": "source/dirt-gpt.png"
+    },
+    {
+      "id": "stone",
+      "block": "stone",
+      "face": "base",
+      "contentMin": [
+        64,
+        64
+      ],
+      "source": "source/stone-gpt.png"
+    },
+    {
+      "id": "sand",
+      "block": "sand",
+      "face": "base",
+      "contentMin": [
+        128,
+        0
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "gravel",
+      "block": "gravel",
+      "face": "base",
+      "contentMin": [
+        192,
+        0
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "cobblestone",
+      "block": "cobblestone",
+      "face": "base",
+      "contentMin": [
+        128,
+        64
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "brick",
+      "block": "brick",
+      "face": "base",
+      "contentMin": [
+        192,
+        64
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "log",
+      "block": "log",
+      "face": "base",
+      "contentMin": [
+        0,
+        128
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "planks",
+      "block": "planks",
+      "face": "base",
+      "contentMin": [
+        64,
+        128
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "leaves",
+      "block": "leaves",
+      "face": "base",
+      "contentMin": [
+        128,
+        128
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "water",
+      "block": "water",
+      "face": "base",
+      "contentMin": [
+        192,
+        128
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "glass",
+      "block": "glass",
+      "face": "base",
+      "contentMin": [
+        0,
+        192
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "lamp",
+      "block": "lamp",
+      "face": "base",
+      "contentMin": [
+        64,
+        192
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "bedrock",
+      "block": "bedrock",
+      "face": "base",
+      "contentMin": [
+        128,
+        192
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "snow",
+      "block": "snow",
+      "face": "base",
+      "contentMin": [
+        192,
+        192
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    }
   ]
 }

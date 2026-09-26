@@ -23,10 +23,13 @@ internal static class TerrainConstants
     internal const int TopsoilSlopeMaximum = 2;
     internal const int SubsoilSlopeMaximum = 3;
     internal const int SubsoilDepthMaximum = 3;
-    internal const ushort GrassMaterial = 1;
-    internal const ushort DirtMaterial = 2;
-    internal const ushort StoneMaterial = 3;
-    internal const ushort EmptyMaterial = 0;
+    // Material slots are block ids: see Content/BlockRegistry.cs for the floor and
+    // BlockId for the stable numbering. These names stay because generation and
+    // tests read them, and they must always equal the registry's slot.
+    internal const ushort GrassMaterial = (ushort)Content.BlockId.Grass;
+    internal const ushort DirtMaterial = (ushort)Content.BlockId.Dirt;
+    internal const ushort StoneMaterial = (ushort)Content.BlockId.Stone;
+    internal const ushort EmptyMaterial = (ushort)Content.BlockId.Air;
     internal const ushort MaximumMaterial = 4_095;
     internal const long MaximumCoordinateMagnitude = 1_000_000;
     internal const int MaximumBrushRadius = 2;

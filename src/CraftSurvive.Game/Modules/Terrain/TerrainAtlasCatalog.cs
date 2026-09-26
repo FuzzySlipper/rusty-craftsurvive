@@ -1,43 +1,57 @@
+using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// Owns CraftSurvive's small authored terrain-material closure. The product
-/// selects canonical asset identities and face policy; Engine owns validation,
-/// resource admission, material realization, and renderer lifetime.
+/// Owns CraftSurvive's authored block-material closure for the voxel world. The
+/// payload tables are built from <see cref="BlockRegistry"/> and the checked atlas
+/// layout rather than listed here, so adding a block is one registry entry plus one
+/// generated tile. The product selects canonical asset identities, block meaning
+/// and face policy; Engine owns validation, resource admission, material
+/// realization, and renderer lifetime.
 /// </summary>
 internal sealed class TerrainAtlasCatalog : IDisposable
 {
-    internal const string AtlasContentPath = "textures/terrain-atlas.png";
-    private const string AtlasHash = "d722b7c2af1168cd3d77a5bbcc351156a94c3b77c803fd4641e53eb98d41bf2f";
-    private const string TextureId = "texture/terrain-atlas";
-    private const string AtlasId = "sprite-sheet/terrain";
-    private const string GrassSideMaterialId = "material/terrain-grass-side";
-    private const string GrassTopMaterialId = "material/terrain-grass-top";
-    private const string DirtMaterialId = "material/terrain-dirt";
-    private const string StoneMaterialId = "material/terrain-stone";
+    internal const string AtlasContentPath = TerrainAtlasLayout.ImageContentPath;
     private const uint Version = 1;
-    private const uint AtlasPixels = 128;
-    private const uint TilePixels = 64;
     private const ushort NoPadding = 0;
     private const float TileScale = 1f;
     private const float TileOrigin = 0f;
     private const float NoEmission = 0f;
+    private const float CutoutThreshold = 0.5f;
     private const float Roughness = TerrainConstants.TerrainRoughness;
     private const float Alpha = TerrainConstants.MaterialAlpha;
+    private const float LampRed = 1f;
+    private const float LampGreen = 0.85f;
+    private const float LampBlue = 0.54f;
+    private const int FixedEntryCount = 2;
+
+    /// <summary>
+    /// Authored materials the directional voxel projection accepts per scene. A
+    /// scene that binds a fifth material fails inside the Engine with a bare status
+    /// and takes the worker down, so the product refuses it here with a message
+    /// that names the limit instead.
+    /// </summary>
+    private const int MaximumMaterials = 4;
 
     private readonly AuthoredCatalog catalog;
+    private readonly TerrainAtlasLayout layout;
     private readonly List<Material> materials = [];
+    private readonly Dictionary<BlockId, Material> baseMaterials = [];
+    private readonly Dictionary<BlockId, Material> topMaterials = [];
     private bool disposed;
 
-    internal TerrainAtlasCatalog(IEngineContext engine)
+    internal TerrainAtlasCatalog(IEngineContext engine, ProductContent content)
     {
         ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(content);
 
         AuthoredCatalog? admittedCatalog = null;
         try
         {
+            layout = TerrainAtlasLayout.Read(content);
+            RequireBindableMaterialCount();
             RenderResourceInfo texture = engine.Graphics.OpenResource(new RenderResourceRequest(AtlasContentPath));
             if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Handle.Value == 0)
             {
@@ -47,31 +61,35 @@ internal sealed class TerrainAtlasCatalog : IDisposable
             admittedCatalog = engine.AuthoredContent.AdmitCatalogPayload(CreatePayload());
             ValidateCatalog(engine.AuthoredContent.ReadCatalog(admittedCatalog));
 
-            materials.Add(CreateMaterial(engine, admittedCatalog, GrassSideMaterialId, texture.Handle));
-            materials.Add(CreateMaterial(engine, admittedCatalog, GrassTopMaterialId, texture.Handle));
-            materials.Add(CreateMaterial(engine, admittedCatalog, DirtMaterialId, texture.Handle));
-            materials.Add(CreateMaterial(engine, admittedCatalog, StoneMaterialId, texture.Handle));
+            foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+            {
+                baseMaterials[block.Id] = AdmitMaterial(engine, admittedCatalog, block.MaterialId, texture.Handle);
+                if (block.TopRegion is null)
+                {
+                    continue;
+                }
+
+                topMaterials[block.Id] = AdmitMaterial(engine, admittedCatalog, block.TopMaterialId, texture.Handle);
+            }
+
             catalog = admittedCatalog;
         }
         catch
         {
-            for (int index = materials.Count - 1; index >= 0; index--)
-            {
-                materials[index].Dispose();
-            }
-
+            DisposeMaterials();
             admittedCatalog?.Dispose();
             throw;
         }
     }
 
-    internal Material GrassSide => MaterialAt(0);
+    /// <summary>The atlas layout the materials were bound from.</summary>
+    internal TerrainAtlasLayout Layout => layout;
 
-    internal Material GrassTop => MaterialAt(1);
+    /// <summary>The material for a block's non-overridden faces.</summary>
+    internal Material BaseMaterial(BlockId id) => Lookup(baseMaterials, id);
 
-    internal Material Dirt => MaterialAt(2);
-
-    internal Material Stone => MaterialAt(3);
+    /// <summary>The +Y material for a block that overrides its top face, if any.</summary>
+    internal Material? TopMaterial(BlockId id) => topMaterials.TryGetValue(id, out Material? material) ? material : null;
 
     public void Dispose()
     {
@@ -81,128 +99,241 @@ internal sealed class TerrainAtlasCatalog : IDisposable
         }
 
         disposed = true;
+        DisposeMaterials();
+        catalog.Dispose();
+    }
+
+    private void DisposeMaterials()
+    {
         for (int index = materials.Count - 1; index >= 0; index--)
         {
             materials[index].Dispose();
         }
 
         materials.Clear();
-        catalog.Dispose();
+        baseMaterials.Clear();
+        topMaterials.Clear();
     }
 
-    private Material MaterialAt(int index)
+    private static void RequireBindableMaterialCount()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        return materials[index];
+        int bindable = 0;
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            bindable += block.TopRegion is null ? 1 : 2;
+        }
+
+        if (bindable > MaximumMaterials)
+        {
+            throw new InvalidOperationException(
+                $"Block binding needs {bindable} materials, and the Engine's directional voxel projection " +
+                $"accepts {MaximumMaterials} per scene.");
+        }
     }
 
-    private static Material CreateMaterial(IEngineContext engine, AuthoredCatalog catalog, string materialId,
-        RenderResource texture)
-        => engine.Graphics.CreateAuthoredMaterial(new AuthoredMaterialAppearanceRequest(catalog, materialId, texture));
+    private static Material Lookup(Dictionary<BlockId, Material> table, BlockId id) =>
+        table.TryGetValue(id, out Material? material)
+            ? material
+            : throw new InvalidOperationException($"Block '{BlockRegistry.Get(id).Name}' has no admitted material.");
 
-    private static AuthoredCatalogPayloadAdmitRequest CreatePayload() => new(
+    private Material AdmitMaterial(IEngineContext engine, AuthoredCatalog admittedCatalog, string materialId,
+        RenderResource texture)
+    {
+        Material material = engine.Graphics.CreateAuthoredMaterial(
+            new AuthoredMaterialAppearanceRequest(admittedCatalog, materialId, texture));
+        materials.Add(material);
+        return material;
+    }
+
+    private AuthoredCatalogPayloadAdmitRequest CreatePayload() => new(
         Entries(),
         Dependencies(),
         Materials(),
         new AuthoredTextureInput[]
         {
-            new(TextureId, AtlasPixels, AtlasPixels, AuthoredTextureFilter.Nearest, AuthoredTextureWrap.Clamp),
+            new(TerrainAtlasLayout.TextureId, layout.ExtentX, layout.ExtentY, AuthoredTextureFilter.Nearest,
+                AuthoredTextureWrap.Clamp),
         },
         new AuthoredVoxelAtlasInput[]
         {
-            new(AtlasId, Version, TextureId, AssetVersionRequirementKind.Exact, Version, true, AtlasHash),
+            new(TerrainAtlasLayout.AtlasId, Version, TerrainAtlasLayout.TextureId, AssetVersionRequirementKind.Exact,
+                Version, true, layout.ContentHash),
         },
         Regions(),
         Surfaces());
 
-    private static AuthoredCatalogEntryInput[] Entries() =>
-    [
-        new(TextureId, Version, true, AtlasHash, true, AtlasContentPath, true, "CraftSurvive terrain atlas"),
-        // The atlas is the authored layout over the selected PNG, so its
-        // stable identity is pinned to that source artifact as well.
-        new(AtlasId, Version, true, AtlasHash, false, string.Empty, true, "CraftSurvive terrain atlas layout"),
-        new(GrassSideMaterialId, Version, false, string.Empty, false, string.Empty, true, "CraftSurvive grass side"),
-        new(GrassTopMaterialId, Version, false, string.Empty, false, string.Empty, true, "CraftSurvive grass top"),
-        new(DirtMaterialId, Version, false, string.Empty, false, string.Empty, true, "CraftSurvive dirt"),
-        new(StoneMaterialId, Version, false, string.Empty, false, string.Empty, true, "CraftSurvive stone"),
-    ];
+    private AuthoredCatalogEntryInput[] Entries()
+    {
+        List<AuthoredCatalogEntryInput> entries =
+        [
+            new(TerrainAtlasLayout.TextureId, Version, true, layout.ContentHash, true,
+                TerrainAtlasLayout.ImageContentPath, true, "CraftSurvive terrain atlas"),
+            // The atlas is the authored layout over the selected PNG, so its
+            // stable identity is pinned to that source artifact as well.
+            new(TerrainAtlasLayout.AtlasId, Version, true, layout.ContentHash, false, string.Empty, true,
+                "CraftSurvive terrain atlas layout"),
+        ];
 
-    private static AuthoredCatalogDependencyInput[] Dependencies() =>
-    [
-        Dependency(AtlasId, TextureId, true),
-        Dependency(GrassSideMaterialId, TextureId, true),
-        Dependency(GrassSideMaterialId, AtlasId, true),
-        Dependency(GrassTopMaterialId, TextureId, true),
-        Dependency(GrassTopMaterialId, AtlasId, true),
-        Dependency(DirtMaterialId, TextureId, true),
-        Dependency(DirtMaterialId, AtlasId, true),
-        Dependency(StoneMaterialId, TextureId, true),
-        Dependency(StoneMaterialId, AtlasId, true),
-    ];
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            entries.Add(new AuthoredCatalogEntryInput(
+                block.MaterialId, Version, false, string.Empty, false, string.Empty, true, $"CraftSurvive {block.Name}"));
+            if (block.TopRegion is not null)
+            {
+                entries.Add(new AuthoredCatalogEntryInput(
+                    block.TopMaterialId, Version, false, string.Empty, false, string.Empty, true,
+                    $"CraftSurvive {block.Name} top"));
+            }
+        }
 
-    private static AuthoredCatalogDependencyInput Dependency(string owner, string reference, bool hasHash)
-        => new(owner, reference, AssetVersionRequirementKind.Exact, Version, hasHash, hasHash ? AtlasHash : string.Empty);
+        return [.. entries];
+    }
 
-    private static AuthoredMaterialInput[] Materials() =>
-    [
-        Material(GrassSideMaterialId),
-        Material(GrassTopMaterialId),
-        Material(DirtMaterialId),
-        Material(StoneMaterialId),
-    ];
+    private AuthoredCatalogDependencyInput[] Dependencies()
+    {
+        List<AuthoredCatalogDependencyInput> dependencies =
+        [
+            // The atlas is a layout over the image, so it depends on it directly.
+            Dependency(TerrainAtlasLayout.AtlasId, TerrainAtlasLayout.TextureId, true),
+        ];
 
-    private static AuthoredMaterialInput Material(string id) => new(
-        id,
-        true,
-        true,
-        true,
-        AuthoredStructuralClass.Solid,
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            dependencies.Add(Dependency(block.MaterialId, TerrainAtlasLayout.TextureId, true));
+            dependencies.Add(Dependency(block.MaterialId, TerrainAtlasLayout.AtlasId, true));
+            if (block.TopRegion is not null)
+            {
+                dependencies.Add(Dependency(block.TopMaterialId, TerrainAtlasLayout.TextureId, true));
+                dependencies.Add(Dependency(block.TopMaterialId, TerrainAtlasLayout.AtlasId, true));
+            }
+        }
+
+        return [.. dependencies];
+    }
+
+    private AuthoredCatalogDependencyInput Dependency(string owner, string reference, bool hasHash)
+        => new(owner, reference, AssetVersionRequirementKind.Exact, Version, hasHash,
+            hasHash ? layout.ContentHash : string.Empty);
+
+    private AuthoredMaterialInput[] Materials()
+    {
+        List<AuthoredMaterialInput> declared = [];
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            declared.Add(Material(block.MaterialId, block, isTopFace: false));
+            if (block.TopRegion is not null)
+            {
+                declared.Add(Material(block.TopMaterialId, block, isTopFace: true));
+            }
+        }
+
+        return [.. declared];
+    }
+
+    private AuthoredMaterialInput Material(string materialId, BlockDefinition block, bool isTopFace) => new(
+        materialId,
+        block.Solid,
+        block.Collidable,
+        block.Occludes,
+        StructuralClass(block),
         new Color(Alpha, Alpha, Alpha, Alpha),
         true,
-        TextureId,
+        TerrainAtlasLayout.TextureId,
         AssetVersionRequirementKind.Exact,
         Version,
         true,
-        AtlasHash,
+        layout.ContentHash,
         Roughness,
         new Color(Alpha, Alpha, Alpha, Alpha),
-        new Color(NoEmission, NoEmission, NoEmission, Alpha),
-        NoEmission,
+        isTopFace || block.LightEmission <= 0f
+            ? new Color(NoEmission, NoEmission, NoEmission, Alpha)
+            : new Color(LampRed, LampGreen, LampBlue, Alpha),
+        block.LightEmission,
         AuthoredUvStrategy.Atlas);
 
-    private static AuthoredAtlasRegionInput[] Regions() =>
-    [
-        Region("grass-top", 0, 0),
-        Region("grass-side", TilePixels, 0),
-        Region("dirt", 0, TilePixels),
-        Region("stone", TilePixels, TilePixels),
-    ];
-
-    private static AuthoredAtlasRegionInput Region(string id, uint x, uint y)
-        => new(AtlasId, id, x, y, TilePixels, TilePixels, NoPadding, NoPadding, NoPadding, NoPadding,
-            AuthoredAtlasInset.HalfTexel);
-
-    private static AuthoredVoxelSurfaceInput[] Surfaces() =>
-    [
-        Surface(GrassSideMaterialId, "grass-side"),
-        Surface(GrassTopMaterialId, "grass-top"),
-        Surface(DirtMaterialId, "dirt"),
-        Surface(StoneMaterialId, "stone"),
-    ];
-
-    private static AuthoredVoxelSurfaceInput Surface(string materialId, string region)
-        => new(materialId, Version, AuthoredVoxelSurfaceMappingKind.Atlas,
-            string.Empty, AssetVersionRequirementKind.Any, 0, false, string.Empty,
-            AtlasId, AssetVersionRequirementKind.Exact, Version, true, AtlasHash,
-            region, TileScale, TileScale, TileOrigin, TileOrigin, AuthoredVoxelAlphaModeKind.Opaque, NoEmission);
-
-    private static void ValidateCatalog(AuthoredCatalogReadoutLeaseReceipt readout)
+    private AuthoredAtlasRegionInput[] Regions()
     {
-        if (readout.Entries.Length != 6 || readout.Materials.Length != 4 || readout.Textures.Length != 1 ||
-            readout.VoxelAtlases.Length != 1 || readout.AtlasRegions.Length != 4 || readout.VoxelSurfaces.Length != 4 ||
+        List<AuthoredAtlasRegionInput> declared = [];
+        foreach (TerrainAtlasRegion region in layout.Regions)
+        {
+            declared.Add(new AuthoredAtlasRegionInput(
+                TerrainAtlasLayout.AtlasId, region.Id, region.X, region.Y, layout.TileWidth, layout.TileHeight,
+                NoPadding, NoPadding, NoPadding, NoPadding, AuthoredAtlasInset.HalfTexel));
+        }
+
+        return [.. declared];
+    }
+
+    private AuthoredVoxelSurfaceInput[] Surfaces()
+    {
+        List<AuthoredVoxelSurfaceInput> declared = [];
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            declared.Add(Surface(block.MaterialId, block, block.BaseRegion));
+            if (block.TopRegion is not null)
+            {
+                declared.Add(Surface(block.TopMaterialId, block, block.TopRegion));
+            }
+        }
+
+        return [.. declared];
+    }
+
+    private AuthoredVoxelSurfaceInput Surface(string materialId, BlockDefinition block, string region) => new(
+        materialId,
+        Version,
+        AuthoredVoxelSurfaceMappingKind.Atlas,
+        string.Empty,
+        AssetVersionRequirementKind.Any,
+        0,
+        false,
+        string.Empty,
+        TerrainAtlasLayout.AtlasId,
+        AssetVersionRequirementKind.Exact,
+        Version,
+        true,
+        layout.ContentHash,
+        region,
+        TileScale,
+        TileScale,
+        TileOrigin,
+        TileOrigin,
+        AlphaMode(block.Transparency),
+        block.Transparency == BlockTransparency.Cutout ? CutoutThreshold : NoEmission);
+
+    private static AuthoredStructuralClass StructuralClass(BlockDefinition block) =>
+        block.Id == BlockId.Bedrock ? AuthoredStructuralClass.Structural
+        : block.Solid && block.Occludes ? AuthoredStructuralClass.Solid
+        : AuthoredStructuralClass.Decorative;
+
+    private static AuthoredVoxelAlphaModeKind AlphaMode(BlockTransparency transparency) => transparency switch
+    {
+        BlockTransparency.Opaque => AuthoredVoxelAlphaModeKind.Opaque,
+        BlockTransparency.Cutout => AuthoredVoxelAlphaModeKind.Mask,
+        BlockTransparency.Translucent => AuthoredVoxelAlphaModeKind.Blend,
+        _ => throw new ArgumentOutOfRangeException(nameof(transparency), transparency, "Unsupported block transparency."),
+    };
+
+    private void ValidateCatalog(AuthoredCatalogReadoutLeaseReceipt readout)
+    {
+        int materialsExpected = 0;
+        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
+        {
+            materialsExpected += block.TopRegion is null ? 1 : 2;
+        }
+        if (readout.Entries.Length != FixedEntryCount + materialsExpected ||
+            readout.Materials.Length != materialsExpected ||
+            readout.Textures.Length != 1 ||
+            readout.VoxelAtlases.Length != 1 ||
+            readout.AtlasRegions.Length != layout.Regions.Count ||
+            readout.VoxelSurfaces.Length != materialsExpected ||
             string.IsNullOrWhiteSpace(readout.CanonicalHash))
         {
-            throw new InvalidOperationException("Engine did not retain the complete CraftSurvive terrain atlas catalog.");
+            throw new InvalidOperationException(
+                $"Engine did not retain the complete CraftSurvive block catalog: {readout.Entries.Length} entries, " +
+                $"{readout.Materials.Length} materials, {readout.Textures.Length} textures, " +
+                $"{readout.VoxelAtlases.Length} atlases, {readout.AtlasRegions.Length} regions, " +
+                $"{readout.VoxelSurfaces.Length} surfaces.");
         }
     }
 }

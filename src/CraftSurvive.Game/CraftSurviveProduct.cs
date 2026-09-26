@@ -34,7 +34,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         ArgumentNullException.ThrowIfNull(context);
         engine = context.Engine;
-        terrain = new TerrainWorld(context.Engine, TerrainConfiguration.Default);
+        terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default);
         player = new PlayerController(context.Engine, terrain);
         workbench = new ProcgenWorkbench(engine, context.Content, terrain, player);
         procgenDebug = new ProcgenDebugModule(workbench);
