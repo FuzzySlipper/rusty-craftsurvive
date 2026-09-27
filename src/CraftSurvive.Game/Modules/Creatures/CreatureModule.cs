@@ -178,6 +178,12 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private int lootAwarded;
 
+    private int playerExperience;
+
+    private int playerLevel = 1;
+
+    private const int CombatExperienceAward = 120;
+
     private string lastPlayerAttack = "none";
 
     /// <summary>Where the player began, so a defeat can send them home.</summary>
@@ -496,7 +502,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} reward=placeholder-no-live-progression attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} reward=loot-placeholder-no-drop-table experience={playerExperience} level={playerLevel} attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -923,8 +929,14 @@ public sealed class CreatureModule : IDebugCommandModule
         // consumes them yet, and the readout says so.
         defeated++;
         lootAwarded += CreatureConstants.CreatureLootValue;
+        // Experience now goes through the rules rather than being dropped: the
+        // product owns the totals, ProgressionRules decides the level.
+        ProgressionOutcome progression = ProgressionRules.Award(
+            playerExperience, playerLevel, new ExperienceAward(ExperienceSource.Combat, CombatExperienceAward));
+        playerExperience = progression.Experience;
+        playerLevel = progression.Level;
         return string.Create(CultureInfo.InvariantCulture,
-            $"defeated {target}; defeated={defeated} loot={lootAwarded}");
+            $"defeated {target}; defeated={defeated} loot={lootAwarded} xp={playerExperience} level={playerLevel}{(progression.Advanced ? " advanced" : string.Empty)}");
     }
 
     [DebugCommand("craft.creatures.scan")]
