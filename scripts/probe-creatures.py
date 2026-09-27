@@ -122,6 +122,50 @@ def command_teleport_near(args):
     return 0
 
 
+def parse_player(text):
+    """The player line the readout carries, or a loud failure."""
+    match = re.search(r'player=(?P<health>\d+)/(?P<maximum>\d+) defeats=(?P<defeats>\d+) outcome=(?P<outcome>\w+)', text)
+    if match is None:
+        raise SystemExit(f'player fields unparsed: {text[:240]}')
+    fields = match.groupdict()
+    return {'health': int(fields['health']), 'maximum': int(fields['maximum']),
+            'defeats': int(fields['defeats']), 'outcome': fields['outcome']}
+
+
+def command_verify_death_loop(args):
+    """Asserts the whole loop: a death, a respawn at half health, and no repeat."""
+    state, creature = one(args.origin, args.id)
+    print(json.dumps({'before': creature, 'player': state.get('player')}, indent=1))
+    height = args.height if args.height is not None else destination_height(args.origin, creature['x'], creature['z'] + args.metres)
+    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {creature['z'] + args.metres}")
+    if status != 200:
+        raise SystemExit(f'teleport answered HTTP {status}: {text[:160]}')
+
+    defeats = 0
+    aliveAfterDeath = False
+    stable = 0
+    for attempt in range(args.polls):
+        time.sleep(args.wait)
+        _, body = invoke(args.origin, 'craft.creatures.readout')
+        player = parse_player(body)
+        print(f"poll {attempt + 1}: health={player['health']}/{player['maximum']} "
+              f"defeats={player['defeats']} outcome={player['outcome']}")
+        if player['defeats'] > defeats:
+            defeats = player['defeats']
+        elif defeats > 0 and player['outcome'] == 'Alive' and player['health'] > 0:
+            aliveAfterDeath = True
+            stable += 1
+
+    if defeats == 0:
+        raise SystemExit('not verified: the chase never defeated the player')
+    if not aliveAfterDeath:
+        raise SystemExit(f'not verified: the player never came back after {defeats} defeat(s)')
+    if stable < args.stable:
+        raise SystemExit(f'not verified: only {stable} stable polls after the respawn, wanted {args.stable}')
+    print(f"DEATH LOOP VERIFIED: {defeats} defeat(s), respawned to health>0 and stable for {stable} polls")
+    return 0
+
+
 def command_verify_engagement(args):
     before, creature = one(args.origin, args.id)
     print(json.dumps({'before': creature}, indent=1))
@@ -161,5 +205,13 @@ engagement.add_argument('metres', type=float)
 engagement.add_argument('--height', type=float, default=None)
 engagement.add_argument('--wait', type=float, nargs=2, default=[7.0, 9.0])
 engagement.set_defaults(handler=command_verify_engagement)
+loop = sub.add_parser('verify-death-loop')
+loop.add_argument('id', type=int)
+loop.add_argument('metres', type=float)
+loop.add_argument('--height', type=float, default=None)
+loop.add_argument('--wait', type=float, default=5.0)
+loop.add_argument('--polls', type=int, default=12)
+loop.add_argument('--stable', type=int, default=2)
+loop.set_defaults(handler=command_verify_death_loop)
 args = parser.parse_args()
 sys.exit(args.handler(args))
