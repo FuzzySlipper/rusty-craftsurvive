@@ -60,6 +60,9 @@ internal static class CreatureConstants
 
     /// <summary>Stride of the entry-point scan over the cell index space.</summary>
     internal const long NavigationEntryStride = 4;
+
+    /// <summary>The player's own health pool, owned by the product.</summary>
+    internal const int PlayerMaximumHealth = 40;
     internal const float NavigationDepthBelow = 4f;
     internal const float NavigationHeightAbove = 8f;
 
@@ -135,6 +138,8 @@ public sealed class CreatureModule : IDebugCommandModule
     private ulong navigationScannedRevision;
 
     private string navigationScanStatus = "not scanned";
+
+    private PlayerDefeatState playerDefeat = PlayerDefeatState.Full(CreatureConstants.PlayerMaximumHealth);
     private readonly Dictionary<int, string> routes = [];
     private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
@@ -231,6 +236,12 @@ public sealed class CreatureModule : IDebugCommandModule
     private void UpdateCore()
     {
         ScanEntryPoints();
+        if (PlayerDefeatRules.CanRespawn(playerDefeat, tick))
+        {
+            playerDefeat = PlayerDefeatRules.Respawn(playerDefeat);
+            lastEvent = string.Create(CultureInfo.InvariantCulture,
+                $"player respawned at {playerDefeat.Health} health after defeat {playerDefeat.Defeats}");
+        }
         if (!started)
         {
             return;
@@ -383,7 +394,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -696,6 +707,15 @@ public sealed class CreatureModule : IDebugCommandModule
     /// walk. This finds where the projection actually is instead of assuming it
     /// shares the product's box arithmetic.
     /// </summary>
+    /// <summary>Applies damage to the player, so an encounter can be lost as well as won.</summary>
+    [DebugCommand("craft.player.strike")]
+    public string StrikePlayer(int damage)
+    {
+        playerDefeat = PlayerDefeatRules.Strike(playerDefeat, damage, tick);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"health={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} respawnTick={playerDefeat.RespawnTick} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)}");
+    }
+
     [DebugCommand("craft.creatures.scan")]
     public string Scan(long stride, long level)
     {
