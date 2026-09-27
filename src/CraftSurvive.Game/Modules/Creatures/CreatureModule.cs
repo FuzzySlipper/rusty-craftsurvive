@@ -178,7 +178,6 @@ public sealed class CreatureModule : IDebugCommandModule
     /// <summary>Where the player began, so a defeat can send them home.</summary>
     private Vector3 spawnPosition;
     private readonly Dictionary<int, string> routes = [];
-    private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
     private string lastFailure = "none";
     private bool started;
@@ -350,11 +349,11 @@ public sealed class CreatureModule : IDebugCommandModule
             CreatureBehaviorState state = CreatureBehaviorRules.Step(tuning, behavior[id], sensed, tick);
             behavior[id] = state;
 
-            // Navigation is consulted before closing, but only a **definitive**
-            // answer is obeyed. A start-cell failure means the question could not
-            // be asked - the level swept did not land on the walk - and is treated
-            // as "navigation never engaged" rather than "no path", so an
-            // unanswerable query can never freeze a creature in place.
+            // Navigation is consulted before closing, but never gates movement. A
+            // definitive "no route" means the Engine found no path, not that the
+            // creature should stand still: a pursuer closes directly instead, and the
+            // route is reported for diagnosis rather than obeyed. The query is
+            // throttled because it costs work, not because its answer decides.
             if (state.State is CreatureState.Pursuing or CreatureState.Attacking && distance > CreatureConstants.AttachDistanceMetres)
             {
                 if (tick % CreatureConstants.NavigationQueryTicks == 0 || !routes.ContainsKey(id))
@@ -363,7 +362,6 @@ public sealed class CreatureModule : IDebugCommandModule
                         (long)Math.Round(here.X),
                         (long)Math.Round(here.Y)) + 1f;
                     routes[id] = QueryRoute(here, standingY, playerPosition, out bool definitive);
-                    routeIsDefinitive[id] = definitive;
                 }
 
                 double step = CreatureConstants.PursueSpeedMetresPerSecond * CreatureConstants.TickSeconds;
@@ -858,7 +856,6 @@ public sealed class CreatureModule : IDebugCommandModule
         behavior.Remove(target);
         combat.Remove(target);
         routes.Remove(target);
-        routeIsDefinitive.Remove(target);
         defeated++;
         lootAwarded += CreatureConstants.CreatureLootValue;
         return string.Create(CultureInfo.InvariantCulture,
