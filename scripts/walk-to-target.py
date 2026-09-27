@@ -52,15 +52,31 @@ def rows():
 
 
 def hold(key, seconds):
+    """Press one movement key, and report what the lane actually did.
+
+    The result is parsed and returned rather than discarded. Five increments of walking failures
+    were made harder to diagnose by throwing this away: the loop would compute a step, the
+    distance would not move, and nothing said whether the key press ever happened.
+    """
     if seconds < 0.4:
-        return
-    subprocess.run(
+        return None
+    presses = max(2, int(seconds * 4))
+    run = subprocess.run(
         ["node", "scripts/playwright-attack-key.cjs"],
         env=dict(os.environ,
                  PLAYWRIGHT_MODULE="/home/agent/.local/share/crew-playtest/browser/node_modules/playwright",
                  PRODUCT_ORIGIN=ORIGIN, CHROMIUM_PATH="/home/agent/.local/share/crew-playtest/bin/chromium-local",
-                 HOLD_KEYS=key, ATTACK_KEY="j", PRESSES=str(max(2, int(seconds * 4))), GAP_MS="250"),
+                 HOLD_KEYS=key, ATTACK_KEY="j", PRESSES=str(presses), GAP_MS="250"),
         capture_output=True, text=True, timeout=150)
+    report = (run.stdout or "").strip().split("\n")[-1] if run.stdout else ""
+    match = re.search(r'"presses":\s*(\d+)', report)
+    issued = int(match.group(1)) if match else 0
+    errors = re.search(r'"pageErrors":\s*\[([^\]]*)\]', report)
+    if issued == 0:
+        print(f"    HOLD FAILED key={key} wanted={presses} exit={run.returncode} report={report[:120]!r} stderr={(run.stderr or '').strip()[-120:]!r}")
+    elif errors and errors.group(1).strip():
+        print(f"    hold key={key} presses={issued} pageErrors={errors.group(1)[:80]}")
+    return issued
 
 
 def main():
