@@ -178,6 +178,8 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private int lootAwarded;
 
+    private readonly List<Appearance> retiringAppearances = [];
+
     private int playerExperience;
 
     private int playerLevel = 1;
@@ -281,8 +283,26 @@ public sealed class CreatureModule : IDebugCommandModule
         }
     }
 
+    private void RetireAppearances()
+    {
+        if (retiringAppearances.Count == 0)
+        {
+            return;
+        }
+
+        foreach (Appearance appearance in retiringAppearances)
+        {
+            appearance.Dispose();
+        }
+
+        retiringAppearances.Clear();
+    }
+
     private void UpdateCore()
     {
+        // Released only after a frame has published a snapshot without them.
+        RetireAppearances();
+
         if (player.AttackRequested)
         {
             lastPlayerAttack = AttackNearestCore();
@@ -914,10 +934,15 @@ public sealed class CreatureModule : IDebugCommandModule
         lastAttackTick.Remove(target);
         if (appearances.TryGetValue(target, out Appearance? departing))
         {
-            // The same disposal the module's own Dispose uses, so a killed creature
-            // does not leave its GPU primitive behind.
-            departing?.Dispose();
+            // Removal comes first and disposal comes later: the Engine refuses to
+            // dispose an appearance that the last published snapshot still
+            // references, so the creature is dropped from the published set now
+            // and its handle is released once a frame has published without it.
             appearances.Remove(target);
+            if (departing is not null)
+            {
+                retiringAppearances.Add(departing);
+            }
         }
         // And it leaves the encounter director, so a killed creature is not still
         // counted as an active encounter.
