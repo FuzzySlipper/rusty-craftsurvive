@@ -24,6 +24,7 @@ HEAD = re.compile(r'tick=(?P<tick>\d+); active=(?P<active>\d+); entities=(?P<ent
 ROW = re.compile(r'id=(?P<id>\d+) entity=EntityId \{ Value = \d+ \} '
                  r'at=(?P<x>-?[\d.]+),(?P<z>-?[\d.]+) state=(?P<state>\w+) '
                  r'hp=(?P<hp>\d+)/(?P<maximum>\d+) d=(?P<distance>[\d.]+) route=(?P<route>\S+)')
+ENTITIES = re.compile(r'entities=(\d+)')
 FLOATS = ('x', 'z', 'distance')
 INTS = ('hp', 'maximum')
 
@@ -55,6 +56,13 @@ def snapshot(origin):
             key: float(fields[key]) if key in FLOATS else int(fields[key]) if key in INTS else fields[key]
             for key in ('id', 'x', 'z', 'state', 'hp', 'maximum', 'distance', 'route')}
     if not creatures:
+        # An empty world is a legitimate answer, not a parse failure: a cleared
+        # encounter leaves no rows. The readout states the expected count, so a
+        # zero count with zero rows is trusted, while rows that fail to parse
+        # still raise.
+        if ENTITIES.search(text) is not None and int(ENTITIES.search(text).group(1)) == 0:
+            return {'tick': int(head.group('tick')), 'nav': head.group('nav'), 'cells': int(head.group('cells')),
+                    'creatureCount': 0, 'creatures': {}}
         raise SystemExit(f'no creature rows parsed: {text[:300]}')
     return {'tick': int(head.group('tick')), 'nav': head.group('nav'), 'cells': int(head.group('cells')),
             'creatureCount': len(creatures), 'creatures': creatures}
