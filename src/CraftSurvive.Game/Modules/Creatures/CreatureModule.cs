@@ -47,7 +47,12 @@ internal static class CreatureConstants
     internal const double NavigationAgentRadius = 0.3d;
     internal const double NavigationAgentHeight = 1.8d;
     internal const double NavigationMaximumSlopeDegrees = 45d;
-    internal const float NavigationHalfExtent = 16f;
+    /// <summary>
+    /// The published box must contain the creatures that ask about routes, not
+    /// only the player: an index outside the box is a question about a cell that
+    /// does not exist, and the Engine rightly refuses it.
+    /// </summary>
+    internal const float NavigationHalfExtent = 64f;
     internal const float NavigationDepthBelow = 4f;
     internal const float NavigationHeightAbove = 8f;
 
@@ -415,6 +420,19 @@ public sealed class CreatureModule : IDebugCommandModule
         long baseLevel = (long)Math.Floor((fromY - navigationWorldMin.Y) / TerrainConstants.VoxelSize);
         List<string> trace = [];
         definitive = false;
+
+        // A cell outside the published box is not a walk question at all, so it is
+        // treated as navigation not engaging rather than as "no path".
+        long boxColumns = (long)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+        long startColumn = (long)Math.Floor((from.X - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+        long startRow = (long)Math.Floor((from.Y - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+        long goalColumn = (long)Math.Floor((to.X - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+        long goalRow = (long)Math.Floor((to.Z - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+        if (startColumn < 0 || startColumn >= boxColumns || startRow < 0 || startRow >= boxColumns
+            || goalColumn < 0 || goalColumn >= boxColumns || goalRow < 0 || goalRow >= boxColumns)
+        {
+            return $"outofbox(start={startColumn},{startRow} goal={goalColumn},{goalRow} box={boxColumns})";
+        }
         for (long delta = 0; delta <= CreatureConstants.NavigationLevelSweep; delta++)
         {
             long[] levels = delta == 0 ? [baseLevel] : [baseLevel - delta, baseLevel + delta];
