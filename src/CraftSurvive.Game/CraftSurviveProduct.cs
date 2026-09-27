@@ -22,6 +22,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 {
     private readonly IEngineContext engine;
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
+    private string updateFailure = "none";
+    private long updateFailures;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly MicrovoxelPresentation? microvoxels;
@@ -59,7 +61,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
         sky = new SkyBackground(context.Engine);
         creatures = new CreatureModule(context.Engine, terrain, player);
-        encounterProof = new EncounterProofModule(terrain, player);
+        encounterProof = new EncounterProofModule(
+            terrain,
+            player,
+            () => $"updateFailures={updateFailures}; first={updateFailure}");
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
@@ -146,9 +151,33 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         microvoxels?.Attach();
     }
 
+    /// <summary>
+    /// The product's callback boundary. An exception that escapes a product
+    /// callback taints the Engine's runtime (CSHARP_RUNTIME_TAINTED) and every
+    /// later request fails until the incarnation is replaced, so a failure here is
+    /// recorded and the frame is dropped rather than allowed to escape.
+    /// </summary>
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
+        try
+        {
+            return UpdateCore(update);
+        }
+        catch (Exception exception)
+        {
+            updateFailures++;
+            if (updateFailure == "none")
+            {
+                updateFailure = $"{exception.GetType().Name}: {exception.Message}";
+            }
+
+            return ProductUpdateResult.None;
+        }
+    }
+
+    private ProductUpdateResult UpdateCore(ProductUpdate update)
+    {
         terrain.UpdateCourtyard();
         creatures.Update();
         workbench?.Update(update);
