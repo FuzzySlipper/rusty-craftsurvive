@@ -53,6 +53,13 @@ internal static class CreatureConstants
     /// does not exist, and the Engine rightly refuses it.
     /// </summary>
     internal const float NavigationHalfExtent = 64f;
+
+    internal const long NavigationCalibrationMinimumLevel = -4;
+
+    internal const long NavigationCalibrationMaximumLevel = 12;
+
+    /// <summary>Stride of the entry-point scan over the cell index space.</summary>
+    internal const long NavigationEntryStride = 8;
     internal const float NavigationDepthBelow = 4f;
     internal const float NavigationHeightAbove = 8f;
 
@@ -116,6 +123,18 @@ public sealed class CreatureModule : IDebugCommandModule
     private ulong navigationHash;
     private string navigationStatus = "not published";
     private Vector3 navigationWorldMin;
+
+    /// <summary>
+    /// Cells the Engine accepted when asked about themselves. World-to-cell mapping
+    /// has been unguessable in practice, so routes are queried between cells the
+    /// Engine has already confirmed are inside its projection, and nearest is
+    /// decided in cell index space where both endpoints are expressed alike.
+    /// </summary>
+    private readonly List<PlanarNavCell> navigationEntryCells = [];
+
+    private ulong navigationScannedRevision;
+
+    private string navigationScanStatus = "not scanned";
     private readonly Dictionary<int, string> routes = [];
     private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
@@ -211,6 +230,7 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private void UpdateCore()
     {
+        ScanEntryPoints();
         if (!started)
         {
             return;
@@ -363,7 +383,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -418,6 +438,27 @@ public sealed class CreatureModule : IDebugCommandModule
     private string QueryRoute(Vector2 from, float fromY, Vector3 to, out bool definitive)
     {
         long baseLevel = (long)Math.Floor((fromY - navigationWorldMin.Y) / TerrainConstants.VoxelSize);
+        if (navigationEntryCells.Count > 0)
+        {
+            definitive = false;
+            // Both endpoints must be cells the Engine itself accepted.
+            PlanarNavCell entryStart = NearestEntry(from, fromY);
+            PlanarNavCell entryGoal = NearestEntry(new Vector2(to.X, to.Z), to.Y);
+            try
+            {
+                NavigationPathReadout entryPath = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                    terrain.Session,
+                    entryStart,
+                    entryGoal,
+                    CreatureConstants.NavigationMaxVisitedCells));
+                definitive = true;
+                return $"{entryPath.Outcome}({entryPath.PathLen}c,{entryPath.Visited}v) entries={navigationEntryCells.Count} start=({entryStart.X},{entryStart.Y},{entryStart.Z}) goal=({entryGoal.X},{entryGoal.Y},{entryGoal.Z})";
+            }
+            catch (Exception exception)
+            {
+                return $"refused:{exception.Message}";
+            }
+        }
         List<string> trace = [];
         definitive = false;
 
@@ -700,6 +741,76 @@ public sealed class CreatureModule : IDebugCommandModule
 
         return string.Create(CultureInfo.InvariantCulture,
             $"stride={stride} level={level} limit={limit} asked={asked} accepted={accepted.Count} acceptedCells=[{string.Join(" ", accepted)}] refusedSamples=[{string.Join(" ", refusedSamples)}]");
+    }
+
+    /// <summary>
+    /// Asks the Engine which cells are in its projection, by requesting a path from
+    /// a cell to itself. Asked over an index space it can answer, unlike world
+    /// positions, which have failed to map four times.
+    /// </summary>
+    private void ScanEntryPoints()
+    {
+        if (navigationWalkableCells == 0UL || navigationScannedRevision == navigationRevision)
+        {
+            return;
+        }
+
+        navigationScannedRevision = navigationRevision;
+        navigationEntryCells.Clear();
+        long limit = (long)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+        int asked = 0;
+        for (long level = CreatureConstants.NavigationCalibrationMinimumLevel;
+             level <= CreatureConstants.NavigationCalibrationMaximumLevel && navigationEntryCells.Count < 8;
+             level++)
+        {
+            for (long column = 0; column < limit && navigationEntryCells.Count < 8; column += CreatureConstants.NavigationEntryStride)
+            {
+                for (long row = 0; row < limit && navigationEntryCells.Count < 8; row += CreatureConstants.NavigationEntryStride)
+                {
+                    asked++;
+                    try
+                    {
+                        NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                            terrain.Session,
+                            new PlanarNavCell(column, level, row),
+                            new PlanarNavCell(column, level, row),
+                            CreatureConstants.NavigationMaxVisitedCells));
+                        if (!path.Outcome.ToString().Contains("Start", StringComparison.Ordinal))
+                        {
+                            navigationEntryCells.Add(new PlanarNavCell(column, level, row));
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        navigationScanStatus = $"scan refused: {exception.GetType().Name}";
+                        return;
+                    }
+                }
+            }
+        }
+
+        navigationScanStatus = string.Create(CultureInfo.InvariantCulture,
+            $"entries={navigationEntryCells.Count} asked={asked} revision={navigationRevision}");
+    }
+
+    /// <summary>The entry cell nearest a position's assumed cell, in index space.</summary>
+    private PlanarNavCell NearestEntry(Vector2 from, float fromY)
+    {
+        long column = (long)Math.Floor((from.X - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+        long row = (long)Math.Floor((from.Y - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+        PlanarNavCell best = navigationEntryCells[0];
+        long bestDistance = long.MaxValue;
+        foreach (PlanarNavCell cell in navigationEntryCells)
+        {
+            long distance = Math.Abs(cell.X - column) + Math.Abs(cell.Z - row);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = cell;
+            }
+        }
+
+        return best;
     }
 
     private PlanarNavCell CellAt(float worldX, float worldZ, long level) => new(
