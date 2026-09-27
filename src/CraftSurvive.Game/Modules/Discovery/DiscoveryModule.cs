@@ -328,7 +328,16 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             // Worlds are disposable under the settled save policy, so a journal that does
             // not match this world is set aside rather than reaching the load call and
             // failing the product. The previous generation is kept as one backup.
-            PreserveBackup(bytes);
+            // The backup is a courtesy, not a condition: a store that cannot write it must not take
+            // the product down during construction, which is the one place a failure is fatal.
+            try
+            {
+                PreserveBackup(bytes);
+            }
+            catch (Exception failure) when (failure is InvalidOperationException or IOException or ArgumentException)
+            {
+                lastFailure = failure.Message;
+            }
             restoreOutcome = $"discarded: {exception.Message}";
         }
     }

@@ -42,7 +42,7 @@ internal static class DiscoveryConstants
     /// <summary>
     /// How often the world asks what the player can see, in update ticks. A player at a
     /// walking pace covers a fraction of a metre per tick and the notice radius is 128 m,
-    /// so asking every tick would spend the work of eighty asks to answer the same thing.
+    /// every tick would do the same work ten times over.
     /// </summary>
     internal const int NoticeIntervalTicks = 10;
     /// <summary>

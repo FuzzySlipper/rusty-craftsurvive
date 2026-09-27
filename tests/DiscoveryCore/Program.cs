@@ -153,6 +153,21 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
         {
             for (long z = site.Z - PoiConstants.MaximumStructureReach; z <= site.Z + PoiConstants.MaximumStructureReach; z++)
             {
+                // The voxel pass finds a structure by scanning the nine cells around a position, which is
+                // only sufficient while every builder stays inside the reach it declares. Nothing else
+                // asserts it, and a structure one block wider would let two chunks disagree about a shared
+                // voxel - the one failure this contract cannot tolerate.
+                long outside = PoiConstants.MaximumStructureReach + 2;
+                Require(PoiStructures.MaterialAt(site, site.X + outside, site.Ground, site.Z).IsNone
+                    && PoiStructures.MaterialAt(site, site.X - outside, site.Ground, site.Z).IsNone
+                    && PoiStructures.MaterialAt(site, site.X, site.Ground, site.Z + outside).IsNone
+                    && PoiStructures.MaterialAt(site, site.X, site.Ground, site.Z - outside).IsNone,
+                    $"{site.Id} must build nothing beyond its declared reach");
+                Require(PoiStructures.MaterialAt(site, site.X, site.Ground + PoiConstants.MaximumStructureHeight + 1, site.Z).IsNone,
+                    $"{site.Id} must build nothing above its declared height");
+                Require(PoiStructures.MaterialAt(site, site.X, site.Ground - PoiConstants.MaximumCarveDepth - 2, site.Z).IsNone,
+                    $"{site.Id} must cut nothing below its declared depth");
+
                 PoiVoxel voxel = PoiStructures.MaterialAt(site, x, y, z);
                 if (voxel.IsNone)
                 {
@@ -382,6 +397,10 @@ foreach ((long cellX, long cellZ) in cells)
 
     bridges++;
     Require(spans.SiteAt(cellX, cellZ) == site, $"the crossing in ({cellX},{cellZ}) must not depend on query order");
+    Require(CrossingStructure.MaterialAt(site, site.FromX - PoiConstants.CrossingRampLength - 2, site.DeckY, site.FromZ).IsNone
+        && CrossingStructure.MaterialAt(site, site.ToX + PoiConstants.CrossingRampLength + 2, site.DeckY, site.ToZ).IsNone
+        && CrossingStructure.MaterialAt(site, site.FromX, site.DeckY + 2, site.FromZ).IsNone,
+        $"{site.Id} must build nothing beyond its deck and its two ramps");
     Require(site.DeckY >= TerrainConstants.WaterLevel + 1,
         $"{site.Id} must lay its deck above the water line, found {site.DeckY}");
     Require(site.DeckY == TerrainConstants.WaterLevel + 1 || site.DeckY == 6,

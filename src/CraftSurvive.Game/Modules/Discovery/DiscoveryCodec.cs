@@ -8,7 +8,7 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// discipline, and for the same reasons: a fixed header carries the world's identity, so a
 /// save from another seed or another generation version is recognised rather than
 /// misread; the entry count is checked against the payload length before anything is
-/// allocated; and a fingerprint over the facts catches a blob that was truncated or
+    /// A fingerprint catches a blob whose bytes were altered in place. Truncation is caught
 /// corrupted in the middle, which a length check alone cannot.
 ///
 /// Everything here throws on bad input. That is deliberate, and it is the opposite of the
