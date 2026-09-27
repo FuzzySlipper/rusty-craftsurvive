@@ -168,7 +168,7 @@ internal static class PoiStructures
     /// <summary>
     /// A mouth cut into a slope: an arch of stone standing proud of the ground, with a
     /// recess carved behind it. The direction it opens is one of the four cardinals,
-    /// chosen by the site's variant, so neighbouring mouths do not all face the same way.
+    /// chosen by the uphill direction measured from the ground (the site's aspect), not the variant, so neighbouring mouths do not all face the same way.
     /// </summary>
     private static PoiVoxel CaveMouth(PoiSite site, long x, long y, long z)
     {

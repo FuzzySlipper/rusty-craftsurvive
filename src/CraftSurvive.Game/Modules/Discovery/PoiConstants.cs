@@ -121,7 +121,7 @@ internal static class PoiConstants
 
     // --- crossings --------------------------------------------------------------------
 
-    /// <summary>How wide a run of water may be and still be spanned. Wider is walked around.</summary>
+    /// <summary>The largest difference between the first and last water column a span may cover, so a span of this size covers one more block than this. Wider is walked around.</summary>
     internal const long CrossingMaximumSpan = 12;
 
     /// <summary>How much dry land each end of a span needs, so a bridge lands on a bank.</summary>
@@ -139,7 +139,7 @@ internal static class PoiConstants
 
     /// <summary>
     /// How close the player must come, in metres, for a site to be noticed at all.
-    /// The Engine's perception decides whether it is actually visible from there; this
+    /// Visibility is decided by DiscoveryRules.HasSightline over the generation recipe, not by the Engine's perception: the product owns what counts as seeing from there; this
     /// is the cheap outer bound that keeps the query to the cells in range.
     /// </summary>
     internal const double NoticeRadiusMetres = 128.0;

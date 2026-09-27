@@ -6,6 +6,11 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// What the player has learned about one place. The stage only ever rises, so the
 /// first-seen tick is kept even when the site is later visited.
 /// </summary>
+/// <summary>
+/// One found place. The ticks are session-relative: a restored entry keeps the ticks it was
+/// saved with, while the module's own counter restarts each run, so ticks order places within
+/// a session and are not comparable across one.
+/// </summary>
 internal readonly record struct DiscoveryEntry(
     long CellX,
     long CellZ,

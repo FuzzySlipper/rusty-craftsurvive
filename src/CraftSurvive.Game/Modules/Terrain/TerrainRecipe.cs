@@ -76,8 +76,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
         PoiVoxel poi = PoiAt(address.X, address.Y, address.Z);
         if (poi.Kind == PoiVoxelKind.Carve)
         {
-            // A way in, never a pit: the cut stops one step below the local ground, which is
-            // the deepest floor a character with no climb reach can step back out of.
+            // The cut stops one step below the local ground, which is the deepest floor a character
+            // with no climb reach can step back out of. It is still a pit - a shallow, escapable
+            // one - and the descent a dungeon entrance promises is the dimension slice's to add.
             return address.Y >= column.Surface - TerrainConstants.MaximumStructureStepBelowGround
                 ? TerrainConstants.EmptyMaterial
                 : material;

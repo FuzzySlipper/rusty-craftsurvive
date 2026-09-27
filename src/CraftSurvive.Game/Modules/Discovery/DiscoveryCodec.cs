@@ -122,6 +122,13 @@ internal static class DiscoveryCodec
             long x = BinaryPrimitives.ReadInt64LittleEndian(source.Slice(16));
             long z = BinaryPrimitives.ReadInt64LittleEndian(source.Slice(24));
             PoiKind kind = (PoiKind)BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(32));
+            // A kind or stage outside the known range is refused rather than adopted: these numbers
+            // are persisted and published, so a value that is not one of them is a blob this build
+            // cannot interpret, and the codec's job is to say so loudly while refusing is still safe.
+            if ((int)kind < (int)PoiConstants.FirstKind || (int)kind > (int)PoiConstants.LastKind)
+            {
+                throw new InvalidOperationException($"Place {index} has kind {kind}, which is not a known kind.");
+            }
             DiscoveryStage stage = (DiscoveryStage)source[34];
             entries[index] = new DiscoveryEntry(cellX, cellZ, kind, x, z, stage,
                 BinaryPrimitives.ReadInt64LittleEndian(source.Slice(35)),

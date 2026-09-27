@@ -173,9 +173,9 @@ internal static class CrossingStructure
         long along = site.AlongX ? x - site.FromX : z - site.FromZ;
         long across = site.AlongX ? z - site.FromZ : x - site.FromX;
         long length = site.AlongX ? site.ToX - site.FromX : site.ToZ - site.FromZ;
-        long reach = PoiConstants.CrossingMaximumSpan;
-        if (along < -1 || along > length + 1 || Math.Abs(across) > PoiConstants.CrossingHalfWidth
-            || along < -reach || along > reach + length)
+        // One block past each end is the whole reach: an abutment sits on the bank and nothing
+        // is built beyond it, so no bound on `length` is needed here.
+        if (along < -1 || along > length + 1 || Math.Abs(across) > PoiConstants.CrossingHalfWidth)
         {
             return PoiVoxel.None;
         }

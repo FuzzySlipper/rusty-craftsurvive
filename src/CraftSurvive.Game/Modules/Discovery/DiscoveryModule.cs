@@ -23,6 +23,9 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly DiscoveryState journal;
+
+    /// <summary>The last save or publish failure, reported by the readout rather than swallowed.</summary>
+    private string? lastFailure;
     private readonly List<PoiSite> candidates = [];
     private readonly PersistenceStore store;
     private string restoreOutcome = "not attempted";
@@ -108,17 +111,28 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             changed |= journal.Notice(site, DiscoveryRules.StageFor(distance, visible), tick);
         }
 
-        if (changed)
+        // The journal refuses rather than throwing, but these two reach the Engine - a store
+        // write and a projection publish - and a deterministic failure here would drop every
+        // later update in this frame for the rest of the session. So the failure is caught,
+        // remembered and reported rather than allowed to leave the module silent.
+        try
         {
-            Save();
-        }
+            if (changed)
+            {
+                Save();
+            }
 
-        // The first look publishes too, so the UI surface carries a journal from the start
-        // rather than only after something is found. This runs from Update, not the
-        // constructor, because the projection reads the live scene.
-        if (changed || tick == DiscoveryConstants.NoticeIntervalTicks)
+            // The first look publishes too, so the UI surface carries a journal from the start
+            // rather than only after something is found. This runs from Update, not the
+            // constructor, because the projection reads the live scene.
+            if (changed || tick == DiscoveryConstants.NoticeIntervalTicks)
+            {
+                Publish(nearest);
+            }
+        }
+        catch (Exception failure) when (failure is InvalidOperationException or IOException or ArgumentException)
         {
-            Publish(nearest);
+            lastFailure = failure.Message;
         }
     }
 
