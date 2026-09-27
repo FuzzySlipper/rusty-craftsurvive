@@ -60,6 +60,26 @@ def snapshot(origin):
             'creatureCount': len(creatures), 'creatures': creatures}
 
 
+def destination_height(origin, x, z):
+    """The surface at the destination column, read from the product itself.
+
+    Teleporting to the *player's* height put the controller inside terrain
+    whenever the destination ground was higher, and the character step then threw
+    every frame. The product already reports the surface of the column it
+    occupies, so the probe asks instead of assuming: land on the column, read
+    `surface` from `craft.encounter.readout`, and stand one above it.
+    """
+    invoke(origin, f'craft.player.teleport {x} 100 {z}')
+    time.sleep(1.0)
+    status, text = invoke(origin, 'craft.encounter.readout')
+    if status != 200:
+        raise SystemExit(f'encounter readout answered HTTP {status}: {text[:200]}')
+    match = re.search(r'surface=(-?\d+)', text)
+    if match is None:
+        raise SystemExit(f'destination surface unparsed: {text[:200]}')
+    return float(match.group(1)) + 1.0
+
+
 def standing_height(origin):
     """The player's own y, so a test never places the controller inside terrain.
 
@@ -93,19 +113,21 @@ def command_read(args):
 
 def command_teleport_near(args):
     state, creature = one(args.origin, args.id)
-    height = standing_height(args.origin) if args.height is None else args.height
-    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {creature['z'] + args.metres}")
+    target_z = creature['z'] + args.metres
+    height = args.height if args.height is not None else destination_height(args.origin, creature['x'], target_z)
+    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {target_z}")
     if status != 200:
         raise SystemExit(f'teleport answered HTTP {status}: {text[:160]}')
-    print(json.dumps({'creature': creature, 'height': height, 'teleport': text[:80]}, indent=1))
+    print(json.dumps({'creature': creature, 'destinationHeight': height, 'teleport': text[:80]}, indent=1))
     return 0
 
 
 def command_verify_engagement(args):
     before, creature = one(args.origin, args.id)
     print(json.dumps({'before': creature}, indent=1))
-    height = standing_height(args.origin) if args.height is None else args.height
-    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {creature['z'] + args.metres}")
+    target_z = creature['z'] + args.metres
+    height = args.height if args.height is not None else destination_height(args.origin, creature['x'], target_z)
+    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {target_z}")
     if status != 200:
         raise SystemExit(f'teleport answered HTTP {status}: {text[:160]}')
     time.sleep(args.wait[0])
