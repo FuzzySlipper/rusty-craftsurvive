@@ -906,11 +906,11 @@ public sealed class CreatureModule : IDebugCommandModule
         routes.Remove(target);
         states.Remove(target);
         lastAttackTick.Remove(target);
-        if (appearances.TryGetValue(target, out Appearance departing))
+        if (appearances.TryGetValue(target, out Appearance? departing))
         {
             // The same disposal the module's own Dispose uses, so a killed creature
             // does not leave its GPU primitive behind.
-            departing.Dispose();
+            departing?.Dispose();
             appearances.Remove(target);
         }
         // And it leaves the encounter director, so a killed creature is not still
