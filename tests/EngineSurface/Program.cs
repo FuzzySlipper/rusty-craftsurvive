@@ -52,6 +52,13 @@ foreach (Type type in assembly.GetExportedTypes()
         {
             Console.WriteLine($"    props: {string.Join(", ", properties.Select(p => $"{p.PropertyType.Name} {p.Name}"))}");
         }
+
+        MethodInfo[] methods = [.. type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+            .Where(method => !method.IsSpecialName && method.DeclaringType == type)];
+        if (methods.Length > 0)
+        {
+            Console.WriteLine($"    methods: {string.Join(", ", methods.Select(method => $"{method.ReturnType.Name} {method.Name}({string.Join(",", method.GetParameters().Select(p => p.ParameterType.Name))})"))}");
+        }
     }
     catch (Exception exception)
     {
