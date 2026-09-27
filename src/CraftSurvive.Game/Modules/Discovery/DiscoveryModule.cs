@@ -182,6 +182,55 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             $"near radius={limit} count={rows.Count}: {(rows.Count == 0 ? "none" : string.Join("; ", rows))}");
     }
 
+    /// <summary>
+    /// The crossings nearest the player, with the span they cover and the height of their
+    /// deck. It is how a live session can be aimed at one instead of hoping to stumble over
+    /// it, and like the site query it only reads.
+    /// </summary>
+    [DebugCommand("craft.discovery.crossings", Description = "Lists the crossings nearest the player, with span, deck height and distance.")]
+    public string Crossings(long radius)
+    {
+        long limit = Math.Clamp(radius, 0, (long)DiscoveryRules.NoticeRadiusMetres * 64);
+        Vector3 position = player.WorldPosition;
+        long cell = PoiConstants.CellSize;
+        long columnX = (long)Math.Floor(position.X);
+        long columnZ = (long)Math.Floor(position.Z);
+        long firstX = FloorDivide(columnX - limit, cell);
+        long lastX = FloorDivide(columnX + limit, cell);
+        long firstZ = FloorDivide(columnZ - limit, cell);
+        long lastZ = FloorDivide(columnZ + limit, cell);
+        List<(double Distance, string Row)> rows = [];
+        for (long cellX = firstX; cellX <= lastX; cellX++)
+        {
+            for (long cellZ = firstZ; cellZ <= lastZ; cellZ++)
+            {
+                if (terrain.Recipe.Crossings.SiteAt(cellX, cellZ) is not CrossingSite site)
+                {
+                    continue;
+                }
+
+                double dx = ((site.FromX + site.ToX) / 2.0) - position.X;
+                double dz = ((site.FromZ + site.ToZ) / 2.0) - position.Z;
+                double distance = Math.Sqrt((dx * dx) + (dz * dz));
+                if (distance > limit)
+                {
+                    continue;
+                }
+
+                long span = site.AlongX ? site.ToX - site.FromX : site.ToZ - site.FromZ;
+                rows.Add((distance, string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                    $"{site.Id} span={span + 1} deck={site.DeckY} from={site.FromX},{site.FromZ} to={site.ToX},{site.ToZ} d={distance:F1}")));
+            }
+        }
+
+        rows.Sort((left, right) => left.Distance.CompareTo(right.Distance));
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"crossings radius={limit} count={rows.Count}: {(rows.Count == 0 ? "none" : string.Join("; ", rows.Select(row => row.Row)))}");
+    }
+
+    private static long FloorDivide(long value, long divisor) =>
+        value >= 0 ? value / divisor : ((value - divisor + 1) / divisor);
+
     private static double Distance(PoiSite site, Vector3 position)
     {
         double dx = site.X - position.X;
