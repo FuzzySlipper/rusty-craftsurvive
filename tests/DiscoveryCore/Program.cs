@@ -341,12 +341,114 @@ catch (InvalidOperationException)
 
 Require(refusedCorrupted, "a journal altered after it was written must fail its fingerprint");
 
+// --- crossings: a dry way over narrow water, and none where there is nothing to cross ---
+RiverColumns narrowRiver = new(channelWidth: 8);
+RiverColumns broadRiver = new(channelWidth: 40);
+CrossingPlacement rivers = new(
+    new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, TerrainConstants.DefaultSize),
+    new TestDraws(), narrowRiver, Radius);
+CrossingPlacement spans = new(
+    new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, TerrainConstants.DefaultSize),
+    new TestDraws(), narrowRiver, Radius);
+CrossingPlacement wide = new(
+    new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, TerrainConstants.DefaultSize),
+    new TestDraws(), broadRiver, Radius);
+CrossingPlacement dryGround = new(
+    new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, TerrainConstants.DefaultSize),
+    new TestDraws(), new FlatColumns(surface: 6), Radius);
+
+int bridges = 0;
+int wideBridges = 0;
+int dryBridges = 0;
+int deckVoxels = 0;
+int pierVoxels = 0;
+int carriage = 0;
+foreach ((long cellX, long cellZ) in cells)
+{
+    if (wide.SiteAt(cellX, cellZ) is not null)
+    {
+        wideBridges++;
+    }
+
+    if (dryGround.SiteAt(cellX, cellZ) is not null)
+    {
+        dryBridges++;
+    }
+
+    if (rivers.SiteAt(cellX, cellZ) is not CrossingSite site)
+    {
+        continue;
+    }
+
+    bridges++;
+    Require(spans.SiteAt(cellX, cellZ) == site, $"the crossing in ({cellX},{cellZ}) must not depend on query order");
+    Require(site.DeckY >= TerrainConstants.WaterLevel + 1,
+        $"{site.Id} must lay its deck above the water line, found {site.DeckY}");
+    Require(site.DeckY == TerrainConstants.WaterLevel + 1 || site.DeckY == 6,
+        $"{site.Id} must meet a bank, found deck {site.DeckY}");
+
+    long span = site.AlongX ? site.ToX - site.FromX : site.ToZ - site.FromZ;
+    Require(span >= 0 && span < PoiConstants.CrossingMaximumSpan,
+        $"{site.Id} must span less than {PoiConstants.CrossingMaximumSpan} blocks, found {span}");
+    for (long step = 0; step <= span; step++)
+    {
+        long x = site.AlongX ? site.FromX + step : site.FromX;
+        long z = site.AlongX ? site.FromZ : site.FromZ + step;
+        Require(narrowRiver.ColumnAt(x, z).Surface < TerrainConstants.WaterLevel,
+            $"{site.Id} must only span water, but ({x},{z}) is dry");
+    }
+
+    long nearX = site.AlongX ? site.FromX - 1 : site.FromX;
+    long nearZ = site.AlongX ? site.FromZ : site.FromZ - 1;
+    long farX = site.AlongX ? site.ToX + 1 : site.ToX;
+    long farZ = site.AlongX ? site.ToZ : site.ToZ + 1;
+    Require(narrowRiver.ColumnAt(nearX, nearZ).Surface >= TerrainConstants.WaterLevel
+        && narrowRiver.ColumnAt(farX, farZ).Surface >= TerrainConstants.WaterLevel,
+        $"{site.Id} must land on a bank at both ends");
+
+    for (long y = site.DeckY - PoiConstants.CrossingPierDepth; y <= site.DeckY; y++)
+    {
+        for (long x = Math.Min(site.FromX, site.ToX) - 2; x <= Math.Max(site.FromX, site.ToX) + 2; x++)
+        {
+            for (long z = Math.Min(site.FromZ, site.ToZ) - 2; z <= Math.Max(site.FromZ, site.ToZ) + 2; z++)
+            {
+                PoiVoxel voxel = CrossingStructure.MaterialAt(site, x, y, z);
+                if (voxel.IsNone)
+                {
+                    continue;
+                }
+
+                carriage++;
+                Require(voxel.Kind == PoiVoxelKind.Fill,
+                    $"{site.Id} must only fill: a crossing is walked over, never a dam");
+                if (voxel.Material == (ushort)BlockId.Planks)
+                {
+                    deckVoxels++;
+                    Require(y == site.DeckY, $"{site.Id} must lay its planks at the deck height");
+                }
+                else if (voxel.Material == (ushort)BlockId.Cobblestone)
+                {
+                    pierVoxels++;
+                    Require(y <= site.DeckY, $"{site.Id} must build nothing above its deck");
+                }
+            }
+        }
+    }
+}
+
+Require(bridges > 0, "narrow water must carry at least one dry crossing");
+Require(wideBridges == 0, $"water 40 blocks wide must be walked around, found {wideBridges} crossings");
+Require(dryBridges == 0, $"dry ground must hold no crossing, found {dryBridges}");
+Require(deckVoxels > 0 && pierVoxels > 0, "a crossing must have both a deck and piers");
+Require(carriage > 0, "a crossing must build something");
+
 Console.WriteLine(
     $"Discovery rules: site determinism across {cells.Count} anchor cells, order independence, seed and "
     + $"version sensitivity, ground gating, all {kindCounts.Count} kinds reachable, structure bounds, the carve "
     + $"floor, site identity, the noticing policy, the sightline rule, a full journal that refuses instead of "
     + $"throwing, a canonical round trip, and the stored form with its identity, truncation and "
-    + $"fingerprint refusals passed ({sites} sites, {carved} carved voxels).");
+    + $"fingerprint refusals, and crossings with their span, bank and deck rules plus the two "
+    + $"negative cases passed ({sites} sites, {carved} carved voxels, {bridges} crossings).");
 
 // --- test doubles ---------------------------------------------------------------
 // The draw port is Engine-backed in the product; here it only has to be a pure
@@ -424,4 +526,19 @@ sealed class RidgeColumns : ITerrainColumns
 
     public TerrainColumn ColumnAt(long x, long z) =>
         new(Math.Abs(x) <= halfWidth ? height : 5, 0);
+}
+
+// Land with a north-south river: a channel of the given width every sixty-four blocks. A
+// narrow one is spanned, a wide one is not, and the same double proves both.
+sealed class RiverColumns : ITerrainColumns
+{
+    private readonly long channelWidth;
+
+    public RiverColumns(long channelWidth) => this.channelWidth = channelWidth;
+
+    public TerrainColumn ColumnAt(long x, long z)
+    {
+        long channel = ((x % 64) + 64) % 64;
+        return new TerrainColumn(channel < channelWidth ? 0 : 6, 0);
+    }
 }

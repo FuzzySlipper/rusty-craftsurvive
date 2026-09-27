@@ -102,18 +102,23 @@ internal sealed class CrossingPlacement
             if (surface >= TerrainConstants.WaterLevel)
             {
                 bank++;
-                if (waterStart < 0)
+
+                // A span is only real once the far bank has actually accumulated its land. The
+                // first dry block after water is not a bank yet, and deciding there was how an
+                // earlier version of this rule found no crossings at all: it compared one block
+                // of land against a two-block requirement and rejected every candidate.
+                if (waterStart >= 0 && bank >= PoiConstants.CrossingMinimumBank)
                 {
-                    continue;
+                    long lastWater = step - bank;
+                    long length = lastWater - waterStart;
+                    if (length <= PoiConstants.CrossingMaximumSpan)
+                    {
+                        return Build(cellX, cellZ, originX, originZ, offset, alongX, waterStart, lastWater, surface);
+                    }
+
+                    waterStart = -1;
                 }
 
-                long length = step - waterStart;
-                if (length <= PoiConstants.CrossingMaximumSpan && bank >= PoiConstants.CrossingMinimumBank)
-                {
-                    return Build(cellX, cellZ, originX, originZ, offset, alongX, waterStart, step - 1, surface);
-                }
-
-                waterStart = -1;
                 continue;
             }
 

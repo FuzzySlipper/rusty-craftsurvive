@@ -20,6 +20,7 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryState.cs" Link="Discovery/DiscoveryState.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryConstants.cs" Link="Discovery/DiscoveryConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryCodec.cs" Link="Discovery/DiscoveryCodec.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/CrossingPlacement.cs" Link="Discovery/CrossingPlacement.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/TerrainGeneratorContract.cs" Link="Content/TerrainGeneratorContract.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
