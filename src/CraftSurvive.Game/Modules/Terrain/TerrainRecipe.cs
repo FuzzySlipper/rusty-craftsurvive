@@ -152,6 +152,12 @@ internal sealed class TerrainRecipe
 
     private long TerrainSurface(long x, long z) => TerrainHeight(x, z);
 
+    /// <summary>The generated surface height at a column, for callers that must reason about the world.</summary>
+    internal long SurfaceAt(long x, long z) => TerrainSurface(x, z);
+
+    /// <summary>The half-extent of the finite world this recipe generates.</summary>
+    internal long Radius => radius;
+
     /// <summary>
     /// Whether a chunk holds any non-empty voxel, answered from the generation contract
     /// without generating it.
