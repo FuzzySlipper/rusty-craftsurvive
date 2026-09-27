@@ -63,6 +63,18 @@ internal static class CreatureConstants
 
     /// <summary>The player's own health pool, owned by the product.</summary>
     internal const int PlayerMaximumHealth = 40;
+
+    /// <summary>Damage a creature's landed attack deals to the player.</summary>
+    internal const int CreatureAttackDamage = 4;
+
+    /// <summary>Ticks between a creature's attacks once it is in range.</summary>
+    internal const long CreatureAttackCooldownTicks = 60;
+
+    /// <summary>
+    /// How close a creature must be to land a hit. Strictly wider than the distance
+    /// a pursuer halts at, because a creature stops *at* the attach distance.
+    /// </summary>
+    internal const double CreatureAttackReachMetres = 3.0;
     internal const float NavigationDepthBelow = 4f;
     internal const float NavigationHeightAbove = 8f;
 
@@ -140,6 +152,8 @@ public sealed class CreatureModule : IDebugCommandModule
     private string navigationScanStatus = "not scanned";
 
     private PlayerDefeatState playerDefeat = PlayerDefeatState.Full(CreatureConstants.PlayerMaximumHealth);
+
+    private readonly Dictionary<int, long> lastAttackTick = [];
     private readonly Dictionary<int, string> routes = [];
     private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
@@ -294,6 +308,22 @@ public sealed class CreatureModule : IDebugCommandModule
                 positions[id] = new Vector2(
                     (float)(here.X + ((playerPosition.X - here.X) * scale)),
                     (float)(here.Y + ((playerPosition.Z - here.Y) * scale)));
+            }
+
+            // A creature in range attacks on its own cooldown, and the player's health
+            // is the product's own state: this is how an encounter is lost. The
+            // cooldown test must not subtract a sentinel: `tick - long.MinValue`
+            // overflows, which silently made this step never fire.
+            bool ready = !lastAttackTick.TryGetValue(id, out long previousAttack)
+                || tick - previousAttack >= CreatureConstants.CreatureAttackCooldownTicks;
+            if (state.State == CreatureState.Attacking
+                && distance <= CreatureConstants.CreatureAttackReachMetres
+                && ready)
+            {
+                lastAttackTick[id] = tick;
+                playerDefeat = PlayerDefeatRules.Strike(playerDefeat, CreatureConstants.CreatureAttackDamage, tick);
+                lastEvent = string.Create(CultureInfo.InvariantCulture,
+                    $"creature {id} hit the player for {CreatureConstants.CreatureAttackDamage}; health {playerDefeat.Health}/{playerDefeat.MaximumHealth}");
             }
 
             Apply(id, tuning);
