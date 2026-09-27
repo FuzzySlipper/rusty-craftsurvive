@@ -544,17 +544,30 @@ public sealed class CreatureModule : IDebugCommandModule
     {
         try
         {
-            uint columns = (uint)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+            // The debug spatial map caps at 1024 cells, so a window inside the
+            // published box is captured rather than the whole box.
+            long boxColumns = (long)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+            long queryColumn = (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+            long queryRow = (long)Math.Floor((worldZ - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+            long window = Math.Min(32, boxColumns);
+            long windowColumn = Math.Clamp(queryColumn - (window / 2), 0, Math.Max(0, boxColumns - window));
+            long windowRow = Math.Clamp(queryRow - (window / 2), 0, Math.Max(0, boxColumns - window));
+            Vector3 windowOrigin = navigationWorldMin + new Vector3(
+                (float)(windowColumn * TerrainConstants.VoxelSize),
+                0f,
+                (float)(windowRow * TerrainConstants.VoxelSize));
+            float navMinY = navigationWorldMin.Y;
+            float navMaxY = navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove;
             SpatialMapRequest request = new(
                 terrain.Session,
-                navigationWorldMin,
+                windowOrigin,
                 TerrainConstants.VoxelSize,
-                columns,
-                columns,
-                navigationWorldMin.Y,
-                navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove,
-                navigationWorldMin.Y,
-                navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove,
+                (uint)window,
+                (uint)window,
+                navMinY,
+                navMaxY,
+                navMinY,
+                navMaxY,
                 System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty);
             SpatialMapSnapshot snapshot = SpatialMapSnapshot.Capture(
                 engine.Spatial,
@@ -564,10 +577,10 @@ public sealed class CreatureModule : IDebugCommandModule
                 MaximumAnnotations);
 
             ReadOnlySpan<SpatialMapCell> cells = snapshot.Cells.Span;
-            long column = (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize);
-            long row = (long)Math.Floor((worldZ - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
-            long rowMajor = (row * columns) + column;
-            long columnMajor = (column * columns) + row;
+            long column = queryColumn - windowColumn;
+            long row = queryRow - windowRow;
+            long rowMajor = (row * window) + column;
+            long columnMajor = (column * window) + row;
             string rowMajorText = rowMajor >= 0 && rowMajor < cells.Length
                 ? string.Create(CultureInfo.InvariantCulture,
                     $"rowMajor[{rowMajor}]={cells[(int)rowMajor].MinimumSupportY:F2}..{cells[(int)rowMajor].MaximumSupportY:F2}/samples={cells[(int)rowMajor].NavigationSamples}")
@@ -576,15 +589,9 @@ public sealed class CreatureModule : IDebugCommandModule
                 ? string.Create(CultureInfo.InvariantCulture,
                     $"columnMajor[{columnMajor}]={cells[(int)columnMajor].MinimumSupportY:F2}..{cells[(int)columnMajor].MaximumSupportY:F2}/samples={cells[(int)columnMajor].NavigationSamples}")
                 : $"columnMajor[{columnMajor}] outside";
-            string sample = $"{rowMajorText} {columnMajorText}";
-            StringBuilder head = new();
-            for (int i = 0; i < Math.Min(4, cells.Length); i++)
-            {
-                head.Append(CultureInfo.InvariantCulture, $"{(i == 0 ? string.Empty : ", ")}[{i}]={cells[i].MinimumSupportY:F1}..{cells[i].MaximumSupportY:F1}");
-            }
 
             return string.Create(CultureInfo.InvariantCulture,
-                $"box={navigationWorldMin} columns={columns} cells={cells.Length}; query=({worldX:F1},{worldZ:F1}) -> column={column} row={row}; {sample}; first={head}");
+                $"window={window}x{window} origin={windowOrigin} query=({worldX:F1},{worldZ:F1}) -> cell=({column},{row}) of {cells.Length}; {rowMajorText} {columnMajorText}");
         }
         catch (Exception exception)
         {
