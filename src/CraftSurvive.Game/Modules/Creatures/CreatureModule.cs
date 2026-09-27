@@ -414,6 +414,52 @@ public sealed class CreatureModule : IDebugCommandModule
         return $"noanswer trace=[{string.Join(",", trace)}]";
     }
 
+    /// <summary>
+    /// What the Engine actually built for the box the product published: the
+    /// geometry it is using and whether a navigation projection is present in it.
+    /// The product supplies the box, so this is how the Engine's view of that box
+    /// gets read back instead of assumed.
+    /// </summary>
+    [DebugCommand("craft.creatures.projection")]
+    public string Projection()
+    {
+        try
+        {
+            uint columns = (uint)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+            SpatialMapRequest request = new(
+                terrain.Session,
+                navigationWorldMin,
+                TerrainConstants.VoxelSize,
+                columns,
+                columns,
+                navigationWorldMin.Y,
+                navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove,
+                navigationWorldMin.Y,
+                navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove,
+                System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty);
+            SpatialMapSnapshot snapshot = SpatialMapSnapshot.Capture(
+                engine.Spatial,
+                request,
+                new SpatialMapObservation("s4", player.WorldPosition, Vector3.UnitZ),
+                ReadOnlySpan<SpatialMapAnnotation>.Empty,
+                MaximumAnnotations);
+            string ascii = snapshot.ToAscii();
+            return string.Create(CultureInfo.InvariantCulture,
+                $"published min={navigationWorldMin} voxel={TerrainConstants.VoxelSize}; " +
+                $"engine origin={snapshot.Geometry.Origin} cell={snapshot.Geometry.CellSize} columns={snapshot.Geometry.Columns} rows={snapshot.Geometry.Rows} " +
+                $"navMinY={snapshot.Geometry.NavigationMinY} navMaxY={snapshot.Geometry.NavigationMaxY}; " +
+                $"navigationPresent={snapshot.NavigationPresent} navRevision={snapshot.NavigationRevision} collisionRevision={snapshot.CollisionRevision}; " +
+                $"ascii[{Math.Min(ascii.Length, MaximumAsciiChars)}]={ascii[..Math.Min(ascii.Length, MaximumAsciiChars)]}");
+        }
+        catch (Exception exception)
+        {
+            return $"projection read refused: {exception.GetType().Name}: {exception.Message}";
+        }
+    }
+
+    private const int MaximumAnnotations = 64;
+    private const int MaximumAsciiChars = 700;
+
     private PlanarNavCell CellAt(float worldX, float worldZ, long level) => new(
         (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize),
         level,
