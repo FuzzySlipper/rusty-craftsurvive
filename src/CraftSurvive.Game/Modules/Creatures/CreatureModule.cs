@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
@@ -510,6 +511,61 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private const int MaximumAnnotations = 64;
     private const int MaximumAsciiChars = 700;
+
+    /// <summary>
+    /// The collision geometry's own support heights around a column, from the
+    /// spatial map's cells. The generator's surface is not the collision surface -
+    /// placing anything on the former leaves it inside terrain - so this is the
+    /// source placement must use.
+    ///
+    /// The cell layout is not assumed: the command reports the candidate indices
+    /// and their support ranges so the mapping can be read from one live sample.
+    /// </summary>
+    [DebugCommand("craft.terrain.support")]
+    public string Support(double worldX, double worldZ)
+    {
+        try
+        {
+            uint columns = (uint)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+            SpatialMapRequest request = new(
+                terrain.Session,
+                navigationWorldMin,
+                TerrainConstants.VoxelSize,
+                columns,
+                columns,
+                navigationWorldMin.Y,
+                navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove,
+                navigationWorldMin.Y,
+                navigationWorldMin.Y + CreatureConstants.NavigationDepthBelow + CreatureConstants.NavigationHeightAbove,
+                System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty);
+            SpatialMapSnapshot snapshot = SpatialMapSnapshot.Capture(
+                engine.Spatial,
+                request,
+                new SpatialMapObservation("support", player.WorldPosition, Vector3.UnitZ),
+                ReadOnlySpan<SpatialMapAnnotation>.Empty,
+                MaximumAnnotations);
+
+            ReadOnlySpan<SpatialMapCell> cells = snapshot.Cells.Span;
+            long column = (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+            long row = (long)Math.Floor((worldZ - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+            long index = (row * columns) + column;
+            string sample = index >= 0 && index < cells.Length
+                ? $"rowMajor[{index}] support={cells[(int)index].MinimumSupportY:F2}..{cells[(int)index].MaximumSupportY:F2} samples={cells[(int)index].NavigationSamples}"
+                : $"rowMajor[{index}] outside {cells.Length} cells";
+            StringBuilder head = new();
+            for (int i = 0; i < Math.Min(4, cells.Length); i++)
+            {
+                head.Append(CultureInfo.InvariantCulture, $"{(i == 0 ? string.Empty : ", ")}[{i}]={cells[i].MinimumSupportY:F1}..{cells[i].MaximumSupportY:F1}");
+            }
+
+            return string.Create(CultureInfo.InvariantCulture,
+                $"box={navigationWorldMin} columns={columns} cells={cells.Length}; query=({worldX:F1},{worldZ:F1}) -> column={column} row={row}; {sample}; first={head}");
+        }
+        catch (Exception exception)
+        {
+            return $"support read refused: {exception.GetType().Name}: {exception.Message}";
+        }
+    }
 
     private PlanarNavCell CellAt(float worldX, float worldZ, long level) => new(
         (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize),
