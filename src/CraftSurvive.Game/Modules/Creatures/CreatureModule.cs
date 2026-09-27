@@ -899,6 +899,9 @@ public sealed class CreatureModule : IDebugCommandModule
             // does not leave its GPU primitive behind.
             departing.Dispose();
         }
+        // And it leaves the encounter director, so a killed creature is not still
+        // counted as an active encounter.
+        director.Remove(target);
         defeated++;
         lootAwarded += CreatureConstants.CreatureLootValue;
         return string.Create(CultureInfo.InvariantCulture,
