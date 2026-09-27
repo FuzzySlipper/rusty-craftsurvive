@@ -116,10 +116,10 @@ const main = async () => {
     await page.waitForTimeout(250);
     await page.evaluate(() => document.querySelector('canvas')?.focus());
     await page.waitForTimeout(250);
-    await page.keyboard.down('w');
+    await page.keyboard.down(process.env.WALK_KEYS ?? 'w');
     await page.waitForTimeout(400);
     const probe = await sample();
-    await page.keyboard.up('w');
+    await page.keyboard.up(process.env.WALK_KEYS ?? 'w');
     armed = Math.hypot(probe.intent.x, probe.intent.z) > 0;
     armAttempts.push({
       attempt,
@@ -148,12 +148,12 @@ const main = async () => {
     if (settled === null) throw new Error(`run ${run}: the player never settled after the reset`);
 
     const before = settled;
-    await page.keyboard.down('w');
+    await page.keyboard.down(process.env.WALK_KEYS ?? 'w');
     await page.waitForTimeout(HOLD_MS / 2);
     const duringHold = await sample();
     await page.waitForTimeout(HOLD_MS / 2);
     const atRelease = await sample();
-    await page.keyboard.up('w');
+    await page.keyboard.up(process.env.WALK_KEYS ?? 'w');
 
     const travel = Math.hypot(atRelease.player.x - before.player.x, atRelease.player.z - before.player.z);
     const duringTravel = Math.hypot(duringHold.player.x - before.player.x, duringHold.player.z - before.player.z);
