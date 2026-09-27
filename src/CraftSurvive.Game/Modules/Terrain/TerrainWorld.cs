@@ -31,6 +31,7 @@ internal sealed class TerrainWorld : IDisposable
     private VoxelScenePresentation? presentation;
     private VoxelSceneMaterialMappingLeaseReceipt materialMapping;
     private TerrainPlayerUiFacts? playerUi;
+    private DiscoveryUiFacts? discoveryUi;
     private ulong uiSequence;
     private bool started;
     private string overlayRestoreOutcome = "none";
@@ -132,6 +133,18 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>Publishes concise Player facts through the terrain-owned product UI stream.</summary>
+    /// <summary>
+    /// Publishes what the journal knows. Discovery is a different owner from the world, so its
+    /// facts arrive the way the player's do - pushed by the module that owns them - and ride
+    /// the product's one terrain UI stream rather than opening a second one.
+    /// </summary>
+    internal void PublishDiscoveryUi(DiscoveryUiFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        discoveryUi = facts;
+        PublishUi();
+    }
+
     internal void PublishPlayerUi(TerrainPlayerUiFacts facts)
     {
         EnsureStarted();
@@ -617,7 +630,7 @@ internal sealed class TerrainWorld : IDisposable
     {
         VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
         engine.Ui.PublishProjection(new UiProjection(UiStream, ++uiSequence,
-            TerrainUiProjection.Create(scene, overlay.Count, playerUi)));
+            TerrainUiProjection.Create(scene, overlay.Count, playerUi, discoveryUi)));
     }
 
     private static VoxelEdit ToEngineEdit(TerrainVoxelEdit edit) => edit.Material == TerrainConstants.EmptyMaterial
@@ -700,3 +713,22 @@ internal readonly record struct TerrainPlayerUiFacts(
     double PlatformX,
     double PlatformY,
     double PlatformZ);
+
+
+
+/// <summary>
+/// What the journal knows, as numbers, for the product's UI projection. It is a flat
+/// snapshot with no identity strings: the projection's encoder is numeric by design, and a
+/// place's name belongs to the journal's own readout.
+/// </summary>
+internal readonly record struct DiscoveryUiFacts(
+    double Places,
+    double Visited,
+    double Seen,
+    double Refused,
+    double NearestMetres,
+    double LastX,
+    double LastZ,
+    double LastKind,
+    double LastStage,
+    double LastTick);

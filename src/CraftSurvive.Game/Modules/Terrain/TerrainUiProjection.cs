@@ -5,7 +5,8 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 internal static class TerrainUiProjection
 {
-    internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, TerrainPlayerUiFacts? player)
+    internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, TerrainPlayerUiFacts? player,
+        DiscoveryUiFacts? discovery)
     {
         TerrainNumericObjectBuilder values = new();
         values.Add("revision", scene.SourceRevision);
@@ -25,6 +26,23 @@ internal static class TerrainUiProjection
             values.Add("platformY", facts.PlatformY);
             values.Add("platformZ", facts.PlatformZ);
         }
+        if (discovery is DiscoveryUiFacts journal)
+        {
+            // A journal is numbers only, deliberately: this object is a flat numeric map, and
+            // naming a place is the journal's own readout's job. Kind and stage are their
+            // enum values, which is why neither may ever be renumbered.
+            values.Add("discoveryPlaces", journal.Places);
+            values.Add("discoveryVisited", journal.Visited);
+            values.Add("discoverySeen", journal.Seen);
+            values.Add("discoveryRefused", journal.Refused);
+            values.Add("discoveryNearest", journal.NearestMetres);
+            values.Add("discoveryLastX", journal.LastX);
+            values.Add("discoveryLastZ", journal.LastZ);
+            values.Add("discoveryLastKind", journal.LastKind);
+            values.Add("discoveryLastStage", journal.LastStage);
+            values.Add("discoveryLastTick", journal.LastTick);
+        }
+
         return values.Build();
     }
 

@@ -84,9 +84,15 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             columnX, columnZ, DiscoveryRules.NoticeRadiusMetres, candidates);
 
         bool changed = false;
+        double nearest = double.MaxValue;
         foreach (PoiSite site in candidates)
         {
             double distance = Distance(site, position);
+            if (distance < nearest)
+            {
+                nearest = distance;
+            }
+
             if (distance > DiscoveryRules.NoticeRadiusMetres)
             {
                 continue;
@@ -106,6 +112,35 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
         {
             Save();
         }
+
+        // The first look publishes too, so the UI surface carries a journal from the start
+        // rather than only after something is found. This runs from Update, not the
+        // constructor, because the projection reads the live scene.
+        if (changed || tick == DiscoveryConstants.NoticeIntervalTicks)
+        {
+            Publish(nearest);
+        }
+    }
+
+    /// <summary>
+    /// Hands the journal's numbers to the world, which owns the product's one UI stream.
+    /// Nothing here is a name: the projection is a flat numeric map, so kind and stage travel
+    /// as their enum values - which is why neither may ever be renumbered.
+    /// </summary>
+    private void Publish(double nearestMetres)
+    {
+        DiscoveryEntry? last = journal.Last;
+        terrain.PublishDiscoveryUi(new DiscoveryUiFacts(
+            journal.Count,
+            journal.VisitedCount,
+            journal.SeenCount,
+            journal.Refused,
+            double.IsFinite(nearestMetres) ? nearestMetres : 0d,
+            last?.X ?? 0d,
+            last?.Z ?? 0d,
+            last is DiscoveryEntry kind ? (double)(ushort)kind.Kind : 0d,
+            last is DiscoveryEntry stage ? (byte)stage.Stage : 0d,
+            last?.LastTick ?? 0d));
     }
 
     [DebugCommand("craft.discovery.readout", Description = "Reads the journal: what has been seen or reached, and whether it is stored.")]
