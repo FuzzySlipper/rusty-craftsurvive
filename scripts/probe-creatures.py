@@ -60,6 +60,23 @@ def snapshot(origin):
             'creatureCount': len(creatures), 'creatures': creatures}
 
 
+def standing_height(origin):
+    """The player's own y, so a test never places the controller inside terrain.
+
+    Teleporting to a fixed height above the ground put the controller into
+    unresolved penetration, the character step threw every frame, the exception
+    escaped a product callback and the Engine tainted the runtime - which cost
+    five rounds of lost measurements.
+    """
+    status, text = invoke(origin, 'craft.player.readout')
+    if status != 200:
+        raise SystemExit(f'player readout answered HTTP {status}: {text[:200]}')
+    match = re.search(r'after=[-0-9.]+,([-0-9.]+),[-0-9.]+', text)
+    if match is None:
+        raise SystemExit(f'player position unparsed: {text[:200]}')
+    return float(match.group(1))
+
+
 def one(origin, identifier):
     state = snapshot(origin)
     if identifier not in state['creatures']:
@@ -76,17 +93,19 @@ def command_read(args):
 
 def command_teleport_near(args):
     state, creature = one(args.origin, args.id)
-    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {args.height} {creature['z'] + args.metres}")
+    height = standing_height(args.origin) if args.height is None else args.height
+    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {creature['z'] + args.metres}")
     if status != 200:
         raise SystemExit(f'teleport answered HTTP {status}: {text[:160]}')
-    print(json.dumps({'creature': creature, 'teleport': text[:80]}, indent=1))
+    print(json.dumps({'creature': creature, 'height': height, 'teleport': text[:80]}, indent=1))
     return 0
 
 
 def command_verify_engagement(args):
     before, creature = one(args.origin, args.id)
     print(json.dumps({'before': creature}, indent=1))
-    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {args.height} {creature['z'] + args.metres}")
+    height = standing_height(args.origin) if args.height is None else args.height
+    status, text = invoke(args.origin, f"craft.player.teleport {creature['x']} {height} {creature['z'] + args.metres}")
     if status != 200:
         raise SystemExit(f'teleport answered HTTP {status}: {text[:160]}')
     time.sleep(args.wait[0])
@@ -112,12 +131,12 @@ sub.add_parser('read').set_defaults(handler=command_read)
 near = sub.add_parser('teleport-near')
 near.add_argument('id', type=int)
 near.add_argument('metres', type=float)
-near.add_argument('--height', type=float, default=7.0)
+near.add_argument('--height', type=float, default=None)
 near.set_defaults(handler=command_teleport_near)
 engagement = sub.add_parser('verify-engagement')
 engagement.add_argument('id', type=int)
 engagement.add_argument('metres', type=float)
-engagement.add_argument('--height', type=float, default=7.0)
+engagement.add_argument('--height', type=float, default=None)
 engagement.add_argument('--wait', type=float, nargs=2, default=[7.0, 9.0])
 engagement.set_defaults(handler=command_verify_engagement)
 args = parser.parse_args()
