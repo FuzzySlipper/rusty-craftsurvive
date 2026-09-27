@@ -86,7 +86,6 @@ internal static class CreatureConstants
 
     internal const double PlayerAttackReachMetres = 4.0;
 
-    internal const int CreatureLootValue = 3;
 
     /// <summary>Perception pairs requested per query.</summary>
     internal const uint PerceptionPageSize = 8;
