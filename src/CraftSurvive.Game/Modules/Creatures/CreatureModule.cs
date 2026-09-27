@@ -156,6 +156,9 @@ public sealed class CreatureModule : IDebugCommandModule
     private readonly Dictionary<int, long> lastAttackTick = [];
 
     private long playerGraceUntilTick = long.MinValue;
+
+    /// <summary>Where the player began, so a defeat can send them home.</summary>
+    private Vector3 spawnPosition;
     private readonly Dictionary<int, string> routes = [];
     private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
@@ -180,6 +183,7 @@ public sealed class CreatureModule : IDebugCommandModule
             return;
         }
 
+        spawnPosition = player.WorldPosition;
         TerrainEncounterFacts facts = new(terrain.Recipe);
         long originX = (long)Math.Floor(player.WorldPosition.X);
         long originZ = (long)Math.Floor(player.WorldPosition.Z);
@@ -257,6 +261,13 @@ public sealed class CreatureModule : IDebugCommandModule
             playerDefeat = PlayerDefeatRules.Respawn(playerDefeat);
             playerGraceUntilTick = PlayerDefeatRules.GraceUntil(tick);
             lastAttackTick.Clear();
+
+            // Coming back where they fell means coming back inside the killer's
+            // reach: measured live as a death every few seconds, and disinterest
+            // alone cannot fix it because the behaviour rules re-derive "the player
+            // is visible" from proximity every frame. A defeated player returns to
+            // where they started, outside the ring the encounters spawn at.
+            player.Teleport(spawnPosition.X, spawnPosition.Y, spawnPosition.Z);
             lastEvent = string.Create(CultureInfo.InvariantCulture,
                 $"player respawned at {playerDefeat.Health} health after defeat {playerDefeat.Defeats}");
         }
