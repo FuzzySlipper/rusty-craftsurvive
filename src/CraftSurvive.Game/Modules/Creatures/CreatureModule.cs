@@ -599,6 +599,55 @@ public sealed class CreatureModule : IDebugCommandModule
         }
     }
 
+    /// <summary>
+    /// Queries a route from a creature's cell plus an offset, to the player. If the
+    /// occupied column is excluded from the projection, an offset start should be
+    /// the difference between a start-cell refusal and a real answer.
+    /// </summary>
+    [DebugCommand("craft.creatures.route")]
+    public string Route(long offsetX, long offsetZ)
+    {
+        if (positions.Count == 0)
+        {
+            return "no creatures";
+        }
+
+        Vector2 from = positions.OrderBy(pair => pair.Key).First().Value;
+        Vector3 to = player.WorldPosition;
+        long creatureColumn = (long)Math.Floor((from.X - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+        long creatureRow = (long)Math.Floor((from.Y - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+        long playerColumn = (long)Math.Floor((to.X - navigationWorldMin.X) / TerrainConstants.VoxelSize);
+        long playerRow = (long)Math.Floor((to.Z - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
+        long baseLevel = (long)Math.Floor((terrain.Recipe.SurfaceAt((long)Math.Round(from.X), (long)Math.Round(from.Y)) + 1d - navigationWorldMin.Y) / TerrainConstants.VoxelSize);
+
+        List<string> trace = [];
+        for (long delta = 0; delta <= CreatureConstants.NavigationLevelSweep; delta++)
+        {
+            foreach (long level in delta == 0 ? new[] { baseLevel } : new[] { baseLevel - delta, baseLevel + delta })
+            {
+                try
+                {
+                    NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                        terrain.Session,
+                        new PlanarNavCell(creatureColumn + offsetX, level, creatureRow + offsetZ),
+                        new PlanarNavCell(playerColumn, level, playerRow),
+                        CreatureConstants.NavigationMaxVisitedCells));
+                    trace.Add($"{level}:{path.Outcome}");
+                    if (!path.Outcome.ToString().Contains("Start", StringComparison.Ordinal))
+                    {
+                        return $"offset=({offsetX},{offsetZ}) start=({creatureColumn + offsetX},{level},{creatureRow + offsetZ}) -> {path.Outcome}({path.PathLen}c,{path.Visited}v) trace=[{string.Join(",", trace)}]";
+                    }
+                }
+                catch (Exception exception)
+                {
+                    return $"offset=({offsetX},{offsetZ}) refused: {exception.Message}";
+                }
+            }
+        }
+
+        return $"offset=({offsetX},{offsetZ}) start=({creatureColumn},{creatureRow}) noanswer trace=[{string.Join(",", trace)}]";
+    }
+
     private PlanarNavCell CellAt(float worldX, float worldZ, long level) => new(
         (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize),
         level,
