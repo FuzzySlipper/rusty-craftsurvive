@@ -27,7 +27,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
 
 const ORIGIN = process.env.PRODUCT_ORIGIN ?? 'http://127.0.0.1:37305';
 const HOLD_MS = Number(process.env.HOLD_MS ?? 2000);
-const RUNS = 3;
+const RUNS = Number(process.env.RUNS ?? 3);
 const SPAWN = { x: 8, y: 6.5, z: 12 };
 const MINIMUM_RUN_METRES = 5;
 const YAW_TOLERANCE_DEGREES = 2;
