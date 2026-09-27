@@ -44,7 +44,7 @@ foreach (Type type in assembly.GetExportedTypes()
         Console.WriteLine($"{type.FullName}");
         foreach (ConstructorInfo constructor in type.GetConstructors())
         {
-            Console.WriteLine($"    ctor({string.Join(", ", constructor.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}"))})");
+            Console.WriteLine($"    ctor({string.Join(", ", constructor.GetParameters().Select(p => $"{p.ParameterType} {p.Name}"))})");
         }
 
         PropertyInfo[] properties = type.GetProperties();
@@ -57,7 +57,7 @@ foreach (Type type in assembly.GetExportedTypes()
             .Where(method => !method.IsSpecialName && method.DeclaringType == type)];
         if (methods.Length > 0)
         {
-            Console.WriteLine($"    methods: {string.Join(", ", methods.Select(method => $"{method.ReturnType.Name} {method.Name}({string.Join(",", method.GetParameters().Select(p => p.ParameterType.Name))})"))}");
+            Console.WriteLine($"    methods: {string.Join(", ", methods.Select(method => $"{method.ReturnType.Name} {method.Name}({string.Join(",", method.GetParameters().Select(p => p.ParameterType.ToString()))})"))}");
         }
     }
     catch (Exception exception)
