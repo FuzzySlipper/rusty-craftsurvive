@@ -145,7 +145,4 @@ internal static class TerrainConstants
     internal const double Two = 2d;
     internal const double SmoothstepFirstFactor = 3d;
 
-    internal const int LandmarkHeightFirst = 8;
-    internal const int LandmarkHeightSecond = 6;
-    internal const int LandmarkHeightThird = 10;
 }

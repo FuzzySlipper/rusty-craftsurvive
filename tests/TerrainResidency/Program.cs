@@ -36,10 +36,16 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // Moved at version 6, which gave the world an authored bedrock floor and border
     // at the settled ~100 km2 extent: the old 96 m wall no longer stands inside the
     // sampled box, and the floor still does.
+    // Moved at version 7, which replaced the hand-placed landmark pillars with drawn
+    // points of interest. The sampled box holds no site, so what moved here is the
+    // surface features: a version bump changes every draw key by construction, so every
+    // tree is redrawn. Confirmed by reverting the version to 6 and watching this hash
+    // return to the value below, which is what rules out an accidental terrain change.
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "FC644BCCC386AD20487A721577A0F25F1521372FF1BA71FD7D3F787892A6595C"
-        : "E6D06618050AF228DE2FF28604C84DA68F34E8B405037A3588BFA755B8D998B1";
-    Require(Convert.ToHexString(hash.GetHashAndReset()) == expected, "authored material snapshot changed");
+        ? "CC9FFDFA37E503E0C8A758C3F404E277B2C179D26FB57BE133EF177C4F7D8358"
+        : "933B8006CDFC0C5FB1861BE119131802B9C1F744CF05CDB1ECB68866AF240411";
+    string actual = Convert.ToHexString(hash.GetHashAndReset());
+    Require(actual == expected, $"authored material snapshot changed: {actual}");
 }
 
 // Cross-order agreement: two neighbours must produce identical voxels whichever
@@ -116,10 +122,11 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
 
     string featureHash = Convert.ToHexString(hash.GetHashAndReset());
     // Pinned against the managed draw port; the live lane prints the same snapshot
-    // through the Engine's keyed RNG. The two agree today because no feature voxel
-    // is placed yet, so both hash the field - the contract is what they pin.
+    // through the Engine's keyed RNG. Both hash real voxels now: the feature pass places
+    // trees, and version 7 added structure voxels to this box. Moved at version 7, which
+    // changes every draw key and so redraws every feature in it.
 
-    const string ExpectedFeatureHash = "D86620502DF9D66B49379700B72DF568DA0774ED8EE41D854D27A87D83CF839E";
+    const string ExpectedFeatureHash = "42F1CE17AF13956BA7BF868DE6D36CC3164A294BAFE8AA7F55BE1CFDB5DCECAB";
     Console.WriteLine(
         $"Terrain features, water and world edges placed and deterministic: {featureVoxels} feature, " +
         $"{waterVoxels} water, {bedrockVoxels} bedrock voxels, {featureHash}");

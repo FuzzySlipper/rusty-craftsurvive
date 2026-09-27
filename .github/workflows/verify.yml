@@ -40,6 +40,8 @@ jobs:
         run: dotnet run --project tests/SubstrateProof -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release
+      - name: Check point-of-interest placement
+        run: dotnet run --project tests/DiscoveryCore -c Release
       - name: Build the product in Release
         run: dotnet build src/CraftSurvive.Game -c Release
 

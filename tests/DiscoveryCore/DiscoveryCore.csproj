@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/EnginePair.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="$(RustyEngineSdkPackageVersion)" />
+    <!-- Point-of-interest placement and structure shapes are pure product policy: they
+         read the generation contract, a column source, and the block registry, and they
+         touch no Engine host service. This lane links them directly so placement
+         determinism and the structure bounds are checked without a runtime. -->
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiKind.cs" Link="Discovery/PoiKind.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiConstants.cs" Link="Discovery/PoiConstants.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiPlacement.cs" Link="Discovery/PoiPlacement.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiStructures.cs" Link="Discovery/PoiStructures.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/TerrainGeneratorContract.cs" Link="Content/TerrainGeneratorContract.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="Terrain/TerrainConstants.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainColumn.cs" Link="Terrain/TerrainColumn.cs" />
+  </ItemGroup>
+</Project>

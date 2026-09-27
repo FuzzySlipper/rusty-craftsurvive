@@ -1,5 +1,6 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Discovery;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Terrain;
@@ -8,18 +9,20 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// Product-owned generation-v2 material policy. It deliberately emits only
 /// material facts; Engine integration turns those facts into spatial authority.
 /// </summary>
-internal sealed class TerrainRecipe
+internal sealed class TerrainRecipe : ITerrainColumns
 {
     private readonly TerrainConfiguration configuration;
     private readonly ITerrainDraws draws;
     private readonly long radius;
     private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
+    private readonly PoiPlacement pois;
 
     internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws)
     {
         this.configuration = configuration.Validate();
         this.draws = draws ?? throw new ArgumentNullException(nameof(draws));
         radius = configuration.Size / 2;
+        pois = new PoiPlacement(configuration.Contract, draws, this, radius);
     }
 
     /// <summary>The versioned identity every feature draw is keyed from.</summary>
@@ -44,7 +47,44 @@ internal sealed class TerrainRecipe
         return new TerrainColumn(surface, CardinalSlope(x, z, surface));
     }
 
+    /// <summary>
+    /// The one thing site placement needs from the recipe: the ground and its slope.
+    /// Explicit, so the recipe's own column query stays internal to the product.
+    /// </summary>
+    TerrainColumn ITerrainColumns.ColumnAt(long x, long z) => ColumnAt(x, z);
+
     internal ushort MaterialAt(VoxelAddress address, TerrainColumn column)
+    {
+        ushort material = BaseMaterialAt(address, column);
+
+        // Structures answer last, because they are the one pass that may take material
+        // away and the only pass that may pave the course it stands on. A cut has to
+        // survive whatever the ground, the water and the features put there first, so a
+        // cut is final; a fill reaches only air, or the surface course it stands on, so a
+        // wall that meets a slope loses to the slope rather than hollowing the hillside.
+        PoiVoxel poi = PoiAt(address.X, address.Y, address.Z);
+        if (poi.Kind == PoiVoxelKind.Carve)
+        {
+            return TerrainConstants.EmptyMaterial;
+        }
+
+        if (poi.Kind == PoiVoxelKind.Fill
+            && (material == TerrainConstants.EmptyMaterial || address.Y == column.Surface))
+        {
+            material = poi.Material;
+        }
+
+        return material;
+    }
+
+    /// <summary>
+    /// The world without its structures: bounds, floor, border wall, natural material,
+    /// water, and the surface features. It is split out because the chunk-content
+    /// predicate has to know what the structure pass *changed*, and the only honest way
+    /// to answer that is to compare this against what <see cref="MaterialAt"/> produces
+    /// for the same voxel.
+    /// </summary>
+    private ushort BaseMaterialAt(VoxelAddress address, TerrainColumn column)
     {
         if (address.X < -radius || address.X > radius || address.Z < -radius || address.Z > radius)
         {
@@ -57,7 +97,6 @@ internal sealed class TerrainRecipe
         }
 
         ushort material = NaturalMaterialAt(address, column);
-        AddLandmarks(address.X, address.Y, address.Z, column.Surface, ref material);
 
         // Water fills open air at or below the world's water level, so it pools in
         // basins and along coasts. It deliberately does not flood enclosed space
@@ -123,31 +162,36 @@ internal sealed class TerrainRecipe
             : TerrainConstants.StoneMaterial;
     }
 
-    private void AddLandmarks(long x, long y, long z, long surface, ref ushort material)
+    /// <summary>
+    /// The structure material at one voxel, asked of whichever of the nine anchor cells
+    /// that touch this voxel's own cell owns a site covering it. Each cell decides for
+    /// itself from its own coordinates and the contract, so two chunks that share a
+    /// structure agree about it without communicating and without an order - the same
+    /// property the surface-feature pass has, at a far coarser lattice.
+    /// </summary>
+    private PoiVoxel PoiAt(long x, long y, long z)
     {
-        long distance = radius * 2 / 3;
-        ApplyLandmark(-distance, 0, TerrainConstants.StoneMaterial,
-            TerrainConstants.LandmarkHeightFirst, x, y, z, surface, ref material);
-        ApplyLandmark(distance, 0, TerrainConstants.DirtMaterial,
-            TerrainConstants.LandmarkHeightSecond, x, y, z, surface, ref material);
-        ApplyLandmark(0, -distance, TerrainConstants.StoneMaterial,
-            TerrainConstants.LandmarkHeightThird, x, y, z, surface, ref material);
-    }
-
-    private void ApplyLandmark(long landmarkX, long landmarkZ, ushort materialSlot, int height,
-        long x, long y, long z, long surface, ref ushort material)
-    {
-        if (x != landmarkX || z != landmarkZ)
+        long cell = PoiConstants.CellSize;
+        long cellX = FloorDivide(x, cell);
+        long cellZ = FloorDivide(z, cell);
+        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
         {
-            return;
+            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
+            {
+                if (pois.SiteAt(anchorX, anchorZ) is not PoiSite site)
+                {
+                    continue;
+                }
+
+                PoiVoxel voxel = PoiStructures.MaterialAt(site, x, y, z);
+                if (!voxel.IsNone)
+                {
+                    return voxel;
+                }
+            }
         }
 
-        long firstY = surface + 1;
-        long lastY = surface + height;
-        if (IsInRange(y, firstY, lastY))
-        {
-            material = materialSlot;
-        }
+        return PoiVoxel.None;
     }
 
     private long TerrainSurface(long x, long z) => TerrainHeight(x, z);
@@ -215,7 +259,8 @@ internal sealed class TerrainRecipe
             }
         }
 
-        return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
+        return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
+            || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
     }
 
     /// <summary>
@@ -273,6 +318,72 @@ internal sealed class TerrainRecipe
                             long dy = y - crownY;
                             long dz = z - trunkZ;
                             if ((dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+    /// <summary>
+    /// Whether the structure pass changes whether any voxel in the chunk is empty - by
+    /// building into air, or by cutting a way in.
+    ///
+    /// It answers the generator's own question rather than approximating it, because
+    /// residency trusts this predicate with two opposite mistakes: a chunk wrongly called
+    /// empty is evicted while it holds content, and a chunk wrongly called content stays
+    /// resident while it holds nothing. Both cost real work in a streamed world, so the
+    /// test is exact - it evaluates the same structure voxel and the same base material
+    /// that generation would.
+    /// </summary>
+    private bool ChunkPoisChange(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
+    {
+        long reach = PoiConstants.MaximumStructureReach;
+        long cell = PoiConstants.CellSize;
+        long firstCellX = FloorDivide(xStart - reach, cell);
+        long lastCellX = FloorDivide(xEnd + reach, cell);
+        long firstCellZ = FloorDivide(zStart - reach, cell);
+        long lastCellZ = FloorDivide(zEnd + reach, cell);
+        for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
+        {
+            for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
+            {
+                if (pois.SiteAt(anchorX, anchorZ) is not PoiSite site)
+                {
+                    continue;
+                }
+
+                long xMinimum = Math.Max(xStart, site.X - reach);
+                long xMaximum = Math.Min(xEnd, site.X + reach);
+                long zMinimum = Math.Max(zStart, site.Z - reach);
+                long zMaximum = Math.Min(zEnd, site.Z + reach);
+                long yTop = Math.Min(yMaximum, site.Ground + PoiConstants.MaximumStructureHeight);
+                long yBottom = Math.Max(yMinimum, site.Ground - PoiConstants.MaximumCarveDepth);
+                for (long y = yBottom; y <= yTop; y++)
+                {
+                    for (long x = xMinimum; x <= xMaximum; x++)
+                    {
+                        for (long z = zMinimum; z <= zMaximum; z++)
+                        {
+                            PoiVoxel poi = PoiStructures.MaterialAt(site, x, y, z);
+                            if (poi.IsNone)
+                            {
+                                continue;
+                            }
+
+                            TerrainColumn column = ColumnAt(x, z);
+                            ushort before = BaseMaterialAt(new VoxelAddress(x, y, z), column);
+                            ushort after = poi.Kind == PoiVoxelKind.Carve
+                                ? TerrainConstants.EmptyMaterial
+                                : before == TerrainConstants.EmptyMaterial || y == column.Surface
+                                    ? poi.Material
+                                    : before;
+                            if ((before == TerrainConstants.EmptyMaterial)
+                                != (after == TerrainConstants.EmptyMaterial))
                             {
                                 return true;
                             }
@@ -482,13 +593,11 @@ internal sealed class TerrainRecipe
     }
 
     /// <summary>
-    /// A feature voxel is only placed when its block can be bound to the scene. The
-    /// decision and its draws still happen, so the contract stays exercised and the
-    /// world returns unchanged the moment the Engine's material capacity admits the
-    /// block; until then a tree would be a voxel whose slot has no material, which
-    /// fails the scene projection instead of drawing nothing. With only grass, dirt
-    /// and stone bound, this means no tree is placed today: the feature layer is
-    /// implemented, drawn and proven, but dormant.
+    /// A feature voxel is only placed when its block can be bound to the scene, so a
+    /// block with no material cannot reach the projection and fail it. Every block in the
+    /// V1 floor is bound - the Engine admits sixteen authored materials per scene and
+    /// this floor is exactly sixteen - so this is a guard a new block must clear rather
+    /// than a restriction on the current palette.
     /// </summary>
     private static ushort Placeable(BlockId id) =>
         BlockRegistry.IsBound(id) ? (ushort)id : TerrainConstants.EmptyMaterial;
@@ -500,5 +609,3 @@ internal sealed class TerrainRecipe
 
     private static bool IsInRange(long value, long minimum, long maximum) => value >= minimum && value <= maximum;
 }
-
-internal readonly record struct TerrainColumn(long Surface, long Slope);
