@@ -22,6 +22,13 @@ internal readonly record struct PlayerDefeatState(int Health, int MaximumHealth,
 internal static class PlayerDefeatRules
 {
     internal const int RespawnHealthPercent = 50;
+
+    /// <summary>
+    /// Grace after a respawn. The player comes back where they fell, so without a
+    /// moment of safety a creature standing in reach kills them again immediately -
+    /// observed live as a death every seven seconds.
+    /// </summary>
+    internal const long RespawnGraceTicks = 100;
     internal const long RespawnDelayTicks = 200;
 
     internal static bool IsDefeated(int health) => health <= 0;
@@ -51,6 +58,10 @@ internal static class PlayerDefeatRules
         Health = Math.Max(1, state.MaximumHealth * RespawnHealthPercent / 100),
         RespawnTick = -1,
     };
+
+    internal static long GraceUntil(long tick) => tick + RespawnGraceTicks;
+
+    internal static bool IsInvulnerable(long graceUntilTick, long tick) => tick < graceUntilTick;
 
     internal static PlayerDefeatOutcome Outcome(PlayerDefeatState state, long tick) =>
         state.Health > 0 ? PlayerDefeatOutcome.Alive

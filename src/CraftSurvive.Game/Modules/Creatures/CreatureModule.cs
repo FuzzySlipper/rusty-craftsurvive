@@ -154,6 +154,8 @@ public sealed class CreatureModule : IDebugCommandModule
     private PlayerDefeatState playerDefeat = PlayerDefeatState.Full(CreatureConstants.PlayerMaximumHealth);
 
     private readonly Dictionary<int, long> lastAttackTick = [];
+
+    private long playerGraceUntilTick = long.MinValue;
     private readonly Dictionary<int, string> routes = [];
     private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
@@ -253,6 +255,8 @@ public sealed class CreatureModule : IDebugCommandModule
         if (PlayerDefeatRules.CanRespawn(playerDefeat, tick))
         {
             playerDefeat = PlayerDefeatRules.Respawn(playerDefeat);
+            playerGraceUntilTick = PlayerDefeatRules.GraceUntil(tick);
+            lastAttackTick.Clear();
             lastEvent = string.Create(CultureInfo.InvariantCulture,
                 $"player respawned at {playerDefeat.Health} health after defeat {playerDefeat.Defeats}");
         }
@@ -318,7 +322,8 @@ public sealed class CreatureModule : IDebugCommandModule
                 || tick - previousAttack >= CreatureConstants.CreatureAttackCooldownTicks;
             if (state.State == CreatureState.Attacking
                 && distance <= CreatureConstants.CreatureAttackReachMetres
-                && ready)
+                && ready
+                && !PlayerDefeatRules.IsInvulnerable(playerGraceUntilTick, tick))
             {
                 lastAttackTick[id] = tick;
                 playerDefeat = PlayerDefeatRules.Strike(playerDefeat, CreatureConstants.CreatureAttackDamage, tick);

@@ -395,4 +395,10 @@ PlayerDefeatState stillRisen = PlayerDefeatRules.Respawn(PlayerDefeatRules.Strik
 Require(stillRisen.Health == 20 && stillRisen.Defeats == 1,
     "a defeated player must still respawn on schedule at half health with one defeat counted");
 
+Require(PlayerDefeatRules.IsInvulnerable(PlayerDefeatRules.GraceUntil(100), 150),
+    "a respawned player must be safe inside the grace window");
+Require(!PlayerDefeatRules.IsInvulnerable(PlayerDefeatRules.GraceUntil(100), 200),
+    "grace must expire on schedule");
+Require(PlayerDefeatRules.GraceUntil(100) == 200, "grace must last the configured number of ticks");
+
 Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director and player defeat passed.");
