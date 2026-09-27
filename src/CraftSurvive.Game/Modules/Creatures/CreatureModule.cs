@@ -496,7 +496,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} reward=placeholder-no-live-progression attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -916,6 +916,11 @@ public sealed class CreatureModule : IDebugCommandModule
         // And it leaves the encounter director, so a killed creature is not still
         // counted as an active encounter.
         director.Remove(target);
+        // Placeholder payout, accepted explicitly for S4: a live kill pays flat loot
+        // and no experience, because the product has no live progression owner. The
+        // rules (EncounterResolutionRules.Reward -> ProgressionRules.Award) exist and
+        // are exercised in tests/RpgCore and the staged proof, but nothing in play
+        // consumes them yet, and the readout says so.
         defeated++;
         lootAwarded += CreatureConstants.CreatureLootValue;
         return string.Create(CultureInfo.InvariantCulture,
