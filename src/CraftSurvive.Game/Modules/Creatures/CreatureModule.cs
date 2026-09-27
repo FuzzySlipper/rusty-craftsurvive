@@ -548,10 +548,17 @@ public sealed class CreatureModule : IDebugCommandModule
             ReadOnlySpan<SpatialMapCell> cells = snapshot.Cells.Span;
             long column = (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize);
             long row = (long)Math.Floor((worldZ - navigationWorldMin.Z) / TerrainConstants.VoxelSize);
-            long index = (row * columns) + column;
-            string sample = index >= 0 && index < cells.Length
-                ? $"rowMajor[{index}] support={cells[(int)index].MinimumSupportY:F2}..{cells[(int)index].MaximumSupportY:F2} samples={cells[(int)index].NavigationSamples}"
-                : $"rowMajor[{index}] outside {cells.Length} cells";
+            long rowMajor = (row * columns) + column;
+            long columnMajor = (column * columns) + row;
+            string rowMajorText = rowMajor >= 0 && rowMajor < cells.Length
+                ? string.Create(CultureInfo.InvariantCulture,
+                    $"rowMajor[{rowMajor}]={cells[(int)rowMajor].MinimumSupportY:F2}..{cells[(int)rowMajor].MaximumSupportY:F2}/samples={cells[(int)rowMajor].NavigationSamples}")
+                : $"rowMajor[{rowMajor}] outside";
+            string columnMajorText = columnMajor >= 0 && columnMajor < cells.Length
+                ? string.Create(CultureInfo.InvariantCulture,
+                    $"columnMajor[{columnMajor}]={cells[(int)columnMajor].MinimumSupportY:F2}..{cells[(int)columnMajor].MaximumSupportY:F2}/samples={cells[(int)columnMajor].NavigationSamples}")
+                : $"columnMajor[{columnMajor}] outside";
+            string sample = $"{rowMajorText} {columnMajorText}";
             StringBuilder head = new();
             for (int i = 0; i < Math.Min(4, cells.Length); i++)
             {
