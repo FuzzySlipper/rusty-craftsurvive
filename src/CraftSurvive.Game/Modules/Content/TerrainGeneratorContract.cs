@@ -28,9 +28,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// water level that is part of this contract; version 6 gives the finite world
     /// an authored bedrock floor and border wall; version 7 replaces the hand-placed
     /// landmark pillars with seed-drawn points of interest, which are also the first pass
-    /// allowed to cut into the ground, because a way in is a hole rather than a building.
+    /// allowed to cut into the ground, because a way in is a hole rather than a building;
+    /// version 8 adds crossings, which span narrow water so a route is never gated on swimming.
     /// </summary>
-    internal const uint CurrentVersion = 7;
+    internal const uint CurrentVersion = 8;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

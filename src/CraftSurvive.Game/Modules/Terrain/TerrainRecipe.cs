@@ -16,6 +16,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly long radius;
     private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
     private readonly PoiPlacement pois;
+    private readonly CrossingPlacement crossings;
 
     internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws)
     {
@@ -23,6 +24,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         this.draws = draws ?? throw new ArgumentNullException(nameof(draws));
         radius = configuration.Size / 2;
         pois = new PoiPlacement(configuration.Contract, draws, this, radius);
+        crossings = new CrossingPlacement(configuration.Contract, draws, this, radius);
     }
 
     /// <summary>The versioned identity every feature draw is keyed from.</summary>
@@ -78,6 +80,16 @@ internal sealed class TerrainRecipe : ITerrainColumns
             && (material == TerrainConstants.EmptyMaterial || address.Y == column.Surface))
         {
             material = poi.Material;
+        }
+
+        // Crossings come after sites for the same reason sites come after the ground: a
+        // bridge is built over water, and water is what the ground pass leaves behind. It only
+        // fills, so a crossing is something walked over rather than a dam across it.
+        if (CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span
+            && span.Kind == PoiVoxelKind.Fill
+            && (material == TerrainConstants.EmptyMaterial || address.Y == column.Surface))
+        {
+            material = span.Material;
         }
 
         return material;
@@ -175,6 +187,36 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// structure agree about it without communicating and without an order - the same
     /// property the surface-feature pass has, at a far coarser lattice.
     /// </summary>
+    /// <summary>
+    /// The bridge voxel at one position, asked of the nine cells that touch this one. A
+    /// crossing is decided by its own cell and reaches at most a span plus its abutments, so
+    /// the same nine-cell neighbourhood is enough.
+    /// </summary>
+    private PoiVoxel? CrossingAt(long x, long y, long z)
+    {
+        long cell = PoiConstants.CellSize;
+        long cellX = FloorDivide(x, cell);
+        long cellZ = FloorDivide(z, cell);
+        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
+        {
+            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
+            {
+                if (crossings.SiteAt(anchorX, anchorZ) is not CrossingSite site)
+                {
+                    continue;
+                }
+
+                PoiVoxel voxel = CrossingStructure.MaterialAt(site, x, y, z);
+                if (!voxel.IsNone)
+                {
+                    return voxel;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private PoiVoxel PoiAt(long x, long y, long z)
     {
         long cell = PoiConstants.CellSize;
@@ -266,7 +308,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
-            || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
+            || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
+            || ChunkCrossingsChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1);
     }
 
     /// <summary>
@@ -390,6 +433,61 @@ internal sealed class TerrainRecipe : ITerrainColumns
                                     : before;
                             if ((before == TerrainConstants.EmptyMaterial)
                                 != (after == TerrainConstants.EmptyMaterial))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a crossing changes whether any voxel in the chunk is empty. It answers exactly,
+    /// the same way the site predicate does, because residency makes the same two opposite
+    /// mistakes expensive: evicting a chunk that holds a deck, or keeping one that holds nothing.
+    /// </summary>
+    private bool ChunkCrossingsChange(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
+    {
+        long cell = PoiConstants.CellSize;
+        long reach = PoiConstants.CrossingMaximumSpan + 2;
+        long firstCellX = FloorDivide(xStart - reach, cell);
+        long lastCellX = FloorDivide(xEnd + reach, cell);
+        long firstCellZ = FloorDivide(zStart - reach, cell);
+        long lastCellZ = FloorDivide(zEnd + reach, cell);
+        for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
+        {
+            for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
+            {
+                if (crossings.SiteAt(anchorX, anchorZ) is not CrossingSite site)
+                {
+                    continue;
+                }
+
+                long xMinimum = Math.Max(xStart, Math.Min(site.FromX, site.ToX) - reach);
+                long xMaximum = Math.Min(xEnd, Math.Max(site.FromX, site.ToX) + reach);
+                long zMinimum = Math.Max(zStart, Math.Min(site.FromZ, site.ToZ) - reach);
+                long zMaximum = Math.Min(zEnd, Math.Max(site.FromZ, site.ToZ) + reach);
+                long yBottom = Math.Max(yMinimum, site.DeckY - PoiConstants.CrossingPierDepth);
+                long yTop = Math.Min(yMaximum, site.DeckY);
+                for (long y = yBottom; y <= yTop; y++)
+                {
+                    for (long x = xMinimum; x <= xMaximum; x++)
+                    {
+                        for (long z = zMinimum; z <= zMaximum; z++)
+                        {
+                            PoiVoxel span = CrossingStructure.MaterialAt(site, x, y, z);
+                            if (span.Kind != PoiVoxelKind.Fill)
+                            {
+                                continue;
+                            }
+
+                            TerrainColumn column = ColumnAt(x, z);
+                            ushort before = BaseMaterialAt(new VoxelAddress(x, y, z), column);
+                            if (before == TerrainConstants.EmptyMaterial || y == column.Surface)
                             {
                                 return true;
                             }

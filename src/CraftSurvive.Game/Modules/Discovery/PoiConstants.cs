@@ -109,6 +109,22 @@ internal static class PoiConstants
     /// <summary>How deep any structure removes material, named so the floor bound is checkable.</summary>
     internal const long MaximumCarveDepth = EntranceShaftDepth;
 
+    // --- crossings --------------------------------------------------------------------
+
+    /// <summary>How wide a run of water may be and still be spanned. Wider is walked around.</summary>
+    internal const long CrossingMaximumSpan = 12;
+
+    /// <summary>How much dry land each end of a span needs, so a bridge lands on a bank.</summary>
+    internal const long CrossingMinimumBank = 2;
+
+    /// <summary>A deck is this many blocks either side of its centre line, so three wide.</summary>
+    internal const long CrossingHalfWidth = 1;
+
+    /// <summary>How often a pier stands under the deck, and how far it reaches down.</summary>
+    internal const long CrossingPierSpacing = 4;
+
+    internal const long CrossingPierDepth = 4;
+
     // --- discovery ------------------------------------------------------------------
 
     /// <summary>

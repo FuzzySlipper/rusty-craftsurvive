@@ -24,6 +24,7 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiConstants.cs" Link="Discovery/PoiConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiPlacement.cs" Link="Discovery/PoiPlacement.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiStructures.cs" Link="Discovery/PoiStructures.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/CrossingPlacement.cs" Link="Discovery/CrossingPlacement.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainChunk.cs" Link="TerrainChunk.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainResidencyPolicy.cs" Link="TerrainResidencyPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayState.cs" Link="TerrainOverlayState.cs" />
