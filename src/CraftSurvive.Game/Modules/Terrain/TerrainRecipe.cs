@@ -76,7 +76,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
         PoiVoxel poi = PoiAt(address.X, address.Y, address.Z);
         if (poi.Kind == PoiVoxelKind.Carve)
         {
-            return TerrainConstants.EmptyMaterial;
+            // A way in, never a pit: the cut stops one step below the local ground, which is
+            // the deepest floor a character with no climb reach can step back out of.
+            return address.Y >= column.Surface - TerrainConstants.MaximumStructureStepBelowGround
+                ? TerrainConstants.EmptyMaterial
+                : material;
         }
 
         if (poi.Kind == PoiVoxelKind.Fill
@@ -430,7 +434,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
                             TerrainColumn column = ColumnAt(x, z);
                             ushort before = BaseMaterialAt(new VoxelAddress(x, y, z), column);
                             ushort after = poi.Kind == PoiVoxelKind.Carve
-                                ? TerrainConstants.EmptyMaterial
+                                ? y >= column.Surface - TerrainConstants.MaximumStructureStepBelowGround
+                                    ? TerrainConstants.EmptyMaterial
+                                    : before
                                 : before == TerrainConstants.EmptyMaterial || y == column.Surface
                                     ? poi.Material
                                     : before;

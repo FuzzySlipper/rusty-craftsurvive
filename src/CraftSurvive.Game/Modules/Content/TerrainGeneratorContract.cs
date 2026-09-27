@@ -29,9 +29,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// an authored bedrock floor and border wall; version 7 replaces the hand-placed
     /// landmark pillars with seed-drawn points of interest, which are also the first pass
     /// allowed to cut into the ground, because a way in is a hole rather than a building;
-    /// version 8 adds crossings, which span narrow water so a route is never gated on swimming.
+    /// version 8 adds crossings, which span narrow water so a route is never gated on swimming;
+    /// version 9 bounds how deep a structure may cut, so a way in is never a pit a character
+    /// with no climb reach cannot step out of.
     /// </summary>
-    internal const uint CurrentVersion = 8;
+    internal const uint CurrentVersion = 9;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

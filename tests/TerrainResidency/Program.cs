@@ -42,8 +42,8 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // tree is redrawn. Confirmed by reverting the version to 6 and watching this hash
     // return to the value below, which is what rules out an accidental terrain change.
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "AD788296D2DE601BFDBF72E36049A3A518D3D6D7A5B9F4ABB52D22021051D8F5"
-        : "BD466C7AE31DCF0C18B89E168F899B1BBFADEDC30B2776C3C2CCFECDF2181C1C";
+        ? "F88298A1BC81B035A634AE136D47A974AFBE4FEF4F01FEF6FAEEFD24E1A2463F"
+        : "D7A06CAC7AAD1F88D82CF063DF5A603B0E3DE6CB056B5C8BF63A941992C0D8AD";
     string actual = Convert.ToHexString(hash.GetHashAndReset());
     Require(actual == expected, $"authored material snapshot changed: {actual}");
 }
@@ -126,11 +126,42 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // trees, and version 7 added structure voxels to this box. Moved at version 7, which
     // changes every draw key and so redraws every feature in it.
 
-    const string ExpectedFeatureHash = "377C624AC163686A9682A8C2159451B6178E0FC8FC5625E7309C152F04DEE42F";
+    const string ExpectedFeatureHash = "DCE4793126EDB67728AB3C336404AB4C5F312817D2301DF3FB6B11642C77F552";
     Console.WriteLine(
         $"Terrain features, water and world edges placed and deterministic: {featureVoxels} feature, " +
         $"{waterVoxels} water, {bedrockVoxels} bedrock voxels, {featureHash}");
-    Require(featureVoxels > 0, "the surface feature pass placed no feature voxel");
+    // The hashed box is a sample, and which trees fall inside it is the version's draw to
+    // decide: pinning "the box holds a tree" made the check depend on that accident rather
+    // than on the pass working. The invariant is that the world places features at all, so it
+    // is answered by looking for one across a region wide enough that a world without trees
+    // cannot pass by chance.
+    {
+        TerrainConfiguration scanConfig = TerrainConfiguration.TraversalShowcase;
+        var scanGenerator = new TerrainChunkGenerator(scanConfig.CreateRecipe(new TestDraws(scanConfig.Seed)));
+        TerrainOverlayState scanOverlay = new(scanConfig.Seed);
+        long scanFeatures = 0;
+        for (long chunkX = -8; chunkX <= 8 && scanFeatures == 0; chunkX++)
+        {
+            for (long chunkZ = -8; chunkZ <= 8 && scanFeatures == 0; chunkZ++)
+            {
+                for (long chunkY = 0; chunkY <= 2 && scanFeatures == 0; chunkY++)
+                {
+                    TerrainChunk scan = scanGenerator.Generate(new(chunkX, chunkY, chunkZ), scanOverlay.Snapshot());
+                    foreach (ushort material in scan.Materials.Span)
+                    {
+                        if (material == (ushort)BlockId.Log || material == (ushort)BlockId.Leaves)
+                        {
+                            scanFeatures++;
+                        }
+                    }
+                }
+            }
+        }
+
+        Require(scanFeatures > 0, "the surface feature pass placed no feature voxel anywhere in the scanned region");
+    }
+
+
     Require(waterVoxels > 0, "the water pass placed no water voxel");
     Require(bedrockVoxels > 0, "the world has no authored bedrock floor");
     Require(featureHash == ExpectedFeatureHash, "surface, water and border snapshot changed");

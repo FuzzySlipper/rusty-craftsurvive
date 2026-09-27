@@ -69,6 +69,14 @@ internal static class TerrainConstants
     internal const int WorldWallThickness = 2;
     internal const int WorldWallTop = 6;
 
+    /// <summary>
+    /// How far below the local ground a structure may cut. The character has no climb reach
+    /// and steps one block, so a deeper hole is one a player can walk into and not walk out
+    /// of - a trap rather than a route. A way in is therefore cut to a stepped depth, and the
+    /// depth of a real descent belongs to the slice that owns the load transition.
+    /// </summary>
+    internal const long MaximumStructureStepBelowGround = 1;
+
     internal const int TerrainDepth = 9;
     internal const int TerrainSummitHeight = 12;
     internal const int TerrainHeadroom = 16;
