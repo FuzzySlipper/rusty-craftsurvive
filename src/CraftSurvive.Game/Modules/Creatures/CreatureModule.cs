@@ -81,6 +81,9 @@ internal static class CreatureConstants
 
     internal const int PlayerAttackDamage = 6;
 
+    /// <summary>Unarmed accuracy for the player's swing, as the rules define it.</summary>
+    internal const int PlayerAttackAccuracy = 30;
+
     internal const double PlayerAttackReachMetres = 4.0;
 
     internal const int CreatureLootValue = 3;
@@ -843,12 +846,29 @@ public sealed class CreatureModule : IDebugCommandModule
             return string.Create(CultureInfo.InvariantCulture, $"out of reach: {Roster()}");
         }
 
-        int health = Math.Max(0, combat[target].Health - CreatureConstants.PlayerAttackDamage);
-        if (health > 0)
+        // The player's blow resolves through the same rules the creature's attacks
+        // and the unit lane use, so accuracy against evasion, criticals and armour
+        // reduction all apply here too - a flat subtraction would make roughly a
+        // third of swings land that the rules say should miss.
+        AttackProfile swing = new(
+            Accuracy: CreatureConstants.PlayerAttackAccuracy,
+            Power: CreatureConstants.PlayerAttackDamage,
+            Type: DamageType.Blunt);
+        int roll = (int)((tick * 37 + target) % (CombatRules.MaximumRoll - CombatRules.MinimumRoll + 1))
+            + CombatRules.MinimumRoll;
+        (CombatantState struck, AttackOutcome outcome) = EncounterResolutionRules.Strike(
+            roll, swing, combat[target], tick);
+        if (!outcome.Hit)
         {
-            combat[target] = combat[target] with { Health = health };
             return string.Create(CultureInfo.InvariantCulture,
-                $"hit {target}: {health}/{combat[target].MaximumHealth}");
+                $"missed {target}: roll {outcome.Roll} vs defence {outcome.Defence}");
+        }
+
+        combat[target] = struck;
+        if (!struck.IsDown)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"hit {target}: {struck.Health}/{struck.MaximumHealth} for {outcome.Damage}{(outcome.Critical ? " (critical)" : string.Empty)}");
         }
 
         positions.Remove(target);
