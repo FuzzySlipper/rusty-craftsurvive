@@ -39,6 +39,7 @@ internal sealed class PlayerInputState
                 pendingLookDelta = Vector2.Zero;
                 pendingEdit = null;
         attackPending = false;
+        attackPending = false;
                 continue;
             }
 

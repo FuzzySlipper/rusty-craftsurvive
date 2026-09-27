@@ -761,13 +761,6 @@ public sealed class CreatureModule : IDebugCommandModule
     [DebugCommand("craft.creatures.route")]
     public string Route(long offsetX, long offsetZ)
     {
-        if (playerDefeat.Health <= 0)
-        {
-            // A defeated player swings at nothing: the same guard the defeat rules
-            // apply on the receiving side, applied on the dealing side.
-            return "the player is down";
-        }
-
         if (positions.Count == 0)
         {
             return "no creatures";
@@ -834,6 +827,13 @@ public sealed class CreatureModule : IDebugCommandModule
     /// </summary>
     internal string AttackNearestCore()
     {
+        if (playerDefeat.Health <= 0)
+        {
+            // A defeated player swings at nothing: the same guard the defeat rules
+            // apply on the receiving side, applied on the dealing side.
+            return "the player is down";
+        }
+
         if (positions.Count == 0)
         {
             return "no creatures";
@@ -906,11 +906,12 @@ public sealed class CreatureModule : IDebugCommandModule
         routes.Remove(target);
         states.Remove(target);
         lastAttackTick.Remove(target);
-        if (appearances.Remove(target, out Appearance departing))
+        if (appearances.TryGetValue(target, out Appearance departing))
         {
             // The same disposal the module's own Dispose uses, so a killed creature
             // does not leave its GPU primitive behind.
             departing.Dispose();
+            appearances.Remove(target);
         }
         // And it leaves the encounter director, so a killed creature is not still
         // counted as an active encounter.
