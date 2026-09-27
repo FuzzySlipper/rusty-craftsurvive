@@ -314,7 +314,7 @@ public sealed class CreatureModule : IDebugCommandModule
                     [new PerceptionTarget(PlayerConstants.PlayerEntityId, playerPosition)];
                 PerceptionReadoutLeaseReceipt receipt = engine.Perception.QueryVisibility(
                     new PerceptionQueryRequest(
-                        terrain.Session, observers, targets, System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty, navigationHash, 0, CreatureConstants.PerceptionPageSize));
+                        terrain.Session, observers, targets, System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty, 0UL, 0, CreatureConstants.PerceptionPageSize));
                 visible = false;
                 foreach (PerceptionPair pair in receipt.Pairs.Span)
                 {
