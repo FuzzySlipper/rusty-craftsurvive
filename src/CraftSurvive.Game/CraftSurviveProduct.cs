@@ -251,7 +251,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             // gameplay facts are the whole snapshot.
             if (ghost is null)
             {
-                engine.Graphics.PublishSnapshot([.. terrain.CourtyardFacts, .. player.Ropes.Facts, player.PlatformAppearanceFact]);
+                engine.Graphics.PublishSnapshot([.. terrain.CourtyardFacts, .. player.Ropes.Facts, player.PlatformAppearanceFact, .. creatures.AppearanceFacts]);
                 return;
             }
 
@@ -260,6 +260,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
                 ..terrain.CourtyardFacts,
                 ..player.Ropes.Facts,
                 player.PlatformAppearanceFact,
+                .. creatures.AppearanceFacts,
                 useDesiredGhostSource
                     ? ghost.DesiredSourceAppearanceFact
                     : ghost.SourceAppearanceFact,
@@ -267,7 +268,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             return;
         }
 
-        engine.Graphics.PublishSnapshot([..terrain.CourtyardFacts, ..player.Ropes.Facts, player.PlatformAppearanceFact]);
+        engine.Graphics.PublishSnapshot([..terrain.CourtyardFacts, ..player.Ropes.Facts, player.PlatformAppearanceFact, ..creatures.AppearanceFacts]);
     }
 
     private enum ProductLifecycleState

@@ -37,6 +37,15 @@ internal static class CreatureConstants
     internal const int AttachDistanceMetres = 2;
 
     /// <summary>
+    /// Appearance facts are numbered by the product, and these start well clear of
+    /// the player's 1 and the platform's 2.
+    /// </summary>
+    internal const ulong AppearanceIdBase = 0x1000UL;
+
+    internal static readonly Vector3 BodyScale = new(0.8f, 1.6f, 0.8f);
+    internal static readonly Color BodyColor = new(0.55f, 0.12f, 0.12f, 1f);
+
+    /// <summary>
     /// Creatures are placed beyond the sight range a hostile creature uses, so a
     /// world spawn starts unaware instead of arriving already in the player's face.
     /// </summary>
@@ -60,6 +69,7 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
+    private readonly IEngineContext engine;
     private readonly EntityStore entityWorld = new([RuntimeComponent]);
     private readonly EncounterDirector director = new(EncounterPolicy.Default);
     private readonly Dictionary<int, EntityId> entities = [];
@@ -67,6 +77,7 @@ public sealed class CreatureModule : IDebugCommandModule
     private readonly Dictionary<int, CombatantState> combat = [];
     private readonly Dictionary<int, CreatureBehaviorState> behavior = [];
     private readonly Dictionary<int, Vector2> positions = [];
+    private readonly Dictionary<int, Appearance> appearances = [];
     private int nextId = 1;
     private long tick;
     private string lastEvent = "not started";
@@ -74,7 +85,7 @@ public sealed class CreatureModule : IDebugCommandModule
 
     internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player)
     {
-        ArgumentNullException.ThrowIfNull(engine);
+        this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain;
         this.player = player;
     }
@@ -121,6 +132,10 @@ public sealed class CreatureModule : IDebugCommandModule
                     nextId++;
                     placed++;
                     EntityId entity = entityWorld.Create();
+                    appearances[id] = engine.Graphics.CreatePrimitive(new PrimitiveAppearanceRequest(
+                        PrimitiveGeometry.Cube,
+                        false,
+                        CreatureConstants.BodyColor));
                     entities[id] = entity;
                     positions[id] = new Vector2(x, z);
                     states[id] = CreatureState.Idle;
@@ -180,8 +195,45 @@ public sealed class CreatureModule : IDebugCommandModule
             _ => true);
     }
 
+    /// <summary>
+    /// The creature appearances for this frame. The product publishes one snapshot
+    /// per frame, so creatures join that publication rather than a projection -
+    /// a projection replaces the whole snapshot and would drop the player.
+    /// </summary>
+    internal AppearanceFact[] AppearanceFacts
+    {
+        get
+        {
+            AppearanceFact[] facts = new AppearanceFact[positions.Count];
+            int index = 0;
+            foreach ((int id, Vector2 at) in positions.OrderBy(pair => pair.Key))
+            {
+                long surface = terrain.Recipe.SurfaceAt((long)Math.Round(at.X), (long)Math.Round(at.Y));
+                facts[index++] = new AppearanceFact(
+                    CreatureConstants.AppearanceIdBase + (ulong)id,
+                    false,
+                    0,
+                    new Transform(
+                        new Vector3(at.X, surface + 1f, at.Y),
+                        Quaternion.Identity,
+                        CreatureConstants.BodyScale),
+                    appearances[id],
+                    Visible: true,
+                    RenderLayer.Scene);
+            }
+
+            return facts;
+        }
+    }
+
     internal void Dispose()
     {
+        foreach (Appearance appearance in appearances.Values)
+        {
+            appearance.Dispose();
+        }
+
+        appearances.Clear();
         foreach (EntityId entity in entities.Values)
         {
             entityWorld.Destroy(entity, entityWorld.GetEntityRevision(entity));
