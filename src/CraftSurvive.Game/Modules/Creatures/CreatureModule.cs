@@ -79,6 +79,12 @@ internal static class CreatureConstants
     /// <summary>Eye height above the surface, where a creature perceives from.</summary>
     internal const float EyeHeightMetres = 1.5f;
 
+    internal const int PlayerAttackDamage = 6;
+
+    internal const double PlayerAttackReachMetres = 4.0;
+
+    internal const int CreatureLootValue = 3;
+
     /// <summary>Perception pairs requested per query.</summary>
     internal const uint PerceptionPageSize = 8;
     internal const float NavigationDepthBelow = 4f;
@@ -164,6 +170,10 @@ public sealed class CreatureModule : IDebugCommandModule
     private long playerGraceUntilTick = long.MinValue;
 
     private string perceptionStatus = "unasked";
+
+    private int defeated;
+
+    private int lootAwarded;
 
     /// <summary>Where the player began, so a defeat can send them home.</summary>
     private Vector3 spawnPosition;
@@ -356,12 +366,6 @@ public sealed class CreatureModule : IDebugCommandModule
                     routeIsDefinitive[id] = definitive;
                 }
 
-                if (routeIsDefinitive[id] && !routes[id].StartsWith("Reached", StringComparison.Ordinal))
-                {
-                    Apply(id, tuning);
-                    continue;
-                }
-
                 double step = CreatureConstants.PursueSpeedMetresPerSecond * CreatureConstants.TickSeconds;
                 double scale = step / distance;
                 positions[id] = new Vector2(
@@ -484,7 +488,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -804,6 +808,61 @@ public sealed class CreatureModule : IDebugCommandModule
         playerDefeat = PlayerDefeatRules.Strike(playerDefeat, damage, tick);
         return string.Create(CultureInfo.InvariantCulture,
             $"health={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} respawnTick={playerDefeat.RespawnTick} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)}");
+    }
+
+    [DebugCommand("craft.player.attack")]
+    public string AttackNearest()
+    {
+        if (positions.Count == 0)
+        {
+            return "no creatures";
+        }
+
+        Vector3 playerPosition = player.WorldPosition;
+        string Roster() => string.Join(" ", positions.OrderBy(pair => pair.Key).Select(pair =>
+        {
+            double at = Math.Sqrt(Math.Pow(pair.Value.X - playerPosition.X, 2) + Math.Pow(pair.Value.Y - playerPosition.Z, 2));
+            return string.Create(CultureInfo.InvariantCulture, $"{pair.Key}@{at:F1}m/{behavior[pair.Key].State}/hp{combat[pair.Key].Health}");
+        }));
+
+        int target = -1;
+        double best = double.MaxValue;
+        foreach ((int id, Vector2 at) in positions)
+        {
+            double distance = Math.Sqrt(
+                Math.Pow(at.X - playerPosition.X, 2) + Math.Pow(at.Y - playerPosition.Z, 2));
+            bool engaged = behavior[id].State == CreatureState.Attacking;
+            bool bestEngaged = target >= 0 && behavior[target].State == CreatureState.Attacking;
+            if (target < 0 || (engaged && !bestEngaged) || (engaged == bestEngaged && distance < best))
+            {
+                target = id;
+                best = distance;
+            }
+        }
+
+        if (target < 0 || best > CreatureConstants.PlayerAttackReachMetres)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"out of reach: {Roster()}");
+        }
+
+        int health = Math.Max(0, combat[target].Health - CreatureConstants.PlayerAttackDamage);
+        if (health > 0)
+        {
+            combat[target] = combat[target] with { Health = health };
+            return string.Create(CultureInfo.InvariantCulture,
+                $"hit {target}: {health}/{combat[target].MaximumHealth}");
+        }
+
+        positions.Remove(target);
+        entities.Remove(target);
+        behavior.Remove(target);
+        combat.Remove(target);
+        routes.Remove(target);
+        routeIsDefinitive.Remove(target);
+        defeated++;
+        lootAwarded += CreatureConstants.CreatureLootValue;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"defeated {target}; defeated={defeated} loot={lootAwarded}");
     }
 
     [DebugCommand("craft.creatures.scan")]
