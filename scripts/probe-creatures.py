@@ -20,7 +20,7 @@ import urllib.error
 import urllib.request
 
 HEAD = re.compile(r'tick=(?P<tick>\d+); active=(?P<active>\d+); entities=(?P<entities>\d+); '
-                  r'seed=\d+; nav=(?P<nav>[^;]+); cells=(?P<cells>\d+) revision=(?P<revision>\d+)')
+                  r'seed=\d+; nav=(?P<nav>.+?) cells=(?P<cells>\d+) revision=(?P<revision>\d+)')
 ROW = re.compile(r'id=(?P<id>\d+) entity=EntityId \{ Value = \d+ \} '
                  r'at=(?P<x>-?[\d.]+),(?P<z>-?[\d.]+) state=(?P<state>\w+) '
                  r'hp=(?P<hp>\d+)/(?P<maximum>\d+) d=(?P<distance>[\d.]+) route=(?P<route>\S+)')
