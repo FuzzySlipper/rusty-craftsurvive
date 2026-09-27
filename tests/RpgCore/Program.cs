@@ -387,4 +387,12 @@ Require(risenPlayer.Health == 20, "respawn must restore half of maximum health")
 Require(risenPlayer.Defeats == 1, "respawning must not erase the defeat count");
 Require(PlayerDefeatRules.Outcome(risenPlayer, 300) == PlayerDefeatOutcome.Alive, "a respawned player is alive again");
 
+Require(PlayerDefeatRules.Strike(deadPlayer, 4, tick: 150) == deadPlayer,
+    "a defeated player must absorb further damage without counting another defeat");
+Require(PlayerDefeatRules.Strike(deadPlayer, 4, tick: 150).RespawnTick == deadPlayer.RespawnTick,
+    "further damage must not move a defeated player's respawn schedule");
+PlayerDefeatState stillRisen = PlayerDefeatRules.Respawn(PlayerDefeatRules.Strike(deadPlayer, 4, tick: 299));
+Require(stillRisen.Health == 20 && stillRisen.Defeats == 1,
+    "a defeated player must still respawn on schedule at half health with one defeat counted");
+
 Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director and player defeat passed.");

@@ -28,6 +28,15 @@ internal static class PlayerDefeatRules
 
     internal static PlayerDefeatState Strike(PlayerDefeatState state, int damage, long tick)
     {
+        // A defeated player absorbs nothing. Without this, every further hit counts
+        // another defeat and moves the respawn schedule, so a corpse is "killed"
+        // every frame and never comes back - which is exactly what the live chase
+        // did before this guard.
+        if (state.Health <= 0)
+        {
+            return state;
+        }
+
         int health = Math.Max(0, state.Health - Math.Max(0, damage));
         return health > 0
             ? state with { Health = health }
