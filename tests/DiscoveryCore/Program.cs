@@ -207,10 +207,89 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
 
 Require(ids.Count == sites, "every site in the world must have its own id");
 
+// --- discovery: the journal that records what was found ---------------------------
+DiscoveryState journal = new();
+
+// Real sites, taken in a stable order, so the journal checks do not depend on which
+// cells the lattice happened to fill.
+List<PoiSite> discovered = forward.Values
+    .Where(site => site is not null)
+    .Select(site => site!.Value)
+    .OrderBy(site => site.Id, StringComparer.Ordinal)
+    .ToList();
+PoiSite sample = discovered[0];
+Require(journal.Count == 0, "a new journal knows nothing");
+Require(journal.Notice(sample, DiscoveryStage.Seen, tick: 10), "a first sighting must be recorded");
+Require(!journal.Notice(sample, DiscoveryStage.Seen, tick: 11), "a repeat sighting must change nothing");
+Require(journal.Notice(sample, DiscoveryStage.Visited, tick: 20), "arriving must promote the entry");
+Require(!journal.Notice(sample, DiscoveryStage.Seen, tick: 21), "a later glance must not demote a visit");
+Require(journal.Find(sample.Id) is { Stage: DiscoveryStage.Visited, FirstSeenTick: 10, LastTick: 20 },
+    "an entry must keep the first sighting and raise the stage");
+Require(journal.VisitedCount == 1 && journal.SeenCount == 0, "the counts must follow the stages");
+Require(!journal.Notice(sample, DiscoveryStage.None, tick: 22), "nothing learned must record nothing");
+
+// Distance and visibility decide the stage, and arriving counts even where the far side
+// of the site is hidden.
+Require(DiscoveryRules.StageFor(DiscoveryRules.VisitRadiusMetres, visible: false) == DiscoveryStage.Visited,
+    "standing at a place must count as visiting it even when its far side is hidden");
+Require(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres + 1, visible: true) == DiscoveryStage.None,
+    "a site beyond the notice radius must not be seen");
+Require(DiscoveryRules.StageFor(60, visible: true) == DiscoveryStage.Seen,
+    "a visible site inside the notice radius must be seen");
+Require(DiscoveryRules.StageFor(60, visible: false) == DiscoveryStage.None,
+    "a site behind a ridge must not be seen from the near side of it");
+
+// Sightlines: open ground does not block, a ridge does, and a tall target is visible
+// over a rise that would hide a low one.
+var open = new FlatColumns(surface: 5);
+Require(DiscoveryRules.HasSightline(open, 0, 0, 6.6, 100, 0, 10),
+    "open ground must not block a sightline");
+Require(!DiscoveryRules.HasSightline(new RidgeColumns(height: 40, halfWidth: 4), 0, 0, 6.6, 100, 0, 10),
+    "a ridge must block a sightline to a low site behind it");
+Require(DiscoveryRules.HasSightline(new RidgeColumns(height: 8, halfWidth: 2), 0, 0, 6.6, 100, 0, 20),
+    "a tall site must be visible over a rise that hides a low one");
+
+// A full journal refuses rather than throwing: an exception here would be raised inside
+// a product update, which costs the runtime and not just the fact.
+DiscoveryState full = new();
+for (int index = 0; index < PoiConstants.MaximumDiscoveryEntries; index++)
+{
+    PoiSite synthetic = new(index, 0, PoiKind.Ruin, index * 256, 0, 5, 4, 0, 0);
+    Require(full.Notice(synthetic, DiscoveryStage.Seen, tick: index), "the journal must take entries until it is full");
+}
+
+Require(full.Count == PoiConstants.MaximumDiscoveryEntries, "the journal must hold exactly its cap");
+PoiSite overflow = new(PoiConstants.MaximumDiscoveryEntries, 0, PoiKind.Ruin, 0, 0, 5, 4, 0, 0);
+Require(!full.Notice(overflow, DiscoveryStage.Seen, tick: 1), "a full journal must refuse a new place");
+Require(full.Refused == 1, "a refusal must be counted so the state is visible rather than silent");
+
+// The saved form is canonical and round-trips.
+DiscoverySnapshot saved = journal.Snapshot();
+DiscoveryState reloaded = new();
+reloaded.Restore(saved);
+Require(reloaded.Count == journal.Count, "a restored journal must hold what was saved");
+Require(reloaded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
+    "a restored journal must hold the same facts");
+Require(reloaded.Find(sample.Id) is { Stage: DiscoveryStage.Visited },
+    "a restored entry must keep its stage");
+
+// Canonical order: the same facts learned in a different order save identically.
+DiscoveryState a = new();
+DiscoveryState b = new();
+PoiSite first = discovered[10];
+PoiSite second = discovered[20];
+a.Notice(first, DiscoveryStage.Seen, tick: 1);
+a.Notice(second, DiscoveryStage.Visited, tick: 2);
+b.Notice(second, DiscoveryStage.Visited, tick: 2);
+b.Notice(first, DiscoveryStage.Seen, tick: 1);
+Require(a.Snapshot().Entries.SequenceEqual(b.Snapshot().Entries),
+    "the saved form must depend on the facts, not the order they were learned");
+
 Console.WriteLine(
     $"Discovery rules: site determinism across {cells.Count} anchor cells, order independence, seed and "
     + $"version sensitivity, ground gating, all {kindCounts.Count} kinds reachable, structure bounds, the carve "
-    + $"floor, and site identity passed ({sites} sites, {carved} carved voxels).");
+    + $"floor, site identity, the noticing policy, the sightline rule, a full journal that refuses instead of "
+    + $"throwing, and a canonical round trip passed ({sites} sites, {carved} carved voxels).");
 
 // --- test doubles ---------------------------------------------------------------
 // The draw port is Engine-backed in the product; here it only has to be a pure
@@ -271,4 +350,21 @@ sealed class FlatColumns : ITerrainColumns
     public FlatColumns(long surface) => this.surface = surface;
 
     public TerrainColumn ColumnAt(long x, long z) => new(surface, 0);
+}
+
+// A ridge across the path, for the sightline cases: every column inside the half-width
+// stands at the given height, and the rest of the world is low ground.
+sealed class RidgeColumns : ITerrainColumns
+{
+    private readonly long height;
+    private readonly long halfWidth;
+
+    public RidgeColumns(long height, long halfWidth)
+    {
+        this.height = height;
+        this.halfWidth = halfWidth;
+    }
+
+    public TerrainColumn ColumnAt(long x, long z) =>
+        new(Math.Abs(x) <= halfWidth ? height : 5, 0);
 }
