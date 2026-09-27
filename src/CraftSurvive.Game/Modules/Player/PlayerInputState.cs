@@ -27,6 +27,8 @@ internal sealed class PlayerInputState
     private Vector2 pendingLookDelta;
     private TerrainEditKind? pendingEdit;
 
+    private bool attackPending;
+
     internal PlayerInputFrame Consume(ReadOnlySpan<ProductInputEvent> events, float simulationDeltaSeconds)
     {
         foreach (ProductInputEvent input in events)
@@ -36,6 +38,7 @@ internal sealed class PlayerInputState
                 ClearHeld();
                 pendingLookDelta = Vector2.Zero;
                 pendingEdit = null;
+        attackPending = false;
                 continue;
             }
 
@@ -88,6 +91,7 @@ internal sealed class PlayerInputState
             keyboardImpulse || controllerImpulse,
             pendingLookDelta + controllerLook * (PlayerConstants.ControllerLookInputUnitsPerSecond * simulationDeltaSeconds),
             pendingEdit,
+            attackPending,
             brushRadius);
         pendingLookDelta = Vector2.Zero;
         pendingEdit = null;
@@ -139,6 +143,9 @@ internal sealed class PlayerInputState
 
         switch (key)
         {
+            case KeyboardControl.KeyJ:
+                attackPending = true;
+                break;
             case KeyboardControl.KeyF:
                 pendingEdit = TerrainEditKind.Clear;
                 break;
@@ -258,4 +265,5 @@ internal readonly record struct PlayerInputFrame(
     bool ImpulseHeld,
     Vector2 LookDelta,
     TerrainEditKind? Edit,
+    bool AttackRequested,
     int BrushRadius);
