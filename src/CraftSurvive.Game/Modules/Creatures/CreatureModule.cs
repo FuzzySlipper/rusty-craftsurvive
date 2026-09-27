@@ -186,6 +186,33 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private const int CombatExperienceAward = 120;
 
+    /// <summary>
+    /// Placeholder creature drops: the shape of a table, not designed content. The
+    /// entries exist so the reward path is exercised end to end; what a creature
+    /// should actually drop is content work (task #8700).
+    /// </summary>
+    private static readonly LootTable CreatureLootTable = new(
+        Id: "creature-placeholder",
+        MinimumRolls: 1,
+        MaximumRolls: 2,
+        Entries:
+        [
+            new LootEntry("hide", 1, 2, 2),
+            new LootEntry("claw", 1, 1, 4),
+        ]);
+
+    /// <summary>A deterministic draw in [minimum, maximum], keyed by the scope it is asked about.</summary>
+    private static LootRules.Draw SeededDraw => (scope, minimum, maximum) =>
+    {
+        ulong hash = 14695981039346656037UL;
+        foreach (char character in scope)
+        {
+            hash = unchecked((hash * 1099511628211UL) ^ character);
+        }
+
+        return new Random(unchecked((int)(hash & 0x7FFF_FFFF))).Next(minimum, maximum + 1);
+    };
+
     private string lastPlayerAttack = "none";
 
     /// <summary>Where the player began, so a defeat can send them home.</summary>
@@ -522,7 +549,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} reward=loot-placeholder-no-drop-table experience={playerExperience} level={playerLevel} attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} reward=rules-experience-and-drops experience={playerExperience} level={playerLevel} attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -953,15 +980,25 @@ public sealed class CreatureModule : IDebugCommandModule
         // are exercised in tests/RpgCore and the staged proof, but nothing in play
         // consumes them yet, and the readout says so.
         defeated++;
-        lootAwarded += CreatureConstants.CreatureLootValue;
-        // Experience now goes through the rules rather than being dropped: the
-        // product owns the totals, ProgressionRules decides the level.
-        ProgressionOutcome progression = ProgressionRules.Award(
-            playerExperience, playerLevel, new ExperienceAward(ExperienceSource.Combat, CombatExperienceAward));
+        // Reward is resolved in one call so the two halves cannot drift: the
+        // experience award and the drops come from the same table and draw.
+        EncounterReward reward = EncounterResolutionRules.Reward(
+            CombatExperienceAward,
+            CreatureLootTable,
+            string.Create(CultureInfo.InvariantCulture, $"creature:{target}"),
+            SeededDraw);
+        ProgressionOutcome progression = ProgressionRules.Award(playerExperience, playerLevel, reward.Experience);
         playerExperience = progression.Experience;
         playerLevel = progression.Level;
+        int dropped = 0;
+        foreach (LootDrop drop in reward.Drops)
+        {
+            dropped += drop.Quantity;
+        }
+
+        lootAwarded += dropped;
         return string.Create(CultureInfo.InvariantCulture,
-            $"defeated {target}; defeated={defeated} loot={lootAwarded} xp={playerExperience} level={playerLevel}{(progression.Advanced ? " advanced" : string.Empty)}");
+            $"defeated {target}; defeated={defeated} loot={lootAwarded} drops={reward.Drops.Length} xp={playerExperience} level={playerLevel}{(progression.Advanced ? " advanced" : string.Empty)} drops={string.Join(",", reward.Drops.Select(d => $"{d.ItemId}:{d.Quantity}"))}");
     }
 
     [DebugCommand("craft.creatures.scan")]
