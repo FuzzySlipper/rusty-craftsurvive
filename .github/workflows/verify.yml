@@ -38,6 +38,10 @@ jobs:
         run: dotnet run --project tests/TerrainResidency -c Release
       - name: Prove the managed gameplay substrate is admissible
         run: dotnet run --project tests/SubstrateProof -c Release
+      - name: Check the RPG rules
+        run: dotnet run --project tests/RpgCore -c Release
+      - name: Build the product in Release
+        run: dotnet build src/CraftSurvive.Game -c Release
 
   verify-product-ui:
     runs-on: ubuntu-latest
