@@ -208,7 +208,7 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
 Require(ids.Count == sites, "every site in the world must have its own id");
 
 // --- discovery: the journal that records what was found ---------------------------
-DiscoveryState journal = new();
+DiscoveryState journal = new(Seed);
 
 // Real sites, taken in a stable order, so the journal checks do not depend on which
 // cells the lattice happened to fill.
@@ -223,7 +223,7 @@ Require(journal.Notice(sample, DiscoveryStage.Seen, tick: 10), "a first sighting
 Require(!journal.Notice(sample, DiscoveryStage.Seen, tick: 11), "a repeat sighting must change nothing");
 Require(journal.Notice(sample, DiscoveryStage.Visited, tick: 20), "arriving must promote the entry");
 Require(!journal.Notice(sample, DiscoveryStage.Seen, tick: 21), "a later glance must not demote a visit");
-Require(journal.Find(sample.Id) is { Stage: DiscoveryStage.Visited, FirstSeenTick: 10, LastTick: 20 },
+Require(journal.Find(sample.CellX, sample.CellZ) is { Stage: DiscoveryStage.Visited, FirstSeenTick: 10, LastTick: 20 },
     "an entry must keep the first sighting and raise the stage");
 Require(journal.VisitedCount == 1 && journal.SeenCount == 0, "the counts must follow the stages");
 Require(!journal.Notice(sample, DiscoveryStage.None, tick: 22), "nothing learned must record nothing");
@@ -251,7 +251,7 @@ Require(DiscoveryRules.HasSightline(new RidgeColumns(height: 8, halfWidth: 2), 0
 
 // A full journal refuses rather than throwing: an exception here would be raised inside
 // a product update, which costs the runtime and not just the fact.
-DiscoveryState full = new();
+DiscoveryState full = new(Seed);
 for (int index = 0; index < PoiConstants.MaximumDiscoveryEntries; index++)
 {
     PoiSite synthetic = new(index, 0, PoiKind.Ruin, index * 256, 0, 5, 4, 0, 0);
@@ -265,17 +265,17 @@ Require(full.Refused == 1, "a refusal must be counted so the state is visible ra
 
 // The saved form is canonical and round-trips.
 DiscoverySnapshot saved = journal.Snapshot();
-DiscoveryState reloaded = new();
+DiscoveryState reloaded = new(Seed);
 reloaded.Restore(saved);
 Require(reloaded.Count == journal.Count, "a restored journal must hold what was saved");
 Require(reloaded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
     "a restored journal must hold the same facts");
-Require(reloaded.Find(sample.Id) is { Stage: DiscoveryStage.Visited },
+Require(reloaded.Find(sample.CellX, sample.CellZ) is { Stage: DiscoveryStage.Visited },
     "a restored entry must keep its stage");
 
 // Canonical order: the same facts learned in a different order save identically.
-DiscoveryState a = new();
-DiscoveryState b = new();
+DiscoveryState a = new(Seed);
+DiscoveryState b = new(Seed);
 PoiSite first = discovered[10];
 PoiSite second = discovered[20];
 a.Notice(first, DiscoveryStage.Seen, tick: 1);
@@ -285,11 +285,68 @@ b.Notice(first, DiscoveryStage.Seen, tick: 1);
 Require(a.Snapshot().Entries.SequenceEqual(b.Snapshot().Entries),
     "the saved form must depend on the facts, not the order they were learned");
 
+// --- the stored form -----------------------------------------------------------------
+byte[] encoded = DiscoveryCodec.Encode(journal.Snapshot());
+Require(encoded.Length == DiscoveryConstants.HeaderBytes + (journal.Count * DiscoveryConstants.EntryBytes),
+    "a journal's stored form must be its header plus one fixed record per place");
+DiscoveryState decoded = new(Seed);
+decoded.Restore(DiscoveryCodec.Decode(Seed, encoded));
+Require(decoded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
+    "the codec must round-trip every fact in a journal");
+
+// An empty journal is a valid journal, and survives the same path.
+DiscoveryState blank = new(Seed);
+DiscoveryState blankBack = new(Seed);
+blankBack.Restore(DiscoveryCodec.Decode(Seed, DiscoveryCodec.Encode(blank.Snapshot())));
+Require(blankBack.Count == 0, "an empty journal must round-trip as empty");
+
+// A save from another world is refused rather than read as this one's history.
+bool refusedOtherWorld = false;
+try
+{
+    DiscoveryCodec.Decode(Seed ^ 0x9e37, encoded);
+}
+catch (InvalidOperationException)
+{
+    refusedOtherWorld = true;
+}
+
+Require(refusedOtherWorld, "a journal belonging to another world must be refused");
+
+// Truncation and a corrupted byte are both caught, so a half-written save cannot become
+// a history the player never earned.
+bool refusedTruncated = false;
+try
+{
+    DiscoveryCodec.Decode(Seed, encoded.AsSpan(0, encoded.Length - 1));
+}
+catch (InvalidOperationException)
+{
+    refusedTruncated = true;
+}
+
+Require(refusedTruncated, "a truncated journal must be refused");
+
+byte[] corrupted = (byte[])encoded.Clone();
+corrupted[^1] ^= 0xFF;
+bool refusedCorrupted = false;
+try
+{
+    DiscoveryCodec.Decode(Seed, corrupted);
+}
+catch (InvalidOperationException)
+{
+    refusedCorrupted = true;
+}
+
+Require(refusedCorrupted, "a journal altered after it was written must fail its fingerprint");
+
 Console.WriteLine(
     $"Discovery rules: site determinism across {cells.Count} anchor cells, order independence, seed and "
     + $"version sensitivity, ground gating, all {kindCounts.Count} kinds reachable, structure bounds, the carve "
     + $"floor, site identity, the noticing policy, the sightline rule, a full journal that refuses instead of "
-    + $"throwing, and a canonical round trip passed ({sites} sites, {carved} carved voxels).");
+    + $"throwing, a canonical round trip, and the stored form with its identity, truncation and "
+    + $"fingerprint refusals passed ({sites} sites, {carved} carved voxels).");
 
 // --- test doubles ---------------------------------------------------------------
 // The draw port is Engine-backed in the product; here it only has to be a pure

@@ -39,7 +39,11 @@ internal readonly record struct PoiSite(
     /// world always names the same sites, which is what makes a persisted discovery
     /// record meaningful across sessions.
     /// </summary>
-    internal string Id => string.Create(CultureInfo.InvariantCulture, $"poi:{CellX}:{CellZ}");
+    internal string Id => IdFor(CellX, CellZ);
+
+    /// <summary>The identity of the site an anchor cell owns, in the one place that formats it.</summary>
+    internal static string IdFor(long cellX, long cellZ) =>
+        string.Create(CultureInfo.InvariantCulture, $"poi:{cellX}:{cellZ}");
 
     /// <summary>Human-readable kind name, for the journal and the readout.</summary>
     internal string KindName => Kind.ToString();

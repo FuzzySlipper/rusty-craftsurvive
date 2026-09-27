@@ -7,7 +7,8 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// first-seen tick is kept even when the site is later visited.
 /// </summary>
 internal readonly record struct DiscoveryEntry(
-    string SiteId,
+    long CellX,
+    long CellZ,
     PoiKind Kind,
     long X,
     long Z,
@@ -15,6 +16,9 @@ internal readonly record struct DiscoveryEntry(
     long FirstSeenTick,
     long LastTick)
 {
+    /// <summary>The place's name, derived from the key rather than stored beside it.</summary>
+    internal string SiteId => PoiSite.IdFor(CellX, CellZ);
+
     internal string StageName => Stage.ToString();
 }
 
@@ -27,22 +31,23 @@ internal sealed class DiscoverySnapshot
 {
     private readonly DiscoveryEntry[] entries;
 
-    internal DiscoverySnapshot(DiscoveryEntry[] entries)
+    internal DiscoverySnapshot(ulong seed, DiscoveryEntry[] entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        Seed = seed;
         if (entries.Length > PoiConstants.MaximumDiscoveryEntries)
         {
             throw new ArgumentOutOfRangeException(nameof(entries),
                 $"A journal holds at most {PoiConstants.MaximumDiscoveryEntries} places.");
         }
 
-        this.entries = entries.OrderBy(entry => entry.SiteId, StringComparer.Ordinal).ToArray();
+        this.entries = entries.OrderBy(entry => entry.CellX).ThenBy(entry => entry.CellZ).ToArray();
         for (int index = 0; index < this.entries.Length; index++)
         {
             DiscoveryEntry entry = this.entries[index];
-            if (string.IsNullOrWhiteSpace(entry.SiteId))
+            if (entry.Kind == PoiKind.None)
             {
-                throw new ArgumentException("A journal entry must name its place.", nameof(entries));
+                throw new ArgumentException("A journal entry must name a kind of place.", nameof(entries));
             }
 
             if (entry.Stage == DiscoveryStage.None)
@@ -50,12 +55,16 @@ internal sealed class DiscoverySnapshot
                 throw new ArgumentException("A journal entry must record something learned.", nameof(entries));
             }
 
-            if (index > 0 && string.Equals(this.entries[index - 1].SiteId, entry.SiteId, StringComparison.Ordinal))
+            if (index > 0 && this.entries[index - 1].CellX == entry.CellX
+                && this.entries[index - 1].CellZ == entry.CellZ)
             {
                 throw new ArgumentException("A journal names each place once.", nameof(entries));
             }
         }
     }
+
+    /// <summary>The world this journal belongs to. A save carries it so it can be checked.</summary>
+    internal ulong Seed { get; }
 
     internal DiscoveryEntry[] Entries => entries.ToArray();
 
@@ -78,9 +87,12 @@ internal sealed class DiscoverySnapshot
 /// </summary>
 internal sealed class DiscoveryState
 {
-    private readonly SortedDictionary<string, DiscoveryEntry> entries = new(StringComparer.Ordinal);
+    private readonly SortedDictionary<(long CellX, long CellZ), DiscoveryEntry> entries = [];
+    private readonly ulong seed;
     private long refused;
     private DiscoveryEntry? last;
+
+    internal DiscoveryState(ulong seed) => this.seed = seed;
 
     internal int Count => entries.Count;
 
@@ -109,11 +121,9 @@ internal sealed class DiscoveryState
     /// <summary>The most recent place learned, for the readout.</summary>
     internal DiscoveryEntry? Last => last;
 
-    internal DiscoveryEntry? Find(string siteId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(siteId);
-        return entries.TryGetValue(siteId, out DiscoveryEntry entry) ? entry : null;
-    }
+    /// <summary>The entry for a place, by the anchor cell that names it.</summary>
+    internal DiscoveryEntry? Find(long cellX, long cellZ) =>
+        entries.TryGetValue((cellX, cellZ), out DiscoveryEntry entry) ? entry : null;
 
     /// <summary>
     /// Records that a place has been reached or seen. Returns whether anything changed,
@@ -127,7 +137,7 @@ internal sealed class DiscoveryState
             return false;
         }
 
-        if (entries.TryGetValue(site.Id, out DiscoveryEntry existing))
+        if (entries.TryGetValue((site.CellX, site.CellZ), out DiscoveryEntry existing))
         {
             if (existing.Stage >= stage)
             {
@@ -135,7 +145,7 @@ internal sealed class DiscoveryState
             }
 
             DiscoveryEntry promoted = existing with { Stage = stage, LastTick = tick };
-            entries[site.Id] = promoted;
+            entries[(site.CellX, site.CellZ)] = promoted;
             last = promoted;
             return true;
         }
@@ -146,13 +156,13 @@ internal sealed class DiscoveryState
             return false;
         }
 
-        DiscoveryEntry entry = new(site.Id, site.Kind, site.X, site.Z, stage, tick, tick);
-        entries.Add(site.Id, entry);
+        DiscoveryEntry entry = new(site.CellX, site.CellZ, site.Kind, site.X, site.Z, stage, tick, tick);
+        entries.Add((site.CellX, site.CellZ), entry);
         last = entry;
         return true;
     }
 
-    internal DiscoverySnapshot Snapshot() => new(entries.Values.ToArray());
+    internal DiscoverySnapshot Snapshot() => new(seed, entries.Values.ToArray());
 
     /// <summary>
     /// Replaces the journal with the facts a save recorded. Validation is strict and throws,
@@ -162,11 +172,16 @@ internal sealed class DiscoveryState
     internal void Restore(DiscoverySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Seed != seed)
+        {
+            throw new InvalidOperationException("Stored journal belongs to a different world.");
+        }
+
         entries.Clear();
         last = null;
         foreach (DiscoveryEntry entry in snapshot.Entries)
         {
-            if (!entries.TryAdd(entry.SiteId, entry))
+            if (!entries.TryAdd((entry.CellX, entry.CellZ), entry))
             {
                 throw new InvalidOperationException("A journal names each place once.");
             }

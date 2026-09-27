@@ -28,6 +28,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>The versioned identity every feature draw is keyed from.</summary>
     internal TerrainGeneratorContract Contract => configuration.Contract;
 
+    /// <summary>Where this world's places are, for the pass that records finding them.</summary>
+    internal PoiPlacement Placement => pois;
+
+    /// <summary>The recipe as the column source placement reads, so callers need no cast.</summary>
+    internal ITerrainColumns Columns => this;
+
     internal TerrainConfiguration Configuration => configuration;
 
     private const long MinimumMaterialYValue = -TerrainConstants.TerrainDepth;
