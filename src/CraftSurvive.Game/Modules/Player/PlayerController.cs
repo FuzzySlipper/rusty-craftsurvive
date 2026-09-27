@@ -61,6 +61,9 @@ internal sealed class PlayerController : IDisposable
     private ulong totalInputEventCount;
     private ulong lastInputEventUpdate;
     private PlayerInputFrame lastInputFrame;
+
+    /// <summary>A press-only attack request for this frame, for the systems that act on it.</summary>
+    internal bool AttackRequested => lastInputFrame.AttackRequested;
     private uint lastControllerStepCount;
     private CharacterStepReceipt? lastStepReceipt;
     private Vector3 lastUpdatePositionBefore;

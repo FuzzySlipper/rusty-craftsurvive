@@ -178,6 +178,8 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private int lootAwarded;
 
+    private string lastPlayerAttack = "none";
+
     /// <summary>Where the player began, so a defeat can send them home.</summary>
     private Vector3 spawnPosition;
     private readonly Dictionary<int, string> routes = [];
@@ -275,6 +277,11 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private void UpdateCore()
     {
+        if (player.AttackRequested)
+        {
+            lastPlayerAttack = AttackNearestCore();
+        }
+
         ScanEntryPoints();
         if (PlayerDefeatRules.CanRespawn(playerDefeat, tick))
         {
@@ -489,7 +496,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} defeated={defeated} loot={lootAwarded} attack={lastPlayerAttack} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
@@ -819,7 +826,13 @@ public sealed class CreatureModule : IDebugCommandModule
     }
 
     [DebugCommand("craft.player.attack")]
-    public string AttackNearest()
+    public string AttackNearest() => AttackNearestCore();
+
+    /// <summary>
+    /// The attack itself, shared by the debug command and the input path so the two
+    /// cannot drift: a key press and a console line resolve identically.
+    /// </summary>
+    internal string AttackNearestCore()
     {
         if (positions.Count == 0)
         {
