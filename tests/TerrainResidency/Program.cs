@@ -43,8 +43,8 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // tree is redrawn. Confirmed by reverting the version to 6 and watching this hash
     // return to the value below, which is what rules out an accidental terrain change.
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "2C8A6E8CBBC3A4A77F35579624D96F38A39864B3E06AD8696A3CBC45E792D389"
-        : "7BDF5422500C91E91819748B6D5FED1EA577B3E5829549339BCC6C4078D99CE1";
+        ? "BD110A823FFDD38C7132E98EDF7808864CA345EFCBD9CD8B8B2401A37679BF72"
+        : "C6615AFC15E3F3AFECB745D5B4F617FB3A3C34B74176FD72865BFD2ED2FB9F72";
     string actual = Convert.ToHexString(hash.GetHashAndReset());
     Require(actual == expected, $"authored material snapshot changed: {actual}");
 }
@@ -127,7 +127,7 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // trees, and version 7 added structure voxels to this box. Moved at version 7, which
     // changes every draw key and so redraws every feature in it.
 
-    const string ExpectedFeatureHash = "77BA363FDF480F33FC450D0A0DCCCB5FB127A09C8C02B8013F42F99DEF8F2400";
+    const string ExpectedFeatureHash = "FD75840EEDDFAA9CF118147563F044653A68CC4A9D3EBB24E522C6A64B041C1A";
     Console.WriteLine(
         $"Terrain features, water and world edges placed and deterministic: {featureVoxels} feature, " +
         $"{waterVoxels} water, {bedrockVoxels} bedrock voxels, {featureHash}");

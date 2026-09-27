@@ -33,9 +33,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// version 9 bounds how deep a structure may cut, so a way in is never a pit a character
     /// with no climb reach cannot step out of; version 10 measures the relief a cave mouth or a
     /// descent is cut into across a distance rather than as a single step, because a one-block
-    /// step is not a hillside and gating on it left two kinds unplaced in the real world.
+    /// step is not a hillside and gating on it left two kinds unplaced in the real world;
+    /// version 11 ramps each end of a crossing down to its bank, because a deck laid at the
+    /// higher bank left the lower one unclimbable.
     /// </summary>
-    internal const uint CurrentVersion = 10;
+    internal const uint CurrentVersion = 11;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

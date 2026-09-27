@@ -135,6 +135,14 @@ internal static class PoiConstants
 
     internal const long CrossingPierDepth = 4;
 
+    /// <summary>
+    /// How many blocks each end of a deck ramps down over. The deck is laid at the higher bank,
+    /// so the other end can be several courses above its ground; a wall there is walkable from
+    /// one side only, which makes the crossing a trap rather than a route. One course per block
+    /// is a step the character can take, and the ramp reaches the ground wherever it happens to be.
+    /// </summary>
+    internal const long CrossingRampLength = 3;
+
     // --- discovery ------------------------------------------------------------------
 
     /// <summary>

@@ -398,6 +398,34 @@ foreach ((long cellX, long cellZ) in cells)
             $"{site.Id} must only span water, but ({x},{z}) is dry");
     }
 
+    // The defect this asserts against: the deck is laid at the higher bank, so a full-height
+    // abutment is climbable from one side and not the other. Every step down to a bank must be
+    // one course, which is the character's whole step budget.
+    for (long side = 0; side < 2; side++)
+    {
+        long previous = site.DeckY;
+        for (long offset = 1; offset <= PoiConstants.CrossingRampLength; offset++)
+        {
+            long along = side == 0 ? -offset : span + offset;
+            long x = site.AlongX ? site.FromX + along : site.FromX;
+            long z = site.AlongX ? site.FromZ : site.FromZ + along;
+            long top = long.MinValue;
+            for (long y = site.DeckY - PoiConstants.CrossingPierDepth - PoiConstants.CrossingRampLength; y <= site.DeckY; y++)
+            {
+                PoiVoxel step = CrossingStructure.MaterialAt(site, x, y, z);
+                if (step.Kind == PoiVoxelKind.Fill)
+                {
+                    top = y;
+                }
+            }
+
+            Require(top != long.MinValue, $"{site.Id} must build a ramp on both sides of its deck");
+            Require(previous - top <= 1,
+                $"{site.Id} ramps {previous - top} courses in one block at offset {offset}: the low bank would be unclimbable");
+            previous = top;
+        }
+    }
+
     long nearX = site.AlongX ? site.FromX - 1 : site.FromX;
     long nearZ = site.AlongX ? site.FromZ : site.FromZ - 1;
     long farX = site.AlongX ? site.ToX + 1 : site.ToX;

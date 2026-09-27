@@ -159,8 +159,9 @@ internal sealed class CrossingPlacement
 
 /// <summary>
 /// The bridge itself: a plank deck one course thick and three wide along the span, a
-/// cobblestone pier every few blocks standing down into the water, and stone abutments where
-/// the deck meets each bank.
+/// cobblestone pier every few blocks standing down as far as the water allows - a fill cannot
+/// replace water, so a pier ends one course above the waterline - and a staircase down to each
+/// bank, because the deck is laid at the higher one.
 ///
 /// Everything it places is a fill, never a cut. That is the whole point of a crossing rather
 /// than a dam: the water underneath stays water, and the ground on either side is walked over
@@ -173,9 +174,10 @@ internal static class CrossingStructure
         long along = site.AlongX ? x - site.FromX : z - site.FromZ;
         long across = site.AlongX ? z - site.FromZ : x - site.FromX;
         long length = site.AlongX ? site.ToX - site.FromX : site.ToZ - site.FromZ;
-        // One block past each end is the whole reach: an abutment sits on the bank and nothing
-        // is built beyond it, so no bound on `length` is needed here.
-        if (along < -1 || along > length + 1 || Math.Abs(across) > PoiConstants.CrossingHalfWidth)
+        // The reach is the span plus a ramp at each end. Nothing is built beyond the ramps, so
+        // this bound is also what keeps the nine-cell voxel scan sufficient.
+        if (along < -PoiConstants.CrossingRampLength || along > length + PoiConstants.CrossingRampLength
+            || Math.Abs(across) > PoiConstants.CrossingHalfWidth)
         {
             return PoiVoxel.None;
         }
@@ -183,6 +185,17 @@ internal static class CrossingStructure
         if (y == site.DeckY && along >= 0 && along <= length)
         {
             return PoiVoxel.Fill(BlockId.Planks);
+        }
+
+        // A ramp of one course per block down each end. Only the walking surface is placed, plus
+        // the course under it: below that is either natural ground or the gap over the water, and
+        // filling it would build the wall this ramp exists to avoid.
+        long fromDeck = along < 0 ? -along : along - length;
+        if (fromDeck >= 1 && fromDeck <= PoiConstants.CrossingRampLength
+            && Math.Abs(across) <= PoiConstants.CrossingHalfWidth)
+        {
+            long step = site.DeckY - fromDeck;
+            return y == step || y == step - 1 ? PoiVoxel.Fill(BlockId.Cobblestone) : PoiVoxel.None;
         }
 
         if (y > site.DeckY || y < site.DeckY - PoiConstants.CrossingPierDepth)
@@ -197,8 +210,6 @@ internal static class CrossingStructure
             return PoiVoxel.Fill(BlockId.Cobblestone);
         }
 
-        // Abutments: the bank columns at each end of the span.
-        bool onAbutment = (along == -1 || along == length + 1) && Math.Abs(across) <= PoiConstants.CrossingHalfWidth;
-        return onAbutment ? PoiVoxel.Fill(BlockId.Cobblestone) : PoiVoxel.None;
+        return PoiVoxel.None;
     }
 }

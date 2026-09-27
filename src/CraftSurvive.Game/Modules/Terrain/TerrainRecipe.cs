@@ -463,7 +463,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private bool ChunkCrossingsChange(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
     {
         long cell = PoiConstants.CellSize;
-        long reach = PoiConstants.CrossingMaximumSpan + 2;
+        long reach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
         long firstCellX = FloorDivide(xStart - reach, cell);
         long lastCellX = FloorDivide(xEnd + reach, cell);
         long firstCellZ = FloorDivide(zStart - reach, cell);
