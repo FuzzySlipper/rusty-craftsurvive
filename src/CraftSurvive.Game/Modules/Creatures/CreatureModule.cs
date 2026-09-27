@@ -59,7 +59,7 @@ internal static class CreatureConstants
     internal const long NavigationCalibrationMaximumLevel = 12;
 
     /// <summary>Stride of the entry-point scan over the cell index space.</summary>
-    internal const long NavigationEntryStride = 8;
+    internal const long NavigationEntryStride = 4;
     internal const float NavigationDepthBelow = 4f;
     internal const float NavigationHeightAbove = 8f;
 
@@ -760,12 +760,12 @@ public sealed class CreatureModule : IDebugCommandModule
         long limit = (long)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
         int asked = 0;
         for (long level = CreatureConstants.NavigationCalibrationMinimumLevel;
-             level <= CreatureConstants.NavigationCalibrationMaximumLevel && navigationEntryCells.Count < 8;
+             level <= CreatureConstants.NavigationCalibrationMaximumLevel && navigationEntryCells.Count < 24;
              level++)
         {
-            for (long column = 0; column < limit && navigationEntryCells.Count < 8; column += CreatureConstants.NavigationEntryStride)
+            for (long column = 0; column < limit && navigationEntryCells.Count < 24; column += CreatureConstants.NavigationEntryStride)
             {
-                for (long row = 0; row < limit && navigationEntryCells.Count < 8; row += CreatureConstants.NavigationEntryStride)
+                for (long row = 0; row < limit && navigationEntryCells.Count < 24; row += CreatureConstants.NavigationEntryStride)
                 {
                     asked++;
                     try
