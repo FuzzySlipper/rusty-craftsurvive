@@ -36,6 +36,23 @@ internal static class CreatureConstants
     internal const int CreatureEvasion = 60;
     internal const int AttachDistanceMetres = 2;
 
+    // Collision-derived navigation, from the substrate proof's recipe: the Engine
+    // does not derive navigation on its own, the product publishes a walkable
+    // projection and queries cells relative to that published box.
+    internal const ulong NavigationGridId = 1UL;
+    internal const uint NavigationChunkSize = 16U;
+    internal const uint NavigationMaxStepCells = 1U;
+    internal const uint NavigationMaximumCells = 65_536U;
+    internal const double NavigationAgentRadius = 0.3d;
+    internal const double NavigationAgentHeight = 1.8d;
+    internal const double NavigationMaximumSlopeDegrees = 45d;
+    internal const float NavigationHalfExtent = 16f;
+    internal const float NavigationDepthBelow = 4f;
+    internal const float NavigationHeightAbove = 8f;
+
+    /// <summary>How often the walkable box around the player is republished.</summary>
+    internal const int NavigationRepublishTicks = 60;
+
     /// <summary>
     /// Appearance facts are numbered by the product, and these start well clear of
     /// the player's 1 and the platform's 2.
@@ -80,6 +97,10 @@ public sealed class CreatureModule : IDebugCommandModule
     private readonly Dictionary<int, Appearance> appearances = [];
     private int nextId = 1;
     private long tick;
+    private ulong navigationRevision;
+    private ulong navigationWalkableCells;
+    private ulong navigationHash;
+    private string navigationStatus = "not published";
     private string lastEvent = "not started";
     private bool started;
 
@@ -149,6 +170,7 @@ public sealed class CreatureModule : IDebugCommandModule
             }
         }
 
+        PublishNavigation();
         started = true;
         lastEvent = $"started with {placed} creature(s), {refused} site(s) refused by the rules; {lastEvent}";
     }
@@ -161,6 +183,11 @@ public sealed class CreatureModule : IDebugCommandModule
         }
 
         tick++;
+        if (tick % CreatureConstants.NavigationRepublishTicks == 0)
+        {
+            PublishNavigation();
+        }
+
         BehaviorTuning tuning = BehaviorTuning.Hostile;
         Vector3 playerPosition = player.WorldPosition;
         foreach (int id in positions.Keys.ToArray())
@@ -269,7 +296,48 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; plains={terrain.Recipe.Contract.Seed}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+    }
+
+    /// <summary>
+    /// Publishes the walkable box around the player that the Engine derives
+    /// navigation from. A refusal is recorded rather than thrown: a missing
+    /// projection must not take the product down, and the readout has to say so.
+    /// </summary>
+    private void PublishNavigation()
+    {
+        Vector3 position = player.WorldPosition;
+        CollisionNavigationConfig config = new(
+            CreatureConstants.NavigationGridId,
+            TerrainConstants.VoxelSize,
+            CreatureConstants.NavigationChunkSize,
+            CreatureConstants.NavigationMaxStepCells,
+            CreatureConstants.NavigationAgentRadius,
+            CreatureConstants.NavigationAgentHeight,
+            CreatureConstants.NavigationMaximumSlopeDegrees,
+            CreatureConstants.NavigationMaximumCells);
+        Vector3 worldMin = position - new Vector3(
+            CreatureConstants.NavigationHalfExtent,
+            CreatureConstants.NavigationDepthBelow,
+            CreatureConstants.NavigationHalfExtent);
+        Vector3 worldMax = position + new Vector3(
+            CreatureConstants.NavigationHalfExtent,
+            CreatureConstants.NavigationHeightAbove,
+            CreatureConstants.NavigationHalfExtent);
+
+        try
+        {
+            NavigationReplaceReceipt receipt = engine.Spatial.ReplaceCollisionNavigation(
+                new CollisionNavigationReplaceRequest(terrain.Session, worldMin, worldMax, config));
+            navigationWalkableCells = receipt.WalkableCellCount;
+            navigationRevision = receipt.NavigationRevision;
+            navigationHash = receipt.ProjectionHash;
+            navigationStatus = receipt.WalkableCellCount > 0UL ? "published" : "no walkable cells";
+        }
+        catch (Exception exception)
+        {
+            navigationStatus = $"refused: {exception.Message}";
+        }
     }
 
     private void Apply(int id, BehaviorTuning tuning)
