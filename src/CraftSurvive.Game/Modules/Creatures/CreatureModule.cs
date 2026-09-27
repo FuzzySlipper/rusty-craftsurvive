@@ -113,6 +113,7 @@ public sealed class CreatureModule : IDebugCommandModule
     private readonly Dictionary<int, string> routes = [];
     private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
+    private string lastFailure = "none";
     private bool started;
 
     internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player)
@@ -186,7 +187,23 @@ public sealed class CreatureModule : IDebugCommandModule
         lastEvent = $"started with {placed} creature(s), {refused} site(s) refused by the rules; {lastEvent}";
     }
 
+    /// <summary>
+    /// Runs the creature step, recording rather than propagating a failure: a
+    /// thrown exception in here used to break the whole live session silently.
+    /// </summary>
     internal void Update()
+    {
+        try
+        {
+            UpdateCore();
+        }
+        catch (Exception exception)
+        {
+            lastFailure = $"update {exception.GetType().Name}: {exception.Message}";
+        }
+    }
+
+    private void UpdateCore()
     {
         if (!started)
         {
@@ -309,6 +326,19 @@ public sealed class CreatureModule : IDebugCommandModule
     /// <summary>What the live lane can read: every creature, where it is, and what it is doing.</summary>
     [DebugCommand("craft.creatures.readout")]
     public string Readout()
+    {
+        try
+        {
+            return ReadoutCore();
+        }
+        catch (Exception exception)
+        {
+            lastFailure = $"readout {exception.GetType().Name}: {exception.Message}";
+            return $"creatures readout failed: {lastFailure}";
+        }
+    }
+
+    private string ReadoutCore()
     {
         if (!started)
         {
