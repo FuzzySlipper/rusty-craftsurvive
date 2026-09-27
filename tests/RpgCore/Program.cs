@@ -370,4 +370,21 @@ Require(returns.Tick(tick: 20, _ => 50.0, _ => true) == 0,
 returns.Tick(tick: 24, _ => 50.0, _ => true);
 Require(returns.Tick(tick: 25, _ => 50.0, _ => true) == 1, "the restarted grace period must still expire");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution and the encounter director passed.");
+
+// Death is the other half of "win or die": lethal damage, a delay, then respawn.
+PlayerDefeatState alivePlayer = PlayerDefeatState.Full(40);
+Require(PlayerDefeatRules.Outcome(alivePlayer, 0) == PlayerDefeatOutcome.Alive, "a healthy player is alive");
+PlayerDefeatState hurtPlayer = PlayerDefeatRules.Strike(alivePlayer, 15, tick: 10);
+Require(hurtPlayer.Health == 25 && hurtPlayer.Defeats == 0, "damage that does not kill must not count a defeat");
+PlayerDefeatState deadPlayer = PlayerDefeatRules.Strike(hurtPlayer, 999, tick: 100);
+Require(deadPlayer.Health == 0 && deadPlayer.Defeats == 1, "lethal damage must zero health and count one defeat");
+Require(PlayerDefeatRules.Outcome(deadPlayer, 100) == PlayerDefeatOutcome.Defeated, "a fresh defeat is not respawnable");
+Require(!PlayerDefeatRules.CanRespawn(deadPlayer, 299), "respawn must wait out its delay");
+Require(PlayerDefeatRules.CanRespawn(deadPlayer, 300), "respawn must be available once the delay has passed");
+Require(PlayerDefeatRules.Outcome(deadPlayer, 300) == PlayerDefeatOutcome.RespawnReady, "a matured defeat reports respawn ready");
+PlayerDefeatState risenPlayer = PlayerDefeatRules.Respawn(deadPlayer);
+Require(risenPlayer.Health == 20, "respawn must restore half of maximum health");
+Require(risenPlayer.Defeats == 1, "respawning must not erase the defeat count");
+Require(PlayerDefeatRules.Outcome(risenPlayer, 300) == PlayerDefeatOutcome.Alive, "a respawned player is alive again");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director and player defeat passed.");

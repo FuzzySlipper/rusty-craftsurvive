@@ -17,5 +17,6 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CreatureBehavior.cs" Link="Rpg/CreatureBehavior.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterResolution.cs" Link="Rpg/EncounterResolution.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterDirector.cs" Link="Rpg/EncounterDirector.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/PlayerDefeatRules.cs" Link="Rpg/PlayerDefeatRules.cs" />
   </ItemGroup>
 </Project>
