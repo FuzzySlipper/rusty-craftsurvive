@@ -208,4 +208,112 @@ Require(!EncounterRules.MarkPresent(away, policy.DespawnDistance - 1, policy).Is
 ActiveEncounter settled = EncounterRules.MarkAway(active, tick: 100, distanceToPlayer: 5, policy);
 Require(!settled.IsAway, "an encounter the player is near must not start a grace period");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement and encounter policy passed.");
+
+// --- creature behaviour: the state machine over sensed facts ------------------------
+BehaviorTuning hostile = BehaviorTuning.Hostile;
+BehaviorTuning neutral = BehaviorTuning.Neutral;
+CreatureBehaviorState spawned = CreatureBehaviorState.Spawned;
+
+CreatureBehaviorState unaware = CreatureBehaviorRules.Step(
+    hostile, spawned, new PerceptionFacts(PlayerVisible: false, DistanceToPlayer: 1.0, OwnHealth: 10), tick: 0);
+Require(unaware.State == CreatureState.Idle, "a creature that cannot see the player must stay idle");
+
+CreatureBehaviorState distant = CreatureBehaviorRules.Step(
+    hostile, spawned, new PerceptionFacts(true, DistanceToPlayer: hostile.SightRange + 1, OwnHealth: 10), tick: 0);
+Require(distant.State == CreatureState.Idle, "a creature must not notice the player beyond its sight range");
+
+CreatureBehaviorState alerted = CreatureBehaviorRules.Step(
+    hostile, spawned, new PerceptionFacts(true, DistanceToPlayer: hostile.SightRange - 1, OwnHealth: 10), tick: 0);
+Require(alerted.State == CreatureState.Alert, "first sight within range must raise the alarm, not start a chase");
+
+CreatureBehaviorState pursuing = CreatureBehaviorRules.Step(
+    hostile, alerted, new PerceptionFacts(true, DistanceToPlayer: 10.0, OwnHealth: 10), tick: 1);
+Require(pursuing.State == CreatureState.Pursuing, "an alerted creature must close on the player");
+
+CreatureBehaviorState striking = CreatureBehaviorRules.Step(
+    hostile, pursuing, new PerceptionFacts(true, DistanceToPlayer: hostile.AttackRange, OwnHealth: 10), tick: 2);
+Require(striking.State == CreatureState.Attacking, "a creature in reach must attack");
+Require(striking.CanAttack(tick: 2, hostile), "a creature that has not struck yet must be able to strike");
+CreatureBehaviorState afterStrike = striking.AfterAttack(tick: 2);
+Require(!afterStrike.CanAttack(tick: 2 + hostile.AttackCooldownTicks - 1, hostile),
+    "the attack cooldown must hold the creature back");
+Require(afterStrike.CanAttack(tick: 2 + hostile.AttackCooldownTicks, hostile),
+    "the attack cooldown must expire on its tick");
+
+CreatureBehaviorState backedOff = CreatureBehaviorRules.Step(
+    hostile, striking, new PerceptionFacts(true, DistanceToPlayer: 10.0, OwnHealth: 10), tick: 3);
+Require(backedOff.State == CreatureState.Pursuing, "a player who backs off must be chased again");
+
+CreatureBehaviorState lost = CreatureBehaviorRules.Step(
+    hostile, pursuing, new PerceptionFacts(false, DistanceToPlayer: 1.0, OwnHealth: 10), tick: 4);
+Require(lost.State == CreatureState.Idle, "losing sight must return the creature to idle");
+
+CreatureBehaviorState wounded = CreatureBehaviorRules.Step(
+    hostile, striking, new PerceptionFacts(true, DistanceToPlayer: 1.0, OwnHealth: CreatureBehaviorRules.DeathHealth), tick: 5);
+Require(wounded.State == CreatureState.Dead, "a creature at zero health must die");
+CreatureBehaviorState remainsDead = CreatureBehaviorRules.Step(
+    hostile, wounded, new PerceptionFacts(true, DistanceToPlayer: 0.5, OwnHealth: 5), tick: 6);
+Require(remainsDead.State == CreatureState.Dead, "death must be terminal, even if health is restored");
+
+CreatureBehaviorState calm = CreatureBehaviorRules.Step(
+    neutral, spawned, new PerceptionFacts(true, DistanceToPlayer: 0.5, OwnHealth: 10), tick: 0);
+Require(calm.State == CreatureState.Alert, "a neutral creature must notice the player");
+Require(!calm.CanAttack(tick: 0, neutral), "a neutral creature must never attack, even in reach");
+CreatureBehaviorState stillCalm = CreatureBehaviorRules.Step(
+    neutral, calm, new PerceptionFacts(true, DistanceToPlayer: 0.5, OwnHealth: 10), tick: 10);
+Require(stillCalm.State == CreatureState.Alert, "a neutral creature must not start pursuing");
+
+
+// --- one encounter end to end, in policy: fight, die, loot, respawn, advance --------
+CombatantState wolf2 = CombatantState.Fresh(maximumHealth: 24, new DefenceProfile(Evasion: 60, Armour: new ArmourProfile(4)));
+AttackProfile swing = AttackProfile.Unarmed(starting);
+const long respawnDelay = 900;
+
+int strikes = 0;
+while (!wolf2.IsDown && strikes < 40)
+{
+    (wolf2, _) = EncounterResolutionRules.Strike(roll: 50, swing, wolf2, tick: strikes);
+    strikes++;
+}
+
+Require(wolf2.IsDown, $"the encounter never resolved: {strikes} strikes left {wolf2.Health} health");
+Require(strikes > 1, "an ordinary blow must not end a fight in one strike");
+Require(EncounterResolutionRules.Strike(roll: 100, swing, CombatantState.Fresh(24, new DefenceProfile(60, new ArmourProfile(4))), tick: 0).Target.IsDown,
+    "a critical blow against a weak creature may end it outright");
+Require(wolf2.Health == 0, "a downed creature must be at zero health");
+
+(CombatantState _, AttackOutcome afterDown) = EncounterResolutionRules.Strike(roll: 100, swing, wolf2, tick: 50);
+Require(!afterDown.Hit && afterDown.Reason.Contains("already down"),
+    "a downed creature must not be struck again, so it cannot be farmed");
+
+long downTick = wolf2.DownAtTick;
+Require(downTick >= 0 && downTick < respawnDelay, "a downed creature must record when it fell");
+Require(EncounterResolutionRules.Respawn(downTick + respawnDelay - 1, wolf2, respawnDelay).IsDown,
+    "a creature must stay down until its delay elapses");
+CombatantState back = EncounterResolutionRules.Respawn(downTick + respawnDelay, wolf2, respawnDelay);
+Require(!back.IsDown && back.Health == back.MaximumHealth, "a respawned creature must return at full health");
+
+EncounterReward reward = EncounterResolutionRules.Reward(
+    experience: 120,
+    table,
+    scope: "wolf:1",
+    SeededDraw(99));
+Require(reward.Experience.Source == ExperienceSource.Combat && reward.Experience.Amount == 120,
+    "a defeat must be worth a combat award");
+ProgressionOutcome advanced = ProgressionRules.Award(0, 1, reward.Experience);
+Require(advanced.Advanced && advanced.Level == 2,
+    "defeating one creature worth a threshold must advance the character");
+foreach (LootDrop drop in reward.Drops)
+{
+    Require(table.Entries.Any(entry => entry.ItemId == drop.ItemId), $"loot {drop.ItemId} is not on the creature's table");
+}
+try
+{
+    EncounterResolutionRules.Reward(experience: 0, table, "wolf:2", SeededDraw(1));
+    throw new InvalidOperationException("a defeat worth nothing must be refused");
+}
+catch (ArgumentOutOfRangeException)
+{
+}
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour and end-to-end resolution passed.");
