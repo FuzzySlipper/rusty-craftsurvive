@@ -53,6 +53,14 @@ internal static class CreatureConstants
     /// <summary>How often the walkable box around the player is republished.</summary>
     internal const int NavigationRepublishTicks = 60;
 
+    /// <summary>How often a creature re-asks whether the player is reachable.</summary>
+    internal const int NavigationQueryTicks = 30;
+
+    internal const uint NavigationMaxVisitedCells = 4_096U;
+
+    /// <summary>How far above and below the creature's own level to sweep.</summary>
+    internal const long NavigationLevelSweep = 3;
+
     /// <summary>
     /// Appearance facts are numbered by the product, and these start well clear of
     /// the player's 1 and the platform's 2.
@@ -101,6 +109,9 @@ public sealed class CreatureModule : IDebugCommandModule
     private ulong navigationWalkableCells;
     private ulong navigationHash;
     private string navigationStatus = "not published";
+    private Vector3 navigationWorldMin;
+    private readonly Dictionary<int, string> routes = [];
+    private readonly Dictionary<int, bool> routeIsDefinitive = [];
     private string lastEvent = "not started";
     private bool started;
 
@@ -202,8 +213,28 @@ public sealed class CreatureModule : IDebugCommandModule
             CreatureBehaviorState state = CreatureBehaviorRules.Step(tuning, behavior[id], sensed, tick);
             behavior[id] = state;
 
+            // Navigation is consulted before closing, but only a **definitive**
+            // answer is obeyed. A start-cell failure means the question could not
+            // be asked - the level swept did not land on the walk - and is treated
+            // as "navigation never engaged" rather than "no path", so an
+            // unanswerable query can never freeze a creature in place.
             if (state.State is CreatureState.Pursuing or CreatureState.Attacking && distance > CreatureConstants.AttachDistanceMetres)
             {
+                if (tick % CreatureConstants.NavigationQueryTicks == 0 || !routes.ContainsKey(id))
+                {
+                    float standingY = terrain.Recipe.SurfaceAt(
+                        (long)Math.Round(here.X),
+                        (long)Math.Round(here.Y)) + 1f;
+                    routes[id] = QueryRoute(here, standingY, playerPosition, out bool definitive);
+                    routeIsDefinitive[id] = definitive;
+                }
+
+                if (routeIsDefinitive[id] && !routes[id].StartsWith("Reached", StringComparison.Ordinal))
+                {
+                    Apply(id, tuning);
+                    continue;
+                }
+
                 double step = CreatureConstants.PursueSpeedMetresPerSecond * CreatureConstants.TickSeconds;
                 double scale = step / distance;
                 positions[id] = new Vector2(
@@ -292,7 +323,7 @@ public sealed class CreatureModule : IDebugCommandModule
             double distance = Math.Sqrt(
                 Math.Pow(at.X - playerPosition.X, 2) + Math.Pow(at.Y - playerPosition.Z, 2));
             return string.Create(CultureInfo.InvariantCulture,
-                $"id={id} entity={entities[id]} at={at.X:F2},{at.Y:F2} state={behavior[id].State} hp={combat[id].Health}/{combat[id].MaximumHealth} d={distance:F2}");
+                $"id={id} entity={entities[id]} at={at.X:F2},{at.Y:F2} state={behavior[id].State} hp={combat[id].Health}/{combat[id].MaximumHealth} d={distance:F2} route={(routes.TryGetValue(id, out string? route) ? route : "unasked")}");
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
@@ -332,6 +363,7 @@ public sealed class CreatureModule : IDebugCommandModule
             navigationWalkableCells = receipt.WalkableCellCount;
             navigationRevision = receipt.NavigationRevision;
             navigationHash = receipt.ProjectionHash;
+            navigationWorldMin = worldMin;
             navigationStatus = receipt.WalkableCellCount > 0UL ? "published" : "no walkable cells";
         }
         catch (Exception exception)
@@ -339,6 +371,53 @@ public sealed class CreatureModule : IDebugCommandModule
             navigationStatus = $"refused: {exception.Message}";
         }
     }
+
+    /// <summary>
+    /// Asks the Engine for a route between the creature and the player, sweeping
+    /// candidate levels around the **creature's own standing height** - the box
+    /// origin is the player's, so seeding from the player's height offsets every
+    /// level by the difference between the two. Every attempt is recorded, so one
+    /// live sample shows which levels were tried and what each answered.
+    /// </summary>
+    private string QueryRoute(Vector2 from, float fromY, Vector3 to, out bool definitive)
+    {
+        long baseLevel = (long)Math.Floor((fromY - navigationWorldMin.Y) / TerrainConstants.VoxelSize);
+        List<string> trace = [];
+        definitive = false;
+        for (long delta = 0; delta <= CreatureConstants.NavigationLevelSweep; delta++)
+        {
+            long[] levels = delta == 0 ? [baseLevel] : [baseLevel - delta, baseLevel + delta];
+            foreach (long level in levels)
+            {
+                try
+                {
+                    NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                        terrain.Session,
+                        CellAt(from.X, from.Y, level),
+                        CellAt(to.X, to.Z, level),
+                        CreatureConstants.NavigationMaxVisitedCells));
+                    string verdict = $"{path.Outcome}({path.PathLen}c,{path.Visited}v)";
+                    trace.Add($"{level}:{path.Outcome}");
+                    if (!path.Outcome.ToString().Contains("Start", StringComparison.Ordinal))
+                    {
+                        definitive = true;
+                        return $"{verdict} trace=[{string.Join(",", trace)}]";
+                    }
+                }
+                catch (Exception exception)
+                {
+                    return $"refused:{exception.Message}";
+                }
+            }
+        }
+
+        return $"noanswer trace=[{string.Join(",", trace)}]";
+    }
+
+    private PlanarNavCell CellAt(float worldX, float worldZ, long level) => new(
+        (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize),
+        level,
+        (long)Math.Floor((worldZ - navigationWorldMin.Z) / TerrainConstants.VoxelSize));
 
     private void Apply(int id, BehaviorTuning tuning)
     {
