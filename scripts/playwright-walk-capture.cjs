@@ -134,7 +134,9 @@ const main = async () => {
 
   const runs = [];
   for (let run = 1; run <= RUNS; run++) {
-    const reset = await execute(`craft.player.teleport ${SPAWN.x} ${SPAWN.y} ${SPAWN.z}`);
+    const reset = process.env.NO_RESET
+      ? { status: 200, text: 'reset skipped by NO_RESET' }
+      : await execute(`craft.player.teleport ${SPAWN.x} ${SPAWN.y} ${SPAWN.z}`);
     if (reset.status !== 200) throw new Error(`teleport failed: ${reset.text.slice(0, 120)}`);
 
     // Settle: grounded, still, and (from the spawn) facing the same way.
