@@ -180,6 +180,14 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private readonly List<Appearance> retiringAppearances = [];
 
+    /// <summary>
+    /// One creature in three is neutral rather than hostile, so the starting set holds
+    /// both dispositions. A neutral creature sees 24 m against the hostile 48 m and so
+    /// does not join a pursuit from the same distance.
+    /// </summary>
+    private static BehaviorTuning TuningFor(int id) =>
+        id % 3 == 0 ? BehaviorTuning.Neutral : BehaviorTuning.Hostile;
+
     private long swingSequence;
 
     private int playerExperience;
@@ -364,10 +372,10 @@ public sealed class CreatureModule : IDebugCommandModule
             PublishNavigation();
         }
 
-        BehaviorTuning tuning = BehaviorTuning.Hostile;
         Vector3 playerPosition = player.WorldPosition;
         foreach (int id in positions.Keys.ToArray())
         {
+            BehaviorTuning tuning = TuningFor(id);
             Vector2 here = positions[id];
             double distance = Math.Sqrt(
                 Math.Pow(here.X - playerPosition.X, 2) + Math.Pow(here.Y - playerPosition.Z, 2));
