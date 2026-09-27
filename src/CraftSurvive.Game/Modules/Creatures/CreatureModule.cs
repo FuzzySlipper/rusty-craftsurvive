@@ -648,6 +648,60 @@ public sealed class CreatureModule : IDebugCommandModule
         return $"offset=({offsetX},{offsetZ}) start=({creatureColumn},{creatureRow}) noanswer trace=[{string.Join(",", trace)}]";
     }
 
+    /// <summary>
+    /// Searches cell coordinates for any that the navigation projection accepts,
+    /// by asking for a path from a cell to itself. A cell that is not in the
+    /// projection answers with a start refusal; one that is, answers about the
+    /// walk. This finds where the projection actually is instead of assuming it
+    /// shares the product's box arithmetic.
+    /// </summary>
+    [DebugCommand("craft.creatures.scan")]
+    public string Scan(long stride, long level)
+    {
+        long limit = (long)Math.Max(1, (2 * CreatureConstants.NavigationHalfExtent) / TerrainConstants.VoxelSize);
+        List<string> accepted = [];
+        List<string> refusedSamples = [];
+        long asked = 0;
+        for (long x = 0; x < limit; x += stride)
+        {
+            for (long z = 0; z < limit; z += stride)
+            {
+                asked++;
+                try
+                {
+                    NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                        terrain.Session,
+                        new PlanarNavCell(x, level, z),
+                        new PlanarNavCell(x, level, z),
+                        CreatureConstants.NavigationMaxVisitedCells));
+                    if (path.Outcome.ToString().Contains("Start", StringComparison.Ordinal))
+                    {
+                        if (refusedSamples.Count < 2)
+                        {
+                            refusedSamples.Add($"({x},{z})={path.Outcome}");
+                        }
+                    }
+                    else
+                    {
+                        accepted.Add($"({x},{level},{z})={path.Outcome}");
+                        if (accepted.Count >= 6)
+                        {
+                            return string.Create(CultureInfo.InvariantCulture,
+                                $"stride={stride} level={level} asked={asked} accepted={string.Join(" ", accepted)}");
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    return $"scan refused at ({x},{z}): {exception.Message}";
+                }
+            }
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"stride={stride} level={level} limit={limit} asked={asked} accepted={accepted.Count} acceptedCells=[{string.Join(" ", accepted)}] refusedSamples=[{string.Join(" ", refusedSamples)}]");
+    }
+
     private PlanarNavCell CellAt(float worldX, float worldZ, long level) => new(
         (long)Math.Floor((worldX - navigationWorldMin.X) / TerrainConstants.VoxelSize),
         level,
