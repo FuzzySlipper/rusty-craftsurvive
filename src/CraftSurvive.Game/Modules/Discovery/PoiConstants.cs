@@ -49,8 +49,18 @@ internal static class PoiConstants
     /// <summary>A site on flat ground is refused if the slope exceeds this, and relief kinds need at least the other.</summary>
     internal const long FlatSlopeMaximum = 2;
 
-    /// <summary>The slope at which a cave mouth or a descent reads as cut into a hillside.</summary>
-    internal const long ReliefSlopeMinimum = 2;
+    /// <summary>
+    /// How much the ground must fall away across <see cref="AspectSampleDistance"/> blocks for
+    /// a cave mouth or a descent to read as cut into a hillside.
+    ///
+    /// Relief is measured over that distance rather than as a single step, and that is not a
+    /// detail: the terrain's own slope is a one-block difference, and this world's noise is
+    /// gentle enough that a single step is almost never more than one block. Gating "a way in"
+    /// on a single step made cave mouths and dungeon entrances unreachable in practice - a
+    /// census of 192 sites in the running world found none of either, while the check lane's
+    /// synthetic hillsides produced them happily. The measure has to match the ground it reads.
+    /// </summary>
+    internal const long ReliefMinimum = 2;
 
     /// <summary>The ground height at which a vantage point is worth building.</summary>
     internal const long VantageMinimumHeight = 7;

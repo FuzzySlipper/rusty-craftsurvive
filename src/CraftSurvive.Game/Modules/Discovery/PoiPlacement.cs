@@ -166,11 +166,11 @@ internal sealed class PoiPlacement
 
         PoiKind preferred = (PoiKind)contract.DrawLong(draws, "poi.kind", key,
             PoiConstants.FirstKind, PoiConstants.LastKind);
-        PoiKind kind = Reconcile(preferred, column);
+        long aspect = AspectAt(x, z, out long relief);
+        PoiKind kind = Reconcile(preferred, column, relief);
         (long minimum, long range) = HeightRangeFor(kind);
         long height = contract.DrawLong(draws, "poi.height", key, minimum, minimum + range - 1);
         long variant = contract.DrawLong(draws, "poi.variant", key, 0, 7);
-        long aspect = AspectAt(x, z);
         return new PoiSite(cellX, cellZ, kind, x, z, column.Surface, height, variant, aspect);
     }
 
@@ -179,7 +179,7 @@ internal sealed class PoiPlacement
     /// it carves nothing but air, so the direction is measured from the ground rather than
     /// drawn - it is a property of the place, not a choice.
     /// </summary>
-    private long AspectAt(long x, long z)
+    private long AspectAt(long x, long z, out long relief)
     {
         Span<long> heights = stackalloc long[4];
         heights[0] = columns.ColumnAt(x + PoiConstants.AspectSampleDistance, z).Surface;
@@ -187,14 +187,21 @@ internal sealed class PoiPlacement
         heights[2] = columns.ColumnAt(x, z + PoiConstants.AspectSampleDistance).Surface;
         heights[3] = columns.ColumnAt(x, z - PoiConstants.AspectSampleDistance).Surface;
         long best = 0;
+        long lowest = heights[0];
         for (long index = 1; index < heights.Length; index++)
         {
             if (heights[(int)index] > heights[(int)best])
             {
                 best = index;
             }
+
+            if (heights[(int)index] < lowest)
+            {
+                lowest = heights[(int)index];
+            }
         }
 
+        relief = heights[(int)best] - lowest;
         return best;
     }
 
@@ -203,10 +210,10 @@ internal sealed class PoiPlacement
     /// site is placed in almost every cell that has dry ground: a preference that the
     /// terrain cannot support becomes the nearest kind it can, rather than nothing.
     /// </summary>
-    private static PoiKind Reconcile(PoiKind preferred, TerrainColumn column) => preferred switch
+    private static PoiKind Reconcile(PoiKind preferred, TerrainColumn column, long relief) => preferred switch
     {
         // A way in needs a hillside to be cut into; without relief, pillars still read.
-        PoiKind.CaveMouth or PoiKind.DungeonEntrance when column.Slope < PoiConstants.ReliefSlopeMinimum
+        PoiKind.CaveMouth or PoiKind.DungeonEntrance when relief < PoiConstants.ReliefMinimum
             => PoiKind.StandingStones,
 
         // A lookout needs height to be worth building; on low ground, a ruin.

@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Discovery;
 using System.Security.Cryptography;
 using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Terrain;
@@ -42,8 +43,8 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // tree is redrawn. Confirmed by reverting the version to 6 and watching this hash
     // return to the value below, which is what rules out an accidental terrain change.
     string expected = seed == TerrainConstants.DefaultSeed
-        ? "F88298A1BC81B035A634AE136D47A974AFBE4FEF4F01FEF6FAEEFD24E1A2463F"
-        : "D7A06CAC7AAD1F88D82CF063DF5A603B0E3DE6CB056B5C8BF63A941992C0D8AD";
+        ? "2C8A6E8CBBC3A4A77F35579624D96F38A39864B3E06AD8696A3CBC45E792D389"
+        : "7BDF5422500C91E91819748B6D5FED1EA577B3E5829549339BCC6C4078D99CE1";
     string actual = Convert.ToHexString(hash.GetHashAndReset());
     Require(actual == expected, $"authored material snapshot changed: {actual}");
 }
@@ -126,7 +127,7 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     // trees, and version 7 added structure voxels to this box. Moved at version 7, which
     // changes every draw key and so redraws every feature in it.
 
-    const string ExpectedFeatureHash = "DCE4793126EDB67728AB3C336404AB4C5F312817D2301DF3FB6B11642C77F552";
+    const string ExpectedFeatureHash = "77BA363FDF480F33FC450D0A0DCCCB5FB127A09C8C02B8013F42F99DEF8F2400";
     Console.WriteLine(
         $"Terrain features, water and world edges placed and deterministic: {featureVoxels} feature, " +
         $"{waterVoxels} water, {bedrockVoxels} bedrock voxels, {featureHash}");
@@ -233,6 +234,44 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(falseEmpties == 0, $"{falseEmpties} chunks were called empty but generate voxels");
     Require(falseContents == 0, $"{falseContents} chunks were called content but generate nothing");
     Console.WriteLine($"Chunk content predicate matched generation exactly on all {compared} chunks");
+
+// Every kind the placement contract draws must actually stand somewhere in the real world.
+//
+// This exists because two of the five did not. The relief a cave mouth is cut into was gated on
+// a single-block slope, which this terrain's gentle noise almost never produces, so every cave
+// mouth and dungeon entrance was reconciled into standing stones - a rule that looked reasonable
+// and placed nothing. A census over the fakes could not see it: their hillsides are steep. Only
+// the real recipe can answer it, which is why the check lives here.
+{
+    TerrainConfiguration censusConfig = TerrainConfiguration.TraversalShowcase;
+    var censusRecipe = censusConfig.CreateRecipe(new TestDraws(censusConfig.Seed));
+    Dictionary<PoiKind, int> census = [];
+    int censusSites = 0;
+    for (long cellX = -12; cellX <= 12; cellX++)
+    {
+        for (long cellZ = -12; cellZ <= 12; cellZ++)
+        {
+            if (censusRecipe.Placement.SiteAt(cellX, cellZ) is not PoiSite site)
+            {
+                continue;
+            }
+
+            censusSites++;
+            census[site.Kind] = census.GetValueOrDefault(site.Kind) + 1;
+        }
+    }
+
+    string counts = string.Join(", ", census.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}={pair.Value}"));
+    Console.WriteLine($"Point-of-interest census over {censusSites} real sites: {counts}");
+    Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
+    foreach (PoiKind kind in new[]
+        { PoiKind.StandingStones, PoiKind.Ruin, PoiKind.CaveMouth, PoiKind.DungeonEntrance, PoiKind.VantagePoint })
+    {
+        Require(census.GetValueOrDefault(kind) > 0,
+            $"the real world must carry at least one {kind}, counts were {counts}");
+    }
+}
+
 }
 
 var configuration = TerrainConfiguration.TraversalShowcase;
