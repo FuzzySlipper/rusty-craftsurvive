@@ -754,6 +754,13 @@ public sealed class CreatureModule : IDebugCommandModule
     [DebugCommand("craft.creatures.route")]
     public string Route(long offsetX, long offsetZ)
     {
+        if (playerDefeat.Health <= 0)
+        {
+            // A defeated player swings at nothing: the same guard the defeat rules
+            // apply on the receiving side, applied on the dealing side.
+            return "the player is down";
+        }
+
         if (positions.Count == 0)
         {
             return "no creatures";
@@ -871,11 +878,21 @@ public sealed class CreatureModule : IDebugCommandModule
                 $"hit {target}: {struck.Health}/{struck.MaximumHealth} for {outcome.Damage}{(outcome.Critical ? " (critical)" : string.Empty)}");
         }
 
+        // The creature leaves the world for good: its entity is destroyed through the
+        // same call the dispose path uses, and every per-id store is cleared rather
+        // than only the ones the readout happens to print.
+        if (entities.TryGetValue(target, out EntityId leaving))
+        {
+            entityWorld.Destroy(leaving, entityWorld.GetEntityRevision(leaving));
+        }
+
         positions.Remove(target);
         entities.Remove(target);
         behavior.Remove(target);
         combat.Remove(target);
         routes.Remove(target);
+        states.Remove(target);
+        lastAttackTick.Remove(target);
         defeated++;
         lootAwarded += CreatureConstants.CreatureLootValue;
         return string.Create(CultureInfo.InvariantCulture,
