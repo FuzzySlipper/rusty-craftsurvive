@@ -301,7 +301,7 @@ public sealed class CreatureModule : IDebugCommandModule
             // reports which observers can see which targets. The product's own
             // distance test stands only as the fallback, so a projection that cannot
             // answer degrades instead of blinding every creature.
-            bool visible = distance <= tuning.SightRange;
+            bool visible = false;
             double perceivedDistance = distance;
             try
             {
