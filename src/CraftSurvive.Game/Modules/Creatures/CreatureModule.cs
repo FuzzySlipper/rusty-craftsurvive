@@ -444,11 +444,32 @@ public sealed class CreatureModule : IDebugCommandModule
                 ReadOnlySpan<SpatialMapAnnotation>.Empty,
                 MaximumAnnotations);
             string ascii = snapshot.ToAscii();
+            ReadOnlySpan<SpatialMapCell> cells = snapshot.Cells.Span;
+            uint sampled = 0;
+            uint allowed = 0;
+            uint maximumSamples = 0;
+            uint maximumAllowed = 0;
+            foreach (SpatialMapCell cell in cells)
+            {
+                if (cell.NavigationSamples > 0)
+                {
+                    sampled++;
+                }
+
+                if (cell.NavigationAllowedSamples > 0)
+                {
+                    allowed++;
+                }
+
+                maximumSamples = Math.Max(maximumSamples, cell.NavigationSamples);
+                maximumAllowed = Math.Max(maximumAllowed, cell.NavigationAllowedSamples);
+            }
             return string.Create(CultureInfo.InvariantCulture,
                 $"published min={navigationWorldMin} voxel={TerrainConstants.VoxelSize}; " +
                 $"engine origin={snapshot.Geometry.Origin} cell={snapshot.Geometry.CellSize} columns={snapshot.Geometry.Columns} rows={snapshot.Geometry.Rows} " +
                 $"navMinY={snapshot.Geometry.NavigationMinY} navMaxY={snapshot.Geometry.NavigationMaxY}; " +
                 $"navigationPresent={snapshot.NavigationPresent} navRevision={snapshot.NavigationRevision} collisionRevision={snapshot.CollisionRevision}; " +
+                $"cells total={cells.Length} sampled={sampled} allowed={allowed} maxSamples={maximumSamples} maxAllowed={maximumAllowed}; " +
                 $"ascii[{Math.Min(ascii.Length, MaximumAsciiChars)}]={ascii[..Math.Min(ascii.Length, MaximumAsciiChars)]}");
         }
         catch (Exception exception)
