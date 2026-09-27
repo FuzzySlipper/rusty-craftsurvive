@@ -23,9 +23,16 @@ const GAP_MS = Number(process.env.GAP_MS ?? 1000);
   await page.click('canvas');
   await page.evaluate(() => { const canvas = document.querySelector('canvas'); if (canvas) canvas.focus(); });
   await page.waitForTimeout(500);
+  const holdKeys = (process.env.HOLD_KEYS ?? '').split(',').filter(Boolean);
+  for (const key of holdKeys) {
+    await page.keyboard.down(key);
+  }
   for (let i = 0; i < PRESSES; i += 1) {
     await page.keyboard.press(KEY);
     await page.waitForTimeout(GAP_MS);
+  }
+  for (const key of holdKeys) {
+    await page.keyboard.up(key);
   }
   console.log(JSON.stringify({ key: KEY, presses: PRESSES, pageErrors }));
   await browser.close();
