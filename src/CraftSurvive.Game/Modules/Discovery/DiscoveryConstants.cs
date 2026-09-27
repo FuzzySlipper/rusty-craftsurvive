@@ -45,4 +45,11 @@ internal static class DiscoveryConstants
     /// so asking every tick would spend the work of eighty asks to answer the same thing.
     /// </summary>
     internal const int NoticeIntervalTicks = 10;
+    /// <summary>
+    /// How many rows a kind-filtered query returns. It is small on purpose: the point of asking
+    /// for one kind is that the answer always arrives whole, and a cap is what makes that true
+    /// rather than likely.
+    /// </summary>
+    internal const int MaximumFindRows = 12;
+
 }

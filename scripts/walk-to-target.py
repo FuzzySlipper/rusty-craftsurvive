@@ -17,6 +17,7 @@ STOP = float(sys.argv[3]) if len(sys.argv) > 3 else (3.0 if KIND == "crossing" e
 SPEED = 5.5
 STEP_FAR, STEP_NEAR = 9.0, 2.5
 NEAR = 30.0
+KIND_NAMES = {"entrance": "DungeonEntrance", "site": "", "crossing": ""}
 KINDS = {"crossing": "crossing:[\\d-]+:[\\d-]+", "entrance": "DungeonEntrance", "site": "\\w+"}
 
 
@@ -39,11 +40,11 @@ def rows():
                 if best is None or d < best[3]:
                     best = (m.group(1), cx, cz, d)
         return best
-    out = exec_("craft.discovery.near 900").split(":", 1)[-1]
+    out = exec_(f"craft.discovery.find {KIND_NAMES.get(KIND, KIND)} 3000").split(":", 1)[-1] if KIND == "entrance" else exec_("craft.discovery.near 3000").split(":", 1)[-1]
     best = None
     for row in out.split(";"):
         m = re.search(r"(\w+)@(-?\d+),(-?\d+) d=([\d.]+)", row)
-        if m and (KIND == "site" or m.group(1) == KIND):
+        if m and (KIND == "site" or m.group(1) == KIND_NAMES.get(KIND, KIND)):
             d = float(m.group(4))
             if best is None or d < best[3]:
                 best = (m.group(1), float(m.group(2)), float(m.group(3)), d)
@@ -51,7 +52,7 @@ def rows():
 
 
 def hold(key, seconds):
-    if seconds < 1.2:
+    if seconds < 0.4:
         return
     subprocess.run(
         ["node", "scripts/playwright-attack-key.cjs"],

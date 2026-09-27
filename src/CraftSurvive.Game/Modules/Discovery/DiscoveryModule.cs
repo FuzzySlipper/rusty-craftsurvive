@@ -183,6 +183,53 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     }
 
     /// <summary>
+    /// The nearest places of one kind. `Near` answers "what is around me", which is the right
+    /// question for a player and the wrong one for finding a target: its response carries every
+    /// site in range, so a kind that is not near the top is lost to the response limit. Asking
+    /// for one kind makes the answer small enough to always arrive whole.
+    /// </summary>
+    [DebugCommand("craft.discovery.find", Description = "Lists the nearest places of one kind, capped, so a target is never lost to a truncated response.")]
+    public string Find(string kind, long radius)
+    {
+        if (!Enum.TryParse(kind, ignoreCase: true, out PoiKind wanted) || wanted == PoiKind.None)
+        {
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"unknown kind '{kind}'; known kinds are {string.Join(", ", Enum.GetNames<PoiKind>().Where(name => name != nameof(PoiKind.None)))}");
+        }
+
+        long limit = Math.Clamp(radius, 0, (long)DiscoveryRules.NoticeRadiusMetres * 256);
+        Vector3 position = player.WorldPosition;
+        long columnX = (long)Math.Floor(position.X);
+        long columnZ = (long)Math.Floor(position.Z);
+        candidates.Clear();
+        terrain.Recipe.Placement.CollectSitesNear(columnX, columnZ, limit, candidates);
+        List<(double Distance, string Row)> rows = [];
+        foreach (PoiSite site in candidates)
+        {
+            if (site.Kind != wanted)
+            {
+                continue;
+            }
+
+            double distance = Distance(site, position);
+            if (distance > limit)
+            {
+                continue;
+            }
+
+            DiscoveryEntry? known = journal.Find(site.CellX, site.CellZ);
+            rows.Add((distance, string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{site.KindName}@{site.X},{site.Z} d={distance:F1} ground={site.Ground} known={known?.StageName ?? "none"}")));
+        }
+
+        rows.Sort((left, right) => left.Distance.CompareTo(right.Distance));
+        int shown = Math.Min(rows.Count, DiscoveryConstants.MaximumFindRows);
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"find kind={wanted} radius={limit} count={rows.Count} showing={shown}: "
+            + $"{(shown == 0 ? "none" : string.Join("; ", rows.Take(shown).Select(row => row.Row)))}");
+    }
+
+    /// <summary>
     /// The crossings nearest the player, with the span they cover and the height of their
     /// deck. It is how a live session can be aimed at one instead of hoping to stumble over
     /// it, and like the site query it only reads.
