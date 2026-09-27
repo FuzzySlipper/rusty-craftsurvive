@@ -497,6 +497,10 @@ public sealed class CreatureModule : IDebugCommandModule
 
     internal void Dispose()
     {
+        // Handles retired by a kill but not yet re-published are released here too,
+        // so a teardown within a frame of a kill does not leak them.
+        RetireAppearances();
+
         foreach (Appearance appearance in appearances.Values)
         {
             appearance.Dispose();
