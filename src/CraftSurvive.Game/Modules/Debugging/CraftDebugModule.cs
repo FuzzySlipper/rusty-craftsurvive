@@ -5,6 +5,7 @@ using CraftSurvive.Game.Modules.Microvoxels;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using Rusty.Engine;
+using CraftSurvive.Game.Modules.Studies;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.Debugging;
@@ -14,15 +15,15 @@ public sealed class CraftDebugModule : IDebugCommandModule
 {
     private readonly PlayerController player;
     private readonly TerrainWorld terrain;
-    private readonly GhostPlateActor ghost;
-    private readonly MicrovoxelPresentation microvoxels;
+    private readonly GhostPlateActor? ghost;
+    private readonly MicrovoxelPresentation? microvoxels;
     private readonly DebugExecutionContext execution;
 
     internal CraftDebugModule(
         PlayerController player,
         TerrainWorld terrain,
-        GhostPlateActor ghost,
-        MicrovoxelPresentation microvoxels,
+        GhostPlateActor? ghost,
+        MicrovoxelPresentation? microvoxels,
         DebugExecutionContext execution)
     {
         this.player = player;
@@ -31,6 +32,12 @@ public sealed class CraftDebugModule : IDebugCommandModule
         this.microvoxels = microvoxels;
         this.execution = execution;
     }
+
+    /// <summary>The ghost-plate study, which is only constructed when the studies are enabled.</summary>
+    private GhostPlateActor Ghost => ghost ?? throw new InvalidOperationException(ProductStudies.DisabledMessage);
+
+    /// <summary>The microvoxel study, which is only constructed when the studies are enabled.</summary>
+    private MicrovoxelPresentation Microvoxels => microvoxels ?? throw new InvalidOperationException(ProductStudies.DisabledMessage);
 
     [DebugCommand("craft.rope.inspect", Description = "Reads the live rope playground and Engine budgets.")]
     public string InspectRope() => player.Ropes.Readout();
@@ -45,10 +52,10 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.rope.length", Description = "Sets the rate-limited target length, 2 to 10 metres.")]
     public string RopeLength(float length) => player.Ropes.SetLength(length);
 
-    [DebugCommand("craft.ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
-    public string SetGhostPreset(string preset) => ghost.QueuePreset(preset);
+    [DebugCommand("craft.Ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
+    public string SetGhostPreset(string preset) => Ghost.QueuePreset(preset);
 
-    [DebugCommand("craft.ghost.capture", Description = "Queues ghost capture resolution, framing, clip range, and lighting mode.")]
+    [DebugCommand("craft.Ghost.capture", Description = "Queues ghost capture resolution, framing, clip range, and lighting mode.")]
     public string SetGhostCapture(
         ushort resolution,
         float azimuthDegrees,
@@ -57,7 +64,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         float far,
         float fieldOfViewDegrees,
         GhostPlateCaptureLightingMode lightingMode)
-        => ghost.QueueCapture(
+        => Ghost.QueueCapture(
             resolution,
             azimuthDegrees,
             elevationDegrees,
@@ -66,15 +73,15 @@ public sealed class CraftDebugModule : IDebugCommandModule
             fieldOfViewDegrees,
             lightingMode);
 
-    [DebugCommand("craft.ghost.lighting", Description = "Queues ghost capture lighting mode and ambient, key, and fill intensities.")]
+    [DebugCommand("craft.Ghost.lighting", Description = "Queues ghost capture lighting mode and ambient, key, and fill intensities.")]
     public string SetGhostLighting(
         GhostPlateCaptureLightingMode lightingMode,
         float ambientIntensity,
         float keyIntensity,
         float fillIntensity)
-        => ghost.QueueLighting(lightingMode, ambientIntensity, keyIntensity, fillIntensity);
+        => Ghost.QueueLighting(lightingMode, ambientIntensity, keyIntensity, fillIntensity);
 
-    [DebugCommand("craft.ghost.relief", Description = "Queues ghost depth, anchor, mapping, shell, and shell-tolerance values.")]
+    [DebugCommand("craft.Ghost.relief", Description = "Queues ghost depth, anchor, mapping, shell, and shell-tolerance values.")]
     public string SetGhostRelief(
         float depthRetention,
         GhostPlateAnchorPolicy anchorPolicy,
@@ -82,7 +89,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         GhostPlateMapping plateMapping,
         GhostPlateShellMode shellMode,
         float shellDepthEpsilon)
-        => ghost.QueueRelief(
+        => Ghost.QueueRelief(
             depthRetention,
             anchorPolicy,
             anchorValue,
@@ -90,26 +97,26 @@ public sealed class CraftDebugModule : IDebugCommandModule
             shellMode,
             shellDepthEpsilon);
 
-    [DebugCommand("craft.ghost.direction", Description = "Queues a 1, 4, 8, or 16-sector hard-snap bank and hysteresis in degrees.")]
+    [DebugCommand("craft.Ghost.direction", Description = "Queues a 1, 4, 8, or 16-sector hard-snap bank and hysteresis in degrees.")]
     public string SetGhostDirection(byte sectorCount, float hysteresisDegrees)
-        => ghost.QueueDirection(sectorCount, hysteresisDegrees);
+        => Ghost.QueueDirection(sectorCount, hysteresisDegrees);
 
-    [DebugCommand("craft.ghost.place", Description = "Queues ghost world placement and plate size.")]
+    [DebugCommand("craft.Ghost.place", Description = "Queues ghost world placement and plate size.")]
     public string PlaceGhost(float x, float y, float z, float width, float height)
-        => ghost.QueuePlacement(x, y, z, width, height);
+        => Ghost.QueuePlacement(x, y, z, width, height);
 
-    [DebugCommand("craft.ghost.visible", Description = "Queues ghost presentation visibility through its ordinary Engine lifecycle.")]
-    public string SetGhostVisible(bool visible) => ghost.QueueVisibility(visible);
+    [DebugCommand("craft.Ghost.visible", Description = "Queues ghost presentation visibility through its ordinary Engine lifecycle.")]
+    public string SetGhostVisible(bool visible) => Ghost.QueueVisibility(visible);
 
-    [DebugCommand("craft.ghost.recapture", Description = "Queues an explicit ghost capture-bank rebuild.")]
-    public string RecaptureGhost() => ghost.QueueRecapture();
+    [DebugCommand("craft.Ghost.recapture", Description = "Queues an explicit ghost capture-bank rebuild.")]
+    public string RecaptureGhost() => Ghost.QueueRecapture();
 
-    [DebugCommand("craft.ghost.view", Description = "Moves and aims the player around the ghost; 0/90/180/270 view its front/right/back/left.")]
+    [DebugCommand("craft.Ghost.view", Description = "Moves and aims the player around the ghost; 0/90/180/270 view its front/right/back/left.")]
     public string ViewGhost(float azimuthDegrees)
     {
         if (!float.IsFinite(azimuthDegrees)) throw new ArgumentException("View azimuth must be finite.");
         float radians = float.DegreesToRadians(azimuthDegrees % 360f);
-        Vector3 target = ghost.Placement.Transform.Translation;
+        Vector3 target = Ghost.Placement.Transform.Translation;
         Vector3 eye = new(target.X + MathF.Sin(radians) * GhostPlateConfiguration.ViewDistance,
             GhostPlateConfiguration.ViewEyeHeight,
             target.Z + MathF.Cos(radians) * GhostPlateConfiguration.ViewDistance);
@@ -117,30 +124,30 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
     }
 
-    [DebugCommand("craft.ghost.readout", Description = "Reads selected ghost source, tuning state, and latest Engine presentation facts.")]
-    public string ReadGhost() => ghost.DebugReadout();
+    [DebugCommand("craft.Ghost.readout", Description = "Reads selected ghost source, tuning state, and latest Engine presentation facts.")]
+    public string ReadGhost() => Ghost.DebugReadout();
 
     [DebugCommand("craft.micro.preset", Description = "Queues accepted, close, or compact microvoxel settings for the next product update.")]
-    public string SetMicrovoxelPreset(string preset) => microvoxels.QueuePreset(preset);
+    public string SetMicrovoxelPreset(string preset) => Microvoxels.QueuePreset(preset);
 
     [DebugCommand("craft.micro.place", Description = "Queues microvoxel world placement.")]
     public string PlaceMicrovoxel(float x, float y, float z)
-        => microvoxels.QueuePlacement(x, y, z);
+        => Microvoxels.QueuePlacement(x, y, z);
 
     [DebugCommand("craft.micro.scale", Description = "Queues microvoxel scale on each axis.")]
     public string ScaleMicrovoxel(float x, float y, float z)
-        => microvoxels.QueueScale(x, y, z);
+        => Microvoxels.QueueScale(x, y, z);
 
     [DebugCommand("craft.micro.material", Description = "Queues the common matte roughness used by the microvoxel palette.")]
     public string SetMicrovoxelMaterial(float roughness)
-        => microvoxels.QueueMaterial(roughness);
+        => Microvoxels.QueueMaterial(roughness);
 
     [DebugCommand("craft.micro.visible", Description = "Queues microvoxel retained-presentation visibility.")]
     public string SetMicrovoxelVisible(bool visible)
-        => microvoxels.QueueVisibility(visible);
+        => Microvoxels.QueueVisibility(visible);
 
     [DebugCommand("craft.micro.readout", Description = "Reads selected microvoxel source, tuning state, and Engine presentation totals.")]
-    public string ReadMicrovoxel() => microvoxels.DebugReadout();
+    public string ReadMicrovoxel() => Microvoxels.DebugReadout();
 
     [DebugCommand("craft.player.teleport", Description = "Moves the live player through CraftSurvive's ordinary player owner.")]
     public string Teleport(double x, double y, double z)
