@@ -167,6 +167,7 @@ internal sealed class PlayerInputState
 
     private void ClearHeld()
     {
+        attackPending = false;
         keyboardForward = false;
         keyboardBackward = false;
         keyboardRight = false;
