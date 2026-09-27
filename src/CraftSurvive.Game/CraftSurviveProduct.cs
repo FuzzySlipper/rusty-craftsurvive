@@ -7,6 +7,7 @@ using CraftSurvive.Game.Modules.GhostPlate;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.LevelGeneration;
 using CraftSurvive.Game.Modules.Proofing;
+using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Studies;
 using Rusty.Engine.Debugging;
 
@@ -29,6 +30,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly CraftDebugModule productDebug;
     private readonly ProcgenWorkbench? workbench;
     private readonly ProcgenDebugModule? procgenDebug;
+    private readonly EncounterProofModule encounterProof;
     private readonly LiveSubstrateProof? substrateProof;
 
     public CraftSurviveProduct(ProductCreateContext context)
@@ -54,6 +56,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
                 GhostPlateConfiguration.Default);
         }
         sky = new SkyBackground(context.Engine);
+        encounterProof = new EncounterProofModule(terrain, player);
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
@@ -74,6 +77,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
+        RequireRegistration(registrar.Register(encounterProof));
         if (procgenDebug is not null)
         {
             RequireRegistration(registrar.Register(procgenDebug));
