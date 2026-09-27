@@ -893,6 +893,12 @@ public sealed class CreatureModule : IDebugCommandModule
         routes.Remove(target);
         states.Remove(target);
         lastAttackTick.Remove(target);
+        if (appearances.Remove(target, out Appearance departing))
+        {
+            // The same disposal the module's own Dispose uses, so a killed creature
+            // does not leave its GPU primitive behind.
+            departing.Dispose();
+        }
         defeated++;
         lootAwarded += CreatureConstants.CreatureLootValue;
         return string.Create(CultureInfo.InvariantCulture,
