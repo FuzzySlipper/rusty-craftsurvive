@@ -26,7 +26,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
 
 const ORIGIN = process.env.PRODUCT_ORIGIN ?? 'http://127.0.0.1:37305';
-const HOLD_MS = 2000;
+const HOLD_MS = Number(process.env.HOLD_MS ?? 2000);
 const RUNS = 3;
 const SPAWN = { x: 8, y: 6.5, z: 12 };
 const MINIMUM_RUN_METRES = 5;
@@ -116,10 +116,10 @@ const main = async () => {
     await page.waitForTimeout(250);
     await page.evaluate(() => document.querySelector('canvas')?.focus());
     await page.waitForTimeout(250);
-    await page.keyboard.down(process.env.WALK_KEYS ?? 'w');
+    for (const key of (process.env.WALK_KEYS ?? 'w').split(',')) { await page.keyboard.down(key); }
     await page.waitForTimeout(400);
     const probe = await sample();
-    await page.keyboard.up(process.env.WALK_KEYS ?? 'w');
+    for (const key of (process.env.WALK_KEYS ?? 'w').split(',')) { await page.keyboard.up(key); }
     armed = Math.hypot(probe.intent.x, probe.intent.z) > 0;
     armAttempts.push({
       attempt,
@@ -148,12 +148,12 @@ const main = async () => {
     if (settled === null) throw new Error(`run ${run}: the player never settled after the reset`);
 
     const before = settled;
-    await page.keyboard.down(process.env.WALK_KEYS ?? 'w');
+    for (const key of (process.env.WALK_KEYS ?? 'w').split(',')) { await page.keyboard.down(key); }
     await page.waitForTimeout(HOLD_MS / 2);
     const duringHold = await sample();
     await page.waitForTimeout(HOLD_MS / 2);
     const atRelease = await sample();
-    await page.keyboard.up(process.env.WALK_KEYS ?? 'w');
+    for (const key of (process.env.WALK_KEYS ?? 'w').split(',')) { await page.keyboard.up(key); }
 
     const travel = Math.hypot(atRelease.player.x - before.player.x, atRelease.player.z - before.player.z);
     const duringTravel = Math.hypot(duringHold.player.x - before.player.x, duringHold.player.z - before.player.z);
