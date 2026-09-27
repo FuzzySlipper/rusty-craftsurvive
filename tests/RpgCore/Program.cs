@@ -169,4 +169,43 @@ Require(SpawnRules.Evaluate(
 Require(SpawnRules.Evaluate(new SpawnSite(GroundY: 0, WaterLevel: 2, HasGround: false, ShoreIsReachable: false), CreatureTraits.Walker).Refusal == SpawnRefusal.NoGround,
     "a site without ground must be refused outright");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism and spawn placement passed.");
+
+// --- encounter policy: region and time, caps, and despawn ---------------------------
+EncounterPolicy policy = EncounterPolicy.Default;
+EncounterSite meadow = new(RegionKind.Wilderness, RegionId: 7, SurfaceY: 6, WaterLevel: 2, HasGround: true, ShoreIsReachable: true);
+EncounterSite lakeBed = new(RegionKind.Wilderness, RegionId: 7, SurfaceY: 0, WaterLevel: 2, HasGround: true, ShoreIsReachable: true);
+EncounterCandidate wolf = new(Id: 1, meadow, CreatureTraits.Walker, TimeWindow: 12);
+EncounterCandidate drowned = new(Id: 2, lakeBed, CreatureTraits.Walker, TimeWindow: 12);
+
+Require(EncounterRules.IsEligible(wolf, 12), "a candidate must be eligible in its own time window");
+Require(!EncounterRules.IsEligible(wolf, 13), "a candidate must not be eligible outside its time window");
+Require(!EncounterRules.CanActivate(policy, wolf, 13, 0, 0).Act,
+    "activation must be refused outside the current time window even with room to spare");
+Require(EncounterRules.CanActivate(policy, wolf, 12, 0, 0).Act, "an eligible candidate in a region with room must activate");
+Require(!EncounterRules.CanActivate(policy, wolf, 12, policy.MaximumActive, 0).Act,
+    "the world-wide cap must refuse activation");
+Require(!EncounterRules.CanActivate(policy, wolf, 12, 1, policy.MaximumActivePerRegion).Act,
+    "the per-region cap must refuse activation");
+EncounterDecision submergedActivation = EncounterRules.CanActivate(policy, drowned, 12, 0, 0);
+Require(!submergedActivation.Act && submergedActivation.Reason.Contains("cannot swim"),
+    $"a walker must not be activated under water: {stranded.Reason}");
+
+ActiveEncounter active = new(Id: 1, RegionKind.Wilderness, RegionId: 7, ActivatedAtTick: 0, AwaySinceTick: -1);
+Require(!EncounterRules.ShouldDespawn(policy, 100, active, distanceToPlayer: 10, regionResident: true).Act,
+    "an encounter the player is standing next to must stay");
+Require(EncounterRules.ShouldDespawn(policy, 100, active, distanceToPlayer: 10, regionResident: false).Act,
+    "an encounter whose region is no longer resident must go, wherever the player is");
+Require(!EncounterRules.ShouldDespawn(policy, 100, active, policy.DespawnDistance + 1, regionResident: true).Act,
+    "being out of reach is not on its own enough to despawn");
+ActiveEncounter away = EncounterRules.MarkAway(active, tick: 100, policy.DespawnDistance + 1, policy);
+Require(away.IsAway && away.AwaySinceTick == 100, "leaving reach must start the grace period once");
+Require(!EncounterRules.ShouldDespawn(policy, 100 + policy.DespawnGraceTicks - 1, away, policy.DespawnDistance + 1, true).Act,
+    "the grace period must be honoured to the tick");
+Require(EncounterRules.ShouldDespawn(policy, 100 + policy.DespawnGraceTicks, away, policy.DespawnDistance + 1, true).Act,
+    "the encounter must despawn once the grace period elapses");
+Require(!EncounterRules.MarkPresent(away, policy.DespawnDistance - 1, policy).IsAway,
+    "coming back into reach must clear the grace period");
+ActiveEncounter settled = EncounterRules.MarkAway(active, tick: 100, distanceToPlayer: 5, policy);
+Require(!settled.IsAway, "an encounter the player is near must not start a grace period");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement and encounter policy passed.");

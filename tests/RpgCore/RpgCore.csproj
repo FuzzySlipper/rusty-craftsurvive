@@ -13,5 +13,6 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CharacterRules.cs" Link="Rpg/CharacterRules.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CombatRules.cs" Link="Rpg/CombatRules.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterRules.cs" Link="Rpg/EncounterRules.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterPolicy.cs" Link="Rpg/EncounterPolicy.cs" />
   </ItemGroup>
 </Project>
