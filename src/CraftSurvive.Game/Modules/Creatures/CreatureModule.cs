@@ -180,6 +180,8 @@ public sealed class CreatureModule : IDebugCommandModule
 
     private readonly List<Appearance> retiringAppearances = [];
 
+    private long swingSequence;
+
     private int playerExperience;
 
     private int playerLevel = 1;
@@ -317,12 +319,12 @@ public sealed class CreatureModule : IDebugCommandModule
             return;
         }
 
-        foreach (Appearance appearance in retiringAppearances)
+        Appearance[] retiring = [.. retiringAppearances];
+        retiringAppearances.Clear();
+        foreach (Appearance appearance in retiring)
         {
             appearance.Dispose();
         }
-
-        retiringAppearances.Clear();
     }
 
     private void UpdateCore()
@@ -927,8 +929,12 @@ public sealed class CreatureModule : IDebugCommandModule
             Accuracy: CreatureConstants.PlayerAttackAccuracy,
             Power: CreatureConstants.PlayerAttackDamage,
             Type: DamageType.Blunt);
-        int roll = (int)((tick * 37 + target) % (CombatRules.MaximumRoll - CombatRules.MinimumRoll + 1))
-            + CombatRules.MinimumRoll;
+        int range = CombatRules.MaximumRoll - CombatRules.MinimumRoll + 1;
+        swingSequence++;
+        // The nonce keeps two swings in one tick from sharing an outcome, which a
+        // tick-only roll would do (two debug commands between frames resolve on the
+        // same tick).
+        int roll = (int)((tick * 37 + target + (swingSequence * 17)) % range) + CombatRules.MinimumRoll;
         (CombatantState struck, AttackOutcome outcome) = EncounterResolutionRules.Strike(
             roll, swing, combat[target], tick);
         if (!outcome.Hit)
