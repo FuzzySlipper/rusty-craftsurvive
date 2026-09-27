@@ -7,6 +7,7 @@ using CraftSurvive.Game.Modules.GhostPlate;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.LevelGeneration;
 using CraftSurvive.Game.Modules.Proofing;
+using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Studies;
 using Rusty.Engine.Debugging;
@@ -30,6 +31,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly CraftDebugModule productDebug;
     private readonly ProcgenWorkbench? workbench;
     private readonly ProcgenDebugModule? procgenDebug;
+    private readonly CreatureModule creatures;
     private readonly EncounterProofModule encounterProof;
     private readonly LiveSubstrateProof? substrateProof;
 
@@ -56,6 +58,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
                 GhostPlateConfiguration.Default);
         }
         sky = new SkyBackground(context.Engine);
+        creatures = new CreatureModule(context.Engine, terrain, player);
         encounterProof = new EncounterProofModule(terrain, player);
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -78,6 +81,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(encounterProof));
+        RequireRegistration(registrar.Register(creatures));
         if (procgenDebug is not null)
         {
             RequireRegistration(registrar.Register(procgenDebug));
@@ -92,6 +96,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         {
             terrain.Start();
             player.Start();
+            creatures.Start();
             sky.Start();
             PublishAppearanceSnapshot();
             ghostSourcePublished = true;
@@ -145,6 +150,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         terrain.UpdateCourtyard();
+        creatures.Update();
         workbench?.Update(update);
         player.Update(update);
         // Publish the complete source fact at its queued transform before the
@@ -211,6 +217,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         ghost.DisposePresentation();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         ghost?.Dispose();
+        creatures.Dispose();
         player.Dispose();
         microvoxels?.Dispose();
         terrain.Dispose();
