@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/EnginePair.props" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="$(RustyEngineSdkPackageVersion)" />
+    <!-- The RPG rules are pure product policy: they use no Engine type at all, and
+         this lane links them directly so the arithmetic is checked without a host. -->
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CharacterRules.cs" Link="Rpg/CharacterRules.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CombatRules.cs" Link="Rpg/CombatRules.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterRules.cs" Link="Rpg/EncounterRules.cs" />
+  </ItemGroup>
+</Project>
