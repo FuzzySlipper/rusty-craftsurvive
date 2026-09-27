@@ -75,6 +75,12 @@ internal static class CreatureConstants
     /// a pursuer halts at, because a creature stops *at* the attach distance.
     /// </summary>
     internal const double CreatureAttackReachMetres = 3.0;
+
+    /// <summary>Eye height above the surface, where a creature perceives from.</summary>
+    internal const float EyeHeightMetres = 1.5f;
+
+    /// <summary>Perception pairs requested per query.</summary>
+    internal const uint PerceptionPageSize = 8;
     internal const float NavigationDepthBelow = 4f;
     internal const float NavigationHeightAbove = 8f;
 
@@ -156,6 +162,8 @@ public sealed class CreatureModule : IDebugCommandModule
     private readonly Dictionary<int, long> lastAttackTick = [];
 
     private long playerGraceUntilTick = long.MinValue;
+
+    private string perceptionStatus = "unasked";
 
     /// <summary>Where the player began, so a defeat can send them home.</summary>
     private Vector3 spawnPosition;
@@ -289,9 +297,45 @@ public sealed class CreatureModule : IDebugCommandModule
             Vector2 here = positions[id];
             double distance = Math.Sqrt(
                 Math.Pow(here.X - playerPosition.X, 2) + Math.Pow(here.Y - playerPosition.Z, 2));
+            // The Engine owns sight: it evaluates distance, facing and occlusion and
+            // reports which observers can see which targets. The product's own
+            // distance test stands only as the fallback, so a projection that cannot
+            // answer degrades instead of blinding every creature.
+            bool visible = distance <= tuning.SightRange;
+            double perceivedDistance = distance;
+            try
+            {
+                float eyeY = terrain.Recipe.SurfaceAt((long)Math.Round(here.X), (long)Math.Round(here.Y))
+                    + CreatureConstants.EyeHeightMetres;
+                PerceptionObserver[] observers =
+                    [new PerceptionObserver((ulong)id, new Vector3(here.X, eyeY, here.Y), Vector3.UnitZ,
+                        tuning.SightRange, -1.0, 1.0)];
+                PerceptionTarget[] targets =
+                    [new PerceptionTarget(PlayerConstants.PlayerEntityId, playerPosition)];
+                PerceptionReadoutLeaseReceipt receipt = engine.Perception.QueryVisibility(
+                    new PerceptionQueryRequest(
+                        terrain.Session, observers, targets, System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty, navigationHash, 0, CreatureConstants.PerceptionPageSize));
+                visible = false;
+                foreach (PerceptionPair pair in receipt.Pairs.Span)
+                {
+                    if (pair.Target == PlayerConstants.PlayerEntityId)
+                    {
+                        visible = true;
+                        perceivedDistance = pair.Distance;
+                    }
+                }
+
+                perceptionStatus = string.Create(CultureInfo.InvariantCulture,
+                    $"pairs={receipt.PairTotal} casts={receipt.VisibilityCasts} distanceRejects={receipt.DistanceRejects} occlusionRejects={receipt.OcclusionRejects}");
+            }
+            catch (Exception exception)
+            {
+                perceptionStatus = $"refused: {exception.GetType().Name}: {exception.Message}";
+            }
+
             PerceptionFacts sensed = new(
-                PlayerVisible: distance <= tuning.SightRange,
-                DistanceToPlayer: distance,
+                PlayerVisible: visible,
+                DistanceToPlayer: perceivedDistance,
                 OwnHealth: combat[id].Health);
             CreatureBehaviorState state = CreatureBehaviorRules.Step(tuning, behavior[id], sensed, tick);
             behavior[id] = state;
@@ -440,7 +484,7 @@ public sealed class CreatureModule : IDebugCommandModule
         }));
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
+            $"tick={tick}; active={director.ActiveCount}; entities={entities.Count}; seed={terrain.Recipe.Contract.Seed}; nav={navigationStatus} cells={navigationWalkableCells} perception={perceptionStatus} player={playerDefeat.Health}/{playerDefeat.MaximumHealth} defeats={playerDefeat.Defeats} outcome={PlayerDefeatRules.Outcome(playerDefeat, tick)} {navigationScanStatus} revision={navigationRevision} hash={navigationHash}; last={lastEvent}; {rows}");
     }
 
     /// <summary>
