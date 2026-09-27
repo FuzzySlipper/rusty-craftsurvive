@@ -316,4 +316,58 @@ catch (ArgumentOutOfRangeException)
 {
 }
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour and end-to-end resolution passed.");
+
+// --- the director owns what is in the world, and the caps hold ----------------------
+EncounterPolicy tight = EncounterPolicy.Default with { MaximumActive = 3, MaximumActivePerRegion = 2 };
+EncounterDirector director = new(tight);
+EncounterSite meadow12 = new(RegionKind.Wilderness, RegionId: 12, SurfaceY: 6, WaterLevel: 2, HasGround: true, ShoreIsReachable: true);
+
+EncounterCandidate Candidate(int id, long regionId, CreatureTraits traits, long window = 1) =>
+    new(id, new EncounterSite(RegionKind.Wilderness, regionId, 6, 2, true, true) with { RegionId = regionId }, traits, window);
+
+Require(director.ActiveCount == 0, "a fresh director must hold nothing");
+Require(director.TryActivate(Candidate(1, 12, CreatureTraits.Walker), tick: 0, out _), "the first candidate must activate");
+Require(!director.TryActivate(Candidate(1, 12, CreatureTraits.Walker), tick: 0, out string duplicate) && duplicate.Contains("already"),
+    "the same encounter must not be placed twice");
+Require(director.TryActivate(Candidate(2, 12, CreatureTraits.Walker), tick: 0, out _), "a second candidate fits the per-region cap");
+Require(!director.TryActivate(Candidate(3, 12, CreatureTraits.Walker), tick: 0, out string regionFull) && regionFull.Contains("region 12"),
+    $"the per-region cap must refuse a third: {regionFull}");
+Require(director.TryActivate(Candidate(4, 13, CreatureTraits.Walker), tick: 0, out _), "another region has its own room");
+Require(!director.TryActivate(Candidate(5, 13, CreatureTraits.Walker), tick: 0, out string worldFull) && worldFull.Contains("3 encounters"),
+    $"the world cap must refuse a fourth: {worldFull}");
+Require(director.ActiveCount == 3 && director.ActiveCountIn(12) == 2, "the director's counts must agree with what it placed");
+
+EncounterCandidate submerged = new(9, new EncounterSite(RegionKind.Wilderness, 14, SurfaceY: 0, WaterLevel: 2, HasGround: true, ShoreIsReachable: true), CreatureTraits.Walker, 1);
+EncounterDirector roomy = new(EncounterPolicy.Default);
+Require(!roomy.TryActivate(submerged, tick: 0, out string water) && water.Contains("cannot swim"),
+    $"the director must refuse a candidate the placement rule refuses: {water}");
+Require(roomy.ActiveCount == 0, "a refused candidate must not be recorded");
+
+// Despawn: a region that stops being resident takes its encounters with it.
+EncounterDirector leaving = new(EncounterPolicy.Default);
+leaving.TryActivate(Candidate(21, 30, CreatureTraits.Walker), tick: 0, out _);
+leaving.TryActivate(Candidate(22, 31, CreatureTraits.Walker), tick: 0, out _);
+int removed = leaving.Tick(tick: 10, _ => 1.0, regionId => regionId == 30);
+Require(removed == 1 && leaving.ActiveCount == 1 && leaving.IsActive(21) && !leaving.IsActive(22),
+    "a non-resident region's encounters must be removed and the resident region's kept");
+
+// Despawn: out of reach long enough, with the grace period respected.
+EncounterPolicy patient = EncounterPolicy.Default with { DespawnDistance = 10.0, DespawnGraceTicks = 5 };
+EncounterDirector drifting = new(patient);
+drifting.TryActivate(new EncounterCandidate(31, meadow12, CreatureTraits.Walker, 1), tick: 0, out _);
+Require(drifting.Tick(tick: 1, _ => 50.0, _ => true) == 0, "leaving reach must not despawn immediately");
+Require(drifting.Tick(tick: 5, _ => 50.0, _ => true) == 0, "the grace period must be honoured");
+Require(drifting.Tick(tick: 6, _ => 50.0, _ => true) == 1 && drifting.ActiveCount == 0,
+    "the encounter must despawn once the grace period elapses");
+
+// Coming back into reach clears the grace period.
+EncounterDirector returns = new(patient);
+returns.TryActivate(new EncounterCandidate(41, meadow12, CreatureTraits.Walker, 1), tick: 0, out _);
+returns.Tick(tick: 1, _ => 50.0, _ => true);
+returns.Tick(tick: 3, _ => 1.0, _ => true);
+Require(returns.Tick(tick: 20, _ => 50.0, _ => true) == 0,
+    "an encounter the player returned to must start its grace period afresh");
+returns.Tick(tick: 24, _ => 50.0, _ => true);
+Require(returns.Tick(tick: 25, _ => 50.0, _ => true) == 1, "the restarted grace period must still expire");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution and the encounter director passed.");
