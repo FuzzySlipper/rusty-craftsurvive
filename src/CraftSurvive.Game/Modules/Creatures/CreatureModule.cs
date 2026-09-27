@@ -974,11 +974,6 @@ public sealed class CreatureModule : IDebugCommandModule
         // And it leaves the encounter director, so a killed creature is not still
         // counted as an active encounter.
         director.Remove(target);
-        // Placeholder payout, accepted explicitly for S4: a live kill pays flat loot
-        // and no experience, because the product has no live progression owner. The
-        // rules (EncounterResolutionRules.Reward -> ProgressionRules.Award) exist and
-        // are exercised in tests/RpgCore and the staged proof, but nothing in play
-        // consumes them yet, and the readout says so.
         defeated++;
         // Reward is resolved in one call so the two halves cannot drift: the
         // experience award and the drops come from the same table and draw.

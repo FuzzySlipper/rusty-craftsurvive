@@ -39,7 +39,6 @@ internal sealed class PlayerInputState
                 pendingLookDelta = Vector2.Zero;
                 pendingEdit = null;
         attackPending = false;
-        attackPending = false;
                 continue;
             }
 
@@ -96,6 +95,7 @@ internal sealed class PlayerInputState
             brushRadius);
         pendingLookDelta = Vector2.Zero;
         pendingEdit = null;
+        attackPending = false;
         return frame;
     }
 
