@@ -57,15 +57,11 @@ public sealed class BlastModule : IDebugCommandModule
 
         int stageCells = sequence.CellsRemaining;
 
-        // The dust emission is written and switched off: emitting a burst on the pinned pair
-        // SIGSEGVs the host (see the increment that recorded it), and the prime suspect is the
-        // render reference this built by hand from a resource handle's value. The charge must not
-        // crash the runtime while that is being established, so the edit path stays clean until a
-        // valid reference is proven - a disabled effect is a gap, a crashing one is a regression.
-        //
-        // The emission itself lives in BlastDust, authored and compiling, ready to be switched on
-        // by whoever proves the reference.
-
+        // The dust emission is switched off. It was re-enabled once with the corrected resource
+        // reference and the host still died with SIGSEGV inside the emission, so the reference was
+        // not the cause - the descriptors themselves are, or something in EmitParticles this
+        // product does not yet satisfy. A blast must not crash the runtime, so the edit path stays
+        // clean until the crash is understood; BlastDust is authored and compiles, waiting.
         long started = Stopwatch.GetTimestamp();
         // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's
         // cell count is a count of removed cells. Player overlap is not consulted here: the charge
