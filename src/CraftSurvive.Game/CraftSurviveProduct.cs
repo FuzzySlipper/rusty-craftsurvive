@@ -38,6 +38,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly CreatureModule creatures;
     private readonly DiscoveryModule discovery;
     private readonly BlastModule blast;
+    private readonly BuildModule build;
     private readonly EncounterProofModule encounterProof;
     private readonly LiveSubstrateProof? substrateProof;
 
@@ -67,6 +68,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         creatures = new CreatureModule(context.Engine, terrain, player);
         discovery = new DiscoveryModule(context.Engine, terrain, player);
         blast = new BlastModule(terrain);
+        build = new BuildModule(terrain);
         encounterProof = new EncounterProofModule(
             terrain,
             player,
@@ -95,6 +97,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(creatures));
         RequireRegistration(registrar.Register(discovery));
         RequireRegistration(registrar.Register(blast));
+        RequireRegistration(registrar.Register(build));
         if (procgenDebug is not null)
         {
             RequireRegistration(registrar.Register(procgenDebug));
