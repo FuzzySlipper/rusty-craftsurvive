@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using CraftSurvive.Game.Modules.Terrain;
 using Rusty.Engine.Debugging;
 
@@ -22,6 +23,7 @@ public sealed class BlastModule : IDebugCommandModule
     private long stagesApplied;
     private long refused;
     private double worstStageMs;
+    private readonly List<double> stageMs = [];
     private string lastOutcome = "none";
 
     internal BlastModule(TerrainWorld terrain)
@@ -29,6 +31,9 @@ public sealed class BlastModule : IDebugCommandModule
         ArgumentNullException.ThrowIfNull(terrain);
         this.terrain = terrain;
     }
+
+    /// <summary>How many recent stage costs the readout keeps, oldest dropped first.</summary>
+    private const int StageHistoryLength = 8;
 
     /// <summary>True while a charge still has stages to run.</summary>
     internal bool Pending => pending?.Pending ?? false;
@@ -49,21 +54,36 @@ public sealed class BlastModule : IDebugCommandModule
             return;
         }
 
+        int stageCells = Math.Min(sequence.Admission.CellsPerStage, sequence.CellsRemaining);
         long started = Stopwatch.GetTimestamp();
         // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's
         // cell count is a count of removed cells. Player overlap is not consulted here: the charge
         // is aimed by whoever fired it, and the rule for shooting your own feet off belongs to the
         // interaction that acquires a target, not to the mechanism that resolves one.
-        bool applied = sequence.Advance(stage =>
+        //
+        // A stage whose cells are already empty is *delivered*, not refused: an explosion whose
+        // sphere overlaps air changes nothing there, and a charge is spent when its cells have
+        // been handed to the route, not when they happened to alter the world. Only a result that
+        // says the route would not take the edit at all abandons the charge.
+        bool delivered = sequence.Advance(stage =>
             terrain.TryEditCells(stage, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null)
-                is TerrainWorldEditApplied);
+                is TerrainWorldEditApplied or TerrainWorldEditNoChanges);
         double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (elapsedMs > worstStageMs)
         {
             worstStageMs = elapsedMs;
         }
 
-        if (!applied)
+        // Every stage's cost, in order, because a single maximum cannot tell a cold first stage
+        // apart from the steady-state price of a charge - and the budget has to be derived from
+        // the second of those.
+        stageMs.Add(elapsedMs);
+        if (stageMs.Count > StageHistoryLength)
+        {
+            stageMs.RemoveAt(0);
+        }
+
+        if (!delivered)
         {
             lastOutcome = $"stage refused by the edit route after {stagesApplied} stage(s)";
             pending = null;
@@ -71,7 +91,7 @@ public sealed class BlastModule : IDebugCommandModule
         }
 
         stagesApplied++;
-        cleared += sequence.Admission.CellsPerStage;
+        cleared += stageCells;
         if (!sequence.Pending)
         {
             lastOutcome = $"resolved {sequence.Admission.Cells} cells in {sequence.StagesApplied} stage(s)";
@@ -101,5 +121,6 @@ public sealed class BlastModule : IDebugCommandModule
     [DebugCommand("craft.blast.readout", Description = "Reports charges fired, cells cleared, stages run, refusals, and the worst stage latency.")]
     public string Readout() =>
         $"blast fired={fired} pending={Pending} cleared={cleared} stages={stagesApplied} refused={refused} "
-        + $"worstStageMs={worstStageMs:F2} last={lastOutcome}";
+        + $"worstStageMs={worstStageMs:F2} stagesMs=[{string.Join(", ", stageMs.Select(ms => ms.ToString("F2", CultureInfo.InvariantCulture)))}] "
+        + $"last={lastOutcome}";
 }
