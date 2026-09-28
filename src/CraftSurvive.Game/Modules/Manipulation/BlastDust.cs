@@ -36,6 +36,24 @@ internal static class BlastDust
 
     private const string DebrisSignal = "craftsurvive.blast.debris";
 
+    /// <summary>
+    /// TEMPORARY bisection: the smallest emission that could plausibly work - an id, an anchor, a
+    /// sprite and a burst count, with no curves, no collision and no visual. If this crashes, the
+    /// fault is in the call or the anchor; if it survives, the cause is in what was left out.
+    /// </summary>
+    internal static PresentationParticleDescriptor Minimal(Vector3 centre, RenderResourceReference sprite) => new()
+    {
+        SignalId = "craftsurvive.blast.minimal",
+        Visible = true,
+        Anchor = new PresentationAnchor
+        {
+            Kind = PresentationAnchorKind.World,
+            Position = centre,
+        },
+        Sprite = sprite,
+        BurstCount = 8,
+    };
+
     /// <summary>A charge's dust: a seeded burst of billboards that drifts up and fades out.</summary>
     internal static PresentationParticleDescriptor Smoke(Vector3 centre, RenderResourceReference sprite, ulong seed) => new()
     {
