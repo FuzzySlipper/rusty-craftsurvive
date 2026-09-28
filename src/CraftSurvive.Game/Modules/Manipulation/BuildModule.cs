@@ -134,7 +134,20 @@ public sealed class BuildModule : IDebugCommandModule
             return Readout();
         }
 
-        BlockEntity entity = entities.Place(kind, cell, (ushort)Math.Clamp(state, 0, ushort.MaxValue));
+        ushort value = (ushort)Math.Clamp(state, 0, ushort.MaxValue);
+
+        // Same kind in the same cell means the player is changing what is there - opening a door,
+        // filling a container - not asking for a new one. Replacing it would mint a new identity and
+        // lose the old one's meaning, which is precisely the state a door's flag exists to carry. A
+        // different kind is a replacement: the door is gone and a container stands in its place.
+        if (entities.TryFind(cell, out BlockEntity existing) && existing.Kind == kind)
+        {
+            entities.SetState(cell, value);
+            lastOutcome = $"{name} at {cell.X},{cell.Y},{cell.Z} id={existing.Id} state={value} (changed)";
+            return Readout();
+        }
+
+        BlockEntity entity = entities.Place(kind, cell, value);
         lastOutcome = $"{name} placed at {cell.X},{cell.Y},{cell.Z} id={entity.Id} state={entity.State}";
         return Readout();
     }
