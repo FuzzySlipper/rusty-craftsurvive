@@ -36,16 +36,19 @@ large-complex slices, and the LAN startup regression - are in Den, project
 
 ## Platform limits confirmed by measurement
 
-- **No passable voxel material exists.** Collision stops at every non-empty voxel
-  whatever the material declares, so water is solid, a player stands on a lake
-  instead of swimming in it, and a ladder, door or any other non-blocking block
-  cannot be authored. Measured with a downward raycast through a three-layer
-  lake that stops at the top face of the water voxel rather than at the lake bed,
-  while the water material is declared non-solid, non-collidable and
-  non-occluding in `BlockRegistry` and those flags reach its
-  `AuthoredMaterialInput`. Filed upstream with the consumer's evidence and an
-  acceptance fixture; until it is honoured, swimming is unreachable from
-  generated terrain and the swim policy's positive case cannot be demonstrated.
+- **Passable voxel material: this was real, and has since been honoured.**
+  Collision used to stop at every non-empty voxel whatever the material declared, so
+  water was solid, a player stood on a lake instead of swimming in it, and a ladder,
+  door or any other non-blocking block could not be authored. Measured with a downward
+  raycast through a three-layer lake that stopped at the top face of the water voxel
+  rather than at the lake bed, while the water material is declared non-solid,
+  non-collidable and non-occluding in `BlockRegistry` and those flags reach its
+  `AuthoredMaterialInput`. Filed upstream with that evidence, and the report was acted
+  on: the collision rule now honours the material, the Engine provides swimming and
+  submersion, and the swim policy's positive case runs against generated terrain -
+  walkers are still refused in water while swimmers are allowed from a shore. Recorded
+  rather than deleted because that measurement is what got it fixed, and because it is
+  the shape of limitation this document exists to track: real, evidenced, filed, closed.
 - **A multi-cell edit transaction stalls the update loop.** One
   `VoxelEditTransaction` carrying nine or more edits reports `Accepted` and then
   no further product update runs: no failing status, no worker EOF, no
