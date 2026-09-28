@@ -8,12 +8,16 @@ large-complex slices, and the LAN startup regression - are in Den, project
 
 ## Voxel world (`CRAFTSURVIVE_SCENE=traversal`)
 
-- Generation is deterministic version 2 over a fixed product recipe. Residency asks
-  for a 3x3 horizontal window, retains 5x5 up to 64 populated chunks, and admits at
-  most 16 operations per update. There is no biome framework, general procgen
-  framework, generated-chunk disk cache, or product generation worker; streaming and
-  the world spine are S2 of campaign #8595, and Engine-owned residency preparation is
-  the supported overlap path.
+- Generation is deterministic over a fixed product recipe, and its version is the
+  contract's own: **currently 11**, raised deliberately five times by S5 - 7 for points
+  of interest, 8 for crossings, 9 for the carve bound, 10 for relief measured across
+  distance, 11 for the ramps at each end of a crossing. A bump redraws every keyed
+  feature by construction, so it is also what discards a stale save. Residency asks for
+  a 3x3 horizontal window, retains 5x5 up to 64 populated chunks, and admits at most 16
+  operations per update. There is no biome framework, general procgen framework,
+  generated-chunk disk cache, or product generation worker. Streaming, the world spine
+  and the chunk-content predicate are S2 of campaign #8595 (#8598, delivered), and
+  Engine-owned residency preparation is the supported overlap path.
 - Edits use one bounded spherical brush of radius 0, 1 or 2, admitted as one product
   revision. Placement is rejected if the edit overlaps the player or exceeds the
   Engine coordinate envelope. Inventory, crafting, construction permissions,
@@ -63,9 +67,10 @@ large-complex slices, and the LAN startup regression - are in Den, project
   operation rather than a test artefact. Filed upstream with the table of
   transaction sizes and the diagnostics that do not appear.
 
-Both are live limits of the installed pair, not bugs in this repository. The
-passable-material limit is `rusty-engine` #8685 and the edit-transaction stall is
-`rusty-engine` #8684; this repository keeps no copy of their state.
+The edit-transaction stall is a live limit of the installed pair at `rusty-engine` #8684,
+and it is not a bug in this repository. The passable-material report was `rusty-engine`
+#8685 and **is no longer a live limit** - it is kept above as a closed record, not as a
+constraint a change has to respect. This repository keeps no copy of either issue's state.
 
 ## Player and input
 
@@ -114,7 +119,12 @@ passable-material limit is `rusty-engine` #8685 and the edit-transaction stall i
   back: `src/ui/main.ts` contains no reference to the stream name or its contract. It
   is a vestigial publication rather than a broken one, and removing or consuming it
   is deliberately not decided here. The decision belongs to S9 of campaign #8595
-  (#8605), which owns HUD and screens and would have to live with either choice.
+  (#8605), which owns HUD and screens and would have to live with either choice. S5
+  extended the same stream rather than opening a second one: it now also carries the
+  player's facts and the discovery journal's numbers (`discoveryPlaces`,
+  `discoveryVisited`, `discoverySeen`, `discoveryRefused`, `discoveryNearest` and the
+  last place's position, kind, stage and tick), which is why both enums travel as
+  numbers and may be appended to but never renumbered.
 
 ## Lane and process
 
