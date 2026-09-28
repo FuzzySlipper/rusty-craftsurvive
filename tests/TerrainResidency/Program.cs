@@ -311,6 +311,47 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(!BlastPolicy.Decide(BlastPolicy.MaximumCells).Equals(default(BlastAdmission)),
         "a refused admission must be distinguishable from a default value");
     Console.WriteLine($"Blast policy: {BlastPolicy.SingleTransactionCells} cells single, {BlastPolicy.MaximumCells} maximum over {BlastPolicy.MaximumStages} stages, beyond that refused.");
+
+    // A charge resolves through the policy: one transaction when it is small, more when it is
+    // large, and never more than the policy allows - with every cell accounted for.
+    BlastSequence small = BlastSequence.Plan(new VoxelAddress(100, 8, 100), 2);
+    Require(small.Admission.Disposition == BlastDisposition.Single,
+        $"a radius-2 charge is {small.Admission.Cells} cells and must resolve in one transaction");
+    List<int> stageSizes = [];
+    int smallStages = 0;
+    while (small.Pending && small.Advance(cells => { stageSizes.Add(cells.Count); return true; }))
+    {
+        smallStages++;
+    }
+    Require(smallStages == 1 && stageSizes[0] == small.Admission.Cells,
+        $"a small charge must resolve in one stage of {small.Admission.Cells}, took {smallStages} of {stageSizes.Count}");
+
+    // Radius 4 is a 257-cell sphere, inside the staged band; radius 5 would be 515 and is
+    // therefore refused, which is the boundary the next block checks.
+    BlastSequence large = BlastSequence.Plan(new VoxelAddress(200, 8, 200), 4);
+    Require(large.Admission.Disposition == BlastDisposition.Staged,
+        $"a radius-4 charge is {large.Admission.Cells} cells and must stage");
+    int delivered = 0;
+    int largeStages = 0;
+    while (large.Pending && large.Advance(cells => { delivered += cells.Count; return true; }))
+    {
+        largeStages++;
+        Require(largeStages <= BlastPolicy.MaximumStages + 1, "a staged charge must not run past its stage ceiling");
+    }
+    Require(delivered == large.Admission.Cells,
+        $"every cell of a staged charge must be delivered: {delivered} of {large.Admission.Cells}");
+    Require(largeStages == large.Admission.Stages,
+        $"a staged charge must take exactly the {large.Admission.Stages} stages it planned, took {largeStages}");
+
+    // A refused charge changes nothing, and says so rather than shrinking itself.
+    BlastSequence tooBig = BlastSequence.Plan(new VoxelAddress(300, 8, 300), 9);
+    Require(tooBig.Admission.Disposition == BlastDisposition.Refused,
+        $"a radius-9 charge is {tooBig.Admission.Cells} cells and must be refused");
+    Require(!tooBig.Pending, "a refused charge must not be pending");
+    bool touched = false;
+    Require(!tooBig.Advance(_ => { touched = true; return true; }), "a refused charge must not apply a stage");
+    Require(!touched, "a refused charge must not touch the world at all");
+    Console.WriteLine($"Blast sequence: radius 2 single ({small.Admission.Cells} cells), radius 4 staged over {largeStages}, radius 5 and 9 refused.");
 }
     Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
     foreach (PoiKind kind in new[]
