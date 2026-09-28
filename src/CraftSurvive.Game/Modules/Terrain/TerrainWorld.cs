@@ -694,6 +694,12 @@ internal sealed class TerrainWorld : IDisposable
 
     private TerrainAtlasCatalog AtlasCatalog => atlasCatalog ?? throw new InvalidOperationException("Terrain atlas catalog is unavailable.");
 
+    /// <summary>
+    /// The atlas image every material in this world is built from, for anything that needs to draw
+    /// from the same content - the blast's dust and debris borrow it rather than opening their own.
+    /// </summary>
+    internal RenderResourceReference AtlasSprite => AtlasCatalog.AtlasReference;
+
     private void CaptureMaterialMapping()
     {
         if (presentation is not null)

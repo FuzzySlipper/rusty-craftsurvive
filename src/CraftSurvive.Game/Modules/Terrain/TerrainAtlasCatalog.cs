@@ -37,6 +37,13 @@ internal sealed class TerrainAtlasCatalog : IDisposable
 
     private readonly AuthoredCatalog catalog;
     private readonly TerrainAtlasLayout layout;
+
+    /// <summary>
+    /// The admitted atlas image as a render reference. One resource serves the whole atlas, and it
+    /// is what every material is built from - so it is also what an effect outside the voxel
+    /// renderer can point a sprite at, rather than opening a second copy of the same image.
+    /// </summary>
+    private RenderResourceReference atlasReference;
     private readonly List<Material> materials = [];
     private readonly Dictionary<BlockId, Material> baseMaterials = [];
     private readonly Dictionary<BlockId, Material> topMaterials = [];
@@ -57,6 +64,8 @@ internal sealed class TerrainAtlasCatalog : IDisposable
             {
                 throw new InvalidOperationException("CraftSurvive terrain atlas must open as a non-empty Engine texture resource.");
             }
+
+            atlasReference = new RenderResourceReference { Value = texture.Handle.Handle.Value };
 
             admittedCatalog = engine.AuthoredContent.AdmitCatalogPayload(CreatePayload());
             ValidateCatalog(engine.AuthoredContent.ReadCatalog(admittedCatalog));
@@ -84,6 +93,9 @@ internal sealed class TerrainAtlasCatalog : IDisposable
 
     /// <summary>The atlas layout the materials were bound from.</summary>
     internal TerrainAtlasLayout Layout => layout;
+
+    /// <summary>The atlas image as a render reference, for effects that draw from the same content.</summary>
+    internal RenderResourceReference AtlasReference => atlasReference;
 
     /// <summary>The material for a block's non-overridden faces.</summary>
     internal Material BaseMaterial(BlockId id) => Lookup(baseMaterials, id);
