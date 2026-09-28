@@ -263,6 +263,38 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
 
     string counts = string.Join(", ", census.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}={pair.Value}"));
     Console.WriteLine($"Point-of-interest census over {censusSites} real sites: {counts}");
+
+// A decided cell set is applied exactly as given - that is the whole point of it - and it is
+// bounded, because the bound is the manipulation slice's promise about update latency.
+{
+    VoxelAddress[] decided = [new(1, 2, 3), new(4, 5, 6), new(7, 8, 9)];
+    TerrainVoxelEdit[] placed = TerrainBrushPolicy.Expand(
+        TerrainEditRequest.FromCells(decided, TerrainEditKind.Set, TerrainConstants.StoneMaterial));
+    Require(placed.Length == decided.Length, $"a decided edit must apply exactly its {decided.Length} cells, applied {placed.Length}");
+    Require(placed[0].Address == decided[0] && placed[2].Address == decided[2],
+        "a decided edit must keep the order and addresses it was given");
+    Require(placed.All(edit => edit.Material == TerrainConstants.StoneMaterial),
+        "a decided set must carry the material it was given");
+
+    TerrainVoxelEdit[] cleared = TerrainBrushPolicy.Expand(
+        TerrainEditRequest.FromCells(decided, TerrainEditKind.Clear, TerrainConstants.StoneMaterial));
+    Require(cleared.All(edit => edit.Material == TerrainConstants.EmptyMaterial),
+        "a decided clear must empty every cell it was given, whatever material it was handed");
+
+    try
+    {
+        _ = TerrainBrushPolicy.Expand(TerrainEditRequest.FromCells(
+            Enumerable.Repeat(new VoxelAddress(0, 0, 0), TerrainBrushPolicy.MaximumTransactionCells + 1).ToArray(),
+            TerrainEditKind.Clear,
+            TerrainConstants.EmptyMaterial));
+        Require(false, "a decided edit larger than the transaction bound must be refused");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+    }
+
+    Console.WriteLine($"Decided-cell edit request: {placed.Length} cells applied exactly, and {TerrainBrushPolicy.MaximumTransactionCells} is the bound.");
+}
     Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
     foreach (PoiKind kind in new[]
         { PoiKind.StandingStones, PoiKind.Ruin, PoiKind.CaveMouth, PoiKind.DungeonEntrance, PoiKind.VantagePoint })
