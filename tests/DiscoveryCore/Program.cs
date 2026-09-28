@@ -489,6 +489,86 @@ Require(dryBridges == 0, $"dry ground must hold no crossing, found {dryBridges}"
 Require(deckVoxels > 0 && pierVoxels > 0, "a crossing must have both a deck and piers");
 Require(carriage > 0, "a crossing must build something");
 
+// --- the codec refuses every blob it cannot interpret, and the journal keeps working full ---
+//
+// The reviewers named these as unasserted: the dangerous one is a kind flipped to another *valid*
+// kind, because nothing but the fingerprint catches it, while the others are caught by an explicit
+// check that nothing exercised.
+bool probeRefused(byte[] blob)
+{
+    try
+    {
+        _ = DiscoveryCodec.Decode(Seed, blob);
+        return false;
+    }
+    catch (Exception failure) when (failure is InvalidOperationException or ArgumentException or OverflowException)
+    {
+        return true;
+    }
+}
+
+DiscoverySnapshot probeSnapshot = new(Seed, [new DiscoveryEntry(1, -2, PoiKind.Ruin, 256, -512, DiscoveryStage.Seen, 10, 20)]);
+byte[] honest = DiscoveryCodec.Encode(probeSnapshot);
+Require(!probeRefused(honest), "the codec must accept a blob it wrote itself");
+
+byte[] wrongMagic = (byte[])honest.Clone(); wrongMagic[0] ^= 0xFF;
+Require(probeRefused(wrongMagic), "a blob with the wrong magic must be refused");
+byte[] wrongSchema = (byte[])honest.Clone(); wrongSchema[4] = 0x7F;
+Require(probeRefused(wrongSchema), "a blob written for another schema must be refused");
+byte[] wrongGeneration = (byte[])honest.Clone(); wrongGeneration[8] ^= 0x01;
+Require(probeRefused(wrongGeneration), "a blob written for another generation must be refused");
+byte[] trailing = [.. honest, 0x00];
+Require(probeRefused(trailing), "a blob with a byte appended must be refused, not read short");
+byte[] hugeCount = (byte[])honest.Clone(); hugeCount[20] = 0x7F; hugeCount[21] = 0xFF;
+Require(probeRefused(hugeCount), "a blob claiming more entries than it holds must be refused");
+byte[] badStage = (byte[])honest.Clone(); badStage[32 + 34] = 200;
+Require(probeRefused(badStage), "a blob carrying a stage that is not one must be refused");
+byte[] badKind = (byte[])honest.Clone(); badKind[32 + 32] = 99;
+Require(probeRefused(badKind), "a blob carrying a kind that is not one must be refused");
+byte[] flippedKind = (byte[])honest.Clone(); flippedKind[32 + 32] = (byte)PoiKind.VantagePoint;
+Require(probeRefused(flippedKind), "a kind altered to another valid kind must trip the fingerprint");
+Require(probeRefused([.. honest, .. honest]), "a blob of twice the length must be refused");
+
+DiscoveryState probeRestored = new(Seed);
+probeRestored.Restore(probeSnapshot);
+Require(probeRestored.Count == 1, "restore must accept a snapshot for its own seed");
+DiscoveryState probeOtherSeed = new(Seed + 1);
+try
+{
+    probeOtherSeed.Restore(probeSnapshot);
+    Require(false, "restoring a snapshot of another seed must throw");
+}
+catch (InvalidOperationException)
+{
+}
+
+// A full journal still promotes what it already knows: refusing new places must not freeze the
+// ones it holds, or a player at the cap would stop being told they reached somewhere new.
+DiscoveryState capped = new(Seed);
+
+for (long cell = 0; cell < PoiConstants.MaximumDiscoveryEntries; cell++)
+{
+    PoiSite site = new(cell, 0, PoiKind.Ruin, cell * PoiConstants.CellSize, 0, 4, 6, 0, 0);
+    capped.Notice(site, DiscoveryStage.Seen, 1);
+
+}
+
+Require(capped.Count == PoiConstants.MaximumDiscoveryEntries, $"a journal must hold {PoiConstants.MaximumDiscoveryEntries} places, held {capped.Count}");
+PoiSite heldFirst = new(0, 0, PoiKind.Ruin, 0, 0, 4, 6, 0, 0);
+Require(capped.Notice(heldFirst, DiscoveryStage.Visited, 2), "a full journal must still promote a place it already holds");
+Require(capped.Find(0, 0)?.Stage == DiscoveryStage.Visited, "the promotion must be visible");
+PoiSite extra = new(PoiConstants.MaximumDiscoveryEntries, 0, PoiKind.Ruin, 999_999, 0, 4, 6, 0, 0);
+Require(!capped.Notice(extra, DiscoveryStage.Seen, 3), "a full journal must refuse a place it does not hold");
+Require(capped.Refused > 0, "a refusal must be counted, not silent");
+
+// The notice radius is a boundary, and exactly on it is inside.
+Require(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres, visible: true) == DiscoveryStage.Seen,
+    "a place exactly at the notice radius, with a sightline, must be seen");
+Require(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres + 0.01, visible: true) == DiscoveryStage.None,
+    "a place past the notice radius must not be seen, however visible");
+Require(DiscoveryRules.StageFor(double.NaN, visible: true) == DiscoveryStage.None,
+    "a position that is not a number must notice nothing rather than throw");
+
 Console.WriteLine(
     $"Discovery rules: site determinism across {cells.Count} anchor cells, order independence, seed and "
     + $"version sensitivity, ground gating, all {kindCounts.Count} kinds reachable, structure bounds, the carve "
