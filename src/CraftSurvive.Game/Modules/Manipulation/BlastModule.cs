@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Diagnostics;
 using System.Globalization;
 using CraftSurvive.Game.Modules.Terrain;
@@ -16,6 +17,7 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// </summary>
 public sealed class BlastModule : IDebugCommandModule
 {
+    private readonly Rusty.Engine.IEngineContext engine;
     private readonly TerrainWorld terrain;
     private BlastSequence? pending;
     private long fired;
@@ -26,9 +28,11 @@ public sealed class BlastModule : IDebugCommandModule
     private readonly List<double> stageMs = [];
     private string lastOutcome = "none";
 
-    internal BlastModule(TerrainWorld terrain)
+    internal BlastModule(Rusty.Engine.IEngineContext engine, TerrainWorld terrain)
     {
+        ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(terrain);
+        this.engine = engine;
         this.terrain = terrain;
     }
 
@@ -55,6 +59,16 @@ public sealed class BlastModule : IDebugCommandModule
         }
 
         int stageCells = sequence.CellsRemaining;
+
+        // The dust goes out *before* the edit is applied, not after. The edit is a measured ~240 ms
+        // inside the Engine, and a presentation emitted afterwards would arrive to explain a stall
+        // that had already been felt. Emitted first, the cloud is already in flight while the world
+        // is being rebuilt, which is what makes the blast read as an event rather than a hitch.
+        Vector3 centre = new(sequence.Centre.X + 0.5f, sequence.Centre.Y + 0.5f, sequence.Centre.Z + 0.5f);
+        ulong seed = ChargeSeed(sequence.Centre);
+        engine.Presentation.EmitParticles(BlastDust.Smoke(centre, terrain.AtlasSprite, seed));
+        engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, seed));
+
         long started = Stopwatch.GetTimestamp();
         // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's
         // cell count is a count of removed cells. Player overlap is not consulted here: the charge
@@ -98,6 +112,14 @@ public sealed class BlastModule : IDebugCommandModule
             pending = null;
         }
     }
+
+    /// <summary>
+    /// A charge's identity as a seed: the same blast in the same place produces the same dust. The
+    /// product's generation contract rests on draws being pure functions of a seed, and an effect
+    /// that broke that habit would be the first thing in the product to do so.
+    /// </summary>
+    private static ulong ChargeSeed(CraftSurvive.Game.Modules.Terrain.VoxelAddress centre) =>
+        ((ulong)(uint)centre.X << 42) ^ ((ulong)(uint)centre.Y << 21) ^ (ulong)(uint)centre.Z;
 
     [DebugCommand("craft.blast.fire", Description = "Fires a charge at a cell: removes a sphere of the given radius there, staged to fit the per-blast budget.")]
     public string Fire(long x, long y, long z, long radius)
