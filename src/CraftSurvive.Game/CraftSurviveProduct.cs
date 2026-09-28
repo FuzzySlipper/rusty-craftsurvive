@@ -8,6 +8,7 @@ using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.LevelGeneration;
 using CraftSurvive.Game.Modules.Proofing;
 using CraftSurvive.Game.Modules.Discovery;
+using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Studies;
@@ -36,6 +37,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly ProcgenDebugModule? procgenDebug;
     private readonly CreatureModule creatures;
     private readonly DiscoveryModule discovery;
+    private readonly BlastModule blast;
     private readonly EncounterProofModule encounterProof;
     private readonly LiveSubstrateProof? substrateProof;
 
@@ -64,6 +66,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         sky = new SkyBackground(context.Engine);
         creatures = new CreatureModule(context.Engine, terrain, player);
         discovery = new DiscoveryModule(context.Engine, terrain, player);
+        blast = new BlastModule(terrain);
         encounterProof = new EncounterProofModule(
             terrain,
             player,
@@ -91,6 +94,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(encounterProof));
         RequireRegistration(registrar.Register(creatures));
         RequireRegistration(registrar.Register(discovery));
+        RequireRegistration(registrar.Register(blast));
         if (procgenDebug is not null)
         {
             RequireRegistration(registrar.Register(procgenDebug));
@@ -185,6 +189,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         terrain.UpdateCourtyard();
         creatures.Update();
         discovery.Update();
+        blast.Update();
         workbench?.Update(update);
         player.Update(update);
         // Publish the complete source fact at its queued transform before the
