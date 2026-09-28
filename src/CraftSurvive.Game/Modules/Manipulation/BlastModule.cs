@@ -18,19 +18,23 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 public sealed class BlastModule : IDebugCommandModule
 {
     private readonly TerrainWorld terrain;
+    private readonly BlockEntityIndex entities;
     private BlastSequence? pending;
     private long fired;
     private long cleared;
     private long stagesApplied;
     private long refused;
+    private long swept;
     private double worstStageMs;
     private readonly List<double> stageMs = [];
     private string lastOutcome = "none";
 
-    internal BlastModule(TerrainWorld terrain)
+    internal BlastModule(TerrainWorld terrain, BlockEntityIndex entities)
     {
         ArgumentNullException.ThrowIfNull(terrain);
+        ArgumentNullException.ThrowIfNull(entities);
         this.terrain = terrain;
+        this.entities = entities;
     }
 
     /// <summary>How many recent stage costs the readout keeps, oldest dropped first.</summary>
@@ -74,9 +78,21 @@ public sealed class BlastModule : IDebugCommandModule
         // sphere overlaps air changes nothing there, and a charge is spent when its cells have
         // been handed to the route, not when they happened to alter the world. Only a result that
         // says the route would not take the edit at all abandons the charge.
+        // The charge sweeps the entities in the cells it actually cleared, in the same step that
+        // clears them. A detonation that opened a door should take the door with it: leaving an
+        // entity standing in a cell the blast turned to air is the same orphan the build path
+        // already refuses, arriving from the other direction.
         bool delivered = sequence.Advance(stage =>
-            terrain.TryEditCells(stage, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null)
-                is TerrainWorldEditApplied or TerrainWorldEditNoChanges);
+        {
+            bool applied = terrain.TryEditCells(stage, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null)
+                is TerrainWorldEditApplied or TerrainWorldEditNoChanges;
+            if (applied)
+            {
+                swept += entities.Sweep(stage);
+            }
+
+            return applied;
+        });
         double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         if (elapsedMs > worstStageMs)
         {
