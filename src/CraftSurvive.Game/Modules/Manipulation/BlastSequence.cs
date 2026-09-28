@@ -54,9 +54,9 @@ internal sealed class BlastSequence
     }
 
     /// <summary>
-    /// Applies at most one stage, using the caller's edit route, and reports whether that stage
-    /// changed the world. The applier is passed in so this sequence can be exercised without an
-    /// Engine session - and so there is exactly one place where a blast reaches the world.
+    /// Applies the whole charge through the caller's edit route and reports whether it reached the
+    /// world. There is one call because there is one transaction: splitting a charge across updates
+    /// was measured to cost more, not less, since the Engine charges per transaction.
     /// </summary>
     internal bool Advance(Func<IReadOnlyList<VoxelAddress>, bool> apply)
     {
@@ -66,15 +66,13 @@ internal sealed class BlastSequence
             return false;
         }
 
-        int take = Math.Min(Admission.CellsPerStage, CellsRemaining);
-        VoxelAddress[] stage = cells.AsSpan(applied, take).ToArray();
-        if (!apply(stage))
+        if (!apply(cells))
         {
             return false;
         }
 
-        applied += take;
-        StagesApplied++;
+        applied = cells.Length;
+        StagesApplied = 1;
         return true;
     }
 

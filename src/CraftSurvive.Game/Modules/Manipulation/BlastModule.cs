@@ -54,7 +54,7 @@ public sealed class BlastModule : IDebugCommandModule
             return;
         }
 
-        int stageCells = Math.Min(sequence.Admission.CellsPerStage, sequence.CellsRemaining);
+        int stageCells = sequence.CellsRemaining;
         long started = Stopwatch.GetTimestamp();
         // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's
         // cell count is a count of removed cells. Player overlap is not consulted here: the charge
@@ -94,7 +94,7 @@ public sealed class BlastModule : IDebugCommandModule
         cleared += stageCells;
         if (!sequence.Pending)
         {
-            lastOutcome = $"resolved {sequence.Admission.Cells} cells in {sequence.StagesApplied} stage(s)";
+            lastOutcome = $"resolved {sequence.Admission.Cells} cells in {sequence.StagesApplied} transaction(s)";
             pending = null;
         }
     }
@@ -114,7 +114,7 @@ public sealed class BlastModule : IDebugCommandModule
 
         pending = plan;
         fired++;
-        lastOutcome = $"{plan.Admission.Disposition} {plan.Admission.Cells} cells over {plan.Admission.Stages} stage(s)";
+        lastOutcome = $"{plan.Admission.Disposition} {plan.Admission.Cells} cells, one transaction";
         return Readout();
     }
 
@@ -122,5 +122,5 @@ public sealed class BlastModule : IDebugCommandModule
     public string Readout() =>
         $"blast fired={fired} pending={Pending} cleared={cleared} stages={stagesApplied} refused={refused} "
         + $"worstStageMs={worstStageMs:F2} stagesMs=[{string.Join(", ", stageMs.Select(ms => ms.ToString("F2", CultureInfo.InvariantCulture)))}] "
-        + $"last={lastOutcome}";
+        + $"last={lastOutcome} editTiming[{terrain.LastEditTiming}]";
 }

@@ -3,60 +3,58 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// <summary>What the product decides to do with a charge of a given size.</summary>
 internal enum BlastDisposition
 {
-    /// <summary>Small enough to resolve as one transaction.</summary>
+    /// <summary>Resolve as one transaction - the only way a charge resolves.</summary>
     Single,
-
-    /// <summary>Large: resolve as several bounded transactions, in order, over successive updates.</summary>
-    Staged,
 
     /// <summary>Too large to resolve at all. The charge is refused, not silently truncated.</summary>
     Refused,
 }
 
 /// <summary>The decision for one charge, with the bound that produced it.</summary>
-internal readonly record struct BlastAdmission(BlastDisposition Disposition, int Cells, int Stages, int CellsPerStage)
+internal readonly record struct BlastAdmission(BlastDisposition Disposition, int Cells)
 {
     internal bool Applies => Disposition != BlastDisposition.Refused;
 }
 
 /// <summary>
-/// How large a blast may be, decided from measurement rather than taste.
+/// How large a blast may be, and what it costs - both measured on the running product.
 ///
-/// These numbers come from **the running product**, not from the substrate proof. The proof
-/// measured the same edit route at 0.48 ms per cell (123 cells in 59.06 ms), but a live charge
-/// staged into two transactions of about 129 cells reported a **worst stage of 241.44 ms** - near
-/// 1.9 ms per cell, four times the proof's figure, because a live session has the renderer,
-/// collision, residency and presentation work sitting behind the edit. The budget is a promise
-/// about *the product's* update latency, so the product is the measurement that counts; the
-/// proof's figure is recorded here only as the thing that turned out to be too optimistic.
+/// A charge resolves as **one** transaction. That is not a simplification, it is what the
+/// measurements say: timing the edit route end to end showed the cost is a **step**, not a slope.
+/// `engine.Voxel.ApplyEdits` alone took **198.1 ms** for a 41-cell transaction, while everything
+/// the product does around it - admission, three before-reads, overlay apply and save, residency,
+/// presentation, UI - totalled **22.1 ms**. The same step appears at 7 cells and at 123: roughly
+/// **240 ms per transaction whatever its size**.
 ///
-/// At 1.9 ms per cell a 100 ms update holds about 50 cells, which is why the single-transaction
-/// ceiling is 48 rather than the 216 first guessed from the proof. Staging still costs the fixed
-/// cost of a scene read, an overlay save and a presentation refresh per transaction, so the stage
-/// ceiling is a real price rather than a formality. A charge beyond the staged ceiling is refused
-/// rather than truncated: a blast that quietly removes less than it was asked to is worse than one
-/// that does not fire.
+/// An earlier version of this policy split large charges across updates, on the theory that a
+/// smaller transaction would be quicker. It is the opposite: each stage pays the full Engine cost
+/// again, so a three-stage charge of 123 cells costs about **710 ms** where one transaction costs
+/// about **236 ms**. Staging made the stall three times worse while looking like the careful
+/// choice, and only the measurement showed it.
+///
+/// So a charge is bounded by a **cell ceiling** for sanity - the route itself allows 4096 - and its
+/// real bound is the **stall the presentation must cover**, stated here as a measured constant
+/// rather than hidden as a per-cell rate. A charge beyond the ceiling is refused rather than
+/// truncated: a blast that quietly removes less than it was asked to is worse than one that does
+/// not fire.
+///
+/// The five hypotheses retired on the way here, for whoever re-derives this: 0.48 ms/cell from the
+/// substrate proof, 1.9 ms/cell from one cold sample, 4.6 ms/cell from four charges at one size,
+/// the overlay save, and the before-reads. Each was fitted to a slope that does not exist.
 /// </summary>
 internal static class BlastPolicy
 {
-    /// <summary>How long one blast's edit may hold an update. Above this the charge is staged or refused.</summary>
-    internal const int SingleTransactionBudgetMilliseconds = 100;
+    /// <summary>
+    /// The most cells one charge may remove. A sanity ceiling well inside the edit route's own
+    /// 4096-cell limit, not a latency bound - latency does not scale with this.
+    /// </summary>
+    internal const int MaximumCells = 512;
 
     /// <summary>
-    /// The most cells one blast may remove: four stages at the single-transaction ceiling. About
-    /// 360 ms of work in total, spread across four updates so no single one is held longer than
-    /// the budget allows.
+    /// What one charge costs, measured: the stall a charge's presentation has to cover. Roughly
+    /// constant with volume, because the Engine's transaction cost is per transaction.
     /// </summary>
-    internal const int MaximumCells = 192;
-
-    /// <summary>
-    /// At or below this many cells, one transaction is inside the budget: 48 cells at the measured
-    /// 1.9 ms per cell is about 90 ms, inside the 100 ms the budget promises.
-    /// </summary>
-    internal const int SingleTransactionCells = 48;
-
-    /// <summary>The most stages a staged charge may take. More than this is refused outright.</summary>
-    internal const int MaximumStages = 4;
+    internal const int MeasuredTransactionMilliseconds = 240;
 
     internal static BlastAdmission Decide(int cells)
     {
@@ -65,23 +63,8 @@ internal static class BlastPolicy
             throw new ArgumentOutOfRangeException(nameof(cells), "A blast cannot have a negative cell count.");
         }
 
-        if (cells <= SingleTransactionCells)
-        {
-            return new BlastAdmission(BlastDisposition.Single, cells, 1, cells);
-        }
-
-        if (cells > MaximumCells)
-        {
-            return new BlastAdmission(BlastDisposition.Refused, cells, 0, 0);
-        }
-
-        int stages = (cells + SingleTransactionCells - 1) / SingleTransactionCells;
-        if (stages > MaximumStages)
-        {
-            return new BlastAdmission(BlastDisposition.Refused, cells, 0, 0);
-        }
-
-        return new BlastAdmission(BlastDisposition.Staged, cells, stages,
-            (cells + stages - 1) / stages);
+        return cells <= MaximumCells
+            ? new BlastAdmission(BlastDisposition.Single, cells)
+            : new BlastAdmission(BlastDisposition.Refused, cells);
     }
 }

@@ -4,6 +4,9 @@ using System.Numerics;
 using Rusty.Engine;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
 
+using System.Diagnostics;
+using System.Globalization;
+
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
@@ -170,6 +173,7 @@ internal sealed class TerrainWorld : IDisposable
     private TerrainWorldEditResult ApplyRequest(TerrainEditRequest request, VoxelAddress target,
         VoxelAddress center, SpatialFace face, Func<VoxelAddress, bool>? playerOverlaps)
     {
+        long tAdmitStart = Stopwatch.GetTimestamp();
         TerrainEditAdmissionResult admission = TerrainEditAdmission.Admit(request, playerOverlaps);
         if (admission is TerrainEditRejected rejected)
         {
@@ -177,15 +181,27 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         TerrainEditAccepted accepted = (TerrainEditAccepted)admission;
+        long tSceneStart = Stopwatch.GetTimestamp();
         VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+        long tReadStart = Stopwatch.GetTimestamp();
         VoxelReadout targetBefore = engine.Voxel.Read(new VoxelReadRequest(Session, ToEngineVoxel(center)));
+        long tProjectionStart = Stopwatch.GetTimestamp();
         SpatialProjectionReadout spatialBefore = engine.Spatial.ReadProjection(
             new SpatialProjectionReadRequest(Session));
+        long tApplyStart = Stopwatch.GetTimestamp();
         VoxelEdit[] edits = accepted.Edits.Select(ToEngineEdit).ToArray();
         VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
             Session,
             scene.SourceRevision,
             edits));
+        long tApplyDone = Stopwatch.GetTimestamp();
+        // The front half, timed for the same reason the receipt path was: the cost of an accepted
+        // multi-cell edit is a step near 240 ms that no bookkeeping item explains, so it is either
+        // here - admission, the three before-reads, or the Engine transaction - or it is nowhere.
+        lastFrontTiming = string.Create(CultureInfo.InvariantCulture,
+            $"admit={Ms(tAdmitStart, tSceneStart):F1} scene={Ms(tSceneStart, tReadStart):F1} "
+            + $"read={Ms(tReadStart, tProjectionStart):F1} projection={Ms(tProjectionStart, tApplyStart):F1} "
+            + $"apply={Ms(tApplyStart, tApplyDone):F1}");
         switch (receipt.Status)
         {
             case VoxelEditStatus.NoChanges:
@@ -217,12 +233,28 @@ internal sealed class TerrainWorld : IDisposable
 
             case VoxelEditStatus.Accepted:
             {
+                // Timed in pieces because the cost of an accepted multi-cell edit turned out to be a
+                // step rather than a slope - about 240 ms whether it removes seven cells or a hundred
+                // and twenty-three, while a single-cell edit costs a few milliseconds. Something in
+                // this list is the step, and only timings inside it can say which. These figures are
+                // read by `craft.blast.readout`; they are diagnostics, not game state.
+                long tOverlay = Stopwatch.GetTimestamp();
                 TerrainOverlayReceipt overlayReceipt = overlay.Apply(accepted);
+                long tResidency = Stopwatch.GetTimestamp();
                 residencyPolicy.RefreshAfterOverlayChange(overlay, overlayReceipt);
+                long tChunks = Stopwatch.GetTimestamp();
                 RefreshResidentChunks(overlayReceipt.AppliedEdits.Select(edit => edit.Address.Chunk));
+                long tSave = Stopwatch.GetTimestamp();
                 SaveOverlay();
+                long tPresentation = Stopwatch.GetTimestamp();
                 VoxelScenePresentationReadout refreshedPresentation = RefreshPresentation();
+                long tUi = Stopwatch.GetTimestamp();
                 PublishUi();
+                long tDone = Stopwatch.GetTimestamp();
+                lastEditTiming = string.Create(CultureInfo.InvariantCulture,
+                    $"cells={accepted.Edits.Count} {lastFrontTiming} overlay={Ms(tOverlay, tResidency):F1} residency={Ms(tResidency, tChunks):F1} "
+                    + $"chunks={Ms(tChunks, tSave):F1} save={Ms(tSave, tPresentation):F1} "
+                    + $"present={Ms(tPresentation, tUi):F1} ui={Ms(tUi, tDone):F1} total={Ms(tOverlay, tDone):F1}");
                 return new TerrainWorldEditApplied(center, receipt, refreshedPresentation);
             }
 
@@ -289,6 +321,19 @@ internal sealed class TerrainWorld : IDisposable
             : TerrainEditRequest.Clear(center, radius);
         return ApplyRequest(request, target, center, picked.Face, playerOverlaps);
     }
+
+    /// <summary>
+    /// The last accepted edit's cost, broken down by the work the receipt path does. Diagnostics
+    /// for the manipulation budget, not product state: nothing reads it for game meaning.
+    /// </summary>
+    internal string LastEditTiming => lastEditTiming;
+
+    private string lastEditTiming = "none";
+
+    private string lastFrontTiming = "none";
+
+    private static double Ms(long from, long to) =>
+        (to - from) * 1000.0 / Stopwatch.Frequency;
 
     internal void Restart()
     {
