@@ -59,6 +59,11 @@ internal sealed class DiscoverySnapshot
             {
                 throw new ArgumentException("A journal entry must record something learned.", nameof(entries));
             }
+            // Ticks are persisted and published, and a place cannot be found after it was last seen.
+            if (entry.FirstSeenTick < 0 || entry.LastTick < entry.FirstSeenTick)
+            {
+                throw new InvalidOperationException($"Place {index} has ticks {entry.FirstSeenTick}..{entry.LastTick}, which cannot be right.");
+            }
 
             if (index > 0 && this.entries[index - 1].CellX == entry.CellX
                 && this.entries[index - 1].CellZ == entry.CellZ)

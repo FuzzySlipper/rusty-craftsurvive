@@ -528,6 +528,24 @@ Require(probeRefused(badKind), "a blob carrying a kind that is not one must be r
 byte[] flippedKind = (byte[])honest.Clone(); flippedKind[32 + 32] = (byte)PoiKind.VantagePoint;
 Require(probeRefused(flippedKind), "a kind altered to another valid kind must trip the fingerprint");
 Require(probeRefused([.. honest, .. honest]), "a blob of twice the length must be refused");
+Require(probeRefused(new byte[DiscoveryConstants.MaximumJournalBytes + 64]), "a blob larger than the journal may ever be must be refused");
+try
+{
+    _ = new DiscoverySnapshot(Seed, [new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 500, 400)]);
+    Require(false, "a snapshot whose last tick precedes its first must be refused");
+}
+catch (InvalidOperationException)
+{
+}
+
+try
+{
+    _ = new DiscoverySnapshot(Seed, [new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, -1, 5)]);
+    Require(false, "a snapshot with a negative first-seen tick must be refused");
+}
+catch (InvalidOperationException)
+{
+}
 
 DiscoveryState probeRestored = new(Seed);
 probeRestored.Restore(probeSnapshot);
