@@ -78,8 +78,17 @@ def main():
         places_before = int(re.search(r"places=(\d+)", before).group(1))
         places_after = int(re.search(r"places=(\d+)", after).group(1))
         size = stored_bytes(after)
+        def first_visits(line):
+            m = re.search(r"firstVisits=(\d+)", line)
+            return int(m.group(1)) if m else -1
+
         checks = [
             (places_after > places_before, f"walking must discover the place: {places_before} -> {places_after}"),
+            # A first reach is what the exploration-reward seam publishes, and it must fire once
+            # for arriving somewhere - not for walking past it, and not again for coming back.
+            (first_visits(after) >= 1, f"reaching a place for the first time must be published, was {first_visits(after)}"),
+            (first_visits(after) > first_visits(before),
+             f"the count must rise on a first reach: {first_visits(before)} -> {first_visits(after)}"),
             (size is not None and (size - 32) % 51 == 0, f"the stored journal must be 32 + 51n bytes, was {size}"),
             ("restore=" in after, "the readout must report what restore did"),
         ]

@@ -174,7 +174,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     public string Readout()
     {
         (bool present, int bytes) = JournalSaved();
-        return $"journal {journal.Readout()} stored={present}/{bytes} restore={restoreOutcome}";
+        return $"journal {journal.Readout()} firstVisits={firstVisits} stored={present}/{bytes} restore={restoreOutcome}";
     }
 
     /// <summary>
