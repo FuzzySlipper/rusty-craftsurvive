@@ -29,10 +29,15 @@ large-complex slices, and the LAN startup regression - are in Den, project
 - **Navigation must be published.** A world without a collision-derived navigation
   projection answers every path query with `ProjectionUnavailable`, and query cells
   are relative to the published box.
-- Persistence is one bounded, product-owned terrain overlay through Engine
-  Persistence. There is no migration or merge policy for incompatible schemas or
-  concurrent writers, and a stale blob currently fails the load instead of reporting
-  itself; the versioned envelope is S2's.
+- Persistence is bounded, product-owned state through Engine Persistence: a terrain
+  overlay and, since S5, a discovery journal. **A blob written for a different generation
+  is now detected and reported rather than failing the load** - the journal discards the
+  stale save, preserves the previous bytes as a backup, and says so in its own readout
+  (`restore=discarded: Stored journal was written for generation 7, not 8`), which has
+  happened five times against real saves. The overlay behaves the same way. What remains
+  missing is **migration**: a version change regenerates rather than converting, so a
+  player's journal is deliberately thrown away when the world changes, and there is still
+  no policy for concurrent writers.
 
 ## Platform limits confirmed by measurement
 
