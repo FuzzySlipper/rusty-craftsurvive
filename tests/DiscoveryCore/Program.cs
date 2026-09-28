@@ -529,6 +529,40 @@ byte[] flippedKind = (byte[])honest.Clone(); flippedKind[32 + 32] = (byte)PoiKin
 Require(probeRefused(flippedKind), "a kind altered to another valid kind must trip the fingerprint");
 Require(probeRefused([.. honest, .. honest]), "a blob of twice the length must be refused");
 Require(probeRefused(new byte[DiscoveryConstants.MaximumJournalBytes + 64]), "a blob larger than the journal may ever be must be refused");
+
+// The format itself, pinned as literal byte counts rather than restated arithmetic: this is what
+// a reader of the file sees, and it must not drift with a constant someone edits in passing.
+DiscoverySnapshot pair = new(Seed,
+[
+    new DiscoveryEntry(1, 2, PoiKind.Ruin, 256, 512, DiscoveryStage.Seen, 10, 20),
+    new DiscoveryEntry(3, 4, PoiKind.CaveMouth, 768, 1024, DiscoveryStage.Visited, 30, 40),
+]);
+byte[] twoRecords = DiscoveryCodec.Encode(pair);
+Require(twoRecords.Length == 32 + (2 * 51), $"two places must store 134 bytes, stored {twoRecords.Length}");
+Require(DiscoveryCodec.Encode(new DiscoverySnapshot(Seed, [])).Length == 32,
+    "an empty journal must store its 32-byte header and nothing else");
+
+// Record order is part of the fingerprint, so swapping two records must be refused - otherwise a
+// permuted file would restore places under each other's cells.
+byte[] permuted = [.. twoRecords];
+Array.Copy(twoRecords, 32, permuted, 32 + 51, 51);
+Array.Copy(twoRecords, 32 + 51, permuted, 32, 51);
+Require(probeRefused(permuted), "a blob whose records were reordered must be refused");
+
+// The snapshot's own canonical-order rule, independent of the fingerprint: entries must be keyed
+// in order, and a caller that hands them over unsorted must be told rather than quietly sorted.
+try
+{
+    _ = new DiscoverySnapshot(Seed,
+    [
+        new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 1, 2),
+        new DiscoveryEntry(1, 2, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 1, 2),
+    ]);
+    Require(false, "a snapshot whose entries are not in canonical order must be refused");
+}
+catch (InvalidOperationException)
+{
+}
 try
 {
     _ = new DiscoverySnapshot(Seed, [new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 500, 400)]);
