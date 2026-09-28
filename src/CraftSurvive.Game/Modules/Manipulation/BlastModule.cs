@@ -17,7 +17,6 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// </summary>
 public sealed class BlastModule : IDebugCommandModule
 {
-    private readonly Rusty.Engine.IEngineContext engine;
     private readonly TerrainWorld terrain;
     private BlastSequence? pending;
     private long fired;
@@ -28,11 +27,9 @@ public sealed class BlastModule : IDebugCommandModule
     private readonly List<double> stageMs = [];
     private string lastOutcome = "none";
 
-    internal BlastModule(Rusty.Engine.IEngineContext engine, TerrainWorld terrain)
+    internal BlastModule(TerrainWorld terrain)
     {
-        ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(terrain);
-        this.engine = engine;
         this.terrain = terrain;
     }
 
@@ -60,14 +57,14 @@ public sealed class BlastModule : IDebugCommandModule
 
         int stageCells = sequence.CellsRemaining;
 
-        // The dust goes out *before* the edit is applied, not after. The edit is a measured ~240 ms
-        // inside the Engine, and a presentation emitted afterwards would arrive to explain a stall
-        // that had already been felt. Emitted first, the cloud is already in flight while the world
-        // is being rebuilt, which is what makes the blast read as an event rather than a hitch.
-        Vector3 centre = new(sequence.Centre.X + 0.5f, sequence.Centre.Y + 0.5f, sequence.Centre.Z + 0.5f);
-        ulong seed = ChargeSeed(sequence.Centre);
-        engine.Presentation.EmitParticles(BlastDust.Smoke(centre, terrain.AtlasSprite, seed));
-        engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, seed));
+        // The dust emission is written and switched off: emitting a burst on the pinned pair
+        // SIGSEGVs the host (see the increment that recorded it), and the prime suspect is the
+        // render reference this built by hand from a resource handle's value. The charge must not
+        // crash the runtime while that is being established, so the edit path stays clean until a
+        // valid reference is proven - a disabled effect is a gap, a crashing one is a regression.
+        //
+        // The emission itself lives in BlastDust, authored and compiling, ready to be switched on
+        // by whoever proves the reference.
 
         long started = Stopwatch.GetTimestamp();
         // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's

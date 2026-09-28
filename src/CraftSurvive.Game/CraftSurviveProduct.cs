@@ -66,7 +66,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         sky = new SkyBackground(context.Engine);
         creatures = new CreatureModule(context.Engine, terrain, player);
         discovery = new DiscoveryModule(context.Engine, terrain, player);
-        blast = new BlastModule(context.Engine, terrain);
+        blast = new BlastModule(terrain);
         encounterProof = new EncounterProofModule(
             terrain,
             player,
