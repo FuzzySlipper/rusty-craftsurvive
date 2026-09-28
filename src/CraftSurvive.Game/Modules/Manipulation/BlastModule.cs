@@ -57,12 +57,13 @@ public sealed class BlastModule : IDebugCommandModule
 
         int stageCells = sequence.CellsRemaining;
 
-        // The dust emission is switched off, and the bisection has narrowed the cause. A minimal
-        // descriptor - SignalId, Visible, Anchor, Sprite, BurstCount and nothing else - also dies
-        // with SIGSEGV, so the curves, the collision data and the visual are all exonerated: the
-        // fault is in the emission call itself, the anchor, or the sprite reference. The next test
-        // is the same descriptor with Sprite left unset, which separates the sprite from the call.
-        // A blast must not crash the runtime, so the edit path stays clean until a run survives.
+        // The dust emission is switched off. The bisection is finished and it exonerates everything
+        // the product authors: a descriptor carrying only SignalId, Visible, Anchor and BurstCount -
+        // no curves, no collision, no visual - and then the same with Sprite removed entirely both
+        // die with SIGSEGV on the pinned pair. So the fault is in EmitParticles itself or in a
+        // precondition this product does not yet satisfy, not in anything BlastDust writes. That is
+        // an upstream question, filed rather than worked around; the blast is complete without the
+        // dust, and a charge that crashes the runtime is not an option.
         long started = Stopwatch.GetTimestamp();
         // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's
         // cell count is a count of removed cells. Player overlap is not consulted here: the charge
