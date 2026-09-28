@@ -326,11 +326,12 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(smallStages == 1 && stageSizes[0] == small.Admission.Cells,
         $"a small charge must resolve in one stage of {small.Admission.Cells}, took {smallStages} of {stageSizes.Count}");
 
-    // Radius 4 is a 257-cell sphere, inside the staged band; radius 5 would be 515 and is
-    // therefore refused, which is the boundary the next block checks.
-    BlastSequence large = BlastSequence.Plan(new VoxelAddress(200, 8, 200), 4);
+    // Radius 3 is a 123-cell sphere, inside the staged band. Radius 4 is 257, which is past the
+    // maximum and therefore refused - the boundary the next block checks. The band narrowed when
+    // the constants were re-derived from the live product rather than from the proof.
+    BlastSequence large = BlastSequence.Plan(new VoxelAddress(200, 8, 200), 3);
     Require(large.Admission.Disposition == BlastDisposition.Staged,
-        $"a radius-4 charge is {large.Admission.Cells} cells and must stage");
+        $"a radius-3 charge is {large.Admission.Cells} cells and must stage");
     int delivered = 0;
     int largeStages = 0;
     while (large.Pending && large.Advance(cells => { delivered += cells.Count; return true; }))
@@ -351,7 +352,7 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     bool touched = false;
     Require(!tooBig.Advance(_ => { touched = true; return true; }), "a refused charge must not apply a stage");
     Require(!touched, "a refused charge must not touch the world at all");
-    Console.WriteLine($"Blast sequence: radius 2 single ({small.Admission.Cells} cells), radius 4 staged over {largeStages}, radius 5 and 9 refused.");
+    Console.WriteLine($"Blast sequence: radius 2 single ({small.Admission.Cells} cells), radius 3 staged over {largeStages}, radius 4, 5 and 9 refused.");
 }
     Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
     foreach (PoiKind kind in new[]

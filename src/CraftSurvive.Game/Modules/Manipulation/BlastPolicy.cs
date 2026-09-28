@@ -22,18 +22,20 @@ internal readonly record struct BlastAdmission(BlastDisposition Disposition, int
 /// <summary>
 /// How large a blast may be, decided from measurement rather than taste.
 ///
-/// Two points were measured on the live substrate proof through the product's own edit route:
-/// a 32-cell transaction through the view-aimed brush took 72.19 ms, a 123-cell decided volume
-/// took 59.06 ms, and undoing those 123 cells exactly took 62.68 ms. The decided route is
-/// therefore nearer 0.5 ms per cell at that volume, with a fixed cost near 57 ms that dominates
-/// small edits - the scene read, the receipt handling, the overlay save and the presentation
-/// refresh are paid once per transaction whatever its size.
+/// These numbers come from **the running product**, not from the substrate proof. The proof
+/// measured the same edit route at 0.48 ms per cell (123 cells in 59.06 ms), but a live charge
+/// staged into two transactions of about 129 cells reported a **worst stage of 241.44 ms** - near
+/// 1.9 ms per cell, four times the proof's figure, because a live session has the renderer,
+/// collision, residency and presentation work sitting behind the edit. The budget is a promise
+/// about *the product's* update latency, so the product is the measurement that counts; the
+/// proof's figure is recorded here only as the thing that turned out to be too optimistic.
 ///
-/// That shape is what these numbers encode. The budget below is a promise about how long one
-/// update may be held, and because the fixed cost is paid per transaction, splitting a large
-/// charge pays it repeatedly - so staging buys a bounded stall at a measured price rather than
-/// being free. A charge beyond the staged ceiling is refused rather than truncated: a blast that
-/// quietly removes less than it was asked to is worse than one that does not fire.
+/// At 1.9 ms per cell a 100 ms update holds about 50 cells, which is why the single-transaction
+/// ceiling is 48 rather than the 216 first guessed from the proof. Staging still costs the fixed
+/// cost of a scene read, an overlay save and a presentation refresh per transaction, so the stage
+/// ceiling is a real price rather than a formality. A charge beyond the staged ceiling is refused
+/// rather than truncated: a blast that quietly removes less than it was asked to is worse than one
+/// that does not fire.
 /// </summary>
 internal static class BlastPolicy
 {
@@ -41,13 +43,17 @@ internal static class BlastPolicy
     internal const int SingleTransactionBudgetMilliseconds = 100;
 
     /// <summary>
-    /// The most cells one blast may remove, from the measured curve: 512 cells is roughly twice
-    /// the 123-cell measurement, which stays inside a few hundred milliseconds.
+    /// The most cells one blast may remove: four stages at the single-transaction ceiling. About
+    /// 360 ms of work in total, spread across four updates so no single one is held longer than
+    /// the budget allows.
     /// </summary>
-    internal const int MaximumCells = 512;
+    internal const int MaximumCells = 192;
 
-    /// <summary>At or below this many cells, one transaction is inside the budget.</summary>
-    internal const int SingleTransactionCells = 216;
+    /// <summary>
+    /// At or below this many cells, one transaction is inside the budget: 48 cells at the measured
+    /// 1.9 ms per cell is about 90 ms, inside the 100 ms the budget promises.
+    /// </summary>
+    internal const int SingleTransactionCells = 48;
 
     /// <summary>The most stages a staged charge may take. More than this is refused outright.</summary>
     internal const int MaximumStages = 4;
