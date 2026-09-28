@@ -218,6 +218,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
         candidates.Clear();
         terrain.Recipe.Placement.CollectSitesNear(columnX, columnZ, limit, candidates);
         List<(double Distance, string Row)> rows = [];
+        int known = 0;
         foreach (PoiSite site in candidates)
         {
             if (site.Kind != wanted)
@@ -231,15 +232,24 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
                 continue;
             }
 
-            DiscoveryEntry? known = journal.Find(site.CellX, site.CellZ);
+            known++;
+            DiscoveryEntry? entry = journal.Find(site.CellX, site.CellZ);
             rows.Add((distance, string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                $"{site.KindName}@{site.X},{site.Z} d={distance:F1} ground={site.Ground} known={known?.StageName ?? "none"}")));
+                $"{site.KindName}@{site.X},{site.Z} d={distance:F1} ground={site.Ground} known={entry?.StageName ?? "none"}")));
+
+            // The answer is capped, so the work should be too: keep the nearest rows and trim as
+            // we go rather than building a row for every site in the radius and discarding most.
+            if (rows.Count > DiscoveryConstants.MaximumFindRows * 2)
+            {
+                rows.Sort((left, right) => left.Distance.CompareTo(right.Distance));
+                rows.RemoveRange(DiscoveryConstants.MaximumFindRows, rows.Count - DiscoveryConstants.MaximumFindRows);
+            }
         }
 
         rows.Sort((left, right) => left.Distance.CompareTo(right.Distance));
         int shown = Math.Min(rows.Count, DiscoveryConstants.MaximumFindRows);
         return string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"find kind={wanted} radius={limit} count={rows.Count} showing={shown}: "
+            $"find kind={wanted} radius={limit} count={known} showing={shown}: "
             + $"{(shown == 0 ? "none" : string.Join("; ", rows.Take(shown).Select(row => row.Row)))}");
     }
 
@@ -306,6 +316,11 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             store, DiscoveryConstants.PersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
     }
 
+    /// <summary>
+    /// Reads the stored journal. A blob that is merely wrong is discarded and backed up; a store
+    /// that cannot be read at all is left to fail, because a product that cannot read its own
+    /// journal should not start and quietly forget what the player found.
+    /// </summary>
     private void Restore()
     {
         using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
