@@ -26,6 +26,8 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
 
     /// <summary>The last save or publish failure, reported by the readout rather than swallowed.</summary>
     private string? lastFailure;
+    private PoiSite? firstVisit;
+    private long firstVisits;
     private readonly List<PoiSite> candidates = [];
     private readonly PersistenceStore store;
     private string restoreOutcome = "not attempted";
@@ -108,7 +110,18 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
                 || DiscoveryRules.HasSightline(terrain.Recipe.Columns, columnX, columnZ,
                     position.Y + DiscoveryRules.EyeHeightMetres,
                     site.X, site.Z, site.Ground + site.Height);
-            changed |= journal.Notice(site, DiscoveryRules.StageFor(distance, visible), tick);
+            DiscoveryStage stage = DiscoveryRules.StageFor(distance, visible);
+            bool wasVisited = journal.Find(site.CellX, site.CellZ)?.Stage == DiscoveryStage.Visited;
+            bool rose = journal.Notice(site, stage, tick);
+            if (rose && stage == DiscoveryStage.Visited && !wasVisited)
+            {
+                // First reach of this place, not a return to it: the difference between exploring
+                // somewhere and farming somewhere already known.
+                firstVisit = site;
+                firstVisits++;
+            }
+
+            changed |= rose;
         }
 
         // The journal refuses rather than throwing, but these two reach the Engine - a store
@@ -298,6 +311,34 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
         return string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"crossings radius={limit} count={rows.Count}: {(rows.Count == 0 ? "none" : string.Join("; ", rows.Select(row => row.Row)))}");
     }
+
+    /// <summary>
+    /// Whether a place has been reached for the first time, waiting to be consumed.
+    ///
+    /// This is S5's half of the seam that ties encounters and rewards to exploration: the journal
+    /// knows a discovery happened and says so, and whoever owns creatures and rewards decides what
+    /// it is worth. The module does not know what a creature is, and must not - one owner per state
+    /// family - so the outcome is published here for the product to act on rather than acted on
+    /// inside the update, which is also the path that must never throw.
+    ///
+    /// The slot holds one outcome: a consumer that misses one is a frame behind, not a discovery
+    /// lost, because the journal still records the place itself.
+    /// </summary>
+    internal bool TryTakeFirstVisit(out PoiSite site)
+    {
+        if (firstVisit is not PoiSite waiting)
+        {
+            site = default;
+            return false;
+        }
+
+        site = waiting;
+        firstVisit = null;
+        return true;
+    }
+
+    /// <summary>How many places have been reached for the first time, ever.</summary>
+    internal long FirstVisits => firstVisits;
 
     private static long FloorDivide(long value, long divisor) =>
         value >= 0 ? value / divisor : ((value - divisor + 1) / divisor);
