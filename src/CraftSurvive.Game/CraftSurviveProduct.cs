@@ -39,6 +39,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly DiscoveryModule discovery;
     private readonly BlastModule blast;
     private readonly BuildModule build;
+
+    /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
+    private readonly BlockEntityIndex entities;
     private readonly EncounterProofModule encounterProof;
     private readonly LiveSubstrateProof? substrateProof;
 
@@ -68,7 +71,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         creatures = new CreatureModule(context.Engine, terrain, player);
         discovery = new DiscoveryModule(context.Engine, terrain, player);
         blast = new BlastModule(terrain);
-        build = new BuildModule(terrain);
+        entities = new BlockEntityIndex();
+        build = new BuildModule(terrain, entities);
         encounterProof = new EncounterProofModule(
             terrain,
             player,
