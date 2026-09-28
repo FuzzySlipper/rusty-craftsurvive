@@ -6,22 +6,72 @@ internal enum TerrainEditKind
     Set,
 }
 
-internal sealed record TerrainEditRequest(VoxelAddress Center, TerrainEditKind Kind, ushort Material, int Radius)
+internal sealed record TerrainEditRequest(VoxelAddress Center, TerrainEditKind Kind, ushort Material, int Radius,
+    IReadOnlyList<VoxelAddress>? Cells = null)
 {
     internal static TerrainEditRequest Clear(VoxelAddress center, int radius) =>
         new(center, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, radius);
 
     internal static TerrainEditRequest Set(VoxelAddress center, ushort material, int radius) =>
         new(center, TerrainEditKind.Set, material, radius);
+
+    /// <summary>
+    /// An edit whose cells the caller has already decided on - the volume of a charge, the shape
+    /// of a stamp, or the sphere a proof wants to undo exactly.
+    ///
+    /// A crosshair and a radius cannot express any of those: the brush is aimed, and re-aiming at
+    /// a volume you have just filled picks a different centre, which is how an "undo" leaves a
+    /// rim. Here the cells are the request.
+    /// </summary>
+    internal static TerrainEditRequest FromCells(IReadOnlyList<VoxelAddress> cells, TerrainEditKind kind,
+        ushort material) =>
+        new(cells.Count == 0 ? default : cells[0], kind, material, 0, cells);
 }
 
 internal readonly record struct TerrainVoxelEdit(VoxelAddress Address, ushort Material);
 
 internal static class TerrainBrushPolicy
 {
+    /// <summary>
+    /// The most cells one transaction may carry. A blast is bounded on purpose: the budget the
+    /// manipulation slice publishes is a promise about how long an update can be held, and an
+    /// unbounded transaction is how that promise is broken.
+    /// </summary>
+    internal const int MaximumTransactionCells = 4096;
+
     internal static TerrainVoxelEdit[] Expand(TerrainEditRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.Cells is IReadOnlyList<VoxelAddress> decided)
+        {
+            if (decided.Count == 0)
+            {
+                throw new ArgumentException("A decided edit needs at least one cell.", nameof(request));
+            }
+
+            if (decided.Count > MaximumTransactionCells)
+            {
+                throw new ArgumentOutOfRangeException(nameof(request),
+                    $"A decided edit may carry at most {MaximumTransactionCells} cells, not {decided.Count}.");
+            }
+
+            if (request.Kind == TerrainEditKind.Set
+                && (request.Material == TerrainConstants.EmptyMaterial || request.Material > TerrainConstants.MaximumMaterial))
+            {
+                throw new ArgumentOutOfRangeException(nameof(request),
+                    $"Placed terrain material must be within 1..={TerrainConstants.MaximumMaterial}.");
+            }
+
+            List<TerrainVoxelEdit> decidedEdits = new(decided.Count);
+            foreach (VoxelAddress address in decided)
+            {
+                decidedEdits.Add(new TerrainVoxelEdit(address,
+                    request.Kind == TerrainEditKind.Clear ? TerrainConstants.EmptyMaterial : request.Material));
+            }
+
+            return decidedEdits.ToArray();
+        }
+
         if (request.Radius < 0 || request.Radius > TerrainConstants.MaximumBrushRadius)
         {
             throw new ArgumentOutOfRangeException(nameof(request),

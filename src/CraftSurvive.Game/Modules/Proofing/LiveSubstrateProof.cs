@@ -319,6 +319,13 @@ internal sealed class LiveSubstrateProof
     /// `SaveOverlay`, so it is what makes the saved world real: the next start must
     /// report a restored overlay rather than none.
     /// </summary>
+    /// <summary>
+    /// The brush radius this proof edits with. Two is a sphere well past the nine-edit
+    /// transaction that used to stall the update loop, so it separates "one cell is fine" from
+    /// "a real multi-cell operation is fine" - which is the difference upstream #8684 was about.
+    /// </summary>
+    private const int MultiCellBrushRadius = 2;
+
     private void ProveWorldEditSave(EngineVoxelAddress site)
     {
         Vector3 origin = new(site.X + SampleCellCenter, site.Y + EditAimLiftVoxels, site.Z + SampleCellCenter);
@@ -335,6 +342,28 @@ internal sealed class LiveSubstrateProof
         (bool present, int bytes) = terrain.OverlaySaved();
         Require(present, "a product edit did not save the world overlay");
         Report($"world overlay saved by that edit: {bytes} bytes");
+
+        // A multi-cell transaction used to stall the product's update loop silently at nine
+        // edits, with the accepted edit as the last line ever printed (upstream #8684). A
+        // radius-two brush is a sphere well past that threshold, so this stage is the
+        // behavioural check that the fix is present in the pinned pair: if the stall were back,
+        // every line after this one would simply never appear.
+        //
+        // The elapsed time is not decoration either. A blast is many dirty chunks at once, so
+        // this number - volume against edit, remesh and presentation latency - is what tells
+        // the manipulation slice how large a charge can be.
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        TerrainWorldEditResult multiCell = terrain.TryEditFromView(
+            origin,
+            -Vector3.UnitY,
+            TerrainEditKind.Set,
+            TerrainConstants.StoneMaterial,
+            MultiCellBrushRadius,
+            _ => false);
+        double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        Report($"multi-cell edit through the product path: {TerrainWorld.FormatEditReadout(multiCell)}"
+            + $" in {elapsedMs:F2} ms at brush radius {MultiCellBrushRadius}");
+        Require(multiCell is TerrainWorldEditApplied, "a multi-cell product edit did not apply");
     }
 
     /// <summary>
