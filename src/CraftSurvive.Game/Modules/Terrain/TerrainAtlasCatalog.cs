@@ -65,7 +65,10 @@ internal sealed class TerrainAtlasCatalog : IDisposable
                 throw new InvalidOperationException("CraftSurvive terrain atlas must open as a non-empty Engine texture resource.");
             }
 
-            atlasReference = new RenderResourceReference { Value = texture.Handle.Handle.Value };
+            // The resource itself converts implicitly to a reference. Building one by hand from
+            // the inner handle's numeric value is what segfaulted the host: the reference wants the
+            // outer resource, not the handle inside it.
+            atlasReference = texture.Handle;
 
             admittedCatalog = engine.AuthoredContent.AdmitCatalogPayload(CreatePayload());
             ValidateCatalog(engine.AuthoredContent.ReadCatalog(admittedCatalog));
