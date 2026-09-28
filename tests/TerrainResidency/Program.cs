@@ -344,6 +344,28 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(!tooBig.Advance(_ => { touched = true; return true; }), "a refused charge must not apply");
     Require(!touched, "a refused charge must not touch the world at all");
     Console.WriteLine($"Blast sequence: radius 2 ({small.Admission.Cells} cells) and radius 3 ({large.Admission.Cells} cells) each in one transaction, radius 6 refused ({tooBig.Admission.Cells} cells).");
+
+    // A stamp is a decided volume too, and the shapes a base is built from have to be exactly the
+    // size they claim and no larger than the bound.
+    BuildStamp plate = BuildStamp.Plate(new VoxelAddress(0, 4, 0), 3, 4, TerrainConstants.StoneMaterial);
+    Require(plate.Cells.Count == 12, $"a 3x4 plate is 12 cells, counted {plate.Cells.Count}");
+    Require(plate.Cells.All(cell => cell.Y == 4), "a plate must stay on its own course");
+    Require(plate.Cells.Distinct().Count() == plate.Cells.Count, "a plate must not place the same cell twice");
+    Require(plate.Cells.All(cell => cell.X is >= 0 and < 3 && cell.Z is >= 0 and < 4),
+        "a plate must stay inside the footprint it was given");
+    Require(plate.Placed, "a small plate must be placeable in one transaction");
+
+    BuildStamp wall = BuildStamp.Wall(new VoxelAddress(10, 4, 10), 5, 3, alongX: true, TerrainConstants.StoneMaterial);
+    Require(wall.Cells.Count == 15, $"a 5x3 wall is 15 cells, counted {wall.Cells.Count}");
+    Require(wall.Cells.All(cell => cell.Z == 10), "an along-X wall must keep one Z");
+    Require(wall.Cells.Select(cell => cell.Y).Distinct().Count() == 3, "a 3-tall wall must occupy 3 courses");
+
+    BuildStamp oversizedPlate = BuildStamp.Plate(new VoxelAddress(0, 4, 0), 40, 40, TerrainConstants.StoneMaterial);
+    Require(!oversizedPlate.Placed, $"a {oversizedPlate.Cells.Count}-cell plate must be refused, not truncated");
+    Require(BuildStamp.Plate(new VoxelAddress(0, 4, 0), 1, 1, TerrainConstants.StoneMaterial).Cells.Count == 1,
+        "a one-cell stamp is one cell");
+    Console.WriteLine($"Build stamp: plate 12 cells, wall 15 cells, {BuildStamp.MaximumStampCells} is the bound.");
+
 }
     Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
     foreach (PoiKind kind in new[]
