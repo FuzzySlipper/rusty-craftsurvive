@@ -29,6 +29,7 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainResidencyPolicy.cs" Link="TerrainResidencyPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayState.cs" Link="TerrainOverlayState.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEditPolicy.cs" Link="TerrainEditPolicy.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastPolicy.cs" Link="TerrainEditPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="VoxelAddress.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerConstants.cs" Link="PlayerConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerInputState.cs" Link="PlayerInputState.cs" />

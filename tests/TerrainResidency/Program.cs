@@ -2,6 +2,7 @@ using CraftSurvive.Game.Modules.Discovery;
 using System.Security.Cryptography;
 using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Tests;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Rpg;
@@ -294,6 +295,22 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     }
 
     Console.WriteLine($"Decided-cell edit request: {placed.Length} cells applied exactly, and {TerrainBrushPolicy.MaximumTransactionCells} is the bound.");
+
+    // The oversized-blast policy, exercised at its boundaries rather than only in the middle.
+    BlastAdmission single = BlastPolicy.Decide(BlastPolicy.SingleTransactionCells);
+    Require(single.Disposition == BlastDisposition.Single, "a charge at the single-transaction bound must resolve in one transaction");
+    Require(BlastPolicy.Decide(BlastPolicy.SingleTransactionCells + 1).Disposition == BlastDisposition.Staged,
+        "one cell past the bound must stage rather than apply in one transaction");
+    Require(BlastPolicy.Decide(BlastPolicy.MaximumCells).Applies, "a charge at the maximum must still fire");
+    Require(BlastPolicy.Decide(BlastPolicy.MaximumCells + 1).Disposition == BlastDisposition.Refused,
+        "a charge past the maximum must be refused rather than truncated");
+    BlastAdmission staged = BlastPolicy.Decide(BlastPolicy.MaximumCells);
+    Require(staged.Stages <= BlastPolicy.MaximumStages, $"a staged charge must not exceed {BlastPolicy.MaximumStages} stages, took {staged.Stages}");
+    Require(staged.Stages * staged.CellsPerStage >= staged.Cells,
+        $"the stages must cover the charge: {staged.Stages} x {staged.CellsPerStage} < {staged.Cells}");
+    Require(!BlastPolicy.Decide(BlastPolicy.MaximumCells).Equals(default(BlastAdmission)),
+        "a refused admission must be distinguishable from a default value");
+    Console.WriteLine($"Blast policy: {BlastPolicy.SingleTransactionCells} cells single, {BlastPolicy.MaximumCells} maximum over {BlastPolicy.MaximumStages} stages, beyond that refused.");
 }
     Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
     foreach (PoiKind kind in new[]
