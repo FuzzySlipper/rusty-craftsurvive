@@ -65,7 +65,10 @@ def main():
         # Stand a few metres from a real site and walk onto it. The teleport is a debug command to
         # a stand-off, not onto the target: the walk is what earns the fact.
         row = exec_("craft.discovery.find StandingStones 3000")
-        m = re.search(r"StandingStones@(-?\d+),(-?\d+) d=[\d.]+ ground=(\d+)", row)
+        # A place the journal has not already visited. Walking to one already known is a return,
+        # which must NOT publish a first reach - the whole point of the distinction - and a
+        # resident session may well have visited the nearest stones before this one started.
+        m = re.search(r"StandingStones@(-?\d+),(-?\d+) d=[\d.]+ ground=(\d+) known=none", row)
         if not m:
             print("FAIL: no standing stones listed within 3 km")
             return 1
