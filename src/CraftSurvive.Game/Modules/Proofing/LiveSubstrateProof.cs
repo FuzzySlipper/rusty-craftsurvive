@@ -7,6 +7,7 @@ using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
+using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Proofing;
 
@@ -318,13 +319,43 @@ internal sealed class LiveSubstrateProof
     /// Engine, then report what the world has saved. This is the caller of
     /// `SaveOverlay`, so it is what makes the saved world real: the next start must
     /// report a restored overlay rather than none.
-    /// </summary>
     /// <summary>
-    /// The brush radius this proof edits with. Two is a sphere well past the nine-edit
-    /// transaction that used to stall the update loop, so it separates "one cell is fine" from
-    /// "a real multi-cell operation is fine" - which is the difference upstream #8684 was about.
+    /// The radius of the decided volume this proof edits. Three is a 123-cell sphere - past the
+    /// nine-edit transaction that used to stall the update loop, and past the brush's own maximum
+    /// of two - so it separates "a brush is fine" from "a real bounded volume is fine".
     /// </summary>
-    private const int MultiCellBrushRadius = 2;
+    private const int MultiCellRadius = 3;
+
+    /// <summary>
+    /// Where that volume sits relative to the proof site: above the surface so its cells are air
+    /// and the edit changes something, and offset sideways so filling it cannot bury the character
+    /// the later stages move.
+    /// </summary>
+    private const int MultiCellOffsetX = 4;
+
+    private const int MultiCellOffsetY = 3;
+
+    /// <summary>The cells of a solid sphere: a volume a charge would remove, or a stamp would fill.</summary>
+    private static TerrainVoxelAddress[] SphereCells(TerrainVoxelAddress centre, int radius)
+    {
+        List<TerrainVoxelAddress> cells = [];
+        long squared = (long)radius * radius;
+        for (long x = -radius; x <= radius; x++)
+        {
+            for (long y = -radius; y <= radius; y++)
+            {
+                for (long z = -radius; z <= radius; z++)
+                {
+                    if ((x * x) + (y * y) + (z * z) <= squared)
+                    {
+                        cells.Add(new TerrainVoxelAddress(centre.X + x, centre.Y + y, centre.Z + z));
+                    }
+                }
+            }
+        }
+
+        return cells.ToArray();
+    }
 
     private void ProveWorldEditSave(EngineVoxelAddress site)
     {
@@ -352,18 +383,31 @@ internal sealed class LiveSubstrateProof
         // The elapsed time is not decoration either. A blast is many dirty chunks at once, so
         // this number - volume against edit, remesh and presentation latency - is what tells
         // the manipulation slice how large a charge can be.
-        long started = System.Diagnostics.Stopwatch.GetTimestamp();
-        TerrainWorldEditResult multiCell = terrain.TryEditFromView(
-            origin,
-            -Vector3.UnitY,
+        TerrainVoxelAddress centre = new(site.X + MultiCellOffsetX, site.Y + MultiCellOffsetY, site.Z);
+        TerrainVoxelAddress[] volume = SphereCells(centre, MultiCellRadius);
+        long started = Stopwatch.GetTimestamp();
+        TerrainWorldEditResult multiCell = terrain.TryEditCells(
+            volume,
             TerrainEditKind.Set,
             TerrainConstants.StoneMaterial,
-            MultiCellBrushRadius,
             _ => false);
-        double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        Report($"multi-cell edit through the product path: {TerrainWorld.FormatEditReadout(multiCell)}"
-            + $" in {elapsedMs:F2} ms at brush radius {MultiCellBrushRadius}");
-        Require(multiCell is TerrainWorldEditApplied, "a multi-cell product edit did not apply");
+        double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        Report($"decided-volume edit through the product path: {TerrainWorld.FormatEditReadout(multiCell)}"
+            + $" in {elapsedMs:F2} ms for {volume.Length} cells at sphere radius {MultiCellRadius}");
+        Require(multiCell is TerrainWorldEditApplied, "a decided-volume product edit did not apply");
+
+        // And put it back exactly. A brush cannot: it is aimed, and re-aiming at a volume just
+        // filled picks a different centre, which is how an "undo" leaves a rim. This is also the
+        // shape every blast's undo will take.
+        long undoStarted = Stopwatch.GetTimestamp();
+        TerrainWorldEditResult undo = terrain.TryEditCells(
+            volume,
+            TerrainEditKind.Clear,
+            TerrainConstants.EmptyMaterial,
+            _ => false);
+        Report($"decided-volume undo through the product path: {TerrainWorld.FormatEditReadout(undo)}"
+            + $" in {Stopwatch.GetElapsedTime(undoStarted).TotalMilliseconds:F2} ms");
+        Require(undo is TerrainWorldEditApplied, "a decided-volume undo did not apply");
     }
 
     /// <summary>
