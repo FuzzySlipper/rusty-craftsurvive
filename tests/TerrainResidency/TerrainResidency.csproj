@@ -32,6 +32,7 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastPolicy.cs" Link="TerrainEditPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastSequence.cs" Link="TerrainEditPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BuildStamp.cs" Link="TerrainEditPolicy.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="TerrainEditPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="VoxelAddress.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerConstants.cs" Link="PlayerConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerInputState.cs" Link="PlayerInputState.cs" />

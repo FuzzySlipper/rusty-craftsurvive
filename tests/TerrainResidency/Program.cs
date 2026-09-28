@@ -366,6 +366,49 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
         "a one-cell stamp is one cell");
     Console.WriteLine($"Build stamp: plate 12 cells, wall 15 cells, {BuildStamp.MaximumStampCells} is the bound.");
 
+    // Block entities: one per cell, broken when their cell opens, swept when a volume is cleared.
+    BlockEntityIndex entities = new();
+    VoxelAddress doorCell = new(4, 5, 4);
+    VoxelAddress lightCell = new(6, 7, 6);
+    BlockEntity door = entities.Place(BlockEntityKind.Door, doorCell, state: 0);
+    entities.Place(BlockEntityKind.Light, lightCell);
+    Require(entities.Count == 2, $"two entities were placed, counted {entities.Count}");
+    Require(entities.TryFind(doorCell, out BlockEntity found) && found.Kind == BlockEntityKind.Door,
+        "the door must be findable in the cell it was placed in");
+    Require(found.Id == door.Id, "an entity must keep the identity it was given");
+    Require(entities.Occupies(lightCell), "the light must occupy its cell");
+
+    // One per cell: placing again replaces rather than accumulating.
+    entities.Place(BlockEntityKind.Container, doorCell);
+    Require(entities.Count == 2, $"replacing a cell must not add an entity, counted {entities.Count}");
+    Require(entities.TryFind(doorCell, out BlockEntity replaced) && replaced.Kind == BlockEntityKind.Container,
+        "placing onto a cell must replace what stood there");
+
+    // The door flag is product meaning, not position.
+    entities.Place(BlockEntityKind.Door, doorCell, state: 0);
+    Require(entities.SetState(doorCell, 1), "an occupied cell must accept a state change");
+    Require(entities.TryFind(doorCell, out BlockEntity opened) && opened.State == 1, "the door must read as open");
+    Require(!entities.SetState(new VoxelAddress(0, 0, 0), 1), "an empty cell must not accept a state change");
+
+    // Break removes exactly the cell named, and says whether it did.
+    Require(entities.Break(doorCell), "breaking an occupied cell must report a removal");
+    Require(!entities.Break(doorCell), "breaking an empty cell must report nothing removed");
+    Require(entities.Count == 1, $"one entity must remain, counted {entities.Count}");
+
+    // Blast sweeps a decided volume; entities outside it are untouched.
+    BlockEntityIndex swept = new();
+    VoxelAddress insideA = new(2, 3, 2);
+    VoxelAddress insideB = new(3, 3, 3);
+    VoxelAddress outside = new(9, 3, 9);
+    swept.Place(BlockEntityKind.Container, insideA);
+    swept.Place(BlockEntityKind.Light, insideB);
+    swept.Place(BlockEntityKind.Door, outside);
+    int destroyed = swept.Sweep([insideA, insideB]);
+    Require(destroyed == 2, $"a sweep of two occupied cells destroys two, destroyed {destroyed}");
+    Require(swept.Count == 1 && swept.Occupies(outside), "a sweep must leave entities outside its volume standing");
+    Console.WriteLine($"Block entities: {entities.Count} standing after replacement, break and a 2-cell sweep.");
+
+
 }
     Require(censusSites > 400, $"the world must place sites across a wide region, found {censusSites}");
     foreach (PoiKind kind in new[]
