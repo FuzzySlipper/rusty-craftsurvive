@@ -161,6 +161,95 @@ internal sealed class TerrainWorld : IDisposable
         PublishUi();
     }
 
+    /// <summary>
+    /// Applies an already-decided request through the one revision-checked path: admission, the
+    /// scene read the transaction is evaluated against, the Engine transaction, and the receipt
+    /// handling that follows. Both the view-aimed brush and a caller-decided volume come through
+    /// here, so receipt semantics live in exactly one place.
+    /// </summary>
+    private TerrainWorldEditResult ApplyRequest(TerrainEditRequest request, VoxelAddress target,
+        VoxelAddress center, SpatialFace face, Func<VoxelAddress, bool>? playerOverlaps)
+    {
+        TerrainEditAdmissionResult admission = TerrainEditAdmission.Admit(request, playerOverlaps);
+        if (admission is TerrainEditRejected rejected)
+        {
+            return new TerrainWorldEditRejected(center, rejected);
+        }
+
+        TerrainEditAccepted accepted = (TerrainEditAccepted)admission;
+        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+        VoxelReadout targetBefore = engine.Voxel.Read(new VoxelReadRequest(Session, ToEngineVoxel(center)));
+        SpatialProjectionReadout spatialBefore = engine.Spatial.ReadProjection(
+            new SpatialProjectionReadRequest(Session));
+        VoxelEdit[] edits = accepted.Edits.Select(ToEngineEdit).ToArray();
+        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
+            Session,
+            scene.SourceRevision,
+            edits));
+        switch (receipt.Status)
+        {
+            case VoxelEditStatus.NoChanges:
+                return new TerrainWorldEditNoChanges(
+                    request.Kind,
+                    target,
+                    face,
+                    center,
+                    targetBefore,
+                    spatialBefore,
+                    scene,
+                    receipt);
+
+            case VoxelEditStatus.StaleRevision:
+            {
+                // The scene can have changed since the read used for this transaction.
+                // Refresh the retained Engine projection to that current authority, but
+                // never replay an edit that was evaluated against the old revision.
+                VoxelSceneReadout currentScene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+                VoxelScenePresentationReadout currentPresentation = RefreshPresentation();
+                PublishUi();
+                return new TerrainWorldEditStaleRevision(
+                    center,
+                    scene.SourceRevision,
+                    receipt,
+                    currentScene,
+                    currentPresentation);
+            }
+
+            case VoxelEditStatus.Accepted:
+            {
+                TerrainOverlayReceipt overlayReceipt = overlay.Apply(accepted);
+                residencyPolicy.RefreshAfterOverlayChange(overlay, overlayReceipt);
+                RefreshResidentChunks(overlayReceipt.AppliedEdits.Select(edit => edit.Address.Chunk));
+                SaveOverlay();
+                VoxelScenePresentationReadout refreshedPresentation = RefreshPresentation();
+                PublishUi();
+                return new TerrainWorldEditApplied(center, receipt, refreshedPresentation);
+            }
+
+            default:
+                throw new InvalidOperationException($"Engine returned unsupported voxel edit status '{receipt.Status}'.");
+        }
+    }
+
+    /// <summary>
+    /// Applies an edit whose cells the caller has already decided on - the volume of a charge, the
+    /// shape of a stamp, or the exact undo of something just built. A brush cannot express those:
+    /// it is aimed, and re-aiming at a volume you have just filled picks a different centre, which
+    /// is how an "undo" leaves a rim.
+    /// </summary>
+    internal TerrainWorldEditResult TryEditCells(IReadOnlyList<VoxelAddress> cells, TerrainEditKind kind,
+        ushort material, Func<VoxelAddress, bool>? playerOverlaps = null)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+        if (cells.Count == 0)
+        {
+            return TerrainWorldEditResult.CastMiss;
+        }
+
+        TerrainEditRequest request = TerrainEditRequest.FromCells(cells, kind, material);
+        return ApplyRequest(request, request.Center, request.Center, SpatialFace.PosY, playerOverlaps);
+    }
+
     internal TerrainWorldEditResult TryEditFromView(Vector3 origin, Vector3 direction,
         TerrainEditKind kind, ushort material, int radius, Func<VoxelAddress, bool>? playerOverlaps)
     {
@@ -198,65 +287,7 @@ internal sealed class TerrainWorld : IDisposable
         TerrainEditRequest request = kind == TerrainEditKind.Set
             ? TerrainEditRequest.Set(center, material, radius)
             : TerrainEditRequest.Clear(center, radius);
-        TerrainEditAdmissionResult admission = TerrainEditAdmission.Admit(request, playerOverlaps);
-        if (admission is TerrainEditRejected rejected)
-        {
-            return new TerrainWorldEditRejected(center, rejected);
-        }
-
-        TerrainEditAccepted accepted = (TerrainEditAccepted)admission;
-        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
-        VoxelReadout targetBefore = engine.Voxel.Read(new VoxelReadRequest(Session, ToEngineVoxel(center)));
-        SpatialProjectionReadout spatialBefore = engine.Spatial.ReadProjection(
-            new SpatialProjectionReadRequest(Session));
-        VoxelEdit[] edits = accepted.Edits.Select(ToEngineEdit).ToArray();
-        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
-            Session,
-            scene.SourceRevision,
-            edits));
-        switch (receipt.Status)
-        {
-            case VoxelEditStatus.NoChanges:
-                return new TerrainWorldEditNoChanges(
-                    kind,
-                    target,
-                    picked.Face,
-                    center,
-                    targetBefore,
-                    spatialBefore,
-                    scene,
-                    receipt);
-
-            case VoxelEditStatus.StaleRevision:
-            {
-                // The scene can have changed since the read used for this transaction.
-                // Refresh the retained Engine projection to that current authority, but
-                // never replay an edit that was evaluated against the old revision.
-                VoxelSceneReadout currentScene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
-                VoxelScenePresentationReadout currentPresentation = RefreshPresentation();
-                PublishUi();
-                return new TerrainWorldEditStaleRevision(
-                    center,
-                    scene.SourceRevision,
-                    receipt,
-                    currentScene,
-                    currentPresentation);
-            }
-
-            case VoxelEditStatus.Accepted:
-            {
-                TerrainOverlayReceipt overlayReceipt = overlay.Apply(accepted);
-                residencyPolicy.RefreshAfterOverlayChange(overlay, overlayReceipt);
-                RefreshResidentChunks(overlayReceipt.AppliedEdits.Select(edit => edit.Address.Chunk));
-                SaveOverlay();
-                VoxelScenePresentationReadout refreshedPresentation = RefreshPresentation();
-                PublishUi();
-                return new TerrainWorldEditApplied(center, receipt, refreshedPresentation);
-            }
-
-            default:
-                throw new InvalidOperationException($"Engine returned unsupported voxel edit status '{receipt.Status}'.");
-        }
+        return ApplyRequest(request, target, center, picked.Face, playerOverlaps);
     }
 
     internal void Restart()
