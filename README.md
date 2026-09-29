@@ -63,8 +63,8 @@ second process.
 `<RustyEnginePackageVersion>` in `Directory.Build.props` is the one pin, read by
 the product project, the focused managed checks and CI; `rusty status` shows it
 and whether it is installed. Move it only with `rusty update`, which lists the
-release notes to read. Plain `dotnet run` of the focused checks resolves the SDK
-once `rusty` has restored it, or after `export $(rusty env)`.
+release notes to read. `Directory.Build.props` also declares the pair's feed, so
+plain `dotnet run` of the focused checks resolves exactly the pinned SDK.
 
 Engine contributors can opt into a source build only with an explicit Engine
 source path. `rusty dev --engine-source` supplies the matching MSBuild override

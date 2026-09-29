@@ -20,8 +20,6 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/main/scripts/install-rusty.sh | bash
           ~/.local/bin/rusty install
-          # These checks consume managed SDK values through plain dotnet.
-          ~/.local/bin/rusty env >> "$GITHUB_ENV"
       - name: Check procedural planning and cave/dungeon layouts
         run: dotnet run --project tests/Procgen -c Release
       - name: Check workbench motifs and complex layouts

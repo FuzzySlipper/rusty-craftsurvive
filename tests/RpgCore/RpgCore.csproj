@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Rusty.Engine" Version="$(RustyEnginePackageVersion)" />
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- The RPG rules are pure product policy: they use no Engine type at all, and
          this lane links them directly so the arithmetic is checked without a host. -->
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CharacterRules.cs" Link="Rpg/CharacterRules.cs" />

@@ -7,7 +7,7 @@
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Rusty.Engine" Version="$(RustyEnginePackageVersion)" />
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- Managed SDK values only; no alternative Engine host or binding, and no
          runtime pack. The live-host half of this proof runs in the product
          lane instead. -->

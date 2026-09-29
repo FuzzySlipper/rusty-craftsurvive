@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Rusty.Engine" Version="$(RustyEnginePackageVersion)" />
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- Point-of-interest placement and structure shapes are pure product policy: they
          read the generation contract, a column source, and the block registry, and they
          touch no Engine host service. This lane links them directly so placement
