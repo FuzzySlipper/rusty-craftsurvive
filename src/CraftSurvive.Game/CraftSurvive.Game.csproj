@@ -15,6 +15,11 @@
     <RustyEngineProductUiRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui/generated/source'))</RustyEngineProductUiRoot>
     <RustyEngineProductContentRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../content'))</RustyEngineProductContentRoot>
     <RustyEngineProductUiEntry>main.js</RustyEngineProductUiEntry>
+    <!-- Node is retained only to compile the product-owned DOM companion. It
+         never assembles or copies Engine browser/runtime infrastructure. The
+         SDK reruns it only when ../ui or a listed dependency changes. -->
+    <RustyEngineProductUiSourceRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'))</RustyEngineProductUiSourceRoot>
+    <RustyEngineProductUiBuildCommand>pnpm --dir &quot;$(MSBuildThisFileDirectory)../..&quot; exec tsc --project &quot;$(MSBuildThisFileDirectory)../ui/tsconfig.json&quot;</RustyEngineProductUiBuildCommand>
     <RustyEngineProductUiProjectionStream>craftsurvive.terrain</RustyEngineProductUiProjectionStream>
     <RustyEngineProductUiProjectionContract>craftsurvive.terrain.v1</RustyEngineProductUiProjectionContract>
     <RustyEngineProductLifecycleMode>realtime</RustyEngineProductLifecycleMode>
@@ -83,10 +88,7 @@
     <RustyEngineProductInputMapping Include="craftsurvive.edit.secondary.controller-left-trigger" Intent="craftsurvive.edit.secondary" Trigger="controller-button:button-6:pressed" />
   </ItemGroup>
 
-  <!-- Node is retained only to compile the product-owned DOM companion. It
-       never assembles or copies Engine browser/runtime infrastructure. -->
-  <Target Name="BuildCraftSurviveProductUi"
-          BeforeTargets="StageRustyEngineCoreClrProduct;VerifyRustyEngineAot">
-    <Exec Command="pnpm --dir &quot;$(MSBuildThisFileDirectory)../..&quot; exec tsc --project &quot;$(MSBuildThisFileDirectory)../ui/tsconfig.json&quot;" />
-  </Target>
+  <ItemGroup>
+    <RustyEngineProductUiInput Include="$(MSBuildThisFileDirectory)../../package.json;$(MSBuildThisFileDirectory)../../pnpm-lock.yaml" />
+  </ItemGroup>
 </Project>
