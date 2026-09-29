@@ -241,7 +241,7 @@ Observe($"owner view reports {view.Stacks.Count} stack(s) and store revision {vi
 
 // A multi-step change must be stageable and invisible until it publishes: this
 // is the discipline crafting and loot transactions need.
-using (InventoryEdit edit = inventory.Prepare(inventory.Revision))
+using (InventoryEdit edit = inventory.Prepare())
 {
     edit.Grant(owner, stone, main, 2UL);
     edit.Consume(owner, spill, 8UL);
@@ -257,21 +257,6 @@ Require(
     Held(inventory, owner, main) == 6UL && Held(inventory, owner, spill) == 50UL,
     $"publishing the staged edit left main={Held(inventory, owner, main)} spill={Held(inventory, owner, spill)}, expected 6/50");
 Observe("a staged grant+consume edit is invisible before Publish and applied after it");
-
-// Publishing against a stale base must be refused rather than merged blindly.
-InventoryEdit staleEdit = inventory.Prepare(inventory.Revision);
-staleEdit.Grant(owner, stone, main, 1UL);
-ulong mainBeforeStalePublish = Held(inventory, owner, main);
-inventory.Consume(owner, main, 1UL);
-string stalePublishSurface = Surface(staleEdit.Publish);
-staleEdit.Dispose();
-Require(
-    stalePublishSurface == nameof(MechanicsException),
-    $"a stale edit publish surfaced as {stalePublishSurface}, expected MechanicsException");
-Require(
-    Held(inventory, owner, main) == mainBeforeStalePublish - 1UL,
-    "a refused stale publish still changed the stack");
-Observe($"publishing a stale edit surfaced as: {stalePublishSurface}");
 
 // Unique items are a separate lifecycle from fungible stacks.
 ItemDefinitionId relicId = ItemDefinitionId.Parse("proof.relic");
@@ -406,24 +391,10 @@ Require(
     "the enabled-only query did not return the created entity");
 
 EntityId batched = entities.Create(EntityLifecycle.Active);
-ulong staleRevision = entities.Revision;
-EntityBatch batch = new EntityBatch().Set(batched, runtimeComponent, new ProofRuntime(9), null);
-entities.Commit(batch, entities.Revision);
+EntityBatch batch = new EntityBatch().Set(batched, runtimeComponent, new ProofRuntime(9));
+entities.Commit(batch);
 Require(entities.Get(batched, runtimeComponent).Value == 9, "a batched component set did not commit");
 Require(entities.Query<ProofRuntime>(false).Count == 2, "the batched entity is missing from the query");
-
-ulong revisionBeforeStaleCommit = entities.Revision;
-string staleCommitSurface = Surface(() => entities.Commit(batch, staleRevision));
-Require(
-    staleCommitSurface == nameof(InvalidOperationException),
-    $"a stale batch commit surfaced as {staleCommitSurface}, expected InvalidOperationException");
-Require(
-    entities.Get(batched, runtimeComponent).Value == 9,
-    "a refused stale batch commit overwrote the component value");
-Require(
-    entities.Revision == revisionBeforeStaleCommit,
-    "a refused stale batch commit advanced the store revision");
-Observe($"a stale batch commit surfaced as: {staleCommitSurface}");
 
 // Disabled entities are only visible when the query asks for them.
 EntityId dormant = entities.Create(EntityLifecycle.Disabled);
@@ -436,8 +407,7 @@ Require(
     "a disabled-inclusive query omitted a disabled entity");
 Observe("query semantics: enabled-only excludes disabled entities, inclusive returns them");
 
-EntityRevision revision = entities.GetEntityRevision(subject);
-entities.Destroy(subject, revision);
+entities.Destroy(subject);
 Require(!entities.IsAlive(subject), "a destroyed entity still reports alive");
 
 // Batch creation with a caller-chosen id is the staged path a spawn table would
@@ -446,7 +416,7 @@ EntityId reserved = new(900UL);
 string batchCreateSurface = "committed";
 try
 {
-    entities.Commit(new EntityBatch().Create(reserved, EntityLifecycle.Active), entities.Revision);
+    entities.Commit(new EntityBatch().Create(reserved, EntityLifecycle.Active));
 }
 catch (Exception exception)
 {

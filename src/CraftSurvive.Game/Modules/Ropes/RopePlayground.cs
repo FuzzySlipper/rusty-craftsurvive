@@ -169,8 +169,7 @@ internal sealed class RopePlayground(IEngineContext engine, TerrainWorld terrain
 
     internal void Rebase(SpatialSession session, WorldOriginCommitReceipt receipt, Vector3 translation)
     {
-        DynamicsWorldReadout state = engine.Dynamics.ReadWorld(new(world!));
-        engine.Dynamics.RebaseWorldOrigin(new(world!, session, receipt, state.EntityRevision, state.Generation));
+        engine.Dynamics.RebaseWorldOrigin(new(world!, session, receipt));
         originOffset += translation;
         last = last with { CharacterPoint = last.CharacterPoint + translation, AnchorPoint = last.AnchorPoint + translation };
         Publish();

@@ -506,7 +506,7 @@ internal sealed class LiveSubstrateProof
             material, VoxelEditKind.Set,
             new EngineVoxelAddress(cell.X - 1 + i % 4, cell.Y + (i / 4) % 4, cell.Z - 1 + i / 16), material)).ToArray();
         VoxelSceneReadout before = engine.Voxel.ReadScene(new(terrain.Session));
-        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new(terrain.Session, before.SourceRevision, edits));
+        VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new(terrain.Session, edits));
         Report($"voxel batch accepted: case={test}; count={count}; material={material}; status={receipt.Status}; changed={receipt.ChangedVoxels}; updates={voxelProbeUpdate}");
         if (receipt.Status != VoxelEditStatus.Accepted)
             throw new InvalidOperationException($"Voxel probe transaction was not accepted: {receipt}");
@@ -874,9 +874,7 @@ internal sealed class LiveSubstrateProof
             try
             {
                 validator.Publish(
-                    new EntityGraphicsProjectionEntry[] { new(untransformed, probe, true, RenderLayer.Scene, null) },
-                    MaximumProjectedEntities,
-                    null);
+                    new EntityGraphicsProjectionEntry[] { new(untransformed, probe, true, RenderLayer.Scene, null) });
             }
             catch (InvalidOperationException exception)
             {
@@ -889,7 +887,7 @@ internal sealed class LiveSubstrateProof
             Report($"entity projection validation: an entity without {nameof(EngineComponentTypes.Transform)} was refused: {surface}");
         }
 
-        bare.Destroy(untransformed, bare.GetEntityRevision(untransformed));
+        bare.Destroy(untransformed);
 
         // The publish itself replaces the whole appearance snapshot, and the
         // Engine refuses a snapshot that drops a projected animation target or a
@@ -909,9 +907,7 @@ internal sealed class LiveSubstrateProof
             try
             {
                 EntityGraphicsProjectionReceipt receipt = projection.Publish(
-                    new EntityGraphicsProjectionEntry[] { new(entity, marker, true, RenderLayer.Scene, null) },
-                    MaximumProjectedEntities,
-                    null);
+                    new EntityGraphicsProjectionEntry[] { new(entity, marker, true, RenderLayer.Scene, null) });
                 Report($"entity projection: published {receipt.Facts.Length} fact(s); the product's own snapshot publication would be replaced");
             }
             catch (EngineCallException exception)
@@ -921,7 +917,7 @@ internal sealed class LiveSubstrateProof
         }
         finally
         {
-            store.Destroy(entity, store.GetEntityRevision(entity));
+            store.Destroy(entity);
         }
     }
 
@@ -934,10 +930,8 @@ internal sealed class LiveSubstrateProof
     {
         try
         {
-            VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
             VoxelEditReceipt cleared = Apply(
                 session,
-                scene.SourceRevision,
                 new VoxelEdit(VoxelEditKind.Clear, site, 0));
             Report($"cleanup: cleared the proof cell, status {cleared.Status}");
         }
@@ -954,7 +948,6 @@ internal sealed class LiveSubstrateProof
         uint encoded = VoxelCellState.Encode(ProofQuarterTurns, ProofVariant);
         VoxelEditReceipt placed = Apply(
             session,
-            before.SourceRevision,
             new VoxelEdit(encoded, VoxelEditKind.Set, site, TerrainConstants.StoneMaterial));
         Require(placed.Status == VoxelEditStatus.Accepted, $"placing a stateful cell surfaced as {placed.Status}");
         if (placed.Status != VoxelEditStatus.Accepted)
@@ -981,7 +974,6 @@ internal sealed class LiveSubstrateProof
         uint rotated = VoxelCellState.Encode(SecondQuarterTurns, EmptyState);
         VoxelEditReceipt restated = Apply(
             session,
-            placed.AcceptedRevision,
             new VoxelEdit(rotated, VoxelEditKind.Set, site, TerrainConstants.StoneMaterial));
         Require(restated.Status == VoxelEditStatus.Accepted, $"a state-only edit surfaced as {restated.Status}");
         VoxelReadout after = engine.Voxel.Read(new VoxelReadRequest(session, site));
@@ -1147,94 +1139,33 @@ internal sealed class LiveSubstrateProof
         Report($"swim step outside the volume: mode={dry.Movement.Mode} immersion={dry.Movement.Immersion:F3} headSubmerged={dry.Movement.HeadSubmerged}");
     }
 
-    // ------------------------------------------------- background residency
+    // ------------------------------------------------- residency admission
     /// <summary>
-    /// Proves the Engine-owned preparation path that S2's streaming depends on:
-    /// start a preparation off the update path, poll it without blocking, commit
-    /// it, and cancel a second one. The product re-applies residency while the
-    /// showcase fills, and a commit rechecks generations, so attempts are bounded
-    /// and a rejection is reported as the documented stale-candidate guard rather
-    /// than treated as a failure.
+    /// Proves the residency path S2's streaming depends on: one
+    /// <c>ApplyResidency</c> call admits a distant generated chunk in place and
+    /// it becomes resident. The Engine applies residency directly since #8739;
+    /// there is no background preparation to poll or cancel.
     /// </summary>
     private void AdvanceResidencyPreparation()
     {
         SpatialSession session = terrain.Session;
-        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
-
-        if (stage % ResidencyDiagnosticFrames == 0)
+        TerrainChunkAddress target = DistantChunk(ResidencyTargetChunkOffset);
+        VoxelResidencyTransaction? transaction = terrain.PlanChunkAdmission(session, target);
+        if (transaction is null)
         {
-            Report($"residency stage frame {stage}: source revision {scene.SourceRevision}, resident chunks {scene.ResidentChunkCount}");
-        }
-
-        if (preparation == 0UL)
-        {
-            if (residencyAttempts >= MaximumResidencyAttempts)
-            {
-                Report($"residency preparation: no committed preparation after {residencyAttempts} attempt(s)");
-                FinishProof(session);
-                return;
-            }
-
-            TerrainChunkAddress target = DistantChunk(ResidencyTargetChunkOffset + residencyAttempts);
-            VoxelResidencyTransaction? transaction = terrain.PlanChunkAdmission(session, target);
-            if (transaction is null)
-            {
-                Report("residency preparation: skipped, this scene does not generate residency");
-                FinishProof(session);
-                return;
-            }
-
-            residentBefore = scene.ResidentChunkCount;
-            VoxelPreparationReceipt started = engine.Voxel.StartResidencyPreparation(transaction.Value);
-            preparation = started.Preparation;
-            residencyAttempts++;
-            Require(
-                started.Status is VoxelPreparationStatus.Pending or VoxelPreparationStatus.Ready,
-                $"starting a preparation reported {started.Status}");
-            Report($"residency preparation attempt {residencyAttempts}: started for chunk {target}, status {started.Status}, resident chunks {residentBefore}, source revision {scene.SourceRevision}");
+            Report("residency admission: skipped, this scene does not generate residency");
+            FinishProof(session);
             return;
         }
 
-        VoxelPreparationRequest request = new(session, preparation);
-        VoxelPreparationReceipt polled = engine.Voxel.PollResidencyPreparation(request);
-        switch (polled.Status)
-        {
-            case VoxelPreparationStatus.Pending:
-                if (!reportedPending)
-                {
-                    reportedPending = true;
-                    Report("residency preparation: polled while pending, without blocking the frame");
-                }
-
-                return;
-
-            case VoxelPreparationStatus.Ready:
-            {
-                VoxelPreparationReceipt committed = engine.Voxel.CommitResidencyPreparation(request);
-                if (committed.Status != VoxelPreparationStatus.Committed)
-                {
-                    Report($"residency preparation attempt {residencyAttempts}: commit reported {committed.Status}, so this candidate was rejected as stale");
-                    preparation = 0UL;
-                    reportedPending = false;
-                    return;
-                }
-
-                VoxelSceneReadout after = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
-                Require(
-                    after.ResidentChunkCount > residentBefore,
-                    $"a committed preparation left {after.ResidentChunkCount} resident chunks, was {residentBefore}");
-                Report($"residency preparation: committed on attempt {residencyAttempts}, resident chunks {residentBefore} -> {after.ResidentChunkCount}");
-                ProveCancellation(session);
-                FinishProof(session);
-                return;
-            }
-
-            default:
-                Report($"residency preparation attempt {residencyAttempts}: poll reported {polled.Status}, so this candidate was dropped");
-                preparation = 0UL;
-                reportedPending = false;
-                return;
-        }
+        VoxelSceneReadout before = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
+        VoxelResidencyReceipt admitted = engine.Voxel.ApplyResidency(transaction.Value);
+        VoxelSceneReadout after = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
+        Require(
+            after.ResidentChunkCount > before.ResidentChunkCount,
+            $"admitting chunk {target} left {after.ResidentChunkCount} resident chunks, was {before.ResidentChunkCount}");
+        Report($"residency admission: chunk {target} admitted in place ({admitted.AdmittedCount} admitted), resident chunks {before.ResidentChunkCount} -> {after.ResidentChunkCount}");
+        FinishProof(session);
     }
 
     private void FinishProof(SpatialSession session)
@@ -1297,27 +1228,6 @@ internal sealed class LiveSubstrateProof
         Report($"generation determinism: snapshot {first} across the live Engine keyed RNG");
     }
 
-    private void ProveCancellation(SpatialSession session)
-    {
-        TerrainChunkAddress target = DistantChunk(ResidencyTargetChunkOffset + 1L);
-        VoxelResidencyTransaction? transaction = terrain.PlanChunkAdmission(session, target);
-        if (transaction is null)
-        {
-            return;
-        }
-
-        VoxelPreparationReceipt started = engine.Voxel.StartResidencyPreparation(transaction.Value);
-        Require(
-            started.Status is VoxelPreparationStatus.Pending or VoxelPreparationStatus.Ready,
-            $"starting the cancellation probe reported {started.Status}");
-        VoxelPreparationReceipt cancelled = engine.Voxel.CancelResidencyPreparation(
-            new VoxelPreparationRequest(session, started.Preparation));
-        Require(
-            cancelled.Status == VoxelPreparationStatus.Cancelled,
-            $"cancelling a preparation reported {cancelled.Status}");
-        Report($"residency preparation: a second preparation for chunk {target} cancelled cleanly");
-    }
-
     private TerrainChunkAddress DistantChunk(long offset)
     {
         Vector3 position = player.WorldPosition;
@@ -1350,14 +1260,11 @@ internal sealed class LiveSubstrateProof
 
             VoxelResidencyReceipt admitted = engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(
                 dungeon,
-                0UL,
-                VoxelResidencyHistoryPolicy.RejectIfNonEmpty,
                 new VoxelResidencyOperation[]
                 {
                     new(
                         VoxelResidencyOperationKind.Admit,
                         new VoxelChunkIdentity(0L, 0L, 0L),
-                        0UL,
                         0U,
                         (uint)slots.Length),
                 },
@@ -1406,8 +1313,8 @@ internal sealed class LiveSubstrateProof
             new PlanarNavCell(start.X + NavGoalCells, start.Y, start.Z),
             MaxVisitedCells));
 
-    private VoxelEditReceipt Apply(SpatialSession session, ulong expectedRevision, VoxelEdit edit)
-        => engine.Voxel.ApplyEdits(new VoxelEditTransaction(session, expectedRevision, new VoxelEdit[] { edit }));
+    private VoxelEditReceipt Apply(SpatialSession session, VoxelEdit edit)
+        => engine.Voxel.ApplyEdits(new VoxelEditTransaction(session, new VoxelEdit[] { edit }));
 
     private bool TryFindAirSite(SpatialSession session, out EngineVoxelAddress site)
     {

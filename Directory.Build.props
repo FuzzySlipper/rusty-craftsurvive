@@ -3,6 +3,6 @@
     <!-- The one Engine SDK/runtime pair pin, read by the product, the focused
          managed checks and CI. `rusty install` installs it; only
          `rusty update` changes it. -->
-    <RustyEnginePackageVersion>0.1.0-dev.1aecde636cd3</RustyEnginePackageVersion>
+    <RustyEnginePackageVersion>0.1.0-dev.56c9322a179b</RustyEnginePackageVersion>
   </PropertyGroup>
 </Project>

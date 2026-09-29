@@ -25,7 +25,6 @@ internal sealed class TerrainWorld : IDisposable
     private readonly Queue<TerrainChunkAddress> pendingCacheWrites = new();
     private readonly TerrainResidencyPolicy residencyPolicy;
     private readonly TerrainOverlayState overlay;
-    private readonly Dictionary<TerrainChunkAddress, VoxelChunkLease> leases = [];
     private readonly Dictionary<TerrainChunkAddress, VoxelChunkReadout> residentChunks = [];
     private TerrainAtlasCatalog? atlasCatalog;
     private SpatialSession? session;
@@ -192,7 +191,6 @@ internal sealed class TerrainWorld : IDisposable
         VoxelEdit[] edits = accepted.Edits.Select(ToEngineEdit).ToArray();
         VoxelEditReceipt receipt = engine.Voxel.ApplyEdits(new VoxelEditTransaction(
             Session,
-            scene.SourceRevision,
             edits));
         long tApplyDone = Stopwatch.GetTimestamp();
         // The front half, timed for the same reason the receipt path was: the cost of an accepted
@@ -214,22 +212,6 @@ internal sealed class TerrainWorld : IDisposable
                     spatialBefore,
                     scene,
                     receipt);
-
-            case VoxelEditStatus.StaleRevision:
-            {
-                // The scene can have changed since the read used for this transaction.
-                // Refresh the retained Engine projection to that current authority, but
-                // never replay an edit that was evaluated against the old revision.
-                VoxelSceneReadout currentScene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
-                VoxelScenePresentationReadout currentPresentation = RefreshPresentation();
-                PublishUi();
-                return new TerrainWorldEditStaleRevision(
-                    center,
-                    scene.SourceRevision,
-                    receipt,
-                    currentScene,
-                    currentPresentation);
-            }
 
             case VoxelEditStatus.Accepted:
             {
@@ -355,12 +337,6 @@ internal sealed class TerrainWorld : IDisposable
 
     public void Dispose()
     {
-        foreach (VoxelChunkLease lease in leases.Values)
-        {
-            lease.Dispose();
-        }
-
-        leases.Clear();
         residentChunks.Clear();
         presentation?.Dispose();
         presentation = null;
@@ -405,9 +381,7 @@ internal sealed class TerrainWorld : IDisposable
         TerrainWorldEditRejected rejected => string.Create(CultureInfo.InvariantCulture,
             $"outcome=rejected;target={FormatVoxel(rejected.Target)};reason={rejected.Rejection.Reason};rejected={FormatVoxel(rejected.Rejection.Address)}"),
         TerrainWorldEditNoChanges noChanges => string.Create(CultureInfo.InvariantCulture,
-            $"outcome=no-changes;kind={noChanges.Kind};picked={FormatVoxel(noChanges.Picked)};face={noChanges.Face};target={FormatVoxel(noChanges.Target)};beforePresent={noChanges.TargetBefore.Present};beforeMaterial={noChanges.TargetBefore.MaterialSlot};sceneRevision={noChanges.SceneBefore.SourceRevision};spatialRevision={noChanges.SpatialBefore.SourceRevision};authorityMatch={noChanges.SceneBefore.AuthorityHash == noChanges.SpatialBefore.AuthorityHash};currentRevision={noChanges.Receipt.CurrentRevision}"),
-        TerrainWorldEditStaleRevision stale => string.Create(CultureInfo.InvariantCulture,
-            $"outcome=stale-revision;target={FormatVoxel(stale.Target)};expectedRevision={stale.ExpectedSceneRevision};currentRevision={stale.Receipt.CurrentRevision};sceneRevision={stale.CurrentScene.SourceRevision};presentationSourceRevision={stale.CurrentPresentation.SourceRevision};presentationMeshRevision={stale.CurrentPresentation.MeshRevision}"),
+            $"outcome=no-changes;kind={noChanges.Kind};picked={FormatVoxel(noChanges.Picked)};face={noChanges.Face};target={FormatVoxel(noChanges.Target)};beforePresent={noChanges.TargetBefore.Present};beforeMaterial={noChanges.TargetBefore.MaterialSlot};sceneRevision={noChanges.SceneBefore.SourceRevision};spatialRevision={noChanges.SpatialBefore.SourceRevision};authorityMatch={noChanges.SceneBefore.AuthorityHash == noChanges.SpatialBefore.AuthorityHash};currentRevision={noChanges.Receipt.AcceptedRevision}"),
         TerrainWorldEditApplied applied => string.Create(CultureInfo.InvariantCulture,
             $"outcome=accepted;target={FormatVoxel(applied.Target)};changed={applied.Receipt.ChangedVoxels};sceneRevision={applied.Receipt.AcceptedRevision};meshRevision={applied.Receipt.MeshRevision};presentationSourceRevision={applied.Presentation.SourceRevision};presentationMeshRevision={applied.Presentation.MeshRevision}"),
         _ => throw new InvalidOperationException($"Unsupported terrain edit result '{result.GetType().Name}'."),
@@ -433,11 +407,8 @@ internal sealed class TerrainWorld : IDisposable
         List<VoxelResidencyOperation> operations = [];
         List<uint> materialSlots = [];
         AddChunkAdmission(plan.Chunk(address), operations, materialSlots);
-        VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(session));
         return new VoxelResidencyTransaction(
             session,
-            scene.SourceRevision,
-            VoxelResidencyHistoryPolicy.ResetToPublishedAuthority,
             operations.ToArray(),
             materialSlots.ToArray());
     }
@@ -449,12 +420,6 @@ internal sealed class TerrainWorld : IDisposable
 
         if (courtyard is not null) return false;
         TerrainResidencyPlan plan = residencyPolicy.PlanFor(center, overlay);
-
-        foreach (TerrainChunkAddress address in leases.Keys.Where(address => !plan.Requested.Contains(address)).ToArray())
-        {
-            leases[address].Dispose();
-            leases.Remove(address);
-        }
 
         List<VoxelResidencyOperation> operations = [];
         List<uint> materialSlots = [];
@@ -472,9 +437,9 @@ internal sealed class TerrainWorld : IDisposable
             }
         }
 
-        foreach ((TerrainChunkAddress address, VoxelChunkReadout readout) in residentChunks)
+        foreach (TerrainChunkAddress address in residentChunks.Keys)
         {
-            if (plan.Retained.Contains(address) || leases.ContainsKey(address) || operations.Count == plan.MaximumOperationsPerTick)
+            if (plan.Retained.Contains(address) || operations.Count == plan.MaximumOperationsPerTick)
             {
                 continue;
             }
@@ -490,31 +455,17 @@ internal sealed class TerrainWorld : IDisposable
             operations.Add(new VoxelResidencyOperation(
                 VoxelResidencyOperationKind.Evict,
                 ToEngineChunk(address),
-                readout.ContentHash,
                 0,
                 0));
         }
 
         if (operations.Count > 0)
         {
-            VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
             engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(
                 Session,
-                scene.SourceRevision,
-                VoxelResidencyHistoryPolicy.ResetToPublishedAuthority,
                 operations.ToArray(),
                 materialSlots.ToArray()));
             RefreshResidentChunks(operations.Select(operation => FromEngineChunk(operation.Chunk)));
-        }
-
-        foreach (TerrainChunkAddress address in plan.Requested)
-        {
-            if (!residentChunks.ContainsKey(address) || leases.ContainsKey(address))
-            {
-                continue;
-            }
-
-            leases.Add(address, engine.Voxel.AcquireChunkLease(new VoxelChunkLeaseRequest(Session, ToEngineChunk(address))));
         }
 
         return operations.Count > 0;
@@ -568,7 +519,6 @@ internal sealed class TerrainWorld : IDisposable
         operations.Add(new VoxelResidencyOperation(
             VoxelResidencyOperationKind.Admit,
             ToEngineChunk(chunk.Address),
-            0,
             offset,
             checked((uint)chunk.Materials.Length)));
     }
@@ -771,13 +721,6 @@ internal sealed record TerrainWorldEditNoChanges(
     VoxelSceneReadout SceneBefore,
     VoxelEditReceipt Receipt) : TerrainWorldEditResult;
 
-internal sealed record TerrainWorldEditStaleRevision(
-    VoxelAddress Target,
-    ulong ExpectedSceneRevision,
-    VoxelEditReceipt Receipt,
-    VoxelSceneReadout CurrentScene,
-    VoxelScenePresentationReadout CurrentPresentation) : TerrainWorldEditResult;
-
 internal sealed record TerrainWorldEditApplied(
     VoxelAddress Target,
     VoxelEditReceipt Receipt,
@@ -795,8 +738,6 @@ internal readonly record struct TerrainPlayerUiFacts(
     double PlatformX,
     double PlatformY,
     double PlatformZ);
-
-
 
 /// <summary>
 /// What the journal knows, as numbers, for the product's UI projection. It is a flat

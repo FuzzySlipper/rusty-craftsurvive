@@ -516,7 +516,7 @@ public sealed class CreatureModule : IDebugCommandModule
         appearances.Clear();
         foreach (EntityId entity in entities.Values)
         {
-            entityWorld.Destroy(entity, entityWorld.GetEntityRevision(entity));
+            entityWorld.Destroy(entity);
         }
 
         entities.Clear();
@@ -966,7 +966,7 @@ public sealed class CreatureModule : IDebugCommandModule
         // than only the ones the readout happens to print.
         if (entities.TryGetValue(target, out EntityId leaving))
         {
-            entityWorld.Destroy(leaving, entityWorld.GetEntityRevision(leaving));
+            entityWorld.Destroy(leaving);
         }
 
         positions.Remove(target);
