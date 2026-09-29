@@ -12,14 +12,12 @@ below were invisible to `dotnet build` and to every managed check.
 Answers, against a real session, whether the Engine mechanisms campaign #8595 is
 priced on actually work here:
 
-`<pair>` is the installed runtime pack under `.runtime/`; the current revision is declared in
-`eng/EnginePair.props` and is deliberately not repeated here, because a pair named in a document
-is a pair that goes stale in it.
+`rusty dev` runs the pair pinned in `Directory.Build.props`; the revision is deliberately not
+repeated here, because a pair named in a document is a pair that goes stale in it.
 
 ```sh
 CRAFTSURVIVE_SCENE=traversal CRAFTSURVIVE_PROOF=substrate \
-  ./.runtime/<pair>/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/<pair>/runtime-pack \
+  rusty dev \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --bind-host 127.0.0.1 --port 37321
 ```
@@ -164,8 +162,7 @@ The lane itself is verified up to session allocation. `playtest games` lists
 
 ```sh
 # 1. serve the world on the lane's declared port
-CRAFTSURVIVE_SCENE=traversal ./.runtime/<pair>/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/<pair>/runtime-pack \
+CRAFTSURVIVE_SCENE=traversal rusty dev \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --bind-host 0.0.0.0 --port 37300
 

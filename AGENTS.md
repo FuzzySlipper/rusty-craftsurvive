@@ -24,18 +24,18 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 
 ## Installed development pair
 
-- `.runtime/pair-1aecde636cd3/runtime-pack/` is the current runtime pack. Its `bin/rusty dev`
-  command is the only normal loader and stages the CoreCLR product.
-- `.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.1aecde636cd3.nupkg` is the exact SDK
-  package pinned through `eng/EnginePair.props`, which the product project and the
-  focused managed checks all consume. Do not substitute a package,
-  runtime pack, or backup directory independently; update the pair together.
+- `<RustyEnginePackageVersion>` in `Directory.Build.props` is the one Engine
+  SDK/runtime pair pin, read by the product project, the focused managed checks
+  and CI. The Engine `rusty` CLI installs it (`rusty install`), runs it
+  (`rusty dev`, the only normal loader), reports it (`rusty status`) and moves
+  it (`rusty update`). Do not install or substitute a package or runtime pack
+  by hand.
 - During joint Engine/product work, do not keep this product on an older
   known-good pair after the intended Engine revision advances. Update the
   declared revision; if its exact pair has not been staged yet, leave the
   resulting build failure visible and report it instead of pinning backward.
-- `NuGet.Config` intentionally resolves the SDK from that installed feed. The
-  product does not discover or require an Engine source checkout.
+- `rusty` supplies the installed pair's SDK feed to restores; the product has
+  no feed of its own and does not discover or require an Engine source checkout.
 - An Engine contributor may override only deliberately: pass
   `--engine-source <absolute-path>` to `rusty dev`, which supplies the matching
   MSBuild properties. A direct MSBuild invocation instead sets

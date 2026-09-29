@@ -28,9 +28,7 @@ src/
   ui/                         DOM-only companion source
 content/                      canonical product content and provenance
 docs/                         current ownership and limitations
-.runtime/
-  pair-1aecde636cd3/runtime-pack/  paired `rusty dev` runtime
-  sdk-feed/                   paired Rusty.Engine package feed
+Directory.Build.props         the one Engine SDK/runtime pair pin
 ```
 
 The SDK creates its CoreCLR and NativeAOT composition below ignored `obj/`.
@@ -46,11 +44,14 @@ Install the UI dependency once:
 pnpm install --frozen-lockfile
 ```
 
-For a standalone development session, use the installed runtime pack:
+The Engine's `rusty` command installs and runs the pinned pair. Get it once
+with the Engine bootstrap
+(`curl -fsSL https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/main/scripts/install-rusty.sh | bash`),
+then install the pin and start a standalone development session:
 
 ```bash
-./.runtime/pair-1aecde636cd3/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-1aecde636cd3/runtime-pack \
+rusty install
+rusty dev \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --bind-host 0.0.0.0 --port 4419
 ```
@@ -59,20 +60,18 @@ Den uses the same command through `.den-serve.json`. When a broker-owned
 session is already live, inspect or use that owner rather than launching a
 second process.
 
-`.runtime/pair-1aecde636cd3/runtime-pack/` and
-`.runtime/sdk-feed/Rusty.Engine.0.1.0-dev.1aecde636cd3.nupkg` form one installed,
-exactly matched pair. Keep the pack, SDK feed, and project version together;
-do not select a backup pack or replace only one artifact. The declared version
-lives in one place, `eng/EnginePair.props`, consumed by the product project, the
-focused managed checks, and the verification workflow, so a pair bump cannot
-leave one of them behind.
+`<RustyEnginePackageVersion>` in `Directory.Build.props` is the one pin, read by
+the product project, the focused managed checks and CI; `rusty status` shows it
+and whether it is installed. Move it only with `rusty update`, which lists the
+release notes to read. Plain `dotnet run` of the focused checks resolves the SDK
+once `rusty` has restored it, or after `export $(rusty env)`.
 
 Engine contributors can opt into a source build only with an explicit Engine
 source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
 
 ```bash
-./.runtime/pair-1aecde636cd3/runtime-pack/bin/rusty dev \
+rusty dev \
   --engine-source /absolute/path/to/rusty-engine \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj
 
@@ -128,8 +127,7 @@ The authoring lane is exercised by one documented flow — the study scene plus 
 focused lanes that cover its recipe and artifacts:
 
 ```sh
-CRAFTSURVIVE_SCENE=courtyard ./.runtime/pair-1aecde636cd3/runtime-pack/bin/rusty dev \
-  --runtime ./.runtime/pair-1aecde636cd3/runtime-pack \
+CRAFTSURVIVE_SCENE=courtyard rusty dev \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
   --live-debug --debugger --bind-host 127.0.0.1 --port 37300
 dotnet run --project tests/Workbench -c Release    # level plans and authored recipes

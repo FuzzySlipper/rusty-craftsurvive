@@ -13,7 +13,6 @@ import os, re, subprocess, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = sys.argv[1] if len(sys.argv) > 1 else "37561"
 ORIGIN = f"http://127.0.0.1:{PORT}"
-PACK = f"{ROOT}/.runtime/pair-1aecde636cd3/runtime-pack"
 PLAYWRIGHT = "/home/agent/.local/share/crew-playtest/browser/node_modules/playwright"
 CHROMIUM = "/home/agent/.local/share/crew-playtest/bin/chromium-local"
 
@@ -45,7 +44,7 @@ def stored_bytes(line):
 
 def main():
     server = subprocess.Popen(
-        [f"{PACK}/bin/rusty", "dev", "--runtime", PACK,
+        ["rusty", "dev",
          "--project", f"{ROOT}/src/CraftSurvive.Game/CraftSurvive.Game.csproj",
          "--live-debug", "--debugger", "--bind-host", "127.0.0.1", "--port", PORT],
         cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
