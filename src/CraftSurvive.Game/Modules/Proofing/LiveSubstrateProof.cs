@@ -909,6 +909,10 @@ internal sealed class LiveSubstrateProof
                 EntityGraphicsProjectionReceipt receipt = projection.Publish(
                     new EntityGraphicsProjectionEntry[] { new(entity, marker, true, RenderLayer.Scene, null) });
                 Report($"entity projection: published {receipt.Facts.Length} fact(s); the product's own snapshot publication would be replaced");
+                // The published snapshot now holds the marker, and the Engine refuses to
+                // dispose an appearance a snapshot still uses. Publish an empty snapshot
+                // first; the product republishes its own on the next update.
+                projection.Publish(ReadOnlyMemory<EntityGraphicsProjectionEntry>.Empty);
             }
             catch (EngineCallException exception)
             {

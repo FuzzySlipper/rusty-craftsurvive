@@ -50,13 +50,11 @@ recorded in the task campaign rather than here. Expected output:
 [proof] chunk cache: 4096 voxels stored and read back in 2.85 ms write, 0.41 ms read, identical to fresh generation
 [proof] product tick cost over 20 updates with 54 resident chunks: mean 3.549 ms, worst 58.496 ms in the product's residency synchronisation (Engine render and frame time are not included)
 [proof] dimension load: session created and one chunk admitted in 1.22 ms
-[proof] residency preparation attempt 1: started for chunk (5, 0, 0), status Pending, resident chunks 18, source revision 5
-[proof] residency preparation: committed on attempt 1, resident chunks 18 -> 19
-[proof] residency preparation: a second preparation for chunk (6, 0, 0) cancelled cleanly
+[proof] residency admission: chunk TerrainChunkAddress { X = 5, Y = 0, Z = -2 } admitted in place (1 admitted), resident chunks 54 -> 55
 [proof] dimension: second session built with its own residency, resident chunks 1, solid voxels 512, authority 6183767077223527439
 [proof] dimension: the first world still reports 19 resident chunks after the second session was disposed
 [proof] entity projection validation: an entity without Transform was refused: Appearance entity 1 must be active with a Transform component.
-[proof] entity projection: publishing a standalone snapshot is refused while the product retains a ghost plate (...); projections require whole-snapshot ownership
+[proof] entity projection: published 1 fact(s); the product's own snapshot publication would be replaced
 [proof] live substrate proof PASSED
 ```
 
@@ -82,12 +80,10 @@ What that establishes:
   derives 926 walkable cells from the same voxel authority collision uses, after
   which the same query answers `Reached` with a five-cell path. Query cells are
   relative to the published box, not world voxel coordinates.
-- **Background residency preparation works and is the streaming path.** A preparation
-  started for a chunk outside the product's own plan reported `Pending` without
-  blocking the frame, reached `Ready`, committed to `Committed`, and raised the
-  resident chunk count from 18 to 19; a second preparation cancelled cleanly. The
-  product composes the payload and the Engine builds the projection off the
-  admitted update path.
+- **Residency admission is applied in place.** One `ApplyResidency` call for a
+  chunk outside the product's own plan raised the resident chunk count by one.
+  The product composes the payload; the Engine removed background preparation
+  (Engine #8739), so there is nothing to poll, commit or cancel.
 - **Dimensions are product-owned and need no runtime restart.** A second
   `SpatialSession` was created inside the running product with its own
   configuration and residency (one chunk, 512 solid voxels, its own authority
