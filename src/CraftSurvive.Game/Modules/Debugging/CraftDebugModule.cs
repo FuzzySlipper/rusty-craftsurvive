@@ -233,7 +233,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.terrain.materials", Description = "Reads the copied Engine directional terrain material mapping.")]
     public string ReadTerrainMaterials()
     {
-        VoxelSceneMaterialMappingLeaseReceipt mapping = terrain.ReadMaterialMapping();
+        VoxelSceneMaterialMappingResult mapping = terrain.ReadMaterialMapping();
         uint grassRows = 0;
         uint dirtRows = 0;
         uint stoneRows = 0;

@@ -338,14 +338,6 @@ internal sealed class PlayerController : IDisposable
         return TerrainWorld.FormatEditReadout(lastTerrainEdit);
     }
 
-    /// <summary>Republishes player-owned presentation without advancing simulation state.</summary>
-    internal void Attach()
-    {
-        EnsureStarted();
-        PublishCamera();
-        terrain.PublishPlayerUi(ToUiFacts());
-    }
-
     /// <summary>Restarts a courtyard trial without replacing Engine-owned dynamic objects.</summary>
     internal string ResetRopePlayground()
     {
@@ -567,36 +559,22 @@ internal sealed class PlayerController : IDisposable
         ];
         using WorldOriginPrepared prepared = engine.WorldOrigin.Prepare(new WorldOriginPrepareRequest(
             terrain.Session,
-            origin.Revision,
-            origin.VoxelSourceRevision,
-            origin.StaticMeshRevision,
             playerGlobal.CellX,
             origin.CellY,
             playerGlobal.CellZ,
             roots));
-        WorldOriginAffectedAtReceipt player = engine.WorldOrigin.ReadAffectedAt(
-            new WorldOriginAffectedAtRequest(prepared, 0U));
-        WorldOriginAffectedAtReceipt platform = engine.WorldOrigin.ReadAffectedAt(
-            new WorldOriginAffectedAtRequest(prepared, 1U));
-        if (!player.Present || player.EntityId != PlayerConstants.PlayerEntityId
-            || !platform.Present || platform.EntityId != PlayerConstants.PlatformEntityId)
-        {
-            throw new InvalidOperationException("Engine world-origin preparation did not retain CraftSurvive roots.");
-        }
-
+        // Prepare returns one affected transform per root, in request order.
+        ReadOnlySpan<WorldOriginAffectedTransform> affected = engine.WorldOrigin.ReadPrepared(
+            new WorldOriginPreparedReadRequest(prepared)).Affected.Span;
         WorldOriginCommitReceipt committed = engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
         cameraCut = true;
-        playerLocal = player.LocalTransform.Translation;
-        platformLocal = platform.LocalTransform.Translation;
+        playerLocal = affected[0].LocalTransform.Translation;
+        platformLocal = affected[1].LocalTransform.Translation;
         Vector3 localTranslation = playerLocal - playerBeforeRebase;
         terrain.TranslateCourtyard(localTranslation);
         Ropes.Rebase(terrain.Session, committed, localTranslation);
-        motion = motion with
+        motion = motion.Rebased(localTranslation) with
         {
-            TetherAnchorPoint = motion.TetherAnchorPoint + localTranslation,
-            SupportPreviousTranslation = motion.SupportPreviousTranslation + localTranslation,
-            FallOriginY = motion.FallOriginY + localTranslation.Y,
-            PeakY = motion.PeakY + localTranslation.Y,
             CollisionWorldHash = PlayerConstants.UninitializedCollisionWorldHash,
         };
         return true;

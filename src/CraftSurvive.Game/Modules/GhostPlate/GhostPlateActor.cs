@@ -336,20 +336,6 @@ internal sealed class GhostPlateActor : IDisposable
         Update();
     }
 
-    /// <summary>
-    /// Attachment is deliberately side-effect free. Publishing the complete
-    /// source snapshot lets the Engine rebase its retained ghost projector;
-    /// this owner never recreates capture or emulates attachment in C#.
-    /// </summary>
-    internal void Attach()
-    {
-        EnsureStarted();
-        if (presentation is not null)
-        {
-            RefreshReadout();
-        }
-    }
-
     /// <summary>Returns only retained state captured during an Engine product call.</summary>
     internal string DebugReadout()
     {

@@ -329,7 +329,7 @@ internal sealed class TerrainAtlasCatalog : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(transparency), transparency, "Unsupported block transparency."),
     };
 
-    private void ValidateCatalog(AuthoredCatalogReadoutLeaseReceipt readout)
+    private void ValidateCatalog(AuthoredCatalogReadoutResult readout)
     {
         int materialsExpected = 0;
         foreach (BlockDefinition block in BlockRegistry.BoundBlocks)

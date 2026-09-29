@@ -393,7 +393,7 @@ public sealed class CreatureModule : IDebugCommandModule
                         tuning.SightRange, -1.0, 1.0)];
                 PerceptionTarget[] targets =
                     [new PerceptionTarget(PlayerConstants.PlayerEntityId, playerPosition)];
-                PerceptionReadoutLeaseReceipt receipt = engine.Perception.QueryVisibility(
+                PerceptionReadoutResult receipt = engine.Perception.QueryVisibility(
                     new PerceptionQueryRequest(
                         terrain.Session, observers, targets, System.ReadOnlyMemory<Rusty.Engine.SpatialEntityCollider>.Empty, 0UL, 0, CreatureConstants.PerceptionPageSize));
                 visible = false;
@@ -625,13 +625,13 @@ public sealed class CreatureModule : IDebugCommandModule
             PlanarNavCell entryGoal = NearestEntry(new Vector2(to.X, to.Z), to.Y);
             try
             {
-                NavigationPathReadout entryPath = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                NavigationPathResult entryPath = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
                     terrain.Session,
                     entryStart,
                     entryGoal,
                     CreatureConstants.NavigationMaxVisitedCells));
                 definitive = true;
-                return $"{entryPath.Outcome}({entryPath.PathLen}c,{entryPath.Visited}v) entries={navigationEntryCells.Count} start=({entryStart.X},{entryStart.Y},{entryStart.Z}) goal=({entryGoal.X},{entryGoal.Y},{entryGoal.Z})";
+                return $"{entryPath.Outcome}({entryPath.Path.Length}c,{entryPath.Visited}v) entries={navigationEntryCells.Count} start=({entryStart.X},{entryStart.Y},{entryStart.Z}) goal=({entryGoal.X},{entryGoal.Y},{entryGoal.Z})";
             }
             catch (Exception exception)
             {
@@ -660,12 +660,12 @@ public sealed class CreatureModule : IDebugCommandModule
             {
                 try
                 {
-                    NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                    NavigationPathResult path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
                         terrain.Session,
                         CellAt(from.X, from.Y, level),
                         CellAt(to.X, to.Z, level),
                         CreatureConstants.NavigationMaxVisitedCells));
-                    string verdict = $"{path.Outcome}({path.PathLen}c,{path.Visited}v)";
+                    string verdict = $"{path.Outcome}({path.Path.Length}c,{path.Visited}v)";
                     trace.Add($"{level}:{path.Outcome}");
                     if (!path.Outcome.ToString().Contains("Start", StringComparison.Ordinal))
                     {
@@ -847,7 +847,7 @@ public sealed class CreatureModule : IDebugCommandModule
             {
                 try
                 {
-                    NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                    NavigationPathResult path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
                         terrain.Session,
                         new PlanarNavCell(creatureColumn + offsetX, level, creatureRow + offsetZ),
                         new PlanarNavCell(playerColumn, level, playerRow),
@@ -855,7 +855,7 @@ public sealed class CreatureModule : IDebugCommandModule
                     trace.Add($"{level}:{path.Outcome}");
                     if (!path.Outcome.ToString().Contains("Start", StringComparison.Ordinal))
                     {
-                        return $"offset=({offsetX},{offsetZ}) start=({creatureColumn + offsetX},{level},{creatureRow + offsetZ}) -> {path.Outcome}({path.PathLen}c,{path.Visited}v) trace=[{string.Join(",", trace)}]";
+                        return $"offset=({offsetX},{offsetZ}) start=({creatureColumn + offsetX},{level},{creatureRow + offsetZ}) -> {path.Outcome}({path.Path.Length}c,{path.Visited}v) trace=[{string.Join(",", trace)}]";
                     }
                 }
                 catch (Exception exception)
@@ -1027,7 +1027,7 @@ public sealed class CreatureModule : IDebugCommandModule
                 asked++;
                 try
                 {
-                    NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                    NavigationPathResult path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
                         terrain.Session,
                         new PlanarNavCell(x, level, z),
                         new PlanarNavCell(x, level, z),
@@ -1087,7 +1087,7 @@ public sealed class CreatureModule : IDebugCommandModule
                     asked++;
                     try
                     {
-                        NavigationPathReadout path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
+                        NavigationPathResult path = engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
                             terrain.Session,
                             new PlanarNavCell(column, level, row),
                             new PlanarNavCell(column, level, row),

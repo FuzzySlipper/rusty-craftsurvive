@@ -824,14 +824,14 @@ internal sealed class LiveSubstrateProof
             (long)Math.Floor((position.X - worldMin.X) / config.CellSize),
             (long)Math.Floor((position.Y - worldMin.Y) / config.CellSize),
             (long)Math.Floor((position.Z - worldMin.Z) / config.CellSize));
-        NavigationPathReadout path = QueryPath(session, start);
+        NavigationPathResult path = QueryPath(session, start);
         long initialY = start.Y;
         for (long delta = 1L; delta <= NavLevelSweep && IsStartFailure(path.Outcome); delta++)
         {
             foreach (long y in new[] { initialY - delta, initialY + delta })
             {
                 PlanarNavCell candidate = new(start.X, y, start.Z);
-                NavigationPathReadout attempt = QueryPath(session, candidate);
+                NavigationPathResult attempt = QueryPath(session, candidate);
                 if (!IsStartFailure(attempt.Outcome))
                 {
                     start = candidate;
@@ -851,10 +851,10 @@ internal sealed class LiveSubstrateProof
         Require(path.Visited <= MaxVisitedCells, $"the search visited {path.Visited} cells, above its own budget");
         if (path.Outcome == NavigationPathOutcome.Reached)
         {
-            Require(path.PathLen > 0U, "a reached path reports zero cells");
+            Require(path.Path.Length > 0U, "a reached path reports zero cells");
         }
 
-        Report($"navigation query: outcome={path.Outcome} kind={path.Kind} cells={path.PathLen} visited={path.Visited} revision={path.NavigationRevision} from cell ({start.X}, {start.Y}, {start.Z})");
+        Report($"navigation query: outcome={path.Outcome} kind={path.Kind} cells={path.Path.Length} visited={path.Visited} revision={path.NavigationRevision} from cell ({start.X}, {start.Y}, {start.Z})");
     }
 
     // ------------------------------------------------------- entity projection
@@ -1310,7 +1310,7 @@ internal sealed class LiveSubstrateProof
         NavigationPathOutcome.StartNotTraversable or
         NavigationPathOutcome.StartBlocked;
 
-    private NavigationPathReadout QueryPath(SpatialSession session, PlanarNavCell start)
+    private NavigationPathResult QueryPath(SpatialSession session, PlanarNavCell start)
         => engine.Spatial.RequestNavigationPath(new NavigationPathRequest(
             session,
             start,

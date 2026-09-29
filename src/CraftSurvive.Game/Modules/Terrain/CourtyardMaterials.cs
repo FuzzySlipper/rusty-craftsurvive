@@ -249,7 +249,7 @@ internal sealed class CourtyardMaterials : IDisposable
         _ => throw new ArgumentOutOfRangeException(nameof(textureId), textureId, "Unknown courtyard texture."),
     };
 
-    private static void ValidateCatalog(AuthoredCatalogReadoutLeaseReceipt readout)
+    private static void ValidateCatalog(AuthoredCatalogReadoutResult readout)
     {
         if (readout.Entries.Length != 12 || readout.Materials.Length != 6 || readout.Textures.Length != 6
             || readout.VoxelAtlases.Length != 0 || readout.AtlasRegions.Length != 0 || readout.VoxelSurfaces.Length != 0

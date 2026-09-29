@@ -38,13 +38,6 @@ internal sealed class SkyBackground : IDisposable
         Publish();
     }
 
-    /// <summary>Republishes the retained Engine background for a fresh host attachment.</summary>
-    internal void Attach()
-    {
-        EnsurePublished();
-        Publish();
-    }
-
     /// <summary>Retains the selected authored sky through the product restart policy.</summary>
     internal void Restart()
     {

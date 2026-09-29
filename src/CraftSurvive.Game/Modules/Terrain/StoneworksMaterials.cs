@@ -138,7 +138,7 @@ internal sealed class StoneworksMaterials : IDisposable
 
     private static string MaterialId(MaterialDefinition definition) => $"material/stoneworks-{definition.Name}";
 
-    private static void ValidateCatalog(AuthoredCatalogReadoutLeaseReceipt readout)
+    private static void ValidateCatalog(AuthoredCatalogReadoutResult readout)
     {
         if (readout.Entries.Length != Definitions.Length * 2 || readout.Materials.Length != Definitions.Length
             || readout.Textures.Length != Definitions.Length || readout.VoxelAtlases.Length != 0

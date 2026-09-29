@@ -31,7 +31,7 @@ internal sealed class TerrainWorld : IDisposable
     private PersistenceStore? persistenceStore;
     private UiStream? uiStream;
     private VoxelScenePresentation? presentation;
-    private VoxelSceneMaterialMappingLeaseReceipt materialMapping;
+    private VoxelSceneMaterialMappingResult materialMapping;
     private TerrainPlayerUiFacts? playerUi;
     private DiscoveryUiFacts? discoveryUi;
     private ulong uiSequence;
@@ -327,14 +327,6 @@ internal sealed class TerrainWorld : IDisposable
         }
     }
 
-    /// <summary>Republishes retained terrain and UI facts for a fresh Engine presentation attachment.</summary>
-    internal void Attach()
-    {
-        EnsureStarted();
-        if (presentation is not null) RefreshPresentation();
-        PublishUi();
-    }
-
     public void Dispose()
     {
         residentChunks.Clear();
@@ -363,7 +355,7 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>Returns the copied Engine-owned directional material mapping retained by this terrain owner.</summary>
-    internal VoxelSceneMaterialMappingLeaseReceipt ReadMaterialMapping()
+    internal VoxelSceneMaterialMappingResult ReadMaterialMapping()
     {
         EnsureStarted();
         return materialMapping;

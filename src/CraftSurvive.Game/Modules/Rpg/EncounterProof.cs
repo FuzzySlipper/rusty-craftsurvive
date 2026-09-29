@@ -31,21 +31,11 @@ public sealed class EncounterProofModule : IDebugCommandModule
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
 
-    internal EncounterProofModule(TerrainWorld terrain, PlayerController player, Func<string>? productHealth = null)
+    internal EncounterProofModule(TerrainWorld terrain, PlayerController player)
     {
         this.terrain = terrain;
         this.player = player;
-        this.productHealth = productHealth;
     }
-
-    private readonly Func<string>? productHealth;
-
-    /// <summary>
-    /// Reports the product's own update-boundary failures, so an exception that
-    /// would otherwise only show up as a tainted runtime is named.
-    /// </summary>
-    [DebugCommand("craft.product.health")]
-    public string Health() => productHealth is null ? "no health probe attached" : productHealth();
 
     [DebugCommand("craft.encounter.proof")]
     public string Proof()

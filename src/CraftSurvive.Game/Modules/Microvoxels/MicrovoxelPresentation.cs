@@ -274,16 +274,6 @@ internal sealed class MicrovoxelPresentation : IDisposable
         presentationUpdatePending = true;
     }
 
-    /// <summary>Republishes this retained object for a fresh Engine presentation attachment.</summary>
-    internal void Attach()
-    {
-        EnsureStarted();
-        ApplyMaterialSettings();
-        PublishPresentation();
-        applied = desired;
-        presentationUpdatePending = false;
-    }
-
     public void Dispose()
     {
         presentation?.Dispose();
