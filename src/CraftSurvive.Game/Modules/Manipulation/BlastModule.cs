@@ -3,7 +3,6 @@ using System.Numerics;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
-using Rusty.Engine.Debugging;
 using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Manipulation;
@@ -14,7 +13,7 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// cells then go through the world's edit route as one transaction. Block entities standing in the
 /// cleared cells are swept in the same step.
 /// </summary>
-public sealed class BlastModule : IProductModule, IDebugCommandModule
+internal sealed class BlastModule : IProductModule
 {
     /// <summary>A charge's centre voxel, offset to the middle of the cell for the dust anchor.</summary>
     private const float CellCentre = 0.5f;
@@ -62,7 +61,7 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
     public void Dispose() => pending = null;
 
     /// <summary>Resolves the pending charge, if any. Called once per product update.</summary>
-    void IProductModule.Update(ProductStep time)
+    public void Update(ProductStep time)
     {
         BlastCharge? charge = pending;
         pending = null;
@@ -122,8 +121,7 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
     internal Vector3 DustCentre(VoxelAddress cell) =>
         frame.ToLocal(cell.X + CellCentre, cell.Y + CellCentre, cell.Z + CellCentre);
 
-    [DebugCommand("craft.blast.fire", Description = "Fires a charge at a cell: breaks the blocks within the radius that the charge is strong enough to break, as one transaction.")]
-    public string Fire(long x, long y, long z, long radius)
+    internal string Fire(long x, long y, long z, long radius)
     {
         BlastCharge charge = BlastCharge.Plan(
             new VoxelAddress((int)x, (int)y, (int)z),
@@ -142,8 +140,7 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
         return Readout();
     }
 
-    [DebugCommand("craft.blast.readout", Description = "Reports charges fired, cells cleared, refusals, dust refusals, and the last charge's cost.")]
-    public string Readout() =>
+    internal string Readout() =>
         FormattableString.Invariant(
             $"blast fired={fired} pending={Pending} cleared={cleared} refused={refused} swept={swept} ")
         + FormattableString.Invariant(

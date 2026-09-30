@@ -68,9 +68,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
-        RequireRegistration(registrar.Register(discovery));
-        RequireRegistration(registrar.Register(blast));
-        RequireRegistration(registrar.Register(build));
+        RequireRegistration(registrar.Register(new DiscoveryDebugModule(discovery)));
+        RequireRegistration(registrar.Register(new BlastDebugModule(blast)));
+        RequireRegistration(registrar.Register(new BuildDebugModule(build)));
     }
 
     public void Start()

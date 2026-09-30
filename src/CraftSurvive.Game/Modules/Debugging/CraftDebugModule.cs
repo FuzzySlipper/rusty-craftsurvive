@@ -37,8 +37,10 @@ public sealed class CraftDebugModule : IDebugCommandModule
     }
 
     [DebugCommand("craft.player.camera", Description = "Selects latest, position, or pose camera presentation and delay in seconds.")]
-    public string SetCameraPresentation(string mode, double delaySeconds)
-        => player.SetCameraPresentation(mode, delaySeconds);
+    public string SetCameraPresentation(string mode, double delaySeconds) =>
+        Enum.TryParse(mode, ignoreCase: true, out CameraInterpolation selected) && Enum.IsDefined(selected)
+            ? player.SetCameraPresentation(selected, delaySeconds)
+            : $"camera mode must be one of {string.Join(", ", Enum.GetNames<CameraInterpolation>())}";
 
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();

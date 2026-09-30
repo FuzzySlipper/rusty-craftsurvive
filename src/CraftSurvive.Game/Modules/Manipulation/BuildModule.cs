@@ -1,6 +1,5 @@
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
-using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.Manipulation;
 
@@ -12,7 +11,7 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// cells (air, water), so the undo - the last stamp's placed cells cleared - takes back only what
 /// the stamp filled; a filled water cell comes back as air. There is no per-update work here: a stamp resolves immediately.
 /// </summary>
-public sealed class BuildModule : IProductModule, IDebugCommandModule
+internal sealed class BuildModule : IProductModule
 {
     private readonly TerrainWorld terrain;
     private readonly BlockEntityIndex entities;
@@ -38,7 +37,7 @@ public sealed class BuildModule : IProductModule, IDebugCommandModule
     }
 
     /// <summary>Stamps resolve when placed, so an update has nothing to advance.</summary>
-    void IProductModule.Update(ProductStep time)
+    public void Update(ProductStep time)
     {
     }
 
@@ -49,8 +48,7 @@ public sealed class BuildModule : IProductModule, IDebugCommandModule
 
     internal long Undone => undone;
 
-    [DebugCommand("craft.build.plate", Description = "Places a flat floor: a width-by-depth plate of one course at a corner, as one transaction.")]
-    public string Plate(long x, long y, long z, long width, long depth, long material)
+    internal string Plate(long x, long y, long z, long width, long depth, long material)
     {
         BuildStamp stamp = BuildStamp.Plate(
             new VoxelAddress((int)x, (int)y, (int)z),
@@ -61,8 +59,7 @@ public sealed class BuildModule : IProductModule, IDebugCommandModule
         return Place(stamp, "plate");
     }
 
-    [DebugCommand("craft.build.wall", Description = "Places a wall: length by height, one course thick, along X, as one transaction.")]
-    public string Wall(long x, long y, long z, long length, long height, long material)
+    internal string Wall(long x, long y, long z, long length, long height, long material)
     {
         BuildStamp stamp = BuildStamp.Wall(
             new VoxelAddress((int)x, (int)y, (int)z),
@@ -74,8 +71,7 @@ public sealed class BuildModule : IProductModule, IDebugCommandModule
         return Place(stamp, "wall");
     }
 
-    [DebugCommand("craft.build.undo", Description = "Clears the cells the last stamp placed. It does not restore what stood there before.")]
-    public string Undo()
+    internal string Undo()
     {
         if (lastStamp.Length == 0)
         {
@@ -104,32 +100,27 @@ public sealed class BuildModule : IProductModule, IDebugCommandModule
         return Readout();
     }
 
-    [DebugCommand("craft.build.door", Description = "Places a door: a voxel with an openable entity in the same cell.")]
-    public string Door(long x, long y, long z, long state)
+    internal string Door(long x, long y, long z, long state)
     {
         return Occupy(x, y, z, BlockEntityKind.Door, state, "door");
     }
 
-    [DebugCommand("craft.build.light", Description = "Places a light: a voxel with an emissive entity in the same cell.")]
-    public string Light(long x, long y, long z, long lit)
+    internal string Light(long x, long y, long z, long lit)
     {
         return Occupy(x, y, z, BlockEntityKind.Light, lit, "light");
     }
 
-    [DebugCommand("craft.build.container", Description = "Places a container: a voxel with a storing entity in the same cell.")]
-    public string Container(long x, long y, long z, long fill)
+    internal string Container(long x, long y, long z, long fill)
     {
         return Occupy(x, y, z, BlockEntityKind.Container, fill, "container");
     }
 
-    [DebugCommand("craft.build.entities", Description = "Lists the block entities standing in the world.")]
-    public string Entities() =>
+    internal string Entities() =>
         entities.Count == 0
             ? "entities: none"
             : $"entities={entities.Count} [{string.Join(", ", entities.All.Select(e => $"{e.Kind}@{e.Cell.X},{e.Cell.Y},{e.Cell.Z}:{e.State}"))}]";
 
-    [DebugCommand("craft.build.readout", Description = "Reports stamps placed, undos, refusals, and the last outcome.")]
-    public string Readout() =>
+    internal string Readout() =>
         $"build plates={plates} walls={walls} undone={undone} refused={refused} last={lastOutcome}";
 
     /// <summary>

@@ -3,7 +3,6 @@ using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
-using Rusty.Engine.Debugging;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Discovery;
@@ -19,7 +18,7 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// world whose generator version moved is discarded once, in one place, instead of
 /// poisoning a shared blob that only half applies.
 /// </summary>
-public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
+internal sealed class DiscoveryModule : IProductModule
 {
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
@@ -91,7 +90,7 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
     /// rather than every one because a player at a walking pace crosses a fraction of a metre
     /// in a step, against a notice radius of 128.
     /// </summary>
-    void IProductModule.Update(ProductStep time)
+    public void Update(ProductStep time)
     {
         if (disposed || store is null || time.Step < nextNoticeStep)
         {
@@ -191,8 +190,7 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
             last?.LastTick ?? 0d));
     }
 
-    [DebugCommand("craft.discovery.readout", Description = "Reads the journal: what has been seen or reached, and whether it is stored.")]
-    public string Readout()
+    internal string Readout()
     {
         (bool present, int bytes) = JournalSaved();
         return $"journal {journal.Readout()} firstVisits={firstVisits} stored={present}/{bytes} restore={restoreOutcome} failure={lastFailure ?? "none"}";
@@ -203,8 +201,7 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
     /// how a live session can be steered towards a landmark without guessing a heading, and
     /// it reads only - looking around is the update pass's job, not a query's.
     /// </summary>
-    [DebugCommand("craft.discovery.near", Description = "Lists the places nearest the player, with kind, distance and what is known about each.")]
-    public string Near(long radius)
+    internal string Near(long radius)
     {
         long limit = Math.Clamp(radius, 0, (long)DiscoveryRules.NoticeRadiusMetres * 16);
         Vector3 position = player.WorldPosition;
@@ -236,8 +233,7 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
     /// site in range, so a kind that is not near the top is lost to the response limit. Asking
     /// for one kind makes the answer small enough to always arrive whole.
     /// </summary>
-    [DebugCommand("craft.discovery.find", Description = "Lists the nearest places of one kind, capped, so a target is never lost to a truncated response.")]
-    public string Find(string kind, long radius)
+    internal string Find(string kind, long radius)
     {
         if (!Enum.TryParse(kind, ignoreCase: true, out PoiKind wanted) || wanted == PoiKind.None)
         {
@@ -292,8 +288,7 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
     /// deck. It is how a live session can be aimed at one instead of hoping to stumble over
     /// it, and like the site query it only reads.
     /// </summary>
-    [DebugCommand("craft.discovery.crossings", Description = "Lists the crossings nearest the player, with span, deck height and distance.")]
-    public string Crossings(long radius)
+    internal string Crossings(long radius)
     {
         long limit = Math.Clamp(radius, 0, (long)DiscoveryRules.NoticeRadiusMetres * 64);
         Vector3 position = player.WorldPosition;
