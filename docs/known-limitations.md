@@ -55,7 +55,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   publishes collision-derived navigation over a box around the player (its extents and cell
   budget are its constants) only while something pursues, and again after the player moves
   `RepublishDistanceMetres`, a rebase, or an edit. A publication costs tens of milliseconds, so it
-  is a visible hitch while a chase moves the player far (#8975 records the measurement). A
+  is a visible hitch while a chase moves the player far: every publication rebuilds the whole box
+  (#8975 records the measurement; the incremental update is Engine #8999). A
   pursuer outside the box, or with no route, waits; creature movement is planar and follows the
   ground, so the grid's step height is what keeps pursuers out of pits.
 
