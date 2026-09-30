@@ -103,19 +103,12 @@ LootTable table = new(
         new LootEntry("relic", 1, 1, 50),
     ]);
 
-static LootRules.Draw SeededDraw(ulong seed) => (scope, minimum, maximum) =>
-{
-    // Deterministic per scope, mirroring the product's keyed draws: the same scope
-    // and seed always produce the same number, so a table is reproducible.
-    ulong hash = seed;
-    foreach (char character in scope)
-    {
-        hash = (hash * 1099511628211UL) ^ character;
-    }
-
-    Random random = new((int)(hash & 0x7FFF_FFFF));
-    return random.Next(minimum, maximum + 1);
-};
+// The product's one keyed draw: the same seed and scope always give the same number.
+static LootRules.Draw SeededDraw(ulong seed) => KeyedDraws.For(seed);
+Require(KeyedDraws.Draw(7, "a", 1, 100) == KeyedDraws.Draw(7, "a", 1, 100), "a keyed draw must repeat for the same seed and scope");
+Require(Enumerable.Range(0, 200).Select(i => KeyedDraws.Draw(7, $"roll:{i}", 1, 6)).Distinct().Count() == 6,
+    "a keyed draw must reach every value in its range");
+Require(Enumerable.Range(0, 200).All(i => KeyedDraws.Draw(7, $"roll:{i}", 1, 6) is >= 1 and <= 6), "a keyed draw must stay in its range");
 
 LootDrop[] first = LootRules.Roll(table, "encounter:1", SeededDraw(1234));
 LootDrop[] second = LootRules.Roll(table, "encounter:1", SeededDraw(1234));
@@ -269,8 +262,12 @@ Require(stillCalm.State == CreatureState.Alert, "a neutral creature must not sta
 
 
 // --- one encounter end to end, in policy: fight, die, loot, respawn, advance --------
-CombatantState wolf2 = CombatantState.Fresh(maximumHealth: 24, new DefenceProfile(Evasion: 60, Armour: new ArmourProfile(4)));
-AttackProfile swing = AttackProfile.Unarmed(starting);
+// The fight uses the same creature kind and character sheet the live module loads, so a changed
+// stat changes this check too.
+CreatureKind hostileKind = CreatureKinds.Hostile;
+CharacterSheet sheet = CharacterSheet.Starting;
+CombatantState wolf2 = CombatantState.Fresh(hostileKind.MaximumHealth, hostileKind.Defence);
+AttackProfile swing = sheet.Unarmed;
 const long respawnDelay = 900;
 
 int strikes = 0;
@@ -282,7 +279,7 @@ while (!wolf2.IsDown && strikes < 40)
 
 Require(wolf2.IsDown, $"the encounter never resolved: {strikes} strikes left {wolf2.Health} health");
 Require(strikes > 1, "an ordinary blow must not end a fight in one strike");
-Require(EncounterResolutionRules.Strike(roll: 100, swing, CombatantState.Fresh(24, new DefenceProfile(60, new ArmourProfile(4))), tick: 0).Target.IsDown,
+Require(EncounterResolutionRules.Strike(roll: 100, swing, CombatantState.Fresh(hostileKind.MaximumHealth, hostileKind.Defence), tick: 0).Target.IsDown,
     "a critical blow against a weak creature may end it outright");
 Require(wolf2.Health == 0, "a downed creature must be at zero health");
 
@@ -298,18 +295,18 @@ CombatantState back = EncounterResolutionRules.Respawn(downTick + respawnDelay, 
 Require(!back.IsDown && back.Health == back.MaximumHealth, "a respawned creature must return at full health");
 
 EncounterReward reward = EncounterResolutionRules.Reward(
-    experience: 120,
-    table,
-    scope: "wolf:1",
+    hostileKind.ExperienceAward,
+    hostileKind.Loot,
+    scope: "creature:1",
     SeededDraw(99));
-Require(reward.Experience.Source == ExperienceSource.Combat && reward.Experience.Amount == 120,
+Require(reward.Experience.Source == ExperienceSource.Combat && reward.Experience.Amount == hostileKind.ExperienceAward,
     "a defeat must be worth a combat award");
 ProgressionOutcome advanced = ProgressionRules.Award(0, 1, reward.Experience);
 Require(advanced.Advanced && advanced.Level == 2,
     "defeating one creature worth a threshold must advance the character");
 foreach (LootDrop drop in reward.Drops)
 {
-    Require(table.Entries.Any(entry => entry.ItemId == drop.ItemId), $"loot {drop.ItemId} is not on the creature's table");
+    Require(hostileKind.Loot.Entries.Any(entry => entry.ItemId == drop.ItemId), $"loot {drop.ItemId} is not on the creature's table");
 }
 try
 {
@@ -320,6 +317,30 @@ catch (ArgumentOutOfRangeException)
 {
 }
 
+
+// A creature's claw against the starting character, through the same rules the live module uses:
+// it misses a low roll, lands a middling one, doubles on a critical, and the player's own evasion
+// is what it is measured against.
+DefenceProfile player = sheet.Defence;
+Require(player.Evasion == sheet.Derived.Evasion && player.Armour == ArmourProfile.None,
+    "the player's defence is their derived evasion and no armour");
+Require(sheet.Derived.MaximumHealth == CharacterRules.Derive(CharacterAttributes.Starting, 1).MaximumHealth,
+    "the live player's health comes from the character rules");
+AttackOutcome clawMiss = CombatRules.Resolve(1, hostileKind.Attack, player);
+Require(!clawMiss.Hit, $"a roll of 1 must miss a starting character, total {clawMiss.Total} vs {clawMiss.Defence}");
+int firstLandingRoll = Enumerable.Range(CombatRules.MinimumRoll, CombatRules.MaximumRoll).First(roll => CombatRules.Resolve(roll, hostileKind.Attack, player).Hit);
+Require(firstLandingRoll == player.Evasion - hostileKind.Attack.Accuracy,
+    $"a claw must first land at roll {player.Evasion - hostileKind.Attack.Accuracy}, landed at {firstLandingRoll}");
+AttackOutcome clawHit = CombatRules.Resolve(60, hostileKind.Attack, player);
+Require(clawHit.Hit && clawHit.Damage == hostileKind.Attack.Power + (60 / CombatRules.RollDamageDivisor),
+    $"an unarmoured player takes the claw's full raw damage, took {clawHit.Damage}");
+AttackOutcome clawCritical = CombatRules.Resolve(CombatRules.CriticalRoll, hostileKind.Attack, player);
+Require(clawCritical.Critical && clawCritical.Damage == 2 * (hostileKind.Attack.Power + (CombatRules.CriticalRoll / CombatRules.RollDamageDivisor)),
+    "a critical claw doubles its raw damage");
+PlayerDefeatState clawed = PlayerDefeatRules.Strike(PlayerDefeatState.Full(sheet.Derived.MaximumHealth), clawHit.Damage, tick: 1);
+Require(clawed.Health == sheet.Derived.MaximumHealth - clawHit.Damage, "a landed claw comes off the player's health");
+Require(hostileKind.ReachMetres == hostileKind.Tuning.AttackRange && hostileKind.HaltDistanceMetres < hostileKind.ReachMetres,
+    "a creature strikes at the range its behaviour attacks at, and halts inside it");
 
 // --- the director owns what is in the world, and the caps hold ----------------------
 EncounterPolicy tight = EncounterPolicy.Default with { MaximumActive = 3, MaximumActivePerRegion = 2 };
@@ -433,23 +454,23 @@ const double FixedDelta = 1.0 / 60.0;
 Vector3 playerAt = new(40, 0, 0);
 Creature oneStep = new(1, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
 Creature twoSteps = new(2, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
-CreatureSimulation.Step(oneStep, new CreatureSense(true, 40), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta));
-CreatureSimulation.Step(twoSteps, new CreatureSense(true, 40), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta));
+CreatureSimulation.Step(oneStep, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta));
+CreatureSimulation.Step(twoSteps, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta));
 double expectedOne = CreatureKinds.Hostile.PursueSpeedMetresPerSecond * FixedDelta;
 Require(Math.Abs(oneStep.Position.X - expectedOne) < 1e-5 && Math.Abs(twoSteps.Position.X - (2 * expectedOne)) < 1e-5,
     $"one step must move {expectedOne:F4} m and two steps twice that, moved {oneStep.Position.X:F4} and {twoSteps.Position.X:F4}");
 
 Creature striker = new(3, CreatureKinds.Hostile, new Vector2(38, 0));
 Vector3 closePlayer = new(40, 0, 0);
-Require(CreatureSimulation.Step(striker, new CreatureSense(true, 2), closePlayer, true, new ProductStep(100, 1, FixedDelta)) is CreatureStrike,
+Require(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta)) is CreatureStrike,
     "a hostile creature within reach must strike");
 long cooldown = CreatureKinds.Hostile.Tuning.AttackCooldownTicks;
-Require(CreatureSimulation.Step(striker, new CreatureSense(true, 2), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta)) is null,
+Require(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta)) is null,
     "the cooldown must hold one step short, whatever the steps per update");
-Require(CreatureSimulation.Step(striker, new CreatureSense(true, 2), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta)) is CreatureStrike,
+Require(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta)) is CreatureStrike,
     "the cooldown must release once its steps have passed, even when an update covers two");
 Creature patientStriker = new(4, CreatureKinds.Hostile, new Vector2(38, 0));
-Require(CreatureSimulation.Step(patientStriker, new CreatureSense(true, 2), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta)) is null
+Require(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta)) is null
     && patientStriker.Behavior.CanAttack(11, CreatureKinds.Hostile.Tuning),
     "a player who cannot be hit draws no blow and costs no cooldown");
 

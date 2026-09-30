@@ -36,13 +36,6 @@ internal sealed class CreatureModule : IProductModule
 
     private const double FullEvidence = 1.0;
 
-    private const double PlayerAttackReachMetres = 4.0;
-
-    /// <summary>Mixing factors that spread the player's rolls across ticks, targets and swings.</summary>
-    private const long RollTickFactor = 37;
-
-    private const long RollSwingFactor = 17;
-
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
@@ -116,19 +109,15 @@ internal sealed class CreatureModule : IProductModule
         }
 
         Vector3 playerWorld = player.WorldPosition;
-        Dictionary<int, CreatureSense> senses = Sense(playerWorld);
+        HashSet<int> seeing = Sense(playerWorld);
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
         foreach (Creature creature in roster.All)
         {
-            CreatureSense sense = senses.TryGetValue(creature.Id, out CreatureSense sensed)
-                ? sensed
-                : new CreatureSense(false, CreatureSimulation.PlanarDistance(creature.Position, playerWorld));
+            CreatureSense sense = new(seeing.Contains(creature.Id));
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time) is CreatureStrike strike)
             {
-                PlayerDefeatState after = player.Vitals.TakeHit(strike.Damage, step);
+                ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
-                lastEvent = string.Create(CultureInfo.InvariantCulture,
-                    $"creature {strike.CreatureId} hit the player for {strike.Damage}; health {after.Health}/{after.MaximumHealth}");
             }
         }
 
@@ -163,6 +152,25 @@ internal sealed class CreatureModule : IProductModule
         started = false;
     }
 
+    /// <summary>A creature's swing at the player, rolled and resolved against the player's defence.</summary>
+    private void ResolveStrike(CreatureStrike strike)
+    {
+        int roll = KeyedDraws.AttackRoll(Seed, string.Create(CultureInfo.InvariantCulture, $"creature:{strike.CreatureId}:strike:{step}"));
+        AttackOutcome outcome = CombatRules.Resolve(roll, strike.Attack, player.Sheet.Defence);
+        if (!outcome.Hit)
+        {
+            lastEvent = string.Create(CultureInfo.InvariantCulture,
+                $"creature {strike.CreatureId} missed the player: roll {outcome.Roll} total {outcome.Total} vs evasion {outcome.Defence}");
+            return;
+        }
+
+        PlayerDefeatState after = player.Vitals.TakeHit(outcome.Damage, step);
+        lastEvent = string.Create(CultureInfo.InvariantCulture,
+            $"creature {strike.CreatureId} hit the player for {outcome.Damage}{(outcome.Critical ? " (critical)" : string.Empty)}; health {after.Health}/{after.MaximumHealth}");
+    }
+
+    private ulong Seed => terrain.Recipe.Contract.Seed;
+
     /// <summary>
     /// The player's swing at the nearest creature, preferring one that is already attacking. It
     /// resolves through the combat rules, and a defeat pays out through the player's progress.
@@ -194,19 +202,15 @@ internal sealed class CreatureModule : IProductModule
             return "no creatures";
         }
 
-        if (best > PlayerAttackReachMetres)
+        if (best > CharacterSheet.UnarmedReachMetres)
         {
             return string.Create(CultureInfo.InvariantCulture, $"out of reach: nearest {target.Id} at {best:F1}m");
         }
 
-        AttackProfile swing = new(
-            Accuracy: PlayerCombat.Accuracy,
-            Power: PlayerCombat.Power,
-            Type: DamageType.Blunt);
-        int range = CombatRules.MaximumRoll - CombatRules.MinimumRoll + 1;
+        // Each swing has its own scope, so two swings in one step do not share an outcome.
         swingSequence++;
-        int roll = (int)(((step * RollTickFactor) + target.Id + (swingSequence * RollSwingFactor)) % range) + CombatRules.MinimumRoll;
-        (CombatantState struck, AttackOutcome outcome) = EncounterResolutionRules.Strike(roll, swing, target.Combat, step);
+        int roll = KeyedDraws.AttackRoll(Seed, string.Create(CultureInfo.InvariantCulture, $"player:swing:{swingSequence}"));
+        (CombatantState struck, AttackOutcome outcome) = EncounterResolutionRules.Strike(roll, player.Sheet.Unarmed, target.Combat, step);
         if (!outcome.Hit)
         {
             return string.Create(CultureInfo.InvariantCulture, $"missed {target.Id}: roll {outcome.Roll} vs defence {outcome.Defence}");
@@ -227,7 +231,7 @@ internal sealed class CreatureModule : IProductModule
             target.Kind.ExperienceAward,
             target.Kind.Loot,
             string.Create(CultureInfo.InvariantCulture, $"creature:{target.Id}"),
-            SeededDraw);
+            KeyedDraws.For(Seed));
         ProgressionOutcome progression = player.Progress.Award(reward);
         return string.Create(CultureInfo.InvariantCulture,
             $"defeated {target.Id}; xp={progression.Experience} level={progression.Level}{(progression.Advanced ? " advanced" : string.Empty)} drops={string.Join(",", reward.Drops.Select(drop => $"{drop.ItemId}:{drop.Quantity}"))}");
@@ -313,9 +317,9 @@ internal sealed class CreatureModule : IProductModule
     /// A creature the Engine does not answer for senses nothing this update, and a refused query
     /// is reported rather than guessed around.
     /// </summary>
-    private Dictionary<int, CreatureSense> Sense(Vector3 playerWorld)
+    private HashSet<int> Sense(Vector3 playerWorld)
     {
-        Dictionary<int, CreatureSense> senses = [];
+        HashSet<int> senses = [];
         if (roster.Count == 0)
         {
             return senses;
@@ -344,7 +348,7 @@ internal sealed class CreatureModule : IProductModule
                 {
                     if (pair.Target == ProductIds.PlayerEntity)
                     {
-                        senses[(int)(pair.Observer - ProductIds.CreatureObserverBase)] = new CreatureSense(true, pair.Distance);
+                        senses.Add((int)(pair.Observer - ProductIds.CreatureObserverBase));
                     }
                 }
 
@@ -374,30 +378,4 @@ internal sealed class CreatureModule : IProductModule
     /// <summary>The height a creature stands at: the ground of the column it is over.</summary>
     private float GroundAt(Vector2 position) =>
         terrain.GroundAt((long)Math.Floor(position.X), (long)Math.Floor(position.Y));
-
-    /// <summary>A deterministic draw in [minimum, maximum], keyed by the scope it is asked about.</summary>
-    private static LootRules.Draw SeededDraw => (scope, minimum, maximum) =>
-    {
-        ulong hash = FnvOffsetBasis;
-        foreach (char character in scope)
-        {
-            hash = unchecked((hash * FnvPrime) ^ character);
-        }
-
-        return new Random(unchecked((int)(hash & PositiveIntMask))).Next(minimum, maximum + 1);
-    };
-
-    private const ulong FnvOffsetBasis = 14695981039346656037UL;
-    private const ulong FnvPrime = 1099511628211UL;
-    private const ulong PositiveIntMask = 0x7FFF_FFFF;
-}
-
-/// <summary>The player's swing, until the character sheet supplies it.</summary>
-internal static class PlayerCombat
-{
-    internal const int Power = 6;
-
-    internal const int Accuracy = 30;
-
-    internal const int MaximumHealth = 40;
 }

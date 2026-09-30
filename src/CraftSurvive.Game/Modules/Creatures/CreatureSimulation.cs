@@ -4,16 +4,19 @@ using CraftSurvive.Game.Modules.World;
 
 namespace CraftSurvive.Game.Modules.Creatures;
 
-/// <summary>What a creature's senses reported this update: the Engine's sight answer.</summary>
-internal readonly record struct CreatureSense(bool PlayerVisible, double PerceivedDistance);
+/// <summary>What a creature's senses reported this update: whether the Engine says it sees the player.</summary>
+internal readonly record struct CreatureSense(bool PlayerVisible);
 
-/// <summary>A creature's blow on the player this update, if it struck.</summary>
-internal readonly record struct CreatureStrike(int CreatureId, int Damage);
+/// <summary>A creature's swing at the player this update; the combat rules decide whether it lands.</summary>
+internal readonly record struct CreatureStrike(int CreatureId, AttackProfile Attack);
 
 /// <summary>
 /// One creature's update as pure policy: decide its state from what it sensed, move it on Engine
-/// step time, and strike when its behaviour allows. Movement and reach are planar - creatures
-/// stand on the ground - while sight comes from the Engine's perceived distance.
+/// step time, and swing when its behaviour allows.
+///
+/// Every distance decision - sight range, attack range, halting, reach - uses the planar distance
+/// between the creature and the player, because both stand on the ground. The Engine answers only
+/// whether the creature can see the player at all.
 /// </summary>
 internal static class CreatureSimulation
 {
@@ -25,9 +28,9 @@ internal static class CreatureSimulation
     }
 
     /// <summary>
-    /// Advances one creature. Returns the blow it lands, if any; the caller applies it to the
-    /// player's vitals. A player who cannot be hit - down, or in grace after a respawn - draws no
-    /// attack and costs the creature no cooldown.
+    /// Advances one creature. Returns the swing it makes, if any; the caller resolves it through
+    /// the combat rules against the player's defence. A player who cannot be hit - down, or in
+    /// grace after a respawn - draws no swing and costs the creature no cooldown.
     /// </summary>
     internal static CreatureStrike? Step(
         Creature creature,
@@ -38,10 +41,10 @@ internal static class CreatureSimulation
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
-        PerceptionFacts facts = new(sense.PlayerVisible, sense.PerceivedDistance, creature.Combat.Health);
+        double distance = PlanarDistance(creature.Position, playerWorld);
+        PerceptionFacts facts = new(sense.PlayerVisible, distance, creature.Combat.Health);
         creature.Behavior = CreatureBehaviorRules.Step(kind.Tuning, creature.Behavior, facts, time.Step);
 
-        double distance = PlanarDistance(creature.Position, playerWorld);
         if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
             && distance > kind.HaltDistanceMetres)
         {
@@ -55,12 +58,12 @@ internal static class CreatureSimulation
 
         if (!playerCanBeHit
             || !creature.Behavior.CanAttack(time.Step, kind.Tuning)
-            || distance > kind.AttackReachMetres)
+            || distance > kind.ReachMetres)
         {
             return null;
         }
 
         creature.Behavior = creature.Behavior.AfterAttack(time.Step);
-        return new CreatureStrike(creature.Id, kind.AttackDamage);
+        return new CreatureStrike(creature.Id, kind.Attack);
     }
 }

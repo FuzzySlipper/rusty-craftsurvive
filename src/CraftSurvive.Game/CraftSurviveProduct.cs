@@ -45,7 +45,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
     /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
     private readonly BlockEntityIndex entities = new();
-    private readonly EncounterProofModule encounterProof;
 
     /// <summary>
     /// The gameplay modules the player's update feeds, in the order they run: each reads what
@@ -82,7 +81,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         discovery = new DiscoveryModule(context.Engine, terrain, player);
         blast = new BlastModule(context.Engine, terrain, entities);
         build = new BuildModule(terrain, entities);
-        encounterProof = new EncounterProofModule(terrain, player);
         gameplay = [creatures, discovery, blast, build];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
@@ -106,7 +104,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
-        RequireRegistration(registrar.Register(encounterProof));
         RequireRegistration(registrar.Register(creatureDebug));
         RequireRegistration(registrar.Register(discovery));
         RequireRegistration(registrar.Register(blast));

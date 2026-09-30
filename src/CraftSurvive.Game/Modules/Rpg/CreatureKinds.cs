@@ -12,10 +12,13 @@ internal sealed record CreatureKind(
     DefenceProfile Defence,
     double PursueSpeedMetresPerSecond,
     double HaltDistanceMetres,
-    int AttackDamage,
-    double AttackReachMetres,
+    AttackProfile Attack,
     int ExperienceAward,
-    LootTable Loot);
+    LootTable Loot)
+{
+    /// <summary>How close the creature must stand to strike: the range its behaviour attacks at.</summary>
+    internal double ReachMetres => Tuning.AttackRange;
+}
 
 internal static class CreatureKinds
 {
@@ -27,8 +30,14 @@ internal static class CreatureKinds
     /// <summary>A pursuer halts here, strictly inside its attack reach.</summary>
     private const double HaltDistance = 2.0;
 
-    private const int AttackDamage = 4;
-    private const double AttackReach = 3.0;
+    /// <summary>
+    /// A weak claw: it lands on a bit over half its rolls against a starting character and deals
+    /// about eight when it does.
+    /// </summary>
+    private const int ClawAccuracy = 15;
+
+    private const int ClawPower = 1;
+
     private const int Experience = 120;
 
     /// <summary>
@@ -52,8 +61,7 @@ internal static class CreatureKinds
         new DefenceProfile(Evasion, new ArmourProfile(Armour)),
         PursueSpeed,
         HaltDistance,
-        AttackDamage,
-        AttackReach,
+        new AttackProfile(ClawAccuracy, ClawPower, DamageType.Cutting),
         Experience,
         PlaceholderLoot);
 

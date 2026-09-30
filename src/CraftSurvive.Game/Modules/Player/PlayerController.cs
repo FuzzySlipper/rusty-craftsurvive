@@ -5,6 +5,7 @@ using Rusty.Engine;
 using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Ropes;
+using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.World;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
@@ -393,7 +394,10 @@ internal sealed class PlayerController : IDisposable
     internal EntityStore EntityStore => entityWorld;
 
     /// <summary>The player's health and defeat; creatures strike through it.</summary>
-    internal PlayerVitals Vitals { get; } = new(Creatures.PlayerCombat.MaximumHealth);
+    internal PlayerVitals Vitals { get; } = new(CharacterSheet.Starting.Derived.MaximumHealth);
+
+    /// <summary>The player's character as the rules see it, at the level they have reached.</summary>
+    internal CharacterSheet Sheet => CharacterSheet.Starting with { Level = Progress.Level };
 
     /// <summary>The Engine step the latest update brought the player to.</summary>
     internal long CurrentStep { get; private set; }
