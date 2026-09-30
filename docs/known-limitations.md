@@ -20,7 +20,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `TerrainConstants.RequestedChunkRadius`, the retained ring `RetainedChunkRadius`, capped at
   `MaximumResidentChunks`, admitting at most `MaximumResidencyOperationsPerTick` per update
   (chosen by measurement, #8895). Nothing is resident, and nothing has collision, outside that
-  window: creatures spawned beyond it cannot use navigation (#8975).
+  window.
 - There is no biome framework, general procgen framework or product generation worker.
 
 ## Edits
@@ -48,10 +48,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
 ## Creatures and navigation
 
-- **Navigation must be published before it can be queried.** A world without a collision-derived
-  navigation projection answers every path query with `ProjectionUnavailable`, and query cells
-  are relative to the published box (`CreatureNavigationProbe`). Creatures chase in a straight
-  line; navigation-driven pursuit is #8975.
+- **Creatures sleep outside the resident world.** A creature whose ground is not resident is
+  dormant - not drawn, sensing or moving - and wakes as the player comes near; creatures spawn
+  beyond hostile sight (`CreatureSpawnPlan`), so a fresh session's creatures start dormant.
+- **Pursuit follows Engine navigation, published around the player.** `CreatureNavigation`
+  publishes collision-derived navigation over a box around the player (its extents and cell
+  budget are its constants) only while something pursues, and again after the player moves
+  `RepublishDistanceMetres`, a rebase, or an edit. A publication costs tens of milliseconds, so it
+  is a visible hitch while a chase moves the player far (#8975 records the measurement). A
+  pursuer outside the box, or with no route, waits; creature movement is planar and follows the
+  ground, so the grid's step height is what keeps pursuers out of pits.
 
 ## Persistence
 

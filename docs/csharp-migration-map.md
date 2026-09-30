@@ -51,7 +51,7 @@ save, then terrain's save, then one appearance snapshot.
 | Blocks and atlas | `Modules/Content`: `BlockRegistry`, `TerrainAtlasLayout` | Authored materials |
 | Player | `Modules/Player`: `PlayerController` over input, camera, water probe, body, origin rebasing, vitals, progress and continuation | Character controller, look, camera view, world origin |
 | RPG rules | `Modules/Rpg`: combat, loot, progression, encounters, creature kinds, character sheet | none (pure rules) |
-| Creatures | `Modules/Creatures`: `CreatureModule` over the roster, simulation, spawn plan and presentation | Perception, appearance, entity store; navigation on request only |
+| Creatures | `Modules/Creatures`: `CreatureModule` over the roster, simulation, spawn plan and presentation | Perception, appearance, entity store; collision navigation while pursuing |
 | Discovery | `Modules/Discovery`: `DiscoveryModule` and the journal | Persistence through its save slot |
 | Manipulation | `Modules/Manipulation`: blast charges and dust, build stamps, block entities and their store | Voxel edits through `TerrainWorld`, particles |
 | UI actions | `Modules/Actions`: `PlayerAction` (the payload) and `PlayerActionModule` | Input intents (product payload) |

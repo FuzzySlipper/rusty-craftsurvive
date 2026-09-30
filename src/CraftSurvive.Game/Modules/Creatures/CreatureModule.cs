@@ -5,14 +5,16 @@ using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
+using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Creatures;
 
 /// <summary>
-/// Creatures in the running product. Each update reads the player and the Engine's perception,
-/// decides every creature's step through <see cref="CreatureSimulation"/>, applies blows to the
-/// player's vitals, lets the encounter director release creatures that wandered out of the
-/// encounter, and publishes the roster to the Engine.
+/// Creatures in the running product. Each update wakes the creatures whose ground is resident and
+/// lets the rest lie dormant, reads the player and the Engine's perception, routes pursuers along
+/// the Engine's navigation, decides every awake creature's step through
+/// <see cref="CreatureSimulation"/>, applies blows to the player's vitals, lets the encounter
+/// director release creatures that wandered out of the encounter, and publishes the roster.
 ///
 /// The director owns membership, the roster mirrors it, and the presentation derives from the
 /// roster; world positions reach the Engine only through the <see cref="WorldFrame"/>.
@@ -36,6 +38,12 @@ internal sealed class CreatureModule : IProductModule
 
     private const double FullEvidence = 1.0;
 
+    /// <summary>How many steps a pursuer follows one waypoint before asking for the route again.</summary>
+    private const long WaypointRefreshSteps = 15;
+
+    /// <summary>How close a pursuer comes to its waypoint before asking for the next one.</summary>
+    private const float WaypointArrivalMetres = 0.5f;
+
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
@@ -43,6 +51,7 @@ internal sealed class CreatureModule : IProductModule
     private readonly EncounterDirector director = new(EncounterPolicy.Default);
     private readonly CreatureRoster roster = new();
     private readonly CreaturePresentation presentation;
+    private readonly CreatureNavigation navigation;
     private int nextId = 1;
     private long step;
     private long swingSequence;
@@ -62,6 +71,7 @@ internal sealed class CreatureModule : IProductModule
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         presentation = new CreaturePresentation(engine, frame, GroundAt);
+        navigation = new CreatureNavigation(engine, terrain, frame);
     }
 
     internal CreatureRoster Roster => roster;
@@ -98,12 +108,18 @@ internal sealed class CreatureModule : IProductModule
         }
 
         Vector3 playerWorld = player.WorldPosition;
-        HashSet<int> seeing = Sense(playerWorld);
-        bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
         foreach (Creature creature in roster.All)
         {
+            creature.Awake = terrain.IsResident(GroundCell(creature.Position));
+        }
+
+        HashSet<int> seeing = Sense(playerWorld);
+        Route(player.WorldFeetPosition);
+        bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
+        foreach (Creature creature in roster.All.Where(creature => creature.Awake))
+        {
             CreatureSense sense = new(seeing.Contains(creature.Id));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time) is CreatureStrike strike)
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, creature.Waypoint) is CreatureStrike strike)
             {
                 ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
@@ -236,9 +252,9 @@ internal sealed class CreatureModule : IProductModule
         Vector3 playerWorld = player.WorldPosition;
         PlayerDefeatState vitals = player.Vitals.State;
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
-            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}")));
+            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}")));
         return string.Create(CultureInfo.InvariantCulture,
-            $"step={step}; active={director.ActiveCount}; roster={roster.Count}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; ")
+            $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; {navigation.Readout()}; ")
             + string.Create(CultureInfo.InvariantCulture,
             $"defeated={defeated} items={player.Progress.ItemsCollected} experience={player.Progress.Experience} level={player.Progress.Level} ")
             + string.Create(CultureInfo.InvariantCulture,
@@ -252,23 +268,82 @@ internal sealed class CreatureModule : IProductModule
     /// </summary>
     internal string ProbeNavigation()
     {
-        Creature? first = roster.All.FirstOrDefault();
-        if (first is null)
+        if (roster.Count == 0)
         {
             return "no creatures";
         }
 
-        Vector3 feet = new(first.Position.X, GroundAt(first.Position), first.Position.Y);
         try
         {
-            CreatureNavigationProbe probe = new(engine, terrain, frame);
-            return $"creature {first.Id}: {probe.Probe(feet, player.WorldFeetPosition)}";
+            return string.Join(" | ", roster.All.Select(creature => creature.Awake
+                ? $"creature {creature.Id}: {navigation.Probe(Feet(creature.Position), player.WorldFeetPosition)}"
+                : $"creature {creature.Id}: dormant over ground that is not resident"));
         }
         catch (EngineCallException exception)
         {
             return $"navigation refused: {exception.Message}";
         }
     }
+
+    /// <summary>
+    /// Gives each awake pursuer its next waypoint along the Engine's navigation. Navigation is
+    /// published only while someone pursues; a waypoint is kept until it is reached or has aged.
+    /// A pursuer with no way to the player waits where it is.
+    /// </summary>
+    private void Route(Vector3 playerFeet)
+    {
+        Creature[] pursuers = [.. roster.All.Where(creature => creature.Awake
+            && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking)];
+        foreach (Creature idle in roster.All.Where(creature => !pursuers.Contains(creature)))
+        {
+            idle.Waypoint = null;
+        }
+
+        if (pursuers.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            navigation.EnsurePublished(playerFeet);
+            foreach (Creature creature in pursuers)
+            {
+                bool arrived = creature.Waypoint is Vector2 waypoint
+                    && Vector2.Distance(waypoint, creature.Position) <= WaypointArrivalMetres;
+                if (creature.Waypoint is null || arrived || step - creature.WaypointStep >= WaypointRefreshSteps)
+                {
+                    Vector2? next = navigation.NextWaypoint(Feet(creature.Position), playerFeet, out NavigationPathOutcome outcome);
+
+                    // No way to the player means waiting, not walking through whatever is in between;
+                    // only a creature whose own cell the grid refuses closes in a straight line to get clear.
+                    creature.Waypoint = next ?? (NoRoute(outcome) ? creature.Position : null);
+                    creature.WaypointStep = step;
+                    creature.RouteOutcome = outcome.ToString();
+                }
+            }
+        }
+        catch (EngineCallException failure)
+        {
+            lastFailure = $"navigation: {failure.Message}";
+            foreach (Creature creature in pursuers)
+            {
+                creature.Waypoint = null;
+            }
+        }
+    }
+
+    private static bool NoRoute(NavigationPathOutcome outcome) =>
+        outcome is NavigationPathOutcome.NoPath or NavigationPathOutcome.GoalNotWalkable
+            or NavigationPathOutcome.GoalNotTraversable or NavigationPathOutcome.GoalBlocked;
+
+    private Vector3 Feet(Vector2 position) => new(position.X, GroundAt(position), position.Y);
+
+    /// <summary>The block a creature stands on.</summary>
+    private static VoxelAddress GroundCell(Vector2 position, float ground) =>
+        new((long)Math.Floor(position.X), (long)Math.Floor(ground) - 1, (long)Math.Floor(position.Y));
+
+    private VoxelAddress GroundCell(Vector2 position) => GroundCell(position, GroundAt(position));
 
     private void Spawn()
     {
@@ -321,12 +396,12 @@ internal sealed class CreatureModule : IProductModule
     private HashSet<int> Sense(Vector3 playerWorld)
     {
         HashSet<int> senses = [];
-        if (roster.Count == 0)
+        if (!roster.All.Any(creature => creature.Awake))
         {
             return senses;
         }
 
-        PerceptionObserver[] observers = roster.All.Select(creature => new PerceptionObserver(
+        PerceptionObserver[] observers = roster.All.Where(creature => creature.Awake).Select(creature => new PerceptionObserver(
             ProductIds.CreatureObserverBase + (ulong)creature.Id,
             frame.ToLocal(creature.Position.X, GroundAt(creature.Position) + EyeHeightMetres, creature.Position.Y),
             Vector3.UnitZ,

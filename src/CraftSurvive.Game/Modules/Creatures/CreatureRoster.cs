@@ -25,6 +25,20 @@ internal sealed class Creature
     internal CombatantState Combat { get; set; }
 
     internal CreatureBehaviorState Behavior { get; set; }
+
+    /// <summary>
+    /// Whether the ground under the creature is resident. A creature over ground the world has not
+    /// loaded is dormant: not drawn, not sensing and not moving, until the player comes near.
+    /// </summary>
+    internal bool Awake { get; set; }
+
+    /// <summary>The navigation waypoint the creature is walking to, in world X and Z, and the step it was chosen at.</summary>
+    internal Vector2? Waypoint { get; set; }
+
+    internal long WaypointStep { get; set; }
+
+    /// <summary>What the last route query answered, for readouts.</summary>
+    internal string RouteOutcome { get; set; } = "none";
 }
 
 /// <summary>

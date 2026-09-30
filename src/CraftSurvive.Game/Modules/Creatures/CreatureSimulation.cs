@@ -40,12 +40,17 @@ internal static class CreatureSimulation
     /// the combat rules against the player's defence. A player who cannot be hit - down, or in
     /// grace after a respawn - draws no swing and costs the creature no cooldown.
     /// </summary>
+    /// <param name="waypoint">
+    /// Where a pursuing creature walks next, in world X and Z - the navigation route's next point.
+    /// Without one it closes on the player in a straight line.
+    /// </param>
     internal static CreatureStrike? Step(
         Creature creature,
         CreatureSense sense,
         Vector3 playerWorld,
         bool playerCanBeHit,
-        ProductStep time)
+        ProductStep time,
+        Vector2? waypoint = null)
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
@@ -56,12 +61,16 @@ internal static class CreatureSimulation
         if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
             && distance > kind.HaltDistanceMetres)
         {
-            double travel = Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres);
-            double scale = travel / distance;
-            creature.Position = new Vector2(
-                (float)(creature.Position.X + ((playerWorld.X - creature.Position.X) * scale)),
-                (float)(creature.Position.Y + ((playerWorld.Z - creature.Position.Y) * scale)));
-            distance -= travel;
+            Vector2 toward = waypoint ?? new Vector2(playerWorld.X, playerWorld.Z);
+            Vector2 offset = toward - creature.Position;
+            double leg = offset.Length();
+            double travel = Math.Min(Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres), leg);
+            if (leg > 0)
+            {
+                creature.Position += offset * (float)(travel / leg);
+            }
+
+            distance = PlanarDistance(creature.Position, playerWorld);
         }
 
         if (!playerCanBeHit

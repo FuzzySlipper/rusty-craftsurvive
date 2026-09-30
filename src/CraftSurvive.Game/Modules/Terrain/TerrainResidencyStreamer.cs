@@ -23,6 +23,9 @@ internal sealed class TerrainResidencyStreamer(
 
     internal int ResidentCount => resident.Count;
 
+    /// <summary>Whether a chunk is in the Engine's scene now, with its collision.</summary>
+    internal bool IsResident(TerrainChunkAddress chunk) => resident.ContainsKey(chunk);
+
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"cached={cache.Count} pendingWrites={pendingCacheWrites.Count} resident={resident.Count} admissions={admissions} evictions={evictions} staleDropped={cache.StaleDropped} cacheHits={generator.CacheHits}");
 

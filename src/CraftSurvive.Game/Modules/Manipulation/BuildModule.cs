@@ -78,6 +78,40 @@ internal sealed class BuildModule : IProductModule
         return Place(stamp, "wall");
     }
 
+    /// <summary>
+    /// Digs a pit: a width-by-depth box of cells cleared from the course at <paramref name="y"/>
+    /// down through <paramref name="courses"/> courses, as one transaction, and whatever block
+    /// entities stood in it go with it. The same bound as a stamp applies.
+    /// </summary>
+    internal string Dig(long x, long y, long z, long width, long depth, long courses)
+    {
+        int levels = (int)Math.Clamp(courses, 1, 64);
+        VoxelAddress[] cells = [.. Enumerable.Range(0, levels).SelectMany(level => BuildStamp.Plate(
+            new VoxelAddress(x, y - level, z),
+            (int)Math.Clamp(width, 1, 64),
+            (int)Math.Clamp(depth, 1, 64),
+            TerrainConstants.StoneMaterial).Cells)];
+        if (cells.Length > BuildStamp.MaximumStampCells)
+        {
+            refused++;
+            lastOutcome = $"dig refused: {cells.Length} cells is past the {BuildStamp.MaximumStampCells}-cell bound";
+            return Readout();
+        }
+
+        TerrainWorldEditResult result = terrain.TryEditCells(cells, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
+        if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
+        {
+            int broken = entities.BreakAll(cells);
+            lastOutcome = $"dug {cells.Length} cells{(broken > 0 ? $", breaking {broken} entities" : string.Empty)}";
+        }
+        else
+        {
+            lastOutcome = $"dig refused: {TerrainWorldEditResult.Format(result)}";
+        }
+
+        return Readout();
+    }
+
     internal string Undo()
     {
         if (lastStamp.Length == 0)

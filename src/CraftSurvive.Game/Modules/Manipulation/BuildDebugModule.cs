@@ -20,6 +20,9 @@ public sealed class BuildDebugModule : IDebugCommandModule
     [DebugCommand("craft.build.wall", Description = "Places a wall: length by height, one course thick, along X, as one transaction.")]
     public string Wall(long x, long y, long z, long length, long height, long material) => build.Wall(x, y, z, length, height, material);
 
+    [DebugCommand("craft.build.dig", Description = "Digs a pit: width by depth, from the given course down through the given number of courses, as one transaction.")]
+    public string Dig(long x, long y, long z, long width, long depth, long courses) => build.Dig(x, y, z, width, depth, courses);
+
     [DebugCommand("craft.build.undo", Description = "Clears the cells the last stamp placed. It does not restore what stood there before.")]
     public string Undo() => build.Undo();
 

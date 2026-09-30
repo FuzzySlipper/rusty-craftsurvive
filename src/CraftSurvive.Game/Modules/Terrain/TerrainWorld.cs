@@ -181,6 +181,12 @@ internal sealed class TerrainWorld : IDisposable
         return surface + 1;
     }
 
+    /// <summary>Whether the chunk holding a cell is resident: drawn, and solid to collision and sight.</summary>
+    internal bool IsResident(VoxelAddress cell) => streamer.IsResident(cell.Chunk);
+
+    /// <summary>Moves whenever the player's edits change, so anything derived from collision can tell it is stale.</summary>
+    internal ulong EditRevision => overlayStore.Overlay.Revision;
+
     /// <summary>The material standing at a cell now: the player's override, else the recipe's.</summary>
     internal ushort MaterialAt(VoxelAddress address) =>
         overlayStore.Overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);

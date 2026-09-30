@@ -446,6 +446,17 @@ double expectedOne = CreatureKinds.Hostile.PursueSpeedMetresPerSecond * FixedDel
 Check.That(Math.Abs(oneStep.Position.X - expectedOne) < 1e-5 && Math.Abs(twoSteps.Position.X - (2 * expectedOne)) < 1e-5,
     $"one step must move {expectedOne:F4} m and two steps twice that, moved {oneStep.Position.X:F4} and {twoSteps.Position.X:F4}");
 
+// A pursuer with a route walks to its waypoint, not at the player, and stops at the waypoint
+// rather than passing it.
+Creature router = new(7, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+CreatureSimulation.Step(router, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2(0, 5));
+Check.That(Math.Abs(router.Position.X) < 1e-5 && Math.Abs(router.Position.Y - expectedOne) < 1e-5,
+    $"a routed pursuer must walk toward its waypoint, moved to {router.Position}");
+Creature nearWaypoint = new(8, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+CreatureSimulation.Step(nearWaypoint, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta), waypoint: new Vector2(0, 0.25f));
+Check.That(Vector2.Distance(nearWaypoint.Position, new Vector2(0, 0.25f)) < 1e-5,
+    $"a pursuer must stop at its waypoint rather than overshoot it, reached {nearWaypoint.Position}");
+
 Creature striker = new(3, CreatureKinds.Hostile, new Vector2(38, 0));
 Vector3 closePlayer = new(40, 0, 0);
 Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta)) is CreatureStrike,

@@ -80,13 +80,14 @@ internal sealed class CreaturePresentation : IDisposable
     internal void Sync(CreatureRoster roster)
     {
         ArgumentNullException.ThrowIfNull(roster);
-        foreach (int id in shown.Keys.Where(id => !roster.TryGet(id, out _)).ToArray())
+        // Only awake creatures are drawn: a dormant one stands over ground the world has not loaded.
+        foreach (int id in shown.Keys.Where(id => !roster.TryGet(id, out Creature creature) || !creature.Awake).ToArray())
         {
             Retire(id);
         }
 
         List<AppearanceFact> next = new(roster.Count);
-        foreach (Creature creature in roster.All)
+        foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
             if (!shown.TryGetValue(creature.Id, out (Appearance Appearance, EntityId Entity) entry))
             {
