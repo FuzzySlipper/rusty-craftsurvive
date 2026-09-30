@@ -1,0 +1,54 @@
+{
+  "schema_version": "rusty-craftsurvive-exact-playtest/v1",
+  "mission": "Observe the exact craft-868x release companion scene, capture terrain/water, and perform a bounded ordinary movement check.",
+  "profile": "craft-868x",
+  "session_id": "1a698754-f9ec-4092-b0c5-3bcd9e2e55d7",
+  "slot_id": "slot-1",
+  "service_url": "http://127.0.0.1:48315",
+  "origin": "http://127.0.0.1:42963",
+  "backend": "headless Chromium",
+  "configured_model_identity": "gpt-5.6-luna",
+  "authoritative_runtime_metadata": "unavailable",
+  "operational_outcome": "pass",
+  "neutral_observation": "The initial original shows a broad blue water surface in the foreground and a water channel ahead, grassy dirt voxel banks on both sides, bright sky/clouds, and a dark translucent Rusty CraftSurvive debug/control panel in the upper-left. The panel visibly lists WASD and mouse controls, buttons, and live rope state text. After one 800 ms W hold, the second original remains visually near-identical at this framing; water, banks, sky, panel, and text remain visible. Input delivery completed, but the image pair does not establish a visible movement effect.",
+  "acceptance_mapping": "The exact release companion scene loaded and visibly retained terrain and water. Page errors were absent. W input was attempted through the ordinary input path; no visible camera/world change is claimed from the original pair.",
+  "actions": [
+    "Started the supplied craft-868x profile through crew-services playtest CLI.",
+    "Captured the original terrain/water scene.",
+    "Held virtual key W (87) for 800 ms because the visible panel advertises WASD controls.",
+    "Captured a post-input original and compared the visible composition.",
+    "Stopped the owned browser session."
+  ],
+  "captures": [
+    {
+      "label": "initial_terrain_water",
+      "artifact_id": "b0554844-d2da-497b-9c92-7bb494ae0adc",
+      "image_path": "/tmp/868x-playtest-state/browser/1a698754-f9ec-4092-b0c5-3bcd9e2e55d7/b0554844-d2da-497b-9c92-7bb494ae0adc.png",
+      "metadata_path": "/tmp/868x-playtest-state/browser/1a698754-f9ec-4092-b0c5-3bcd9e2e55d7/b0554844-d2da-497b-9c92-7bb494ae0adc.json"
+    },
+    {
+      "label": "after_w_attempt",
+      "artifact_id": "9f156133-2d44-4dc4-ba77-c1f0f7dd07f1",
+      "image_path": "/tmp/868x-playtest-state/browser/1a698754-f9ec-4092-b0c5-3bcd9e2e55d7/9f156133-2d44-4dc4-ba77-c1f0f7dd07f1.png",
+      "metadata_path": "/tmp/868x-playtest-state/browser/1a698754-f9ec-4092-b0c5-3bcd9e2e55d7/9f156133-2d44-4dc4-ba77-c1f0f7dd07f1.json"
+    }
+  ],
+  "browser_observation": {
+    "page_errors": [],
+    "title": "Rusty CraftSurvive",
+    "viewport": {"width": 1280, "height": 720, "device_pixel_ratio": 1},
+    "canvas_backing": {"width": 320, "height": 180},
+    "renderer": "unknown",
+    "console_warnings": [
+      "WebGL GPU stall due to ReadPixels (repeated; final capture says this message will no longer repeat)"
+    ]
+  },
+  "cleanup": {
+    "status": "stopped",
+    "artifact_directory": "/tmp/868x-playtest-state/browser/1a698754-f9ec-4092-b0c5-3bcd9e2e55d7",
+    "browser_closed": true,
+    "released": true,
+    "slot_id": "slot-1"
+  },
+  "events_path": "/tmp/868x-playtest-state/browser/1a698754-f9ec-4092-b0c5-3bcd9e2e55d7/events.jsonl"
+}
