@@ -1,0 +1,146 @@
+name: engine-pair
+
+# Proposes the newest published Engine pair. The proposal is a pull request
+# opened only after the product builds, passes its managed checks and serves
+# on that pair; a pair that breaks the product opens (or updates) an issue
+# instead, and main keeps its pin.
+
+on:
+  schedule:
+    - cron: "41 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Exact pair version to propose (default: newest published)"
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: engine-pair
+  cancel-in-progress: false
+
+env:
+  PROJECT: src/CraftSurvive.Game/CraftSurvive.Game.csproj
+  FAILURE_LABEL: engine-pair-update
+  RUSTY_INSTALLER: https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/32e7f99efd3a4ee6d20e094975c1547b88d6539a/scripts/install-rusty.sh
+
+jobs:
+  propose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --global pnpm@10.15.0
+      - name: Install UI dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Get rusty
+        run: |
+          curl -fsSL "$RUSTY_INSTALLER" | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Propose the pair
+        id: propose
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          from=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
+          rusty update ${VERSION:+--to "$VERSION"} | tee update.log
+          to=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
+          echo "from=$from" >> "$GITHUB_OUTPUT"
+          echo "to=$to" >> "$GITHUB_OUTPUT"
+          if [[ "$from" == "$to" ]] || git ls-remote --exit-code origin "refs/heads/engine-pair/$to" >/dev/null; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the product on the proposed pair
+        if: steps.propose.outputs.changed == 'true'
+        run: |
+          set -o pipefail
+          { dotnet build src/CraftSurvive.Game -c Release && rusty build --project "$PROJECT"; } 2>&1 | tee build.log
+
+      - name: Run the managed checks on the proposed pair
+        if: steps.propose.outputs.changed == 'true'
+        run: |
+          set -o pipefail
+          {
+            for check in tests/Procgen tests/Workbench tests/TerrainResidency tests/SubstrateProof tests/RpgCore tests/DiscoveryCore; do
+              dotnet run --project "$check" -c Release
+            done
+            dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
+          } 2>&1 | tee checks.log
+
+      - name: Serve the product on the proposed pair
+        if: steps.propose.outputs.changed == 'true'
+        run: |
+          set -o pipefail
+          scripts/ci-serve-product.sh "$PROJECT" 8787 2>&1 | tee dev.log
+
+      - name: Open the pull request
+        if: steps.propose.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM: ${{ steps.propose.outputs.from }}
+          TO: ${{ steps.propose.outputs.to }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="engine-pair/$TO"
+          {
+            echo "Adopt Engine pair $TO"
+            echo
+            echo "Built, checked and served by the engine-pair workflow ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+            echo
+            sed -n '/^What changed/,/^Next:/p' update.log | sed '$d'
+          } > message.txt
+          git switch -c "$branch"
+          git commit -q -F message.txt Directory.Build.props
+          git push origin "$branch"
+          gh pr create --base "$GITHUB_REF_NAME" --head "$branch" --title "Adopt Engine pair $TO" --body-file message.txt
+          for issue in $(gh issue list --label "$FAILURE_LABEL" --state open --json number --jq '.[].number'); do
+            gh issue close "$issue" --comment "Engine pair $TO builds, checks and serves; proposed on $branch."
+          done
+
+      - name: Report the failed update
+        if: failure() && steps.propose.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM: ${{ steps.propose.outputs.from }}
+          TO: ${{ steps.propose.outputs.to }}
+        run: |
+          {
+            echo "The engine-pair workflow could not move CraftSurvive from \`$FROM\` to \`$TO\` on \`$GITHUB_REF_NAME\`. The pin was not changed."
+            echo
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo
+            echo "### Release notes to read"
+            echo '```'
+            sed -n '/^What changed/,/^Next:/p' update.log | sed '$d'
+            echo '```'
+            for log in build.log checks.log dev.log; do
+              [[ -s "$log" ]] || continue
+              echo "### Last lines of $log"
+              echo '```'
+              grep -E " error |error:|Error|FAILED" "$log" | head -n 20 || true
+              tail -n 20 "$log"
+              echo '```'
+            done
+          } > report.md
+          gh label create "$FAILURE_LABEL" --color d73a4a --description "The newest Engine pair breaks CraftSurvive" 2>/dev/null || true
+          existing=$(gh issue list --label "$FAILURE_LABEL" --state open --json number --jq '.[0].number')
+          if [[ -n "$existing" ]]; then
+            gh issue comment "$existing" --body-file report.md
+          else
+            gh issue create --label "$FAILURE_LABEL" --title "Engine pair $TO breaks CraftSurvive" --body-file report.md
+          fi

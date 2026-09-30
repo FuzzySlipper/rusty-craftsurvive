@@ -8,8 +8,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PROJECT: src/CraftSurvive.Game/CraftSurvive.Game.csproj
+  # The bootstrap script is taken from a fixed Engine commit; it installs the
+  # `rusty` of the exact pair pinned in Directory.Build.props.
+  RUSTY_INSTALLER: https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/32e7f99efd3a4ee6d20e094975c1547b88d6539a/scripts/install-rusty.sh
+
 jobs:
-  verify-terrain:
+  managed-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +28,8 @@ jobs:
           dotnet-version: 10.0.x
       - name: Install rusty and the product's pinned Engine pair
         run: |
-          curl -fsSL https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/main/scripts/install-rusty.sh | bash
+          pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
+          curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
           ~/.local/bin/rusty install
       - name: Check procedural planning and cave/dungeon layouts
         run: dotnet run --project tests/Procgen -c Release
@@ -28,29 +39,50 @@ jobs:
         run: dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
       - name: Check terrain materials and residency cache
         run: dotnet run --project tests/TerrainResidency -c Release
-      - name: Prove the managed gameplay substrate is admissible
+      - name: Check the Engine substrate the product relies on
         run: dotnet run --project tests/SubstrateProof -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release
       - name: Check point-of-interest placement
         run: dotnet run --project tests/DiscoveryCore -c Release
-      - name: Build the product in Release
-        run: dotnet build src/CraftSurvive.Game -c Release
 
-  verify-product-ui:
+  product:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out CraftSurvive
-        uses: actions/checkout@v4
-
-      - name: Install Node and pnpm
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm install --global pnpm@10.15.0
-
       - name: Install UI dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Install rusty and the product's pinned Engine pair
+        run: |
+          pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
+          curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
+          ~/.local/bin/rusty install
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build the product in Release
+        run: dotnet build src/CraftSurvive.Game -c Release
+      - name: Build and stage the product through rusty
+        run: rusty build --project "$PROJECT"
+      - name: Serve the product and run one update
+        run: scripts/ci-serve-product.sh "$PROJECT" 8787
+      - name: Audit the terrain textures
+        run: pnpm run audit:textures
 
+  product-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --global pnpm@10.15.0
+      - name: Install UI dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Check the DOM companion
         run: pnpm run check:ui

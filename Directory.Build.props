@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- The one Engine SDK/runtime pair pin. `rusty install` installs it;
          only `rusty update` changes it. -->
-    <RustyEnginePackageVersion>0.1.0-dev.6faeaaaa619c</RustyEnginePackageVersion>
+    <RustyEnginePackageVersion>0.1.0-dev.32e7f99efd3a</RustyEnginePackageVersion>
     <!-- Every restore, plain dotnet included, takes exactly the pinned SDK from
          the pair installed in the shared rusty cache. -->
     <RustyEngineCache Condition="'$(RustyEngineCache)' == ''">$(RUSTY_ENGINE_CACHE)</RustyEngineCache>
