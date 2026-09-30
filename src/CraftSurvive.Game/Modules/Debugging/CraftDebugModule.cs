@@ -45,6 +45,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();
 
+    [DebugCommand("craft.player.continuation", Description = "Reports what the last session's continuation restored and how its save is going.")]
+    public string Continuation() => player.ContinuationReadout();
+
     [DebugCommand("craft.player.attack", Description = "Swings at the nearest creature, as the attack key does.")]
     public string Attack() => creatures.PlayerAttack();
 

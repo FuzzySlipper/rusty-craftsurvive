@@ -3,9 +3,9 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// The product's one persistence store, in the product's own scope. Each owner of saved state -
-/// the terrain overlay, the discovery journal - reads and writes its own key through it, so the
-/// scope is opened once and closed once.
+/// The product's one persistence store, in the product's own scope. Each owner of saved state
+/// reads and writes its own <see cref="SaveManifest"/> key through a <see cref="ProductSaveSlot{TState}"/>
+/// over it, so the scope is opened once and closed once.
 /// </summary>
 internal sealed class ProductStore : IDisposable
 {

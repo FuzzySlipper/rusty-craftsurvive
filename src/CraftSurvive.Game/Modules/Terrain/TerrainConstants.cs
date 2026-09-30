@@ -45,13 +45,6 @@ internal static class TerrainConstants
 
     internal const double VoxelSize = 1d;
     internal const uint VoxelChunkSize = ChunkEdgeLength;
-    internal const string OverlayPersistenceKey = "terrain/overlay";
-
-    /// <summary>
-    /// Where the previous overlay generation is kept. One backup, so a discarded
-    /// save is recoverable without keeping a history.
-    /// </summary>
-    internal const string OverlayBackupPersistenceKey = "terrain/overlay.backup";
     internal const string UiStreamName = "craftsurvive.terrain";
     internal const string UiStreamContract = "craftsurvive.terrain.v1";
     internal const uint CollisionGroupAll = uint.MaxValue;
@@ -62,13 +55,6 @@ internal static class TerrainConstants
     internal const float MaterialAlpha = 1f;
     internal const float NoEmission = 0f;
 
-    internal const int OverlaySchemaVersion = 1;
+    /// <summary>How many cells the player's edits may override; admission refuses an edit past it.</summary>
     internal const int MaximumOverlayEntries = 65_536;
-    internal const int MaximumOverlayBytes = 8 * 1024 * 1024;
-    internal const int OverlayHeaderBytes = 32;
-    internal const int OverlayEntryBytes = 26;
-    internal const uint OverlayMagic = 0x4F54_5343;
-    internal const ulong OverlayFingerprintOffset = 0xCBF2_9CE4_8422_2325UL;
-    internal const ulong OverlayFingerprintPrime = 0x0000_0100_0000_01B3UL;
-
 }

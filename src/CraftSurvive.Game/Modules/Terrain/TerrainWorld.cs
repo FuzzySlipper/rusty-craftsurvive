@@ -53,7 +53,8 @@ internal sealed class TerrainWorld : IDisposable
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, GenerationFingerprint);
         TerrainChunkGenerator generator = new(recipe, chunkCache);
         TerrainResidencyPolicy policy = new(recipe, generator);
-        overlayStore = new TerrainOverlayStore(engine, store, configuration.Seed);
+        SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
+        overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
         presentation = new TerrainPresentation(engine, content);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish);
@@ -61,6 +62,9 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The generation recipe, for the modules that reason about the generated world.</summary>
     internal TerrainRecipe Recipe => recipe;
+
+    /// <summary>The world every save belongs to; a save written for another is discarded.</summary>
+    internal SaveIdentity SaveIdentity { get; }
 
     /// <summary>What this run's generator produces over the startup probe, with the Engine's draws.</summary>
     internal ulong GenerationFingerprint { get; }
@@ -225,7 +229,7 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The world's identity and the state of the player's edits.</summary>
     internal string ReadLayout() => string.Create(CultureInfo.InvariantCulture,
-        $"seed={recipe.Contract.Seed:x16};extent={recipe.Contract.Extent};version={recipe.Contract.Version};overlay={overlayStore.Overlay.Count} entries, {overlayStore.RestoreOutcome};overlaySaves={overlayStore.Saves}");
+        $"seed={recipe.Contract.Seed:x16};extent={recipe.Contract.Extent};version={recipe.Contract.Version};overlay={overlayStore.Overlay.Count} entries, {overlayStore.RestoreOutcome};overlaySaves={overlayStore.Saves};overlaySaveFailure={overlayStore.LastFailure}");
 
     /// <summary>Moves what the world holds in local space after the player commits a rebase.</summary>
     private void OnRebased(Vector3 translation)

@@ -36,6 +36,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly DiscoveryModule discovery;
     private readonly BlastModule blast;
     private readonly BuildModule build;
+    private readonly BlockEntityStore entityStore;
 
     /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
     private readonly BlockEntityIndex entities = new();
@@ -53,14 +54,17 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         store = new ProductStore(context.Engine);
         ui = new ProductUiPublisher(context.Engine);
         terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame, store, ui);
-        player = new PlayerController(context.Engine, terrain, frame, ui);
+        player = new PlayerController(context.Engine, terrain, frame, store, ui);
         sky = new SkyBackground(context.Engine);
         creatures = new CreatureModule(context.Engine, terrain, player, frame);
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         blast = new BlastModule(context.Engine, terrain, frame, entities);
         build = new BuildModule(terrain, entities);
-        gameplay = [creatures, discovery, blast, build];
+        entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
+
+        // The entity store runs last, so it saves what a charge swept or a build placed this update.
+        gameplay = [creatures, discovery, blast, build, entityStore];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -76,7 +80,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(creatureDebug));
         RequireRegistration(registrar.Register(new DiscoveryDebugModule(discovery)));
         RequireRegistration(registrar.Register(new BlastDebugModule(blast)));
-        RequireRegistration(registrar.Register(new BuildDebugModule(build)));
+        RequireRegistration(registrar.Register(new BuildDebugModule(build, entityStore)));
+        RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
     }
 
     public void Start()

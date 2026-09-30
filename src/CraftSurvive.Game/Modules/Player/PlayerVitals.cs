@@ -55,6 +55,21 @@ internal sealed class PlayerVitals
 
     internal PlayerDefeatOutcome Outcome(long step) => PlayerDefeatRules.Outcome(state, step);
 
+    internal int MaximumHealth => maximumHealth;
+
+    /// <summary>
+    /// Continues from a saved session: the health and defeats it ended with, and no grace or
+    /// pending respawn, which are timed in the old session's steps.
+    /// </summary>
+    internal void Restore(int health, int defeats)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(health);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(health, maximumHealth);
+        ArgumentOutOfRangeException.ThrowIfNegative(defeats);
+        state = PlayerDefeatState.Full(maximumHealth) with { Health = health, Defeats = defeats };
+        graceUntilStep = long.MinValue;
+    }
+
     /// <summary>A fresh session: full health, no defeats, no grace.</summary>
     internal void Reset()
     {

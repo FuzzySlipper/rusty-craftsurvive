@@ -4,13 +4,10 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.Discovery;
 
 /// <summary>
-/// What the player has learned about one place. The stage only ever rises, so the
-/// first-seen tick is kept even when the site is later visited.
-/// </summary>
-/// <summary>
-/// One found place. The ticks are session-relative: a restored entry keeps the ticks it was
-/// saved with, while the module's own counter restarts each run, so ticks order places within
-/// a session and are not comparable across one.
+/// What the player has learned about one place. The stage only ever rises, so the first-seen tick
+/// is kept even when the site is later visited. Ticks are journal ticks: they continue from the
+/// restored journal's latest instead of restarting with each session, so they order places across
+/// every session of a world.
 /// </summary>
 internal readonly record struct DiscoveryEntry(
     long CellX,
@@ -174,6 +171,9 @@ internal sealed class DiscoveryState
     }
 
     internal DiscoverySnapshot Snapshot() => new(seed, entries.Values.ToArray());
+
+    /// <summary>The first journal tick after everything recorded: where a new session's ticks start.</summary>
+    internal long ResumeTick => last is DiscoveryEntry latest ? latest.LastTick + 1 : 0;
 
     /// <summary>
     /// Replaces the journal with the facts a save recorded. Validation is strict and throws,

@@ -13,55 +13,36 @@ internal sealed class TerrainOverlayStore
     /// <summary>A quarter of a second at 60 Hz: long enough to fold a burst of edits into one save.</summary>
     internal const long SaveDelaySteps = 15;
 
-    private readonly IEngineContext engine;
-    private readonly ProductStore store;
-    private readonly ulong seed;
+    private readonly ProductSaveSlot<TerrainOverlaySnapshot> slot;
     private bool dirty;
     private long changedAtStep;
 
-    internal TerrainOverlayStore(IEngineContext engine, ProductStore store, ulong seed)
+    internal TerrainOverlayStore(IEngineContext engine, ProductStore store, SaveIdentity identity)
     {
-        this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        this.store = store ?? throw new ArgumentNullException(nameof(store));
-        this.seed = seed;
-        Overlay = new TerrainOverlayState(seed);
+        slot = new ProductSaveSlot<TerrainOverlaySnapshot>(
+            engine, store, SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity));
+        Overlay = new TerrainOverlayState(identity.Seed);
     }
 
     internal TerrainOverlayState Overlay { get; }
 
     /// <summary>What happened to the saved overlay at start.</summary>
-    internal string RestoreOutcome { get; private set; } = "none";
+    internal string RestoreOutcome => slot.RestoreOutcome;
 
-    internal long Saves { get; private set; }
+    internal long Saves => slot.Saves;
+
+    /// <summary>The last save this store could not make, or none.</summary>
+    internal string LastFailure => slot.LastFailure ?? "none";
 
     /// <summary>
-    /// Reads the saved overlay. Worlds are disposable under the settled save policy: a save that
-    /// does not match this world is discarded and the world regenerates, keeping the previous
-    /// generation as one backup.
+    /// Reads the saved overlay. A save that does not match this world is discarded and kept as
+    /// the key's backup, and the world starts from the generator alone.
     /// </summary>
     internal void Restore()
     {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, TerrainConstants.OverlayPersistenceKey));
-        if (!engine.Persistence.DescribeBlob(blob).Present)
+        if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: TerrainOverlaySnapshot saved })
         {
-            RestoreOutcome = "absent";
-            return;
-        }
-
-        byte[] bytes = engine.Persistence.ReadBlobBytes(blob).ToArray();
-        try
-        {
-            Overlay.Restore(TerrainOverlayCodec.Decode(seed, bytes));
-            RestoreOutcome = "restored";
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
-        {
-            if (bytes.Length > 0)
-            {
-                Write(TerrainConstants.OverlayBackupPersistenceKey, bytes);
-            }
-
-            RestoreOutcome = $"discarded: {exception.Message}";
+            Overlay.Restore(saved);
         }
     }
 
@@ -90,13 +71,13 @@ internal sealed class TerrainOverlayStore
         }
     }
 
+    /// <summary>
+    /// A write refused because the key changed outside this session stays refused: the edits are
+    /// still in the world, and the readout reports why they are not being saved.
+    /// </summary>
     private void Save()
     {
-        Write(TerrainConstants.OverlayPersistenceKey, TerrainOverlayCodec.Encode(Overlay.Snapshot()));
+        slot.Save(Overlay.Snapshot());
         dirty = false;
-        Saves++;
     }
-
-    private void Write(string key, byte[] bytes) => engine.Persistence.Save(new PersistenceSaveRequest(
-        store.Store, key, PersistenceRevisionGuard.Any, 0, bytes));
 }

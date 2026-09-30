@@ -2,17 +2,20 @@ using CraftSurvive.Game.Modules.Terrain;
 
 namespace CraftSurvive.Game.Modules.Manipulation;
 
-/// <summary>What a block entity is. The voxel says a cell is solid; the entity says what it does.</summary>
-internal enum BlockEntityKind
+/// <summary>
+/// What a block entity is. The voxel says a cell is solid; the entity says what it does. The values
+/// are saved, so a kind may be appended but never renumbered.
+/// </summary>
+internal enum BlockEntityKind : byte
 {
     /// <summary>Opens and closes.</summary>
-    Door,
+    Door = 0,
 
     /// <summary>Holds things.</summary>
-    Container,
+    Container = 1,
 
     /// <summary>Lights the room it is in.</summary>
-    Light,
+    Light = 2,
 }
 
 /// <summary>
@@ -47,6 +50,9 @@ internal sealed class BlockEntityIndex
     /// <summary>How many entities stand in the world.</summary>
     internal int Count => byCell.Count;
 
+    /// <summary>Counts every change, so the owner of the save can tell whether there is anything to write.</summary>
+    internal long Revision { get; private set; }
+
     /// <summary>Every entity, in a stable order for tests and readouts.</summary>
     internal IEnumerable<BlockEntity> All => byCell.Values.OrderBy(entity => entity.Id);
 
@@ -58,6 +64,7 @@ internal sealed class BlockEntityIndex
     {
         BlockEntity entity = new(nextId++, kind, cell, state);
         byCell[cell] = entity;
+        Revision++;
         return entity;
     }
 
@@ -71,7 +78,16 @@ internal sealed class BlockEntityIndex
     /// Break: an edited-away cell loses its entity. Returns whether anything was removed, so a
     /// caller can report a door destroyed rather than silently losing it.
     /// </summary>
-    internal bool Break(VoxelAddress cell) => byCell.Remove(cell);
+    internal bool Break(VoxelAddress cell)
+    {
+        if (!byCell.Remove(cell))
+        {
+            return false;
+        }
+
+        Revision++;
+        return true;
+    }
 
     /// <summary>Break a whole set of cells - a stamp undone, a distance-edited volume cleared.</summary>
     internal int BreakAll(IEnumerable<VoxelAddress> cells)
@@ -79,7 +95,7 @@ internal sealed class BlockEntityIndex
         int removed = 0;
         foreach (VoxelAddress cell in cells)
         {
-            if (byCell.Remove(cell))
+            if (Break(cell))
             {
                 removed++;
             }
@@ -100,6 +116,31 @@ internal sealed class BlockEntityIndex
         }
 
         byCell[cell] = entity with { State = state };
+        Revision++;
         return true;
     }
+
+    /// <summary>Every entity as its stored record, in canonical cell order; identities are not saved.</summary>
+    internal BlockEntityRecord[] Snapshot() =>
+        [.. byCell.Values.OrderBy(entity => entity.Cell).Select(entity => new BlockEntityRecord(entity.Kind, entity.Cell, entity.State))];
+
+    /// <summary>
+    /// Replaces every entity with the saved records, minting fresh identities in record order.
+    /// Identities are per session: nothing outside the index holds one across a reload.
+    /// </summary>
+    internal void Restore(IEnumerable<BlockEntityRecord> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        byCell.Clear();
+        nextId = 1;
+        foreach (BlockEntityRecord record in records)
+        {
+            byCell[record.Cell] = new BlockEntity(nextId++, record.Kind, record.Cell, record.State);
+        }
+
+        Revision++;
+    }
 }
+
+/// <summary>What is saved of a block entity: what it is, where it stands, and its one bit of state.</summary>
+internal readonly record struct BlockEntityRecord(BlockEntityKind Kind, VoxelAddress Cell, ushort State);

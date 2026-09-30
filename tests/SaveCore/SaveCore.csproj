@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
+    <!-- The save manifest, the shared envelope, the restore rule and every codec are pure product
+         code over the Engine's codec shape, so they are checked without a runtime. -->
+    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveManifest.cs" Link="World/SaveManifest.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveEnvelope.cs" Link="World/SaveEnvelope.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveRestore.cs" Link="World/SaveRestore.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/WorldGen/*.cs" LinkBase="WorldGen" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="Terrain/TerrainConstants.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="Terrain/TerrainConfiguration.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="Terrain/VoxelAddress.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayState.cs" Link="Terrain/TerrainOverlayState.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayCodec.cs" Link="Terrain/TerrainOverlayCodec.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEditPolicy.cs" Link="Terrain/TerrainEditPolicy.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryRules.cs" Link="Discovery/DiscoveryRules.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryState.cs" Link="Discovery/DiscoveryState.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryCodec.cs" Link="Discovery/DiscoveryCodec.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="Manipulation/BlockEntityIndex.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityCodec.cs" Link="Manipulation/BlockEntityCodec.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerContinuation.cs" Link="Player/PlayerContinuation.cs" />
+  </ItemGroup>
+</Project>

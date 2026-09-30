@@ -6,10 +6,12 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 public sealed class BuildDebugModule : IDebugCommandModule
 {
     private readonly BuildModule build;
+    private readonly BlockEntityStore entityStore;
 
-    internal BuildDebugModule(BuildModule build)
+    internal BuildDebugModule(BuildModule build, BlockEntityStore entityStore)
     {
         this.build = build ?? throw new ArgumentNullException(nameof(build));
+        this.entityStore = entityStore ?? throw new ArgumentNullException(nameof(entityStore));
     }
 
     [DebugCommand("craft.build.plate", Description = "Places a flat floor: a width-by-depth plate of one course at a corner, as one transaction.")]
@@ -30,8 +32,8 @@ public sealed class BuildDebugModule : IDebugCommandModule
     [DebugCommand("craft.build.container", Description = "Places a container: a voxel with a storing entity in the same cell.")]
     public string Container(long x, long y, long z, long fill) => build.Container(x, y, z, fill);
 
-    [DebugCommand("craft.build.entities", Description = "Lists the block entities standing in the world.")]
-    public string Entities() => build.Entities();
+    [DebugCommand("craft.build.entities", Description = "Lists the block entities standing in the world, and how their save went.")]
+    public string Entities() => $"{build.Entities()}; {entityStore.Readout()}";
 
     [DebugCommand("craft.build.readout", Description = "Reports stamps placed, undos, refusals, and the last outcome.")]
     public string Readout() => build.Readout();

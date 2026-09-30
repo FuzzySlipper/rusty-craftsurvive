@@ -20,74 +20,67 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// </summary>
 internal sealed class DiscoveryModule : IProductModule
 {
-    private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly DiscoveryState journal;
 
+    private readonly ProductSaveSlot<DiscoverySnapshot> slot;
+    private readonly ProductUiPublisher ui;
+    private readonly List<PoiSite> candidates = [];
+
     /// <summary>The last save or publish failure, reported by the readout rather than swallowed.</summary>
     private string? lastFailure;
-    private PoiSite? firstVisit;
+
+    /// <summary>Places reached for the first time in this session.</summary>
     private long firstVisits;
-    private readonly List<PoiSite> candidates = [];
-    private readonly ProductStore productStore;
-    private readonly ProductUiPublisher ui;
-    private PersistenceStore? store;
-    private string restoreOutcome = "not attempted";
+
+    /// <summary>The journal tick this session's step zero stands for.</summary>
+    private long tickBase;
     private long nextNoticeStep;
     private bool noticedOnce;
+    private bool started;
     private bool disposed;
 
-    internal DiscoveryModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, ProductStore productStore, ProductUiPublisher ui)
+    internal DiscoveryModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, ProductStore store, ProductUiPublisher ui)
     {
-        this.productStore = productStore ?? throw new ArgumentNullException(nameof(productStore));
+        ArgumentNullException.ThrowIfNull(engine);
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
-        this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
-        journal = new DiscoveryState(terrain.Recipe.Contract.Seed);
+        journal = new DiscoveryState(terrain.SaveIdentity.Seed);
+        slot = new ProductSaveSlot<DiscoverySnapshot>(
+            engine, store, SaveManifest.DiscoveryJournal, new DiscoveryCodec(terrain.SaveIdentity));
     }
 
-    /// <summary>Opens the journal's store and restores what was found before.</summary>
+    /// <summary>Restores what was found before.</summary>
     public void Start()
     {
-        if (store is not null)
+        if (started)
         {
             return;
         }
 
-        store = productStore.Store;
         Restore();
+        started = true;
     }
 
     /// <summary>A fresh session over the saved journal: what is stored is read back.</summary>
     public void Restart()
     {
-        journal.Restore(new DiscoverySnapshot(terrain.Recipe.Contract.Seed, []));
-        firstVisit = null;
+        journal.Restore(new DiscoverySnapshot(terrain.SaveIdentity.Seed, []));
+        firstVisits = 0;
         nextNoticeStep = 0;
         noticedOnce = false;
         Restore();
     }
 
-    private PersistenceStore Store => store ?? throw new InvalidOperationException("The discovery journal has not started.");
-
     internal int Count => journal.Count;
 
-
     /// <summary>
-    /// Whether the journal is saved, and how many bytes it holds. It exists for the same
-    /// reason the overlay's does: it is the half of the save path an Engine-side write
-    /// never touches, so the live lane can show that a fact the player earned reached
-    /// the store.
+    /// Whether the journal is saved, and how many bytes it holds, so the live lane can show that a
+    /// fact the player earned reached the store.
     /// </summary>
-    internal (bool Present, int Bytes) JournalSaved()
-    {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
-            Store, DiscoveryConstants.PersistenceKey));
-        PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
-        return info.Present ? (true, engine.Persistence.ReadBlobBytes(blob).Length) : (false, 0);
-    }
+    internal (bool Present, int Bytes) JournalSaved() => slot.Probe();
 
     /// <summary>
     /// Looks around and records anything newly seen or reached. It runs every few Engine steps
@@ -96,13 +89,13 @@ internal sealed class DiscoveryModule : IProductModule
     /// </summary>
     public void Update(ProductStep time)
     {
-        if (disposed || store is null || time.Step < nextNoticeStep)
+        if (disposed || !started || time.Step < nextNoticeStep)
         {
             return;
         }
 
-        long tick = time.Step;
-        nextNoticeStep = tick + DiscoveryConstants.NoticeIntervalTicks;
+        nextNoticeStep = time.Step + DiscoveryConstants.NoticeIntervalTicks;
+        long tick = tickBase + time.Step;
 
         Vector3 position = player.WorldPosition;
         long columnX = (long)Math.Floor(position.X);
@@ -140,7 +133,6 @@ internal sealed class DiscoveryModule : IProductModule
             {
                 // First reach of this place, not a return to it: the difference between exploring
                 // somewhere and farming somewhere already known.
-                firstVisit = site;
                 firstVisits++;
             }
 
@@ -197,7 +189,7 @@ internal sealed class DiscoveryModule : IProductModule
     internal string Readout()
     {
         (bool present, int bytes) = JournalSaved();
-        return $"journal {journal.Readout()} firstVisits={firstVisits} stored={present}/{bytes} restore={restoreOutcome} failure={lastFailure ?? "none"}";
+        return $"journal {journal.Readout()} firstVisits={firstVisits} stored={present}/{bytes} restore={slot.RestoreOutcome} failure={lastFailure ?? "none"}";
     }
 
     /// <summary>
@@ -332,33 +324,6 @@ internal sealed class DiscoveryModule : IProductModule
             $"crossings radius={limit} count={rows.Count}: {(rows.Count == 0 ? "none" : string.Join("; ", rows.Select(row => row.Row)))}");
     }
 
-    /// <summary>
-    /// Whether a place has been reached for the first time, waiting to be consumed.
-    ///
-    /// This is S5's half of the seam that ties encounters and rewards to exploration: the journal
-    /// knows a discovery happened and says so, and whoever owns creatures and rewards decides what
-    /// it is worth. The module does not know what a creature is, and must not - one owner per state
-    /// family - so the outcome is published here for the product to act on rather than acted on
-    /// inside the update, which is also the path that must never throw.
-    ///
-    /// The slot holds one outcome: a consumer that misses one is a frame behind, not a discovery
-    /// lost, because the journal still records the place itself.
-    /// </summary>
-    internal bool TryTakeFirstVisit(out PoiSite site)
-    {
-        if (firstVisit is not PoiSite waiting)
-        {
-            site = default;
-            return false;
-        }
-
-        site = waiting;
-        firstVisit = null;
-        return true;
-    }
-
-
-
     private static double Distance(PoiSite site, Vector3 position)
     {
         double dx = site.X - position.X;
@@ -368,61 +333,25 @@ internal sealed class DiscoveryModule : IProductModule
 
     private void Save()
     {
-        byte[] bytes = DiscoveryCodec.Encode(journal.Snapshot());
-        engine.Persistence.Save(new PersistenceSaveRequest(
-            Store, DiscoveryConstants.PersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
+        if (!slot.Save(journal.Snapshot()))
+        {
+            lastFailure = slot.LastFailure;
+        }
     }
 
     /// <summary>
-    /// Reads the stored journal. A blob that is merely wrong is discarded and backed up; a store
-    /// that cannot be read at all is left to fail, because a product that cannot read its own
-    /// journal should not start and quietly forget what the player found.
+    /// Reads the stored journal. One that does not match this world is discarded and kept as the
+    /// key's backup; the journal then starts empty. Ticks resume after the latest one restored.
     /// </summary>
     private void Restore()
     {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
-            Store, DiscoveryConstants.PersistenceKey));
-        PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
-        if (!info.Present)
+        if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: DiscoverySnapshot saved })
         {
-            restoreOutcome = "absent";
-            return;
+            journal.Restore(saved);
         }
 
-        byte[] bytes = engine.Persistence.ReadBlobBytes(blob).ToArray();
-        try
-        {
-            journal.Restore(DiscoveryCodec.Decode(terrain.Recipe.Contract.Seed, bytes));
-            restoreOutcome = "restored";
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
-        {
-            // Worlds are disposable under the settled save policy, so a journal that does
-            // not match this world is set aside rather than reaching the load call and
-            // failing the product. The previous generation is kept as one backup.
-            // The backup is a courtesy, not a condition: a store that cannot write it must not take
-            // the product down during construction, which is the one place a failure is fatal.
-            try
-            {
-                PreserveBackup(bytes);
-            }
-            catch (EngineCallException failure)
-            {
-                lastFailure = failure.Message;
-            }
-            restoreOutcome = $"discarded: {exception.Message}";
-        }
-    }
-
-    private void PreserveBackup(byte[] bytes)
-    {
-        if (bytes.Length == 0)
-        {
-            return;
-        }
-
-        engine.Persistence.Save(new PersistenceSaveRequest(
-            Store, DiscoveryConstants.BackupPersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
+        lastFailure = slot.LastFailure;
+        tickBase = journal.ResumeTick;
     }
 
     public void Dispose()
@@ -433,6 +362,5 @@ internal sealed class DiscoveryModule : IProductModule
         }
 
         disposed = true;
-        store = null;
     }
 }

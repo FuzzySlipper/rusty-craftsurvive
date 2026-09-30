@@ -28,6 +28,15 @@ internal sealed class PlayerProgress
         return outcome;
     }
 
+    /// <summary>Continues from a saved session. The level follows from the experience.</summary>
+    internal void Restore(int experience, int itemsCollected)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(itemsCollected);
+        Level = ProgressionRules.LevelFor(experience);
+        Experience = experience;
+        ItemsCollected = itemsCollected;
+    }
+
     internal void Reset()
     {
         Experience = 0;

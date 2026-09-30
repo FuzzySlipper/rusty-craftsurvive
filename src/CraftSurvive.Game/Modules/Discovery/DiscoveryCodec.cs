@@ -1,178 +1,107 @@
-using System.Buffers.Binary;
-using CraftSurvive.Game.Modules.Terrain;
+using System.Buffers;
+using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
+using Rusty.Engine.Persistence;
 
 namespace CraftSurvive.Game.Modules.Discovery;
 
 /// <summary>
-/// Stable bounded binary storage for the journal. It mirrors the terrain overlay codec's
-/// discipline, and for the same reasons: a fixed header carries the world's identity, so a
-/// save from another seed or another generation version is recognised rather than
-/// misread; the entry count is checked against the payload length before anything is
-    /// A fingerprint catches a blob whose bytes were altered in place. Truncation is caught
-/// corrupted in the middle, which a length check alone cannot.
-///
-/// Everything here throws on bad input. That is deliberate, and it is the opposite of the
-/// rule the journal's own update path follows: this runs on load, where the caller can
-/// discard the save and regenerate - so refusing loudly is safe, while a silent partial
-/// read would quietly invent a history the player never had.
+/// The journal's stored form under <see cref="SaveManifest.DiscoveryJournal"/>: the shared header,
+/// then one record per place in canonical cell order - its anchor cell, position, kind, stage and
+/// both journal ticks. A kind or stage outside the known range is refused rather than adopted:
+/// these numbers are persisted and published, so one that is not a known value is a blob this
+/// build cannot interpret.
 /// </summary>
-internal static class DiscoveryCodec
+internal sealed class DiscoveryCodec(SaveIdentity identity) : IProductStateCodec<DiscoverySnapshot>
 {
-    internal static byte[] Encode(DiscoverySnapshot snapshot)
+    /// <summary>Cells, position, kind, stage and both ticks.</summary>
+    internal const int RecordBytes = (sizeof(long) * 4) + sizeof(ushort) + sizeof(byte) + (sizeof(long) * 2);
+
+    internal static SaveBounds Bounds { get; } = new(PoiConstants.MaximumDiscoveryEntries, RecordBytes);
+
+    private static SaveKey Key => SaveManifest.DiscoveryJournal;
+
+    public void Encode(in DiscoverySnapshot state, IBufferWriter<byte> destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        destination.Write(Encode(state));
+    }
+
+    internal byte[] Encode(DiscoverySnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        DiscoveryEntry[] entries = snapshot.Entries;
-        int byteLength = checked(DiscoveryConstants.HeaderBytes + (entries.Length * DiscoveryConstants.EntryBytes));
-        if (byteLength > DiscoveryConstants.MaximumJournalBytes)
+        if (snapshot.Seed != identity.Seed)
         {
-            throw new InvalidOperationException(
-                $"A journal must not exceed {DiscoveryConstants.MaximumJournalBytes} bytes.");
+            throw new InvalidOperationException("A journal can only be saved into its own world.");
         }
 
-        byte[] bytes = new byte[byteLength];
-        Span<byte> destination = bytes;
-        BinaryPrimitives.WriteUInt32LittleEndian(destination, DiscoveryConstants.Magic);
-        BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(sizeof(uint)), DiscoveryConstants.SchemaVersion);
-        BinaryPrimitives.WriteUInt32LittleEndian(
-            destination.Slice(sizeof(uint) + sizeof(int)), TerrainGeneratorContract.CurrentVersion);
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            destination.Slice(sizeof(uint) + (sizeof(int) * 2)), snapshot.Seed);
-        BinaryPrimitives.WriteInt32LittleEndian(
-            destination.Slice(sizeof(uint) + sizeof(int) + sizeof(uint) + sizeof(ulong)), entries.Length);
-        BinaryPrimitives.WriteUInt64LittleEndian(
-            destination.Slice(DiscoveryConstants.HeaderBytes - sizeof(ulong)), Fingerprint(snapshot.Seed, entries));
-
-        int offset = DiscoveryConstants.HeaderBytes;
+        DiscoveryEntry[] entries = snapshot.Entries;
+        byte[] bytes = SaveEnvelope.Allocate(Key, identity, Bounds, entries.Length);
+        SaveWriter records = SaveEnvelope.Records(bytes);
         foreach (DiscoveryEntry entry in entries)
         {
-            Span<byte> target = destination.Slice(offset, DiscoveryConstants.EntryBytes);
-            BinaryPrimitives.WriteInt64LittleEndian(target, entry.CellX);
-            BinaryPrimitives.WriteInt64LittleEndian(target.Slice(8), entry.CellZ);
-            BinaryPrimitives.WriteInt64LittleEndian(target.Slice(16), entry.X);
-            BinaryPrimitives.WriteInt64LittleEndian(target.Slice(24), entry.Z);
-            BinaryPrimitives.WriteUInt16LittleEndian(target.Slice(32), (ushort)entry.Kind);
-            target[34] = (byte)entry.Stage;
-            BinaryPrimitives.WriteInt64LittleEndian(target.Slice(35), entry.FirstSeenTick);
-            BinaryPrimitives.WriteInt64LittleEndian(target.Slice(43), entry.LastTick);
-            offset += DiscoveryConstants.EntryBytes;
+            records.Int64(entry.CellX);
+            records.Int64(entry.CellZ);
+            records.Int64(entry.X);
+            records.Int64(entry.Z);
+            records.UInt16((ushort)entry.Kind);
+            records.Byte((byte)entry.Stage);
+            records.Int64(entry.FirstSeenTick);
+            records.Int64(entry.LastTick);
         }
 
+        SaveEnvelope.Seal(bytes, Fingerprint(identity.Seed, entries));
         return bytes;
     }
 
-    internal static DiscoverySnapshot Decode(ulong expectedSeed, ReadOnlySpan<byte> bytes)
+    public DiscoverySnapshot Decode(ReadOnlySpan<byte> payload)
     {
-        if (bytes.Length > DiscoveryConstants.MaximumJournalBytes)
-        {
-            throw new InvalidOperationException(
-                $"A journal must not exceed {DiscoveryConstants.MaximumJournalBytes} bytes.");
-        }
-
-        if (bytes.Length < DiscoveryConstants.HeaderBytes)
-        {
-            throw new InvalidOperationException("Stored journal is incomplete.");
-        }
-
-        uint magic = BinaryPrimitives.ReadUInt32LittleEndian(bytes);
-        if (magic != DiscoveryConstants.Magic)
-        {
-            throw new InvalidOperationException("Stored journal has an unrecognised format.");
-        }
-
-        int schema = BinaryPrimitives.ReadInt32LittleEndian(bytes.Slice(sizeof(uint)));
-        if (schema != DiscoveryConstants.SchemaVersion)
-        {
-            throw new InvalidOperationException($"Stored journal uses unsupported schema {schema}.");
-        }
-
-        uint generation = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(sizeof(uint) + sizeof(int)));
-        if (generation != TerrainGeneratorContract.CurrentVersion)
-        {
-            throw new InvalidOperationException(
-                $"Stored journal was written for generation {generation}, not {TerrainGeneratorContract.CurrentVersion}.");
-        }
-
-        ulong seed = BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(sizeof(uint) + (sizeof(int) * 2)));
-        if (seed != expectedSeed)
-        {
-            throw new InvalidOperationException("Stored journal belongs to a different world.");
-        }
-
-        int count = BinaryPrimitives.ReadInt32LittleEndian(
-            bytes.Slice(sizeof(uint) + sizeof(int) + sizeof(uint) + sizeof(ulong)));
-        if (count < 0 || count > PoiConstants.MaximumDiscoveryEntries)
-        {
-            throw new InvalidOperationException($"Stored journal declares {count} entries.");
-        }
-
-        int expectedLength = checked(DiscoveryConstants.HeaderBytes + (count * DiscoveryConstants.EntryBytes));
-        if (bytes.Length != expectedLength)
-        {
-            throw new InvalidOperationException(
-                $"Stored journal is {bytes.Length} bytes but declares {count} entries.");
-        }
-
+        int count = SaveEnvelope.Open(Key, identity, Bounds, payload);
         DiscoveryEntry[] entries = new DiscoveryEntry[count];
-        int offset = DiscoveryConstants.HeaderBytes;
+        SaveReader records = SaveEnvelope.Records(payload);
         for (int index = 0; index < count; index++)
         {
-            ReadOnlySpan<byte> source = bytes.Slice(offset, DiscoveryConstants.EntryBytes);
-            long cellX = BinaryPrimitives.ReadInt64LittleEndian(source);
-            long cellZ = BinaryPrimitives.ReadInt64LittleEndian(source.Slice(8));
-            long x = BinaryPrimitives.ReadInt64LittleEndian(source.Slice(16));
-            long z = BinaryPrimitives.ReadInt64LittleEndian(source.Slice(24));
-            PoiKind kind = (PoiKind)BinaryPrimitives.ReadUInt16LittleEndian(source.Slice(32));
-            // A kind or stage outside the known range is refused rather than adopted: these numbers
-            // are persisted and published, so a value that is not one of them is a blob this build
-            // cannot interpret, and the codec's job is to say so loudly while refusing is still safe.
-            if ((int)kind < (int)PoiConstants.FirstKind || (int)kind > (int)PoiConstants.LastKind)
+            long cellX = records.Int64();
+            long cellZ = records.Int64();
+            long x = records.Int64();
+            long z = records.Int64();
+            PoiKind kind = (PoiKind)records.UInt16();
+            if ((long)kind < PoiConstants.FirstKind || (long)kind > PoiConstants.LastKind)
             {
                 throw new InvalidOperationException($"Place {index} has kind {kind}, which is not a known kind.");
             }
-            DiscoveryStage stage = (DiscoveryStage)source[34];
-            entries[index] = new DiscoveryEntry(cellX, cellZ, kind, x, z, stage,
-                BinaryPrimitives.ReadInt64LittleEndian(source.Slice(35)),
-                BinaryPrimitives.ReadInt64LittleEndian(source.Slice(43)));
-            offset += DiscoveryConstants.EntryBytes;
+
+            DiscoveryStage stage = (DiscoveryStage)records.Byte();
+            if (stage is not (DiscoveryStage.Seen or DiscoveryStage.Visited))
+            {
+                throw new InvalidOperationException($"Place {index} has stage {stage}, which is not a known stage.");
+            }
+
+            entries[index] = new DiscoveryEntry(cellX, cellZ, kind, x, z, stage, records.Int64(), records.Int64());
         }
 
-        ulong fingerprint = BinaryPrimitives.ReadUInt64LittleEndian(
-            bytes.Slice(DiscoveryConstants.HeaderBytes - sizeof(ulong)));
-        if (fingerprint != Fingerprint(seed, entries))
-        {
-            throw new InvalidOperationException("Stored journal does not match its own fingerprint.");
-        }
+        SaveEnvelope.Verify(Key, payload, Fingerprint(identity.Seed, entries));
 
-        // The snapshot's own validation runs here: canonical order, unique places, a kind
-        // that exists, and a stage that recorded something.
-        return new DiscoverySnapshot(seed, entries);
+        // The snapshot's own validation runs here: canonical order, unique places, a stage that
+        // recorded something, and ticks that run forwards.
+        return new DiscoverySnapshot(identity.Seed, entries);
     }
 
     private static ulong Fingerprint(ulong seed, DiscoveryEntry[] entries)
     {
-        ulong hash = 0xcbf2_9ce4_8422_2325UL ^ seed;
+        SaveFingerprint hash = SaveFingerprint.Start(seed);
         foreach (DiscoveryEntry entry in entries)
         {
-            hash = Mix(hash, (ulong)entry.CellX);
-            hash = Mix(hash, (ulong)entry.CellZ);
-            hash = Mix(hash, (ulong)entry.X);
-            hash = Mix(hash, (ulong)entry.Z);
-            hash = Mix(hash, (ulong)(ushort)entry.Kind);
-            hash = Mix(hash, (byte)entry.Stage);
-            hash = Mix(hash, (ulong)entry.FirstSeenTick);
-            hash = Mix(hash, (ulong)entry.LastTick);
+            hash.Mix(entry.CellX);
+            hash.Mix(entry.CellZ);
+            hash.Mix(entry.X);
+            hash.Mix(entry.Z);
+            hash.Mix((ulong)(ushort)entry.Kind);
+            hash.Mix((ulong)(byte)entry.Stage);
+            hash.Mix(entry.FirstSeenTick);
+            hash.Mix(entry.LastTick);
         }
 
-        return hash;
-    }
-
-    private static ulong Mix(ulong hash, ulong value)
-    {
-        unchecked
-        {
-            hash ^= value;
-            return hash * 0x100_0000_01b3UL;
-        }
+        return hash.Value;
     }
 }

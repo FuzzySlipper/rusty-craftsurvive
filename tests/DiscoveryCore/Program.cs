@@ -2,6 +2,7 @@ using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.World;
 
 // Point-of-interest placement, checked without a runtime: that a site is a pure
 // function of the contract and its anchor cell, that the ground gates the kind it can
@@ -302,25 +303,26 @@ Require(a.Snapshot().Entries.SequenceEqual(b.Snapshot().Entries),
     "the saved form must depend on the facts, not the order they were learned");
 
 // --- the stored form -----------------------------------------------------------------
-byte[] encoded = DiscoveryCodec.Encode(journal.Snapshot());
-Require(encoded.Length == DiscoveryConstants.HeaderBytes + (journal.Count * DiscoveryConstants.EntryBytes),
+DiscoveryCodec codec = new(new SaveIdentity(TerrainGeneratorContract.CurrentVersion, Seed));
+byte[] encoded = codec.Encode(journal.Snapshot());
+Require(encoded.Length == SaveEnvelope.HeaderBytes + (journal.Count * DiscoveryCodec.RecordBytes),
     "a journal's stored form must be its header plus one fixed record per place");
 DiscoveryState decoded = new(Seed);
-decoded.Restore(DiscoveryCodec.Decode(Seed, encoded));
+decoded.Restore(codec.Decode(encoded));
 Require(decoded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
     "the codec must round-trip every fact in a journal");
 
 // An empty journal is a valid journal, and survives the same path.
 DiscoveryState blank = new(Seed);
 DiscoveryState blankBack = new(Seed);
-blankBack.Restore(DiscoveryCodec.Decode(Seed, DiscoveryCodec.Encode(blank.Snapshot())));
+blankBack.Restore(codec.Decode(codec.Encode(blank.Snapshot())));
 Require(blankBack.Count == 0, "an empty journal must round-trip as empty");
 
 // A save from another world is refused rather than read as this one's history.
 bool refusedOtherWorld = false;
 try
 {
-    DiscoveryCodec.Decode(Seed ^ 0x9e37, encoded);
+    new DiscoveryCodec(new SaveIdentity(TerrainGeneratorContract.CurrentVersion, Seed ^ 0x9e37)).Decode(encoded);
 }
 catch (InvalidOperationException)
 {
@@ -334,7 +336,7 @@ Require(refusedOtherWorld, "a journal belonging to another world must be refused
 bool refusedTruncated = false;
 try
 {
-    DiscoveryCodec.Decode(Seed, encoded.AsSpan(0, encoded.Length - 1));
+    codec.Decode(encoded.AsSpan(0, encoded.Length - 1));
 }
 catch (InvalidOperationException)
 {
@@ -348,7 +350,7 @@ corrupted[^1] ^= 0xFF;
 bool refusedCorrupted = false;
 try
 {
-    DiscoveryCodec.Decode(Seed, corrupted);
+    codec.Decode(corrupted);
 }
 catch (InvalidOperationException)
 {
@@ -499,7 +501,7 @@ bool probeRefused(byte[] blob)
 {
     try
     {
-        _ = DiscoveryCodec.Decode(Seed, blob);
+        _ = codec.Decode(blob);
         return false;
     }
     catch (Exception failure) when (failure is InvalidOperationException or ArgumentException or OverflowException)
@@ -509,7 +511,7 @@ bool probeRefused(byte[] blob)
 }
 
 DiscoverySnapshot probeSnapshot = new(Seed, [new DiscoveryEntry(1, -2, PoiKind.Ruin, 256, -512, DiscoveryStage.Seen, 10, 20)]);
-byte[] honest = DiscoveryCodec.Encode(probeSnapshot);
+byte[] honest = codec.Encode(probeSnapshot);
 Require(!probeRefused(honest), "the codec must accept a blob it wrote itself");
 
 byte[] wrongMagic = (byte[])honest.Clone(); wrongMagic[0] ^= 0xFF;
@@ -529,7 +531,7 @@ Require(probeRefused(badKind), "a blob carrying a kind that is not one must be r
 byte[] flippedKind = (byte[])honest.Clone(); flippedKind[32 + 32] = (byte)PoiKind.VantagePoint;
 Require(probeRefused(flippedKind), "a kind altered to another valid kind must trip the fingerprint");
 Require(probeRefused([.. honest, .. honest]), "a blob of twice the length must be refused");
-Require(probeRefused(new byte[DiscoveryConstants.MaximumJournalBytes + 64]), "a blob larger than the journal may ever be must be refused");
+Require(probeRefused(new byte[DiscoveryCodec.Bounds.MaximumBytes + 64]), "a blob larger than the journal may ever be must be refused");
 
 // The format itself, pinned as literal byte counts rather than restated arithmetic: this is what
 // a reader of the file sees, and it must not drift with a constant someone edits in passing.
@@ -538,9 +540,9 @@ DiscoverySnapshot pair = new(Seed,
     new DiscoveryEntry(1, 2, PoiKind.Ruin, 256, 512, DiscoveryStage.Seen, 10, 20),
     new DiscoveryEntry(3, 4, PoiKind.CaveMouth, 768, 1024, DiscoveryStage.Visited, 30, 40),
 ]);
-byte[] twoRecords = DiscoveryCodec.Encode(pair);
+byte[] twoRecords = codec.Encode(pair);
 Require(twoRecords.Length == 32 + (2 * 51), $"two places must store 134 bytes, stored {twoRecords.Length}");
-Require(DiscoveryCodec.Encode(new DiscoverySnapshot(Seed, [])).Length == 32,
+Require(codec.Encode(new DiscoverySnapshot(Seed, [])).Length == 32,
     "an empty journal must store its 32-byte header and nothing else");
 
 // Record order is part of the fingerprint, so swapping two records must be refused - otherwise a

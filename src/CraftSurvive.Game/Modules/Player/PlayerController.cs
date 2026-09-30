@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
@@ -31,6 +32,7 @@ internal sealed class PlayerController : IDisposable
     private readonly PlayerWaterProbe water;
     private readonly PlayerCamera camera;
     private readonly WorldOriginRebaser rebaser;
+    private readonly PlayerContinuationStore continuation;
     private readonly EntityStore entityWorld = new([RuntimeComponent]);
     private readonly EntityId playerEntity;
     private readonly CharacterControllerConfig controllerConfig;
@@ -57,7 +59,7 @@ internal sealed class PlayerController : IDisposable
     private Vector3 lastUpdatePositionAfter;
     private TerrainWorldEditResult? lastTerrainEdit;
 
-    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductUiPublisher ui)
+    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui)
     {
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -66,6 +68,7 @@ internal sealed class PlayerController : IDisposable
         water = new PlayerWaterProbe(engine);
         camera = new PlayerCamera(engine);
         rebaser = new WorldOriginRebaser(engine, frame);
+        continuation = new PlayerContinuationStore(engine, store, terrain.SaveIdentity, Vitals.MaximumHealth);
         controllerConfig = PlayerBody.Configure(engine.Spatial.DefaultCharacterControllerConfig());
         playerGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.SpawnColumn.X, 0d, PlayerConstants.SpawnColumn.Y);
         playerEntity = entityWorld.Create();
@@ -112,15 +115,22 @@ internal sealed class PlayerController : IDisposable
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         frame.Observe(origin);
 
-        // The player stands on whatever ground the generator put under the spawn column, so a
-        // generator change can never start them inside the terrain.
-        float ground = terrain.GroundAt(playerGlobal.CellX, playerGlobal.CellZ);
-        playerGlobal = PlayerWorldPosition.FromWorld(
-            playerGlobal.WorldX,
-            ground + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance,
-            playerGlobal.WorldZ);
-        spawn = playerGlobal;
+        // Home is whatever ground the generator put under the spawn column, so a generator change
+        // can never start the player inside the terrain. A saved session continues where it ended
+        // when the player still fits there, and from home when they do not.
+        spawn = StandingAt(PlayerConstants.SpawnColumn.X, terrain.GroundAt(playerGlobal.CellX, playerGlobal.CellZ), PlayerConstants.SpawnColumn.Y);
+        playerGlobal = spawn;
+        if (continuation.Restore() is PlayerContinuation saved)
+        {
+            Continue(saved);
+        }
+
         playerLocal = playerGlobal.ToLocal(origin);
+        if (WorldOriginRebaser.IsNeeded(playerLocal))
+        {
+            playerLocal = rebaser.Rebase(terrain.Session, playerGlobal, playerLocal);
+        }
+
         motion = PlayerBody.AtRest(playerLocal);
         camera.Create(EyePosition(), look, updateCount);
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
@@ -187,7 +197,12 @@ internal sealed class PlayerController : IDisposable
         camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
         ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
+        continuation.SaveIfDue(step.Step, Continuation());
     }
+
+    /// <summary>What was restored at start and how the continuation save is going.</summary>
+    internal string ContinuationReadout() => string.Create(CultureInfo.InvariantCulture,
+        $"{continuation.Readout()} feet={WorldFeetPosition.X:F2},{WorldFeetPosition.Y:F2},{WorldFeetPosition.Z:F2} health={Vitals.State.Health} experience={Progress.Experience} level={Progress.Level}");
 
     /// <summary>Returns one bounded product-owned explanation of the latest movement update.</summary>
     internal string DebugReadout()
@@ -251,6 +266,11 @@ internal sealed class PlayerController : IDisposable
 
     public void Dispose()
     {
+        if (started)
+        {
+            continuation.Save(Continuation(), CurrentStep);
+        }
+
         camera.Dispose();
         started = false;
         entityWorld.Dispose();
@@ -312,6 +332,77 @@ internal sealed class PlayerController : IDisposable
     }
 
     private void MoveHome() => Teleport(spawn.WorldX, spawn.WorldY, spawn.WorldZ);
+
+    /// <summary>The capsule centre of a player standing with their feet at a height.</summary>
+    private static PlayerWorldPosition StandingAt(double x, double feetY, double z) =>
+        PlayerWorldPosition.FromWorld(x, feetY + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance, z);
+
+    private PlayerContinuation Continuation()
+    {
+        Vector3 feet = WorldFeetPosition;
+        PlayerDefeatState vitals = Vitals.State;
+        return new PlayerContinuation(
+            playerGlobal.WorldX, feet.Y, playerGlobal.WorldZ,
+            look.YawRadians, look.PitchRadians,
+            vitals.Health, vitals.Defeats, Progress.Experience, Progress.ItemsCollected);
+    }
+
+    /// <summary>
+    /// Applies a saved session. Progress always carries over. A player saved while down comes back
+    /// at home at full health, as a respawn would have brought them; otherwise they stand where
+    /// they were, if a standing body still fits there.
+    /// </summary>
+    private void Continue(PlayerContinuation saved)
+    {
+        Progress.Restore(saved.Experience, saved.ItemsCollected);
+        if (saved.Health <= 0)
+        {
+            Vitals.Restore(Vitals.MaximumHealth, saved.Defeats);
+            continuation.Applied = "progress; down, so home at full health";
+            return;
+        }
+
+        Vitals.Restore(saved.Health, saved.Defeats);
+        PlayerWorldPosition standing = StandingAt(saved.FeetX, saved.FeetY, saved.FeetZ);
+        if (!Fits(standing))
+        {
+            continuation.Applied = "progress and vitals; position blocked, so home";
+            return;
+        }
+
+        playerGlobal = standing;
+        look = new LookState((float)saved.YawRadians, (float)saved.PitchRadians);
+        continuation.Applied = "position, look, vitals and progress";
+    }
+
+    /// <summary>Whether a standing body at this position is inside the world and clear of every collidable block.</summary>
+    private bool Fits(PlayerWorldPosition position)
+    {
+        double radius = controllerConfig.Shape.Radius;
+        double halfHeight = PlayerConstants.StandingHeight / 2d;
+        long limit = terrain.Recipe.Radius;
+        if (Math.Abs(position.WorldX) + radius >= limit || Math.Abs(position.WorldZ) + radius >= limit)
+        {
+            return false;
+        }
+
+        for (long x = (long)Math.Floor(position.WorldX - radius); x <= (long)Math.Floor(position.WorldX + radius); x++)
+        {
+            for (long y = (long)Math.Floor(position.WorldY - halfHeight); y <= (long)Math.Floor(position.WorldY + halfHeight); y++)
+            {
+                for (long z = (long)Math.Floor(position.WorldZ - radius); z <= (long)Math.Floor(position.WorldZ + radius); z++)
+                {
+                    if (BlockRegistry.TryGetBySlot(terrain.MaterialAt(new TerrainVoxelAddress(x, y, z)), out BlockDefinition block)
+                        && block.Collidable)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
 
     private bool OverlapsVoxel(TerrainVoxelAddress voxel)
     {

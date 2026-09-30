@@ -39,6 +39,8 @@ jobs:
         run: dotnet run --project tests/RpgCore -c Release
       - name: Check point-of-interest placement
         run: dotnet run --project tests/DiscoveryCore -c Release
+      - name: Check the save manifest, codecs and restore rule
+        run: dotnet run --project tests/SaveCore -c Release
 
   product:
     runs-on: ubuntu-latest

@@ -18,6 +18,8 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryState.cs" Link="Discovery/DiscoveryState.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryConstants.cs" Link="Discovery/DiscoveryConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryCodec.cs" Link="Discovery/DiscoveryCodec.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveEnvelope.cs" Link="World/SaveEnvelope.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveManifest.cs" Link="World/SaveManifest.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
