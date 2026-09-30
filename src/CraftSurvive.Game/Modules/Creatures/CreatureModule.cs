@@ -62,12 +62,9 @@ internal sealed class CreatureModule : IProductModule
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         presentation = new CreaturePresentation(engine, frame, GroundAt);
-        NavigationProbe = new CreatureNavigationProbe(engine, terrain, frame);
     }
 
     internal CreatureRoster Roster => roster;
-
-    internal CreatureNavigationProbe NavigationProbe { get; }
 
     internal Rusty.Engine.Entities.EntityStore EntityStore => presentation.Entities;
 
@@ -249,7 +246,10 @@ internal sealed class CreatureModule : IProductModule
             + $"attack={lastPlayerAttack} perception={perceptionStatus} failure={lastFailure}; last={lastEvent}; {rows}";
     }
 
-    /// <summary>Evaluates one navigation step from the nearest creature toward the player.</summary>
+    /// <summary>
+    /// Evaluates one navigation step from the first creature toward the player. The probe exists
+    /// only for the request: nothing on the update path publishes or evaluates navigation.
+    /// </summary>
     internal string ProbeNavigation()
     {
         Creature? first = roster.All.FirstOrDefault();
@@ -261,7 +261,8 @@ internal sealed class CreatureModule : IProductModule
         Vector3 feet = new(first.Position.X, GroundAt(first.Position), first.Position.Y);
         try
         {
-            return $"creature {first.Id}: {NavigationProbe.Probe(feet, player.WorldFeetPosition)}";
+            CreatureNavigationProbe probe = new(engine, terrain, frame);
+            return $"creature {first.Id}: {probe.Probe(feet, player.WorldFeetPosition)}";
         }
         catch (EngineCallException exception)
         {
