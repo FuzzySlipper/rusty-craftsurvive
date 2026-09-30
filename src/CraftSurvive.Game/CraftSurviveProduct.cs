@@ -22,6 +22,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
     /// <summary>The one world-to-local conversion; the player commits rebases through it.</summary>
     private readonly WorldFrame frame = new();
+
+    /// <summary>The product's one persistence store and one UI stream, shared by the owners that use them.</summary>
+    private readonly ProductStore store;
+    private readonly ProductUiPublisher ui;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly SkyBackground sky;
@@ -46,12 +50,14 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         ArgumentNullException.ThrowIfNull(context);
         engine = context.Engine;
-        terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame);
-        player = new PlayerController(context.Engine, terrain, frame);
+        store = new ProductStore(context.Engine);
+        ui = new ProductUiPublisher(context.Engine);
+        terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame, store, ui);
+        player = new PlayerController(context.Engine, terrain, frame, ui);
         sky = new SkyBackground(context.Engine);
         creatures = new CreatureModule(context.Engine, terrain, player, frame);
         creatureDebug = new CreatureDebugModule(creatures);
-        discovery = new DiscoveryModule(context.Engine, terrain, player);
+        discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         blast = new BlastModule(context.Engine, terrain, frame, entities);
         build = new BuildModule(terrain, entities);
         gameplay = [creatures, discovery, blast, build];
@@ -100,6 +106,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
             player.Dispose();
             terrain.Dispose();
+            ui.Dispose();
+            store.Dispose();
             throw;
         }
     }
@@ -117,6 +125,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             module.Update(step);
         }
 
+        terrain.Update(step);
         PublishAppearanceSnapshot();
         return ProductUpdateResult.None;
     }
@@ -183,6 +192,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
         player.Dispose();
         terrain.Dispose();
+        ui.Dispose();
+        store.Dispose();
         lifecycle = ProductLifecycleState.Disposed;
     }
 

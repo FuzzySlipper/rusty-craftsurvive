@@ -7,8 +7,13 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal sealed class TerrainOverlayState
 {
     private readonly SortedDictionary<VoxelAddress, ushort> materials = new();
+
+    /// <summary>How many overrides fall in each chunk, so "does the player touch this chunk" is one lookup.</summary>
+    private readonly Dictionary<TerrainChunkAddress, int> perChunk = [];
     private readonly ulong seed;
     private ulong revision;
+    private TerrainOverlaySnapshot? snapshot;
+    private ulong snapshotRevision = ulong.MaxValue;
 
     internal TerrainOverlayState(ulong seed)
     {
@@ -24,8 +29,35 @@ internal sealed class TerrainOverlayState
     internal bool TryGetMaterial(VoxelAddress address, out ushort material) =>
         materials.TryGetValue(address, out material);
 
-    internal TerrainOverlaySnapshot Snapshot() => new(seed,
-        materials.Select(pair => new TerrainOverlayEntry(pair.Key, pair.Value)).ToArray());
+    /// <summary>Whether the player has changed any cell in the chunk.</summary>
+    internal bool TouchesChunk(TerrainChunkAddress chunk) => perChunk.ContainsKey(chunk);
+
+    /// <summary>
+    /// Whether the overlay has room for these edits: every edit to a cell not already overridden
+    /// takes an entry. An edit the overlay cannot hold must be refused before it reaches the
+    /// Engine, or the scene and the save would disagree.
+    /// </summary>
+    internal bool Admits(IReadOnlyList<TerrainVoxelEdit> edits)
+    {
+        ArgumentNullException.ThrowIfNull(edits);
+        int newEntries = edits.Select(edit => edit.Address).Distinct().Count(address => !materials.ContainsKey(address));
+        return materials.Count + newEntries <= TerrainConstants.MaximumOverlayEntries;
+    }
+
+    /// <summary>
+    /// The overlay as a sorted, validated value. It is rebuilt only when the overlay has changed
+    /// since the last call, so asking for it every update costs nothing between edits.
+    /// </summary>
+    internal TerrainOverlaySnapshot Snapshot()
+    {
+        if (snapshot is null || snapshotRevision != revision)
+        {
+            snapshot = new(seed, materials.Select(pair => new TerrainOverlayEntry(pair.Key, pair.Value)).ToArray());
+            snapshotRevision = revision;
+        }
+
+        return snapshot;
+    }
 
     internal TerrainOverlayReceipt Apply(TerrainEditAccepted admission)
     {
@@ -40,6 +72,12 @@ internal sealed class TerrainOverlayState
 
         foreach (TerrainVoxelEdit edit in edits)
         {
+            if (!materials.ContainsKey(edit.Address))
+            {
+                TerrainChunkAddress chunk = edit.Address.Chunk;
+                perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
+            }
+
             materials[edit.Address] = edit.Material;
         }
 
@@ -62,6 +100,7 @@ internal sealed class TerrainOverlayState
         }
 
         materials.Clear();
+        perChunk.Clear();
         foreach (TerrainOverlayEntry entry in snapshot.Entries)
         {
             entry.Address.Validate();
@@ -70,6 +109,9 @@ internal sealed class TerrainOverlayState
             {
                 throw new InvalidOperationException("Terrain overlay entries must have unique addresses.");
             }
+
+            TerrainChunkAddress chunk = entry.Address.Chunk;
+            perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
         }
 
         revision = checked(revision + 1UL);

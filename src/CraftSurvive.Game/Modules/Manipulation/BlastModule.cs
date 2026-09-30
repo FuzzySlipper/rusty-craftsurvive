@@ -87,7 +87,7 @@ internal sealed class BlastModule : IProductModule
 
         if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
         {
-            lastOutcome = $"refused by the edit route: {TerrainWorld.FormatEditReadout(result)}";
+            lastOutcome = $"refused by the edit route: {TerrainWorldEditResult.Format(result)}";
             return;
         }
 

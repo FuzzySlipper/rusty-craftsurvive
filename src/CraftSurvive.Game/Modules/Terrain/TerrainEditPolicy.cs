@@ -117,7 +117,7 @@ internal static class TerrainBrushPolicy
 internal static class TerrainEditAdmission
 {
     internal static TerrainEditAdmissionResult Admit(TerrainEditRequest request,
-        Func<VoxelAddress, bool>? playerOverlaps = null)
+        Func<VoxelAddress, bool>? playerOverlaps = null, TerrainOverlayState? overlay = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         TerrainVoxelEdit[] edits = TerrainBrushPolicy.Expand(request);
@@ -140,6 +140,13 @@ internal static class TerrainEditAdmission
             }
         }
 
+        // Checked last and before any Engine call: an edit the overlay cannot record must not
+        // reach the scene, or the world and its save would disagree.
+        if (overlay is not null && !overlay.Admits(edits))
+        {
+            return new TerrainEditRejected(TerrainEditRejectionReason.OverlayFull, request.Center);
+        }
+
         return new TerrainEditAccepted(edits);
     }
 }
@@ -155,4 +162,7 @@ internal enum TerrainEditRejectionReason
 {
     WorldBounds,
     PlayerOverlap,
+
+    /// <summary>The overlay already holds its maximum of player edits.</summary>
+    OverlayFull,
 }

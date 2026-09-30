@@ -25,6 +25,7 @@ internal sealed class PlayerController : IDisposable
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
+    private readonly ProductUiPublisher ui;
     private readonly PlayerInputState input = new();
     private readonly PlayerInputDiagnostics diagnostics = new();
     private readonly PlayerWaterProbe water;
@@ -56,8 +57,9 @@ internal sealed class PlayerController : IDisposable
     private Vector3 lastUpdatePositionAfter;
     private TerrainWorldEditResult? lastTerrainEdit;
 
-    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame)
+    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductUiPublisher ui)
     {
+        this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         ArgumentNullException.ThrowIfNull(frame);
@@ -122,7 +124,7 @@ internal sealed class PlayerController : IDisposable
         motion = PlayerBody.AtRest(playerLocal);
         camera.Create(EyePosition(), look, updateCount);
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
-        terrain.PublishPlayerUi(ToUiFacts());
+        ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
         started = true;
     }
@@ -183,7 +185,7 @@ internal sealed class PlayerController : IDisposable
         }
 
         camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
-        terrain.PublishPlayerUi(ToUiFacts());
+        ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
     }
 
@@ -208,7 +210,7 @@ internal sealed class PlayerController : IDisposable
     internal string TerrainEditReadout()
     {
         EnsureStarted();
-        return TerrainWorld.FormatEditReadout(lastTerrainEdit);
+        return TerrainWorldEditResult.Format(lastTerrainEdit);
     }
 
     internal string SetCameraPresentation(CameraInterpolation mode, double delaySeconds)
@@ -232,7 +234,7 @@ internal sealed class PlayerController : IDisposable
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         camera.Cut();
         camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
-        terrain.PublishPlayerUi(ToUiFacts());
+        ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
         return entityWorld.Get(playerEntity, RuntimeComponent);
     }
@@ -325,7 +327,7 @@ internal sealed class PlayerController : IDisposable
 
     private Vector3 EyePosition() => playerLocal + (Vector3.UnitY * PlayerBody.EyeOffset(motion.Stance));
 
-    private TerrainPlayerUiFacts ToUiFacts() => new(
+    private PlayerUiFacts ToUiFacts() => new(
         playerGlobal.WorldX,
         playerGlobal.WorldY + PlayerBody.EyeOffset(motion.Stance),
         playerGlobal.WorldZ,

@@ -67,6 +67,44 @@ PlayerInputChecks.Run();
     Console.WriteLine($"A {SmallSize}-voxel world has its border at its own edge.");
 }
 
+// The overlay's capacity is decided at admission, before any Engine call: an edit that would
+// exceed it is refused with a typed reason, and an edit that overwrites cells already held costs
+// no new entries. Per-chunk counts answer "does the player touch this chunk" and agree with the
+// sorted snapshot, which is rebuilt only when the overlay changes.
+{
+    ulong seed = TerrainConstants.DefaultSeed;
+    TerrainOverlayState full = new(seed);
+    int held = TerrainConstants.MaximumOverlayEntries - 2;
+    TerrainOverlayEntry[] entries = Enumerable.Range(0, held)
+        .Select(i => new TerrainOverlayEntry(new VoxelAddress(i % 256, 20 + (i / 65536), i / 256), TerrainConstants.StoneMaterial))
+        .ToArray();
+    full.Restore(new TerrainOverlaySnapshot(seed, entries));
+    TerrainEditRequest three = TerrainEditRequest.FromCells(
+        [new VoxelAddress(-1, 40, 0), new VoxelAddress(-2, 40, 0), new VoxelAddress(-3, 40, 0)], TerrainEditKind.Set, TerrainConstants.StoneMaterial);
+    Require(TerrainEditAdmission.Admit(three, null, full) is TerrainEditRejected { Reason: TerrainEditRejectionReason.OverlayFull },
+        "an edit past the overlay's capacity must be refused at admission, before the Engine");
+    TerrainEditRequest two = TerrainEditRequest.FromCells(
+        [new VoxelAddress(-1, 40, 0), new VoxelAddress(-2, 40, 0)], TerrainEditKind.Set, TerrainConstants.StoneMaterial);
+    Require(TerrainEditAdmission.Admit(two, null, full) is TerrainEditAccepted, "an edit that exactly fills the overlay must be admitted");
+    TerrainEditRequest rewrite = TerrainEditRequest.FromCells(
+        [entries[0].Address, entries[1].Address, entries[2].Address], TerrainEditKind.Clear, TerrainConstants.EmptyMaterial);
+    Require(TerrainEditAdmission.Admit(rewrite, null, full) is TerrainEditAccepted, "rewriting held cells must not count against capacity");
+
+    TerrainOverlayState small = new(seed);
+    TerrainOverlaySnapshot empty = small.Snapshot();
+    Require(ReferenceEquals(empty, small.Snapshot()), "an unchanged overlay must hand back the same snapshot");
+    small.Apply((TerrainEditAccepted)TerrainEditAdmission.Admit(TerrainEditRequest.FromCells(
+        [new VoxelAddress(5, 3, 5), new VoxelAddress(40, 3, 5)], TerrainEditKind.Clear, TerrainConstants.EmptyMaterial)));
+    TerrainOverlaySnapshot after = small.Snapshot();
+    Require(!ReferenceEquals(empty, after) && after.Entries.Length == 2, "an edit must rebuild the snapshot");
+    foreach (TerrainChunkAddress chunk in new[] { new VoxelAddress(5, 3, 5).Chunk, new VoxelAddress(40, 3, 5).Chunk, new TerrainChunkAddress(9, 0, 9) })
+    {
+        Require(small.TouchesChunk(chunk) == after.TouchesChunk(chunk), $"per-chunk counts disagree with the snapshot at {chunk}");
+    }
+
+    Console.WriteLine($"Overlay: capacity refused at admission at {TerrainConstants.MaximumOverlayEntries} entries; chunk index and cached snapshot agree.");
+}
+
 // The chunk cache's bound and invalidation, as pure policy: the oldest chunk leaves first, and
 // nothing a different generator wrote survives a start.
 {
@@ -475,6 +513,14 @@ Require(ReferenceEquals(first.Chunk(unchanged), neighbor.Chunk(unchanged)), "bou
 Require(ReferenceEquals(neighbor, policy.PlanFor(new(1, 0, 0), state)), "stationary plan was rebuilt");
 foreach (long x in new long[] { -3, -1, 0, 1, 2, 5, 0 })
     CheckAgainstFullScan(new(x, 0, 0));
+
+// Every requested chunk is one the plan retains, so nothing is admitted to be evicted next update.
+TerrainResidencyPolicy boundedPolicy = new(recipe, new TerrainChunkGenerator(recipe));
+foreach (long x in new long[] { -3, 0, 4 })
+{
+    TerrainResidencyPlan plan = boundedPolicy.PlanFor(new(x, 0, 0), state);
+    Require(plan.Requested.All(plan.Retained.Contains), $"a plan at x={x} requests a chunk it would not retain");
+}
 
 var beforeEdit = policy.PlanFor(center, state);
 Require(!beforeEdit.Requested.Contains(edited), "test column must begin empty");

@@ -30,14 +30,18 @@ internal sealed class DiscoveryModule : IProductModule
     private PoiSite? firstVisit;
     private long firstVisits;
     private readonly List<PoiSite> candidates = [];
+    private readonly ProductStore productStore;
+    private readonly ProductUiPublisher ui;
     private PersistenceStore? store;
     private string restoreOutcome = "not attempted";
     private long nextNoticeStep;
     private bool noticedOnce;
     private bool disposed;
 
-    internal DiscoveryModule(IEngineContext engine, TerrainWorld terrain, PlayerController player)
+    internal DiscoveryModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, ProductStore productStore, ProductUiPublisher ui)
     {
+        this.productStore = productStore ?? throw new ArgumentNullException(nameof(productStore));
+        this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
@@ -52,7 +56,7 @@ internal sealed class DiscoveryModule : IProductModule
             return;
         }
 
-        store = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainConstants.PersistenceScope));
+        store = productStore.Store;
         Restore();
     }
 
@@ -177,7 +181,7 @@ internal sealed class DiscoveryModule : IProductModule
     private void Publish(double nearestMetres)
     {
         DiscoveryEntry? last = journal.Last;
-        terrain.PublishDiscoveryUi(new DiscoveryUiFacts(
+        ui.PublishDiscovery(new DiscoveryUiFacts(
             journal.Count,
             journal.VisitedCount,
             journal.SeenCount,
@@ -429,7 +433,6 @@ internal sealed class DiscoveryModule : IProductModule
         }
 
         disposed = true;
-        store?.Dispose();
         store = null;
     }
 }

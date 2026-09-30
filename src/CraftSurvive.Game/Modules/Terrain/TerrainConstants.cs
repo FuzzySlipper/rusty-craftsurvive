@@ -20,20 +20,14 @@ internal static class TerrainConstants
     internal const int ChunkEdgeLength = 16;
     internal const int ChunkPlaneLength = ChunkEdgeLength * ChunkEdgeLength;
     internal const int ChunkVolume = ChunkPlaneLength * ChunkEdgeLength;
-    // Sized against the measured live figure in `docs/live-proofs.md`: generation
-    // costs about 2.2 ms per 16-cubed chunk on the current machine, so a 5x5 request
-    // window is roughly 55 ms of generation work spread across the bounded
-    // operations below, and the retained ring is one wider so a boundary crossing
-    // reuses chunks instead of regenerating them.
+    // The request window is the chunks the player can reach soon; the retained ring is one wider,
+    // so crossing a chunk boundary reuses chunks instead of regenerating them.
     internal const int RequestedChunkRadius = 2;
     internal const int RetainedChunkRadius = 3;
     /// <summary>
-    /// How much residency work one update may do. Measured: at 16 the first update
-    /// filled the whole 5x5 window at once and cost 189.5 ms - a visible hitch as the
-    /// world appears - while steady-state streaming settled at 12.7 ms. Four ops keeps
-    /// the worst update in the same range as the steady state and spends a few more
-    /// updates filling the window, which a player experiences as the world arriving
-    /// smoothly rather than stuttering once.
+    /// How much residency work one update may do. More operations fill the window in fewer updates
+    /// but make the worst update several times longer; four keeps streaming updates near the
+    /// steady-state cost. Chosen by measurement, recorded with its pair and machine in Den (#8895).
     /// </summary>
     internal const int MaximumResidencyOperationsPerTick = 4;
     internal const int MaximumResidentChunks = 64;
@@ -51,7 +45,6 @@ internal static class TerrainConstants
 
     internal const double VoxelSize = 1d;
     internal const uint VoxelChunkSize = ChunkEdgeLength;
-    internal const string PersistenceScope = "craftsurvive";
     internal const string OverlayPersistenceKey = "terrain/overlay";
 
     /// <summary>

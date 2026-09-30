@@ -100,15 +100,16 @@ internal sealed class TerrainResidencyPolicy
 
     private TerrainResidencyPlan BuildPlan(TerrainChunkAddress center, TerrainOverlaySnapshot planSnapshot)
     {
-        TerrainChunkAddress[] requested = cachedCandidates
-            .Where(address => IsWithinHorizontalRadius(address, center, TerrainConstants.RequestedChunkRadius)
-                && HasContent(address))
-            .OrderBy(address => DistancePriority(address, center))
-            .ToArray();
         TerrainChunkAddress[] retained = cachedCandidates
             .Where(HasContent)
             .OrderBy(address => DistancePriority(address, center))
             .Take(TerrainConstants.MaximumResidentChunks)
+            .ToArray();
+
+        // Only what will be retained is requested: a requested chunk beyond the retained cap would
+        // be admitted on one update and evicted on the next, forever.
+        TerrainChunkAddress[] requested = retained
+            .Where(address => IsWithinHorizontalRadius(address, center, TerrainConstants.RequestedChunkRadius))
             .ToArray();
 
         // A plan is a snapshot with a window. It serves the chunks that exist when it is

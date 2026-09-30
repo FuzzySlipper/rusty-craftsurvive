@@ -63,13 +63,13 @@ internal sealed class TerrainChunkGenerator
         // instead of being computed again. The cache is an optimisation, so a miss is
         // simply generation - and a hit is only trusted because the cache refuses any
         // payload whose shape does not match a chunk.
+        ArgumentNullException.ThrowIfNull(overlay);
         if (cache is not null && !overlay.TouchesChunk(address) && cache.TryRead(address, out ushort[] cached))
         {
             CacheHits++;
             return new TerrainChunk(address, cached);
         }
 
-        ArgumentNullException.ThrowIfNull(overlay);
         ushort[] materials = new ushort[TerrainConstants.ChunkVolume];
         VoxelAddress origin = address.Origin;
         for (int z = 0; z < TerrainConstants.ChunkEdgeLength; z++)

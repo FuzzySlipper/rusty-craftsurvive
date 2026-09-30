@@ -94,7 +94,7 @@ internal sealed class BuildModule : IProductModule
         }
         else
         {
-            lastOutcome = $"undo refused: {TerrainWorld.FormatEditReadout(result)}";
+            lastOutcome = $"undo refused: {TerrainWorldEditResult.Format(result)}";
         }
 
         return Readout();
@@ -142,7 +142,7 @@ internal sealed class BuildModule : IProductModule
             [cell], TerrainEditKind.Set, TerrainConstants.StoneMaterial, null);
         if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
         {
-            lastOutcome = $"{name} refused: {TerrainWorld.FormatEditReadout(result)}";
+            lastOutcome = $"{name} refused: {TerrainWorldEditResult.Format(result)}";
             return Readout();
         }
 
@@ -190,7 +190,7 @@ internal sealed class BuildModule : IProductModule
         }
         else
         {
-            lastOutcome = $"{shape} refused: {TerrainWorld.FormatEditReadout(result)}";
+            lastOutcome = $"{shape} refused: {TerrainWorldEditResult.Format(result)}";
         }
 
         return Readout();
