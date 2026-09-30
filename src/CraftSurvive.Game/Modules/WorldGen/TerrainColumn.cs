@@ -1,4 +1,4 @@
-namespace CraftSurvive.Game.Modules.Terrain;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// One column of generated ground: its surface height and how much it changes across

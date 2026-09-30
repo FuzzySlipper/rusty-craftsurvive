@@ -12,20 +12,17 @@
          read the generation contract, a column source, and the block registry, and they
          touch no Engine host service. This lane links them directly so placement
          determinism and the structure bounds are checked without a runtime. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiKind.cs" Link="Discovery/PoiKind.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiConstants.cs" Link="Discovery/PoiConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiPlacement.cs" Link="Discovery/PoiPlacement.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/PoiStructures.cs" Link="Discovery/PoiStructures.cs" />
+    <!-- The world generator is pure: link it whole. -->
+    <Compile Include="../../src/CraftSurvive.Game/Modules/WorldGen/*.cs" LinkBase="WorldGen" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryRules.cs" Link="Discovery/DiscoveryRules.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryState.cs" Link="Discovery/DiscoveryState.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryConstants.cs" Link="Discovery/DiscoveryConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryCodec.cs" Link="Discovery/DiscoveryCodec.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/CrossingPlacement.cs" Link="Discovery/CrossingPlacement.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/TerrainGeneratorContract.cs" Link="Content/TerrainGeneratorContract.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="Terrain/TerrainConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainColumn.cs" Link="Terrain/TerrainColumn.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="Terrain/TerrainConfiguration.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="Terrain/VoxelAddress.cs" />
   </ItemGroup>
 </Project>

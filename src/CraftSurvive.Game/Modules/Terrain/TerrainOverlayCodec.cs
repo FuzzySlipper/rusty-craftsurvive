@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -25,7 +26,7 @@ internal static class TerrainOverlayCodec
         Span<byte> destination = bytes;
         BinaryPrimitives.WriteUInt32LittleEndian(destination, TerrainConstants.OverlayMagic);
         BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(sizeof(uint)), TerrainConstants.OverlaySchemaVersion);
-        BinaryPrimitives.WriteUInt32LittleEndian(destination.Slice(sizeof(uint) + sizeof(int)), TerrainConstants.GenerationVersion);
+        BinaryPrimitives.WriteUInt32LittleEndian(destination.Slice(sizeof(uint) + sizeof(int)), TerrainGeneratorContract.CurrentVersion);
         BinaryPrimitives.WriteUInt64LittleEndian(destination.Slice(sizeof(uint) + (sizeof(int) * 2)), snapshot.Seed);
         BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(sizeof(uint) + sizeof(int) + sizeof(uint) + sizeof(ulong)), entries.Length);
         ulong fingerprint = Fingerprint(snapshot.Seed, entries);
@@ -65,7 +66,7 @@ internal static class TerrainOverlayCodec
             throw new InvalidOperationException("Terrain overlay storage uses an unsupported schema.");
         }
 
-        if (generation != TerrainConstants.GenerationVersion)
+        if (generation != TerrainGeneratorContract.CurrentVersion)
         {
             throw new InvalidOperationException("Terrain overlay storage uses an unsupported terrain generation version.");
         }

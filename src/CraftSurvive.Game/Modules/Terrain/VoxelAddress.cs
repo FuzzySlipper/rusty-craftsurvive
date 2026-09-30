@@ -3,9 +3,9 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal readonly record struct VoxelAddress(long X, long Y, long Z) : IComparable<VoxelAddress>
 {
     internal TerrainChunkAddress Chunk => new(
-        FloorDivide(X, TerrainConstants.ChunkEdgeLength),
-        FloorDivide(Y, TerrainConstants.ChunkEdgeLength),
-        FloorDivide(Z, TerrainConstants.ChunkEdgeLength));
+        WorldGen.GridMath.FloorDivide(X, TerrainConstants.ChunkEdgeLength),
+        WorldGen.GridMath.FloorDivide(Y, TerrainConstants.ChunkEdgeLength),
+        WorldGen.GridMath.FloorDivide(Z, TerrainConstants.ChunkEdgeLength));
 
     public int CompareTo(VoxelAddress other)
     {
@@ -35,12 +35,6 @@ internal readonly record struct VoxelAddress(long X, long Y, long Z) : IComparab
         }
     }
 
-    private static long FloorDivide(long value, int divisor)
-    {
-        long quotient = value / divisor;
-        long remainder = value % divisor;
-        return remainder < 0 ? quotient - 1L : quotient;
-    }
 }
 
 internal readonly record struct TerrainChunkAddress(long X, long Y, long Z) : IComparable<TerrainChunkAddress>

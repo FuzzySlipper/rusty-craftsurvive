@@ -1,4 +1,5 @@
 using System.Globalization;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Discovery;
 

@@ -2,7 +2,7 @@ using System.Globalization;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Terrain;
 
-namespace CraftSurvive.Game.Modules.Discovery;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// The terrain a site is placed on. Placement needs the ground height and the local
@@ -125,10 +125,10 @@ internal sealed class PoiPlacement
 
         long cell = PoiConstants.CellSize;
         long reach = (long)Math.Ceiling(radius) + PoiConstants.MaximumStructureReach;
-        long firstX = FloorDivide(x - reach, cell);
-        long lastX = FloorDivide(x + reach, cell);
-        long firstZ = FloorDivide(z - reach, cell);
-        long lastZ = FloorDivide(z + reach, cell);
+        long firstX = GridMath.FloorDivide(x - reach, cell);
+        long lastX = GridMath.FloorDivide(x + reach, cell);
+        long firstZ = GridMath.FloorDivide(z - reach, cell);
+        long lastZ = GridMath.FloorDivide(z + reach, cell);
         for (long cellX = firstX; cellX <= lastX; cellX++)
         {
             for (long cellZ = firstZ; cellZ <= lastZ; cellZ++)
@@ -235,6 +235,4 @@ internal sealed class PoiPlacement
         _ => (PoiConstants.RuinMinimumHeight, PoiConstants.RuinHeightRange),
     };
 
-    private static long FloorDivide(long value, long divisor) =>
-        value >= 0 ? value / divisor : ((value - divisor + 1) / divisor);
 }

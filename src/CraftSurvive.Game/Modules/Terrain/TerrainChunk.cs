@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Discovery;
 
@@ -34,7 +35,7 @@ internal static class DiscoveryCodec
         BinaryPrimitives.WriteUInt32LittleEndian(destination, DiscoveryConstants.Magic);
         BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(sizeof(uint)), DiscoveryConstants.SchemaVersion);
         BinaryPrimitives.WriteUInt32LittleEndian(
-            destination.Slice(sizeof(uint) + sizeof(int)), TerrainConstants.GenerationVersion);
+            destination.Slice(sizeof(uint) + sizeof(int)), TerrainGeneratorContract.CurrentVersion);
         BinaryPrimitives.WriteUInt64LittleEndian(
             destination.Slice(sizeof(uint) + (sizeof(int) * 2)), snapshot.Seed);
         BinaryPrimitives.WriteInt32LittleEndian(
@@ -86,10 +87,10 @@ internal static class DiscoveryCodec
         }
 
         uint generation = BinaryPrimitives.ReadUInt32LittleEndian(bytes.Slice(sizeof(uint) + sizeof(int)));
-        if (generation != TerrainConstants.GenerationVersion)
+        if (generation != TerrainGeneratorContract.CurrentVersion)
         {
             throw new InvalidOperationException(
-                $"Stored journal was written for generation {generation}, not {TerrainConstants.GenerationVersion}.");
+                $"Stored journal was written for generation {generation}, not {TerrainGeneratorContract.CurrentVersion}.");
         }
 
         ulong seed = BinaryPrimitives.ReadUInt64LittleEndian(bytes.Slice(sizeof(uint) + (sizeof(int) * 2)));

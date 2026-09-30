@@ -1,4 +1,5 @@
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Discovery;
 

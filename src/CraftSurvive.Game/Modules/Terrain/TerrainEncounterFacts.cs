@@ -1,4 +1,5 @@
 using CraftSurvive.Game.Modules.Rpg;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -26,7 +27,7 @@ internal sealed class TerrainEncounterFacts
     internal TerrainEncounterFacts(TerrainRecipe recipe) =>
         this.recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
 
-    internal long WaterLevel => TerrainConstants.WaterLevel;
+    internal long WaterLevel => GenerationConstants.WaterLevel;
 
     /// <summary>Whether the column is inside the finite world.</summary>
     internal bool IsInside(long x, long z) =>

@@ -1,13 +1,13 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
-using CraftSurvive.Game.Modules.Discovery;
-using Rusty.Engine;
+using CraftSurvive.Game.Modules.Terrain;
 
-namespace CraftSurvive.Game.Modules.Terrain;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
-/// Product-owned generation-v2 material policy. It deliberately emits only
-/// material facts; Engine integration turns those facts into spatial authority.
+/// The world generator: the material at every voxel, as a pure function of the generator
+/// contract. It emits only material facts; the terrain module turns those into the Engine's
+/// voxel scene.
 /// </summary>
 internal sealed class TerrainRecipe : ITerrainColumns
 {
@@ -41,11 +41,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal TerrainConfiguration Configuration => configuration;
 
-    private const long MinimumMaterialYValue = -TerrainConstants.TerrainDepth;
+    private const long MinimumMaterialYValue = -GenerationConstants.TerrainDepth;
 
     internal long MinimumMaterialY => MinimumMaterialYValue;
 
-    internal long MaximumMaterialY => TerrainConstants.TerrainSummitHeight + TerrainConstants.TerrainHeadroom;
+    internal long MaximumMaterialY => GenerationConstants.TerrainSummitHeight + GenerationConstants.TerrainHeadroom;
 
     internal ushort MaterialAt(VoxelAddress address) => MaterialAt(address, ColumnAt(address.X, address.Z));
 
@@ -66,41 +66,15 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal ushort MaterialAt(VoxelAddress address, TerrainColumn column)
     {
+        // Structures answer last, because they are the one pass that may take material away
+        // and the only pass that may pave the course it stands on. Crossings come after sites
+        // for the same reason sites come after the ground: a bridge is built over water, and
+        // water is what the ground pass leaves behind.
         ushort material = BaseMaterialAt(address, column);
-
-        // Structures answer last, because they are the one pass that may take material
-        // away and the only pass that may pave the course it stands on. A cut has to
-        // survive whatever the ground, the water and the features put there first, so a
-        // cut is final; a fill reaches only air, or the surface course it stands on, so a
-        // wall that meets a slope loses to the slope rather than hollowing the hillside.
-        PoiVoxel poi = PoiAt(address.X, address.Y, address.Z);
-        if (poi.Kind == PoiVoxelKind.Carve)
-        {
-            // The cut stops one step below the local ground, which is the deepest floor a character
-            // with no climb reach can step back out of. It is still a pit - a shallow, escapable
-            // one - and the descent a dungeon entrance promises is the dimension slice's to add.
-            return address.Y >= column.Surface - TerrainConstants.MaximumStructureStepBelowGround
-                ? TerrainConstants.EmptyMaterial
-                : material;
-        }
-
-        if (poi.Kind == PoiVoxelKind.Fill
-            && (material == TerrainConstants.EmptyMaterial || address.Y == column.Surface))
-        {
-            material = poi.Material;
-        }
-
-        // Crossings come after sites for the same reason sites come after the ground: a
-        // bridge is built over water, and water is what the ground pass leaves behind. It only
-        // fills, so a crossing is something walked over rather than a dam across it.
-        if (CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span
-            && span.Kind == PoiVoxelKind.Fill
-            && (material == TerrainConstants.EmptyMaterial || address.Y == column.Surface))
-        {
-            material = span.Material;
-        }
-
-        return material;
+        material = StructurePasses.ApplySite(material, PoiAt(address.X, address.Y, address.Z), address.Y, column);
+        return CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span
+            ? StructurePasses.ApplyCrossing(material, span, address.Y, column)
+            : material;
     }
 
     /// <summary>
@@ -129,7 +103,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // below the ground - a cave under the sea stays a cave - because it only
         // fills where the column's own surface is below the water line.
         if (material == TerrainConstants.EmptyMaterial
-            && address.Y <= TerrainConstants.WaterLevel
+            && address.Y <= GenerationConstants.WaterLevel
             && address.Y > column.Surface)
         {
             return (ushort)BlockId.Water;
@@ -139,29 +113,29 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // meets a slope loses to the slope rather than leaving a floating leaf.
         if (material == TerrainConstants.EmptyMaterial)
         {
-            material = FeatureMaterialAt(address.X, address.Y, address.Z, column.Surface);
+            material = FeatureMaterialAt(address.X, address.Y, address.Z);
         }
 
         return material;
     }
 
     /// <summary>The world's floor: bedrock under everything, at the stated depth.</summary>
-    private static bool IsWorldFloor(long y) => y < MinimumMaterialYValue + TerrainConstants.WorldFloorThickness;
+    private static bool IsWorldFloor(long y) => y < MinimumMaterialYValue + GenerationConstants.WorldFloorThickness;
 
     /// <summary>
-    /// The world's border wall. It stands at the extent edge on all four sides up to
-    /// a stated height, so the finite world has an authored edge rather than a void
-    /// the player can walk into.
+    /// The world's border wall. It stands at this world's own extent edge on all four sides up
+    /// to a stated height, so the finite world has an authored edge rather than a void the
+    /// player can walk into.
     /// </summary>
-    private static bool IsWorldWall(long x, long z, long y)
+    private bool IsWorldWall(long x, long z, long y)
     {
-        if (y > TerrainConstants.WorldWallTop || y < MinimumMaterialYValue)
+        if (y > GenerationConstants.WorldWallTop || y < MinimumMaterialYValue)
         {
             return false;
         }
 
-        long limit = TerrainConstants.DefaultSize / 2;
-        long inner = limit - TerrainConstants.WorldWallThickness;
+        long limit = radius;
+        long inner = limit - GenerationConstants.WorldWallThickness;
         bool onEdge = x <= -inner || x >= inner || z <= -inner || z >= inner;
         bool inside = x >= -limit && x <= limit && z >= -limit && z <= limit;
         return onEdge && inside;
@@ -177,77 +151,63 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         long slope = column.Slope;
         long depthFromSurface = top - address.Y;
-        if (depthFromSurface == 0 && slope <= TerrainConstants.TopsoilSlopeMaximum)
+        if (depthFromSurface == 0 && slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
             return TerrainConstants.GrassMaterial;
         }
 
-        return depthFromSurface <= TerrainConstants.SubsoilDepthMaximum
-            && slope <= TerrainConstants.SubsoilSlopeMaximum
+        return depthFromSurface <= GenerationConstants.SubsoilDepthMaximum
+            && slope <= GenerationConstants.SubsoilSlopeMaximum
             ? TerrainConstants.DirtMaterial
             : TerrainConstants.StoneMaterial;
     }
 
     /// <summary>
-    /// The structure material at one voxel, asked of whichever of the nine anchor cells
-    /// that touch this voxel's own cell owns a site covering it. Each cell decides for
-    /// itself from its own coordinates and the contract, so two chunks that share a
-    /// structure agree about it without communicating and without an order - the same
-    /// property the surface-feature pass has, at a far coarser lattice.
+    /// The bridge voxel at one position. A crossing is decided by its own cell and reaches at
+    /// most a span plus its abutments, so the nine cells around this one are enough.
     /// </summary>
+    private PoiVoxel? CrossingAt(long x, long y, long z) =>
+        FirstInNeighbourhood<PoiVoxel>(x, z, PoiConstants.CellSize, (anchorX, anchorZ) =>
+            crossings.SiteAt(anchorX, anchorZ) is CrossingSite site
+            && CrossingStructure.MaterialAt(site, x, y, z) is { IsNone: false } voxel
+                ? voxel
+                : null);
+
     /// <summary>
-    /// The bridge voxel at one position, asked of the nine cells that touch this one. A
-    /// crossing is decided by its own cell and reaches at most a span plus its abutments, so
-    /// the same nine-cell neighbourhood is enough.
+    /// The structure voxel at one position, asked of whichever of the nine anchor cells around
+    /// this one owns a site covering it. Each cell decides for itself from its own coordinates
+    /// and the contract, so two chunks that share a structure agree about it without
+    /// communicating and without an order.
     /// </summary>
-    private PoiVoxel? CrossingAt(long x, long y, long z)
+    private PoiVoxel PoiAt(long x, long y, long z) =>
+        FirstInNeighbourhood<PoiVoxel>(x, z, PoiConstants.CellSize, (anchorX, anchorZ) =>
+            pois.SiteAt(anchorX, anchorZ) is PoiSite site
+            && PoiStructures.MaterialAt(site, x, y, z) is { IsNone: false } voxel
+                ? voxel
+                : null) ?? PoiVoxel.None;
+
+    /// <summary>
+    /// The first answer from the nine anchor cells of a lattice around a column: its own cell
+    /// and the eight that touch it. Every anchored pass - trees, sites, crossings - reaches at
+    /// most one cell beyond its anchor, so these nine are all that can cover the column.
+    /// </summary>
+    private static T? FirstInNeighbourhood<T>(long x, long z, long cellSize, Func<long, long, T?> probe)
+        where T : struct
     {
-        long cell = PoiConstants.CellSize;
-        long cellX = FloorDivide(x, cell);
-        long cellZ = FloorDivide(z, cell);
+        long cellX = GridMath.FloorDivide(x, cellSize);
+        long cellZ = GridMath.FloorDivide(z, cellSize);
         for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
         {
             for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
             {
-                if (crossings.SiteAt(anchorX, anchorZ) is not CrossingSite site)
+                if (probe(anchorX, anchorZ) is T found)
                 {
-                    continue;
-                }
-
-                PoiVoxel voxel = CrossingStructure.MaterialAt(site, x, y, z);
-                if (!voxel.IsNone)
-                {
-                    return voxel;
+                    return found;
                 }
             }
         }
 
         return null;
-    }
-
-    private PoiVoxel PoiAt(long x, long y, long z)
-    {
-        long cell = PoiConstants.CellSize;
-        long cellX = FloorDivide(x, cell);
-        long cellZ = FloorDivide(z, cell);
-        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
-        {
-            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
-            {
-                if (pois.SiteAt(anchorX, anchorZ) is not PoiSite site)
-                {
-                    continue;
-                }
-
-                PoiVoxel voxel = PoiStructures.MaterialAt(site, x, y, z);
-                if (!voxel.IsNone)
-                {
-                    return voxel;
-                }
-            }
-        }
-
-        return PoiVoxel.None;
     }
 
     private long TerrainSurface(long x, long z) => TerrainHeight(x, z);
@@ -284,8 +244,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return true;
         }
 
-        bool waterReaches = yMinimum <= TerrainConstants.WaterLevel;
-        if (yMinimum <= TerrainConstants.WorldWallTop
+        bool waterReaches = yMinimum <= GenerationConstants.WaterLevel;
+        if (yMinimum <= GenerationConstants.WorldWallTop
             && TouchesWorldEdge(address.X * edge, (address.X * edge) + edge - 1, address.Z * edge, (address.Z * edge) + edge - 1))
         {
             return true;
@@ -308,7 +268,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
                     return true;
                 }
 
-                if (waterReaches && surface < TerrainConstants.WaterLevel)
+                if (waterReaches && surface < GenerationConstants.WaterLevel)
                 {
                     return true;
                 }
@@ -329,12 +289,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     private bool ChunkFeaturesReach(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
     {
-        long cell = TerrainConstants.FeatureCellSize;
-        long reach = TerrainConstants.TreeCanopyRadius;
-        long firstCellX = FloorDivide(xStart - reach, cell);
-        long lastCellX = FloorDivide(xEnd + reach, cell);
-        long firstCellZ = FloorDivide(zStart - reach, cell);
-        long lastCellZ = FloorDivide(zEnd + reach, cell);
+        long cell = GenerationConstants.FeatureCellSize;
+        long reach = GenerationConstants.TreeCanopyRadius;
+        long firstCellX = GridMath.FloorDivide(xStart - reach, cell);
+        long lastCellX = GridMath.FloorDivide(xEnd + reach, cell);
+        long firstCellZ = GridMath.FloorDivide(zStart - reach, cell);
+        long lastCellZ = GridMath.FloorDivide(zEnd + reach, cell);
         for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
         {
             for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
@@ -401,10 +361,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
     {
         long reach = PoiConstants.MaximumStructureReach;
         long cell = PoiConstants.CellSize;
-        long firstCellX = FloorDivide(xStart - reach, cell);
-        long lastCellX = FloorDivide(xEnd + reach, cell);
-        long firstCellZ = FloorDivide(zStart - reach, cell);
-        long lastCellZ = FloorDivide(zEnd + reach, cell);
+        long firstCellX = GridMath.FloorDivide(xStart - reach, cell);
+        long lastCellX = GridMath.FloorDivide(xEnd + reach, cell);
+        long firstCellZ = GridMath.FloorDivide(zStart - reach, cell);
+        long lastCellZ = GridMath.FloorDivide(zEnd + reach, cell);
         for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
         {
             for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
@@ -434,13 +394,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
                             TerrainColumn column = ColumnAt(x, z);
                             ushort before = BaseMaterialAt(new VoxelAddress(x, y, z), column);
-                            ushort after = poi.Kind == PoiVoxelKind.Carve
-                                ? y >= column.Surface - TerrainConstants.MaximumStructureStepBelowGround
-                                    ? TerrainConstants.EmptyMaterial
-                                    : before
-                                : before == TerrainConstants.EmptyMaterial || y == column.Surface
-                                    ? poi.Material
-                                    : before;
+                            ushort after = StructurePasses.ApplySite(before, poi, y, column);
                             if ((before == TerrainConstants.EmptyMaterial)
                                 != (after == TerrainConstants.EmptyMaterial))
                             {
@@ -464,10 +418,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
     {
         long cell = PoiConstants.CellSize;
         long reach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
-        long firstCellX = FloorDivide(xStart - reach, cell);
-        long lastCellX = FloorDivide(xEnd + reach, cell);
-        long firstCellZ = FloorDivide(zStart - reach, cell);
-        long lastCellZ = FloorDivide(zEnd + reach, cell);
+        long firstCellX = GridMath.FloorDivide(xStart - reach, cell);
+        long lastCellX = GridMath.FloorDivide(xEnd + reach, cell);
+        long firstCellZ = GridMath.FloorDivide(zStart - reach, cell);
+        long lastCellZ = GridMath.FloorDivide(zEnd + reach, cell);
         for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
         {
             for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
@@ -497,7 +451,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
                             TerrainColumn column = ColumnAt(x, z);
                             ushort before = BaseMaterialAt(new VoxelAddress(x, y, z), column);
-                            if (before == TerrainConstants.EmptyMaterial || y == column.Surface)
+                            if (StructurePasses.ApplyCrossing(before, span, y, column) != before)
                             {
                                 return true;
                             }
@@ -513,28 +467,35 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
     private bool TouchesWorldEdge(long xMinimum, long xMaximum, long zMinimum, long zMaximum)
     {
-        long limit = TerrainConstants.DefaultSize / 2;
-        long inner = limit - TerrainConstants.WorldWallThickness;
+        long limit = radius;
+        long inner = limit - GenerationConstants.WorldWallThickness;
         bool xEdge = xMinimum <= -inner || xMaximum >= inner;
         bool zEdge = zMinimum <= -inner || zMaximum >= inner;
         bool inside = xMaximum >= -limit && xMinimum <= limit && zMaximum >= -limit && zMinimum <= limit;
         return (xEdge || zEdge) && inside;
     }
 
+    /// <summary>
+    /// The height field. Its noise is seeded through the contract, so a version bump redraws the
+    /// ground as well as the features on it.
+    /// </summary>
     private long TerrainHeight(long x, long z)
     {
-        double broad = ValueNoise(configuration.Seed, x, z, TerrainConstants.BroadNoiseScale);
-        double rolling = ValueNoise(configuration.Seed ^ TerrainConstants.RollingNoiseSalt, x, z, TerrainConstants.RollingNoiseScale);
-        double detail = ValueNoise(configuration.Seed ^ TerrainConstants.DetailNoiseSalt, x, z, TerrainConstants.DetailNoiseScale);
-        double ridge = TerrainConstants.One - Math.Abs((rolling * TerrainConstants.Two) - TerrainConstants.One);
-        double height = TerrainConstants.HeightBase
-            + (broad * TerrainConstants.BroadWeight)
-            + ((broad - TerrainConstants.BroadCenter) * TerrainConstants.BroadDeviationWeight)
-            + (ridge * TerrainConstants.RidgeWeight)
-            + ((detail - TerrainConstants.BroadCenter) * TerrainConstants.DetailDeviationWeight)
-            + (ValueNoise(configuration.Seed ^ TerrainConstants.LargeNoiseSalt, x, z, TerrainConstants.LargeNoiseScale)
-                * TerrainConstants.LargeWeight);
-        return Math.Max((long)Math.Round(height, MidpointRounding.AwayFromZero), TerrainConstants.MinimumTerrainHeight);
+        ulong seed = Contract.NoiseSeed;
+        double broad = ValueNoise(seed, x, z, GenerationConstants.BroadNoiseScale);
+        double rolling = ValueNoise(seed ^ GenerationConstants.RollingNoiseSalt, x, z, GenerationConstants.RollingNoiseScale);
+        double detail = ValueNoise(seed ^ GenerationConstants.DetailNoiseSalt, x, z, GenerationConstants.DetailNoiseScale);
+
+        // A ridge folds the rolling noise about its middle: 1 at the middle, 0 at either end.
+        double ridge = 1d - Math.Abs((rolling * 2d) - 1d);
+        double height = GenerationConstants.HeightBase
+            + (broad * GenerationConstants.BroadWeight)
+            + ((broad - GenerationConstants.BroadCenter) * GenerationConstants.BroadDeviationWeight)
+            + (ridge * GenerationConstants.RidgeWeight)
+            + ((detail - GenerationConstants.BroadCenter) * GenerationConstants.DetailDeviationWeight)
+            + (ValueNoise(seed ^ GenerationConstants.LargeNoiseSalt, x, z, GenerationConstants.LargeNoiseScale)
+                * GenerationConstants.LargeWeight);
+        return Math.Max((long)Math.Round(height, MidpointRounding.AwayFromZero), GenerationConstants.MinimumTerrainHeight);
     }
 
     private long CardinalSlope(long x, long z, long top)
@@ -548,10 +509,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private static double ValueNoise(ulong seed, long x, long z, int scale)
     {
-        long cellX = FloorDivide(x, scale);
-        long cellZ = FloorDivide(z, scale);
-        double localX = PositiveMod(x, scale) / (double)scale;
-        double localZ = PositiveMod(z, scale) / (double)scale;
+        long cellX = GridMath.FloorDivide(x, scale);
+        long cellZ = GridMath.FloorDivide(z, scale);
+        double localX = GridMath.PositiveMod(x, scale) / (double)scale;
+        double localZ = GridMath.PositiveMod(z, scale) / (double)scale;
         double blendX = Smoothstep(localX);
         double blendZ = Smoothstep(localZ);
         double near = Lerp(HashUnit(CoordinateHash(seed, cellX, cellZ)),
@@ -561,37 +522,25 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return Lerp(near, far, blendZ);
     }
 
-    private static long FloorDivide(long value, int divisor)
-    {
-        long quotient = value / divisor;
-        return value % divisor < 0 ? quotient - 1 : quotient;
-    }
-
-    private static long PositiveMod(long value, int divisor)
-    {
-        long remainder = value % divisor;
-        return remainder < 0 ? remainder + divisor : remainder;
-    }
-
-    private static double Smoothstep(double value) => value * value
-        * (TerrainConstants.SmoothstepFirstFactor - (TerrainConstants.Two * value));
+    /// <summary>The cubic smoothstep, 3t^2 - 2t^3, which eases a blend in and out of each cell.</summary>
+    private static double Smoothstep(double value) => value * value * (3d - (2d * value));
 
     private static double Lerp(double left, double right, double amount) => left + ((right - left) * amount);
 
-    private static double HashUnit(ulong value) => (value >> TerrainConstants.HashFractionShift)
-        / (double)TerrainConstants.HashFractionMaximum;
+    private static double HashUnit(ulong value) => (value >> GenerationConstants.HashFractionShift)
+        / (double)GenerationConstants.HashFractionMaximum;
 
     private static ulong CoordinateHash(ulong seed, long x, long z)
     {
         unchecked
         {
-            ulong value = seed ^ ((ulong)x * TerrainConstants.CoordinateXMultiplier);
-            value ^= BitOperations.RotateLeft((ulong)z, TerrainConstants.CoordinateRotation)
-                * TerrainConstants.CoordinateZMultiplier;
-            value ^= value >> TerrainConstants.FirstHashShift;
-            value *= TerrainConstants.CoordinateZMultiplier;
-            value ^= value >> TerrainConstants.SecondHashShift;
-            return (value * TerrainConstants.CoordinateHashMultiplier) ^ (value >> TerrainConstants.FinalHashShift);
+            ulong value = seed ^ ((ulong)x * GenerationConstants.CoordinateXMultiplier);
+            value ^= BitOperations.RotateLeft((ulong)z, GenerationConstants.CoordinateRotation)
+                * GenerationConstants.CoordinateZMultiplier;
+            value ^= value >> GenerationConstants.FirstHashShift;
+            value *= GenerationConstants.CoordinateZMultiplier;
+            value ^= value >> GenerationConstants.SecondHashShift;
+            return (value * GenerationConstants.CoordinateHashMultiplier) ^ (value >> GenerationConstants.FinalHashShift);
         }
     }
 
@@ -601,42 +550,32 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// using only its own coordinates and the world's contract, so two chunks that
     /// share a tree agree about it without communicating and without an order.
     /// </summary>
-    private ushort FeatureMaterialAt(long x, long y, long z, long surface)
+    private ushort FeatureMaterialAt(long x, long y, long z)
     {
-        long cell = TerrainConstants.FeatureCellSize;
-        long cellX = FloorDivide(x, cell);
-        long cellZ = FloorDivide(z, cell);
-        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
+        long cell = GenerationConstants.FeatureCellSize;
+        return FirstInNeighbourhood<ushort>(x, z, cell, (anchorX, anchorZ) =>
         {
-            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
+            if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
             {
-                if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
-                {
-                    continue;
-                }
-
-                long trunkX = (anchorX * cell) + tree.OffsetX;
-                long trunkZ = (anchorZ * cell) + tree.OffsetZ;
-                long ground = TerrainSurface(trunkX, trunkZ);
-                long baseY = ground + 1;
-                long crownY = baseY + tree.Height;
-
-                if (x == trunkX && z == trunkZ && y >= baseY && y < crownY)
-                {
-                    return Placeable(BlockId.Log);
-                }
-
-                long dx = x - trunkX;
-                long dz = z - trunkZ;
-                long dy = y - crownY;
-                if ((dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius)
-                {
-                    return Placeable(BlockId.Leaves);
-                }
+                return (ushort?)null;
             }
-        }
 
-        return TerrainConstants.EmptyMaterial;
+            long trunkX = (anchorX * cell) + tree.OffsetX;
+            long trunkZ = (anchorZ * cell) + tree.OffsetZ;
+            long baseY = TerrainSurface(trunkX, trunkZ) + 1;
+            long crownY = baseY + tree.Height;
+            if (x == trunkX && z == trunkZ && y >= baseY && y < crownY)
+            {
+                return (ushort)BlockId.Log;
+            }
+
+            long dx = x - trunkX;
+            long dz = z - trunkZ;
+            long dy = y - crownY;
+            return (dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius
+                ? (ushort)BlockId.Leaves
+                : null;
+        }) ?? TerrainConstants.EmptyMaterial;
     }
 
     /// <summary>
@@ -653,7 +592,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         TreeShape? shape = DecideTree(anchorX, anchorZ);
-        if (featureCells.Count >= TerrainConstants.FeatureCacheLimit)
+        if (featureCells.Count >= GenerationConstants.FeatureCacheLimit)
         {
             featureCells.Clear();
         }
@@ -667,12 +606,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // The surface is sampled at the candidate trunk column, so a cell whose
         // ground is not grass - water, sand, stone, or outside the world - owns no
         // tree. That keeps forests on soil and out of lakes without a biome pass.
-        long originX = anchorX * TerrainConstants.FeatureCellSize;
-        long originZ = anchorZ * TerrainConstants.FeatureCellSize;
+        long originX = anchorX * GenerationConstants.FeatureCellSize;
+        long originZ = anchorZ * GenerationConstants.FeatureCellSize;
         long offsetX = Contract.DrawLong(draws, "tree.offset.x", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            0, TerrainConstants.FeatureCellSize - 1);
+            0, GenerationConstants.FeatureCellSize - 1);
         long offsetZ = Contract.DrawLong(draws, "tree.offset.z", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            0, TerrainConstants.FeatureCellSize - 1);
+            0, GenerationConstants.FeatureCellSize - 1);
         long trunkX = originX + offsetX;
         long trunkZ = originZ + offsetZ;
         if (trunkX < -radius || trunkX > radius || trunkZ < -radius || trunkZ > radius)
@@ -681,7 +620,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         long ground = TerrainSurface(trunkX, trunkZ);
-        if (ground <= TerrainConstants.WaterLevel)
+        if (ground <= GenerationConstants.WaterLevel)
         {
             // A submerged column is not soil, so no tree stands in the water.
             return null;
@@ -694,32 +633,18 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         if (!Contract.DrawUnit(draws, "tree.present", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            TerrainConstants.FeatureCellOneIn))
+            GenerationConstants.FeatureCellOneIn))
         {
             return null;
         }
 
         long height = Contract.DrawLong(draws, "tree.height", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            TerrainConstants.TreeMinimumHeight, TerrainConstants.TreeMinimumHeight + TerrainConstants.TreeHeightRange - 1);
+            GenerationConstants.TreeMinimumHeight, GenerationConstants.TreeMinimumHeight + GenerationConstants.TreeHeightRange - 1);
         long canopy = Contract.DrawLong(draws, "tree.canopy", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            TerrainConstants.TreeCanopyRadius - 1, TerrainConstants.TreeCanopyRadius);
+            GenerationConstants.TreeCanopyRadius - 1, GenerationConstants.TreeCanopyRadius);
         return new TreeShape(offsetX, offsetZ, height, canopy);
     }
 
-    /// <summary>
-    /// A feature voxel is only placed when its block can be bound to the scene, so a
-    /// block with no material cannot reach the projection and fail it. Every block in the
-    /// V1 floor is bound - the Engine admits sixteen authored materials per scene and
-    /// this floor is exactly sixteen - so this is a guard a new block must clear rather
-    /// than a restriction on the current palette.
-    /// </summary>
-    private static ushort Placeable(BlockId id) =>
-        BlockRegistry.IsBound(id) ? (ushort)id : TerrainConstants.EmptyMaterial;
-
-    private static long FloorDivide(long value, long divisor) =>
-        value >= 0 ? value / divisor : ((value - divisor + 1) / divisor);
-
     private readonly record struct TreeShape(long OffsetX, long OffsetZ, long Height, long CanopyRadius);
 
-    private static bool IsInRange(long value, long minimum, long maximum) => value >= minimum && value <= maximum;
 }

@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Terrain;
@@ -210,8 +211,8 @@ Require(carved > 0, "some structure must remove material, or nothing makes a way
 
 // The deepest cut any site may make stays well above the bedrock floor.
 long deepest = PoiConstants.MinimumGroundHeight - PoiConstants.MaximumCarveDepth;
-Require(deepest > -TerrainConstants.TerrainDepth,
-    $"the deepest cut ({deepest}) must stay above the world floor (-{TerrainConstants.TerrainDepth})");
+Require(deepest > -GenerationConstants.TerrainDepth,
+    $"the deepest cut ({deepest}) must stay above the world floor (-{GenerationConstants.TerrainDepth})");
 
 // --- identity ---------------------------------------------------------------------
 HashSet<string> ids = [];
@@ -401,9 +402,9 @@ foreach ((long cellX, long cellZ) in cells)
         && CrossingStructure.MaterialAt(site, site.ToX + PoiConstants.CrossingRampLength + 2, site.DeckY, site.ToZ).IsNone
         && CrossingStructure.MaterialAt(site, site.FromX, site.DeckY + 2, site.FromZ).IsNone,
         $"{site.Id} must build nothing beyond its deck and its two ramps");
-    Require(site.DeckY >= TerrainConstants.WaterLevel + 1,
+    Require(site.DeckY >= GenerationConstants.WaterLevel + 1,
         $"{site.Id} must lay its deck above the water line, found {site.DeckY}");
-    Require(site.DeckY == TerrainConstants.WaterLevel + 1 || site.DeckY == 6,
+    Require(site.DeckY == GenerationConstants.WaterLevel + 1 || site.DeckY == 6,
         $"{site.Id} must meet a bank, found deck {site.DeckY}");
 
     long span = site.AlongX ? site.ToX - site.FromX : site.ToZ - site.FromZ;
@@ -413,7 +414,7 @@ foreach ((long cellX, long cellZ) in cells)
     {
         long x = site.AlongX ? site.FromX + step : site.FromX;
         long z = site.AlongX ? site.FromZ : site.FromZ + step;
-        Require(narrowRiver.ColumnAt(x, z).Surface < TerrainConstants.WaterLevel,
+        Require(narrowRiver.ColumnAt(x, z).Surface < GenerationConstants.WaterLevel,
             $"{site.Id} must only span water, but ({x},{z}) is dry");
     }
 
@@ -449,8 +450,8 @@ foreach ((long cellX, long cellZ) in cells)
     long nearZ = site.AlongX ? site.FromZ : site.FromZ - 1;
     long farX = site.AlongX ? site.ToX + 1 : site.ToX;
     long farZ = site.AlongX ? site.ToZ : site.ToZ + 1;
-    Require(narrowRiver.ColumnAt(nearX, nearZ).Surface >= TerrainConstants.WaterLevel
-        && narrowRiver.ColumnAt(farX, farZ).Surface >= TerrainConstants.WaterLevel,
+    Require(narrowRiver.ColumnAt(nearX, nearZ).Surface >= GenerationConstants.WaterLevel
+        && narrowRiver.ColumnAt(farX, farZ).Surface >= GenerationConstants.WaterLevel,
         $"{site.Id} must land on a bank at both ends");
 
     for (long y = site.DeckY - PoiConstants.CrossingPierDepth; y <= site.DeckY; y++)

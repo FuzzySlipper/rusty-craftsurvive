@@ -26,6 +26,9 @@ internal static class PlayerConstants
 
     internal const double InitialPitchDegrees = -20d;
 
+    /// <summary>How far above the ground the player's capsule starts, so the first step settles rather than penetrates.</summary>
+    internal const float SpawnClearance = 0.05f;
+
     internal const ulong PlayerEntityId = World.ProductIds.PlayerEntity;
     internal const ulong PlatformEntityId = World.ProductIds.PlatformEntity;
     internal static readonly Vector3 PlatformHalfExtents = new(1.5f, 0.25f, 0.9f);

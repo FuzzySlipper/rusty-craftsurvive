@@ -8,6 +8,7 @@ using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Proofing;
 
@@ -537,10 +538,10 @@ internal sealed class LiveSubstrateProof
             // at the controller's own Y, and a body standing on the bottom of a
             // one-layer lake would have its feet in the ground, not in the water.
             ReportWaterRaycast(surfaceX, surfaceZ, surfaceY);
-            player.Teleport(surfaceX + 0.5, TerrainConstants.WaterLevel + SwimDropHeight, surfaceZ + 0.5);
+            player.Teleport(surfaceX + 0.5, GenerationConstants.WaterLevel + SwimDropHeight, surfaceZ + 0.5);
             Report(
                 $"swim setup: teleported the player into generated water at ({surfaceX}, {surfaceZ}) " +
-                $"where the ground is at y={surfaceY} and the water level is {TerrainConstants.WaterLevel}");
+                $"where the ground is at y={surfaceY} and the water level is {GenerationConstants.WaterLevel}");
             swimStage = 1;
             return;
         }
@@ -589,7 +590,7 @@ internal sealed class LiveSubstrateProof
     /// </summary>
     private void ReportWaterRaycast(long x, long z, long groundY)
     {
-        Vector3 origin = new(x + 0.5f, TerrainConstants.WaterLevel + RaycastLift, z + 0.5f);
+        Vector3 origin = new(x + 0.5f, GenerationConstants.WaterLevel + RaycastLift, z + 0.5f);
         SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
             terrain.Session,
             origin,
@@ -601,7 +602,7 @@ internal sealed class LiveSubstrateProof
             ReadOnlyMemory<SpatialEntityCollider>.Empty));
         Report(
             $"water raycast at ({x}, {z}) where the ground is y={groundY} and water fills up to " +
-            $"y={TerrainConstants.WaterLevel}: {hit}");
+            $"y={GenerationConstants.WaterLevel}: {hit}");
     }
 
     /// <summary>
@@ -623,13 +624,13 @@ internal sealed class LiveSubstrateProof
                     // in the air above it, which cannot answer a question about
                     // swimming. This asks for ground at least `WaterDepth` below the
                     // water line, so the body is in water rather than on top of it.
-                    if (column.Surface > TerrainConstants.WaterLevel - WaterDepth)
+                    if (column.Surface > GenerationConstants.WaterLevel - WaterDepth)
                     {
                         continue;
                     }
 
                     ushort material = terrain.Recipe.MaterialAt(
-                        new CraftSurvive.Game.Modules.Terrain.VoxelAddress(x, TerrainConstants.WaterLevel, z), column);
+                        new CraftSurvive.Game.Modules.Terrain.VoxelAddress(x, GenerationConstants.WaterLevel, z), column);
                     if (material == (ushort)Content.BlockId.Water)
                     {
                         waterX = x;
@@ -654,7 +655,7 @@ internal sealed class LiveSubstrateProof
     /// </summary>
     private void ProveChunkCacheRoundTrip()
     {
-        var cache = new TerrainChunkCache(engine, terrain.Recipe.Contract);
+        using var cache = new TerrainChunkCache(engine, terrain.Recipe.Contract, terrain.GenerationFingerprint);
         var generator = new TerrainChunkGenerator(terrain.Recipe);
         TerrainOverlaySnapshot snapshot = new TerrainOverlayState(terrain.Recipe.Contract.Seed).Snapshot();
         TerrainChunkAddress address = new(1, 0, -2);

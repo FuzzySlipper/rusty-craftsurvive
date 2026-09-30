@@ -237,6 +237,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
     }
 
+    [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]
+    public string ReadGeneration() => terrain.GenerationReadout();
+
     [DebugCommand("craft.terrain.layout", Description = "Reads the selected product terrain layout and its stable dimensions.")]
     public string ReadTerrainLayout() => terrain.ReadLayout();
 

@@ -6,6 +6,7 @@ using CraftSurvive.Game.Modules.World;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
 
 using System.Diagnostics;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -46,7 +47,13 @@ internal sealed class TerrainWorld : IDisposable
         ArgumentNullException.ThrowIfNull(frame);
         frame.Rebased += OnRebased;
         recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random));
-        chunkCache = new TerrainChunkCache(engine, recipe.Contract);
+
+        // The fingerprint comes from a fresh recipe, so nothing the live one memoises can hide a
+        // change in the generator or in the Engine's keyed draws underneath it.
+        GenerationFingerprint = TerrainGenerationFingerprint.Compute(
+            configuration.CreateRecipe(new EngineTerrainDraws(engine.Random)),
+            TerrainGenerationFingerprint.Startup);
+        chunkCache = new TerrainChunkCache(engine, recipe.Contract, GenerationFingerprint);
         chunkGenerator = new TerrainChunkGenerator(recipe, chunkCache);
         residencyPolicy = new TerrainResidencyPolicy(recipe, chunkGenerator);
         overlay = new TerrainOverlayState(configuration.Seed);
@@ -61,6 +68,23 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The generation recipe, so the live proof can hash real chunks.</summary>
     internal TerrainRecipe Recipe => recipe;
+
+    /// <summary>What this run's generator produces over the startup probe, with the Engine's draws.</summary>
+    internal ulong GenerationFingerprint { get; }
+
+    /// <summary>
+    /// The generator's identity as a readout: its version, its live fingerprint and whether that
+    /// fingerprint is the one recorded for the version, plus what the chunk cache holds.
+    /// </summary>
+    internal string GenerationReadout()
+    {
+        uint version = recipe.Contract.Version;
+        string golden = TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
+            ? expected == GenerationFingerprint ? "match" : string.Create(CultureInfo.InvariantCulture, $"mismatch expected={expected:x16}")
+            : "unrecorded";
+        return string.Create(CultureInfo.InvariantCulture,
+            $"version={version} fingerprint={GenerationFingerprint:x16} golden={golden} cached={chunkCache.Count} pendingWrites={pendingCacheWrites.Count} resident={residentChunks.Count} admissions={admissions} evictions={evictions} staleDropped={chunkCache.StaleDropped} cacheHits={chunkGenerator.CacheHits}");
+    }
 
     internal void Start()
     {
@@ -342,6 +366,8 @@ internal sealed class TerrainWorld : IDisposable
     internal string LastEditTiming => lastEditTiming;
 
     private string lastEditTiming = "none";
+    private long admissions;
+    private long evictions;
 
     private string lastFrontTiming = "none";
 
@@ -371,6 +397,7 @@ internal sealed class TerrainWorld : IDisposable
         uiStream = null;
         persistenceStore?.Dispose();
         persistenceStore = null;
+        chunkCache.Dispose();
         session?.Dispose();
         session = null;
         started = false;
@@ -454,6 +481,7 @@ internal sealed class TerrainWorld : IDisposable
             }
 
             AddChunkAdmission(plan.Chunk(address), operations, materialSlots);
+            admissions++;
             if (operations.Count == plan.MaximumOperationsPerTick)
             {
                 break;
@@ -475,6 +503,7 @@ internal sealed class TerrainWorld : IDisposable
                 pendingCacheWrites.Enqueue(address);
             }
 
+            evictions++;
             operations.Add(new VoxelResidencyOperation(
                 VoxelResidencyOperationKind.Evict,
                 ToEngineChunk(address),
@@ -514,7 +543,9 @@ internal sealed class TerrainWorld : IDisposable
             return;
         }
 
-        TerrainChunk chunk = chunkGenerator.Generate(address, overlay.Snapshot());
+        // The cache holds what the generator produces, never the player's edits: those live in the
+        // overlay, and a cached chunk must stay true if the overlay is ever discarded.
+        TerrainChunk chunk = chunkGenerator.Generate(address, new TerrainOverlaySnapshot(recipe.Contract.Seed, []));
         chunkCache.Write(address, chunk.Materials.Span);
     }
 

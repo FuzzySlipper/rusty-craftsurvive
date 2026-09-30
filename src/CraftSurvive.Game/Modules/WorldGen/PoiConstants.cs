@@ -1,4 +1,4 @@
-namespace CraftSurvive.Game.Modules.Discovery;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// Tuning for point-of-interest placement, structure geometry, and discovery.

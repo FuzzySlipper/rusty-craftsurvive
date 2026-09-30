@@ -1,4 +1,4 @@
-using CraftSurvive.Game.Modules.Discovery;
+using CraftSurvive.Game.Modules.WorldGen;
 using System.Security.Cryptography;
 using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Terrain;
@@ -9,45 +9,93 @@ using CraftSurvive.Game.Modules.Rpg;
 
 PlayerInputChecks.Run();
 
-// Material snapshots taken before the residency/column optimization. Cover
-// authored landmarks, boundaries, negative coordinates, layers, and two seeds.
-// The hashes moved once, deliberately: campaign #8595's S1 removed the
-// hand-placed testbed furniture (traversal route, clearing, gaps, trench,
-// bridge, pillars) from the world recipe rather than carrying it into the world
-// model. Every overlap, ordering, payload-reuse, edit and eviction check below
-// is unchanged and still passes.
-foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
+// The generator's golden fingerprints, one per version, over two seeds. The fingerprint covers
+// heights edge to edge, every site and crossing decision in a 41-cell square, and 68 whole
+// chunks including a structure and the border wall, so changing any generation constant or rule
+// moves it. A change that moves it must bump TerrainGeneratorContract.CurrentVersion and add a
+// row here; editing an existing row instead would let two different worlds share a version.
 {
-    TerrainConfiguration config = new(seed, TerrainConstants.DefaultSize);
-    var generator = new TerrainChunkGenerator(config.CreateRecipe(new TestDraws(seed)));
-    var overlay = new TerrainOverlayState(seed);
-    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-    byte[] bytes = new byte[TerrainConstants.ChunkVolume * sizeof(ushort)];
-    foreach (long x in new long[] { -3, -2, -1, 0, 1, 2, 3 })
-    foreach (long z in new long[] { -2, 0, 2 })
-    foreach (long y in new long[] { -1, 0, 1 })
+    Dictionary<(uint Version, ulong Seed), ulong> golden = new()
     {
-        TerrainChunk chunk = generator.Generate(new(x, y, z), overlay.Snapshot());
-        for (int i = 0; i < chunk.Materials.Length; i++)
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)), chunk.Materials.Span[i]);
-        hash.AppendData(bytes);
+        [(12, TerrainConstants.DefaultSeed)] = 0xcd1ae5b3b5cc9caaUL,
+        [(12, 12345UL)] = 0xea90394ab7bd6daaUL,
+    };
+    List<string> mismatches = [];
+    foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
+    {
+        TerrainConfiguration config = new(seed, TerrainConstants.DefaultSize);
+        ulong actual = TerrainGenerationFingerprint.Compute(config.CreateRecipe(new TestDraws(seed)), TerrainGenerationFingerprint.Golden);
+        if (!golden.TryGetValue((TerrainGeneratorContract.CurrentVersion, seed), out ulong expected) || expected != actual)
+        {
+            mismatches.Add($"version {TerrainGeneratorContract.CurrentVersion} seed {seed:x16}: 0x{actual:x16}");
+        }
     }
-    // Moved deliberately at each generation change: version 4 placed surface
-    // features, version 5 added water, version 6 gave the world an authored bedrock
-    // floor and border. All three sit in the ground band these snapshots cover.
-    // Moved at version 6, which gave the world an authored bedrock floor and border
-    // at the settled ~100 km2 extent: the old 96 m wall no longer stands inside the
-    // sampled box, and the floor still does.
-    // Moved at version 7, which replaced the hand-placed landmark pillars with drawn
-    // points of interest. The sampled box holds no site, so what moved here is the
-    // surface features: a version bump changes every draw key by construction, so every
-    // tree is redrawn. Confirmed by reverting the version to 6 and watching this hash
-    // return to the value below, which is what rules out an accidental terrain change.
-    string expected = seed == TerrainConstants.DefaultSeed
-        ? "BD110A823FFDD38C7132E98EDF7808864CA345EFCBD9CD8B8B2401A37679BF72"
-        : "C6615AFC15E3F3AFECB745D5B4F617FB3A3C34B74176FD72865BFD2ED2FB9F72";
-    string actual = Convert.ToHexString(hash.GetHashAndReset());
-    Require(actual == expected, $"authored material snapshot changed: {actual}");
+
+    Require(mismatches.Count == 0,
+        $"the generator's output changed without a version bump (or a new version has no golden row): {string.Join("; ", mismatches)}");
+    Require(golden.Values.Distinct().Count() == golden.Count, "two golden rows share a fingerprint");
+
+    // The fingerprint answers to the world's identity, not only to its tuning.
+    TerrainConfiguration baseline = new(TerrainConstants.DefaultSeed, TerrainConstants.DefaultSize);
+    ulong startup = TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup);
+    Require(startup == TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup),
+        "a fingerprint must repeat for the same world");
+    Require(startup != TerrainGenerationFingerprint.Compute((baseline with { Seed = baseline.Seed + 1 }).CreateRecipe(new TestDraws(baseline.Seed + 1)), TerrainGenerationFingerprint.Startup),
+        "a different seed must move the fingerprint");
+    Require(startup != TerrainGenerationFingerprint.Compute((baseline with { GeneratorVersion = baseline.GeneratorVersion + 1 }).CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup),
+        "a different version must move the fingerprint, heights included");
+    Console.WriteLine($"Generator golden fingerprints hold for version {TerrainGeneratorContract.CurrentVersion}; seed and version each move the fingerprint.");
+}
+
+// A world of any size has its border wall at its own edge, not at the default world's.
+{
+    const int SmallSize = 256;
+    TerrainRecipe small = new TerrainConfiguration(TerrainConstants.DefaultSeed, SmallSize).CreateRecipe(new TestDraws(TerrainConstants.DefaultSeed));
+    long edge = SmallSize / 2;
+    ushort bedrock = (ushort)BlockId.Bedrock;
+    Require(small.MaterialAt(new VoxelAddress(edge, GenerationConstants.WaterLevel, 0)) == bedrock,
+        "a small world's wall must stand at its own edge");
+    Require(small.MaterialAt(new VoxelAddress(edge - GenerationConstants.WorldWallThickness - 1, GenerationConstants.WorldWallTop, 0)) != bedrock
+        || small.SurfaceAt(edge - GenerationConstants.WorldWallThickness - 1, 0) >= GenerationConstants.WorldWallTop,
+        "a small world's wall must not extend inward past its thickness");
+    Require(small.ChunkHasContent(new VoxelAddress(edge, GenerationConstants.WorldWallTop, 0).Chunk),
+        "the content predicate must see a small world's wall");
+    TerrainRecipe large = TerrainConfiguration.TraversalShowcase.CreateRecipe(new TestDraws(TerrainConstants.DefaultSeed));
+    Require(large.MaterialAt(new VoxelAddress(edge, GenerationConstants.WorldWallTop + 1, 0)) != bedrock
+        || large.SurfaceAt(edge, 0) > GenerationConstants.WorldWallTop,
+        "the default world must have no wall where a small world's edge would be");
+    Console.WriteLine($"A {SmallSize}-voxel world has its border at its own edge.");
+}
+
+// The chunk cache's bound and invalidation, as pure policy: the oldest chunk leaves first, and
+// nothing a different generator wrote survives a start.
+{
+    TerrainChunkCacheIndex index = new([]);
+    TerrainGeneratorContract contract = TerrainConfiguration.TraversalShowcase.Contract;
+    string prefix = TerrainChunkCacheKey.GeneratorPrefix(contract, 0xABCDUL);
+    for (int i = 0; i < TerrainChunkCacheIndex.MaximumChunks; i++)
+    {
+        Require(index.Add(TerrainChunkCacheKey.For(contract, 0xABCDUL, new TerrainChunkAddress(i, 0, 0))).Count == 0,
+            "the cache must not evict below its bound");
+    }
+
+    IReadOnlyList<string> evicted = index.Add(TerrainChunkCacheKey.For(contract, 0xABCDUL, new TerrainChunkAddress(-1, 0, 0)));
+    Require(evicted.Count == 1 && evicted[0] == TerrainChunkCacheKey.For(contract, 0xABCDUL, new TerrainChunkAddress(0, 0, 0))
+        && index.Keys.Count == TerrainChunkCacheIndex.MaximumChunks, "the oldest chunk must leave first, keeping the bound");
+    Require(index.Add(index.Keys[^1]).Count == 0 && index.Keys.Count == TerrainChunkCacheIndex.MaximumChunks,
+        "rewriting a cached chunk must not grow the index");
+    TerrainChunkCacheIndex roundTrip = TerrainChunkCacheIndex.Decode(index.Encode());
+    Require(roundTrip.Keys.SequenceEqual(index.Keys), "the index must survive its own encoding");
+    Require(TerrainChunkCacheIndex.Decode([1, 2, 3]).Keys.Count == 0, "a foreign index blob must read as empty");
+    string otherGenerator = TerrainChunkCacheKey.For(contract, 0x1234UL, new TerrainChunkAddress(0, 0, 0));
+    TerrainChunkCacheIndex mixed = new([otherGenerator, index.Keys[0]]);
+    IReadOnlyList<string> stale = mixed.RetainOnly(prefix);
+    Require(stale.SequenceEqual([otherGenerator]) && mixed.Keys.All(key => key.StartsWith(prefix, StringComparison.Ordinal)),
+        "a start must drop every chunk another generator wrote");
+    Require(TerrainChunkCacheKey.For(contract, 0xABCDUL, new TerrainChunkAddress(0, 0, 0))
+        != TerrainChunkCacheKey.For(contract, 0x1234UL, new TerrainChunkAddress(0, 0, 0)),
+        "two generators must never share a chunk key");
+    Console.WriteLine($"Chunk cache: bounded at {TerrainChunkCacheIndex.MaximumChunks} chunks, oldest first; another generator's chunks are dropped.");
 }
 
 // Cross-order agreement: two neighbours must produce identical voxels whichever
@@ -123,12 +171,8 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     }
 
     string featureHash = Convert.ToHexString(hash.GetHashAndReset());
-    // Pinned against the managed draw port; the live lane prints the same snapshot
-    // through the Engine's keyed RNG. Both hash real voxels now: the feature pass places
-    // trees, and version 7 added structure voxels to this box. Moved at version 7, which
-    // changes every draw key and so redraws every feature in it.
-
-    const string ExpectedFeatureHash = "FD75840EEDDFAA9CF118147563F044653A68CC4A9D3EBB24E522C6A64B041C1A";
+    // The box's exact output is pinned by the generator's golden fingerprint above; this block
+    // checks the passes' invariants.
     Console.WriteLine(
         $"Terrain features, water and world edges placed and deterministic: {featureVoxels} feature, " +
         $"{waterVoxels} water, {bedrockVoxels} bedrock voxels, {featureHash}");
@@ -166,7 +210,6 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
 
     Require(waterVoxels > 0, "the water pass placed no water voxel");
     Require(bedrockVoxels > 0, "the world has no authored bedrock floor");
-    Require(featureHash == ExpectedFeatureHash, "surface, water and border snapshot changed");
 }
 
 // The chunk cache's payload and key, proven lossless before anything is wired to a
@@ -189,12 +232,12 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(!TerrainChunkCachePayload.TryDecode([1, 2, 3, 4, 5, 6, 7, 8], out _), "a foreign payload was accepted");
     Require(!TerrainChunkCachePayload.TryDecode(ReadOnlySpan<byte>.Empty, out _), "an empty payload was accepted");
 
-    string key = TerrainChunkCacheKey.For(config.Contract, address);
-    Require(key == TerrainChunkCacheKey.For(config.Contract, address), "a cache key is not stable for the same chunk");
-    Require(key != TerrainChunkCacheKey.For(config.Contract, new TerrainChunkAddress(1, 0, -1)), "two chunks share a cache key");
-    Require(key != TerrainChunkCacheKey.For(config.Contract with { Version = config.Contract.Version + 1 }, address),
+    const ulong Fingerprint = 0x1UL;
+    string key = TerrainChunkCacheKey.For(config.Contract, Fingerprint, address);
+    Require(key != TerrainChunkCacheKey.For(config.Contract, Fingerprint, new TerrainChunkAddress(1, 0, -1)), "two chunks share a cache key");
+    Require(key != TerrainChunkCacheKey.For(config.Contract with { Version = config.Contract.Version + 1 }, Fingerprint, address),
         "a generation version bump did not change the cache key");
-    Require(key != TerrainChunkCacheKey.For(config.Contract with { Seed = config.Contract.Seed + 1 }, address),
+    Require(key != TerrainChunkCacheKey.For(config.Contract with { Seed = config.Contract.Seed + 1 }, Fingerprint, address),
         "a different world seed did not change the cache key");
     Console.WriteLine($"Chunk cache payload and key verified: {encoded.Length} bytes, key {key}");
 }

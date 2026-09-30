@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 using Rusty.Engine.Debugging;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Discovery;
 
@@ -301,10 +302,10 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
         long cell = PoiConstants.CellSize;
         long columnX = (long)Math.Floor(position.X);
         long columnZ = (long)Math.Floor(position.Z);
-        long firstX = FloorDivide(columnX - limit, cell);
-        long lastX = FloorDivide(columnX + limit, cell);
-        long firstZ = FloorDivide(columnZ - limit, cell);
-        long lastZ = FloorDivide(columnZ + limit, cell);
+        long firstX = GridMath.FloorDivide(columnX - limit, cell);
+        long lastX = GridMath.FloorDivide(columnX + limit, cell);
+        long firstZ = GridMath.FloorDivide(columnZ - limit, cell);
+        long lastZ = GridMath.FloorDivide(columnZ + limit, cell);
         List<(double Distance, string Row)> rows = [];
         for (long cellX = firstX; cellX <= lastX; cellX++)
         {
@@ -362,8 +363,6 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
     /// <summary>How many places have been reached for the first time, ever.</summary>
     internal long FirstVisits => firstVisits;
 
-    private static long FloorDivide(long value, long divisor) =>
-        value >= 0 ? value / divisor : ((value - divisor + 1) / divisor);
 
     private static double Distance(PoiSite site, Vector3 position)
     {

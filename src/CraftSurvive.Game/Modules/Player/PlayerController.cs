@@ -210,6 +210,17 @@ internal sealed class PlayerController : IDisposable
 
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         frame.Observe(origin);
+        if (!terrain.IsCourtyard)
+        {
+            // The generated world stands the player on whatever ground the generator put under the
+            // spawn column, so a generator change can never start them inside the terrain.
+            float ground = terrain.GroundAt(playerGlobal.CellX, playerGlobal.CellZ);
+            playerGlobal = PlayerWorldPosition.FromWorld(
+                playerGlobal.WorldX,
+                ground + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance,
+                playerGlobal.WorldZ);
+        }
+
         spawn = playerGlobal;
         playerLocal = playerGlobal.ToLocal(origin);
         platformLocal = platformGlobal.ToLocal(origin);

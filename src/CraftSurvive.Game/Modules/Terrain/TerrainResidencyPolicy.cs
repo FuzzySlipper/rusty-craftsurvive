@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
@@ -141,8 +142,8 @@ internal sealed class TerrainResidencyPolicy
 
     private IEnumerable<TerrainChunkAddress> CandidateChunks(TerrainChunkAddress center, int radius)
     {
-        long minimumY = FloorDivide(recipe.MinimumMaterialY, TerrainConstants.ChunkEdgeLength);
-        long maximumY = FloorDivide(recipe.MaximumMaterialY, TerrainConstants.ChunkEdgeLength);
+        long minimumY = WorldGen.GridMath.FloorDivide(recipe.MinimumMaterialY, TerrainConstants.ChunkEdgeLength);
+        long maximumY = WorldGen.GridMath.FloorDivide(recipe.MaximumMaterialY, TerrainConstants.ChunkEdgeLength);
         for (long x = center.X - radius; x <= center.X + radius; x++)
         {
             for (long z = center.Z - radius; z <= center.Z + radius; z++)
@@ -167,11 +168,6 @@ internal sealed class TerrainResidencyPolicy
         return ((x * x) + (z * z), address.Y, address);
     }
 
-    private static long FloorDivide(long value, int divisor)
-    {
-        long quotient = value / divisor;
-        return value % divisor < 0 ? quotient - 1 : quotient;
-    }
 }
 
 internal sealed class TerrainResidencyPlan

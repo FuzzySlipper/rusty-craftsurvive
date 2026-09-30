@@ -1,4 +1,5 @@
 using Rusty.Engine;
+using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -66,17 +67,17 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, Terra
         TerrainConstants.DefaultSeed,
         TerrainConstants.DefaultSize,
         TerrainSceneMode.ExperimentalCourtyard,
-        Content.TerrainGeneratorContract.CurrentVersion);
+        TerrainGeneratorContract.CurrentVersion);
 
     /// <summary>A generated cubic world, selected explicitly for development and proofs.</summary>
     internal static TerrainConfiguration TraversalShowcase => new(
         TerrainConstants.DefaultSeed,
         TerrainConstants.DefaultSize,
         TerrainSceneMode.TraversalShowcase,
-        Content.TerrainGeneratorContract.CurrentVersion);
+        TerrainGeneratorContract.CurrentVersion);
 
     internal TerrainConfiguration(ulong seed, int size)
-        : this(seed, size, TerrainSceneMode.TraversalShowcase, Content.TerrainGeneratorContract.CurrentVersion)
+        : this(seed, size, TerrainSceneMode.TraversalShowcase, TerrainGeneratorContract.CurrentVersion)
     {
     }
 
@@ -101,8 +102,8 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, Terra
         return this;
     }
 
-    internal TerrainRecipe CreateRecipe(Content.ITerrainDraws draws) => new(this.Validate(), draws);
+    internal TerrainRecipe CreateRecipe(ITerrainDraws draws) => new(this.Validate(), draws);
 
     /// <summary>The versioned identity generation draws from.</summary>
-    internal Content.TerrainGeneratorContract Contract => new(Seed, GeneratorVersion, Size);
+    internal TerrainGeneratorContract Contract => new(Seed, GeneratorVersion, Size);
 }

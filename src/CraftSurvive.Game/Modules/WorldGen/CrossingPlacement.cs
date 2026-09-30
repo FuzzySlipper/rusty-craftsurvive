@@ -2,7 +2,7 @@ using System.Globalization;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Terrain;
 
-namespace CraftSurvive.Game.Modules.Discovery;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// A dry way over water: the run of water columns a span crosses, and the height its deck is
@@ -99,7 +99,7 @@ internal sealed class CrossingPlacement
             }
 
             long surface = columns.ColumnAt(x, z).Surface;
-            if (surface >= TerrainConstants.WaterLevel)
+            if (surface >= GenerationConstants.WaterLevel)
             {
                 bank++;
 
@@ -149,7 +149,7 @@ internal sealed class CrossingPlacement
         long fromZ = alongX ? originZ + offset : originZ + first;
         long toX = alongX ? originX + last : originX + offset;
         long toZ = alongX ? originZ + offset : originZ + last;
-        long deck = Math.Max(TerrainConstants.WaterLevel + 1, Math.Max(nearBankSurface, farBankSurface));
+        long deck = Math.Max(GenerationConstants.WaterLevel + 1, Math.Max(nearBankSurface, farBankSurface));
         return new CrossingSite(cellX, cellZ, fromX, fromZ, toX, toZ, deck, alongX);
     }
 

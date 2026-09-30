@@ -1,4 +1,4 @@
-namespace CraftSurvive.Game.Modules.Discovery;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// The kinds of place worth travelling to. The numeric value is part of the

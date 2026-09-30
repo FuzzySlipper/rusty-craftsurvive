@@ -1,6 +1,6 @@
 using CraftSurvive.Game.Modules.Content;
 
-namespace CraftSurvive.Game.Modules.Discovery;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>What a structure wants done to one voxel.</summary>
 internal enum PoiVoxelKind

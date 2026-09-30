@@ -1,13 +1,14 @@
 using Rusty.Engine;
 
-namespace CraftSurvive.Game.Modules.Content;
+namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
-/// The versioned identity of a generated world, and the only way generation draws
-/// a random value.
+/// The versioned identity of a generated world, and the source of every random value
+/// generation uses: feature draws go through the Engine's keyed RNG under
+/// <see cref="DrawLong"/>, and the height field's noise is seeded from
+/// <see cref="NoiseSeed"/>. Both mix in the version.
 ///
-/// Two properties matter and both come from the Engine's keyed RNG rather than a
-/// product hash:
+/// Two properties matter for the keyed draws:
 /// <list type="bullet">
 /// <item>A draw is a pure function of (seed, version, scope, key). It holds no
 /// stream position, so a chunk produces the same voxels no matter which chunks
@@ -35,11 +36,15 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// descent is cut into across a distance rather than as a single step, because a one-block
     /// step is not a hillside and gating on it left two kinds unplaced in the real world;
     /// version 11 ramps each end of a crossing down to its bank, because a deck laid at the
-    /// higher bank left the lower one unclimbable.
+    /// higher bank left the lower one unclimbable; version 12 seeds the height field through the
+    /// contract, so a version bump redraws the ground as well as what stands on it.
     /// </summary>
-    internal const uint CurrentVersion = 11;
+    internal const uint CurrentVersion = 12;
 
     private const string GenerationScope = "craftsurvive.terrain";
+
+    /// <summary>The width of a one-in-N draw's range: fine enough that N up to a million is exact.</summary>
+    private const long UnitScale = 1_000_000;
 
     /// <summary>Coordinate keys are stable text, so a draw names its own inputs.</summary>
     internal static string CoordinateKey(long x, long z) =>
@@ -77,11 +82,16 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
             throw new ArgumentOutOfRangeException(nameof(oneIn), oneIn, "A one-in-N draw needs N of at least one.");
         }
 
-        const long Scale = 1_000_000;
-        return DrawLong(draws, purpose, key, 0, Scale - 1) < Scale / oneIn;
+        return DrawLong(draws, purpose, key, 0, UnitScale - 1) < UnitScale / oneIn;
     }
 
-    private ulong MixVersion(ulong seed) => seed ^ (Version * 0x9e3779b97f4a7c15UL);
+    /// <summary>The seed of the height field's noise: the world seed with the version mixed in.</summary>
+    internal ulong NoiseSeed => MixVersion(Seed);
+
+    /// <summary>Spreads the version across every bit of the seed, so neighbouring versions share nothing.</summary>
+    private const ulong VersionSpread = 0x9e3779b97f4a7c15UL;
+
+    private ulong MixVersion(ulong seed) => seed ^ (Version * VersionSpread);
 }
 
 /// <summary>
