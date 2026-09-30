@@ -440,8 +440,8 @@ const double FixedDelta = 1.0 / 60.0;
 Vector3 playerAt = new(40, 0, 0);
 Creature oneStep = new(1, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
 Creature twoSteps = new(2, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
-CreatureSimulation.Step(oneStep, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta));
-CreatureSimulation.Step(twoSteps, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta));
+CreatureSimulation.Step(oneStep, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2(playerAt.X, playerAt.Z));
+CreatureSimulation.Step(twoSteps, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta), waypoint: new Vector2(playerAt.X, playerAt.Z));
 double expectedOne = CreatureKinds.Hostile.PursueSpeedMetresPerSecond * FixedDelta;
 Check.That(Math.Abs(oneStep.Position.X - expectedOne) < 1e-5 && Math.Abs(twoSteps.Position.X - (2 * expectedOne)) < 1e-5,
     $"one step must move {expectedOne:F4} m and two steps twice that, moved {oneStep.Position.X:F4} and {twoSteps.Position.X:F4}");
@@ -457,17 +457,25 @@ CreatureSimulation.Step(nearWaypoint, new CreatureSense(true), playerAt, playerC
 Check.That(Vector2.Distance(nearWaypoint.Position, new Vector2(0, 0.25f)) < 1e-5,
     $"a pursuer must stop at its waypoint rather than overshoot it, reached {nearWaypoint.Position}");
 
+// Only a routed waypoint moves a pursuer: with no route - outside the published grid, a refused
+// start, or no way through - it waits where it is instead of walking at the player.
+Creature unrouted = new(9, CreatureKinds.Hostile, new Vector2(3, 4)) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+CreatureSimulation.Step(unrouted, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta),
+    CreatureSimulation.WaypointOrWait(unrouted.Position, routed: null));
+Check.That(unrouted.Position == new Vector2(3, 4), $"a pursuer without a route must wait, moved to {unrouted.Position}");
+Check.Equal(new Vector2(7, 8), CreatureSimulation.WaypointOrWait(new Vector2(3, 4), new Vector2(7, 8)), "a routed waypoint is followed");
+
 Creature striker = new(3, CreatureKinds.Hostile, new Vector2(38, 0));
 Vector3 closePlayer = new(40, 0, 0);
-Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta)) is CreatureStrike,
+Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
     "a hostile creature within reach must strike");
 long cooldown = CreatureKinds.Hostile.Tuning.AttackCooldownTicks;
-Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta)) is null,
+Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null,
     "the cooldown must hold one step short, whatever the steps per update");
-Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta)) is CreatureStrike,
+Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
     "the cooldown must release once its steps have passed, even when an update covers two");
 Creature patientStriker = new(4, CreatureKinds.Hostile, new Vector2(38, 0));
-Check.That(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta)) is null
+Check.That(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null
     && patientStriker.Behavior.CanAttack(11, CreatureKinds.Hostile.Tuning),
     "a player who cannot be hit draws no blow and costs no cooldown");
 
@@ -479,8 +487,8 @@ foreach (double planar in new[] { CreatureKinds.Hostile.Tuning.SightRange - 0.5,
 {
     Creature low = new(5, CreatureKinds.Hostile, Vector2.Zero);
     Creature high = new(6, CreatureKinds.Hostile, Vector2.Zero);
-    CreatureSimulation.Step(low, new CreatureSense(true), new Vector3((float)planar, 0, 0), true, new ProductStep(1, 1, FixedDelta));
-    CreatureSimulation.Step(high, new CreatureSense(true), new Vector3((float)planar, (float)HeightSpan, 0), true, new ProductStep(1, 1, FixedDelta));
+    CreatureSimulation.Step(low, new CreatureSense(true), new Vector3((float)planar, 0, 0), true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2((float)planar, 0));
+    CreatureSimulation.Step(high, new CreatureSense(true), new Vector3((float)planar, (float)HeightSpan, 0), true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2((float)planar, 0));
     Check.That(low.Behavior.State == high.Behavior.State,
         $"at {planar} m planar, height must not change the sight decision: {low.Behavior.State} vs {high.Behavior.State}");
 }

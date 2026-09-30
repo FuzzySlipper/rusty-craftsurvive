@@ -119,7 +119,8 @@ internal sealed class CreatureModule : IProductModule
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
             CreatureSense sense = new(seeing.Contains(creature.Id));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, creature.Waypoint) is CreatureStrike strike)
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time,
+                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint)) is CreatureStrike strike)
             {
                 ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
@@ -288,7 +289,7 @@ internal sealed class CreatureModule : IProductModule
     /// <summary>
     /// Gives each awake pursuer its next waypoint along the Engine's navigation. Navigation is
     /// published only while someone pursues; a waypoint is kept until it is reached or has aged.
-    /// A pursuer with no way to the player waits where it is.
+    /// Only a routed waypoint moves a pursuer: any other answer leaves it waiting where it is.
     /// </summary>
     private void Route(Vector3 playerFeet)
     {
@@ -313,11 +314,7 @@ internal sealed class CreatureModule : IProductModule
                     && Vector2.Distance(waypoint, creature.Position) <= WaypointArrivalMetres;
                 if (creature.Waypoint is null || arrived || step - creature.WaypointStep >= WaypointRefreshSteps)
                 {
-                    Vector2? next = navigation.NextWaypoint(Feet(creature.Position), playerFeet, out NavigationPathOutcome outcome);
-
-                    // No way to the player means waiting, not walking through whatever is in between;
-                    // only a creature whose own cell the grid refuses closes in a straight line to get clear.
-                    creature.Waypoint = next ?? (NoRoute(outcome) ? creature.Position : null);
+                    creature.Waypoint = navigation.NextWaypoint(Feet(creature.Position), playerFeet, out NavigationPathOutcome outcome);
                     creature.WaypointStep = step;
                     creature.RouteOutcome = outcome.ToString();
                 }
@@ -332,10 +329,6 @@ internal sealed class CreatureModule : IProductModule
             }
         }
     }
-
-    private static bool NoRoute(NavigationPathOutcome outcome) =>
-        outcome is NavigationPathOutcome.NoPath or NavigationPathOutcome.GoalNotWalkable
-            or NavigationPathOutcome.GoalNotTraversable or NavigationPathOutcome.GoalBlocked;
 
     private Vector3 Feet(Vector2 position) => new(position.X, GroundAt(position), position.Y);
 

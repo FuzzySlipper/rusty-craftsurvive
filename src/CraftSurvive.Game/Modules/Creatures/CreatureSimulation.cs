@@ -28,6 +28,12 @@ internal static class CreatureSimulation
     internal static double EngineSightRadius(double planarSightRange, double maximumHeightDifference) =>
         Math.Sqrt((planarSightRange * planarSightRange) + (maximumHeightDifference * maximumHeightDifference));
 
+    /// <summary>
+    /// Where a pursuer heads: the waypoint the Engine routed, or - for any other answer, whether no
+    /// route, a start outside the published grid or a refused query - its own position, so it waits.
+    /// </summary>
+    internal static Vector2 WaypointOrWait(Vector2 position, Vector2? routed) => routed ?? position;
+
     internal static double PlanarDistance(Vector2 creature, Vector3 player)
     {
         double dx = player.X - creature.X;
@@ -41,8 +47,9 @@ internal static class CreatureSimulation
     /// grace after a respawn - draws no swing and costs the creature no cooldown.
     /// </summary>
     /// <param name="waypoint">
-    /// Where a pursuing creature walks next, in world X and Z - the navigation route's next point.
-    /// Without one it closes on the player in a straight line.
+    /// Where a pursuing creature walks next, in world X and Z: the navigation route's next point,
+    /// or its own position to wait (see <see cref="WaypointOrWait"/>). A creature never walks
+    /// straight at the player, so nothing but a route moves it past what is in between.
     /// </param>
     internal static CreatureStrike? Step(
         Creature creature,
@@ -50,7 +57,7 @@ internal static class CreatureSimulation
         Vector3 playerWorld,
         bool playerCanBeHit,
         ProductStep time,
-        Vector2? waypoint = null)
+        Vector2 waypoint)
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
@@ -61,8 +68,7 @@ internal static class CreatureSimulation
         if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
             && distance > kind.HaltDistanceMetres)
         {
-            Vector2 toward = waypoint ?? new Vector2(playerWorld.X, playerWorld.Z);
-            Vector2 offset = toward - creature.Position;
+            Vector2 offset = waypoint - creature.Position;
             double leg = offset.Length();
             double travel = Math.Min(Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres), leg);
             if (leg > 0)
