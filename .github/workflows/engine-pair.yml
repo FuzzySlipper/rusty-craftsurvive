@@ -1,8 +1,8 @@
 name: engine-pair
 
-# Proposes the newest published Engine pair. The proposal is a pull request
-# opened only after the product builds, passes its managed checks and serves
-# on that pair; a pair that breaks the product opens (or updates) an issue
+# Keeps the product on the newest published Engine pair. The pin advances
+# only after the product builds, passes its managed checks and serves on the
+# proposed pair; a pair that breaks the product opens (or updates) an issue
 # instead, and main keeps its pin.
 
 on:
@@ -17,7 +17,6 @@ on:
 permissions:
   contents: write
   issues: write
-  pull-requests: write
 
 concurrency:
   group: engine-pair
@@ -62,11 +61,7 @@ jobs:
           to=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
           echo "from=$from" >> "$GITHUB_OUTPUT"
           echo "to=$to" >> "$GITHUB_OUTPUT"
-          if [[ "$from" == "$to" ]] || git ls-remote --exit-code origin "refs/heads/engine-pair/$to" >/dev/null; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+          if [[ "$from" == "$to" ]]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
 
       - name: Build the product on the proposed pair
         if: steps.propose.outputs.changed == 'true'
@@ -93,7 +88,7 @@ jobs:
           set -o pipefail
           scripts/ci-serve-product.sh "$PROJECT" 8787 2>&1 | tee dev.log
 
-      - name: Open the pull request
+      - name: Advance the pin
         if: steps.propose.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -102,7 +97,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          branch="engine-pair/$TO"
           {
             echo "Adopt Engine pair $TO"
             echo
@@ -110,12 +104,10 @@ jobs:
             echo
             sed -n '/^What changed/,/^Next:/p' update.log | sed '$d'
           } > message.txt
-          git switch -c "$branch"
           git commit -q -F message.txt Directory.Build.props
-          git push origin "$branch"
-          gh pr create --base "$GITHUB_REF_NAME" --head "$branch" --title "Adopt Engine pair $TO" --body-file message.txt
+          git push origin "HEAD:$GITHUB_REF_NAME"
           for issue in $(gh issue list --label "$FAILURE_LABEL" --state open --json number --jq '.[].number'); do
-            gh issue close "$issue" --comment "Engine pair $TO builds, checks and serves; proposed on $branch."
+            gh issue close "$issue" --comment "CraftSurvive adopted Engine pair $TO in $(git rev-parse --short HEAD)."
           done
 
       - name: Report the failed update
