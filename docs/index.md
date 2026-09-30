@@ -1,14 +1,14 @@
 # Documentation map
 
-Five documents carry current meaning. Everything else — experiment records,
+Four documents carry current meaning. Everything else — experiment records,
 provenance, and superseded state — lives in Den and is deliberately not copied here.
 
 | Document | What it is |
 | --- | --- |
-| [survival-direction.md](survival-direction.md) | The durable design record: target, module-level work, settled decisions, and the Engine boundary |
+| [survival-direction.md](survival-direction.md) | The durable design record: target, settled decisions, and the Engine boundary |
 | [csharp-migration-map.md](csharp-migration-map.md) | Where product modules, Engine services, and content live |
 | [known-limitations.md](known-limitations.md) | What the product does not do today, and the limits a change must respect |
-| [live-proofs.md](live-proofs.md) | How to run the live evidence lane, what it proves, and the operational traps |
+| [live-proofs.md](live-proofs.md) | The live lane: the client, what it proves, captures, and the operational traps |
 
 `README.md` at the repository root is the entry point for developing and running the
 product. `AGENTS.md` holds the working rules.
@@ -22,7 +22,8 @@ Den project `rusty-craftsurvive`:
 - **History**: retired study records and superseded sections are documents with
   `history/` slugs — for example `history/courtyard-verdict`,
   `history/procgen-workbench`, `history/known-limitations-full`,
-  `history/survival-direction-campaign-record`, and `history/s0-decisions`.
+  `history/survival-direction-campaign-record`, `history/survival-direction-module-survey`,
+  `history/live-substrate-proof`, `history/authoring-lane` and `history/s0-decisions`.
 - **Board**: durable discussion that is not a task.
 
 A `history/` document keeps its text as written, including the Engine pair the study
@@ -31,7 +32,7 @@ maintained, and none of them overrides a task or a live document.
 
 ## Evidence
 
-`docs/evidence/8596/` holds the S0 live-proof captures. Evidence belonging to retired
-studies was removed from the working tree to keep the repository navigable; it stays
-recoverable from git history, and the Den history index records which directories
-were retired and where to find them.
+`docs/evidence/` is where retained live captures go (S10, #8606). Review evidence for individual
+tasks lives on the repository's orphan `evidence` branch, one directory per task, so it never
+weighs on the working tree. Evidence belonging to retired studies stays recoverable from git
+history, and the Den history index records where.

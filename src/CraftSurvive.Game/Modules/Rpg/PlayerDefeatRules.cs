@@ -24,9 +24,8 @@ internal static class PlayerDefeatRules
     internal const int RespawnHealthPercent = 50;
 
     /// <summary>
-    /// Grace after a respawn. The player comes back where they fell, so without a
-    /// moment of safety a creature standing in reach kills them again immediately -
-    /// observed live as a death every seven seconds.
+    /// Grace after a respawn, in steps: a creature that followed the player home cannot
+    /// strike them again before they can act.
     /// </summary>
     internal const long RespawnGraceTicks = 100;
     internal const long RespawnDelayTicks = 200;
@@ -35,10 +34,8 @@ internal static class PlayerDefeatRules
 
     internal static PlayerDefeatState Strike(PlayerDefeatState state, int damage, long tick)
     {
-        // A defeated player absorbs nothing. Without this, every further hit counts
-        // another defeat and moves the respawn schedule, so a corpse is "killed"
-        // every frame and never comes back - which is exactly what the live chase
-        // did before this guard.
+        // A defeated player absorbs nothing: a further hit would count another defeat and
+        // move the respawn schedule, so a player under attack would never come back.
         if (state.Health <= 0)
         {
             return state;

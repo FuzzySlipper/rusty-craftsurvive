@@ -2,8 +2,8 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// Product policy for which deterministic chunks should be requested or kept.
-/// It creates no Engine residency operation; a later adapter owns that bridge.
+/// Product policy for which deterministic chunks should be requested or kept. It creates no
+/// Engine residency operation; <see cref="TerrainResidencyStreamer"/> turns its plan into them.
 /// </summary>
 internal sealed class TerrainResidencyPolicy
 {

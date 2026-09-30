@@ -1,139 +1,98 @@
 # Known limitations
 
-What the product does not do today, and the limits a change has to respect. This is
-the live list. The study-era records it used to carry - the procgen workbench motif
-and repair limits, the courtyard and stoneworks art studies, the cave-level and
-large-complex slices, and the LAN startup regression - are in Den, project
-`rusty-craftsurvive`, under `history/` slugs. The repository keeps no archive copy.
+What the product does not do today, and the limits a change has to respect. Each limit names
+the constant that sets it or the task that owns it; the value lives there, not here. Study-era
+records and superseded limits are in Den, project `rusty-craftsurvive`, under `history/` slugs.
 
-## Voxel world (`CRAFTSURVIVE_SCENE=traversal`)
+## World and generation
 
-- Generation is deterministic over a fixed product recipe, and its version is the
-  contract's own: **currently 11**, raised deliberately five times by S5 - 7 for points
-  of interest, 8 for crossings, 9 for the carve bound, 10 for relief measured across
-  distance, 11 for the ramps at each end of a crossing. A bump redraws every keyed
-  feature by construction, so it is also what discards a stale save. Residency asks for
-  a 3x3 horizontal window, retains 5x5 up to 64 populated chunks, and admits at most 16
-  operations per update. There is no biome framework, general procgen framework,
-  generated-chunk disk cache, or product generation worker. Streaming, the world spine
-  and the chunk-content predicate are S2 of campaign #8595 (#8598, delivered), and
-  Engine-owned residency preparation is the supported overlap path.
-- Edits use one bounded spherical brush of radius 0, 1 or 2, admitted as one product
-  revision. Placement is rejected if the edit overlaps the player or exceeds the
-  Engine coordinate envelope. Inventory, crafting, construction permissions,
-  networking and multiplayer merge policy are not implemented.
-- Presentation admits the canonical 128x128 authored atlas through Engine
-  AuthoredContent and Appearance, then projects source slots 1 grass, 2 dirt and
-  3 stone through directional voxel scene presentation; grass uses the grass-side
-  base with a +Y grass-top override. Normal maps, animated tiles, blending, and the
-  retired source slot 4 are not implemented.
-- **One atlas per scene.** A material whose surface resolves through a second atlas
-  fails the directional projection, so a block's appearance must come from the
-  scene's own atlas image.
-- **Navigation must be published.** A world without a collision-derived navigation
-  projection answers every path query with `ProjectionUnavailable`, and query cells
-  are relative to the published box.
-- Persistence is bounded, product-owned state through Engine Persistence: a terrain
-  overlay and, since S5, a discovery journal. **A blob written for a different generation
-  is now detected and reported rather than failing the load** - the journal discards the
-  stale save, preserves the previous bytes as a backup, and says so in its own readout
-  (`restore=discarded: Stored journal was written for generation 7, not 8`), which has
-  happened five times against real saves. The overlay behaves the same way. What remains
-  missing is **migration**: a version change regenerates rather than converting, so a
-  player's journal is deliberately thrown away when the world changes, and there is still
-  no policy for concurrent writers.
+- **The generator is versioned, and the version is the save contract.**
+  `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
+  generation rule or tuning moves the generator's fingerprint; the managed goldens in
+  `tests/TerrainResidency` and `TerrainGenerationGoldens.Live` then require a version bump, and a
+  bump discards every save written for the old version (see Persistence).
+- **Generated chunks are cached on disk, keyed on the generator.** `TerrainChunkCache` keeps at
+  most `TerrainChunkCacheIndex.MaximumChunks`, oldest first, keyed on
+  `TerrainGenerationFingerprint.CacheIdentity`: the live output fingerprint mixed with a
+  build-time stamp of the generator's sources (`TerrainGeneratorSource.targets`). Any source
+  change to generation therefore empties the cache on the next start.
+- **Residency follows the player only.** The request window is
+  `TerrainConstants.RequestedChunkRadius`, the retained ring `RetainedChunkRadius`, capped at
+  `MaximumResidentChunks`, admitting at most `MaximumResidencyOperationsPerTick` per update
+  (chosen by measurement, #8895). Nothing is resident, and nothing has collision, outside that
+  window: creatures spawned beyond it cannot use navigation (#8975).
+- There is no biome framework, general procgen framework or product generation worker.
 
-## Platform limits confirmed by measurement
+## Edits
 
-- **Passable voxel material: this was real, and has since been honoured.**
-  Collision used to stop at every non-empty voxel whatever the material declared, so
-  water was solid, a player stood on a lake instead of swimming in it, and a ladder,
-  door or any other non-blocking block could not be authored. Measured with a downward
-  raycast through a three-layer lake that stopped at the top face of the water voxel
-  rather than at the lake bed, while the water material is declared non-solid,
-  non-collidable and non-occluding in `BlockRegistry` and those flags reach its
-  `AuthoredMaterialInput`. Filed upstream with that evidence, and the report was acted
-  on: the collision rule now honours the material, the Engine provides swimming and
-  submersion, and the swim policy's positive case runs against generated terrain -
-  walkers are still refused in water while swimmers are allowed from a shore. Recorded
-  rather than deleted because that measurement is what got it fixed, and because it is
-  the shape of limitation this document exists to track: real, evidenced, filed, closed.
-- **A multi-cell edit transaction stalls the update loop.** One
-  `VoxelEditTransaction` carrying nine or more edits reports `Accepted` and then
-  no further product update runs: no failing status, no worker EOF, no
-  crash-budget message, no exception. One and two-edit transactions are
-  unaffected. This matters to this product specifically because manipulation is
-  place-blocks plus *detonate charges*, where a multi-cell edit is the intended
-  operation rather than a test artefact. Filed upstream with the table of
-  transaction sizes and the diagnostics that do not appear.
+- A view-aimed brush edit has radius at most `TerrainConstants.MaximumBrushRadius` within
+  `TerrainConstants.EditReach`; a decided edit (a charge, a stamp) carries at most
+  `TerrainBrushPolicy.MaximumTransactionCells` cells, a charge at most `BlastPolicy.MaximumCells`,
+  and a stamp at most `BuildStamp.MaximumStampCells`.
+- The player's edits are an overlay of at most `TerrainConstants.MaximumOverlayEntries` cells.
+  An edit that would exceed it is refused at admission (`OverlayFull`) before the Engine is asked.
+- Nothing is placed into the player's body: brush placement, stamps and block entities are
+  refused on cells the player occupies. A body placed inside a solid cell faults the product
+  (the character controller refuses to step it), which is why `craft.player.teleport` and
+  respawn only move the player where a standing body fits.
+- Inventory, crafting, construction permissions, networking and multiplayer merge policy are
+  not implemented.
 
-The edit-transaction stall is a live limit of the installed pair at `rusty-engine` #8684,
-and it is not a bug in this repository. The passable-material report was `rusty-engine`
-#8685 and **is no longer a live limit** - it is kept above as a closed record, not as a
-constraint a change has to respect. This repository keeps no copy of either issue's state.
+## Presentation
+
+- **One atlas per voxel scene.** Every block material resolves through the scene's one atlas
+  (`content/game/textures/terrain-atlas.*`, validated against `BlockRegistry` by
+  `TerrainAtlasLayout`); a material from a second atlas fails the directional projection, as S0
+  (#8596) recorded upstream. Normal maps, animated tiles and blending are not implemented.
+- The C# runtime draws no shadow maps; the product has no shadow control.
+
+## Creatures and navigation
+
+- **Navigation must be published before it can be queried.** A world without a collision-derived
+  navigation projection answers every path query with `ProjectionUnavailable`, and query cells
+  are relative to the published box (`CreatureNavigationProbe`). Creatures chase in a straight
+  line; navigation-driven pursuit is #8975.
+
+## Persistence
+
+- Every saved key is listed in `SaveManifest`, written through `ProductSaveSlot` over one store,
+  and guarded by the revision this session last read or wrote: a key changed outside the session
+  is reported, not overwritten.
+- **Worlds are disposable.** A save written for another seed or generator version is discarded,
+  kept as the key's one backup, and the world regenerates; there is no migration.
+- Player continuation restores position, look, vitals and progress, not controller motion: the
+  player starts at rest. A position where a standing body no longer fits restores at home.
+- The discovery journal holds at most `PoiConstants.MaximumDiscoveryEntries` places and refuses
+  new ones when full.
 
 ## Player and input
 
-- The product owns a 120 Hz controller cadence, first-person look, sprint, crouch,
-  jump, impulse, moving-platform schedule, camera composition and world-position
-  policy. Engine owns the character solver, collision casts, support/carry, the
-  camera resource and the origin mechanism. No general entity, rigid-body, animation
-  or scheduler framework is claimed.
-- The moving platform is a translating axis-aligned box supplied as a call-local
-  obstacle. Rotated or general rigid-body platform collision is outside that.
-- Controller input is product policy: the left stick has a radial deadzone that keeps
-  its analog magnitude, the right stick integrates with the admitted simulation
-  delta, and A, B, left-stick click, X, RT and LT map to jump, crouch, sprint,
-  impulse, clear terrain and set terrain. Trigger edits use digital button edges.
-- Rebasing happens at a named local threshold and signed global positions are kept,
-  bounded by the Engine coordinate envelope. Limitless precision and cross-origin
-  multiplayer policy are not certified.
-
-## Authoring lane (courtyard and studies)
-
-- The Stoneworks environment and Reference courtyard are runtime
-  construction/whole-scene regeneration scenes, not editable voxel worlds. Reusable
-  layout and field composition come from `Rusty.Engine.Implicit`, and `CourtyardScene`
-  retains product mesh/collision publication ownership. No editor, erosion,
-  asynchronous regeneration or world streaming is claimed there.
-- Courtyard replacement is bounded by the Engine's committed 64 MiB baseline for the
-  assembled replacement. The product publishes the replacement snapshot before
-  retiring its predecessor and clears it before disposal; that is a lifecycle rule,
-  not a second retained-scene owner.
-- Free-form debug camera placement does not validate a safe character pose. Use the
-  standing-eye inspection presets for art evaluation.
-- Whole-scene treatment switches can briefly trigger browser baseline recovery and
-  `DEV_HOST_WORKER_TELEMETRY_DROPPED` while timing samples cannot enter the shell
-  queue. Engine #7833 owns that publication and telemetry pressure.
+- The character controller steps at `PlayerConstants.ControllerStepSeconds`; the world origin is
+  rebased under the player past `PlayerConstants.RebaseThreshold`. Cross-origin multiplayer policy
+  is not certified.
+- **Keyboard input from a page reaches the product only after the Engine canvas has gameplay
+  focus.** Keys pressed with the page body or a product UI control focused are not delivered (see
+  [live-proofs](live-proofs.md)).
+- Controller mapping is product policy in `PlayerInputState` and the project's input intents.
 
 ## UI
 
-- `src/ui/main.ts` is a DOM companion with Ghost Settings and live diagnostics. Its
-  compact chrome keeps metrics and courtyard controls collapsed, **Show metrics**
-  calls the Engine renderer show/hide commands, and courtyard treatment buttons
-  report a command as queued until a normal product update applies it. The Engine
-  host owns the canvas, renderer, physical input delivery and runtime integration;
-  there is no UI-owned gameplay and no non-UI renderer.
-- **The `craftsurvive.terrain` UI projection has no consumer.** `TerrainWorld` opens
-  the stream and publishes terrain facts to it, and no DOM or host code reads it
-  back: `src/ui/main.ts` contains no reference to the stream name or its contract. It
-  is a vestigial publication rather than a broken one, and removing or consuming it
-  is deliberately not decided here. The decision belongs to S9 of campaign #8595
-  (#8605), which owns HUD and screens and would have to live with either choice. S5
-  extended the same stream rather than opening a second one: it now also carries the
-  player's facts and the discovery journal's numbers (`discoveryPlaces`,
-  `discoveryVisited`, `discoverySeen`, `discoveryRefused`, `discoveryNearest` and the
-  last place's position, kind, stage and tick), which is why both enums travel as
-  numbers and may be appended to but never renumbered.
+- `src/ui` is a DOM companion: a HUD over the product's UI projection and a bar that claims the
+  product's `craftsurvive.ui` action intent. It holds no game state. The projection keeps the
+  stream name `craftsurvive.terrain` and contract `craftsurvive.terrain.v1`, whose fate S9 (#8605)
+  owns; kind and stage enums travel as numbers and may be appended to but never renumbered.
+- Developer tools in the panel (renderer metrics, the live-debug panel) work only on a host
+  started with `--live-debug`.
 
-## Lane and process
+## Lane, process and Engine gaps
 
-- The CoreCLR lane supplies the current terrain and player continuation, but no broad
-  accessibility, hardware or subjective interactive-certification claim is made. Use
-  a focused direct exercise when a task needs one.
-- The generated C# API exposes named Engine service families, not every Rust
-  source-level API. A slice that needs an absent mechanism must file or link the
-  upstream capability request and stop its downstream substitute work.
-- Retired experiments and their proof scripts are deliberately absent from the working
-  tree. They are semantic evidence only, kept in Den, and no archive copy is
-  maintained here.
+- CI's managed lanes do not launch the runtime; the `product` job serves it, checks it keeps
+  updating with a matching generator fingerprint, and walks the player on input.
+- A product fault is visible only through the product's readouts (`craft.runtime` reports
+  `state=Faulted`) and a `--diagnostics-log` file, and exceptions from product `Dispose` leave no
+  trace (Engine #8992).
+- `MechanicsException` carries no typed reason, so the Engine canary checks refusals by type and
+  effect only (Engine #8993).
+- The generated C# API exposes named Engine service families, not every Rust source-level API. A
+  slice that needs an absent mechanism files or links the upstream capability request and stops
+  its downstream substitute work.

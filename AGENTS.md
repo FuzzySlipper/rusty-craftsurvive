@@ -88,9 +88,10 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 - Report a short milestone before expensive integration: goal advanced,
   necessary surfaces, proof scaffolding, drift/unsupported boundary, and any
   upstream request.
-- Focused normal-lane proof is `pnpm run check:ui` and a Release build of
-  `CraftSurvive.Game`. Run `VerifyRustyEngineAot` only when a task explicitly
-  requires fidelity/release evidence.
+- Focused normal-lane proof is `pnpm run check:ui`, a Release build of
+  `CraftSurvive.Game`, and the `tests/` lanes the change touches. Run
+  `rusty build --project ... --aot` (the SDK's `VerifyRustyEngineAot`) only when a
+  task explicitly requires fidelity/release evidence.
 - Preserve unrelated work. In particular, `content/animations/` and
   `content/voxels/` are user-owned assets in the working checkout: never
   modify, stage, or clean them.
