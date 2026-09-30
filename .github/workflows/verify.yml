@@ -65,11 +65,16 @@ jobs:
           curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
           ~/.local/bin/rusty install
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install the software Vulkan driver the runtime renderer draws with
+        # mesa-vulkan-drivers supplies llvmpipe (lavapipe); runners have no GPU.
+        run: sudo apt-get update && sudo apt-get install --yes mesa-vulkan-drivers libvulkan1
       - name: Build the product in Release
         run: dotnet build src/CraftSurvive.Game -c Release
       - name: Build and stage the product through rusty
         run: rusty build --project "$PROJECT"
       - name: Serve the product and run one update
+        env:
+          WGPU_BACKEND: vulkan
         run: scripts/ci-serve-product.sh "$PROJECT" 8787
       - name: Audit the terrain textures
         run: pnpm run audit:textures

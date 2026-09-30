@@ -43,6 +43,10 @@ jobs:
       - name: Install UI dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Install the software Vulkan driver the runtime renderer draws with
+        # mesa-vulkan-drivers supplies llvmpipe (lavapipe); runners have no GPU.
+        run: sudo apt-get update && sudo apt-get install --yes mesa-vulkan-drivers libvulkan1
+
       - name: Get rusty
         run: |
           curl -fsSL "$RUSTY_INSTALLER" | bash
@@ -83,6 +87,8 @@ jobs:
 
       - name: Serve the product on the proposed pair
         if: steps.propose.outputs.changed == 'true'
+        env:
+          WGPU_BACKEND: vulkan
         run: |
           set -o pipefail
           scripts/ci-serve-product.sh "$PROJECT" 8787 2>&1 | tee dev.log

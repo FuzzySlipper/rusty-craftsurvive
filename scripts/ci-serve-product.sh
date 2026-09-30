@@ -28,6 +28,8 @@ for _ in $(seq 1 180); do
         break
     fi
     kill -0 "$dev" 2>/dev/null || break
+    # The supervisor stays up after its restart budget is spent; stop waiting then.
+    grep -q '"event":"paused-fault"' "$log" && break
     sleep 1
 done
 if [[ "$served" != true ]]; then
