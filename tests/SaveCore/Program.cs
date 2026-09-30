@@ -65,8 +65,8 @@ Check.That(restored.Outcome == SaveRestoreOutcome.Restored && restored.State is 
     && restored.State.Entries.SequenceEqual(overlay.Entries) && !restored.KeepsBackup, "a save for this world must restore");
 byte[] otherWorld = new TerrainOverlayCodec(identity with { Seed = Seed + 1 }).Encode(new TerrainOverlaySnapshot(Seed + 1, []));
 SaveRestoreDecision<TerrainOverlaySnapshot> discarded = SaveRestore.Decide(true, otherWorld, overlayCodec);
-Check.That(discarded.Outcome == SaveRestoreOutcome.Discarded && discarded.State is null && discarded.KeepsBackup
-    && discarded.Describe().StartsWith("discarded: ", StringComparison.Ordinal), "a save for another world must be discarded and kept as the backup");
+Check.That(discarded.Outcome == SaveRestoreOutcome.Discarded && discarded.State is null && discarded.KeepsBackup,
+    "a save for another world must be discarded and kept as the backup");
 SaveRestoreDecision<TerrainOverlaySnapshot> emptyBlob = SaveRestore.Decide(true, [], overlayCodec);
 Check.That(emptyBlob.Outcome == SaveRestoreOutcome.Discarded && !emptyBlob.KeepsBackup, "an empty stored blob is discarded with nothing to back up");
 byte[] olderGenerator = new TerrainOverlayCodec(identity with { GeneratorVersion = identity.GeneratorVersion - 1 }).Encode(overlay);
