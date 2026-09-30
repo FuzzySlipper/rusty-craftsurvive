@@ -132,13 +132,13 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             {
                 PublishAppearanceSnapshot(includeGhostSource: false);
             }
-            ghost.DisposeSourceAppearance();
+            ghost?.DisposeSourceAppearance();
             if (ghostSourcePublished)
             {
                 engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
             }
             player.Dispose();
-            microvoxels.Dispose();
+            microvoxels?.Dispose();
             terrain.Dispose();
             throw;
         }
@@ -213,8 +213,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             Shutdown();
         }
 
-        sky.Dispose();
-        ghost.DisposePresentation();
+        ghost?.DisposePresentation();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         ghost?.Dispose();
         discovery.Dispose();
@@ -246,30 +245,26 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         bool includeGhostSource = true,
         bool useDesiredGhostSource = false)
     {
-        if (includeGhostSource)
+        // Without the studies there is no ghost source, and the gameplay facts
+        // are the whole snapshot.
+        AppearanceFact[] gameplay =
+        [
+            .. terrain.CourtyardFacts,
+            .. player.Ropes.Facts,
+            player.PlatformAppearanceFact,
+            .. creatures.AppearanceFacts,
+        ];
+        if (!includeGhostSource || ghost is null)
         {
-            // Without the studies there is no ghost source to publish, and the
-            // gameplay facts are the whole snapshot.
-            if (ghost is null)
-            {
-                engine.Graphics.PublishSnapshot([.. terrain.CourtyardFacts, .. player.Ropes.Facts, player.PlatformAppearanceFact, .. creatures.AppearanceFacts]);
-                return;
-            }
-
-            engine.Graphics.PublishSnapshot(
-            [
-                ..terrain.CourtyardFacts,
-                ..player.Ropes.Facts,
-                player.PlatformAppearanceFact,
-                .. creatures.AppearanceFacts,
-                useDesiredGhostSource
-                    ? ghost.DesiredSourceAppearanceFact
-                    : ghost.SourceAppearanceFact,
-            ]);
+            engine.Graphics.PublishSnapshot(gameplay);
             return;
         }
 
-        engine.Graphics.PublishSnapshot([..terrain.CourtyardFacts, ..player.Ropes.Facts, player.PlatformAppearanceFact, ..creatures.AppearanceFacts]);
+        engine.Graphics.PublishSnapshot(
+        [
+            .. gameplay,
+            useDesiredGhostSource ? ghost.DesiredSourceAppearanceFact : ghost.SourceAppearanceFact,
+        ]);
     }
 
     private enum ProductLifecycleState

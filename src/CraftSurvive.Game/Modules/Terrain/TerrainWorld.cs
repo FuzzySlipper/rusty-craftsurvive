@@ -5,7 +5,6 @@ using Rusty.Engine;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
 
 using System.Diagnostics;
-using System.Globalization;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
@@ -142,7 +141,6 @@ internal sealed class TerrainWorld : IDisposable
     /// </summary>
     internal void PublishDiscoveryUi(DiscoveryUiFacts facts)
     {
-        ArgumentNullException.ThrowIfNull(facts);
         discoveryUi = facts;
         PublishUi();
     }

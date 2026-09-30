@@ -52,10 +52,10 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.rope.length", Description = "Sets the rate-limited target length, 2 to 10 metres.")]
     public string RopeLength(float length) => player.Ropes.SetLength(length);
 
-    [DebugCommand("craft.Ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
+    [DebugCommand("craft.ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
     public string SetGhostPreset(string preset) => Ghost.QueuePreset(preset);
 
-    [DebugCommand("craft.Ghost.capture", Description = "Queues ghost capture resolution, framing, clip range, and lighting mode.")]
+    [DebugCommand("craft.ghost.capture", Description = "Queues ghost capture resolution, framing, clip range, and lighting mode.")]
     public string SetGhostCapture(
         ushort resolution,
         float azimuthDegrees,
@@ -73,7 +73,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
             fieldOfViewDegrees,
             lightingMode);
 
-    [DebugCommand("craft.Ghost.lighting", Description = "Queues ghost capture lighting mode and ambient, key, and fill intensities.")]
+    [DebugCommand("craft.ghost.lighting", Description = "Queues ghost capture lighting mode and ambient, key, and fill intensities.")]
     public string SetGhostLighting(
         GhostPlateCaptureLightingMode lightingMode,
         float ambientIntensity,
@@ -81,7 +81,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         float fillIntensity)
         => Ghost.QueueLighting(lightingMode, ambientIntensity, keyIntensity, fillIntensity);
 
-    [DebugCommand("craft.Ghost.relief", Description = "Queues ghost depth, anchor, mapping, shell, and shell-tolerance values.")]
+    [DebugCommand("craft.ghost.relief", Description = "Queues ghost depth, anchor, mapping, shell, and shell-tolerance values.")]
     public string SetGhostRelief(
         float depthRetention,
         GhostPlateAnchorPolicy anchorPolicy,
@@ -97,21 +97,21 @@ public sealed class CraftDebugModule : IDebugCommandModule
             shellMode,
             shellDepthEpsilon);
 
-    [DebugCommand("craft.Ghost.direction", Description = "Queues a 1, 4, 8, or 16-sector hard-snap bank and hysteresis in degrees.")]
+    [DebugCommand("craft.ghost.direction", Description = "Queues a 1, 4, 8, or 16-sector hard-snap bank and hysteresis in degrees.")]
     public string SetGhostDirection(byte sectorCount, float hysteresisDegrees)
         => Ghost.QueueDirection(sectorCount, hysteresisDegrees);
 
-    [DebugCommand("craft.Ghost.place", Description = "Queues ghost world placement and plate size.")]
+    [DebugCommand("craft.ghost.place", Description = "Queues ghost world placement and plate size.")]
     public string PlaceGhost(float x, float y, float z, float width, float height)
         => Ghost.QueuePlacement(x, y, z, width, height);
 
-    [DebugCommand("craft.Ghost.visible", Description = "Queues ghost presentation visibility through its ordinary Engine lifecycle.")]
+    [DebugCommand("craft.ghost.visible", Description = "Queues ghost presentation visibility through its ordinary Engine lifecycle.")]
     public string SetGhostVisible(bool visible) => Ghost.QueueVisibility(visible);
 
-    [DebugCommand("craft.Ghost.recapture", Description = "Queues an explicit ghost capture-bank rebuild.")]
+    [DebugCommand("craft.ghost.recapture", Description = "Queues an explicit ghost capture-bank rebuild.")]
     public string RecaptureGhost() => Ghost.QueueRecapture();
 
-    [DebugCommand("craft.Ghost.view", Description = "Moves and aims the player around the ghost; 0/90/180/270 view its front/right/back/left.")]
+    [DebugCommand("craft.ghost.view", Description = "Moves and aims the player around the ghost; 0/90/180/270 view its front/right/back/left.")]
     public string ViewGhost(float azimuthDegrees)
     {
         if (!float.IsFinite(azimuthDegrees)) throw new ArgumentException("View azimuth must be finite.");
@@ -124,7 +124,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
     }
 
-    [DebugCommand("craft.Ghost.readout", Description = "Reads selected ghost source, tuning state, and latest Engine presentation facts.")]
+    [DebugCommand("craft.ghost.readout", Description = "Reads selected ghost source, tuning state, and latest Engine presentation facts.")]
     public string ReadGhost() => Ghost.DebugReadout();
 
     [DebugCommand("craft.micro.preset", Description = "Queues accepted, close, or compact microvoxel settings for the next product update.")]

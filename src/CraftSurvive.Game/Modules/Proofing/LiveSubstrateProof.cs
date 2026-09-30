@@ -114,10 +114,6 @@ internal sealed class LiveSubstrateProof
     private const int ReportedSwimAttempts = 20;
     private const int MaximumSwimUpdates = 900;
     private const int MaximumSwimPaceUpdates = 120;
-    private ulong preparation;
-    private bool reportedPending;
-    private int residencyAttempts;
-    private ulong residentBefore;
 
     internal LiveSubstrateProof(IEngineContext engine, TerrainWorld terrain, PlayerController player)
     {
