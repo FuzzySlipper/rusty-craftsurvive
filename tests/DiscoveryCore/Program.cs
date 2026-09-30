@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Tests;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Discovery;
@@ -8,14 +9,6 @@ using CraftSurvive.Game.Modules.World;
 // function of the contract and its anchor cell, that the ground gates the kind it can
 // carry, and that every structure stays inside the bounds it claims - including the
 // one pass that is allowed to remove material.
-
-static void Require(bool condition, string message)
-{
-    if (!condition)
-    {
-        throw new InvalidOperationException(message);
-    }
-}
 
 const long Radius = TerrainConstants.DefaultSize / 2;
 const ulong Seed = 0x5eed_0000_0000_0001UL;
@@ -37,20 +30,8 @@ for (long cellX = -20; cellX <= 20; cellX++)
     }
 }
 
-int sites = 0;
-int present = 0;
-foreach ((long cellX, long cellZ) in cells)
-{
-    PoiSite? site = placement.SiteAt(cellX, cellZ);
-    if (site is null)
-    {
-        continue;
-    }
-
-    present++;
-    sites++;
-}
-Require(sites > 1000, $"the anchor lattice must place sites across the world, found {sites}");
+int sites = cells.Count(cell => placement.SiteAt(cell.X, cell.Z) is not null);
+Check.That(sites > 1000, $"the anchor lattice must place sites across the world, found {sites}");
 
 Dictionary<(long X, long Z), PoiSite?> forward = [];
 foreach ((long cellX, long cellZ) in cells)
@@ -61,7 +42,7 @@ foreach ((long cellX, long cellZ) in cells)
 // A second placement, built from a fresh draw port, must agree cell for cell.
 PoiPlacement repeat = Create(Seed, TerrainGeneratorContract.CurrentVersion, rolling);
 int mismatches = cells.Count(cell => repeat.SiteAt(cell.X, cell.Z) != forward[cell]);
-Require(mismatches == 0, $"the same contract must place the same sites, {mismatches} cells disagreed");
+Check.That(mismatches == 0, $"the same contract must place the same sites, {mismatches} cells disagreed");
 
 // Order must not matter: query the whole lattice backwards on a fresh placement.
 PoiPlacement reversed = Create(Seed, TerrainGeneratorContract.CurrentVersion, rolling);
@@ -74,36 +55,36 @@ for (int index = cells.Count - 1; index >= 0; index--)
     }
 }
 
-Require(orderMismatches == 0, $"cell query order must not change a site, {orderMismatches} disagreed");
+Check.That(orderMismatches == 0, $"cell query order must not change a site, {orderMismatches} disagreed");
 
 // A cell asked twice answers the same thing, which is what the cache must preserve.
-Require(placement.SiteAt(3, -7) == forward[(3, -7)], "a repeated query must return the same site");
+Check.That(placement.SiteAt(3, -7) == forward[(3, -7)], "a repeated query must return the same site");
 
 // A different seed, and a different generation version, must move the world.
 PoiPlacement otherSeed = Create(Seed ^ 0x1234, TerrainGeneratorContract.CurrentVersion, rolling);
 PoiPlacement otherVersion = Create(Seed, TerrainGeneratorContract.CurrentVersion + 1, rolling);
 int seedDifferences = cells.Count(cell => otherSeed.SiteAt(cell.X, cell.Z) != forward[cell]);
 int versionDifferences = cells.Count(cell => otherVersion.SiteAt(cell.X, cell.Z) != forward[cell]);
-Require(seedDifferences > 100, $"a different seed must place a different world, only {seedDifferences} cells differed");
-Require(versionDifferences > 100,
+Check.That(seedDifferences > 100, $"a different seed must place a different world, only {seedDifferences} cells differed");
+Check.That(versionDifferences > 100,
     $"a version bump must regenerate deliberately, only {versionDifferences} cells differed");
 
 // --- placement obeys the ground it stands on -------------------------------------
 foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(site => site!.Value))
 {
-    Require(Math.Abs(site.X) <= Radius - PoiConstants.WorldMargin
+    Check.That(Math.Abs(site.X) <= Radius - PoiConstants.WorldMargin
         && Math.Abs(site.Z) <= Radius - PoiConstants.WorldMargin,
         $"{site.Id} must stand inside the world, away from the border wall");
-    Require(site.Ground >= PoiConstants.MinimumGroundHeight,
+    Check.That(site.Ground >= PoiConstants.MinimumGroundHeight,
         $"{site.Id} must not stand at or below the water line");
-    Require(site.Kind != PoiKind.None, $"{site.Id} must have a kind");
+    Check.That(site.Kind != PoiKind.None, $"{site.Id} must have a kind");
 }
 
 // Submerged ground is refused outright, so a site is never placed in a lake.
 PoiPlacement drowned = Create(Seed, TerrainGeneratorContract.CurrentVersion, new FlatColumns(surface: 0));
 foreach ((long cellX, long cellZ) in cells)
 {
-    Require(drowned.SiteAt(cellX, cellZ) is null,
+    Check.That(drowned.SiteAt(cellX, cellZ) is null,
         $"({cellX},{cellZ}) is under water and must hold no site");
 }
 
@@ -119,11 +100,11 @@ foreach ((long cellX, long cellZ) in cells)
     }
 
     flatSites++;
-    Require(site.Kind is PoiKind.Ruin or PoiKind.StandingStones,
+    Check.That(site.Kind is PoiKind.Ruin or PoiKind.StandingStones,
         $"{site.Id} is on flat, low ground and cannot be a {site.KindName}");
 }
 
-Require(flatSites > 1000, $"flat ground must still carry sites, found {flatSites}");
+Check.That(flatSites > 1000, $"flat ground must still carry sites, found {flatSites}");
 
 // --- every kind is reachable ------------------------------------------------------
 Dictionary<PoiKind, int> kindCounts = [];
@@ -135,7 +116,7 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
 foreach (PoiKind kind in new[]
     { PoiKind.StandingStones, PoiKind.Ruin, PoiKind.CaveMouth, PoiKind.DungeonEntrance, PoiKind.VantagePoint })
 {
-    Require(kindCounts.GetValueOrDefault(kind) > 0,
+    Check.That(kindCounts.GetValueOrDefault(kind) > 0,
         $"the world must contain at least one {kind}; counts were " +
         string.Join(", ", kindCounts.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key}={pair.Value}")));
 }
@@ -160,14 +141,14 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
                 // asserts it, and a structure one block wider would let two chunks disagree about a shared
                 // voxel - the one failure this contract cannot tolerate.
                 long outside = PoiConstants.MaximumStructureReach + 2;
-                Require(PoiStructures.MaterialAt(site, site.X + outside, site.Ground, site.Z).IsNone
+                Check.That(PoiStructures.MaterialAt(site, site.X + outside, site.Ground, site.Z).IsNone
                     && PoiStructures.MaterialAt(site, site.X - outside, site.Ground, site.Z).IsNone
                     && PoiStructures.MaterialAt(site, site.X, site.Ground, site.Z + outside).IsNone
                     && PoiStructures.MaterialAt(site, site.X, site.Ground, site.Z - outside).IsNone,
                     $"{site.Id} must build nothing beyond its declared reach");
-                Require(PoiStructures.MaterialAt(site, site.X, site.Ground + PoiConstants.MaximumStructureHeight + 1, site.Z).IsNone,
+                Check.That(PoiStructures.MaterialAt(site, site.X, site.Ground + PoiConstants.MaximumStructureHeight + 1, site.Z).IsNone,
                     $"{site.Id} must build nothing above its declared height");
-                Require(PoiStructures.MaterialAt(site, site.X, site.Ground - PoiConstants.MaximumCarveDepth - 2, site.Z).IsNone,
+                Check.That(PoiStructures.MaterialAt(site, site.X, site.Ground - PoiConstants.MaximumCarveDepth - 2, site.Z).IsNone,
                     $"{site.Id} must cut nothing below its declared depth");
 
                 PoiVoxel voxel = PoiStructures.MaterialAt(site, x, y, z);
@@ -182,47 +163,46 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
                     // The only bound that matters is the floor: a mouth also clears the
                     // opening above its own ground line, which is how a hole in the
                     // hillside stays open where the slope rises past the site.
-                    Require(y >= site.Ground - PoiConstants.MaximumCarveDepth,
+                    Check.That(y >= site.Ground - PoiConstants.MaximumCarveDepth,
                         $"{site.Id} must not cut below its own floor bound at y={y}");
-                    Require(y <= site.Ground + PoiConstants.CaveArchHeight,
+                    Check.That(y <= site.Ground + PoiConstants.CaveArchHeight,
                         $"{site.Id} must not cut above its arch at y={y}");
                 }
                 else
                 {
                     built++;
-                    Require(voxel.Material != TerrainConstants.EmptyMaterial,
+                    Check.That(voxel.Material != TerrainConstants.EmptyMaterial,
                         $"{site.Id} must only place a bound block, found slot 0 at {x},{y},{z}");
                 }
             }
         }
     }
 
-    Require(built > 0, $"{site.Id} is a {site.KindName} that builds nothing");
+    Check.That(built > 0, $"{site.Id} is a {site.KindName} that builds nothing");
     carved += removed;
 
     // A way in is a hole: the kinds that are one must actually cut.
     if (site.Kind is PoiKind.CaveMouth or PoiKind.DungeonEntrance)
     {
-        Require(removed > 0, $"{site.Id} is a {site.KindName} and must cut a way in");
+        Check.That(removed > 0, $"{site.Id} is a {site.KindName} and must cut a way in");
     }
 }
 
-Require(examined > 1000, $"the structure sweep must see the whole world, saw {examined}");
-Require(carved > 0, "some structure must remove material, or nothing makes a way in");
+Check.That(examined > 1000, $"the structure sweep must see the whole world, saw {examined}");
+Check.That(carved > 0, "some structure must remove material, or nothing makes a way in");
 
 // The deepest cut any site may make stays well above the bedrock floor.
 long deepest = PoiConstants.MinimumGroundHeight - PoiConstants.MaximumCarveDepth;
-Require(deepest > -GenerationConstants.TerrainDepth,
+Check.That(deepest > -GenerationConstants.TerrainDepth,
     $"the deepest cut ({deepest}) must stay above the world floor (-{GenerationConstants.TerrainDepth})");
 
 // --- identity ---------------------------------------------------------------------
 HashSet<string> ids = [];
 foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(site => site!.Value))
 {
-    Require(ids.Add(site.Id), $"{site.Id} must identify exactly one site");
+    Check.That(ids.Add(site.Id), $"{site.Id} must identify exactly one site");
 }
 
-Require(ids.Count == sites, "every site in the world must have its own id");
 
 // --- discovery: the journal that records what was found ---------------------------
 DiscoveryState journal = new(Seed);
@@ -235,35 +215,35 @@ List<PoiSite> discovered = forward.Values
     .OrderBy(site => site.Id, StringComparer.Ordinal)
     .ToList();
 PoiSite sample = discovered[0];
-Require(journal.Count == 0, "a new journal knows nothing");
-Require(journal.Notice(sample, DiscoveryStage.Seen, tick: 10), "a first sighting must be recorded");
-Require(!journal.Notice(sample, DiscoveryStage.Seen, tick: 11), "a repeat sighting must change nothing");
-Require(journal.Notice(sample, DiscoveryStage.Visited, tick: 20), "arriving must promote the entry");
-Require(!journal.Notice(sample, DiscoveryStage.Seen, tick: 21), "a later glance must not demote a visit");
-Require(journal.Find(sample.CellX, sample.CellZ) is { Stage: DiscoveryStage.Visited, FirstSeenTick: 10, LastTick: 20 },
+Check.That(journal.Count == 0, "a new journal knows nothing");
+Check.That(journal.Notice(sample, DiscoveryStage.Seen, tick: 10), "a first sighting must be recorded");
+Check.That(!journal.Notice(sample, DiscoveryStage.Seen, tick: 11), "a repeat sighting must change nothing");
+Check.That(journal.Notice(sample, DiscoveryStage.Visited, tick: 20), "arriving must promote the entry");
+Check.That(!journal.Notice(sample, DiscoveryStage.Seen, tick: 21), "a later glance must not demote a visit");
+Check.That(journal.Find(sample.CellX, sample.CellZ) is { Stage: DiscoveryStage.Visited, FirstSeenTick: 10, LastTick: 20 },
     "an entry must keep the first sighting and raise the stage");
-Require(journal.VisitedCount == 1 && journal.SeenCount == 0, "the counts must follow the stages");
-Require(!journal.Notice(sample, DiscoveryStage.None, tick: 22), "nothing learned must record nothing");
+Check.That(journal.VisitedCount == 1 && journal.SeenCount == 0, "the counts must follow the stages");
+Check.That(!journal.Notice(sample, DiscoveryStage.None, tick: 22), "nothing learned must record nothing");
 
 // Distance and visibility decide the stage, and arriving counts even where the far side
 // of the site is hidden.
-Require(DiscoveryRules.StageFor(DiscoveryRules.VisitRadiusMetres, visible: false) == DiscoveryStage.Visited,
+Check.That(DiscoveryRules.StageFor(DiscoveryRules.VisitRadiusMetres, visible: false) == DiscoveryStage.Visited,
     "standing at a place must count as visiting it even when its far side is hidden");
-Require(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres + 1, visible: true) == DiscoveryStage.None,
+Check.That(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres + 1, visible: true) == DiscoveryStage.None,
     "a site beyond the notice radius must not be seen");
-Require(DiscoveryRules.StageFor(60, visible: true) == DiscoveryStage.Seen,
+Check.That(DiscoveryRules.StageFor(60, visible: true) == DiscoveryStage.Seen,
     "a visible site inside the notice radius must be seen");
-Require(DiscoveryRules.StageFor(60, visible: false) == DiscoveryStage.None,
+Check.That(DiscoveryRules.StageFor(60, visible: false) == DiscoveryStage.None,
     "a site behind a ridge must not be seen from the near side of it");
 
 // Sightlines: open ground does not block, a ridge does, and a tall target is visible
 // over a rise that would hide a low one.
 var open = new FlatColumns(surface: 5);
-Require(DiscoveryRules.HasSightline(open, 0, 0, 6.6, 100, 0, 10),
+Check.That(DiscoveryRules.HasSightline(open, 0, 0, 6.6, 100, 0, 10),
     "open ground must not block a sightline");
-Require(!DiscoveryRules.HasSightline(new RidgeColumns(height: 40, halfWidth: 4), 0, 0, 6.6, 100, 0, 10),
+Check.That(!DiscoveryRules.HasSightline(new RidgeColumns(height: 40, halfWidth: 4), 0, 0, 6.6, 100, 0, 10),
     "a ridge must block a sightline to a low site behind it");
-Require(DiscoveryRules.HasSightline(new RidgeColumns(height: 8, halfWidth: 2), 0, 0, 6.6, 100, 0, 20),
+Check.That(DiscoveryRules.HasSightline(new RidgeColumns(height: 8, halfWidth: 2), 0, 0, 6.6, 100, 0, 20),
     "a tall site must be visible over a rise that hides a low one");
 
 // A full journal refuses rather than throwing: an exception here would be raised inside
@@ -272,22 +252,22 @@ DiscoveryState full = new(Seed);
 for (int index = 0; index < PoiConstants.MaximumDiscoveryEntries; index++)
 {
     PoiSite synthetic = new(index, 0, PoiKind.Ruin, index * 256, 0, 5, 4, 0, 0);
-    Require(full.Notice(synthetic, DiscoveryStage.Seen, tick: index), "the journal must take entries until it is full");
+    Check.That(full.Notice(synthetic, DiscoveryStage.Seen, tick: index), "the journal must take entries until it is full");
 }
 
-Require(full.Count == PoiConstants.MaximumDiscoveryEntries, "the journal must hold exactly its cap");
+Check.That(full.Count == PoiConstants.MaximumDiscoveryEntries, "the journal must hold exactly its cap");
 PoiSite overflow = new(PoiConstants.MaximumDiscoveryEntries, 0, PoiKind.Ruin, 0, 0, 5, 4, 0, 0);
-Require(!full.Notice(overflow, DiscoveryStage.Seen, tick: 1), "a full journal must refuse a new place");
-Require(full.Refused == 1, "a refusal must be counted so the state is visible rather than silent");
+Check.That(!full.Notice(overflow, DiscoveryStage.Seen, tick: 1), "a full journal must refuse a new place");
+Check.That(full.Refused == 1, "a refusal must be counted so the state is visible rather than silent");
 
 // The saved form is canonical and round-trips.
 DiscoverySnapshot saved = journal.Snapshot();
 DiscoveryState reloaded = new(Seed);
 reloaded.Restore(saved);
-Require(reloaded.Count == journal.Count, "a restored journal must hold what was saved");
-Require(reloaded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
+Check.That(reloaded.Count == journal.Count, "a restored journal must hold what was saved");
+Check.That(reloaded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
     "a restored journal must hold the same facts");
-Require(reloaded.Find(sample.CellX, sample.CellZ) is { Stage: DiscoveryStage.Visited },
+Check.That(reloaded.Find(sample.CellX, sample.CellZ) is { Stage: DiscoveryStage.Visited },
     "a restored entry must keep its stage");
 
 // Canonical order: the same facts learned in a different order save identically.
@@ -299,24 +279,24 @@ a.Notice(first, DiscoveryStage.Seen, tick: 1);
 a.Notice(second, DiscoveryStage.Visited, tick: 2);
 b.Notice(second, DiscoveryStage.Visited, tick: 2);
 b.Notice(first, DiscoveryStage.Seen, tick: 1);
-Require(a.Snapshot().Entries.SequenceEqual(b.Snapshot().Entries),
+Check.That(a.Snapshot().Entries.SequenceEqual(b.Snapshot().Entries),
     "the saved form must depend on the facts, not the order they were learned");
 
 // --- the stored form -----------------------------------------------------------------
 DiscoveryCodec codec = new(new SaveIdentity(TerrainGeneratorContract.CurrentVersion, Seed));
 byte[] encoded = codec.Encode(journal.Snapshot());
-Require(encoded.Length == SaveEnvelope.HeaderBytes + (journal.Count * DiscoveryCodec.RecordBytes),
+Check.That(encoded.Length == SaveEnvelope.HeaderBytes + (journal.Count * DiscoveryCodec.RecordBytes),
     "a journal's stored form must be its header plus one fixed record per place");
 DiscoveryState decoded = new(Seed);
 decoded.Restore(codec.Decode(encoded));
-Require(decoded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
+Check.That(decoded.Snapshot().Entries.SequenceEqual(journal.Snapshot().Entries),
     "the codec must round-trip every fact in a journal");
 
 // An empty journal is a valid journal, and survives the same path.
 DiscoveryState blank = new(Seed);
 DiscoveryState blankBack = new(Seed);
 blankBack.Restore(codec.Decode(codec.Encode(blank.Snapshot())));
-Require(blankBack.Count == 0, "an empty journal must round-trip as empty");
+Check.That(blankBack.Count == 0, "an empty journal must round-trip as empty");
 
 // A save from another world is refused rather than read as this one's history.
 bool refusedOtherWorld = false;
@@ -329,7 +309,7 @@ catch (InvalidOperationException)
     refusedOtherWorld = true;
 }
 
-Require(refusedOtherWorld, "a journal belonging to another world must be refused");
+Check.That(refusedOtherWorld, "a journal belonging to another world must be refused");
 
 // Truncation and a corrupted byte are both caught, so a half-written save cannot become
 // a history the player never earned.
@@ -343,7 +323,7 @@ catch (InvalidOperationException)
     refusedTruncated = true;
 }
 
-Require(refusedTruncated, "a truncated journal must be refused");
+Check.That(refusedTruncated, "a truncated journal must be refused");
 
 byte[] corrupted = (byte[])encoded.Clone();
 corrupted[^1] ^= 0xFF;
@@ -357,7 +337,7 @@ catch (InvalidOperationException)
     refusedCorrupted = true;
 }
 
-Require(refusedCorrupted, "a journal altered after it was written must fail its fingerprint");
+Check.That(refusedCorrupted, "a journal altered after it was written must fail its fingerprint");
 
 // --- crossings: a dry way over narrow water, and none where there is nothing to cross ---
 RiverColumns narrowRiver = new(channelWidth: 8);
@@ -374,6 +354,14 @@ CrossingPlacement wide = new(
 CrossingPlacement dryGround = new(
     new TerrainGeneratorContract(Seed, TerrainGeneratorContract.CurrentVersion, TerrainConstants.DefaultSize),
     new TestDraws(), new FlatColumns(surface: 6), Radius);
+
+// The same contract queried in the opposite order, first: a crossing must not depend on which
+// cells were asked about before it.
+Dictionary<(long X, long Z), CrossingSite?> spansReversed = [];
+for (int index = cells.Count - 1; index >= 0; index--)
+{
+    spansReversed[cells[index]] = spans.SiteAt(cells[index].X, cells[index].Z);
+}
 
 int bridges = 0;
 int wideBridges = 0;
@@ -399,24 +387,24 @@ foreach ((long cellX, long cellZ) in cells)
     }
 
     bridges++;
-    Require(spans.SiteAt(cellX, cellZ) == site, $"the crossing in ({cellX},{cellZ}) must not depend on query order");
-    Require(CrossingStructure.MaterialAt(site, site.FromX - PoiConstants.CrossingRampLength - 2, site.DeckY, site.FromZ).IsNone
+    Check.That(spansReversed[(cellX, cellZ)] == site, $"the crossing in ({cellX},{cellZ}) must not depend on query order");
+    Check.That(CrossingStructure.MaterialAt(site, site.FromX - PoiConstants.CrossingRampLength - 2, site.DeckY, site.FromZ).IsNone
         && CrossingStructure.MaterialAt(site, site.ToX + PoiConstants.CrossingRampLength + 2, site.DeckY, site.ToZ).IsNone
         && CrossingStructure.MaterialAt(site, site.FromX, site.DeckY + 2, site.FromZ).IsNone,
         $"{site.Id} must build nothing beyond its deck and its two ramps");
-    Require(site.DeckY >= GenerationConstants.WaterLevel + 1,
+    Check.That(site.DeckY >= GenerationConstants.WaterLevel + 1,
         $"{site.Id} must lay its deck above the water line, found {site.DeckY}");
-    Require(site.DeckY == GenerationConstants.WaterLevel + 1 || site.DeckY == 6,
+    Check.That(site.DeckY == GenerationConstants.WaterLevel + 1 || site.DeckY == 6,
         $"{site.Id} must meet a bank, found deck {site.DeckY}");
 
     long span = site.AlongX ? site.ToX - site.FromX : site.ToZ - site.FromZ;
-    Require(span >= 0 && span < PoiConstants.CrossingMaximumSpan,
+    Check.That(span >= 0 && span < PoiConstants.CrossingMaximumSpan,
         $"{site.Id} must span less than {PoiConstants.CrossingMaximumSpan} blocks, found {span}");
     for (long step = 0; step <= span; step++)
     {
         long x = site.AlongX ? site.FromX + step : site.FromX;
         long z = site.AlongX ? site.FromZ : site.FromZ + step;
-        Require(narrowRiver.ColumnAt(x, z).Surface < GenerationConstants.WaterLevel,
+        Check.That(narrowRiver.ColumnAt(x, z).Surface < GenerationConstants.WaterLevel,
             $"{site.Id} must only span water, but ({x},{z}) is dry");
     }
 
@@ -441,8 +429,8 @@ foreach ((long cellX, long cellZ) in cells)
                 }
             }
 
-            Require(top != long.MinValue, $"{site.Id} must build a ramp on both sides of its deck");
-            Require(previous - top <= 1,
+            Check.That(top != long.MinValue, $"{site.Id} must build a ramp on both sides of its deck");
+            Check.That(previous - top <= 1,
                 $"{site.Id} ramps {previous - top} courses in one block at offset {offset}: the low bank would be unclimbable");
             previous = top;
         }
@@ -452,7 +440,7 @@ foreach ((long cellX, long cellZ) in cells)
     long nearZ = site.AlongX ? site.FromZ : site.FromZ - 1;
     long farX = site.AlongX ? site.ToX + 1 : site.ToX;
     long farZ = site.AlongX ? site.ToZ : site.ToZ + 1;
-    Require(narrowRiver.ColumnAt(nearX, nearZ).Surface >= GenerationConstants.WaterLevel
+    Check.That(narrowRiver.ColumnAt(nearX, nearZ).Surface >= GenerationConstants.WaterLevel
         && narrowRiver.ColumnAt(farX, farZ).Surface >= GenerationConstants.WaterLevel,
         $"{site.Id} must land on a bank at both ends");
 
@@ -469,28 +457,28 @@ foreach ((long cellX, long cellZ) in cells)
                 }
 
                 carriage++;
-                Require(voxel.Kind == PoiVoxelKind.Fill,
+                Check.That(voxel.Kind == PoiVoxelKind.Fill,
                     $"{site.Id} must only fill: a crossing is walked over, never a dam");
                 if (voxel.Material == (ushort)BlockId.Planks)
                 {
                     deckVoxels++;
-                    Require(y == site.DeckY, $"{site.Id} must lay its planks at the deck height");
+                    Check.That(y == site.DeckY, $"{site.Id} must lay its planks at the deck height");
                 }
                 else if (voxel.Material == (ushort)BlockId.Cobblestone)
                 {
                     pierVoxels++;
-                    Require(y <= site.DeckY, $"{site.Id} must build nothing above its deck");
+                    Check.That(y <= site.DeckY, $"{site.Id} must build nothing above its deck");
                 }
             }
         }
     }
 }
 
-Require(bridges > 0, "narrow water must carry at least one dry crossing");
-Require(wideBridges == 0, $"water 40 blocks wide must be walked around, found {wideBridges} crossings");
-Require(dryBridges == 0, $"dry ground must hold no crossing, found {dryBridges}");
-Require(deckVoxels > 0 && pierVoxels > 0, "a crossing must have both a deck and piers");
-Require(carriage > 0, "a crossing must build something");
+Check.That(bridges > 0, "narrow water must carry at least one dry crossing");
+Check.That(wideBridges == 0, $"water 40 blocks wide must be walked around, found {wideBridges} crossings");
+Check.That(dryBridges == 0, $"dry ground must hold no crossing, found {dryBridges}");
+Check.That(deckVoxels > 0 && pierVoxels > 0, "a crossing must have both a deck and piers");
+Check.That(carriage == deckVoxels + pierVoxels, $"a crossing must build only planks and cobblestone, built {carriage - deckVoxels - pierVoxels} other voxels");
 
 // --- the codec refuses every blob it cannot interpret, and the journal keeps working full ---
 //
@@ -512,26 +500,26 @@ bool probeRefused(byte[] blob)
 
 DiscoverySnapshot probeSnapshot = new(Seed, [new DiscoveryEntry(1, -2, PoiKind.Ruin, 256, -512, DiscoveryStage.Seen, 10, 20)]);
 byte[] honest = codec.Encode(probeSnapshot);
-Require(!probeRefused(honest), "the codec must accept a blob it wrote itself");
+Check.That(!probeRefused(honest), "the codec must accept a blob it wrote itself");
 
 byte[] wrongMagic = (byte[])honest.Clone(); wrongMagic[0] ^= 0xFF;
-Require(probeRefused(wrongMagic), "a blob with the wrong magic must be refused");
+Check.That(probeRefused(wrongMagic), "a blob with the wrong magic must be refused");
 byte[] wrongSchema = (byte[])honest.Clone(); wrongSchema[4] = 0x7F;
-Require(probeRefused(wrongSchema), "a blob written for another schema must be refused");
+Check.That(probeRefused(wrongSchema), "a blob written for another schema must be refused");
 byte[] wrongGeneration = (byte[])honest.Clone(); wrongGeneration[8] ^= 0x01;
-Require(probeRefused(wrongGeneration), "a blob written for another generation must be refused");
+Check.That(probeRefused(wrongGeneration), "a blob written for another generation must be refused");
 byte[] trailing = [.. honest, 0x00];
-Require(probeRefused(trailing), "a blob with a byte appended must be refused, not read short");
+Check.That(probeRefused(trailing), "a blob with a byte appended must be refused, not read short");
 byte[] hugeCount = (byte[])honest.Clone(); hugeCount[20] = 0x7F; hugeCount[21] = 0xFF;
-Require(probeRefused(hugeCount), "a blob claiming more entries than it holds must be refused");
+Check.That(probeRefused(hugeCount), "a blob claiming more entries than it holds must be refused");
 byte[] badStage = (byte[])honest.Clone(); badStage[32 + 34] = 200;
-Require(probeRefused(badStage), "a blob carrying a stage that is not one must be refused");
+Check.That(probeRefused(badStage), "a blob carrying a stage that is not one must be refused");
 byte[] badKind = (byte[])honest.Clone(); badKind[32 + 32] = 99;
-Require(probeRefused(badKind), "a blob carrying a kind that is not one must be refused");
+Check.That(probeRefused(badKind), "a blob carrying a kind that is not one must be refused");
 byte[] flippedKind = (byte[])honest.Clone(); flippedKind[32 + 32] = (byte)PoiKind.VantagePoint;
-Require(probeRefused(flippedKind), "a kind altered to another valid kind must trip the fingerprint");
-Require(probeRefused([.. honest, .. honest]), "a blob of twice the length must be refused");
-Require(probeRefused(new byte[DiscoveryCodec.Bounds.MaximumBytes + 64]), "a blob larger than the journal may ever be must be refused");
+Check.That(probeRefused(flippedKind), "a kind altered to another valid kind must trip the fingerprint");
+Check.That(probeRefused([.. honest, .. honest]), "a blob of twice the length must be refused");
+Check.That(probeRefused(new byte[DiscoveryCodec.Bounds.MaximumBytes + 64]), "a blob larger than the journal may ever be must be refused");
 
 // The format itself, pinned as literal byte counts rather than restated arithmetic: this is what
 // a reader of the file sees, and it must not drift with a constant someone edits in passing.
@@ -541,8 +529,8 @@ DiscoverySnapshot pair = new(Seed,
     new DiscoveryEntry(3, 4, PoiKind.CaveMouth, 768, 1024, DiscoveryStage.Visited, 30, 40),
 ]);
 byte[] twoRecords = codec.Encode(pair);
-Require(twoRecords.Length == 32 + (2 * 51), $"two places must store 134 bytes, stored {twoRecords.Length}");
-Require(codec.Encode(new DiscoverySnapshot(Seed, [])).Length == 32,
+Check.That(twoRecords.Length == 32 + (2 * 51), $"two places must store 134 bytes, stored {twoRecords.Length}");
+Check.That(codec.Encode(new DiscoverySnapshot(Seed, [])).Length == 32,
     "an empty journal must store its 32-byte header and nothing else");
 
 // Record order is part of the fingerprint, so swapping two records must be refused - otherwise a
@@ -550,52 +538,36 @@ Require(codec.Encode(new DiscoverySnapshot(Seed, [])).Length == 32,
 byte[] permuted = [.. twoRecords];
 Array.Copy(twoRecords, 32, permuted, 32 + 51, 51);
 Array.Copy(twoRecords, 32 + 51, permuted, 32, 51);
-Require(probeRefused(permuted), "a blob whose records were reordered must be refused");
+Check.That(probeRefused(permuted), "a blob whose records were reordered must be refused");
 
-// The snapshot's own canonical-order rule, independent of the fingerprint: entries must be keyed
-// in order, and a caller that hands them over unsorted must be told rather than quietly sorted.
-try
-{
-    _ = new DiscoverySnapshot(Seed,
-    [
-        new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 1, 2),
-        new DiscoveryEntry(1, 2, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 1, 2),
-    ]);
-    Require(false, "a snapshot whose entries are not in canonical order must be refused");
-}
-catch (InvalidOperationException)
-{
-}
-try
+// The snapshot's own canonical-order rule, independent of the fingerprint: whatever order a
+// caller hands entries over in, the snapshot holds them keyed in order, so the same knowledge
+// always saves to the same bytes.
+DiscoverySnapshot handedUnsorted = new(Seed,
+[
+    new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 1, 2),
+    new DiscoveryEntry(1, 2, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 1, 2),
+]);
+Check.That(handedUnsorted.Entries.Select(entry => entry.CellX).SequenceEqual([1L, 3L]),
+    "a snapshot must hold its entries in canonical order whatever order it was handed them");
+Check.Throws<InvalidOperationException>(() =>
 {
     _ = new DiscoverySnapshot(Seed, [new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, 500, 400)]);
-    Require(false, "a snapshot whose last tick precedes its first must be refused");
-}
-catch (InvalidOperationException)
-{
-}
+}, "a snapshot whose last tick precedes its first must be refused");
 
-try
+Check.Throws<InvalidOperationException>(() =>
 {
     _ = new DiscoverySnapshot(Seed, [new DiscoveryEntry(3, 4, PoiKind.Ruin, 0, 0, DiscoveryStage.Seen, -1, 5)]);
-    Require(false, "a snapshot with a negative first-seen tick must be refused");
-}
-catch (InvalidOperationException)
-{
-}
+}, "a snapshot with a negative first-seen tick must be refused");
 
 DiscoveryState probeRestored = new(Seed);
 probeRestored.Restore(probeSnapshot);
-Require(probeRestored.Count == 1, "restore must accept a snapshot for its own seed");
+Check.That(probeRestored.Count == 1, "restore must accept a snapshot for its own seed");
 DiscoveryState probeOtherSeed = new(Seed + 1);
-try
+Check.Throws<InvalidOperationException>(() =>
 {
     probeOtherSeed.Restore(probeSnapshot);
-    Require(false, "restoring a snapshot of another seed must throw");
-}
-catch (InvalidOperationException)
-{
-}
+}, "restoring a snapshot of another seed must throw");
 
 // A full journal still promotes what it already knows: refusing new places must not freeze the
 // ones it holds, or a player at the cap would stop being told they reached somewhere new.
@@ -608,20 +580,20 @@ for (long cell = 0; cell < PoiConstants.MaximumDiscoveryEntries; cell++)
 
 }
 
-Require(capped.Count == PoiConstants.MaximumDiscoveryEntries, $"a journal must hold {PoiConstants.MaximumDiscoveryEntries} places, held {capped.Count}");
+Check.That(capped.Count == PoiConstants.MaximumDiscoveryEntries, $"a journal must hold {PoiConstants.MaximumDiscoveryEntries} places, held {capped.Count}");
 PoiSite heldFirst = new(0, 0, PoiKind.Ruin, 0, 0, 4, 6, 0, 0);
-Require(capped.Notice(heldFirst, DiscoveryStage.Visited, 2), "a full journal must still promote a place it already holds");
-Require(capped.Find(0, 0)?.Stage == DiscoveryStage.Visited, "the promotion must be visible");
+Check.That(capped.Notice(heldFirst, DiscoveryStage.Visited, 2), "a full journal must still promote a place it already holds");
+Check.That(capped.Find(0, 0)?.Stage == DiscoveryStage.Visited, "the promotion must be visible");
 PoiSite extra = new(PoiConstants.MaximumDiscoveryEntries, 0, PoiKind.Ruin, 999_999, 0, 4, 6, 0, 0);
-Require(!capped.Notice(extra, DiscoveryStage.Seen, 3), "a full journal must refuse a place it does not hold");
-Require(capped.Refused > 0, "a refusal must be counted, not silent");
+Check.That(!capped.Notice(extra, DiscoveryStage.Seen, 3), "a full journal must refuse a place it does not hold");
+Check.That(capped.Refused > 0, "a refusal must be counted, not silent");
 
 // The notice radius is a boundary, and exactly on it is inside.
-Require(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres, visible: true) == DiscoveryStage.Seen,
+Check.That(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres, visible: true) == DiscoveryStage.Seen,
     "a place exactly at the notice radius, with a sightline, must be seen");
-Require(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres + 0.01, visible: true) == DiscoveryStage.None,
+Check.That(DiscoveryRules.StageFor(DiscoveryRules.NoticeRadiusMetres + 0.01, visible: true) == DiscoveryStage.None,
     "a place past the notice radius must not be seen, however visible");
-Require(DiscoveryRules.StageFor(double.NaN, visible: true) == DiscoveryStage.None,
+Check.That(DiscoveryRules.StageFor(double.NaN, visible: true) == DiscoveryStage.None,
     "a position that is not a number must notice nothing rather than throw");
 
 Console.WriteLine(
@@ -632,33 +604,9 @@ Console.WriteLine(
     + $"fingerprint refusals, and crossings with their span, bank and deck rules plus the two "
     + $"negative cases passed ({sites} sites, {carved} carved voxels, {bridges} crossings).");
 
+return Check.Finish("DiscoveryCore");
+
 // --- test doubles ---------------------------------------------------------------
-// The draw port is Engine-backed in the product; here it only has to be a pure
-// function of (scope, key, seed), which is the property the contract promises.
-sealed class TestDraws : ITerrainDraws
-{
-    public long Draw(string scope, string key, ulong seed, long minimum, long maximum)
-    {
-        ulong hash = 0xcbf2_9ce4_8422_2325UL;
-        foreach (char character in scope)
-        {
-            hash = unchecked((hash ^ character) * 0x100_0000_01b3UL);
-        }
-
-        foreach (char character in key)
-        {
-            hash = unchecked((hash ^ character) * 0x100_0000_01b3UL);
-        }
-
-        hash = unchecked(hash ^ seed);
-        hash = unchecked(hash + 0x9e37_79b9_7f4a_7c15UL);
-        hash = unchecked((hash ^ (hash >> 30)) * 0xbf58_476d_1ce4_e5b9UL);
-        hash = unchecked((hash ^ (hash >> 27)) * 0x94d0_49bb_1331_11ebUL);
-        hash ^= hash >> 31;
-        return minimum + (long)(hash % (ulong)(maximum - minimum + 1));
-    }
-}
-
 // Ground shaped like the recipe's: broad noise with relief steep enough to hold a
 // way in, and flat stretches that cannot.
 sealed class RollingColumns : ITerrainColumns

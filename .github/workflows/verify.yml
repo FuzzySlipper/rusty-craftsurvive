@@ -33,7 +33,7 @@ jobs:
           ~/.local/bin/rusty install
       - name: Check terrain materials and residency cache
         run: dotnet run --project tests/TerrainResidency -c Release
-      - name: Check the Engine substrate the product relies on
+      - name: Engine canary - the gameplay substrate the product will build on (links no product code)
         run: dotnet run --project tests/SubstrateProof -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release

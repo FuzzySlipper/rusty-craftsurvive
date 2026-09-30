@@ -1,0 +1,9 @@
+<Project>
+  <!-- The repository's props carry the Engine pair pin; the lanes build on them. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Lanes link product files from here, and each linked file appears under Product/<its module>. -->
+    <ProductModules>$(MSBuildThisFileDirectory)../src/CraftSurvive.Game/Modules/</ProductModules>
+  </PropertyGroup>
+</Project>

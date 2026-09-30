@@ -289,10 +289,10 @@ internal sealed class CreatureModule : IProductModule
             }
 
             int id = nextId;
-            if (!director.TryActivate(new EncounterCandidate(id, site, CreatureTraits.Walker, TimeWindow: 0), step, out string reason))
+            if (!director.TryActivate(new EncounterCandidate(id, site, CreatureTraits.Walker, TimeWindow: 0), step, out EncounterDecision refusal))
             {
                 spawnRefusals++;
-                lastEvent = $"refused ({x}, {z}): {reason}";
+                lastEvent = $"refused ({x}, {z}): {refusal.Reason}";
                 continue;
             }
 

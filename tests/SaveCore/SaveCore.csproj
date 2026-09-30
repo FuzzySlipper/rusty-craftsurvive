@@ -10,24 +10,24 @@
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- The save manifest, the shared envelope, the restore rule and every codec are pure product
          code over the Engine's codec shape, so they are checked without a runtime. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveManifest.cs" Link="World/SaveManifest.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveEnvelope.cs" Link="World/SaveEnvelope.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveRestore.cs" Link="World/SaveRestore.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/WorldGen/*.cs" LinkBase="WorldGen" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="Terrain/TerrainConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="Terrain/TerrainConfiguration.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="Terrain/VoxelAddress.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayState.cs" Link="Terrain/TerrainOverlayState.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayCodec.cs" Link="Terrain/TerrainOverlayCodec.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEditPolicy.cs" Link="Terrain/TerrainEditPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryRules.cs" Link="Discovery/DiscoveryRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryState.cs" Link="Discovery/DiscoveryState.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryCodec.cs" Link="Discovery/DiscoveryCodec.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="Manipulation/BlockEntityIndex.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityCodec.cs" Link="Manipulation/BlockEntityCodec.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerContinuation.cs" Link="Player/PlayerContinuation.cs" />
+    <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)World/SaveRestore.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayCodec.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryRules.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryState.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryCodec.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Manipulation/BlockEntityIndex.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Manipulation/BlockEntityCodec.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Player/PlayerContinuation.cs" LinkBase="Product/Player" />
   </ItemGroup>
 </Project>

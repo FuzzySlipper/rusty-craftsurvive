@@ -80,6 +80,15 @@ internal readonly record struct AttackProfile(int Accuracy, int Power, DamageTyp
 
 internal readonly record struct DefenceProfile(int Evasion, ArmourProfile Armour);
 
+/// <summary>What became of one blow.</summary>
+internal enum AttackResult
+{
+    Landed = 0,
+    Critical = 1,
+    Missed = 2,
+    TargetDown = 3,
+}
+
 internal readonly record struct AttackOutcome(
     bool Hit,
     bool Critical,
@@ -88,7 +97,16 @@ internal readonly record struct AttackOutcome(
     int Defence,
     int RawDamage,
     int Damage,
-    string Reason);
+    AttackResult Result)
+{
+    internal string Reason => Result switch
+    {
+        AttackResult.Critical => "a critical blow landed",
+        AttackResult.Missed => "the blow missed",
+        AttackResult.TargetDown => "the target is already down",
+        _ => "the blow landed",
+    };
+}
 
 internal static class CombatRules
 {
@@ -116,7 +134,7 @@ internal static class CombatRules
         int total = roll + attack.Accuracy;
         if (total < defence.Evasion)
         {
-            return new AttackOutcome(false, false, roll, total, defence.Evasion, 0, 0, "the blow missed");
+            return new AttackOutcome(false, false, roll, total, defence.Evasion, 0, 0, AttackResult.Missed);
         }
 
         bool critical = roll >= CriticalRoll;
@@ -135,6 +153,6 @@ internal static class CombatRules
             defence.Evasion,
             raw,
             damage,
-            critical ? "a critical blow landed" : "the blow landed");
+            critical ? AttackResult.Critical : AttackResult.Landed);
     }
 }

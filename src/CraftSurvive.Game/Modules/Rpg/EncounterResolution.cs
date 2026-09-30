@@ -35,7 +35,7 @@ internal static class EncounterResolutionRules
     {
         if (target.IsDown)
         {
-            AttackOutcome refused = new(false, false, roll, 0, target.Defence.Evasion, 0, 0, "the target is already down");
+            AttackOutcome refused = new(false, false, roll, 0, target.Defence.Evasion, 0, 0, AttackResult.TargetDown);
             return (target, refused);
         }
 

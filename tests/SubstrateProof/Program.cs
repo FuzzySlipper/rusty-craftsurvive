@@ -1,7 +1,13 @@
+using CraftSurvive.Game.Tests;
 using Rusty.Engine.Entities;
 using Rusty.Engine.Mechanics;
 using Rusty.Engine.StateMachine;
 
+// An Engine canary, not a check of product code: it links no product file. It pins the Engine
+// gameplay substrate the product intends to build on, so a pair update that changes it fails here
+// first. MechanicsException carries no typed reason, so a refusal is checked by its type and its
+// effects (nothing partial, no revision moved); its message is printed as an observation only.
+//
 // Staged proof for campaign #8595 slice #8596 (S0): can this product admit the
 // Engine's gameplay substrate at all? The product has never constructed an
 // InventoryStore, a StatsComponent, an EntityStore, or a StateMachine, so the
@@ -22,13 +28,7 @@ const uint ProofComponentLocalId = 9001U;
 const ulong StackMaximum = 64UL;
 const ulong MetricMaximum = 64UL;
 
-List<string> failures = [];
 List<string> observations = [];
-
-void Require(bool condition, string message)
-{
-    if (!condition) failures.Add(message);
-}
 
 void Observe(string message) => observations.Add(message);
 
@@ -114,27 +114,27 @@ ItemDefinition stone = new(
     [new ItemCapacityCost(slots, 1UL)],
     null,
     []);
-Require(stone.Equipment is null, "a non-equippable item did not carry a null equipment policy");
+Check.That(stone.Equipment is null, "a non-equippable item did not carry a null equipment policy");
 string zeroSlotSurface = Surface(() => _ = new ItemEquipmentPolicy(0, handGroup));
-Require(
+Check.That(
     zeroSlotSurface == nameof(ArgumentOutOfRangeException),
     $"a zero-slot equipment policy surfaced as {zeroSlotSurface}, expected ArgumentOutOfRangeException");
 Observe($"a zero-slot equipment policy surfaced as: {zeroSlotSurface}");
 
 inventory.RegisterInventory(new InventoryState(owner, [new InventoryCapacityLimit(slots, MetricMaximum)]));
 inventory.RegisterInventory(new InventoryState(receiver, [new InventoryCapacityLimit(slots, MetricMaximum)]));
-Require(inventory.InventoryOwners.Count == 2, "the store does not list both registered inventories");
+Check.That(inventory.InventoryOwners.Count == 2, "the store does not list both registered inventories");
 
 InventoryMutationReceipt granted = inventory.Grant(owner, stone, main, 10UL);
-Require(granted.AfterQuantity == 10UL, $"grant reported {granted.AfterQuantity}, expected 10");
-Require(
+Check.That(granted.AfterQuantity == 10UL, $"grant reported {granted.AfterQuantity}, expected 10");
+Check.That(
     granted.InventoryRevisionAfter > granted.InventoryRevisionBefore,
     "grant did not advance the inventory revision");
-Require(Held(inventory, owner, main) == 10UL, "grant is not visible in the owner's view");
+Check.That(Held(inventory, owner, main) == 10UL, "grant is not visible in the owner's view");
 
 InventoryMutationReceipt consumed = inventory.Consume(owner, main, 4UL);
-Require(consumed.AfterQuantity == 6UL, $"consume reported {consumed.AfterQuantity}, expected 6");
-Require(Held(inventory, owner, main) == 6UL, "consume is not visible in the owner's view");
+Check.That(consumed.AfterQuantity == 6UL, $"consume reported {consumed.AfterQuantity}, expected 6");
+Check.That(Held(inventory, owner, main) == 6UL, "consume is not visible in the owner's view");
 
 // Refusals must be atomic and typed. The store revision is asserted as well as
 // the inventory revision: a refusal that moved either one would break the
@@ -142,14 +142,14 @@ Require(Held(inventory, owner, main) == 6UL, "consume is not visible in the owne
 ulong inventoryRevisionBeforeRefusal = inventory.View(owner).InventoryRevision;
 ulong storeRevisionBeforeRefusal = inventory.View(owner).StoreRevision;
 string insufficientSurface = Surface(() => inventory.Consume(owner, main, 999UL));
-Require(
+Check.That(
     insufficientSurface == nameof(MechanicsException),
     $"insufficient consume surfaced as {insufficientSurface}, expected MechanicsException");
-Require(Held(inventory, owner, main) == 6UL, "a refused consume changed the stack");
-Require(
+Check.That(Held(inventory, owner, main) == 6UL, "a refused consume changed the stack");
+Check.That(
     inventory.View(owner).InventoryRevision == inventoryRevisionBeforeRefusal,
     "a refused consume advanced the inventory revision");
-Require(
+Check.That(
     inventory.View(owner).StoreRevision == storeRevisionBeforeRefusal,
     "a refused consume advanced the store revision");
 Observe($"insufficient consume surfaced as: {insufficientSurface}");
@@ -164,20 +164,14 @@ ulong storeRevisionBeforeStackRefusal = inventory.View(owner).StoreRevision;
 string stackMaximumMessage = SurfaceMessage(
     () => inventory.Grant(bulkOwner, stone, spill, 1000UL),
     out string stackMaximumSurface);
-Require(
+Check.That(
     stackMaximumSurface == nameof(MechanicsException),
     $"a stack-maximum refusal surfaced as {stackMaximumSurface}, expected MechanicsException");
-Require(
-    stackMaximumMessage.Contains("quantity", StringComparison.OrdinalIgnoreCase),
-    $"a stack-maximum refusal did not name the quantity: {stackMaximumMessage}");
-Require(
-    !stackMaximumMessage.Contains("capacity", StringComparison.OrdinalIgnoreCase),
-    $"a stack-maximum refusal was actually a capacity refusal: {stackMaximumMessage}");
-Require(Held(inventory, bulkOwner, spill) == 0UL, "a stack-maximum refusal left a partial stack");
-Require(
+Check.That(Held(inventory, bulkOwner, spill) == 0UL, "a stack-maximum refusal left a partial stack");
+Check.That(
     inventory.View(bulkOwner).InventoryRevision == 0UL,
     "a stack-maximum refusal advanced the inventory revision");
-Require(
+Check.That(
     inventory.View(owner).StoreRevision == storeRevisionBeforeStackRefusal,
     "a stack-maximum refusal advanced the store revision");
 Observe($"exceeding the per-stack maximum surfaced as: {stackMaximumSurface}: {stackMaximumMessage}");
@@ -189,17 +183,14 @@ ulong storeRevisionBeforeCapacityRefusal = inventory.View(owner).StoreRevision;
 string capacityMessage = SurfaceMessage(
     () => inventory.Grant(owner, stone, spill, 60UL),
     out string capacitySurface);
-Require(
+Check.That(
     capacitySurface == nameof(MechanicsException),
     $"a capacity refusal surfaced as {capacitySurface}, expected MechanicsException");
-Require(
-    capacityMessage.Contains("capacity", StringComparison.OrdinalIgnoreCase),
-    $"a capacity refusal did not name the capacity: {capacityMessage}");
-Require(Held(inventory, owner, spill) == 0UL, "a capacity refusal left a partial stack");
-Require(
+Check.That(Held(inventory, owner, spill) == 0UL, "a capacity refusal left a partial stack");
+Check.That(
     inventory.View(owner).InventoryRevision == inventoryRevisionBeforeRefusal,
     "a capacity refusal advanced the inventory revision");
-Require(
+Check.That(
     inventory.View(owner).StoreRevision == storeRevisionBeforeCapacityRefusal,
     "a capacity refusal advanced the store revision");
 Observe($"exceeding the metric capacity surfaced as: {capacitySurface}: {capacityMessage}");
@@ -207,36 +198,36 @@ Observe($"exceeding the metric capacity surfaced as: {capacitySurface}: {capacit
 // The boundary itself must be usable: 6 held + 58 fills the metric exactly, and
 // one more unit must then be refused, which also guards an off-by-one limit.
 inventory.Grant(owner, stone, spill, 58UL);
-Require(
+Check.That(
     Held(inventory, owner, spill) == 58UL,
     $"granting exactly to the capacity boundary left {Held(inventory, owner, spill)}, expected 58");
-Require(
+Check.That(
     CapacityUsed(inventory, owner, slots) == MetricMaximum,
     $"the filled inventory reports {CapacityUsed(inventory, owner, slots)} used, expected {MetricMaximum}");
 string boundarySurface = Surface(() => inventory.Grant(owner, stone, spare, 1UL));
-Require(
+Check.That(
     boundarySurface == nameof(MechanicsException),
     $"a grant past the capacity boundary surfaced as {boundarySurface}, expected MechanicsException");
-Require(Held(inventory, owner, spare) == 0UL, "a refused boundary grant left a partial stack");
+Check.That(Held(inventory, owner, spare) == 0UL, "a refused boundary grant left a partial stack");
 Observe("the metric capacity boundary accepts an exact fill and refuses the next unit");
 
 inventory.SplitFungible(owner, main, spare, 3UL);
-Require(
+Check.That(
     Held(inventory, owner, main) == 3UL && Held(inventory, owner, spare) == 3UL,
     $"split left main={Held(inventory, owner, main)} spare={Held(inventory, owner, spare)}, expected 3/3");
 
 inventory.MergeFungible(owner, spare, main);
-Require(
+Check.That(
     Held(inventory, owner, main) == 6UL && Held(inventory, owner, spare) == 0UL,
     $"merge left main={Held(inventory, owner, main)} spare={Held(inventory, owner, spare)}, expected 6/0");
 
 inventory.TransferFungible(owner, receiver, main, delivery, 2UL);
-Require(
+Check.That(
     Held(inventory, owner, main) == 4UL && Held(inventory, receiver, delivery) == 2UL,
     $"transfer left owner={Held(inventory, owner, main)} receiver={Held(inventory, receiver, delivery)}, expected 4/2");
 
 InventoryView view = inventory.View(owner);
-Require(view.Capacity.Count > 0, "the owner's view reports no capacity usage");
+Check.That(view.Capacity.Count > 0, "the owner's view reports no capacity usage");
 Observe($"owner view reports {view.Stacks.Count} stack(s) and store revision {view.StoreRevision}");
 
 // A multi-step change must be stageable and invisible until it publishes: this
@@ -245,15 +236,15 @@ using (InventoryEdit edit = inventory.Prepare())
 {
     edit.Grant(owner, stone, main, 2UL);
     edit.Consume(owner, spill, 8UL);
-    Require(
+    Check.That(
         Staged(edit, owner, main) == 6UL && Staged(edit, owner, spill) == 50UL,
         "a staged edit does not show its own pending result");
-    Require(
+    Check.That(
         Held(inventory, owner, main) == 4UL && Held(inventory, owner, spill) == 58UL,
         "a staged edit was visible before it published");
     edit.Publish();
 }
-Require(
+Check.That(
     Held(inventory, owner, main) == 6UL && Held(inventory, owner, spill) == 50UL,
     $"publishing the staged edit left main={Held(inventory, owner, main)} spill={Held(inventory, owner, spill)}, expected 6/50");
 Observe("a staged grant+consume edit is invisible before Publish and applied after it");
@@ -270,16 +261,16 @@ ItemDefinition relic = new(
     new ItemEquipmentPolicy(1, handGroup),
     []);
 ItemMaterializationReceipt materialized = inventory.MaterializeUnique(new ItemState(relicEntity, relic), owner);
-Require(materialized.Item.Equals(relicEntity), "materialising a unique item did not keep the requested entity");
-Require(
+Check.That(materialized.Item.Equals(relicEntity), "materialising a unique item did not keep the requested entity");
+Check.That(
     inventory.TryGetItem(relicEntity, out ItemState? _),
     "a materialised unique item is not readable from the store");
-Require(
+Check.That(
     inventory.ContainedEntities(owner).Contains(relicEntity),
     "the owner's contained entities omit the materialised item");
 
 inventory.TransferUnique(relicEntity, owner, receiver);
-Require(
+Check.That(
     inventory.TryGetContainer(relicEntity, out EntityId container) && container.Equals(receiver),
     "transferring a unique item did not move its container");
 
@@ -287,28 +278,28 @@ Require(
 inventory.RegisterEquipment(new EquipmentState(receiver));
 EquipmentSlotDefinition slot = new(handSlot, [weaponClass]);
 EquipmentMutationReceipt equipped = inventory.Equip(receiver, relicEntity, [slot]);
-Require(
+Check.That(
     inventory.TryGetEquipment(receiver, out EquipmentState? equipment) && equipment is not null && equipment.Assignments.Count == 1,
     "equipping the item did not record an assignment");
 if (equipment is not null && equipment.Assignments.Count == 1)
 {
-    Require(
+    Check.That(
         equipment.Assignments[0].Item.Equals(relicEntity),
         "the recorded assignment does not reference the equipped item");
-    Require(
+    Check.That(
         equipment.Assignments[0].Slot.Equals(handSlot),
         "the recorded assignment does not reference the requested slot");
 }
-Require(inventory.TryGetItem(relicEntity, out ItemState? _), "equipping destroyed the item entity");
+Check.That(inventory.TryGetItem(relicEntity, out ItemState? _), "equipping destroyed the item entity");
 Observe($"an equipped unique item reports {equipped.GetType().Name} with 1 assignment");
 
 inventory.Unequip(receiver, relicEntity);
-Require(
+Check.That(
     inventory.TryGetEquipment(receiver, out EquipmentState? afterUnequip) && afterUnequip is not null && afterUnequip.Assignments.Count == 0,
     "unequipping left an assignment behind");
 
 inventory.DestroyUnique(relicEntity);
-Require(!inventory.TryGetItem(relicEntity, out ItemState? _), "a destroyed unique item is still readable");
+Check.That(!inventory.TryGetItem(relicEntity, out ItemState? _), "a destroyed unique item is still readable");
 
 // ------------------------------------------------------- 2. stats and tracks
 // A persisted track's maximum must be a Stat owned by the same component: a
@@ -336,7 +327,7 @@ bareMaximumHost.AddTrack(
     TrackId.Parse("proof.breath.unbacked"),
     new Track(20d, 20d, 0d, TrackMaximumChangePolicy.PreserveMissingAmount, 1d, MidpointRounding.ToZero, MidpointRounding.ToZero));
 string bareMaximumSurface = Surface(() => _ = StatsComponentCapture.Capture(bareMaximumHost));
-Require(
+Check.That(
     bareMaximumSurface == nameof(InvalidOperationException),
     $"capturing a track with a bare double maximum surfaced as {bareMaximumSurface}, expected InvalidOperationException");
 Observe($"capturing a track whose maximum is not a co-located stat surfaced as: {bareMaximumSurface}");
@@ -344,34 +335,34 @@ Observe($"capturing a track whose maximum is not a co-located stat surfaced as: 
 // Spend/Restore return the amount actually applied after clamping, not the
 // requested amount and not the resulting value.
 double spent = stats.GetTrack(breathId).Spend(5d);
-Require(spent == 5d, $"Spend(5) reported {spent}, expected the applied 5");
-Require(stats.GetTrack(breathId).Current == 15d, $"spend left {stats.GetTrack(breathId).Current}, expected 15");
+Check.That(spent == 5d, $"Spend(5) reported {spent}, expected the applied 5");
+Check.That(stats.GetTrack(breathId).Current == 15d, $"spend left {stats.GetTrack(breathId).Current}, expected 15");
 
 bool overspent = stats.GetTrack(breathId).TrySpend(100d);
-Require(!overspent, "TrySpend succeeded with insufficient current value");
-Require(stats.GetTrack(breathId).Current == 15d, "a refused TrySpend changed the current value");
+Check.That(!overspent, "TrySpend succeeded with insufficient current value");
+Check.That(stats.GetTrack(breathId).Current == 15d, "a refused TrySpend changed the current value");
 
 double restored = stats.GetTrack(breathId).Restore(100d);
-Require(restored == 5d, $"Restore(100) reported {restored}, expected the applied 5 after clamping");
-Require(
+Check.That(restored == 5d, $"Restore(100) reported {restored}, expected the applied 5 after clamping");
+Check.That(
     stats.GetTrack(breathId).Current == 20d,
     $"restore left {stats.GetTrack(breathId).Current}, expected a clamp at the maximum");
 Observe($"Track.Spend(5) applied {spent}; Track.Restore(100) applied {restored} and clamped at 20");
 
 StatModifierHandle modifier = stats.GetStat(healthId).AddModifier(5d, StatModifierKind.Add);
-Require(stats.GetStat(healthId).Value == 25d, $"an additive modifier left value {stats.GetStat(healthId).Value}, expected 25");
-Require(stats.GetStat(healthId).Modifiers.Count == 1, "the modifier is not listed on the stat");
-Require(stats.GetStat(healthId).RemoveModifier(modifier), "removing the modifier reported failure");
-Require(stats.GetStat(healthId).Value == 20d, $"removing the modifier left value {stats.GetStat(healthId).Value}, expected 20");
+Check.That(stats.GetStat(healthId).Value == 25d, $"an additive modifier left value {stats.GetStat(healthId).Value}, expected 25");
+Check.That(stats.GetStat(healthId).Modifiers.Count == 1, "the modifier is not listed on the stat");
+Check.That(stats.GetStat(healthId).RemoveModifier(modifier), "removing the modifier reported failure");
+Check.That(stats.GetStat(healthId).Value == 20d, $"removing the modifier left value {stats.GetStat(healthId).Value}, expected 20");
 Observe("an additive stat modifier applies and removes cleanly");
 
 StatsComponentSnapshot? snapshot = StatsComponentCapture.Capture(stats);
-Require(snapshot is not null, "stats capture returned no snapshot");
+Check.That(snapshot is not null, "stats capture returned no snapshot");
 if (snapshot is not null)
 {
     StatsComponent rebuilt = StatsComponentCapture.Rebuild(snapshot, (_, _, _) => { });
-    Require(rebuilt.GetTrack(breathId).Current == 20d, "the rebuilt component lost the track value");
-    Require(
+    Check.That(rebuilt.GetTrack(breathId).Current == 20d, "the rebuilt component lost the track value");
+    Check.That(
         rebuilt.TryGetStat(healthId, out Stat? rebuiltHealth) && rebuiltHealth is not null && rebuiltHealth.BaseValue == 20d,
         "the rebuilt component lost the stat base value");
     Observe("stats capture/rebuild round-trips stat and track values (modifiers and aliases are not compared here)");
@@ -383,32 +374,32 @@ ComponentType<ProofRuntime> runtimeComponent =
 EntityStore entities = new([runtimeComponent]);
 EntityId subject = entities.Create(EntityLifecycle.Active);
 entities.Add(subject, new ProofRuntime(7));
-Require(entities.Has(subject, runtimeComponent), "the entity does not report the added component");
-Require(entities.Get(subject, runtimeComponent).Value == 7, "the component value did not round-trip");
-Require(entities.IsAlive(subject), "a created entity does not report alive");
-Require(
+Check.That(entities.Has(subject, runtimeComponent), "the entity does not report the added component");
+Check.That(entities.Get(subject, runtimeComponent).Value == 7, "the component value did not round-trip");
+Check.That(entities.IsAlive(subject), "a created entity does not report alive");
+Check.That(
     entities.Query<ProofRuntime>(false).Count == 1,
     "the enabled-only query did not return the created entity");
 
 EntityId batched = entities.Create(EntityLifecycle.Active);
 EntityBatch batch = new EntityBatch().Set(batched, runtimeComponent, new ProofRuntime(9));
 entities.Commit(batch);
-Require(entities.Get(batched, runtimeComponent).Value == 9, "a batched component set did not commit");
-Require(entities.Query<ProofRuntime>(false).Count == 2, "the batched entity is missing from the query");
+Check.That(entities.Get(batched, runtimeComponent).Value == 9, "a batched component set did not commit");
+Check.That(entities.Query<ProofRuntime>(false).Count == 2, "the batched entity is missing from the query");
 
 // Disabled entities are only visible when the query asks for them.
 EntityId dormant = entities.Create(EntityLifecycle.Disabled);
 entities.Add(dormant, new ProofRuntime(11));
-Require(
+Check.That(
     entities.Query<ProofRuntime>(false).Count == 2,
     "an enabled-only query included a disabled entity");
-Require(
+Check.That(
     entities.Query<ProofRuntime>(true).Count == 3,
     "a disabled-inclusive query omitted a disabled entity");
 Observe("query semantics: enabled-only excludes disabled entities, inclusive returns them");
 
 entities.Destroy(subject);
-Require(!entities.IsAlive(subject), "a destroyed entity still reports alive");
+Check.That(!entities.IsAlive(subject), "a destroyed entity still reports alive");
 
 // Batch creation with a caller-chosen id is the staged path a spawn table would
 // use. Record which way this build resolves it rather than assuming.
@@ -423,7 +414,7 @@ catch (Exception exception)
     batchCreateSurface = exception.GetType().Name;
 }
 if (batchCreateSurface == "committed")
-    Require(entities.IsAlive(reserved), "a committed batch Create left the entity not alive");
+    Check.That(entities.IsAlive(reserved), "a committed batch Create left the entity not alive");
 Observe($"a batch Create for a caller-chosen id surfaced as: {batchCreateSurface}");
 
 // ----------------------------------------------------------- 4. state machine
@@ -431,43 +422,34 @@ StateMachineDefinition machine = new(
     1UL,
     [0UL, 1UL, 2UL],
     [new StateMachineTransition(0UL, 1UL), new StateMachineTransition(1UL, 2UL)]);
-Require(machine.AllowsTransition(0UL, 1UL), "the definition rejects a declared transition");
-Require(!machine.AllowsTransition(0UL, 2UL), "the definition allows an undeclared transition");
+Check.That(machine.AllowsTransition(0UL, 1UL), "the definition rejects a declared transition");
+Check.That(!machine.AllowsTransition(0UL, 2UL), "the definition allows an undeclared transition");
 
 StateMachineInstance instance = machine.CreateInstance(0UL, 0UL);
 StateMachineTransitionReceipt step = machine.Transition(instance, 0UL, 1UL, null);
-Require(step.Previous == 0UL, $"the transition reported previous {step.Previous}, expected 0");
-Require(step.Instance.Current == 1UL, $"the transition left state {step.Instance.Current}, expected 1");
-Require(step.Instance.Revision == 1UL, $"the transition left revision {step.Instance.Revision}, expected 1");
+Check.That(step.Previous == 0UL, $"the transition reported previous {step.Previous}, expected 0");
+Check.That(step.Instance.Current == 1UL, $"the transition left state {step.Instance.Current}, expected 1");
+Check.That(step.Instance.Revision == 1UL, $"the transition left revision {step.Instance.Revision}, expected 1");
 
 string undeclaredSurface = Surface(() => machine.Transition(step.Instance, 1UL, 0UL, null));
-Require(
+Check.That(
     undeclaredSurface == nameof(InvalidOperationException),
     $"an undeclared transition surfaced as {undeclaredSurface}, expected InvalidOperationException");
-Require(
+Check.That(
     step.Instance.Current == 1UL,
     "the refused transition mutated the instance it was given");
 
 string revisionGateSurface = Surface(() => machine.Transition(step.Instance, 1UL, 2UL, 99UL));
-Require(
+Check.That(
     revisionGateSurface == nameof(InvalidOperationException),
     $"a state-machine revision mismatch surfaced as {revisionGateSurface}, expected InvalidOperationException");
 Observe($"an undeclared transition surfaced as: {undeclaredSurface}");
 Observe($"a state-machine ExpectedRevision mismatch surfaced as: {revisionGateSurface}");
 
 // --------------------------------------------------------------------- result
-if (failures.Count > 0)
-{
-    foreach (string failure in failures)
-        Console.WriteLine($"  FAIL {failure}");
-    Console.WriteLine($"CraftSurvive substrate proof failed with {failures.Count} problem(s).");
-    return 1;
-}
-
 Console.WriteLine("observed behaviour:");
 foreach (string observation in observations)
     Console.WriteLine($"  - {observation}");
-Console.WriteLine("CraftSurvive substrate proof passed.");
-return 0;
+return Check.Finish("Engine substrate canary");
 
 internal readonly record struct ProofRuntime(int Value);

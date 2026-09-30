@@ -70,7 +70,12 @@ internal sealed class TerrainAtlasLayout
     internal static TerrainAtlasLayout Read(ProductContent content)
     {
         ArgumentNullException.ThrowIfNull(content);
-        string json = content.ReadText(ContentPath);
+        return Parse(content.ReadText(ContentPath));
+    }
+
+    /// <summary>Validates an authored layout document; <see cref="Read"/> is this over the staged content.</summary>
+    internal static TerrainAtlasLayout Parse(string json)
+    {
         using JsonDocument document = JsonDocument.Parse(json);
         JsonElement root = document.RootElement;
 

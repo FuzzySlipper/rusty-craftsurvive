@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TestsUseGeneration>true</TestsUseGeneration>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
@@ -13,18 +14,18 @@
          touch no Engine host service. This lane links them directly so placement
          determinism and the structure bounds are checked without a runtime. -->
     <!-- The world generator is pure: link it whole. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/WorldGen/*.cs" LinkBase="WorldGen" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryRules.cs" Link="Discovery/DiscoveryRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryState.cs" Link="Discovery/DiscoveryState.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryConstants.cs" Link="Discovery/DiscoveryConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Discovery/DiscoveryCodec.cs" Link="Discovery/DiscoveryCodec.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveEnvelope.cs" Link="World/SaveEnvelope.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/SaveManifest.cs" Link="World/SaveManifest.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="Terrain/TerrainConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="Terrain/TerrainConfiguration.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="Terrain/VoxelAddress.cs" />
+    <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryRules.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryState.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryConstants.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Discovery/DiscoveryCodec.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product/Terrain" />
   </ItemGroup>
 </Project>

@@ -42,18 +42,18 @@ internal sealed class EncounterDirector
     internal bool IsActive(int id) => active.ContainsKey(id);
 
     /// <summary>
-    /// Attempts to place a candidate. Refusals carry the rule's own reason, so a
+    /// Attempts to place a candidate. A refusal carries the rule's typed reason and its text, so a
     /// caller can log why nothing appeared instead of guessing.
     /// </summary>
-    internal bool TryActivate(EncounterCandidate candidate, long tick, out string reason)
+    internal bool TryActivate(EncounterCandidate candidate, long tick, out EncounterDecision decision)
     {
         if (active.ContainsKey(candidate.Id))
         {
-            reason = $"encounter {candidate.Id} is already in the world";
+            decision = EncounterDecision.Refuse(EncounterRefusal.AlreadyActive, $"encounter {candidate.Id} is already in the world");
             return false;
         }
 
-        EncounterDecision decision = EncounterRules.CanActivate(
+        decision = EncounterRules.CanActivate(
             policy,
             candidate,
             candidate.TimeWindow,
@@ -62,7 +62,6 @@ internal sealed class EncounterDirector
 
         if (!decision.Act)
         {
-            reason = decision.Reason;
             return false;
         }
 
@@ -72,7 +71,6 @@ internal sealed class EncounterDirector
             candidate.Site.RegionId,
             ActivatedAtTick: tick,
             AwaySinceTick: -1);
-        reason = decision.Reason;
         return true;
     }
 

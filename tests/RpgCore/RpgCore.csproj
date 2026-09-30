@@ -10,24 +10,24 @@
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- The RPG rules are pure product policy: they use no Engine type at all, and
          this lane links them directly so the arithmetic is checked without a host. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CharacterRules.cs" Link="Rpg/CharacterRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CombatRules.cs" Link="Rpg/CombatRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterRules.cs" Link="Rpg/EncounterRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterPolicy.cs" Link="Rpg/EncounterPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CreatureBehavior.cs" Link="Rpg/CreatureBehavior.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterResolution.cs" Link="Rpg/EncounterResolution.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterDirector.cs" Link="Rpg/EncounterDirector.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/PlayerDefeatRules.cs" Link="Rpg/PlayerDefeatRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CreatureKinds.cs" Link="Rpg/CreatureKinds.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/CharacterSheet.cs" Link="Rpg/CharacterSheet.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/KeyedDraws.cs" Link="Rpg/KeyedDraws.cs" />
+    <Compile Include="$(ProductModules)Rpg/CharacterRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/CombatRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterPolicy.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/CreatureBehavior.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterResolution.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterDirector.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/PlayerDefeatRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/CreatureKinds.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/CharacterSheet.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/KeyedDraws.cs" LinkBase="Product/Rpg" />
     <!-- The creature step and roster are pure too; the world frame and step time are value
          conversions over Engine facts. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Creatures/CreatureRoster.cs" Link="Creatures/CreatureRoster.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Creatures/CreatureSimulation.cs" Link="Creatures/CreatureSimulation.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Creatures/CreatureSpawnPlan.cs" Link="Creatures/CreatureSpawnPlan.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerVitals.cs" Link="Player/PlayerVitals.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/ProductStep.cs" Link="World/ProductStep.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/WorldFrame.cs" Link="World/WorldFrame.cs" />
+    <Compile Include="$(ProductModules)Creatures/CreatureRoster.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Creatures/CreatureSimulation.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Creatures/CreatureSpawnPlan.cs" LinkBase="Product/Creatures" />
+    <Compile Include="$(ProductModules)Player/PlayerVitals.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)World/ProductStep.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)World/WorldFrame.cs" LinkBase="Product/World" />
   </ItemGroup>
 </Project>

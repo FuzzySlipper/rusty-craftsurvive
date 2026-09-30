@@ -53,9 +53,30 @@ internal readonly record struct EncounterPolicy(
         DespawnGraceTicks: 600);
 }
 
+/// <summary>Why an encounter was not activated. The reason text is for logs; this is what rules and checks read.</summary>
+internal enum EncounterRefusal
+{
+    None = 0,
+    OutsideTimeWindow = 1,
+    WorldFull = 2,
+    RegionFull = 3,
+    PlacementRefused = 4,
+    AlreadyActive = 5,
+}
+
 internal readonly record struct EncounterDecision(bool Act, string Reason)
 {
+    /// <summary>Why activation was refused; None for an allowed decision and for despawn decisions.</summary>
+    internal EncounterRefusal Refusal { get; init; }
+
+    /// <summary>The placement rule's own refusal, when that is what refused activation.</summary>
+    internal SpawnRefusal Placement { get; init; }
+
     internal static EncounterDecision Refuse(string reason) => new(false, reason);
+
+    internal static EncounterDecision Refuse(EncounterRefusal refusal, string reason, SpawnRefusal placement = SpawnRefusal.None) =>
+        new(false, reason) { Refusal = refusal, Placement = placement };
+
     internal static EncounterDecision Allow(string reason) => new(true, reason);
 }
 
@@ -83,25 +104,25 @@ internal static class EncounterRules
     {
         if (!IsEligible(candidate, currentTimeWindow))
         {
-            return EncounterDecision.Refuse(
+            return EncounterDecision.Refuse(EncounterRefusal.OutsideTimeWindow,
                 $"its time window {candidate.TimeWindow} is not the current one {currentTimeWindow}");
         }
 
         if (activeTotal >= policy.MaximumActive)
         {
-            return EncounterDecision.Refuse($"the world already holds {activeTotal} encounters");
+            return EncounterDecision.Refuse(EncounterRefusal.WorldFull, $"the world already holds {activeTotal} encounters");
         }
 
         if (activeInRegion >= policy.MaximumActivePerRegion)
         {
-            return EncounterDecision.Refuse(
+            return EncounterDecision.Refuse(EncounterRefusal.RegionFull,
                 $"region {candidate.Site.RegionId} already holds {activeInRegion} encounters");
         }
 
         SpawnVerdict placement = SpawnRules.Evaluate(candidate.Site.ToSpawnSite(), candidate.Traits);
         return placement.Allowed
             ? EncounterDecision.Allow("the site accepts this creature and the region has room")
-            : EncounterDecision.Refuse(placement.Reason);
+            : EncounterDecision.Refuse(EncounterRefusal.PlacementRefused, placement.Reason, placement.Refusal);
     }
 
     /// <summary>

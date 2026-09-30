@@ -5,38 +5,41 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <TestsUseGeneration>true</TestsUseGeneration>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- Pure product rules only; no alternative Engine host or binding. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConstants.cs" Link="TerrainConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockId.cs" Link="Content/BlockId.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockDefinition.cs" Link="Content/BlockDefinition.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Content/BlockRegistry.cs" Link="Content/BlockRegistry.cs" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
     <!-- The world generator is pure: link it whole. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/WorldGen/*.cs" LinkBase="WorldGen" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainChunkCache.cs" Link="Terrain/TerrainChunkCache.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainGenerationFingerprint.cs" Link="Terrain/TerrainGenerationFingerprint.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainConfiguration.cs" Link="TerrainConfiguration.cs" />
+    <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationFingerprint.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product/Terrain" />
     <!-- The recipe places points of interest, so this lane links the placement policy it
          drives; the residency checks below cover chunks that hold a structure. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainChunk.cs" Link="TerrainChunk.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainResidencyPolicy.cs" Link="TerrainResidencyPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayState.cs" Link="TerrainOverlayState.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEditPolicy.cs" Link="TerrainEditPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEditTransaction.cs" Link="TerrainEditTransaction.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastPolicy.cs" Link="Manipulation/BlastPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastCharge.cs" Link="Manipulation/BlastCharge.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastDust.cs" Link="Manipulation/BlastDust.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BuildStamp.cs" Link="Manipulation/BuildStamp.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="Manipulation/BlockEntityIndex.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="VoxelAddress.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerConstants.cs" Link="PlayerConstants.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/World/ProductIds.cs" Link="World/ProductIds.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerInputState.cs" Link="PlayerInputState.cs" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainResidencyPolicy.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEditTransaction.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Manipulation/BlastPolicy.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Manipulation/BlastCharge.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Manipulation/BlastDust.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Manipulation/BuildStamp.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Manipulation/BlockEntityIndex.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Player/PlayerWorldPosition.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Content/TerrainAtlasLayout.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)Player/PlayerInputState.cs" LinkBase="Product/Player" />
     <!-- The encounter rules are pure policy, so the world facts can be checked against real terrain here. -->
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterRules.cs" Link="Rpg/EncounterRules.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterPolicy.cs" Link="Rpg/EncounterPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEncounterFacts.cs" Link="Terrain/TerrainEncounterFacts.cs" />
+    <Compile Include="$(ProductModules)Rpg/EncounterRules.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/EncounterPolicy.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEncounterFacts.cs" LinkBase="Product/Terrain" />
   </ItemGroup>
 </Project>
