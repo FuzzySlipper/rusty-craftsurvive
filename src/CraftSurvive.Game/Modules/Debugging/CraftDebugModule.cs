@@ -171,9 +171,6 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount}");
     }
 
-    [DebugCommand("craft.courtyard.shadows", Description = "Queues directional shadow intent for a controlled lighting comparison.")]
-    public string SetCourtyardShadows(bool enabled) => terrain.QueueCourtyardShadows(enabled);
-
     [DebugCommand("craft.courtyard.readout", Description = "Reads courtyard generation, geometry and treatment totals.")]
     public string ReadCourtyard() => terrain.ReadCourtyard();
 

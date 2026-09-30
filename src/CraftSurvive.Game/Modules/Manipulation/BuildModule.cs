@@ -6,11 +6,10 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// <summary>
 /// Rapid base building: place a planned shape, and take it back if it landed wrong.
 ///
-/// A stamp applies in one transaction through the world's single revision-checked edit route, the
-/// same one a charge uses, because a stamp is a decided volume rather than an aimed brush. There is
-/// no per-update work here: a stamp resolves immediately, and the undo is the last stamp's own
-/// cells cleared - which is the honest scope of an affordance the route can express, since
-/// restoring what was there before would need one material per cell and a transaction carries one.
+/// A stamp applies in one transaction through the world's single edit route, the same one a charge
+/// uses, because a stamp is a decided volume rather than an aimed brush. It fills only replaceable
+/// cells (air, water), so the undo - the last stamp's placed cells cleared - takes back only what
+/// the stamp filled; a filled water cell comes back as air. There is no per-update work here: a stamp resolves immediately.
 /// </summary>
 public sealed class BuildModule : IDebugCommandModule
 {
@@ -126,6 +125,13 @@ public sealed class BuildModule : IDebugCommandModule
     private string Occupy(long x, long y, long z, BlockEntityKind kind, long state, string name)
     {
         VoxelAddress cell = new((int)x, (int)y, (int)z);
+        if (!entities.TryFind(cell, out _) && !BuildStamp.IsReplaceable(terrain.MaterialAt(cell)))
+        {
+            refused++;
+            lastOutcome = $"{name} refused: {cell.X},{cell.Y},{cell.Z} is not replaceable";
+            return Readout();
+        }
+
         TerrainWorldEditResult result = terrain.TryEditCells(
             [cell], TerrainEditKind.Set, TerrainConstants.StoneMaterial, null);
         if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
@@ -152,12 +158,20 @@ public sealed class BuildModule : IDebugCommandModule
         return Readout();
     }
 
-    private string Place(BuildStamp stamp, string shape)
+    private string Place(BuildStamp planned, string shape)
     {
-        if (!stamp.Placed)
+        if (!planned.Placed)
         {
             refused++;
-            lastOutcome = $"refused: {stamp.Cells.Count} cells is past the {BuildStamp.MaximumStampCells}-cell bound";
+            lastOutcome = $"refused: {planned.Cells.Count} cells is past the {BuildStamp.MaximumStampCells}-cell bound";
+            return Readout();
+        }
+
+        BuildStamp stamp = planned.OnReplaceable(terrain.MaterialAt);
+        if (stamp.Cells.Count == 0)
+        {
+            refused++;
+            lastOutcome = $"{shape} refused: none of its {planned.Cells.Count} cells is replaceable";
             return Readout();
         }
 
@@ -166,7 +180,7 @@ public sealed class BuildModule : IDebugCommandModule
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
         {
             lastStamp = [.. stamp.Cells];
-            lastOutcome = $"{shape} placed: {stamp.Cells.Count} cells";
+            lastOutcome = $"{shape} placed: {stamp.Cells.Count} of {planned.Cells.Count} cells";
         }
         else
         {

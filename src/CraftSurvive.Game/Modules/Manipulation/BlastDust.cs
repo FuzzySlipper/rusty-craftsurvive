@@ -4,17 +4,11 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Manipulation;
 
 /// <summary>
-/// The smoke and debris that cover a charge's remesh.
-///
-/// This is what makes a blast read as instantaneous rather than as a hitch: the edit costs a
-/// measured ~240 ms inside the Engine, and the presentation is the reason the player reads that
-/// as an event instead of a stall. Lifetimes are deliberately longer than the edit so the cloud
-/// is still moving when the world reappears.
+/// The smoke and debris that cover a charge. Emitted before the edit, with lifetimes long enough
+/// that the cloud is still moving when the cleared cells disappear, so the blast reads as one event.
 ///
 /// Everything here is a pure function of the charge - a centre and a seed - so the same blast
-/// produces the same dust. The product's generation contract rests on draws being pure functions
-/// of a seed, and an effect that broke that habit would be the first thing in the product to do
-/// so.
+/// produces the same dust, as the product's generation draws do.
 /// </summary>
 internal static class BlastDust
 {
@@ -24,7 +18,7 @@ internal static class BlastDust
     /// <summary>Thrown blocks: the debris that says something solid came apart.</summary>
     internal const int DebrisParticles = 48;
 
-    /// <summary>How long dust lives, in seconds. Longer than the measured edit, on purpose.</summary>
+    /// <summary>How long dust lives, in seconds.</summary>
     internal const float SmokeLifetimeSeconds = 1.2f;
 
     internal const float DebrisLifetimeSeconds = 0.9f;
@@ -32,27 +26,26 @@ internal static class BlastDust
     /// <summary>Half-extent of the box debris collides inside: roughly the crater a blast opens.</summary>
     private const float BlastCraterRadius = 3.5f;
 
+    /// <summary>The atlas is used as one whole frame, not a flipbook.</summary>
+    private const ushort SingleFrame = 1;
+
     private const string SmokeSignal = "craftsurvive.blast.smoke";
 
     private const string DebrisSignal = "craftsurvive.blast.debris";
 
+    /// <summary>Bit offsets that pack a centre's three coordinates into one seed.</summary>
+    private const int SeedShiftX = 42;
+
+    private const int SeedShiftY = 21;
+
+    /// <summary>Separates the debris emitter's identity from the smoke's for the same charge.</summary>
+    private const ulong DebrisIdentitySalt = 0x9E37_79B9_7F4A_7C15UL;
+
     /// <summary>
-    /// TEMPORARY bisection: the smallest emission that could plausibly work - an id, an anchor, a
-    /// sprite and a burst count, with no curves, no collision and no visual. If this crashes, the
-    /// fault is in the call or the anchor; if it survives, the cause is in what was left out.
+    /// A charge's identity as a seed: the same blast in the same place produces the same dust.
     /// </summary>
-    internal static PresentationParticleDescriptor Minimal(Vector3 centre, RenderResourceReference sprite) => new()
-    {
-        SignalId = "craftsurvive.blast.minimal",
-        Visible = true,
-        Anchor = new PresentationAnchor
-        {
-            Kind = PresentationAnchorKind.World,
-            Position = centre,
-        },
-        Sprite = sprite,
-        BurstCount = 8,
-    };
+    internal static ulong ChargeSeed(CraftSurvive.Game.Modules.Terrain.VoxelAddress centre) =>
+        ((ulong)(uint)centre.X << SeedShiftX) ^ ((ulong)(uint)centre.Y << SeedShiftY) ^ (ulong)(uint)centre.Z;
 
     /// <summary>A charge's dust: a seeded burst of billboards that drifts up and fades out.</summary>
     internal static PresentationParticleDescriptor Smoke(Vector3 centre, RenderResourceReference sprite, ulong seed) => new()
@@ -66,6 +59,7 @@ internal static class BlastDust
             Position = centre,
         },
         Sprite = sprite,
+        SpriteFrameCount = SingleFrame,
         Visual = PresentationParticleVisual.Billboard,
         BurstCount = SmokeParticles,
         RatePerSecond = 0f,
@@ -95,7 +89,7 @@ internal static class BlastDust
     internal static PresentationParticleDescriptor Debris(Vector3 centre, RenderResourceReference sprite, ulong seed) => new()
     {
         SignalId = DebrisSignal,
-        LogicalId = seed ^ 0x9E37_79B9_7F4A_7C15UL,
+        LogicalId = seed ^ DebrisIdentitySalt,
         Visible = true,
         Anchor = new PresentationAnchor
         {
@@ -103,6 +97,7 @@ internal static class BlastDust
             Position = centre,
         },
         Sprite = sprite,
+        SpriteFrameCount = SingleFrame,
         Visual = PresentationParticleVisual.Cube,
         BurstCount = DebrisParticles,
         RatePerSecond = 0f,
@@ -117,6 +112,11 @@ internal static class BlastDust
             new() { Age = 0f, Value = 0.22f },
             new() { Age = 1f, Value = 0.16f },
         },
+        ColorCurve = new PresentationParticleColorKey[]
+        {
+            new() { Age = 0f, Color = new Color(0.46f, 0.34f, 0.24f, 1f) },
+            new() { Age = 1f, Color = new Color(0.4f, 0.3f, 0.22f, 1f) },
+        },
         Seed = seed,
         HasCollision = true,
         Collision = new PresentationParticleCollision
@@ -126,6 +126,7 @@ internal static class BlastDust
             Friction = 0.55f,
             MaximumImpacts = 3,
             SleepSpeed = 0.5f,
+            LimitBehavior = PresentationParticleCollisionLimitBehavior.Sleep,
         },
         CollisionVolumes = new PresentationParticleCollisionVolume[]
         {

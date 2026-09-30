@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Terrain;
 
 namespace CraftSurvive.Game.Modules.Manipulation;
@@ -9,21 +10,32 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// same shape as a charge: a decided set of cells handed to the world's one revision-checked edit
 /// route. A stamp is not aimed - the player chose a plan, not a crosshair - so it goes through
 /// <c>TryEditCells</c> rather than the brush, exactly as an excavation does.
-///
-/// Stamps are bounded for the same reason charges are: the Engine's per-transaction cost is a
-/// measured step, and a transaction large enough to matter is a transaction that holds an update.
 /// </summary>
 internal readonly record struct BuildStamp(IReadOnlyList<VoxelAddress> Cells, ushort Material)
 {
     /// <summary>
     /// The most cells one stamp may place. A sanity bound, well inside the edit route's own
-    /// 4096-cell limit - latency does not scale with it, but the remesh does, and a base is built
-    /// from several stamps rather than one enormous one.
+    /// transaction limit; a base is built from several stamps rather than one enormous one.
     /// </summary>
     internal const int MaximumStampCells = 512;
 
     /// <summary>Whether this stamp is small enough to place as one transaction.</summary>
     internal bool Placed => Cells.Count > 0 && Cells.Count <= MaximumStampCells;
+
+    /// <summary>
+    /// The part of the stamp that can be placed on the world as it stands: only cells whose block is
+    /// replaceable (air, water) take the stamp's material, so a plate laid across a slope fills the
+    /// gaps and leaves the hill alone.
+    /// </summary>
+    internal BuildStamp OnReplaceable(Func<VoxelAddress, ushort> materialAt)
+    {
+        ArgumentNullException.ThrowIfNull(materialAt);
+        return this with { Cells = Cells.Where(cell => IsReplaceable(materialAt(cell))).ToArray() };
+    }
+
+    /// <summary>Whether a block may be built over. An unknown slot is not.</summary>
+    internal static bool IsReplaceable(ushort material) =>
+        BlockRegistry.TryGetBySlot(material, out BlockDefinition block) && block.Replaceable;
 
     /// <summary>A flat plate: the floor of a room, one course thick.</summary>
     internal static BuildStamp Plate(VoxelAddress corner, int width, int depth, ushort material)

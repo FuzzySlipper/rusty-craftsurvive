@@ -297,53 +297,40 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Console.WriteLine($"Decided-cell edit request: {placed.Length} cells applied exactly, and {TerrainBrushPolicy.MaximumTransactionCells} is the bound.");
 
     // The blast policy, exercised at its boundaries rather than only in the middle. A charge
-    // resolves as one transaction or not at all - staging was removed after measurement showed it
-    // pays the Engine's per-transaction cost once per stage.
+    // resolves as one transaction or not at all.
     Require(BlastPolicy.Decide(1).Disposition == BlastDisposition.Single, "a one-cell charge must resolve in one transaction");
     Require(BlastPolicy.Decide(BlastPolicy.MaximumCells).Applies, "a charge at the maximum must still fire");
     Require(BlastPolicy.Decide(BlastPolicy.MaximumCells + 1).Disposition == BlastDisposition.Refused,
         "a charge past the maximum must be refused rather than truncated");
-    Require(!BlastPolicy.Decide(BlastPolicy.MaximumCells + 1).Applies, "a refused charge must not apply");
     Require(BlastPolicy.Decide(BlastPolicy.MaximumCells).Cells == BlastPolicy.MaximumCells,
         "an admission must report the charge it decided on");
-    Console.WriteLine($"Blast policy: one transaction up to {BlastPolicy.MaximumCells} cells, costing a measured {BlastPolicy.MeasuredTransactionMilliseconds} ms stall the presentation must cover; beyond that refused.");
 
-    // A charge resolves through the policy in exactly one transaction, and every cell is accounted
-    // for whether or not the world had anything to remove there.
-    BlastSequence small = BlastSequence.Plan(new VoxelAddress(100, 8, 100), 2);
-    Require(small.Admission.Disposition == BlastDisposition.Single,
-        $"a radius-2 charge is {small.Admission.Cells} cells and must resolve in one transaction");
-    int deliveredSmall = 0;
-    int smallStages = 0;
-    while (small.Pending && small.Advance(cells => { deliveredSmall += cells.Count; return true; }))
-    {
-        smallStages++;
-        Require(smallStages <= 1, "a charge must not take more than one transaction");
-    }
-    Require(smallStages == 1 && deliveredSmall == small.Admission.Cells,
-        $"a charge must deliver all {small.Admission.Cells} cells in one transaction, delivered {deliveredSmall} in {smallStages}");
-
-    BlastSequence large = BlastSequence.Plan(new VoxelAddress(200, 8, 200), 3);
-    Require(large.Admission.Disposition == BlastDisposition.Single,
-        $"a radius-3 charge is {large.Admission.Cells} cells and still resolves in one transaction");
-    int deliveredLarge = 0;
-    int largeStages = 0;
-    while (large.Pending && large.Advance(cells => { deliveredLarge += cells.Count; return true; }))
-    {
-        largeStages++;
-    }
-    Require(largeStages == 1 && deliveredLarge == large.Admission.Cells,
-        $"a large charge must deliver all {large.Admission.Cells} cells in one transaction, delivered {deliveredLarge} in {largeStages}");
-
-    // A refused charge changes nothing, and says so rather than shrinking itself.
-    BlastSequence tooBig = BlastSequence.Plan(new VoxelAddress(300, 8, 300), 6);
-    Require(tooBig.Admission.Disposition == BlastDisposition.Refused,
-        $"a radius-6 charge is {tooBig.Admission.Cells} cells and must be refused");
-    Require(!tooBig.Pending, "a refused charge must not be pending");
-    bool touched = false;
-    Require(!tooBig.Advance(_ => { touched = true; return true; }), "a refused charge must not apply");
-    Require(!touched, "a refused charge must not touch the world at all");
-    Console.WriteLine($"Blast sequence: radius 2 ({small.Admission.Cells} cells) and radius 3 ({large.Admission.Cells} cells) each in one transaction, radius 6 refused ({tooBig.Admission.Cells} cells).");
+    // What a charge breaks: every solid block the charge's strength reaches, weighed cell by cell
+    // against the block's own blast resistance. Air and water are never edited, bedrock never breaks,
+    // and masonry survives the rim that clears dirt.
+    ushort dirt = BlockRegistry.Get(BlockId.Dirt).Slot;
+    ushort brick = BlockRegistry.Get(BlockId.Brick).Slot;
+    ushort bedrock = BlockRegistry.Get(BlockId.Bedrock).Slot;
+    ushort water = BlockRegistry.Get(BlockId.Water).Slot;
+    VoxelAddress blastCentre = new(100, 8, 100);
+    BlastCharge allDirt = BlastCharge.Plan(blastCentre, 2, _ => dirt);
+    Require(allDirt.Admission.Cells == 33 && allDirt.Cleared.Count == 33,
+        $"a radius-2 charge in dirt must break all 33 cells it reaches, broke {allDirt.Cleared.Count} of {allDirt.Admission.Cells}");
+    BlastCharge allBrick = BlastCharge.Plan(blastCentre, 2, _ => brick);
+    Require(allBrick.Cleared.Count > 0 && allBrick.Cleared.Count < allBrick.Admission.Cells,
+        $"brick must break near the centre and survive the rim, broke {allBrick.Cleared.Count} of {allBrick.Admission.Cells}");
+    Require(allBrick.Cleared.Contains(blastCentre), "a charge must break brick at its own centre");
+    Require(!allBrick.Cleared.Contains(new VoxelAddress(102, 8, 100)), "brick at a radius-2 charge's rim must survive");
+    Require(BlastCharge.Plan(blastCentre, 3, _ => bedrock).Cleared.Count == 0, "no charge may break bedrock");
+    Require(BlastCharge.Plan(blastCentre, 3, _ => water).Cleared.Count == 0, "a charge must not drain water");
+    Require(BlastCharge.Plan(blastCentre, 1, _ => TerrainConstants.EmptyMaterial).Cleared.Count == 0,
+        "a charge in air has nothing to break");
+    BlastCharge tooBig = BlastCharge.Plan(new VoxelAddress(300, 8, 300), 6, _ => dirt);
+    Require(tooBig.Admission.Disposition == BlastDisposition.Refused && tooBig.Cleared.Count == 0,
+        $"a radius-6 charge is {tooBig.Admission.Cells} cells and must be refused without breaking anything");
+    Require(BlastCharge.Plan(blastCentre, 2, _ => dirt).Cleared.SequenceEqual(allDirt.Cleared),
+        "the same charge on the same world must break the same cells");
+    Console.WriteLine($"Blast charge: radius 2 breaks 33/33 dirt and {allBrick.Cleared.Count}/33 brick; bedrock, water and air hold; radius 6 ({tooBig.Admission.Cells} cells) refused.");
 
     // A stamp is a decided volume too, and the shapes a base is built from have to be exactly the
     // size they claim and no larger than the bound.
@@ -364,7 +351,17 @@ foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
     Require(!oversizedPlate.Placed, $"a {oversizedPlate.Cells.Count}-cell plate must be refused, not truncated");
     Require(BuildStamp.Plate(new VoxelAddress(0, 4, 0), 1, 1, TerrainConstants.StoneMaterial).Cells.Count == 1,
         "a one-cell stamp is one cell");
-    Console.WriteLine($"Build stamp: plate 12 cells, wall 15 cells, {BuildStamp.MaximumStampCells} is the bound.");
+
+    // A stamp fills only replaceable cells, so laying a plate across a slope leaves the hill alone
+    // and its undo takes back only what it filled.
+    BuildStamp onSlope = plate.OnReplaceable(cell => cell.X == 0 ? BlockRegistry.Get(BlockId.Stone).Slot
+        : cell.X == 1 ? BlockRegistry.Get(BlockId.Water).Slot : TerrainConstants.EmptyMaterial);
+    Require(onSlope.Cells.Count == 8 && onSlope.Cells.All(cell => cell.X != 0),
+        $"a plate over one stone row must fill the 8 air and water cells and skip the stone, filled {onSlope.Cells.Count}");
+    Require(!BuildStamp.IsReplaceable(BlockRegistry.Get(BlockId.Bedrock).Slot) && BuildStamp.IsReplaceable(TerrainConstants.EmptyMaterial),
+        "air is replaceable and bedrock is not");
+    Require(!BuildStamp.IsReplaceable(ushort.MaxValue), "an unknown slot must not be replaceable");
+    Console.WriteLine($"Build stamp: plate 12 cells, wall 15 cells, {BuildStamp.MaximumStampCells} is the bound; a plate over stone fills only its 8 open cells.");
 
     // Block entities: one per cell, broken when their cell opens, swept when a volume is cleared.
     BlockEntityIndex entities = new();

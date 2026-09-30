@@ -20,6 +20,10 @@ internal sealed class TerrainOverlayState
     /// <summary>Monotonically identifies product-owned occupancy inputs.</summary>
     internal ulong Revision => revision;
 
+    /// <summary>The override at one cell, if the player has changed it.</summary>
+    internal bool TryGetMaterial(VoxelAddress address, out ushort material) =>
+        materials.TryGetValue(address, out material);
+
     internal TerrainOverlaySnapshot Snapshot() => new(seed,
         materials.Select(pair => new TerrainOverlayEntry(pair.Key, pair.Value)).ToArray());
 

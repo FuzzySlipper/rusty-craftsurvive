@@ -86,7 +86,6 @@ internal static class BlockRegistry
     /// <summary>Every block, air first, in slot order.</summary>
     internal static ReadOnlySpan<BlockDefinition> All => Definitions;
 
-    /// <summary>Blocks that need a material and an atlas tile.</summary>
     /// <summary>
     /// Blocks that need a material and an atlas tile. Every one of them owns a
     /// tile in the world's atlas; the audit and the layout both check that.
@@ -95,12 +94,9 @@ internal static class BlockRegistry
         Definitions.Where(definition => !definition.IsAir);
 
     /// <summary>
-    /// Blocks whose materials are bound to a voxel scene. The Engine admits
-    /// sixteen authored materials per scene (it bound three before the capacity fix
-    /// in `rusty-engine` #8667), and this floor needs exactly sixteen: fifteen
-    /// blocks plus grass's top face. This is therefore the whole registry, and a
-    /// sixteenth *block* would need the Engine capacity raised again - which is why
-    /// the floor is the settled twelve-to-sixteen rather than open-ended.
+    /// Blocks whose materials are bound to the world's voxel scene: every block with a material.
+    /// The Engine's retained palette holds 65,536 source slots, so the registry, not the Engine,
+    /// bounds the count.
     /// </summary>
     internal static IEnumerable<BlockDefinition> BoundBlocks => MaterialBlocks;
 

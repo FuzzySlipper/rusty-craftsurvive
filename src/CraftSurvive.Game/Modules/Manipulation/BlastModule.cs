@@ -1,159 +1,134 @@
-using System.Numerics;
 using System.Diagnostics;
-using System.Globalization;
+using System.Numerics;
 using CraftSurvive.Game.Modules.Terrain;
+using Rusty.Engine;
 using Rusty.Engine.Debugging;
+using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Manipulation;
 
 /// <summary>
-/// Fires charges and resolves them one bounded stage per update.
-///
-/// This is the slice's blast event at its smallest useful size: plan the sphere, ask the policy
-/// what it costs, and hand the world at most one stage each update so no frame is held longer
-/// than the budget the policy is written against. The presentation that covers the remainder of
-/// the update is the next piece of the slice; this is the part that has to be true first, because
-/// a visual effect over an unbounded stall is a distraction rather than a covering.
+/// Fires charges. A fired charge is planned at once and resolved on the next update: the dust and
+/// debris go out first, so the cloud is already in flight when the world changes, and the cleared
+/// cells then go through the world's edit route as one transaction. Block entities standing in the
+/// cleared cells are swept in the same step.
 /// </summary>
 public sealed class BlastModule : IDebugCommandModule
 {
+    /// <summary>A charge's centre voxel, offset to the middle of the cell for the dust anchor.</summary>
+    private const float CellCentre = 0.5f;
+
+    private const int MaximumRadius = 16;
+
+    private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly BlockEntityIndex entities;
-    private BlastSequence? pending;
+    private BlastCharge? pending;
     private long fired;
     private long cleared;
-    private long stagesApplied;
     private long refused;
     private long swept;
-    private double worstStageMs;
-    private readonly List<double> stageMs = [];
+    private long dustRefused;
+    private double lastResolveMs;
     private string lastOutcome = "none";
+    private string lastDustFailure = "none";
 
-    internal BlastModule(TerrainWorld terrain, BlockEntityIndex entities)
+    internal BlastModule(IEngineContext engine, TerrainWorld terrain, BlockEntityIndex entities)
     {
+        ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(terrain);
         ArgumentNullException.ThrowIfNull(entities);
+        this.engine = engine;
         this.terrain = terrain;
         this.entities = entities;
     }
 
-    /// <summary>How many recent stage costs the readout keeps, oldest dropped first.</summary>
-    private const int StageHistoryLength = 8;
-
-    /// <summary>True while a charge still has stages to run.</summary>
-    internal bool Pending => pending?.Pending ?? false;
+    /// <summary>True while a fired charge waits for the next update.</summary>
+    internal bool Pending => pending is not null;
 
     internal long Fired => fired;
 
-    /// <summary>
-    /// Advances the pending charge by at most one stage. Called once per product update, which is
-    /// what bounds a large charge: the policy decides how many transactions it takes, and this
-    /// spends one of them here.
-    /// </summary>
+    /// <summary>Resolves the pending charge, if any. Called once per product update.</summary>
     internal void Update()
     {
-        BlastSequence? sequence = pending;
-        if (sequence is null || !sequence.Pending)
+        BlastCharge? charge = pending;
+        pending = null;
+        if (charge is null)
         {
-            pending = null;
             return;
         }
 
-        int stageCells = sequence.CellsRemaining;
-
-        // The dust emission is switched off. The bisection is finished and it exonerates everything
-        // the product authors: a descriptor carrying only SignalId, Visible, Anchor and BurstCount -
-        // no curves, no collision, no visual - and then the same with Sprite removed entirely both
-        // die with SIGSEGV on the pinned pair. So the fault is in EmitParticles itself or in a
-        // precondition this product does not yet satisfy, not in anything BlastDust writes. That is
-        // an upstream question, filed rather than worked around; the blast is complete without the
-        // dust, and a charge that crashes the runtime is not an option.
+        EmitDust(charge);
         long started = Stopwatch.GetTimestamp();
-        // A charge removes terrain rather than placing it - a blast opens a hole, and the policy's
-        // cell count is a count of removed cells. Player overlap is not consulted here: the charge
-        // is aimed by whoever fired it, and the rule for shooting your own feet off belongs to the
-        // interaction that acquires a target, not to the mechanism that resolves one.
-        //
-        // A stage whose cells are already empty is *delivered*, not refused: an explosion whose
-        // sphere overlaps air changes nothing there, and a charge is spent when its cells have
-        // been handed to the route, not when they happened to alter the world. Only a result that
+
+        // A cell that turns out to be empty already is delivered, not refused: only a result that
         // says the route would not take the edit at all abandons the charge.
-        // The charge sweeps the entities in the cells it actually cleared, in the same step that
-        // clears them. A detonation that opened a door should take the door with it: leaving an
-        // entity standing in a cell the blast turned to air is the same orphan the build path
-        // already refuses, arriving from the other direction.
-        bool delivered = sequence.Advance(stage =>
+        TerrainWorldEditResult result = charge.Cleared.Count == 0
+            ? TerrainWorldEditResult.CastMiss
+            : terrain.TryEditCells(charge.Cleared, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
+        lastResolveMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        if (charge.Cleared.Count == 0)
         {
-            bool applied = terrain.TryEditCells(stage, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null)
-                is TerrainWorldEditApplied or TerrainWorldEditNoChanges;
-            if (applied)
-            {
-                swept += entities.Sweep(stage);
-            }
-
-            return applied;
-        });
-        double elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        if (elapsedMs > worstStageMs)
-        {
-            worstStageMs = elapsedMs;
-        }
-
-        // Every stage's cost, in order, because a single maximum cannot tell a cold first stage
-        // apart from the steady-state price of a charge - and the budget has to be derived from
-        // the second of those.
-        stageMs.Add(elapsedMs);
-        if (stageMs.Count > StageHistoryLength)
-        {
-            stageMs.RemoveAt(0);
-        }
-
-        if (!delivered)
-        {
-            lastOutcome = $"stage refused by the edit route after {stagesApplied} stage(s)";
-            pending = null;
+            lastOutcome = $"reached {charge.Admission.Cells} cells and broke none";
             return;
         }
 
-        stagesApplied++;
-        cleared += stageCells;
-        if (!sequence.Pending)
+        if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
         {
-            lastOutcome = $"resolved {sequence.Admission.Cells} cells in {sequence.StagesApplied} transaction(s)";
-            pending = null;
+            lastOutcome = $"refused by the edit route: {TerrainWorld.FormatEditReadout(result)}";
+            return;
         }
+
+        cleared += charge.Cleared.Count;
+        swept += entities.Sweep(charge.Cleared);
+        lastOutcome = $"cleared {charge.Cleared.Count} of {charge.Admission.Cells} cells";
     }
 
     /// <summary>
-    /// A charge's identity as a seed: the same blast in the same place produces the same dust. The
-    /// product's generation contract rests on draws being pure functions of a seed, and an effect
-    /// that broke that habit would be the first thing in the product to do so.
+    /// The dust is presentation: a refused emission is counted and reported, and the charge still
+    /// resolves.
     /// </summary>
-    private static ulong ChargeSeed(CraftSurvive.Game.Modules.Terrain.VoxelAddress centre) =>
-        ((ulong)(uint)centre.X << 42) ^ ((ulong)(uint)centre.Y << 21) ^ (ulong)(uint)centre.Z;
+    private void EmitDust(BlastCharge charge)
+    {
+        Vector3 centre = new(charge.Centre.X + CellCentre, charge.Centre.Y + CellCentre, charge.Centre.Z + CellCentre);
+        ulong seed = BlastDust.ChargeSeed(charge.Centre);
+        try
+        {
+            engine.Presentation.EmitParticles(BlastDust.Smoke(centre, terrain.AtlasSprite, seed));
+            engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, seed));
+        }
+        catch (EngineCallException exception)
+        {
+            dustRefused++;
+            lastDustFailure = exception.Message;
+        }
+    }
 
-    [DebugCommand("craft.blast.fire", Description = "Fires a charge at a cell: removes a sphere of the given radius there, staged to fit the per-blast budget.")]
+    [DebugCommand("craft.blast.fire", Description = "Fires a charge at a cell: breaks the blocks within the radius that the charge is strong enough to break, as one transaction.")]
     public string Fire(long x, long y, long z, long radius)
     {
-        BlastSequence plan = BlastSequence.Plan(
+        BlastCharge charge = BlastCharge.Plan(
             new VoxelAddress((int)x, (int)y, (int)z),
-            (int)Math.Clamp(radius, 0, 16));
-        if (!plan.Admission.Applies)
+            (int)Math.Clamp(radius, 0, MaximumRadius),
+            terrain.MaterialAt);
+        if (!charge.Admission.Applies)
         {
             refused++;
-            lastOutcome = $"refused: {plan.Admission.Cells} cells is past the {BlastPolicy.MaximumCells}-cell maximum";
+            lastOutcome = $"refused: {charge.Admission.Cells} cells is past the {BlastPolicy.MaximumCells}-cell maximum";
             return Readout();
         }
 
-        pending = plan;
+        pending = charge;
         fired++;
-        lastOutcome = $"{plan.Admission.Disposition} {plan.Admission.Cells} cells, one transaction";
+        lastOutcome = $"fired: breaks {charge.Cleared.Count} of {charge.Admission.Cells} cells";
         return Readout();
     }
 
-    [DebugCommand("craft.blast.readout", Description = "Reports charges fired, cells cleared, stages run, refusals, and the worst stage latency.")]
+    [DebugCommand("craft.blast.readout", Description = "Reports charges fired, cells cleared, refusals, dust refusals, and the last charge's cost.")]
     public string Readout() =>
-        $"blast fired={fired} pending={Pending} cleared={cleared} stages={stagesApplied} refused={refused} "
-        + $"worstStageMs={worstStageMs:F2} stagesMs=[{string.Join(", ", stageMs.Select(ms => ms.ToString("F2", CultureInfo.InvariantCulture)))}] "
-        + $"last={lastOutcome} editTiming[{terrain.LastEditTiming}]";
+        FormattableString.Invariant(
+            $"blast fired={fired} pending={Pending} cleared={cleared} refused={refused} swept={swept} ")
+        + FormattableString.Invariant(
+            $"dustRefused={dustRefused} lastResolveMs={lastResolveMs:F2} last={lastOutcome} dustFailure={lastDustFailure} ")
+        + $"editTiming[{terrain.LastEditTiming}]";
 }

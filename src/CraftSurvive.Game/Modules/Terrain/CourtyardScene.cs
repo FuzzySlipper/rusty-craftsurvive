@@ -47,8 +47,6 @@ internal sealed class CourtyardScene : IDisposable
     private readonly List<(Light Owner, LightDescriptor Descriptor)> lights = [];
     private CourtyardSettings settings = CourtyardSettings.Default;
     private CourtyardSettings? pending;
-    private bool shadows = true;
-    private bool? pendingShadows;
     private SpatialSession? session;
     private Vector3 translation;
     private double generationSeconds;
@@ -240,28 +238,8 @@ internal sealed class CourtyardScene : IDisposable
         return "queued courtyard dimensions, opening and detail seed";
     }
 
-    internal string QueueShadows(bool enabled)
-    {
-        pendingShadows = enabled;
-        return $"queued courtyard shadows={enabled}";
-    }
-
     internal void Update()
     {
-        if (pendingShadows is { } requested)
-        {
-            shadows = requested;
-            pendingShadows = null;
-            for (int index = 0; index < lights.Count; index++)
-            {
-                (Light owner, LightDescriptor descriptor) = lights[index];
-                descriptor = descriptor with { ShadowIntent = shadows && descriptor.Kind == LightKind.Directional
-                    ? LightShadowIntent.Requested : LightShadowIntent.Disabled };
-                lights[index] = (owner, descriptor);
-                engine.Graphics.UpdateLight(new LightUpdateRequest(owner, new LightRequest(FirstLightId + (ulong)index,
-                    false, 0, descriptor with { Position = descriptor.Position + translation })));
-            }
-        }
         if (pending is not { } next) return;
         pending = null;
         try
@@ -293,7 +271,7 @@ internal sealed class CourtyardScene : IDisposable
     }
 
     internal string Readout() => FormattableString.Invariant(
-        $"volumeProbes={volumeProbes};volumeCell={(settings.Study == "volume-sampled" ? VolumeCaveRecipe.SampledCell(settings.Detail) : VolumeCaveRecipe.Cell(settings.Detail)):F3};boundedLeafVertices={parts.Sum(p => (long)p.Stats.BoundedLeafVertices)};boundaryEdges={parts.Sum(p => (long)p.Stats.BoundaryEdges)};nonManifoldEdges={parts.Sum(p => (long)p.Stats.NonManifoldEdges)};inconsistentWindingEdges={parts.Sum(p => (long)p.Stats.InconsistentWindingEdges)};caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};renderSections={parts.Sum(p => p.Visuals.Count)};partitionCell={(settings.Study == "dungeon-split" ? 14 : 0)};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};shadows={shadows};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
+        $"volumeProbes={volumeProbes};volumeCell={(settings.Study == "volume-sampled" ? VolumeCaveRecipe.SampledCell(settings.Detail) : VolumeCaveRecipe.Cell(settings.Detail)):F3};boundedLeafVertices={parts.Sum(p => (long)p.Stats.BoundedLeafVertices)};boundaryEdges={parts.Sum(p => (long)p.Stats.BoundaryEdges)};nonManifoldEdges={parts.Sum(p => (long)p.Stats.NonManifoldEdges)};inconsistentWindingEdges={parts.Sum(p => (long)p.Stats.InconsistentWindingEdges)};caveCarvingCell={CaveRecipe.CarvingCell(settings.Detail):F3};caveTriangles={parts.Where(p => p.Name.StartsWith("cave ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generationError={generationError};study={settings.Study};materialSampleSpacing={settings.MaterialSampleSpacing:F2};detailCell={DetailStudyRecipe.SamplingCell(settings.Detail):F2};stoneWidths=0.64/0.32/0.16/0.08;carvedStrokes=0.16/0.08/0.04/0.02;detailTriangles={parts.Where(p => p.Name.StartsWith("detail ", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};detail={settings.Detail};sampleCell={SampleCell(settings.Detail):F2};sampleWidths=0.04/0.08/0.16/0.32;sampleAngles=0/45/90;sampleTriangles={parts.Where(p => p.Name.StartsWith("sampling panel", StringComparison.Ordinal)).Sum(p => (long)p.Stats.Triangles)};generation={generation};treatment={settings.Treatment};width={settings.Width:F1};doorWidth={settings.DoorWidth:F1};doorOffset={settings.DoorOffset:F2};seed={settings.Seed};courtyardDepth=20;passageLength=12;chamber=12x10;parts={parts.Count};renderSections={parts.Sum(p => p.Visuals.Count)};partitionCell={(settings.Study == "dungeon-split" ? 14 : 0)};triangles={triangleCount};vertices={vertexCount};seconds={generationSeconds:F3};cellSize={settings.CellSize:F3};crease={settings.CreaseDegrees:F0};materialBoundaries={BoundaryModeName(settings.MaterialBoundaryMode)};materialCutoff={settings.MaterialCutoff:F2};reorientedTriangles={correctionCount};degenerateTriangles={parts.Sum(p => (long)p.Stats.DegenerateTriangles)};collision=generated-mesh-copy;masonry={settings.Masonry};testParts={TestParts.Count()};testTriangles={TestParts.Sum(p => (long)p.Stats.Triangles)};testVertices={TestParts.Sum(p => (long)p.Stats.Vertices)};testSeconds={testGenerationSeconds:F3};testWall=west;testZ=-2..2");
 
     private IEnumerable<Part> TestParts => parts.Where(p => p.Name.StartsWith(TestPartPrefix, StringComparison.Ordinal));
 

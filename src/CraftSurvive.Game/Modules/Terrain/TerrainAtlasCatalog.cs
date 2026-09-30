@@ -27,14 +27,6 @@ internal sealed class TerrainAtlasCatalog : IDisposable
     private const float LampBlue = 0.54f;
     private const int FixedEntryCount = 2;
 
-    /// <summary>
-    /// Authored materials the directional voxel projection accepts per scene, raised
-    /// from three base bindings by `rusty-engine` #8667. The product still refuses
-    /// an over-capacity binding here, with a message that names the limit, because
-    /// exceeding it fails inside the Engine with a bare status.
-    /// </summary>
-    private const int MaximumMaterials = 16;
-
     private readonly AuthoredCatalog catalog;
     private readonly TerrainAtlasLayout layout;
 
@@ -58,7 +50,6 @@ internal sealed class TerrainAtlasCatalog : IDisposable
         try
         {
             layout = TerrainAtlasLayout.Read(content);
-            RequireBindableMaterialCount();
             RenderResourceInfo texture = engine.Graphics.OpenResource(new RenderResourceRequest(AtlasContentPath));
             if (texture.Kind != RenderResourceKind.Texture || texture.ByteLength == 0 || texture.Handle.Handle.Value == 0)
             {
@@ -128,22 +119,6 @@ internal sealed class TerrainAtlasCatalog : IDisposable
         materials.Clear();
         baseMaterials.Clear();
         topMaterials.Clear();
-    }
-
-    private static void RequireBindableMaterialCount()
-    {
-        int bindable = 0;
-        foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
-        {
-            bindable += block.TopRegion is null ? 1 : 2;
-        }
-
-        if (bindable > MaximumMaterials)
-        {
-            throw new InvalidOperationException(
-                $"Block binding needs {bindable} materials, and the Engine's directional voxel projection " +
-                $"accepts {MaximumMaterials} per scene.");
-        }
     }
 
     private static Material Lookup(Dictionary<BlockId, Material> table, BlockId id) =>

@@ -99,7 +99,6 @@ internal sealed class TerrainWorld : IDisposable
     internal void ReleaseRetiredCourtyard() => courtyard?.ReleaseRetired();
     internal void UpdateCourtyard() => courtyard?.Update();
     internal void TranslateCourtyard(Vector3 delta) => courtyard?.Translate(delta);
-    internal string QueueCourtyardShadows(bool enabled) => courtyard?.QueueShadows(enabled) ?? "courtyard inactive";
     internal string ReadWorkbenchBuild() => courtyard?.ReadWorkbenchBuild() ?? "courtyard inactive";
     internal CollisionReplaceReceipt WorkbenchCollision =>
         (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).CollisionReceipt;
@@ -249,6 +248,10 @@ internal sealed class TerrainWorld : IDisposable
     /// it is aimed, and re-aiming at a volume you have just filled picks a different centre, which
     /// is how an "undo" leaves a rim.
     /// </summary>
+    /// <summary>The material standing at a cell now: the player's override, else the recipe's.</summary>
+    internal ushort MaterialAt(VoxelAddress address) =>
+        overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);
+
     internal TerrainWorldEditResult TryEditCells(IReadOnlyList<VoxelAddress> cells, TerrainEditKind kind,
         ushort material, Func<VoxelAddress, bool>? playerOverlaps = null)
     {

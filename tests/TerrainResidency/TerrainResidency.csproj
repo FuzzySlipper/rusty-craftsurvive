@@ -29,10 +29,10 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainResidencyPolicy.cs" Link="TerrainResidencyPolicy.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainOverlayState.cs" Link="TerrainOverlayState.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/TerrainEditPolicy.cs" Link="TerrainEditPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastPolicy.cs" Link="TerrainEditPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastSequence.cs" Link="TerrainEditPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BuildStamp.cs" Link="TerrainEditPolicy.cs" />
-    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="TerrainEditPolicy.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastPolicy.cs" Link="Manipulation/BlastPolicy.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlastCharge.cs" Link="Manipulation/BlastCharge.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BuildStamp.cs" Link="Manipulation/BuildStamp.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="Manipulation/BlockEntityIndex.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="VoxelAddress.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerConstants.cs" Link="PlayerConstants.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerInputState.cs" Link="PlayerInputState.cs" />
