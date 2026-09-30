@@ -100,7 +100,10 @@ location.
 - `Modules/Discovery`: points of interest noticed and reached, kept in a saved journal.
 - `Modules/Manipulation` and `Modules/Actions`: blast charges with dust, build stamps and block
   entities (doors, lights, containers), reached from the UI's action bar and debug commands.
+- `Modules/Content`: the block registry and the terrain atlas layout, checked against each other.
+- `Modules/Sky`: the authored sky panorama, through the Engine's appearance and camera view.
 - `Modules/World`: the save manifest and store, the UI projection, and the world frame.
+- `Modules/Debugging`: debug-command adapters over the owners, and the Engine's playtest commands.
 - `src/ui`: a HUD over the product's projection and an action bar that claims its intent.
 
 This is a bounded survival slice, not a claim of complete survival gameplay. See
