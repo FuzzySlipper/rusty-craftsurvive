@@ -210,6 +210,13 @@ internal sealed class TerrainWorld : IDisposable
         return edits.ApplyFromView(Session, origin, direction, kind, material, radius, playerOverlaps, currentStep);
     }
 
+    /// <summary>What the view from this origin is aimed at, within edit reach.</summary>
+    internal TerrainPick PickFromView(Vector3 origin, Vector3 direction)
+    {
+        EnsureStarted();
+        return edits.Pick(Session, origin, direction);
+    }
+
     /// <summary>
     /// The generator's identity as a readout: its version, its live fingerprint and whether that
     /// fingerprint is the one recorded for the version, plus residency and the chunk cache.

@@ -34,6 +34,7 @@
     <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerWorldPosition.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Actions/PlayerAction.cs" LinkBase="Product/Actions" />
     <Compile Include="$(ProductModules)Content/TerrainAtlasLayout.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)Player/PlayerInputState.cs" LinkBase="Product/Player" />

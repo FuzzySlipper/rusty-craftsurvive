@@ -83,7 +83,16 @@ jobs:
         with:
           node-version: 24
       - run: npm install --global pnpm@10.15.0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
       - name: Install UI dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+      # The UI compiles against the pinned pair's product-UI declarations, which the SDK ships.
+      - name: Install rusty and the product's pinned Engine pair
+        run: |
+          pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
+          curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
+          ~/.local/bin/rusty install
       - name: Check the DOM companion
         run: pnpm run check:ui

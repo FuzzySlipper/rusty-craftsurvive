@@ -6,9 +6,10 @@
     "lib": ["ES2022", "DOM"],
     "strict": true,
     "noEmitOnError": true,
+    "noUncheckedIndexedAccess": true,
     "outDir": "generated/source",
     "rootDir": ".",
     "skipLibCheck": true
   },
-  "include": ["main.ts", "live-debug-panel.d.ts"]
+  "include": ["*.ts"]
 }

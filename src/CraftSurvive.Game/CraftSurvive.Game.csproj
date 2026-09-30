@@ -22,7 +22,7 @@
          never assembles or copies Engine browser/runtime infrastructure. The
          SDK reruns it only when ../ui or a listed dependency changes. -->
     <RustyEngineProductUiSourceRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../ui'))</RustyEngineProductUiSourceRoot>
-    <RustyEngineProductUiBuildCommand>pnpm --dir &quot;$(MSBuildThisFileDirectory)../..&quot; exec tsc --project &quot;$(MSBuildThisFileDirectory)../ui/tsconfig.json&quot;</RustyEngineProductUiBuildCommand>
+    <RustyEngineProductUiBuildCommand>node &quot;$(MSBuildThisFileDirectory)../../scripts/ui-tsc.mjs&quot; --types &quot;$(RustyEngineProductUiTypes)&quot;</RustyEngineProductUiBuildCommand>
     <RustyEngineProductUiProjectionStream>craftsurvive.terrain</RustyEngineProductUiProjectionStream>
     <RustyEngineProductUiProjectionContract>craftsurvive.terrain.v1</RustyEngineProductUiProjectionContract>
     <RustyEngineProductLifecycleMode>realtime</RustyEngineProductLifecycleMode>
@@ -52,6 +52,8 @@
     <RustyEngineProductInputIntent Include="craftsurvive.edit.primary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.edit.secondary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.impulse" Value="digital" />
+    <!-- The player-facing UI claims its requests as one payload intent; PlayerAction decodes them. -->
+    <RustyEngineProductInputIntent Include="craftsurvive.ui" Value="payload:craftsurvive.ui.action.v1" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-x" Value="axis" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-y" Value="axis" />
     <RustyEngineProductInputIntent Include="craftsurvive.look.analog-x" Value="axis" />
@@ -78,6 +80,6 @@
   <Import Project="TerrainGeneratorSource.targets" />
 
   <ItemGroup>
-    <RustyEngineProductUiInput Include="$(MSBuildThisFileDirectory)../../package.json;$(MSBuildThisFileDirectory)../../pnpm-lock.yaml" />
+    <RustyEngineProductUiInput Include="$(MSBuildThisFileDirectory)../../package.json;$(MSBuildThisFileDirectory)../../pnpm-lock.yaml;$(MSBuildThisFileDirectory)../../scripts/ui-tsc.mjs;$(RustyEngineProductUiTypes)" />
   </ItemGroup>
 </Project>

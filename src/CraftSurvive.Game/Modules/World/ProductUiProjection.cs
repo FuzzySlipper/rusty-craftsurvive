@@ -4,14 +4,15 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// The product's one UI projection, as a flat numeric object: the world's scene facts, the
-/// player's pose and the journal's counts. Each owner pushes its facts to the publisher; the
+/// The product's one UI projection, as a flat object of numbers and one text: the world's scene
+/// facts, the player's pose, vitals and progress, the journal's counts, and what the last UI action
+/// came to. Each owner pushes its facts to the publisher; the
 /// projection is how they are laid out for the DOM companion.
 /// </summary>
 internal static class ProductUiProjection
 {
     internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, PlayerUiFacts? player,
-        DiscoveryUiFacts? discovery)
+        DiscoveryUiFacts? discovery, ActionUiFacts? actions)
     {
         NumericObjectBuilder values = new();
         values.Add("revision", scene.SourceRevision);
@@ -27,6 +28,12 @@ internal static class ProductUiProjection
             values.Add("pitchDegrees", facts.PitchDegrees);
             values.Add("grounded", facts.Grounded ? 1d : 0d);
             values.Add("crouched", facts.Crouched ? 1d : 0d);
+            values.Add("health", facts.Health);
+            values.Add("maximumHealth", facts.MaximumHealth);
+            values.Add("defeats", facts.Defeats);
+            values.Add("experience", facts.Experience);
+            values.Add("level", facts.Level);
+            values.Add("itemsCollected", facts.ItemsCollected);
         }
         if (discovery is DiscoveryUiFacts journal)
         {
@@ -45,10 +52,17 @@ internal static class ProductUiProjection
             values.Add("discoveryLastTick", journal.LastTick);
         }
 
+        if (actions is ActionUiFacts requests)
+        {
+            values.Add("actionsApplied", requests.Applied);
+            values.Add("actionsRefused", requests.Refused);
+            values.AddText("lastAction", requests.Last);
+        }
+
         return values.Build();
     }
 
-    /// <summary>Small encoder for a flat numeric UI object.</summary>
+    /// <summary>Small encoder for a flat UI object of numbers and text.</summary>
     private sealed class NumericObjectBuilder
     {
         private readonly List<StructuredValueNode> nodes = [];
@@ -70,6 +84,30 @@ internal static class ProductUiProjection
                 checked((uint)keyBytes.Length),
                 0,
                 0,
+                0,
+                0));
+            edges.Add(nodeIndex);
+        }
+
+        internal void AddText(string key, string value)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(key);
+            ArgumentNullException.ThrowIfNull(value);
+            byte[] keyBytes = Encoding.UTF8.GetBytes(key);
+            uint keyOffset = checked((uint)utf8.Count);
+            utf8.AddRange(keyBytes);
+            byte[] textBytes = Encoding.UTF8.GetBytes(value);
+            uint textOffset = checked((uint)utf8.Count);
+            utf8.AddRange(textBytes);
+            uint nodeIndex = checked((uint)nodes.Count + 1U);
+            nodes.Add(new StructuredValueNode(
+                StructuredValueKind.String,
+                0,
+                0,
+                keyOffset,
+                checked((uint)keyBytes.Length),
+                textOffset,
+                checked((uint)textBytes.Length),
                 0,
                 0));
             edges.Add(nodeIndex);

@@ -46,6 +46,9 @@ internal sealed class BuildModule : IProductModule
 
     public void Dispose() => lastStamp = [];
 
+    /// <summary>What the last request came to, for the player-facing UI.</summary>
+    internal string LastOutcome => lastOutcome;
+
     internal long Undone => undone;
 
     internal string Plate(long x, long y, long z, long width, long depth, long material)

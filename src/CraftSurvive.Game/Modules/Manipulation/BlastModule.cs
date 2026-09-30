@@ -121,6 +121,9 @@ internal sealed class BlastModule : IProductModule
     internal Vector3 DustCentre(VoxelAddress cell) =>
         frame.ToLocal(cell.X + CellCentre, cell.Y + CellCentre, cell.Z + CellCentre);
 
+    /// <summary>What the last request came to, for the player-facing UI.</summary>
+    internal string LastOutcome => lastOutcome;
+
     internal string Fire(long x, long y, long z, long radius)
     {
         BlastCharge charge = BlastCharge.Plan(

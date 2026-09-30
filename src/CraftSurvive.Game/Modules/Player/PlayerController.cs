@@ -59,6 +59,9 @@ internal sealed class PlayerController : IDisposable
     private Vector3 lastUpdatePositionAfter;
     private TerrainWorldEditResult? lastTerrainEdit;
 
+    /// <summary>Where the view pointed after the latest update's look; zero before the first update.</summary>
+    private Vector3 aimForward;
+
     internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui)
     {
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
@@ -161,6 +164,7 @@ internal sealed class PlayerController : IDisposable
         lastInputFrame = frame;
         LookReceipt lookReceipt = Look.IntegrateClamped(new LookRequest(look, frame.LookDelta, PlayerBody.Look));
         look = lookReceipt.After;
+        aimForward = lookReceipt.Forward;
 
         jumpPending |= frame.JumpHeld && !jumpHeld;
         impulsePending |= frame.ImpulseHeld && !impulseHeld;
@@ -198,6 +202,15 @@ internal sealed class PlayerController : IDisposable
         ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
         continuation.SaveIfDue(step.Step, Continuation());
+    }
+
+    /// <summary>What the player is aiming at now, within edit reach.</summary>
+    internal TerrainPick Aim()
+    {
+        EnsureStarted();
+        return aimForward == Vector3.Zero
+            ? TerrainPick.Missed(TerrainPickOutcome.CastMiss)
+            : terrain.PickFromView(EyePosition(), aimForward);
     }
 
     /// <summary>What was restored at start and how the continuation save is going.</summary>
@@ -425,7 +438,15 @@ internal sealed class PlayerController : IDisposable
         Angles.ToDegrees(look.YawRadians),
         Angles.ToDegrees(look.PitchRadians),
         motion.Grounded,
-        motion.Stance == CharacterStance.Crouched);
+        motion.Stance == CharacterStance.Crouched)
+    {
+        Health = Vitals.State.Health,
+        MaximumHealth = Vitals.MaximumHealth,
+        Defeats = Vitals.State.Defeats,
+        Experience = Progress.Experience,
+        Level = Progress.Level,
+        ItemsCollected = Progress.ItemsCollected,
+    };
 
     private void PublishRuntimeComponent()
     {

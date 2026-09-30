@@ -22,6 +22,19 @@ internal readonly record struct TerrainEditTiming(
     private static double Ms(long from, long to) => (to - from) * 1000.0 / Stopwatch.Frequency;
 }
 
+internal enum TerrainPickOutcome
+{
+    Picked,
+    CastMiss,
+    PickMiss,
+}
+
+/// <summary>What the view is aimed at: the block, the face it is seen by, and the open cell on that face.</summary>
+internal readonly record struct TerrainPick(TerrainPickOutcome Outcome, VoxelAddress Target, SpatialFace Face, VoxelAddress Adjacent)
+{
+    internal static TerrainPick Missed(TerrainPickOutcome outcome) => new(outcome, default, default, default);
+}
+
 /// <summary>
 /// The world's one edit path. <see cref="TerrainEditTransaction"/> decides the order - admission,
 /// then one Engine transaction, then the overlay - and this service supplies the Engine step and
@@ -115,6 +128,22 @@ internal sealed class TerrainEditService(
     internal TerrainWorldEditResult ApplyFromView(SpatialSession session, Vector3 origin, Vector3 direction,
         TerrainEditKind kind, ushort material, int radius, Func<VoxelAddress, bool>? playerOverlaps, long step)
     {
+        TerrainPick pick = Pick(session, origin, direction);
+        if (pick.Outcome != TerrainPickOutcome.Picked)
+        {
+            return pick.Outcome == TerrainPickOutcome.CastMiss ? TerrainWorldEditResult.CastMiss : TerrainWorldEditResult.PickMiss;
+        }
+
+        VoxelAddress center = kind == TerrainEditKind.Set ? pick.Adjacent : pick.Target;
+        TerrainEditRequest request = kind == TerrainEditKind.Set
+            ? TerrainEditRequest.Set(center, material, radius)
+            : TerrainEditRequest.Clear(center, radius);
+        return Apply(session, request, pick.Target, center, pick.Face, playerOverlaps, step);
+    }
+
+    /// <summary>The voxel the view meets within reach, the face it meets it on, and the open cell in front of that face.</summary>
+    internal TerrainPick Pick(SpatialSession session, Vector3 origin, Vector3 direction)
+    {
         SpatialHit cast = engine.Spatial.CastRay(new SpatialRaycastRequest(
             session,
             origin,
@@ -126,22 +155,18 @@ internal sealed class TerrainEditService(
             ReadOnlyMemory<SpatialEntityCollider>.Empty));
         if (!cast.Present || cast.Kind != SpatialHitKind.Voxel)
         {
-            return TerrainWorldEditResult.CastMiss;
+            return TerrainPick.Missed(TerrainPickOutcome.CastMiss);
         }
 
         SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(
             session, origin, direction, TerrainConstants.EditReach, cast.VoxelX, cast.VoxelY, cast.VoxelZ, cast.Face));
         if (!picked.Present || picked.Kind != SpatialHitKind.Voxel)
         {
-            return TerrainWorldEditResult.PickMiss;
+            return TerrainPick.Missed(TerrainPickOutcome.PickMiss);
         }
 
         VoxelAddress target = new(picked.VoxelX, picked.VoxelY, picked.VoxelZ);
-        VoxelAddress center = kind == TerrainEditKind.Set ? Adjacent(target, picked.Face) : target;
-        TerrainEditRequest request = kind == TerrainEditKind.Set
-            ? TerrainEditRequest.Set(center, material, radius)
-            : TerrainEditRequest.Clear(center, radius);
-        return Apply(session, request, target, center, picked.Face, playerOverlaps, step);
+        return new TerrainPick(TerrainPickOutcome.Picked, target, picked.Face, Adjacent(target, picked.Face));
     }
 
     private static VoxelEdit ToEngineEdit(TerrainVoxelEdit edit) => edit.Material == TerrainConstants.EmptyMaterial

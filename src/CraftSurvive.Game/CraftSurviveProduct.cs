@@ -1,5 +1,6 @@
 using Rusty.Engine;
 using Rusty.Engine.Debugging;
+using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Discovery;
@@ -38,6 +39,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly BuildModule build;
     private readonly BlockEntityStore entityStore;
 
+    /// <summary>The player-facing UI's action claims, turned into blast and build requests.</summary>
+    private readonly PlayerActionModule actions;
+
     /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
     private readonly BlockEntityIndex entities = new();
 
@@ -62,6 +66,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         blast = new BlastModule(context.Engine, terrain, frame, entities);
         build = new BuildModule(terrain, entities);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
+        actions = new PlayerActionModule(player, blast, build, ui);
 
         // The entity store runs last, so it saves what a charge swept or a build placed this update.
         gameplay = [creatures, discovery, blast, build, entityStore];
@@ -122,9 +127,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireState(ProductLifecycleState.Running, nameof(Update));
         ProductStep step = ProductStep.From(update.Facts);
 
-        // The player moves first on this update's input; creatures, discovery and charges then
-        // read where the player is now and what they asked for this update.
+        // The player moves first on this update's input, then the UI's requests are aimed from
+        // where they now look; creatures, discovery and charges then read where the player is and
+        // what they asked for this update.
         player.Update(update);
+        actions.Update(update);
         foreach (IProductModule module in gameplay)
         {
             module.Update(step);
@@ -157,6 +164,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         terrain.Restart();
         sky.Restart();
         player.Restart();
+        actions.Restart();
         foreach (IProductModule module in gameplay)
         {
             module.Restart();
