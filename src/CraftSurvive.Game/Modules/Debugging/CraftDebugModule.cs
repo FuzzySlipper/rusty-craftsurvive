@@ -76,6 +76,13 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.terrain.edit", Description = "Reads the latest terrain target and typed edit outcome.")]
     public string ReadTerrainEdit() => player.TerrainEditReadout();
 
+    [DebugCommand("craft.terrain.timing", Description = "Switches recording of each edit's cost by part (1 on, 0 off); the blast readout reports it.")]
+    public string SetEditTiming(long enabled)
+    {
+        terrain.EditTimingEnabled = enabled != 0;
+        return $"editTiming={(terrain.EditTimingEnabled ? "on" : "off")}";
+    }
+
     [DebugCommand("craft.terrain.materials", Description = "Reads the copied Engine directional terrain material mapping.")]
     public string ReadTerrainMaterials()
     {

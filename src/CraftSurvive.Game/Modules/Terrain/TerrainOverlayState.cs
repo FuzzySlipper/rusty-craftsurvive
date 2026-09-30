@@ -40,9 +40,12 @@ internal sealed class TerrainOverlayState
     internal bool Admits(IReadOnlyList<TerrainVoxelEdit> edits)
     {
         ArgumentNullException.ThrowIfNull(edits);
-        int newEntries = edits.Select(edit => edit.Address).Distinct().Count(address => !materials.ContainsKey(address));
-        return materials.Count + newEntries <= TerrainConstants.MaximumOverlayEntries;
+        return materials.Count + NewEntries(edits) <= TerrainConstants.MaximumOverlayEntries;
     }
+
+    /// <summary>How many entries these edits add: each distinct cell not already overridden. Admission and apply both count this way.</summary>
+    private int NewEntries(IEnumerable<TerrainVoxelEdit> edits) =>
+        edits.Select(edit => edit.Address).Distinct().Count(address => !materials.ContainsKey(address));
 
     /// <summary>
     /// The overlay as a sorted, validated value. It is rebuilt only when the overlay has changed
@@ -63,8 +66,7 @@ internal sealed class TerrainOverlayState
     {
         ArgumentNullException.ThrowIfNull(admission);
         TerrainVoxelEdit[] edits = admission.Edits.ToArray();
-        int newEntries = edits.Count(edit => !materials.ContainsKey(edit.Address));
-        if (materials.Count + newEntries > TerrainConstants.MaximumOverlayEntries)
+        if (materials.Count + NewEntries(edits) > TerrainConstants.MaximumOverlayEntries)
         {
             throw new InvalidOperationException(
                 $"Terrain overlays allow at most {TerrainConstants.MaximumOverlayEntries} retained entries.");

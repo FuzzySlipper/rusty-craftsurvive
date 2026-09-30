@@ -50,7 +50,8 @@ internal sealed class TerrainWorld : IDisposable
         GenerationFingerprint = TerrainGenerationFingerprint.Compute(
             configuration.CreateRecipe(new EngineTerrainDraws(engine.Random)),
             TerrainGenerationFingerprint.Startup);
-        chunkCache = new TerrainChunkCache(engine, recipe.Contract, GenerationFingerprint);
+        CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
+        chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
         TerrainChunkGenerator generator = new(recipe, chunkCache);
         TerrainResidencyPolicy policy = new(recipe, generator);
         SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
@@ -69,6 +70,9 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>What this run's generator produces over the startup probe, with the Engine's draws.</summary>
     internal ulong GenerationFingerprint { get; }
 
+    /// <summary>What cached chunks are keyed on: the output fingerprint and the generator's source stamp.</summary>
+    internal ulong CacheIdentity { get; }
+
     internal SpatialSession Session => session ?? throw new InvalidOperationException("Terrain spatial session is unavailable.");
 
     /// <summary>The atlas image every block material is built from.</summary>
@@ -76,6 +80,13 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The last accepted edit's cost by part; diagnostics, not game state.</summary>
     internal string LastEditTiming => edits.LastTiming;
+
+    /// <summary>Switches recording of where each edit's time goes; diagnostics only, off by default.</summary>
+    internal bool EditTimingEnabled
+    {
+        get => edits.TimingEnabled;
+        set => edits.TimingEnabled = value;
+    }
 
     internal void Start()
     {
@@ -210,7 +221,7 @@ internal sealed class TerrainWorld : IDisposable
             ? expected == GenerationFingerprint ? "match" : string.Create(CultureInfo.InvariantCulture, $"mismatch expected={expected:x16}")
             : "unrecorded";
         return string.Create(CultureInfo.InvariantCulture,
-            $"version={version} fingerprint={GenerationFingerprint:x16} golden={golden} {streamer.Readout()}");
+            $"version={version} fingerprint={GenerationFingerprint:x16} golden={golden} source={TerrainGeneratorSource.Stamp:x16} cacheIdentity={CacheIdentity:x16} {streamer.Readout()}");
     }
 
     /// <summary>Reads the live Engine-owned voxel scene for product diagnostics.</summary>

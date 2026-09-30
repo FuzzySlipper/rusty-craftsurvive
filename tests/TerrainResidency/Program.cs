@@ -65,7 +65,17 @@ PlayerInputChecks.Run();
         "the fingerprint must be taken over the shipped builders");
     Require(startup != TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup, catalogue + 1),
         "a changed structure catalogue must move the fingerprint");
-    Console.WriteLine($"Generator golden fingerprints hold for version {TerrainGeneratorContract.CurrentVersion}; seed, version and every structure builder each move the fingerprint.");
+
+    // The cache keys on more than the sampled output: the stamp of the generator's sources moves
+    // the identity for a change that shows only far from the probe, and so does the output.
+    ulong identity = TerrainGenerationFingerprint.CacheIdentity(startup, 0x1111UL);
+    Require(identity == TerrainGenerationFingerprint.CacheIdentity(startup, 0x1111UL), "a cache identity must repeat");
+    Require(identity != TerrainGenerationFingerprint.CacheIdentity(startup, 0x1112UL), "a changed generator source must move the cache identity");
+    Require(identity != TerrainGenerationFingerprint.CacheIdentity(startup + 1, 0x1111UL), "a changed output must move the cache identity");
+    Require(TerrainChunkCacheKey.GeneratorPrefix(baseline.Contract, identity)
+            != TerrainChunkCacheKey.GeneratorPrefix(baseline.Contract, TerrainGenerationFingerprint.CacheIdentity(startup, 0x1112UL)),
+        "chunks cached by one generator source must not be readable under another");
+    Console.WriteLine($"Generator golden fingerprints hold for version {TerrainGeneratorContract.CurrentVersion}; seed, version and every structure builder each move the fingerprint; source and output each move the cache identity.");
 }
 
 // A world of any size has its border wall at its own edge, not at the default world's.
@@ -110,6 +120,32 @@ PlayerInputChecks.Run();
     TerrainEditRequest rewrite = TerrainEditRequest.FromCells(
         [entries[0].Address, entries[1].Address, entries[2].Address], TerrainEditKind.Clear, TerrainConstants.EmptyMaterial);
     Require(TerrainEditAdmission.Admit(rewrite, null, full) is TerrainEditAccepted, "rewriting held cells must not count against capacity");
+
+    // The transaction the edit service runs: an edit past capacity never reaches the Engine step,
+    // and a cell named twice is one cell to admission, the Engine and the overlay alike, so an
+    // edit admitted one entry short of the cap is recorded rather than thrown after the Engine.
+    int engineCalls = 0;
+    int engineCells = 0;
+    bool EngineAccepts(TerrainEditAccepted accepted)
+    {
+        engineCalls++;
+        engineCells += accepted.Edits.Count;
+        return true;
+    }
+
+    Require(TerrainEditTransaction.Run(three, null, full, EngineAccepts) is TerrainEditRefused { Rejection.Reason: TerrainEditRejectionReason.OverlayFull }
+        && engineCalls == 0 && full.Count == held, "an edit past capacity must be refused with OverlayFull and make no Engine call");
+    VoxelAddress twice = new(-5, 40, 0);
+    TerrainEditRequest duplicated = TerrainEditRequest.FromCells(
+        [new VoxelAddress(-4, 40, 0), twice, twice], TerrainEditKind.Set, TerrainConstants.StoneMaterial);
+    Require(TerrainEditTransaction.Run(duplicated, null, full, EngineAccepts) is TerrainEditRecorded { Receipt.AppliedEdits.Count: 2 }
+        && engineCalls == 1 && engineCells == 2 && full.Count == TerrainConstants.MaximumOverlayEntries,
+        "a cell named twice must be one edit, admitted and recorded without exceeding the cap");
+    Require(TerrainEditTransaction.Run(TerrainEditRequest.FromCells([new VoxelAddress(-6, 40, 0)], TerrainEditKind.Set, TerrainConstants.StoneMaterial),
+            null, full, EngineAccepts) is TerrainEditRefused && engineCalls == 1,
+        "a full overlay must refuse the next new cell without an Engine call");
+    Require(TerrainEditTransaction.Run(rewrite, null, full, _ => false) is TerrainEditUnchanged && full.TryGetMaterial(entries[0].Address, out ushort kept) && kept == TerrainConstants.StoneMaterial,
+        "an edit the Engine found nothing to change in must leave the overlay alone");
 
     TerrainOverlayState small = new(seed);
     TerrainOverlaySnapshot empty = small.Snapshot();
@@ -433,6 +469,24 @@ PlayerInputChecks.Run();
     Require(BlastCharge.Plan(blastCentre, 2, _ => dirt).Cleared.SequenceEqual(allDirt.Cleared),
         "the same charge on the same world must break the same cells");
     Console.WriteLine($"Blast charge: radius 2 breaks 33/33 dirt and {allBrick.Cleared.Count}/33 brick; bedrock, water and air hold; radius 6 ({tooBig.Admission.Cells} cells) refused.");
+
+    // A charge's dust seed must be admissible wherever the charge goes off: the Engine takes a
+    // 53-bit seed, and ordinary centres are negative or past 2047 on some axis.
+    VoxelAddress[] centres =
+    [
+        new(0, 0, 0), new(-1, 8, -1), new(2048, 12, -2048), new(-5120, -9, 5119), new(5119, 40, 5119),
+        new(TerrainConstants.MaximumCoordinateMagnitude, 0, -TerrainConstants.MaximumCoordinateMagnitude),
+    ];
+    ulong[] identities = [.. centres.Select(BlastDust.ChargeIdentity)];
+    foreach (ulong identity in identities)
+    {
+        Require(BlastDust.Smoke(default, default, identity).Seed <= BlastDust.MaximumParticleSeed
+            && BlastDust.Debris(default, default, identity).Seed <= BlastDust.MaximumParticleSeed,
+            $"a dust seed must fit 53 bits, identity {identity:x16} does not");
+    }
+
+    Require(identities.Distinct().Count() == identities.Length, "different charge centres must have different dust identities");
+    Require(BlastDust.ChargeIdentity(new VoxelAddress(-1, 8, -1)) == identities[1], "the same centre must give the same dust");
 
     // A stamp is a decided volume too, and the shapes a base is built from have to be exactly the
     // size they claim and no larger than the bound.

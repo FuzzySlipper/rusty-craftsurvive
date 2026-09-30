@@ -75,6 +75,8 @@
     <RustyEngineProductInputMapping Include="craftsurvive.edit.secondary.controller-left-trigger" Intent="craftsurvive.edit.secondary" Trigger="controller-button:button-6:pressed" />
   </ItemGroup>
 
+  <Import Project="TerrainGeneratorSource.targets" />
+
   <ItemGroup>
     <RustyEngineProductUiInput Include="$(MSBuildThisFileDirectory)../../package.json;$(MSBuildThisFileDirectory)../../pnpm-lock.yaml" />
   </ItemGroup>

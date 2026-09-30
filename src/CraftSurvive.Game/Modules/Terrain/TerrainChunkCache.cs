@@ -8,8 +8,10 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// <summary>
 /// The identity of a cached chunk payload. A cached chunk is only valid for the generator that
 /// produced it, so the key carries the whole generation contract - seed, version and extent -
-/// the generator's output fingerprint, and the exact address. A chunk written under one tuning
-/// therefore can never be read under another, whether or not its version was bumped.
+/// the generator's cache identity (its output fingerprint and the stamp of its sources, see
+/// <see cref="TerrainGenerationFingerprint.CacheIdentity"/>), and the exact address. A chunk
+/// written by one generator build therefore can never be read under another's tuning, whether
+/// or not its version was bumped.
 /// </summary>
 internal static class TerrainChunkCacheKey
 {
@@ -20,15 +22,15 @@ internal static class TerrainChunkCacheKey
     internal const string IndexKey = "index";
 
     /// <summary>The part of every key this generator writes: all of it but the address.</summary>
-    internal static string GeneratorPrefix(TerrainGeneratorContract contract, ulong fingerprint) =>
+    internal static string GeneratorPrefix(TerrainGeneratorContract contract, ulong identity) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{Prefix}/{contract.Seed:x16}/{contract.Version}/{contract.Extent}/{fingerprint:x16}/");
+            $"{Prefix}/{contract.Seed:x16}/{contract.Version}/{contract.Extent}/{identity:x16}/");
 
-    internal static string For(TerrainGeneratorContract contract, ulong fingerprint, TerrainChunkAddress address) =>
+    internal static string For(TerrainGeneratorContract contract, ulong identity, TerrainChunkAddress address) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{GeneratorPrefix(contract, fingerprint)}{address.X}.{address.Y}.{address.Z}");
+            $"{GeneratorPrefix(contract, identity)}{address.X}.{address.Y}.{address.Z}");
 }
 
 /// <summary>
@@ -202,16 +204,16 @@ internal sealed class TerrainChunkCache : IDisposable
 
     private readonly IEngineContext engine;
     private readonly TerrainGeneratorContract contract;
-    private readonly ulong fingerprint;
+    private readonly ulong identity;
     private readonly PersistenceStore store;
     private readonly TerrainChunkCacheIndex index;
     private int unsavedWrites;
 
-    internal TerrainChunkCache(IEngineContext engine, TerrainGeneratorContract contract, ulong fingerprint)
+    internal TerrainChunkCache(IEngineContext engine, TerrainGeneratorContract contract, ulong identity)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.contract = contract;
-        this.fingerprint = fingerprint;
+        this.identity = identity;
         store = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainChunkCacheKey.Scope));
         using (PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store, TerrainChunkCacheKey.IndexKey)))
         {
@@ -220,7 +222,7 @@ internal sealed class TerrainChunkCache : IDisposable
                 : new TerrainChunkCacheIndex([]);
         }
 
-        IReadOnlyList<string> stale = index.RetainOnly(TerrainChunkCacheKey.GeneratorPrefix(contract, fingerprint));
+        IReadOnlyList<string> stale = index.RetainOnly(TerrainChunkCacheKey.GeneratorPrefix(contract, identity));
         foreach (string key in stale)
         {
             engine.Persistence.Delete(new PersistenceDeleteRequest(store, key, PersistenceRevisionGuard.Any, 0));
@@ -248,7 +250,7 @@ internal sealed class TerrainChunkCache : IDisposable
         materials = [];
         using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
             store,
-            TerrainChunkCacheKey.For(contract, fingerprint, address)));
+            TerrainChunkCacheKey.For(contract, identity, address)));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         if (!info.Present)
         {
@@ -269,7 +271,7 @@ internal sealed class TerrainChunkCache : IDisposable
     /// <summary>Writes one generated chunk, evicting the oldest when the cache is full.</summary>
     internal void Write(TerrainChunkAddress address, ReadOnlySpan<ushort> materials)
     {
-        string key = TerrainChunkCacheKey.For(contract, fingerprint, address);
+        string key = TerrainChunkCacheKey.For(contract, identity, address);
         foreach (string evicted in index.Add(key))
         {
             engine.Persistence.Delete(new PersistenceDeleteRequest(store, evicted, PersistenceRevisionGuard.Any, 0));

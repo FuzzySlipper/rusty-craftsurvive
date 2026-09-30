@@ -7,7 +7,7 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// The smoke and debris that cover a charge. Emitted before the edit, with lifetimes long enough
 /// that the cloud is still moving when the cleared cells disappear, so the blast reads as one event.
 ///
-/// Everything here is a pure function of the charge - a centre and a seed - so the same blast
+/// Everything here is a pure function of the charge - its centre and the identity mixed from it - so the same blast
 /// produces the same dust, as the product's generation draws do.
 /// </summary>
 internal static class BlastDust
@@ -33,25 +33,38 @@ internal static class BlastDust
 
     private const string DebrisSignal = "craftsurvive.blast.debris";
 
-    /// <summary>Bit offsets that pack a centre's three coordinates into one seed.</summary>
-    private const int SeedShiftX = 42;
+    /// <summary>The widest seed an emission admits: the Engine requires it to fit 53 bits.</summary>
+    internal const ulong MaximumParticleSeed = (1UL << 53) - 1;
 
-    private const int SeedShiftY = 21;
+    private const ulong IdentityOffsetBasis = 0xCBF2_9CE4_8422_2325UL;
+    private const ulong IdentityPrime = 0x0000_0100_0000_01B3UL;
 
     /// <summary>Separates the debris emitter's identity from the smoke's for the same charge.</summary>
     private const ulong DebrisIdentitySalt = 0x9E37_79B9_7F4A_7C15UL;
 
     /// <summary>
-    /// A charge's identity as a seed: the same blast in the same place produces the same dust.
+    /// A charge's identity: the same blast in the same place produces the same dust. Every
+    /// coordinate is mixed whole, so negative and distant centres stay distinct.
     /// </summary>
-    internal static ulong ChargeSeed(CraftSurvive.Game.Modules.Terrain.VoxelAddress centre) =>
-        ((ulong)(uint)centre.X << SeedShiftX) ^ ((ulong)(uint)centre.Y << SeedShiftY) ^ (ulong)(uint)centre.Z;
+    internal static ulong ChargeIdentity(CraftSurvive.Game.Modules.Terrain.VoxelAddress centre)
+    {
+        ulong hash = IdentityOffsetBasis;
+        foreach (long coordinate in (ReadOnlySpan<long>)[centre.X, centre.Y, centre.Z])
+        {
+            hash = unchecked((hash ^ (ulong)coordinate) * IdentityPrime);
+        }
+
+        return hash;
+    }
+
+    /// <summary>A charge identity folded into the seed range an emission admits.</summary>
+    internal static ulong ParticleSeed(ulong identity) => (identity ^ (identity >> 53)) & MaximumParticleSeed;
 
     /// <summary>A charge's dust: a seeded burst of billboards that drifts up and fades out.</summary>
-    internal static PresentationParticleDescriptor Smoke(Vector3 centre, RenderResourceReference sprite, ulong seed) => new()
+    internal static PresentationParticleDescriptor Smoke(Vector3 centre, RenderResourceReference sprite, ulong identity) => new()
     {
         SignalId = SmokeSignal,
-        LogicalId = seed,
+        LogicalId = identity,
         Visible = true,
         Anchor = new PresentationAnchor
         {
@@ -81,15 +94,15 @@ internal static class BlastDust
             new() { Age = 0.6f, Color = new Color(0.55f, 0.52f, 0.48f, 0.55f) },
             new() { Age = 1f, Color = new Color(0.5f, 0.48f, 0.45f, 0f) },
         },
-        Seed = seed,
+        Seed = ParticleSeed(identity),
         HasCollision = false,
     };
 
     /// <summary>A charge's debris: seeded cubes, thrown outward, falling, and settling on terrain.</summary>
-    internal static PresentationParticleDescriptor Debris(Vector3 centre, RenderResourceReference sprite, ulong seed) => new()
+    internal static PresentationParticleDescriptor Debris(Vector3 centre, RenderResourceReference sprite, ulong identity) => new()
     {
         SignalId = DebrisSignal,
-        LogicalId = seed ^ DebrisIdentitySalt,
+        LogicalId = identity ^ DebrisIdentitySalt,
         Visible = true,
         Anchor = new PresentationAnchor
         {
@@ -117,7 +130,7 @@ internal static class BlastDust
             new() { Age = 0f, Color = new Color(0.46f, 0.34f, 0.24f, 1f) },
             new() { Age = 1f, Color = new Color(0.4f, 0.3f, 0.22f, 1f) },
         },
-        Seed = seed,
+        Seed = ParticleSeed(identity),
         HasCollision = true,
         Collision = new PresentationParticleCollision
         {

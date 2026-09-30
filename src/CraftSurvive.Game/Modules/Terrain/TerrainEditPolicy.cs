@@ -62,11 +62,17 @@ internal static class TerrainBrushPolicy
                     $"Placed terrain material must be within 1..={TerrainConstants.MaximumMaterial}.");
             }
 
+            // A cell named twice is one edit: the Engine transaction, the overlay's capacity and its
+            // record all count cells, so they must agree on what a cell is.
             List<TerrainVoxelEdit> decidedEdits = new(decided.Count);
+            HashSet<VoxelAddress> seen = new(decided.Count);
             foreach (VoxelAddress address in decided)
             {
-                decidedEdits.Add(new TerrainVoxelEdit(address,
-                    request.Kind == TerrainEditKind.Clear ? TerrainConstants.EmptyMaterial : request.Material));
+                if (seen.Add(address))
+                {
+                    decidedEdits.Add(new TerrainVoxelEdit(address,
+                        request.Kind == TerrainEditKind.Clear ? TerrainConstants.EmptyMaterial : request.Material));
+                }
             }
 
             return decidedEdits.ToArray();

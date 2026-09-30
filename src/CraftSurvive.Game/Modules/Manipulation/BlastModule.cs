@@ -104,11 +104,11 @@ internal sealed class BlastModule : IProductModule
     private void EmitDust(BlastCharge charge)
     {
         Vector3 centre = DustCentre(charge.Centre);
-        ulong seed = BlastDust.ChargeSeed(charge.Centre);
+        ulong identity = BlastDust.ChargeIdentity(charge.Centre);
         try
         {
-            engine.Presentation.EmitParticles(BlastDust.Smoke(centre, terrain.AtlasSprite, seed));
-            engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, seed));
+            engine.Presentation.EmitParticles(BlastDust.Smoke(centre, terrain.AtlasSprite, identity));
+            engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, identity));
         }
         catch (EngineCallException exception)
         {

@@ -41,6 +41,14 @@ internal static class TerrainGenerationFingerprint
     private static readonly Lazy<ulong> ShippedCatalogue =
         new(() => StructureCatalogue(PoiStructures.MaterialAt, CrossingStructure.MaterialAt));
 
+    /// <summary>
+    /// What the chunk cache keys on: the output fingerprint, which catches a change in the Engine's
+    /// keyed draws, and the stamp of the generator's sources, which catches any change to the code
+    /// that produces a chunk however far from the probe it shows.
+    /// </summary>
+    internal static ulong CacheIdentity(ulong outputFingerprint, ulong sourceStamp) =>
+        Mix(Mix(FnvOffsetBasis, outputFingerprint), sourceStamp);
+
     internal static ulong Compute(TerrainRecipe recipe, ProbeScale scale) =>
         Compute(recipe, scale, ShippedCatalogue.Value);
 
