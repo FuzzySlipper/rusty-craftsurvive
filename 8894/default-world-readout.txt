@@ -1,0 +1,57 @@
+captured /tmp/claude-1000/-home-agent-dev-rusty-craftsurvive/6a2f63a4-621e-41e3-8138-bf2b25b3d57f/scratchpad/default-world.png 1428292 bytes, header 40
+>> engine.renderer
+{
+  "available": true,
+  "widget": {
+    "visible": false
+  },
+  "renderer": {
+    "adapter": "AMD Radeon RX 9070 XT (RADV GFX1201) (Vulkan)",
+    "output": "stream",
+    "stream": {
+      "viewerSize": null,
+      "recentFrames": 0,
+      "framesPerSecond": 0.0,
+      "medianMs": {
+        "render": 0.0,
+        "readback": 0.0,
+        "encode": 0.0
+      },
+      "medianBytesPerFrame": 0.0,
+      "bytesPerSecond": 0.0,
+      "shown": []
+    },
+    "inputSteps": [
+      {
+        "atUnixMs": 1790751883447.829,
+        "step": 1
+      }
+    ],
+    "skippedOps": {},
+    "lastSkip": null
+  }
+}
+>> engine.renderer.presentation
+{
+  "available": false,
+  "captureCorrelation": "unavailable",
+  "observationRuntime": {
+    "controlRevision": "1",
+    "generation": "1",
+    "instanceId": "2045026"
+  },
+  "presentation": null,
+  "runtime": {
+    "controlRevision": "1",
+    "generation": "1",
+    "instanceId": "2045026"
+  },
+  "schemaVersion": 1,
+  "worldReadiness": "unavailable"
+}
+>> craft.terrain.generation
+version=12 fingerprint=6a1882ca753dc2da golden=match cached=103 pendingWrites=0 resident=52 admissions=52 evictions=0 staleDropped=0 cacheHits=52
+=== host log highlights
+12:RUSTY_HOST shutdown={"reason":"supervisor-stdin-closed"}
+13:RUSTY_HOST shutdown={"reason":"supervisor-stdin-closed"}
+14:RUSTY_DEV {"detail":{"reason":"termination-signal"},"event":"stopped","schemaVersion":1}

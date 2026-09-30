@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Content-Type: application/x-rusty-frame
+Content-Length: 292771
+X-Rusty-Frame-Cameras: [{"basis":{"forward":[8.215052815785384e-8,-0.3420201241970062,0.9396925568580627],"right":[-0.9999999403953552,0.0,8.74227694680485e-8],"up":[2.9900348863520776e-8,0.9396925568580627,0.3420201241970062]},"id":"csharp-camera-1","motion":{"cut":false,"delaySeconds":0.016666666666666666,"interpolation":"position","sampleId":"732","sampleTimeSeconds":12.233333333333333},"observer":false,"pose":{"pitchDegrees":-20.0,"position":[0.00013990423758514225,4.585951805114746,-6.999762058258057],"yawDegrees":180.0},"projection":{"far":1000.0,"fovYDegrees":70.0,"kind":"perspective","near":0.05}}]
+Cache-Control: no-store
+X-Content-Type-Options: nosniff
+Connection: close
+
