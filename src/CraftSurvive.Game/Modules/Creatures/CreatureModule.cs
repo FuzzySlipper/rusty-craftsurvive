@@ -84,14 +84,6 @@ internal sealed class CreatureModule : IProductModule
         }
 
         started = true;
-
-        // The courtyard is an authored study scene, not the survival world: nothing spawns there.
-        if (terrain.IsCourtyard)
-        {
-            lastEvent = "no creatures in the courtyard scene";
-            return;
-        }
-
         Spawn();
     }
 

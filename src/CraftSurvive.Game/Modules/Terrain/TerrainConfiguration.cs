@@ -1,83 +1,21 @@
-using Rusty.Engine;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
-internal enum TerrainSceneMode
-{
-    /// <summary>A generated cubic world: the shape the campaign ships.</summary>
-    TraversalShowcase,
-
-    /// <summary>An authored study scene, kept as an authoring and comparison lane.</summary>
-    ExperimentalCourtyard,
-}
-
 /// <summary>
-/// The one place the product's boot scene is chosen. S2 (#8598) flips
-/// <see cref="Default"/> to the adventurer world and nothing else changes; every
-/// other scene is reached explicitly through the environment selection below,
-/// which is the authoring lane.
+/// The world this run generates: its seed, its extent and the generator version. The product has
+/// one scene - the generated world - and this is its identity.
 /// </summary>
-internal static class TerrainSceneSelection
+internal readonly record struct TerrainConfiguration(ulong Seed, int Size, uint GeneratorVersion)
 {
-    internal const string EnvironmentVariable = "CRAFTSURVIVE_SCENE";
-
-    /// <summary>
-    /// The boot scene: the adventurer's generated cubic world. It became the
-    /// default in S2 of campaign #8595, once that world had the block floor, water,
-    /// surface features, an authored border and the settled finite extent. The
-    /// courtyard studies are reached explicitly with `CRAFTSURVIVE_SCENE=courtyard`
-    /// and remain the authoring lane.
-    /// </summary>
-    internal const TerrainSceneMode Default = TerrainSceneMode.TraversalShowcase;
-
-    /// <summary>
-    /// Explicit selection, used by the authoring lane and by proofs. Values are
-    /// the scene names; an unknown value is a product configuration error rather
-    /// than a silent fallback.
-    /// </summary>
-    internal static TerrainSceneMode FromEnvironment()
-    {
-        string? selected = Environment.GetEnvironmentVariable(EnvironmentVariable);
-        return selected?.Trim().ToLowerInvariant() switch
-        {
-            null or "" => Default,
-            "courtyard" => TerrainSceneMode.ExperimentalCourtyard,
-            "traversal" => TerrainSceneMode.TraversalShowcase,
-            _ => throw new InvalidOperationException(
-                $"{EnvironmentVariable} must be 'courtyard' or 'traversal'; received '{selected}'."),
-        };
-    }
-}
-
-internal readonly record struct TerrainConfiguration(ulong Seed, int Size, TerrainSceneMode Scene, uint GeneratorVersion)
-{
-    /// <summary>
-    /// Reads the product-owned startup selection. TerrainWorld captures this
-    /// value once, so attached/restarted product state cannot change scenes.
-    /// </summary>
-    internal static TerrainConfiguration Default => TerrainSceneSelection.FromEnvironment() switch
-    {
-        TerrainSceneMode.ExperimentalCourtyard => ExperimentalCourtyard,
-        TerrainSceneMode.TraversalShowcase => TraversalShowcase,
-        _ => throw new InvalidOperationException("CraftSurvive selected an unsupported terrain scene."),
-    };
-
-    internal static TerrainConfiguration ExperimentalCourtyard => new(
+    /// <summary>The world the product boots into.</summary>
+    internal static TerrainConfiguration Default => new(
         TerrainConstants.DefaultSeed,
         TerrainConstants.DefaultSize,
-        TerrainSceneMode.ExperimentalCourtyard,
-        TerrainGeneratorContract.CurrentVersion);
-
-    /// <summary>A generated cubic world, selected explicitly for development and proofs.</summary>
-    internal static TerrainConfiguration TraversalShowcase => new(
-        TerrainConstants.DefaultSeed,
-        TerrainConstants.DefaultSize,
-        TerrainSceneMode.TraversalShowcase,
         TerrainGeneratorContract.CurrentVersion);
 
     internal TerrainConfiguration(ulong seed, int size)
-        : this(seed, size, TerrainSceneMode.TraversalShowcase, TerrainGeneratorContract.CurrentVersion)
+        : this(seed, size, TerrainGeneratorContract.CurrentVersion)
     {
     }
 
@@ -92,11 +30,6 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, Terra
         if ((Size & 1) != 0)
         {
             throw new ArgumentException("Terrain size must be even.", nameof(Size));
-        }
-
-        if (!Enum.IsDefined(Scene))
-        {
-            throw new ArgumentOutOfRangeException(nameof(Scene), Scene, "Terrain scene mode is not supported.");
         }
 
         return this;

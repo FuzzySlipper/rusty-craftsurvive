@@ -22,9 +22,6 @@ internal static class TerrainUiProjection
             values.Add("pitchDegrees", facts.PitchDegrees);
             values.Add("grounded", facts.Grounded ? 1d : 0d);
             values.Add("crouched", facts.Crouched ? 1d : 0d);
-            values.Add("platformX", facts.PlatformX);
-            values.Add("platformY", facts.PlatformY);
-            values.Add("platformZ", facts.PlatformZ);
         }
         if (discovery is DiscoveryUiFacts journal)
         {

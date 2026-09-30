@@ -4,7 +4,6 @@ using System.Numerics;
 using Rusty.Engine;
 using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Terrain;
-using CraftSurvive.Game.Modules.Ropes;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.World;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
@@ -12,7 +11,7 @@ using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 namespace CraftSurvive.Game.Modules.Player;
 
 /// <summary>
-/// Product-owned player policy. It retains only input, pose, and platform facts;
+/// Product-owned player policy. It retains only input and pose facts;
 /// Engine services continue to integrate look, collision, world-origin, and the camera view.
 /// It owns the player's vitals and progress and applies the respawn they request, and it owns
 /// world-origin rebasing, which it commits through the product's <see cref="WorldFrame"/>.
@@ -26,25 +25,18 @@ internal sealed class PlayerController : IDisposable
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
-    private readonly PlayerSceneDefaults sceneDefaults;
     private readonly PlayerInputState input = new();
-    internal RopePlayground Ropes { get; }
     private readonly EntityStore entityWorld = new([RuntimeComponent]);
     private readonly EntityId playerEntity;
     private readonly CharacterControllerConfig controllerConfig;
     private readonly LookConfig lookConfig;
     private Camera? camera;
-    private Appearance? platformAppearance;
     private CharacterMotion motion;
     private LookState look;
     private PlayerWaterCheck waterCheck;
     private PlayerWorldPosition playerGlobal;
     private PlayerWorldPosition spawn;
-    private PlayerWorldPosition platformGlobal;
     private Vector3 playerLocal;
-    private Vector3 platformLocal;
-    private Vector3 platformLinearVelocity;
-    private float platformDirection = 1f;
     private double controllerStepAccumulator;
     private ulong commandSequence;
     private bool jumpHeld;
@@ -92,8 +84,6 @@ internal sealed class PlayerController : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
-        Ropes = new(engine, terrain);
-        sceneDefaults = PlayerConstants.ForScene(terrain.IsCourtyard);
         controllerConfig = CreateControllerConfig(engine.Spatial.DefaultCharacterControllerConfig());
         lookConfig = new LookConfig(
             PlayerConstants.LookRadiansPerInputUnit,
@@ -105,13 +95,9 @@ internal sealed class PlayerController : IDisposable
             true,
             true);
         look = new LookState(
-            DegreesToRadians(sceneDefaults.InitialYawDegrees),
+            DegreesToRadians(PlayerConstants.InitialYawDegrees),
             DegreesToRadians(PlayerConstants.InitialPitchDegrees));
-        playerGlobal = PlayerWorldPosition.FromWorld(sceneDefaults.InitialEyePosition - new Vector3(
-            0f,
-            EyeOffset(CharacterStance.Standing),
-            0f));
-        platformGlobal = PlayerWorldPosition.FromWorld(sceneDefaults.PlatformInitialCenter);
+        playerGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.SpawnColumn.X, 0d, PlayerConstants.SpawnColumn.Y);
         playerEntity = entityWorld.Create();
         PublishRuntimeComponent();
     }
@@ -210,25 +196,17 @@ internal sealed class PlayerController : IDisposable
 
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         frame.Observe(origin);
-        if (!terrain.IsCourtyard)
-        {
-            // The generated world stands the player on whatever ground the generator put under the
-            // spawn column, so a generator change can never start them inside the terrain.
-            float ground = terrain.GroundAt(playerGlobal.CellX, playerGlobal.CellZ);
-            playerGlobal = PlayerWorldPosition.FromWorld(
-                playerGlobal.WorldX,
-                ground + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance,
-                playerGlobal.WorldZ);
-        }
+        // The player stands on whatever ground the generator put under the spawn column, so a
+        // generator change can never start them inside the terrain.
+        float ground = terrain.GroundAt(playerGlobal.CellX, playerGlobal.CellZ);
+        playerGlobal = PlayerWorldPosition.FromWorld(
+            playerGlobal.WorldX,
+            ground + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance,
+            playerGlobal.WorldZ);
 
         spawn = playerGlobal;
         playerLocal = playerGlobal.ToLocal(origin);
-        platformLocal = platformGlobal.ToLocal(origin);
         motion = CreateInitialMotion(playerLocal);
-        platformAppearance = engine.Graphics.CreatePrimitive(new PrimitiveAppearanceRequest(
-            PrimitiveGeometry.Cube,
-            Wireframe: false,
-            sceneDefaults.PlatformColor));
         camera = engine.CameraView.CreateCamera(CreateCameraDescriptor());
         engine.CameraView.SetActiveCamera(camera);
         cameraPublicationCount = 1UL;
@@ -236,7 +214,6 @@ internal sealed class PlayerController : IDisposable
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
-        Ropes.Start();
         started = true;
     }
 
@@ -258,8 +235,6 @@ internal sealed class PlayerController : IDisposable
         cameraSampleTimeSeconds = (update.Facts.SimulationStep + update.Facts.AdmittedStepCount)
             * update.Facts.FixedDeltaSeconds;
         CaptureInputEvents(update.Input);
-        Ropes.Input(update.Input);
-        Ropes.BeginUpdate();
         lastUpdatePositionBefore = playerLocal;
         float simulationDeltaSeconds = checked((float)(update.Facts.AdmittedStepCount * update.Facts.FixedDeltaSeconds));
         PlayerInputFrame frame = input.Consume(update.Input, simulationDeltaSeconds);
@@ -276,26 +251,19 @@ internal sealed class PlayerController : IDisposable
         lastStepReceipt = null;
         while (controllerStepAccumulator + PlayerConstants.ControllerStepEpsilon >= PlayerConstants.ControllerStepSeconds)
         {
-            AdvancePlatform((float)PlayerConstants.ControllerStepSeconds);
             CharacterControllerConfig stepConfig = frame.SprintRequested && !frame.CrouchRequested
                 ? WithSprintSpeed(controllerConfig)
                 : controllerConfig;
             commandSequence = checked(commandSequence + 1UL);
-            CharacterTetherRequest tether = Ropes.BeforeStep(playerLocal, (float)PlayerConstants.ControllerStepSeconds);
-            if (tether.Enabled) stepConfig = stepConfig with
-            {
-                ExternalMotion = stepConfig.ExternalMotion with { ExternalDecayPerSecond = 0f, AuthoredMass = RopePlayground.CharacterMass, MaximumDynamicImpulse = RopePlayground.MaximumReactionImpulse },
-            };
             CharacterStepReceipt receipt = engine.Spatial.ProposeCharacterStep(new CharacterStepRequest(
                 terrain.Session,
                 playerLocal,
                 motion,
-                CurrentSupport(),
-                CurrentPlatformObstacle(),
+                default,
+                ReadOnlyMemory<CharacterObstacle>.Empty,
                 ReadOnlyMemory<CharacterMeshInstance>.Empty,
                 stepConfig,
-                Command(frame, look, jumpPending, impulsePending, lookReceipt, commandSequence)) with { Tether = tether });
-            Ropes.AfterStep(receipt, (float)PlayerConstants.ControllerStepSeconds);
+                Command(frame, look, jumpPending, impulsePending, lookReceipt, commandSequence)));
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
             jumpPending = false;
@@ -350,7 +318,7 @@ internal sealed class PlayerController : IDisposable
             : string.Create(CultureInfo.InvariantCulture,
                 $"update={lastMovementUpdate};intent={Format(lastMovementInputFrame.PlanarIntent)};controllerSteps={lastMovementControllerStepCount};before={Format(lastMovementPositionBefore)};after={Format(lastMovementPositionAfter)};step=[{FormatStep(lastMovementStepReceipt)}]");
         return string.Create(CultureInfo.InvariantCulture,
-            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};totalPointerDeltas={totalPointerDeltaEventCount};controllerButtons={lastControllerButtonEventCount};controllerAxes={lastControllerAxisEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPresentation={cameraInterpolation};cameraDelaySeconds={cameraDelaySeconds};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}]");
+            $"updates={updateCount};simulationStep={lastSimulationStep};admittedSteps={lastAdmittedStepCount};controllerSteps={lastControllerStepCount};events={lastInputEventCount};totalEvents={totalInputEventCount};keys={lastKeyEventCount};pointer={lastPointerEventCount};totalPointerDeltas={totalPointerDeltaEventCount};controllerButtons={lastControllerButtonEventCount};controllerAxes={lastControllerAxisEventCount};clears={lastClearEventCount};lastEventUpdate={lastInputEventUpdate};lastEvent={lastInputEvent};intent={Format(lastInputFrame.PlanarIntent)};lookDelta={Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};before={Format(lastUpdatePositionBefore)};after={Format(lastUpdatePositionAfter)};yaw={RadiansToDegrees(look.YawRadians):F2};pitch={RadiansToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};cameraPresentation={cameraInterpolation};cameraDelaySeconds={cameraDelaySeconds};cameraPublications={cameraPublicationCount};cameraPublishedUpdate={lastCameraPublicationUpdate};cameraPosition={Format(EyePosition())};step=[{stepReadout}];lastMovement=[{movementReadout}];water=[{waterCheck}]");
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -358,17 +326,6 @@ internal sealed class PlayerController : IDisposable
     {
         EnsureStarted();
         return TerrainWorld.FormatEditReadout(lastTerrainEdit);
-    }
-
-    /// <summary>Restarts a courtyard trial without replacing Engine-owned dynamic objects.</summary>
-    internal string ResetRopePlayground()
-    {
-        if (!Ropes.Active) return "Rope playground is only available in the courtyard.";
-        Ropes.ResetAttachment();
-        look = new LookState(DegreesToRadians(sceneDefaults.InitialYawDegrees), DegreesToRadians(PlayerConstants.InitialPitchDegrees));
-        Vector3 spawn = sceneDefaults.InitialEyePosition - Vector3.UnitY * EyeOffset(CharacterStance.Standing);
-        Teleport(spawn.X, spawn.Y, spawn.Z);
-        return "Returned to the court; attachment released.";
     }
 
     /// <summary>Moves the live player through the ordinary product state and Engine publication lane.</summary>
@@ -388,18 +345,6 @@ internal sealed class PlayerController : IDisposable
         terrain.PublishPlayerUi(ToUiFacts());
         PublishRuntimeComponent();
         return entityWorld.Get(playerEntity, RuntimeComponent);
-    }
-
-    /// <summary>Places the ordinary player camera for a product-owned showcase view.</summary>
-    internal PlayerRuntimeComponent ViewFrom(Vector3 eye, Vector3 target)
-    {
-        EnsureStarted();
-        Vector3 direction = target - eye;
-        look = new LookState(
-            MathF.Atan2(direction.X, -direction.Z),
-            Math.Clamp(MathF.Atan2(direction.Y, new Vector2(direction.X, direction.Z).Length()),
-                PlayerConstants.MinimumPitchRadians, PlayerConstants.MaximumPitchRadians));
-        return Teleport(eye.X, eye.Y - EyeOffset(CharacterStance.Standing), eye.Z);
     }
 
     internal EntityStore EntityStore => entityWorld;
@@ -432,48 +377,19 @@ internal sealed class PlayerController : IDisposable
         EnsureStarted();
         Vitals.Reset();
         Progress.Reset();
-        look = new LookState(DegreesToRadians(sceneDefaults.InitialYawDegrees), DegreesToRadians(PlayerConstants.InitialPitchDegrees));
+        look = new LookState(DegreesToRadians(PlayerConstants.InitialYawDegrees), DegreesToRadians(PlayerConstants.InitialPitchDegrees));
         MoveHome();
     }
 
     private void MoveHome() => Teleport(spawn.WorldX, spawn.WorldY, spawn.WorldZ);
 
-    /// <summary>
-    /// Returns the current platform fact for the product's single complete
-    /// Appearance snapshot. The root composes this with other product-owned
-    /// source facts so modules never replace each other's retained visuals.
-    /// </summary>
-    internal AppearanceFact PlatformAppearanceFact
-    {
-        get
-        {
-            Appearance appearance = platformAppearance
-                ?? throw new InvalidOperationException("CraftSurvive platform appearance is unavailable.");
-            return new AppearanceFact(
-                PlayerConstants.PlatformEntityId,
-                false,
-                0,
-                new Transform(platformLocal, Quaternion.Identity, PlayerConstants.PlatformScale),
-                appearance,
-                Visible: !terrain.IsGeneratedLevel,
-                RenderLayer.Scene);
-        }
-    }
-
     public void Dispose()
     {
-        Ropes.Dispose();
         if (camera is not null)
         {
             engine.CameraView.ClearActiveCamera(new ClearActiveCameraRequest(0U));
             camera.Dispose();
             camera = null;
-        }
-
-        if (platformAppearance is not null)
-        {
-            platformAppearance.Dispose();
-            platformAppearance = null;
         }
 
         started = false;
@@ -550,43 +466,11 @@ internal sealed class PlayerController : IDisposable
     /// disagreement between "the world has water here" and "the Engine says the
     /// player is walking" resolves to a cell and a slot rather than to a guess.
     /// </summary>
-    internal PlayerWaterCheck LastWaterCheck => waterCheck;
 
     private static string FormatStep(CharacterStepReceipt? step) => step is not CharacterStepReceipt receipt
         ? "none"
         : string.Create(CultureInfo.InvariantCulture,
             $"attempted={receipt.Step.Attempted};accepted={receipt.Step.Accepted};wish={Format(receipt.WishVelocity)};displacement={Format(receipt.Displacement)};blocked={receipt.BlockFlags};casts={receipt.CastCount};movement={receipt.Movement.Mode};immersion={receipt.Movement.Immersion:F3};headSubmerged={receipt.Movement.HeadSubmerged}");
-
-    private void AdvancePlatform(float stepSeconds)
-    {
-        platformLinearVelocity = Vector3.Zero;
-        if (terrain.IsGeneratedLevel) return;
-        double deltaX = playerGlobal.WorldX - platformGlobal.WorldX;
-        double deltaY = playerGlobal.WorldY - platformGlobal.WorldY;
-        double deltaZ = playerGlobal.WorldZ - platformGlobal.WorldZ;
-        if ((deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ)
-            > PlayerConstants.PlatformActivityRadius * PlayerConstants.PlatformActivityRadius)
-        {
-            return;
-        }
-
-        if (platformGlobal.WorldX >= sceneDefaults.PlatformTravelMaximumX)
-        {
-            platformDirection = -1f;
-        }
-        else if (platformGlobal.WorldX <= sceneDefaults.PlatformTravelMinimumX)
-        {
-            platformDirection = 1f;
-        }
-
-        platformGlobal = PlayerWorldPosition.FromWorld(
-            platformGlobal.WorldX + (platformDirection * PlayerConstants.PlatformSpeed * stepSeconds),
-            platformGlobal.WorldY,
-            platformGlobal.WorldZ);
-        platformLinearVelocity = Vector3.UnitX * (platformDirection * PlayerConstants.PlatformSpeed);
-        WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
-        platformLocal = platformGlobal.ToLocal(origin);
-    }
 
     private void RebaseIfNeeded()
     {
@@ -601,7 +485,6 @@ internal sealed class PlayerController : IDisposable
         WorldOriginEntityRow[] roots =
         [
             new WorldOriginEntityRow(PlayerConstants.PlayerEntityId, PlayerTransform(), playerGlobal.ToEngine()),
-            new WorldOriginEntityRow(PlayerConstants.PlatformEntityId, PlatformTransform(), platformGlobal.ToEngine()),
         ];
         using WorldOriginPrepared prepared = engine.WorldOrigin.Prepare(new WorldOriginPrepareRequest(
             terrain.Session,
@@ -615,9 +498,7 @@ internal sealed class PlayerController : IDisposable
         WorldOriginCommitReceipt committed = engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
         cameraCut = true;
         playerLocal = affected[0].LocalTransform.Translation;
-        platformLocal = affected[1].LocalTransform.Translation;
         Vector3 localTranslation = playerLocal - playerBeforeRebase;
-        Ropes.Rebase(terrain.Session, committed, localTranslation);
         motion = motion.Rebased(localTranslation) with
         {
             CollisionWorldHash = PlayerConstants.UninitializedCollisionWorldHash,
@@ -643,20 +524,6 @@ internal sealed class PlayerController : IDisposable
 
     private Transform PlayerTransform() => new(playerLocal, Quaternion.Identity, Vector3.One);
 
-    private Transform PlatformTransform() => new(platformLocal, Quaternion.Identity, Vector3.One);
-
-    private ReadOnlyMemory<CharacterObstacle> CurrentPlatformObstacle() => terrain.IsGeneratedLevel
-        ? ReadOnlyMemory<CharacterObstacle>.Empty : new CharacterObstacle[]
-    {
-        new(
-            PlayerConstants.PlatformEntityId,
-            PlatformTransform(),
-            -PlayerConstants.PlatformHalfExtents,
-            PlayerConstants.PlatformHalfExtents,
-            CollisionEnabled: true,
-            platformLinearVelocity,
-            Vector3.Zero),
-    };
 
     private CameraDescriptor CreateCameraDescriptor() => new(
         new CameraPose(EyePosition(), RadiansToDegrees(look.PitchRadians), RadiansToDegrees(look.YawRadians)),
@@ -694,22 +561,6 @@ internal sealed class PlayerController : IDisposable
         lastCameraPublicationUpdate = updateCount;
     }
 
-    private CharacterSupport CurrentSupport()
-    {
-        if (!motion.SupportEntityPresent)
-        {
-            return default;
-        }
-
-        if (motion.SupportEntity != PlayerConstants.PlatformEntityId)
-        {
-            throw new InvalidOperationException("CraftSurvive only resumes the product-owned moving platform support.");
-        }
-
-        return new CharacterSupport(true, CharacterSupportLifecycle.Active,
-            PlayerConstants.PlatformEntityId, PlatformTransform());
-    }
-
     private TerrainPlayerUiFacts ToUiFacts() => new(
         playerGlobal.WorldX,
         playerGlobal.WorldY + EyeOffset(motion.Stance),
@@ -717,10 +568,7 @@ internal sealed class PlayerController : IDisposable
         RadiansToDegrees(look.YawRadians),
         RadiansToDegrees(look.PitchRadians),
         motion.Grounded,
-        motion.Stance == CharacterStance.Crouched,
-        platformGlobal.WorldX,
-        platformGlobal.WorldY,
-        platformGlobal.WorldZ);
+        motion.Stance == CharacterStance.Crouched);
 
     private void PublishRuntimeComponent()
     {

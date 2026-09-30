@@ -71,8 +71,6 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
 
     internal int Count => journal.Count;
 
-    /// <summary>What happened to the saved journal at startup, for evidence.</summary>
-    internal string RestoreOutcome => restoreOutcome;
 
     /// <summary>
     /// Whether the journal is saved, and how many bytes it holds. It exists for the same
@@ -360,8 +358,6 @@ public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
         return true;
     }
 
-    /// <summary>How many places have been reached for the first time, ever.</summary>
-    internal long FirstVisits => firstVisits;
 
 
     private static double Distance(PoiSite site, Vector3 position)

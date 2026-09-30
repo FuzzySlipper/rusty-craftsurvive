@@ -1,13 +1,10 @@
 using System.Globalization;
 using System.Numerics;
-using CraftSurvive.Game.Modules.GhostPlate;
-using CraftSurvive.Game.Modules.Microvoxels;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
 using Rusty.Engine;
-using CraftSurvive.Game.Modules.Studies;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.Debugging;
@@ -18,141 +15,19 @@ public sealed class CraftDebugModule : IDebugCommandModule
     private readonly PlayerController player;
     private readonly CreatureModule creatures;
     private readonly TerrainWorld terrain;
-    private readonly GhostPlateActor? ghost;
-    private readonly MicrovoxelPresentation? microvoxels;
     private readonly DebugExecutionContext execution;
 
     internal CraftDebugModule(
         PlayerController player,
         CreatureModule creatures,
         TerrainWorld terrain,
-        GhostPlateActor? ghost,
-        MicrovoxelPresentation? microvoxels,
         DebugExecutionContext execution)
     {
         this.player = player;
         this.creatures = creatures;
         this.terrain = terrain;
-        this.ghost = ghost;
-        this.microvoxels = microvoxels;
         this.execution = execution;
     }
-
-    /// <summary>The ghost-plate study, which is only constructed when the studies are enabled.</summary>
-    private GhostPlateActor Ghost => ghost ?? throw new InvalidOperationException(ProductStudies.DisabledMessage);
-
-    /// <summary>The microvoxel study, which is only constructed when the studies are enabled.</summary>
-    private MicrovoxelPresentation Microvoxels => microvoxels ?? throw new InvalidOperationException(ProductStudies.DisabledMessage);
-
-    [DebugCommand("craft.rope.inspect", Description = "Reads the live rope playground and Engine budgets.")]
-    public string InspectRope() => player.Ropes.Readout();
-    [DebugCommand("craft.rope.attach", Description = "Queues the same attachment action as R.")]
-    public string AttachRope() => player.Ropes.Attach();
-    [DebugCommand("craft.rope.release", Description = "Queues the same release action as T.")]
-    public string ReleaseRope() => player.Ropes.Release();
-    [DebugCommand("craft.rope.reset", Description = "Returns to the courtyard spawn and releases the rope for another trial.")]
-    public string ResetRope() => player.ResetRopePlayground();
-    [DebugCommand("craft.rope.station", Description = "Selects fixed0, terrain1, or dynamic2, as V does.")]
-    public string RopeStation(int station) => player.Ropes.Select(station);
-    [DebugCommand("craft.rope.length", Description = "Sets the rate-limited target length, 2 to 10 metres.")]
-    public string RopeLength(float length) => player.Ropes.SetLength(length);
-
-    [DebugCommand("craft.ghost.preset", Description = "Queues accepted, current, wide, strict, or scene-lighting ghost settings for the next product update.")]
-    public string SetGhostPreset(string preset) => Ghost.QueuePreset(preset);
-
-    [DebugCommand("craft.ghost.capture", Description = "Queues ghost capture resolution, framing, clip range, and lighting mode.")]
-    public string SetGhostCapture(
-        ushort resolution,
-        float azimuthDegrees,
-        float elevationDegrees,
-        float near,
-        float far,
-        float fieldOfViewDegrees,
-        GhostPlateCaptureLightingMode lightingMode)
-        => Ghost.QueueCapture(
-            resolution,
-            azimuthDegrees,
-            elevationDegrees,
-            near,
-            far,
-            fieldOfViewDegrees,
-            lightingMode);
-
-    [DebugCommand("craft.ghost.lighting", Description = "Queues ghost capture lighting mode and ambient, key, and fill intensities.")]
-    public string SetGhostLighting(
-        GhostPlateCaptureLightingMode lightingMode,
-        float ambientIntensity,
-        float keyIntensity,
-        float fillIntensity)
-        => Ghost.QueueLighting(lightingMode, ambientIntensity, keyIntensity, fillIntensity);
-
-    [DebugCommand("craft.ghost.relief", Description = "Queues ghost depth, anchor, mapping, shell, and shell-tolerance values.")]
-    public string SetGhostRelief(
-        float depthRetention,
-        GhostPlateAnchorPolicy anchorPolicy,
-        float anchorValue,
-        GhostPlateMapping plateMapping,
-        GhostPlateShellMode shellMode,
-        float shellDepthEpsilon)
-        => Ghost.QueueRelief(
-            depthRetention,
-            anchorPolicy,
-            anchorValue,
-            plateMapping,
-            shellMode,
-            shellDepthEpsilon);
-
-    [DebugCommand("craft.ghost.direction", Description = "Queues a 1, 4, 8, or 16-sector hard-snap bank and hysteresis in degrees.")]
-    public string SetGhostDirection(byte sectorCount, float hysteresisDegrees)
-        => Ghost.QueueDirection(sectorCount, hysteresisDegrees);
-
-    [DebugCommand("craft.ghost.place", Description = "Queues ghost world placement and plate size.")]
-    public string PlaceGhost(float x, float y, float z, float width, float height)
-        => Ghost.QueuePlacement(x, y, z, width, height);
-
-    [DebugCommand("craft.ghost.visible", Description = "Queues ghost presentation visibility through its ordinary Engine lifecycle.")]
-    public string SetGhostVisible(bool visible) => Ghost.QueueVisibility(visible);
-
-    [DebugCommand("craft.ghost.recapture", Description = "Queues an explicit ghost capture-bank rebuild.")]
-    public string RecaptureGhost() => Ghost.QueueRecapture();
-
-    [DebugCommand("craft.ghost.view", Description = "Moves and aims the player around the ghost; 0/90/180/270 view its front/right/back/left.")]
-    public string ViewGhost(float azimuthDegrees)
-    {
-        if (!float.IsFinite(azimuthDegrees)) throw new ArgumentException("View azimuth must be finite.");
-        float radians = float.DegreesToRadians(azimuthDegrees % 360f);
-        Vector3 target = Ghost.Placement.Transform.Translation;
-        Vector3 eye = new(target.X + MathF.Sin(radians) * GhostPlateConfiguration.ViewDistance,
-            GhostPlateConfiguration.ViewEyeHeight,
-            target.Z + MathF.Cos(radians) * GhostPlateConfiguration.ViewDistance);
-        PlayerRuntimeComponent state = player.ViewFrom(eye, target);
-        return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
-    }
-
-    [DebugCommand("craft.ghost.readout", Description = "Reads selected ghost source, tuning state, and latest Engine presentation facts.")]
-    public string ReadGhost() => Ghost.DebugReadout();
-
-    [DebugCommand("craft.micro.preset", Description = "Queues accepted, close, or compact microvoxel settings for the next product update.")]
-    public string SetMicrovoxelPreset(string preset) => Microvoxels.QueuePreset(preset);
-
-    [DebugCommand("craft.micro.place", Description = "Queues microvoxel world placement.")]
-    public string PlaceMicrovoxel(float x, float y, float z)
-        => Microvoxels.QueuePlacement(x, y, z);
-
-    [DebugCommand("craft.micro.scale", Description = "Queues microvoxel scale on each axis.")]
-    public string ScaleMicrovoxel(float x, float y, float z)
-        => Microvoxels.QueueScale(x, y, z);
-
-    [DebugCommand("craft.micro.material", Description = "Queues the common matte roughness used by the microvoxel palette.")]
-    public string SetMicrovoxelMaterial(float roughness)
-        => Microvoxels.QueueMaterial(roughness);
-
-    [DebugCommand("craft.micro.visible", Description = "Queues microvoxel retained-presentation visibility.")]
-    public string SetMicrovoxelVisible(bool visible)
-        => Microvoxels.QueueVisibility(visible);
-
-    [DebugCommand("craft.micro.readout", Description = "Reads selected microvoxel source, tuning state, and Engine presentation totals.")]
-    public string ReadMicrovoxel() => Microvoxels.DebugReadout();
 
     [DebugCommand("craft.player.teleport", Description = "Moves the live player through CraftSurvive's ordinary player owner.")]
     public string Teleport(double x, double y, double z)
@@ -185,56 +60,6 @@ public sealed class CraftDebugModule : IDebugCommandModule
         VoxelSceneReadout scene = terrain.ReadScene();
         return string.Create(CultureInfo.InvariantCulture,
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount}");
-    }
-
-    [DebugCommand("craft.courtyard.readout", Description = "Reads courtyard generation, geometry and treatment totals.")]
-    public string ReadCourtyard() => terrain.ReadCourtyard();
-
-    [DebugCommand("craft.courtyard.treatment", Description = "Queues balanced, faceted, or soft courtyard regeneration.")]
-    public string SetCourtyardTreatment(string treatment) => terrain.QueueCourtyardTreatment(treatment);
-
-    [DebugCommand("craft.courtyard.masonry", Description = "Queues original, regions, or layered construction for the west-wall test section.")]
-    public string SetCourtyardMasonry(string mode) => terrain.QueueCourtyardMasonry(mode);
-
-    [DebugCommand("craft.courtyard.boundaries", Description = "Queues centroid or interpolated implicit material-region boundaries without changing courtyard geometry.")]
-    public string SetCourtyardMaterialBoundaries(string mode) => terrain.QueueCourtyardMaterialBoundaries(mode);
-
-    [DebugCommand("craft.courtyard.cutoff", Description = "Queues a -0.15m to 0.15m vertical material-region cutoff without changing courtyard geometry.")]
-    public string SetCourtyardMaterialCutoff(float cutoff) => terrain.QueueCourtyardMaterialCutoff(cutoff);
-
-    [DebugCommand("craft.courtyard.study", Description = "Queues the stoneworks, reference, sampling, detail, motifs, or cave courtyard study for the next product update.")]
-    public string SetCourtyardStudy(string study) => terrain.QueueCourtyardStudy(study);
-
-    [DebugCommand("craft.courtyard.material-samples", Description = "Material field sampling spacing in metres: 0 disables refinement; 0.02 to 0.5 enables interpolated refinement.")]
-    public string SetCourtyardMaterialSamples(float spacing) => terrain.QueueCourtyardMaterialSamples(spacing);
-
-    [DebugCommand("craft.courtyard.parts", Description = "Reads generated counts and actual spacing for each detail-study part.")]
-    public string ReadCourtyardParts() => terrain.ReadCourtyardDetailParts();
-
-    [DebugCommand("craft.courtyard.detail", Description = "Queues coarse, normal, or fine extraction detail for sampling plaques and the detail study.")]
-    public string SetCourtyardDetail(string detail) => terrain.QueueCourtyardDetail(detail);
-
-    [DebugCommand("craft.courtyard.inspect", Description = "Views a selected courtyard comparison, including cave, column, runes, or terraces.")]
-    public string InspectCourtyard(string angle)
-    {
-        (Vector3 eye, Vector3 target) = terrain.CourtyardInspectionView(angle);
-        return ViewCourtyard(eye.X, eye.Y, eye.Z, target.X, target.Y, target.Z);
-    }
-
-    [DebugCommand("craft.courtyard.level-plan", Description = "Reads accepted cave rooms and route waypoints in local metres.")]
-    public string ReadCourtyardLevelPlan() => terrain.ReadCourtyardLevelPlan();
-
-    [DebugCommand("craft.courtyard.seed", Description = "Regenerates the selected environment with a repeatable seed.")]
-    public string SetCourtyardSeed(ulong seed) => terrain.QueueCourtyardSeed(seed);
-
-    [DebugCommand("craft.courtyard.layout", Description = "Queues courtyard width, doorway width/offset and detail seed regeneration.")]
-    public string SetCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => terrain.QueueCourtyardLayout(width, doorWidth, doorOffset, seed);
-
-    [DebugCommand("craft.courtyard.view", Description = "Moves the ordinary player camera to a selected eye and target for aesthetic comparisons.")]
-    public string ViewCourtyard(float x, float y, float z, float targetX, float targetY, float targetZ)
-    {
-        PlayerRuntimeComponent state = player.ViewFrom(new Vector3(x, y, z), new Vector3(targetX, targetY, targetZ));
-        return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F1};pitch={state.PitchDegrees:F1}");
     }
 
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]

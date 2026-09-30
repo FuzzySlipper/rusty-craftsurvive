@@ -9,8 +9,8 @@ import { deflateSync, inflateSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 
-const ATLAS_PATH = 'content/textures/terrain-atlas.png';
-const METADATA_PATH = 'content/textures/terrain-atlas.json';
+const ATLAS_PATH = 'content/game/textures/terrain-atlas.png';
+const METADATA_PATH = 'content/game/textures/terrain-atlas.json';
 const TILE = 64;
 const GRID = 4;
 const EXTENT = TILE * GRID;

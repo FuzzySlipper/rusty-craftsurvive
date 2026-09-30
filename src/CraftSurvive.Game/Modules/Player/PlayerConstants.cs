@@ -30,11 +30,6 @@ internal static class PlayerConstants
     internal const float SpawnClearance = 0.05f;
 
     internal const ulong PlayerEntityId = World.ProductIds.PlayerEntity;
-    internal const ulong PlatformEntityId = World.ProductIds.PlatformEntity;
-    internal static readonly Vector3 PlatformHalfExtents = new(1.5f, 0.25f, 0.9f);
-    internal static readonly Vector3 PlatformScale = PlatformHalfExtents * 2f;
-    internal const float PlatformSpeed = 0.8f;
-    internal const float PlatformActivityRadius = 32f;
 
     internal const float StandingEyeHeight = 1.55f;
     internal const float CrouchedEyeHeight = 0.85f;
@@ -85,32 +80,8 @@ internal static class PlayerConstants
     internal const double CameraViewportOrigin = 0d;
     internal const double CameraViewportExtent = 1d;
 
-    // The courtyard origin faces north (+Z): its south-side spawn looks down
-    // the passage into the chamber. The legacy route retains its HEAD fixture.
-    internal static readonly PlayerSceneDefaults Courtyard = new(
-        new Vector3(0f, 4.55f, -7f),
-        180d,
-        new Vector3(3.2f, 5.25f, 27f),
-        new Color(0.31f, 0.24f, 0.16f, 1f),
-        2.8f,
-        3.8f);
+    /// <summary>The column the player starts on; they stand on its ground, whatever its height.</summary>
+    internal static readonly System.Numerics.Vector2 SpawnColumn = new(8.5f, 12.5f);
 
-    internal static readonly PlayerSceneDefaults Traversal = new(
-        new Vector3(8f, 7f, 12f),
-        0d,
-        new Vector3(0f, 4.25f, 9f),
-        new Color(0.72f, 0.48f, 0.18f, 1f),
-        -1.5f,
-        1.5f);
-
-    internal static PlayerSceneDefaults ForScene(bool courtyard) => courtyard ? Courtyard : Traversal;
+    internal const double InitialYawDegrees = 0d;
 }
-
-/// <summary>Small product-owned player fixture selection for the two named terrain modes.</summary>
-internal readonly record struct PlayerSceneDefaults(
-    Vector3 InitialEyePosition,
-    double InitialYawDegrees,
-    Vector3 PlatformInitialCenter,
-    Color PlatformColor,
-    float PlatformTravelMinimumX,
-    float PlatformTravelMaximumX);

@@ -1,19 +1,13 @@
 using Rusty.Engine;
-using CraftSurvive.Game.Modules.Terrain;
-using CraftSurvive.Game.Modules.Player;
+using Rusty.Engine.Debugging;
+using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Debugging;
-using CraftSurvive.Game.Modules.Microvoxels;
-using CraftSurvive.Game.Modules.GhostPlate;
-using CraftSurvive.Game.Modules.Sky;
-using CraftSurvive.Game.Modules.LevelGeneration;
-using CraftSurvive.Game.Modules.Proofing;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Manipulation;
-using CraftSurvive.Game.Modules.Creatures;
-using CraftSurvive.Game.Modules.Rpg;
-using CraftSurvive.Game.Modules.Studies;
+using CraftSurvive.Game.Modules.Player;
+using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
-using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
 
@@ -30,13 +24,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly WorldFrame frame = new();
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
-    private readonly MicrovoxelPresentation? microvoxels;
-    private readonly GhostPlateActor? ghost;
     private readonly SkyBackground sky;
     private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
-    private readonly ProcgenWorkbench? workbench;
-    private readonly ProcgenDebugModule? procgenDebug;
     private readonly CreatureModule creatures;
     private readonly CreatureDebugModule creatureDebug;
     private readonly DiscoveryModule discovery;
@@ -51,7 +41,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     /// the ones before it decided this update.
     /// </summary>
     private readonly IProductModule[] gameplay;
-    private readonly LiveSubstrateProof? substrateProof;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
@@ -59,22 +48,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         engine = context.Engine;
         terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame);
         player = new PlayerController(context.Engine, terrain, frame);
-        // The workbench, the microvoxel shrine and the ghost plate are development
-        // instruments from the slices that built them, not parts of the survival
-        // world: they are constructed only when the studies are asked for, so the
-        // ordinary runtime scene carries the game and nothing else.
-        if (ProductStudies.Enabled)
-        {
-            workbench = new ProcgenWorkbench(engine, context.Content, terrain, player);
-            procgenDebug = new ProcgenDebugModule(workbench);
-            microvoxels = new MicrovoxelPresentation(
-                context.Engine,
-                context.Content,
-                MicrovoxelConfiguration.WoodlandShrine);
-            ghost = new GhostPlateActor(
-                context.Engine,
-                GhostPlateConfiguration.Default);
-        }
         sky = new SkyBackground(context.Engine);
         creatures = new CreatureModule(context.Engine, terrain, player, frame);
         creatureDebug = new CreatureDebugModule(creatures);
@@ -87,17 +60,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
-        productDebug = new CraftDebugModule(
-            player,
-            creatures,
-            terrain,
-            ghost,
-            microvoxels,
-            context.Debugging);
-        if (LiveSubstrateProof.Requested)
-        {
-            substrateProof = new LiveSubstrateProof(context.Engine, terrain, player);
-        }
+        productDebug = new CraftDebugModule(player, creatures, terrain, context.Debugging);
     }
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
@@ -108,16 +71,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(discovery));
         RequireRegistration(registrar.Register(blast));
         RequireRegistration(registrar.Register(build));
-        if (procgenDebug is not null)
-        {
-            RequireRegistration(registrar.Register(procgenDebug));
-        }
     }
 
     public void Start()
     {
         RequireState(ProductLifecycleState.Created, nameof(Start));
-        bool ghostSourcePublished = false;
         try
         {
             terrain.Start();
@@ -129,37 +87,18 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
             sky.Start();
             PublishAppearanceSnapshot();
-            ghostSourcePublished = true;
-            ghost?.Start();
-            if (terrain.IsCourtyard)
-            {
-                microvoxels?.SetVisible(false);
-                ghost?.QueueVisibility(false);
-            }
-
-            microvoxels?.Start();
             lifecycle = ProductLifecycleState.Running;
         }
         catch
         {
             sky.Dispose();
-            ghost?.DisposePresentation();
-            if (ghostSourcePublished)
-            {
-                PublishAppearanceSnapshot(includeGhostSource: false);
-            }
-            ghost?.DisposeSourceAppearance();
-            if (ghostSourcePublished)
-            {
-                engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
-            }
+            engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
             foreach (IProductModule module in gameplay)
             {
                 module.Dispose();
             }
 
             player.Dispose();
-            microvoxels?.Dispose();
             terrain.Dispose();
             throw;
         }
@@ -169,8 +108,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         ProductStep step = ProductStep.From(update.Facts);
-        terrain.UpdateCourtyard();
-        workbench?.Update(update);
 
         // The player moves first on this update's input; creatures, discovery and charges then
         // read where the player is now and what they asked for this update.
@@ -180,13 +117,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             module.Update(step);
         }
 
-        // Publish the complete source fact at its queued transform before the
-        // retained ghost operation observes the same desired placement.
-        PublishAppearanceSnapshot(useDesiredGhostSource: true);
-        terrain.ReleaseRetiredCourtyard();
-        ghost?.Update();
-        microvoxels?.Update();
-        substrateProof?.Update();
+        PublishAppearanceSnapshot();
         return ProductUpdateResult.None;
     }
 
@@ -217,9 +148,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             module.Restart();
         }
 
-        PublishAppearanceSnapshot(useDesiredGhostSource: true);
-        ghost?.Recapture();
-        microvoxels?.Restart();
+        PublishAppearanceSnapshot();
         lifecycle = ProductLifecycleState.Running;
     }
 
@@ -246,16 +175,13 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             Shutdown();
         }
 
-        ghost?.DisposePresentation();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
-        ghost?.Dispose();
         foreach (IProductModule module in gameplay.Reverse())
         {
             module.Dispose();
         }
 
         player.Dispose();
-        microvoxels?.Dispose();
         terrain.Dispose();
         lifecycle = ProductLifecycleState.Disposed;
     }
@@ -277,32 +203,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
     }
 
-    private void PublishAppearanceSnapshot(
-        bool includeGhostSource = true,
-        bool useDesiredGhostSource = false)
+    /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
+    private void PublishAppearanceSnapshot()
     {
-        // Without the studies there is no ghost source, and the gameplay facts
-        // are the whole snapshot.
-        AppearanceFact[] gameplay =
-        [
-            .. terrain.CourtyardFacts,
-            .. player.Ropes.Facts,
-            player.PlatformAppearanceFact,
-            .. creatures.AppearanceFacts,
-        ];
-        if (!includeGhostSource || ghost is null)
-        {
-            engine.Graphics.PublishSnapshot(gameplay);
-        }
-        else
-        {
-            engine.Graphics.PublishSnapshot(
-            [
-                .. gameplay,
-                useDesiredGhostSource ? ghost.DesiredSourceAppearanceFact : ghost.SourceAppearanceFact,
-            ]);
-        }
-
+        engine.Graphics.PublishSnapshot([.. creatures.AppearanceFacts]);
         creatures.AfterAppearanceSnapshot();
     }
 

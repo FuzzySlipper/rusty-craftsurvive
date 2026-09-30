@@ -60,7 +60,7 @@ PlayerInputChecks.Run();
         "a small world's wall must not extend inward past its thickness");
     Require(small.ChunkHasContent(new VoxelAddress(edge, GenerationConstants.WorldWallTop, 0).Chunk),
         "the content predicate must see a small world's wall");
-    TerrainRecipe large = TerrainConfiguration.TraversalShowcase.CreateRecipe(new TestDraws(TerrainConstants.DefaultSeed));
+    TerrainRecipe large = TerrainConfiguration.Default.CreateRecipe(new TestDraws(TerrainConstants.DefaultSeed));
     Require(large.MaterialAt(new VoxelAddress(edge, GenerationConstants.WorldWallTop + 1, 0)) != bedrock
         || large.SurfaceAt(edge, 0) > GenerationConstants.WorldWallTop,
         "the default world must have no wall where a small world's edge would be");
@@ -71,7 +71,7 @@ PlayerInputChecks.Run();
 // nothing a different generator wrote survives a start.
 {
     TerrainChunkCacheIndex index = new([]);
-    TerrainGeneratorContract contract = TerrainConfiguration.TraversalShowcase.Contract;
+    TerrainGeneratorContract contract = TerrainConfiguration.Default.Contract;
     string prefix = TerrainChunkCacheKey.GeneratorPrefix(contract, 0xABCDUL);
     for (int i = 0; i < TerrainChunkCacheIndex.MaximumChunks; i++)
     {
@@ -102,7 +102,7 @@ PlayerInputChecks.Run();
 // one is generated first, including a tree that overhangs the boundary. The two
 // passes use separate recipes, so nothing is shared but the contract.
 {
-    TerrainConfiguration config = TerrainConfiguration.TraversalShowcase;
+    TerrainConfiguration config = TerrainConfiguration.Default;
     TerrainOverlayState snapshot = new(config.Seed);
     TerrainChunkAddress[] pairs = [new(0, 1, 0), new(1, 1, 0), new(0, 1, 1), new(-1, 1, 0)];
     foreach (TerrainChunkAddress left in pairs)
@@ -133,7 +133,7 @@ PlayerInputChecks.Run();
 // feature draws; it starts covering placed features, and moves deliberately, once
 // the material capacity lands.
 {
-    TerrainConfiguration config = TerrainConfiguration.TraversalShowcase;
+    TerrainConfiguration config = TerrainConfiguration.Default;
     var generator = new TerrainChunkGenerator(config.CreateRecipe(new TestDraws(config.Seed)));
     var overlay = new TerrainOverlayState(config.Seed);
     long featureVoxels = 0;
@@ -182,7 +182,7 @@ PlayerInputChecks.Run();
     // is answered by looking for one across a region wide enough that a world without trees
     // cannot pass by chance.
     {
-        TerrainConfiguration scanConfig = TerrainConfiguration.TraversalShowcase;
+        TerrainConfiguration scanConfig = TerrainConfiguration.Default;
         var scanGenerator = new TerrainChunkGenerator(scanConfig.CreateRecipe(new TestDraws(scanConfig.Seed)));
         TerrainOverlayState scanOverlay = new(scanConfig.Seed);
         long scanFeatures = 0;
@@ -287,7 +287,7 @@ PlayerInputChecks.Run();
 // and placed nothing. A census over the fakes could not see it: their hillsides are steep. Only
 // the real recipe can answer it, which is why the check lives here.
 {
-    TerrainConfiguration censusConfig = TerrainConfiguration.TraversalShowcase;
+    TerrainConfiguration censusConfig = TerrainConfiguration.Default;
     var censusRecipe = censusConfig.CreateRecipe(new TestDraws(censusConfig.Seed));
     Dictionary<PoiKind, int> census = [];
     int censusSites = 0;
@@ -461,7 +461,7 @@ PlayerInputChecks.Run();
 
 }
 
-var configuration = TerrainConfiguration.TraversalShowcase;
+var configuration = TerrainConfiguration.Default;
 var recipe = configuration.CreateRecipe(new TestDraws(configuration.Seed));
 var chunkGenerator = new TerrainChunkGenerator(recipe);
 var state = new TerrainOverlayState(configuration.Seed);

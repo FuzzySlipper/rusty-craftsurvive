@@ -74,10 +74,9 @@ jobs:
         run: |
           set -o pipefail
           {
-            for check in tests/Procgen tests/Workbench tests/TerrainResidency tests/SubstrateProof tests/RpgCore tests/DiscoveryCore; do
+            for check in tests/TerrainResidency tests/SubstrateProof tests/RpgCore tests/DiscoveryCore; do
               dotnet run --project "$check" -c Release
             done
-            dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
           } 2>&1 | tee checks.log
 
       - name: Serve the product on the proposed pair

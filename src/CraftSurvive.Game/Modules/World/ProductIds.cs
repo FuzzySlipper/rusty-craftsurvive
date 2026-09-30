@@ -10,9 +10,6 @@ internal static class ProductIds
     /// <summary>The player: a spatial entity and the target creatures perceive.</summary>
     internal const ulong PlayerEntity = 1UL;
 
-    /// <summary>The moving platform: a spatial obstacle and its appearance object.</summary>
-    internal const ulong PlatformEntity = 2UL;
-
     /// <summary>Creature appearance objects are this base plus the creature id.</summary>
     internal const ulong CreatureAppearanceBase = 0x1_0000UL;
 

@@ -5,10 +5,10 @@ import { readFile } from 'node:fs/promises';
 // Audits the canonical terrain atlas against its layout metadata, and the layout
 // against itself. The generator writes both in one step; this check is what makes
 // a hand edit or a stale metadata file fail instead of reaching the product.
-const metadata = JSON.parse(await readFile('content/textures/terrain-atlas.json', 'utf8'));
-const canonical = await readFile(`content/textures/${metadata.image}`);
+const metadata = JSON.parse(await readFile('content/game/textures/terrain-atlas.json', 'utf8'));
+const canonical = await readFile(`content/game/textures/${metadata.image}`);
 const hash = `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
-const sky = await readFile('content/textures/sky-panorama.png');
+const sky = await readFile('content/game/textures/sky-panorama.png');
 const skyWidth = sky.readUInt32BE(16);
 const skyHeight = sky.readUInt32BE(20);
 

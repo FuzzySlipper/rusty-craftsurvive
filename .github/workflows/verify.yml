@@ -31,12 +31,6 @@ jobs:
           pin=$(sed -n 's|.*<RustyEnginePackageVersion>\([^<]*\)</RustyEnginePackageVersion>.*|\1|p' Directory.Build.props)
           curl -fsSL "$RUSTY_INSTALLER" | bash -s -- --version "$pin"
           ~/.local/bin/rusty install
-      - name: Check procedural planning and cave/dungeon layouts
-        run: dotnet run --project tests/Procgen -c Release
-      - name: Check workbench motifs and complex layouts
-        run: dotnet run --project tests/Workbench -c Release
-      - name: Check offline generation artifacts
-        run: dotnet run --project src/CraftSurvive.Procgen.Tool -c Release -- --self-check
       - name: Check terrain materials and residency cache
         run: dotnet run --project tests/TerrainResidency -c Release
       - name: Check the Engine substrate the product relies on

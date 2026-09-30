@@ -9,7 +9,6 @@ provenance, and superseded state — lives in Den and is deliberately not copied
 | [csharp-migration-map.md](csharp-migration-map.md) | Where product modules, Engine services, and content live |
 | [known-limitations.md](known-limitations.md) | What the product does not do today, and the limits a change must respect |
 | [live-proofs.md](live-proofs.md) | How to run the live evidence lane, what it proves, and the operational traps |
-| [rope-playground.md](rope-playground.md) | The scripted-input submission form used with the playtest lane |
 
 `README.md` at the repository root is the entry point for developing and running the
 product. `AGENTS.md` holds the working rules.

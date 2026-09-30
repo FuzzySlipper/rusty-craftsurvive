@@ -20,7 +20,6 @@ internal sealed class TerrainWorld : IDisposable
     private readonly IEngineContext engine;
     private readonly ProductContent content;
     private readonly TerrainRecipe recipe;
-    private readonly CourtyardScene? courtyard;
     private readonly TerrainChunkGenerator chunkGenerator;
     private readonly TerrainChunkCache chunkCache;
     private readonly Queue<TerrainChunkAddress> pendingCacheWrites = new();
@@ -59,8 +58,7 @@ internal sealed class TerrainWorld : IDisposable
         overlay = new TerrainOverlayState(configuration.Seed);
         // Authored content is selected during Product Create so the Engine
         // can retain the resource for every later presentation attachment.
-        if (configuration.Scene == TerrainSceneMode.ExperimentalCourtyard) courtyard = new CourtyardScene(engine);
-        else atlasCatalog = new TerrainAtlasCatalog(engine, content);
+        atlasCatalog = new TerrainAtlasCatalog(engine, content);
     }
 
     /// <summary>How many chunks the world currently holds resident.</summary>
@@ -107,10 +105,9 @@ internal sealed class TerrainWorld : IDisposable
             uiStream = engine.Ui.OpenStream(new UiStreamRequest(
                 TerrainConstants.UiStreamName,
                 TerrainConstants.UiStreamContract));
-            if (courtyard is null) RestoreOverlay();
+            RestoreOverlay();
             Synchronize(FixedResidencyCenter);
-            courtyard?.Start(Session);
-            if (courtyard is null) CreatePresentation();
+            CreatePresentation();
             PublishUi();
             started = true;
         }
@@ -121,31 +118,6 @@ internal sealed class TerrainWorld : IDisposable
         }
     }
 
-    internal IEnumerable<AppearanceFact> CourtyardFacts => courtyard?.Facts ?? [];
-    internal bool IsCourtyard => courtyard is not null;
-    internal void ReleaseRetiredCourtyard() => courtyard?.ReleaseRetired();
-    internal void UpdateCourtyard() => courtyard?.Update();
-    internal string ReadWorkbenchBuild() => courtyard?.ReadWorkbenchBuild() ?? "courtyard inactive";
-    internal CollisionReplaceReceipt WorkbenchCollision =>
-        (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).CollisionReceipt;
-    internal string ReadCourtyard() => courtyard?.Readout() ?? "courtyard inactive";
-    internal string QueueCourtyardTreatment(string treatment) => courtyard?.QueueTreatment(treatment) ?? "courtyard inactive";
-    internal string QueueCourtyardMasonry(string mode) => courtyard?.QueueMasonry(mode) ?? "courtyard inactive";
-    internal string QueueCourtyardMaterialBoundaries(string mode) => courtyard?.QueueMaterialBoundaries(mode) ?? "courtyard inactive";
-    internal string QueueCourtyardMaterialCutoff(float cutoff) => courtyard?.QueueMaterialCutoff(cutoff) ?? "courtyard inactive";
-    internal bool IsGeneratedLevel => courtyard?.IsGeneratedLevel == true;
-    internal CraftSurvive.Procgen.Workbench.WorkbenchCandidate? ActiveWorkbench => courtyard?.ActiveWorkbench;
-    internal void ApplyWorkbench(CraftSurvive.Procgen.Workbench.WorkbenchCandidate candidate, bool switchOpen, string treatment = CraftSurvive.Procgen.Workbench.WorkbenchRealization.Intact) =>
-        (courtyard ?? throw new InvalidOperationException("Workbench requires the courtyard scene.")).ApplyWorkbench(candidate, switchOpen, treatment);
-    internal string ReadCourtyardLevelPlan() => courtyard?.ReadLevelPlan() ?? "courtyard inactive";
-    internal string QueueCourtyardSeed(ulong seed) => courtyard?.QueueSeed(seed) ?? "courtyard inactive";
-    internal string QueueCourtyardStudy(string study) => courtyard?.QueueStudy(study) ?? "courtyard inactive";
-    internal string QueueCourtyardMaterialSamples(float spacing) => courtyard?.QueueMaterialSamples(spacing) ?? "courtyard inactive";
-    internal string ReadCourtyardDetailParts() => courtyard?.ReadDetailParts() ?? "courtyard inactive";
-    internal string QueueCourtyardDetail(string detail) => courtyard?.QueueDetail(detail) ?? "courtyard inactive";
-    internal (Vector3 Eye, Vector3 Target) CourtyardInspectionView(string angle) =>
-        (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).InspectionView(angle);
-    internal string QueueCourtyardLayout(float width, float doorWidth, float doorOffset, ulong seed) => courtyard?.QueueLayout(width, doorWidth, doorOffset, seed) ?? "courtyard inactive";
 
     /// <summary>Advances the bounded voxel residency plan around a product global voxel fact.</summary>
     internal void SynchronizeAround(VoxelAddress centerVoxel)
@@ -181,7 +153,6 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Moves what the world holds in local space after the player commits a rebase.</summary>
     private void OnRebased(Vector3 translation)
     {
-        courtyard?.Translate(translation);
         if (presentation is not null)
         {
             RefreshPresentation();
@@ -389,7 +360,6 @@ internal sealed class TerrainWorld : IDisposable
         residentChunks.Clear();
         presentation?.Dispose();
         presentation = null;
-        courtyard?.Dispose();
         atlasCatalog?.Dispose();
         atlasCatalog = null;
         materialMapping = default;
@@ -420,7 +390,8 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>Reads the selected product layout without querying or replacing Engine state.</summary>
-    internal string ReadLayout() => courtyard?.Readout() ?? "mode=traversal-showcase";
+    internal string ReadLayout() => string.Create(CultureInfo.InvariantCulture,
+        $"seed={recipe.Contract.Seed:x16};extent={recipe.Contract.Extent};version={recipe.Contract.Version};overlay={overlay.Count} entries, {overlayRestoreOutcome}");
 
     /// <summary>Formats the latest player-consumed target/edit result for the narrow live debug surface.</summary>
     internal static string FormatEditReadout(TerrainWorldEditResult? result) => result switch
@@ -439,36 +410,12 @@ internal sealed class TerrainWorld : IDisposable
 
     private PersistenceStore PersistenceStore => persistenceStore ?? throw new InvalidOperationException("Terrain persistence store is unavailable.");
 
-    /// <summary>
-    /// Builds the admission the residency policy would apply for one chunk,
-    /// without applying it. This is the staged background-preparation proof's
-    /// entry point: the product composes and owns the payload, and the Engine
-    /// builds the projection off the admitted update path. Returns null in
-    /// courtyard mode, where residency is authored rather than generated.
-    /// </summary>
-    internal VoxelResidencyTransaction? PlanChunkAdmission(SpatialSession session, TerrainChunkAddress address)
-    {
-        if (courtyard is not null)
-        {
-            return null;
-        }
-
-        TerrainResidencyPlan plan = residencyPolicy.PlanFor(address, overlay);
-        List<VoxelResidencyOperation> operations = [];
-        List<uint> materialSlots = [];
-        AddChunkAdmission(plan.Chunk(address), operations, materialSlots);
-        return new VoxelResidencyTransaction(
-            session,
-            operations.ToArray(),
-            materialSlots.ToArray());
-    }
     private UiStream UiStream => uiStream ?? throw new InvalidOperationException("Terrain UI stream is unavailable.");
 
     private bool Synchronize(TerrainChunkAddress center)
     {
         DrainCacheWrites();
 
-        if (courtyard is not null) return false;
         TerrainResidencyPlan plan = residencyPolicy.PlanFor(center, overlay);
 
         List<VoxelResidencyOperation> operations = [];
@@ -605,22 +552,7 @@ internal sealed class TerrainWorld : IDisposable
         }
     }
 
-    /// <summary>
-    /// Whether the world's overlay is saved, and how many bytes it holds. It exists
-    /// so the live lane can show that a product edit reached the store, which is the
-    /// half of the save path an Engine-level edit never touches.
-    /// </summary>
-    internal (bool Present, int Bytes) OverlaySaved()
-    {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
-            PersistenceStore,
-            TerrainConstants.OverlayPersistenceKey));
-        PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
-        return info.Present ? (true, engine.Persistence.ReadBlobBytes(blob).Length) : (false, 0);
-    }
 
-    /// <summary>What happened to the saved overlay at startup, for evidence.</summary>
-    internal string OverlayRestoreOutcome => overlayRestoreOutcome;
 
     private void PreserveOverlayBackup(byte[] bytes)
     {
@@ -788,10 +720,7 @@ internal readonly record struct TerrainPlayerUiFacts(
     double YawDegrees,
     double PitchDegrees,
     bool Grounded,
-    bool Crouched,
-    double PlatformX,
-    double PlatformY,
-    double PlatformZ);
+    bool Crouched);
 
 /// <summary>
 /// What the journal knows, as numbers, for the product's UI projection. It is a flat
