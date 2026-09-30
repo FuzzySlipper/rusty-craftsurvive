@@ -23,6 +23,7 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
+    private readonly WorldFrame frame;
     private readonly BlockEntityIndex entities;
     private BlastCharge? pending;
     private long fired;
@@ -34,13 +35,15 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
     private string lastOutcome = "none";
     private string lastDustFailure = "none";
 
-    internal BlastModule(IEngineContext engine, TerrainWorld terrain, BlockEntityIndex entities)
+    internal BlastModule(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, BlockEntityIndex entities)
     {
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(terrain);
+        ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(entities);
         this.engine = engine;
         this.terrain = terrain;
+        this.frame = frame;
         this.entities = entities;
     }
 
@@ -96,11 +99,12 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
 
     /// <summary>
     /// The dust is presentation: a refused emission is counted and reported, and the charge still
-    /// resolves.
+    /// resolves. The charge's cell is global; the emitter's anchor and the debris' collision box
+    /// are positions, so they are placed in the session's local frame.
     /// </summary>
     private void EmitDust(BlastCharge charge)
     {
-        Vector3 centre = new(charge.Centre.X + CellCentre, charge.Centre.Y + CellCentre, charge.Centre.Z + CellCentre);
+        Vector3 centre = DustCentre(charge.Centre);
         ulong seed = BlastDust.ChargeSeed(charge.Centre);
         try
         {
@@ -113,6 +117,10 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
             lastDustFailure = exception.Message;
         }
     }
+
+    /// <summary>Where a charge's dust is anchored: the middle of its centre cell, in the local frame.</summary>
+    internal Vector3 DustCentre(VoxelAddress cell) =>
+        frame.ToLocal(cell.X + CellCentre, cell.Y + CellCentre, cell.Z + CellCentre);
 
     [DebugCommand("craft.blast.fire", Description = "Fires a charge at a cell: breaks the blocks within the radius that the charge is strong enough to break, as one transaction.")]
     public string Fire(long x, long y, long z, long radius)
@@ -140,5 +148,6 @@ public sealed class BlastModule : IProductModule, IDebugCommandModule
             $"blast fired={fired} pending={Pending} cleared={cleared} refused={refused} swept={swept} ")
         + FormattableString.Invariant(
             $"dustRefused={dustRefused} lastResolveMs={lastResolveMs:F2} last={lastOutcome} dustFailure={lastDustFailure} ")
+        + (pending is BlastCharge charge ? FormattableString.Invariant($"dustAnchor={DustCentre(charge.Centre)} ") : string.Empty)
         + $"editTiming[{terrain.LastEditTiming}]";
 }

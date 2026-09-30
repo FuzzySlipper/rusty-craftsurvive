@@ -474,6 +474,24 @@ Require(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePl
     && patientStriker.Behavior.CanAttack(11, CreatureKinds.Hostile.Tuning),
     "a player who cannot be hit draws no blow and costs no cooldown");
 
+// Sight range is decided once, on planar distance: two players at the same planar distance but
+// at different heights draw the same decision, and the Engine's query radius never rejects a
+// target the planar rule would see.
+const double HeightSpan = 40;
+foreach (double planar in new[] { CreatureKinds.Hostile.Tuning.SightRange - 0.5, CreatureKinds.Hostile.Tuning.SightRange + 0.5 })
+{
+    Creature low = new(5, CreatureKinds.Hostile, Vector2.Zero);
+    Creature high = new(6, CreatureKinds.Hostile, Vector2.Zero);
+    CreatureSimulation.Step(low, new CreatureSense(true), new Vector3((float)planar, 0, 0), true, new ProductStep(1, 1, FixedDelta));
+    CreatureSimulation.Step(high, new CreatureSense(true), new Vector3((float)planar, (float)HeightSpan, 0), true, new ProductStep(1, 1, FixedDelta));
+    Require(low.Behavior.State == high.Behavior.State,
+        $"at {planar} m planar, height must not change the sight decision: {low.Behavior.State} vs {high.Behavior.State}");
+}
+
+double radius = CreatureSimulation.EngineSightRadius(CreatureKinds.Hostile.Tuning.SightRange, HeightSpan);
+Require(Math.Sqrt(Math.Pow(CreatureKinds.Hostile.Tuning.SightRange, 2) + Math.Pow(HeightSpan, 2)) <= radius + 1e-9,
+    "the Engine's query radius must reach a target at the edge of planar sight at the greatest height difference");
+
 // The player's vitals own respawn and grace.
 PlayerVitals vitals = new(40);
 vitals.TakeHit(999, 100);

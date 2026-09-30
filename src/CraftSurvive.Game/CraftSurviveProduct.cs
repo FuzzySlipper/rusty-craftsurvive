@@ -79,7 +79,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         creatures = new CreatureModule(context.Engine, terrain, player, frame);
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player);
-        blast = new BlastModule(context.Engine, terrain, entities);
+        blast = new BlastModule(context.Engine, terrain, frame, entities);
         build = new BuildModule(terrain, entities);
         gameplay = [creatures, discovery, blast, build];
         entityDebug.RegisterStore("craft", player.EntityStore);

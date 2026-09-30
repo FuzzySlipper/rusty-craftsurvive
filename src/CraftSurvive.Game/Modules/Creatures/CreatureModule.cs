@@ -313,7 +313,15 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>
-    /// Asks the Engine which creatures can see the player, in one query for the whole roster.
+    /// The greatest height difference between a creature's eye and the player: the world's whole
+    /// material span plus a standing eye.
+    /// </summary>
+    private double MaximumHeightDifference =>
+        terrain.Recipe.MaximumMaterialY - terrain.Recipe.MinimumMaterialY + EyeHeightMetres;
+
+    /// <summary>
+    /// Asks the Engine which creatures can see the player - line of sight and occlusion only; the
+    /// sight range itself is the behaviour's planar rule - in one query for the whole roster.
     /// A creature the Engine does not answer for senses nothing this update, and a refused query
     /// is reported rather than guessed around.
     /// </summary>
@@ -329,7 +337,7 @@ internal sealed class CreatureModule : IProductModule
             ProductIds.CreatureObserverBase + (ulong)creature.Id,
             frame.ToLocal(creature.Position.X, GroundAt(creature.Position) + EyeHeightMetres, creature.Position.Y),
             Vector3.UnitZ,
-            creature.Kind.Tuning.SightRange,
+            CreatureSimulation.EngineSightRadius(creature.Kind.Tuning.SightRange, MaximumHeightDifference),
             AllAroundFacingCosine,
             FullEvidence)).ToArray();
         PerceptionTarget[] targets = [new PerceptionTarget(ProductIds.PlayerEntity, frame.ToLocal(playerWorld))];
@@ -364,7 +372,7 @@ internal sealed class CreatureModule : IProductModule
             }
 
             perceptionStatus = string.Create(CultureInfo.InvariantCulture,
-                $"seen={senses.Count} casts={casts} distanceRejects={beyond} occlusionRejects={occluded}");
+                $"visible={senses.Count} casts={casts} occlusionRejects={occluded} beyondQueryRadius={beyond}");
         }
         catch (EngineCallException exception)
         {

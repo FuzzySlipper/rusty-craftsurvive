@@ -20,6 +20,14 @@ internal readonly record struct CreatureStrike(int CreatureId, AttackProfile Att
 /// </summary>
 internal static class CreatureSimulation
 {
+    /// <summary>
+    /// The radius the Engine's visibility query is given. Sight range is a planar rule decided by
+    /// the behaviour, so the Engine must never reject a target inside it: its radius covers the
+    /// planar sight range at the greatest height difference two things in the world can have.
+    /// </summary>
+    internal static double EngineSightRadius(double planarSightRange, double maximumHeightDifference) =>
+        Math.Sqrt((planarSightRange * planarSightRange) + (maximumHeightDifference * maximumHeightDifference));
+
     internal static double PlanarDistance(Vector2 creature, Vector3 player)
     {
         double dx = player.X - creature.X;
