@@ -6,8 +6,11 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// <summary>
 /// A fingerprint of what the generator produces over a fixed probe of the world: a lattice of
 /// surface heights spanning the whole extent, the site and crossing decisions of the anchor
-/// cells around the origin, and every voxel of a set of chunks that includes the origin, a
-/// structure and the border wall.
+/// cells around the origin, every voxel of a set of chunks that includes the origin, a
+/// structure and the border wall, and the structure catalogue - every kind of structure and
+/// crossing built on a synthetic site, in every variant and facing and at both ends of its
+/// height range. The catalogue is what makes a structure's geometry part of the identity even
+/// when no site of that kind lies near the origin of this seed's world.
 ///
 /// It answers "is this the same world" by looking at output rather than at the version number,
 /// so a tuning change that forgot its version bump shows up, and so does a change in the keyed
@@ -32,7 +35,17 @@ internal static class TerrainGenerationFingerprint
     private static readonly long[] BlockZ = [-2, 0, 2];
     private static readonly long[] BlockY = [-1, 0, 1];
 
-    internal static ulong Compute(TerrainRecipe recipe, ProbeScale scale)
+    /// <summary>The catalogue's synthetic ground height; any height does, as long as it is fixed.</summary>
+    private const long CatalogueGround = 16;
+
+    private static readonly Lazy<ulong> ShippedCatalogue =
+        new(() => StructureCatalogue(PoiStructures.MaterialAt, CrossingStructure.MaterialAt));
+
+    internal static ulong Compute(TerrainRecipe recipe, ProbeScale scale) =>
+        Compute(recipe, scale, ShippedCatalogue.Value);
+
+    /// <summary>The fingerprint over a given structure catalogue, so a check can show a changed builder moves it.</summary>
+    internal static ulong Compute(TerrainRecipe recipe, ProbeScale scale, ulong catalogue)
     {
         ArgumentNullException.ThrowIfNull(recipe);
         ArgumentNullException.ThrowIfNull(scale);
@@ -79,6 +92,8 @@ internal static class TerrainGenerationFingerprint
             }
         }
 
+        hash = Mix(hash, catalogue);
+
         // Whole chunks: the origin's surface, the nearest structure, and the border wall.
         TerrainChunkGenerator generator = new(recipe);
         TerrainOverlaySnapshot pristine = new(contract.Seed, []);
@@ -92,6 +107,77 @@ internal static class TerrainGenerationFingerprint
 
         return hash;
     }
+
+    /// <summary>What a structure builder answers for one voxel of a site.</summary>
+    internal delegate PoiVoxel SiteGeometry(PoiSite site, long x, long y, long z);
+
+    /// <summary>What a crossing builder answers for one voxel of a span.</summary>
+    internal delegate PoiVoxel CrossingGeometry(CrossingSite site, long x, long y, long z);
+
+    /// <summary>
+    /// Every structure and crossing shape the generator can build, sampled over its whole reach
+    /// on synthetic sites. It depends only on the builders and their tuning, not on the seed, so
+    /// it is computed once per process.
+    /// </summary>
+    internal static ulong StructureCatalogue(SiteGeometry sites, CrossingGeometry crossings)
+    {
+        ArgumentNullException.ThrowIfNull(sites);
+        ArgumentNullException.ThrowIfNull(crossings);
+        ulong hash = FnvOffsetBasis;
+        for (long kind = PoiConstants.FirstKind; kind <= PoiConstants.LastKind; kind++)
+        {
+            (long minimum, long range) = PoiPlacement.HeightRangeFor((PoiKind)kind);
+            for (long variant = 0; variant <= PoiConstants.LastVariant; variant++)
+            {
+                // Each variant also takes a facing, so the eight variants cover all four twice.
+                long aspect = variant % PoiConstants.Aspects;
+                hash = MixStructure(hash, sites, new PoiSite(0, 0, (PoiKind)kind, 0, 0, CatalogueGround, minimum, variant, aspect));
+            }
+
+            hash = MixStructure(hash, sites, new PoiSite(0, 0, (PoiKind)kind, 0, 0, CatalogueGround, minimum + range - 1, 0, 0));
+        }
+
+        foreach (bool alongX in (ReadOnlySpan<bool>)[true, false])
+        {
+            long toX = alongX ? PoiConstants.CrossingMaximumSpan : 0;
+            long toZ = alongX ? 0 : PoiConstants.CrossingMaximumSpan;
+            CrossingSite span = new(0, 0, 0, 0, toX, toZ, CatalogueGround, alongX);
+            long reach = PoiConstants.CrossingMaximumSpan + PoiConstants.CrossingRampLength + 1;
+            long bottom = CatalogueGround - PoiConstants.CrossingPierDepth - PoiConstants.CrossingRampLength - 1;
+            for (long x = -reach; x <= reach; x++)
+            {
+                for (long z = -reach; z <= reach; z++)
+                {
+                    for (long y = bottom; y <= CatalogueGround + 1; y++)
+                    {
+                        hash = MixVoxel(hash, crossings(span, x, y, z));
+                    }
+                }
+            }
+        }
+
+        return hash;
+    }
+
+    private static ulong MixStructure(ulong hash, SiteGeometry sites, PoiSite site)
+    {
+        long reach = PoiConstants.MaximumStructureReach;
+        for (long x = -reach; x <= reach; x++)
+        {
+            for (long z = -reach; z <= reach; z++)
+            {
+                for (long y = CatalogueGround - PoiConstants.MaximumCarveDepth - 1; y <= CatalogueGround + PoiConstants.MaximumStructureHeight + 1; y++)
+                {
+                    hash = MixVoxel(hash, sites(site, x, y, z));
+                }
+            }
+        }
+
+        return hash;
+    }
+
+    private static ulong MixVoxel(ulong hash, PoiVoxel voxel) =>
+        Mix(hash, ((ulong)voxel.Kind << 16) | voxel.Material);
 
     private static IEnumerable<TerrainChunkAddress> ProbeChunks(TerrainRecipe recipe, ProbeScale scale, PoiSite? nearest)
     {

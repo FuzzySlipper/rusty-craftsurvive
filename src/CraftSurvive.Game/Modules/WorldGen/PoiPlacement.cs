@@ -170,7 +170,7 @@ internal sealed class PoiPlacement
         PoiKind kind = Reconcile(preferred, column, relief);
         (long minimum, long range) = HeightRangeFor(kind);
         long height = contract.DrawLong(draws, "poi.height", key, minimum, minimum + range - 1);
-        long variant = contract.DrawLong(draws, "poi.variant", key, 0, 7);
+        long variant = contract.DrawLong(draws, "poi.variant", key, 0, PoiConstants.LastVariant);
         return new PoiSite(cellX, cellZ, kind, x, z, column.Surface, height, variant, aspect);
     }
 
@@ -227,7 +227,7 @@ internal sealed class PoiPlacement
         _ => preferred,
     };
 
-    private static (long Minimum, long Range) HeightRangeFor(PoiKind kind) => kind switch
+    internal static (long Minimum, long Range) HeightRangeFor(PoiKind kind) => kind switch
     {
         PoiKind.StandingStones => (PoiConstants.StoneMinimumHeight, PoiConstants.StoneHeightRange),
         PoiKind.Ruin => (PoiConstants.RuinMinimumHeight, PoiConstants.RuinHeightRange),

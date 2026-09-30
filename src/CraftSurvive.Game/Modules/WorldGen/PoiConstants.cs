@@ -65,6 +65,12 @@ internal static class PoiConstants
     /// <summary>The ground height at which a vantage point is worth building.</summary>
     internal const long VantageMinimumHeight = 7;
 
+    /// <summary>A site draws its variant from zero to this, inclusive.</summary>
+    internal const long LastVariant = 7;
+
+    /// <summary>A site faces one of the four cardinals, measured from the ground around it.</summary>
+    internal const long Aspects = 4;
+
     // --- structures -----------------------------------------------------------------
     // Largest first: the ruin's footprint sets MaximumStructureReach, and every
     // builder must stay inside it.

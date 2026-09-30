@@ -10,15 +10,15 @@ using CraftSurvive.Game.Modules.Rpg;
 PlayerInputChecks.Run();
 
 // The generator's golden fingerprints, one per version, over two seeds. The fingerprint covers
-// heights edge to edge, every site and crossing decision in a 41-cell square, and 68 whole
-// chunks including a structure and the border wall, so changing any generation constant or rule
-// moves it. A change that moves it must bump TerrainGeneratorContract.CurrentVersion and add a
+// heights edge to edge, every site and crossing decision in a 41-cell square, 68 whole chunks
+// including a structure and the border wall, and every structure and crossing shape on synthetic
+// sites, so changing any generation constant or rule moves it. A change that moves it must bump TerrainGeneratorContract.CurrentVersion and add a
 // row here; editing an existing row instead would let two different worlds share a version.
 {
     Dictionary<(uint Version, ulong Seed), ulong> golden = new()
     {
-        [(12, TerrainConstants.DefaultSeed)] = 0xcd1ae5b3b5cc9caaUL,
-        [(12, 12345UL)] = 0xea90394ab7bd6daaUL,
+        [(12, TerrainConstants.DefaultSeed)] = 0x04ce381c4bc1ec87UL,
+        [(12, 12345UL)] = 0x8a9c21d06e49334bUL,
     };
     List<string> mismatches = [];
     foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })
@@ -44,7 +44,28 @@ PlayerInputChecks.Run();
         "a different seed must move the fingerprint");
     Require(startup != TerrainGenerationFingerprint.Compute((baseline with { GeneratorVersion = baseline.GeneratorVersion + 1 }).CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup),
         "a different version must move the fingerprint, heights included");
-    Console.WriteLine($"Generator golden fingerprints hold for version {TerrainGeneratorContract.CurrentVersion}; seed and version each move the fingerprint.");
+
+    // A structure's geometry is part of the identity even when this seed's probe holds no site of
+    // its kind: each kind, and the crossing, changed on its own moves the catalogue, and a
+    // changed catalogue moves the fingerprint the chunk cache keys on.
+    ulong catalogue = TerrainGenerationFingerprint.StructureCatalogue(PoiStructures.MaterialAt, CrossingStructure.MaterialAt);
+    for (long kind = PoiConstants.FirstKind; kind <= PoiConstants.LastKind; kind++)
+    {
+        PoiKind changed = (PoiKind)kind;
+        ulong mutated = TerrainGenerationFingerprint.StructureCatalogue(
+            (site, x, y, z) => PoiStructures.MaterialAt(site, site.Kind == changed ? x + 1 : x, y, z),
+            CrossingStructure.MaterialAt);
+        Require(mutated != catalogue, $"a change to the {changed} builder must move the structure catalogue");
+    }
+
+    Require(catalogue != TerrainGenerationFingerprint.StructureCatalogue(
+            PoiStructures.MaterialAt, (site, x, y, z) => CrossingStructure.MaterialAt(site, x, y + 1, z)),
+        "a change to the crossing builder must move the structure catalogue");
+    Require(startup == TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup, catalogue),
+        "the fingerprint must be taken over the shipped builders");
+    Require(startup != TerrainGenerationFingerprint.Compute(baseline.CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup, catalogue + 1),
+        "a changed structure catalogue must move the fingerprint");
+    Console.WriteLine($"Generator golden fingerprints hold for version {TerrainGeneratorContract.CurrentVersion}; seed, version and every structure builder each move the fingerprint.");
 }
 
 // A world of any size has its border wall at its own edge, not at the default world's.
