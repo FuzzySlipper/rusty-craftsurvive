@@ -12,6 +12,7 @@ using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Studies;
+using CraftSurvive.Game.Modules.World;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game;
@@ -24,6 +25,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 {
     private readonly IEngineContext engine;
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
+
+    /// <summary>The one world-to-local conversion; the player commits rebases through it.</summary>
+    private readonly WorldFrame frame = new();
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly MicrovoxelPresentation? microvoxels;
@@ -34,6 +38,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly ProcgenWorkbench? workbench;
     private readonly ProcgenDebugModule? procgenDebug;
     private readonly CreatureModule creatures;
+    private readonly CreatureDebugModule creatureDebug;
     private readonly DiscoveryModule discovery;
     private readonly BlastModule blast;
     private readonly BuildModule build;
@@ -41,14 +46,20 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
     private readonly BlockEntityIndex entities = new();
     private readonly EncounterProofModule encounterProof;
+
+    /// <summary>
+    /// The gameplay modules the player's update feeds, in the order they run: each reads what
+    /// the ones before it decided this update.
+    /// </summary>
+    private readonly IProductModule[] gameplay;
     private readonly LiveSubstrateProof? substrateProof;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         engine = context.Engine;
-        terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default);
-        player = new PlayerController(context.Engine, terrain);
+        terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame);
+        player = new PlayerController(context.Engine, terrain, frame);
         // The workbench, the microvoxel shrine and the ghost plate are development
         // instruments from the slices that built them, not parts of the survival
         // world: they are constructed only when the studies are asked for, so the
@@ -66,17 +77,21 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
                 GhostPlateConfiguration.Default);
         }
         sky = new SkyBackground(context.Engine);
-        creatures = new CreatureModule(context.Engine, terrain, player);
+        creatures = new CreatureModule(context.Engine, terrain, player, frame);
+        creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player);
         blast = new BlastModule(context.Engine, terrain, entities);
         build = new BuildModule(terrain, entities);
         encounterProof = new EncounterProofModule(terrain, player);
+        gameplay = [creatures, discovery, blast, build];
         entityDebug.RegisterStore("craft", player.EntityStore);
+        entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
         productDebug = new CraftDebugModule(
             player,
+            creatures,
             terrain,
             ghost,
             microvoxels,
@@ -92,7 +107,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(encounterProof));
-        RequireRegistration(registrar.Register(creatures));
+        RequireRegistration(registrar.Register(creatureDebug));
         RequireRegistration(registrar.Register(discovery));
         RequireRegistration(registrar.Register(blast));
         RequireRegistration(registrar.Register(build));
@@ -110,7 +125,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         {
             terrain.Start();
             player.Start();
-            creatures.Start();
+            foreach (IProductModule module in gameplay)
+            {
+                module.Start();
+            }
+
             sky.Start();
             PublishAppearanceSnapshot();
             ghostSourcePublished = true;
@@ -137,6 +156,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             {
                 engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
             }
+            foreach (IProductModule module in gameplay)
+            {
+                module.Dispose();
+            }
+
             player.Dispose();
             microvoxels?.Dispose();
             terrain.Dispose();
@@ -147,12 +171,18 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
+        ProductStep step = ProductStep.From(update.Facts);
         terrain.UpdateCourtyard();
-        creatures.Update();
-        discovery.Update();
-        blast.Update();
         workbench?.Update(update);
+
+        // The player moves first on this update's input; creatures, discovery and charges then
+        // read where the player is now and what they asked for this update.
         player.Update(update);
+        foreach (IProductModule module in gameplay)
+        {
+            module.Update(step);
+        }
+
         // Publish the complete source fact at its queued transform before the
         // retained ghost operation observes the same desired placement.
         PublishAppearanceSnapshot(useDesiredGhostSource: true);
@@ -184,6 +214,12 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
         terrain.Restart();
         sky.Restart();
+        player.Restart();
+        foreach (IProductModule module in gameplay)
+        {
+            module.Restart();
+        }
+
         PublishAppearanceSnapshot(useDesiredGhostSource: true);
         ghost?.Recapture();
         microvoxels?.Restart();
@@ -216,8 +252,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         ghost?.DisposePresentation();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         ghost?.Dispose();
-        discovery.Dispose();
-        creatures.Dispose();
+        foreach (IProductModule module in gameplay.Reverse())
+        {
+            module.Dispose();
+        }
+
         player.Dispose();
         microvoxels?.Dispose();
         terrain.Dispose();
@@ -257,14 +296,17 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         if (!includeGhostSource || ghost is null)
         {
             engine.Graphics.PublishSnapshot(gameplay);
-            return;
+        }
+        else
+        {
+            engine.Graphics.PublishSnapshot(
+            [
+                .. gameplay,
+                useDesiredGhostSource ? ghost.DesiredSourceAppearanceFact : ghost.SourceAppearanceFact,
+            ]);
         }
 
-        engine.Graphics.PublishSnapshot(
-        [
-            .. gameplay,
-            useDesiredGhostSource ? ghost.DesiredSourceAppearanceFact : ghost.SourceAppearanceFact,
-        ]);
+        creatures.AfterAppearanceSnapshot();
     }
 
     private enum ProductLifecycleState

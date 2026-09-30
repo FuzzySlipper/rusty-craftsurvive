@@ -1,6 +1,7 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 using Rusty.Engine.Debugging;
 
@@ -17,7 +18,7 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// world whose generator version moved is discarded once, in one place, instead of
 /// poisoning a shared blob that only half applies.
 /// </summary>
-public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
+public sealed class DiscoveryModule : IProductModule, IDebugCommandModule
 {
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
@@ -29,9 +30,10 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     private PoiSite? firstVisit;
     private long firstVisits;
     private readonly List<PoiSite> candidates = [];
-    private readonly PersistenceStore store;
+    private PersistenceStore? store;
     private string restoreOutcome = "not attempted";
-    private long tick;
+    private long nextNoticeStep;
+    private bool noticedOnce;
     private bool disposed;
 
     internal DiscoveryModule(IEngineContext engine, TerrainWorld terrain, PlayerController player)
@@ -40,9 +42,31 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         journal = new DiscoveryState(terrain.Recipe.Contract.Seed);
+    }
+
+    /// <summary>Opens the journal's store and restores what was found before.</summary>
+    public void Start()
+    {
+        if (store is not null)
+        {
+            return;
+        }
+
         store = engine.Persistence.OpenStore(new PersistenceOpenRequest(TerrainConstants.PersistenceScope));
         Restore();
     }
+
+    /// <summary>A fresh session over the saved journal: what is stored is read back.</summary>
+    public void Restart()
+    {
+        journal.Restore(new DiscoverySnapshot(terrain.Recipe.Contract.Seed, []));
+        firstVisit = null;
+        nextNoticeStep = 0;
+        noticedOnce = false;
+        Restore();
+    }
+
+    private PersistenceStore Store => store ?? throw new InvalidOperationException("The discovery journal has not started.");
 
     internal int Count => journal.Count;
 
@@ -58,28 +82,25 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     internal (bool Present, int Bytes) JournalSaved()
     {
         using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
-            store, DiscoveryConstants.PersistenceKey));
+            Store, DiscoveryConstants.PersistenceKey));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         return info.Present ? (true, engine.Persistence.ReadBlobBytes(blob).Length) : (false, 0);
     }
 
     /// <summary>
-    /// Looks around and records anything newly seen or reached. It runs on an interval
-    /// rather than every tick because a player at a walking pace crosses a fraction of a
-    /// metre in one, against a notice radius of 128.
+    /// Looks around and records anything newly seen or reached. It runs every few Engine steps
+    /// rather than every one because a player at a walking pace crosses a fraction of a metre
+    /// in a step, against a notice radius of 128.
     /// </summary>
-    internal void Update()
+    void IProductModule.Update(ProductStep time)
     {
-        if (disposed)
+        if (disposed || store is null || time.Step < nextNoticeStep)
         {
             return;
         }
 
-        tick++;
-        if (tick % DiscoveryConstants.NoticeIntervalTicks != 0)
-        {
-            return;
-        }
+        long tick = time.Step;
+        nextNoticeStep = tick + DiscoveryConstants.NoticeIntervalTicks;
 
         Vector3 position = player.WorldPosition;
         long columnX = (long)Math.Floor(position.X);
@@ -138,12 +159,13 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             // The first look publishes too, so the UI surface carries a journal from the start
             // rather than only after something is found. This runs from Update, not the
             // constructor, because the projection reads the live scene.
-            if (changed || tick == DiscoveryConstants.NoticeIntervalTicks)
+            if (changed || !noticedOnce)
             {
                 Publish(nearest);
+                noticedOnce = true;
             }
         }
-        catch (Exception failure) when (failure is InvalidOperationException or IOException or ArgumentException)
+        catch (EngineCallException failure)
         {
             lastFailure = failure.Message;
         }
@@ -174,7 +196,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     public string Readout()
     {
         (bool present, int bytes) = JournalSaved();
-        return $"journal {journal.Readout()} firstVisits={firstVisits} stored={present}/{bytes} restore={restoreOutcome}";
+        return $"journal {journal.Readout()} firstVisits={firstVisits} stored={present}/{bytes} restore={restoreOutcome} failure={lastFailure ?? "none"}";
     }
 
     /// <summary>
@@ -354,7 +376,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     {
         byte[] bytes = DiscoveryCodec.Encode(journal.Snapshot());
         engine.Persistence.Save(new PersistenceSaveRequest(
-            store, DiscoveryConstants.PersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
+            Store, DiscoveryConstants.PersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
     }
 
     /// <summary>
@@ -365,7 +387,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
     private void Restore()
     {
         using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(
-            store, DiscoveryConstants.PersistenceKey));
+            Store, DiscoveryConstants.PersistenceKey));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         if (!info.Present)
         {
@@ -390,7 +412,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
             {
                 PreserveBackup(bytes);
             }
-            catch (Exception failure) when (failure is InvalidOperationException or IOException or ArgumentException)
+            catch (EngineCallException failure)
             {
                 lastFailure = failure.Message;
             }
@@ -406,7 +428,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
         }
 
         engine.Persistence.Save(new PersistenceSaveRequest(
-            store, DiscoveryConstants.BackupPersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
+            Store, DiscoveryConstants.BackupPersistenceKey, PersistenceRevisionGuard.Any, 0, bytes));
     }
 
     public void Dispose()
@@ -417,6 +439,7 @@ public sealed class DiscoveryModule : IDisposable, IDebugCommandModule
         }
 
         disposed = true;
-        store.Dispose();
+        store?.Dispose();
+        store = null;
     }
 }

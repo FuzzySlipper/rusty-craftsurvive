@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 using Rusty.Engine.Debugging;
 using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
@@ -13,7 +14,7 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// cells then go through the world's edit route as one transaction. Block entities standing in the
 /// cleared cells are swept in the same step.
 /// </summary>
-public sealed class BlastModule : IDebugCommandModule
+public sealed class BlastModule : IProductModule, IDebugCommandModule
 {
     /// <summary>A charge's centre voxel, offset to the middle of the cell for the dust anchor.</summary>
     private const float CellCentre = 0.5f;
@@ -48,8 +49,17 @@ public sealed class BlastModule : IDebugCommandModule
 
     internal long Fired => fired;
 
+    public void Start()
+    {
+    }
+
+    /// <summary>A fresh session: a charge fired but not yet resolved is dropped.</summary>
+    public void Restart() => pending = null;
+
+    public void Dispose() => pending = null;
+
     /// <summary>Resolves the pending charge, if any. Called once per product update.</summary>
-    internal void Update()
+    void IProductModule.Update(ProductStep time)
     {
         BlastCharge? charge = pending;
         pending = null;

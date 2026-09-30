@@ -78,10 +78,11 @@ internal sealed class EncounterDirector
 
     /// <summary>
     /// Advances every encounter's away/present bookkeeping and removes the ones
-    /// the rules say must go. Removals are collected first so the dictionary is
-    /// not mutated while it is being walked.
+    /// the rules say must go, returning their ids so the caller can take them out
+    /// of the world too. Removals are collected first so the dictionary is not
+    /// mutated while it is being walked.
     /// </summary>
-    internal int Tick(long tick, Func<int, double> distanceToPlayer, Func<long, bool> regionResident)
+    internal IReadOnlyList<int> Tick(long tick, Func<int, double> distanceToPlayer, Func<long, bool> regionResident)
     {
         ArgumentNullException.ThrowIfNull(distanceToPlayer);
         ArgumentNullException.ThrowIfNull(regionResident);
@@ -111,7 +112,7 @@ internal sealed class EncounterDirector
             active.Remove(id);
         }
 
-        return leaving.Count;
+        return leaving;
     }
 
     /// <summary>Removes one encounter regardless of the rules - used when the world takes it away.</summary>

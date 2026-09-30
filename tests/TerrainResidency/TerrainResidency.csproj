@@ -35,6 +35,7 @@
     <Compile Include="../../src/CraftSurvive.Game/Modules/Manipulation/BlockEntityIndex.cs" Link="Manipulation/BlockEntityIndex.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Terrain/VoxelAddress.cs" Link="VoxelAddress.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerConstants.cs" Link="PlayerConstants.cs" />
+    <Compile Include="../../src/CraftSurvive.Game/Modules/World/ProductIds.cs" Link="World/ProductIds.cs" />
     <Compile Include="../../src/CraftSurvive.Game/Modules/Player/PlayerInputState.cs" Link="PlayerInputState.cs" />
     <!-- The encounter rules are pure policy, so the world facts can be checked against real terrain here. -->
     <Compile Include="../../src/CraftSurvive.Game/Modules/Rpg/EncounterRules.cs" Link="Rpg/EncounterRules.cs" />

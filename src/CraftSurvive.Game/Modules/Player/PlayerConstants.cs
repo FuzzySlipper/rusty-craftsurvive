@@ -24,11 +24,10 @@ internal static class PlayerConstants
     // One 60 Hz sample of translation delay; orientation stays authoritative and immediate.
     internal const double CameraPresentationDelaySeconds = 1d / 60d;
 
-    internal const uint RuntimeComponentLocalId = 1U;
     internal const double InitialPitchDegrees = -20d;
 
-    internal const ulong PlayerEntityId = 1UL;
-    internal const ulong PlatformEntityId = 2UL;
+    internal const ulong PlayerEntityId = World.ProductIds.PlayerEntity;
+    internal const ulong PlatformEntityId = World.ProductIds.PlatformEntity;
     internal static readonly Vector3 PlatformHalfExtents = new(1.5f, 0.25f, 0.9f);
     internal static readonly Vector3 PlatformScale = PlatformHalfExtents * 2f;
     internal const float PlatformSpeed = 0.8f;

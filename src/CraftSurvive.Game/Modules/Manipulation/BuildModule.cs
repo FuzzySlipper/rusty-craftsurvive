@@ -1,4 +1,5 @@
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.World;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.Manipulation;
@@ -11,7 +12,7 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// cells (air, water), so the undo - the last stamp's placed cells cleared - takes back only what
 /// the stamp filled; a filled water cell comes back as air. There is no per-update work here: a stamp resolves immediately.
 /// </summary>
-public sealed class BuildModule : IDebugCommandModule
+public sealed class BuildModule : IProductModule, IDebugCommandModule
 {
     private readonly TerrainWorld terrain;
     private readonly BlockEntityIndex entities;
@@ -31,6 +32,20 @@ public sealed class BuildModule : IDebugCommandModule
     }
 
     internal long Stamps => plates + walls;
+
+    public void Start()
+    {
+    }
+
+    /// <summary>Stamps resolve when placed, so an update has nothing to advance.</summary>
+    void IProductModule.Update(ProductStep time)
+    {
+    }
+
+    /// <summary>A fresh session has nothing to undo.</summary>
+    public void Restart() => lastStamp = [];
+
+    public void Dispose() => lastStamp = [];
 
     internal long Undone => undone;
 

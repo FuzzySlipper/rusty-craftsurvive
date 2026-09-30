@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.GhostPlate;
 using CraftSurvive.Game.Modules.Microvoxels;
+using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
+using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
 using Rusty.Engine;
 using CraftSurvive.Game.Modules.Studies;
@@ -14,6 +16,7 @@ namespace CraftSurvive.Game.Modules.Debugging;
 public sealed class CraftDebugModule : IDebugCommandModule
 {
     private readonly PlayerController player;
+    private readonly CreatureModule creatures;
     private readonly TerrainWorld terrain;
     private readonly GhostPlateActor? ghost;
     private readonly MicrovoxelPresentation? microvoxels;
@@ -21,12 +24,14 @@ public sealed class CraftDebugModule : IDebugCommandModule
 
     internal CraftDebugModule(
         PlayerController player,
+        CreatureModule creatures,
         TerrainWorld terrain,
         GhostPlateActor? ghost,
         MicrovoxelPresentation? microvoxels,
         DebugExecutionContext execution)
     {
         this.player = player;
+        this.creatures = creatures;
         this.terrain = terrain;
         this.ghost = ghost;
         this.microvoxels = microvoxels;
@@ -162,6 +167,17 @@ public sealed class CraftDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();
+
+    [DebugCommand("craft.player.attack", Description = "Swings at the nearest creature, as the attack key does.")]
+    public string Attack() => creatures.PlayerAttack();
+
+    [DebugCommand("craft.player.strike", Description = "Deals damage to the player through their vitals, so an encounter can be lost as well as won.")]
+    public string StrikePlayer(int damage)
+    {
+        PlayerDefeatState state = player.Vitals.TakeHit(damage, player.CurrentStep);
+        return FormattableString.Invariant(
+            $"health={state.Health}/{state.MaximumHealth} defeats={state.Defeats} respawnStep={state.RespawnTick} outcome={player.Vitals.Outcome(player.CurrentStep)}");
+    }
 
     [DebugCommand("craft.terrain.scene", Description = "Reads the current Engine-owned voxel scene facts.")]
     public string ReadTerrainScene()

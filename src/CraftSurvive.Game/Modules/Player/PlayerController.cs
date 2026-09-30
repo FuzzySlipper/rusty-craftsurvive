@@ -5,6 +5,7 @@ using Rusty.Engine;
 using Rusty.Engine.Entities;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Ropes;
+using CraftSurvive.Game.Modules.World;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Player;
@@ -12,15 +13,18 @@ namespace CraftSurvive.Game.Modules.Player;
 /// <summary>
 /// Product-owned player policy. It retains only input, pose, and platform facts;
 /// Engine services continue to integrate look, collision, world-origin, and the camera view.
+/// It owns the player's vitals and progress and applies the respawn they request, and it owns
+/// world-origin rebasing, which it commits through the product's <see cref="WorldFrame"/>.
 /// </summary>
 internal sealed class PlayerController : IDisposable
 {
     internal static readonly ComponentType<PlayerRuntimeComponent> RuntimeComponent =
         ComponentType<PlayerRuntimeComponent>.Create(
-            ProductComponentKeys.Create(PlayerConstants.RuntimeComponentLocalId));
+            ProductComponentKeys.Create(ProductIds.PlayerRuntimeComponent));
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
+    private readonly WorldFrame frame;
     private readonly PlayerSceneDefaults sceneDefaults;
     private readonly PlayerInputState input = new();
     internal RopePlayground Ropes { get; }
@@ -32,9 +36,9 @@ internal sealed class PlayerController : IDisposable
     private Appearance? platformAppearance;
     private CharacterMotion motion;
     private LookState look;
-    private string waterCheck = "none";
-    private Rusty.Engine.VoxelAddress lastWaterCell;
+    private PlayerWaterCheck waterCheck;
     private PlayerWorldPosition playerGlobal;
+    private PlayerWorldPosition spawn;
     private PlayerWorldPosition platformGlobal;
     private Vector3 playerLocal;
     private Vector3 platformLocal;
@@ -82,10 +86,11 @@ internal sealed class PlayerController : IDisposable
     private ulong lastCameraPublicationUpdate;
     private TerrainWorldEditResult? lastTerrainEdit;
 
-    internal PlayerController(IEngineContext engine, TerrainWorld terrain)
+    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
+        this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         Ropes = new(engine, terrain);
         sceneDefaults = PlayerConstants.ForScene(terrain.IsCourtyard);
         controllerConfig = CreateControllerConfig(engine.Spatial.DefaultCharacterControllerConfig());
@@ -153,16 +158,16 @@ internal sealed class PlayerController : IDisposable
         // about the cell its head was in, which is air above the surface. The eye cell
         // is still checked as a fallback, so a player whose head is under water swims
         // as well as one standing in it.
-        long feetY = (long)Math.Floor(playerLocal.Y - EyeOffset(motion.Stance));
+        // Voxel addresses are global cells even after a rebase, so the cells are taken from the
+        // player's world position; the swim volume below is a position and so stays local.
         Rusty.Engine.VoxelAddress feet = new(
-            (long)Math.Floor(playerLocal.X),
-            feetY,
-            (long)Math.Floor(playerLocal.Z));
+            (long)Math.Floor(playerGlobal.WorldX),
+            (long)Math.Floor(playerGlobal.WorldY - EyeOffset(motion.Stance)),
+            (long)Math.Floor(playerGlobal.WorldZ));
         Rusty.Engine.VoxelAddress eyes = new(
-            (long)Math.Floor(playerLocal.X),
-            (long)Math.Floor(playerLocal.Y),
-            (long)Math.Floor(playerLocal.Z));
-        lastWaterCell = feet;
+            (long)Math.Floor(playerGlobal.WorldX),
+            (long)Math.Floor(playerGlobal.WorldY),
+            (long)Math.Floor(playerGlobal.WorldZ));
         VoxelReadout feetRead = engine.Voxel.Read(new VoxelReadRequest(terrain.Session, feet));
         bool feetWater = feetRead.Present && feetRead.MaterialSlot == (ushort)Content.BlockId.Water;
         bool eyesWater = false;
@@ -172,10 +177,7 @@ internal sealed class PlayerController : IDisposable
             eyesWater = eyesRead.Present && eyesRead.MaterialSlot == (ushort)Content.BlockId.Water;
         }
 
-        waterCheck = string.Create(
-            CultureInfo.InvariantCulture,
-            $"feet=({feet.X},{feet.Y},{feet.Z});feetPresent={feetRead.Present};feetSlot={feetRead.MaterialSlot};" +
-            $"eyes=({eyes.X},{eyes.Y},{eyes.Z});eyesWater={eyesWater};water={(ushort)Content.BlockId.Water};from={Format(playerLocal)}");
+        waterCheck = new PlayerWaterCheck(feet, feetRead.Present, feetRead.MaterialSlot, eyes, feetWater, eyesWater);
         if (!feetWater && !eyesWater)
         {
             return false;
@@ -206,6 +208,8 @@ internal sealed class PlayerController : IDisposable
         }
 
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
+        frame.Observe(origin);
+        spawn = playerGlobal;
         playerLocal = playerGlobal.ToLocal(origin);
         platformLocal = platformGlobal.ToLocal(origin);
         motion = CreateInitialMotion(playerLocal);
@@ -228,6 +232,15 @@ internal sealed class PlayerController : IDisposable
     {
         EnsureStarted();
         updateCount = checked(updateCount + 1UL);
+        ProductStep step = ProductStep.From(update.Facts);
+        CurrentStep = step.Step;
+        if (Vitals.TryRespawn(step.Step))
+        {
+            // A defeated player comes back where they started, outside the ring creatures spawn
+            // at, rather than inside the reach of whatever defeated them.
+            MoveHome();
+        }
+
         lastSimulationStep = update.Facts.SimulationStep;
         lastAdmittedStepCount = update.Facts.AdmittedStepCount;
         cameraSampleTimeSeconds = (update.Facts.SimulationStep + update.Facts.AdmittedStepCount)
@@ -293,10 +306,7 @@ internal sealed class PlayerController : IDisposable
             lastMovementPositionAfter = lastUpdatePositionAfter;
         }
 
-        if (RebaseIfNeeded())
-        {
-            terrain.RefreshAfterWorldOriginCommit(ToUiFacts());
-        }
+        RebaseIfNeeded();
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         if (frame.Edit is TerrainEditKind edit)
         {
@@ -381,8 +391,37 @@ internal sealed class PlayerController : IDisposable
     }
 
     internal EntityStore EntityStore => entityWorld;
+
+    /// <summary>The player's health and defeat; creatures strike through it.</summary>
+    internal PlayerVitals Vitals { get; } = new(Creatures.PlayerCombat.MaximumHealth);
+
+    /// <summary>The Engine step the latest update brought the player to.</summary>
+    internal long CurrentStep { get; private set; }
+
+    /// <summary>What the player has earned.</summary>
+    internal PlayerProgress Progress { get; } = new();
+
+    /// <summary>The centre of the player's capsule, in world coordinates.</summary>
     internal Vector3 WorldPosition => playerGlobal.ToWorldVector();
+
     internal Vector3 WorldEyePosition => WorldPosition + Vector3.UnitY * EyeOffset(motion.Stance);
+
+    /// <summary>Where the player's capsule meets the ground, in world coordinates.</summary>
+    internal Vector3 WorldFeetPosition => WorldPosition - Vector3.UnitY * (StanceHeight(motion.Stance) / 2f);
+
+    /// <summary>
+    /// A fresh session: the player returns to where they started with full vitals and no progress.
+    /// </summary>
+    internal void Restart()
+    {
+        EnsureStarted();
+        Vitals.Reset();
+        Progress.Reset();
+        look = new LookState(DegreesToRadians(sceneDefaults.InitialYawDegrees), DegreesToRadians(PlayerConstants.InitialPitchDegrees));
+        MoveHome();
+    }
+
+    private void MoveHome() => Teleport(spawn.WorldX, spawn.WorldY, spawn.WorldZ);
 
     /// <summary>
     /// Returns the current platform fact for the product's single complete
@@ -496,15 +535,7 @@ internal sealed class PlayerController : IDisposable
     /// disagreement between "the world has water here" and "the Engine says the
     /// player is walking" resolves to a cell and a slot rather than to a guess.
     /// </summary>
-    internal string LastWaterCheck => waterCheck;
-
-    /// <summary>
-    /// The cell the last water check read. The controller works in the session's local
-    /// space, which is not the product's world space, so anything that wants to put
-    /// water under the player has to ask where the controller is looking rather than
-    /// derive it from a world position.
-    /// </summary>
-    internal Rusty.Engine.VoxelAddress LastWaterCell => lastWaterCell;
+    internal PlayerWaterCheck LastWaterCheck => waterCheck;
 
     private static string FormatStep(CharacterStepReceipt? step) => step is not CharacterStepReceipt receipt
         ? "none"
@@ -542,12 +573,12 @@ internal sealed class PlayerController : IDisposable
         platformLocal = platformGlobal.ToLocal(origin);
     }
 
-    private bool RebaseIfNeeded()
+    private void RebaseIfNeeded()
     {
         if (MathF.Abs(playerLocal.X) < PlayerConstants.RebaseThreshold
             && MathF.Abs(playerLocal.Z) < PlayerConstants.RebaseThreshold)
         {
-            return false;
+            return;
         }
 
         Vector3 playerBeforeRebase = playerLocal;
@@ -571,13 +602,12 @@ internal sealed class PlayerController : IDisposable
         playerLocal = affected[0].LocalTransform.Translation;
         platformLocal = affected[1].LocalTransform.Translation;
         Vector3 localTranslation = playerLocal - playerBeforeRebase;
-        terrain.TranslateCourtyard(localTranslation);
         Ropes.Rebase(terrain.Session, committed, localTranslation);
         motion = motion.Rebased(localTranslation) with
         {
             CollisionWorldHash = PlayerConstants.UninitializedCollisionWorldHash,
         };
-        return true;
+        frame.Commit(playerGlobal.CellX, origin.CellY, playerGlobal.CellZ);
     }
 
     private bool OverlapsVoxel(TerrainVoxelAddress voxel)
@@ -766,6 +796,10 @@ internal sealed class PlayerController : IDisposable
         },
     };
 
+    private static float StanceHeight(CharacterStance stance) => stance == CharacterStance.Crouched
+        ? PlayerConstants.CrouchedHeight
+        : PlayerConstants.StandingHeight;
+
     private static float EyeOffset(CharacterStance stance)
     {
         float eyeHeight = stance == CharacterStance.Crouched
@@ -790,3 +824,18 @@ internal readonly record struct PlayerRuntimeComponent(
     double PitchDegrees,
     bool Grounded,
     bool Crouched);
+
+/// <summary>The last water decision: the global cells read and what the Engine reported there.</summary>
+internal readonly record struct PlayerWaterCheck(
+    Rusty.Engine.VoxelAddress Feet,
+    bool FeetPresent,
+    uint FeetSlot,
+    Rusty.Engine.VoxelAddress Eyes,
+    bool FeetWater,
+    bool EyesWater)
+{
+    internal bool InWater => FeetWater || EyesWater;
+
+    public override string ToString() => FormattableString.Invariant(
+        $"feet=({Feet.X},{Feet.Y},{Feet.Z});feetPresent={FeetPresent};feetSlot={FeetSlot};eyes=({Eyes.X},{Eyes.Y},{Eyes.Z});feetWater={FeetWater};eyesWater={EyesWater}");
+}

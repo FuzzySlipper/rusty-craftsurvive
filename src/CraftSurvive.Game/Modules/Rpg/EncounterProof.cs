@@ -115,7 +115,7 @@ public sealed class EncounterProofModule : IDebugCommandModule
             creature.DownAtTick + RespawnDelayTicks,
             creature,
             RespawnDelayTicks);
-        int despawned = director.Tick(tick, _ => distance, _ => true);
+        int despawned = director.Tick(tick, _ => distance, _ => true).Count;
 
         string loot = reward.Drops.Length == 0
             ? "nothing"

@@ -2,6 +2,7 @@ using CraftSurvive.Game.Modules.Content;
 using System.Globalization;
 using System.Numerics;
 using Rusty.Engine;
+using CraftSurvive.Game.Modules.World;
 using EngineVoxelAddress = Rusty.Engine.VoxelAddress;
 
 using System.Diagnostics;
@@ -38,10 +39,12 @@ internal sealed class TerrainWorld : IDisposable
     private string overlayRestoreOutcome = "none";
     private static readonly TerrainChunkAddress FixedResidencyCenter = new(0, 0, 0);
 
-    internal TerrainWorld(IEngineContext engine, ProductContent content, TerrainConfiguration configuration)
+    internal TerrainWorld(IEngineContext engine, ProductContent content, TerrainConfiguration configuration, WorldFrame frame)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
+        ArgumentNullException.ThrowIfNull(frame);
+        frame.Rebased += OnRebased;
         recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random));
         chunkCache = new TerrainChunkCache(engine, recipe.Contract);
         chunkGenerator = new TerrainChunkGenerator(recipe, chunkCache);
@@ -98,7 +101,6 @@ internal sealed class TerrainWorld : IDisposable
     internal bool IsCourtyard => courtyard is not null;
     internal void ReleaseRetiredCourtyard() => courtyard?.ReleaseRetired();
     internal void UpdateCourtyard() => courtyard?.Update();
-    internal void TranslateCourtyard(Vector3 delta) => courtyard?.Translate(delta);
     internal string ReadWorkbenchBuild() => courtyard?.ReadWorkbenchBuild() ?? "courtyard inactive";
     internal CollisionReplaceReceipt WorkbenchCollision =>
         (courtyard ?? throw new InvalidOperationException("Courtyard inactive.")).CollisionReceipt;
@@ -152,12 +154,14 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>Refreshes Engine-owned terrain facts after an accepted world-origin commit.</summary>
-    internal void RefreshAfterWorldOriginCommit(TerrainPlayerUiFacts facts)
+    /// <summary>Moves what the world holds in local space after the player commits a rebase.</summary>
+    private void OnRebased(Vector3 translation)
     {
-        EnsureStarted();
-        playerUi = facts;
-        if (presentation is not null) RefreshPresentation();
-        PublishUi();
+        courtyard?.Translate(translation);
+        if (presentation is not null)
+        {
+            RefreshPresentation();
+        }
     }
 
     /// <summary>
@@ -248,6 +252,32 @@ internal sealed class TerrainWorld : IDisposable
     /// it is aimed, and re-aiming at a volume you have just filled picks a different centre, which
     /// is how an "undo" leaves a rim.
     /// </summary>
+    /// <summary>How far above the generated surface a structure or a placed block may stand.</summary>
+    private const int GroundSearchAbove = 16;
+
+    /// <summary>How far below the generated surface an edit may have dug.</summary>
+    private const int GroundSearchBelow = 16;
+
+    /// <summary>
+    /// The height something standing in a column stands at: the top of its highest collidable
+    /// block, as the world stands now - edits and structures included. Searches a band around the
+    /// generated surface, and answers the generated surface when the band is empty.
+    /// </summary>
+    internal float GroundAt(long x, long z)
+    {
+        long surface = recipe.SurfaceAt(x, z);
+        for (long y = surface + GroundSearchAbove; y >= surface - GroundSearchBelow; y--)
+        {
+            if (Content.BlockRegistry.TryGetBySlot(MaterialAt(new VoxelAddress(x, y, z)), out Content.BlockDefinition block)
+                && block.Collidable)
+            {
+                return y + 1;
+            }
+        }
+
+        return surface + 1;
+    }
+
     /// <summary>The material standing at a cell now: the player's override, else the recipe's.</summary>
     internal ushort MaterialAt(VoxelAddress address) =>
         overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);

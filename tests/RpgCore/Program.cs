@@ -1,4 +1,8 @@
+using System.Numerics;
+using CraftSurvive.Game.Modules.Creatures;
+using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
+using CraftSurvive.Game.Modules.World;
 
 // The adventurer's rules, checked without a host: damage and armour arithmetic,
 // attack resolution boundaries, loot determinism, progression sources, and the
@@ -347,7 +351,7 @@ Require(roomy.ActiveCount == 0, "a refused candidate must not be recorded");
 EncounterDirector leaving = new(EncounterPolicy.Default);
 leaving.TryActivate(Candidate(21, 30, CreatureTraits.Walker), tick: 0, out _);
 leaving.TryActivate(Candidate(22, 31, CreatureTraits.Walker), tick: 0, out _);
-int removed = leaving.Tick(tick: 10, _ => 1.0, regionId => regionId == 30);
+int removed = leaving.Tick(tick: 10, _ => 1.0, regionId => regionId == 30).Count;
 Require(removed == 1 && leaving.ActiveCount == 1 && leaving.IsActive(21) && !leaving.IsActive(22),
     "a non-resident region's encounters must be removed and the resident region's kept");
 
@@ -355,9 +359,9 @@ Require(removed == 1 && leaving.ActiveCount == 1 && leaving.IsActive(21) && !lea
 EncounterPolicy patient = EncounterPolicy.Default with { DespawnDistance = 10.0, DespawnGraceTicks = 5 };
 EncounterDirector drifting = new(patient);
 drifting.TryActivate(new EncounterCandidate(31, meadow12, CreatureTraits.Walker, 1), tick: 0, out _);
-Require(drifting.Tick(tick: 1, _ => 50.0, _ => true) == 0, "leaving reach must not despawn immediately");
-Require(drifting.Tick(tick: 5, _ => 50.0, _ => true) == 0, "the grace period must be honoured");
-Require(drifting.Tick(tick: 6, _ => 50.0, _ => true) == 1 && drifting.ActiveCount == 0,
+Require(drifting.Tick(tick: 1, _ => 50.0, _ => true).Count == 0, "leaving reach must not despawn immediately");
+Require(drifting.Tick(tick: 5, _ => 50.0, _ => true).Count == 0, "the grace period must be honoured");
+Require(drifting.Tick(tick: 6, _ => 50.0, _ => true).Count == 1 && drifting.ActiveCount == 0,
     "the encounter must despawn once the grace period elapses");
 
 // Coming back into reach clears the grace period.
@@ -365,10 +369,10 @@ EncounterDirector returns = new(patient);
 returns.TryActivate(new EncounterCandidate(41, meadow12, CreatureTraits.Walker, 1), tick: 0, out _);
 returns.Tick(tick: 1, _ => 50.0, _ => true);
 returns.Tick(tick: 3, _ => 1.0, _ => true);
-Require(returns.Tick(tick: 20, _ => 50.0, _ => true) == 0,
+Require(returns.Tick(tick: 20, _ => 50.0, _ => true).Count == 0,
     "an encounter the player returned to must start its grace period afresh");
 returns.Tick(tick: 24, _ => 50.0, _ => true);
-Require(returns.Tick(tick: 25, _ => 50.0, _ => true) == 1, "the restarted grace period must still expire");
+Require(returns.Tick(tick: 25, _ => 50.0, _ => true).Count == 1, "the restarted grace period must still expire");
 
 
 // Death is the other half of "win or die": lethal damage, a delay, then respawn.
@@ -401,4 +405,90 @@ Require(!PlayerDefeatRules.IsInvulnerable(PlayerDefeatRules.GraceUntil(100), 200
     "grace must expire on schedule");
 Require(PlayerDefeatRules.GraceUntil(100) == 200, "grace must last the configured number of ticks");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director and player defeat passed.");
+// --- creatures in the world -------------------------------------------------------
+// One owner of membership: whatever the director releases leaves the roster in the same update,
+// so no creature table can outlive the encounter that put it there.
+EncounterDirector membership = new(EncounterPolicy.Default with { DespawnDistance = 10.0, DespawnGraceTicks = 5 });
+CreatureRoster roster = new();
+for (int id = 1; id <= 3; id++)
+{
+    Require(membership.TryActivate(new EncounterCandidate(id, meadow12, CreatureTraits.Walker, 1), tick: 0, out _),
+        $"encounter {id} must activate");
+    roster.Add(new Creature(id, CreatureKinds.ForSpawn(id), new Vector2(id * 20, 0)));
+}
+
+Func<int, double> distanceToPlayer = id => roster.TryGet(id, out Creature c) ? Math.Abs(c.Position.X) : double.MaxValue;
+Require(membership.Tick(1, distanceToPlayer, _ => true).Count == 0, "no creature may leave inside the grace");
+IReadOnlyList<int> departed = membership.Tick(6, distanceToPlayer, _ => true);
+Require(roster.Release(departed) == departed.Count && departed.Count == 3,
+    $"all three creatures stood beyond the despawn distance, released {departed.Count}");
+Require(roster.Count == 0 && membership.ActiveCount == 0 && departed.All(id => !roster.TryGet(id, out _)),
+    "after the director releases an id, the roster must not hold it");
+Require(CreatureKinds.ForSpawn(3) == CreatureKinds.Neutral && CreatureKinds.ForSpawn(1) == CreatureKinds.Hostile,
+    "every third spawn is neutral and the rest hostile");
+
+// Engine step time: two steps admitted in one update move a creature twice as far as one, and a
+// cooldown counts steps, not updates.
+const double FixedDelta = 1.0 / 60.0;
+Vector3 playerAt = new(40, 0, 0);
+Creature oneStep = new(1, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+Creature twoSteps = new(2, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
+CreatureSimulation.Step(oneStep, new CreatureSense(true, 40), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta));
+CreatureSimulation.Step(twoSteps, new CreatureSense(true, 40), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta));
+double expectedOne = CreatureKinds.Hostile.PursueSpeedMetresPerSecond * FixedDelta;
+Require(Math.Abs(oneStep.Position.X - expectedOne) < 1e-5 && Math.Abs(twoSteps.Position.X - (2 * expectedOne)) < 1e-5,
+    $"one step must move {expectedOne:F4} m and two steps twice that, moved {oneStep.Position.X:F4} and {twoSteps.Position.X:F4}");
+
+Creature striker = new(3, CreatureKinds.Hostile, new Vector2(38, 0));
+Vector3 closePlayer = new(40, 0, 0);
+Require(CreatureSimulation.Step(striker, new CreatureSense(true, 2), closePlayer, true, new ProductStep(100, 1, FixedDelta)) is CreatureStrike,
+    "a hostile creature within reach must strike");
+long cooldown = CreatureKinds.Hostile.Tuning.AttackCooldownTicks;
+Require(CreatureSimulation.Step(striker, new CreatureSense(true, 2), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta)) is null,
+    "the cooldown must hold one step short, whatever the steps per update");
+Require(CreatureSimulation.Step(striker, new CreatureSense(true, 2), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta)) is CreatureStrike,
+    "the cooldown must release once its steps have passed, even when an update covers two");
+Creature patientStriker = new(4, CreatureKinds.Hostile, new Vector2(38, 0));
+Require(CreatureSimulation.Step(patientStriker, new CreatureSense(true, 2), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta)) is null
+    && patientStriker.Behavior.CanAttack(11, CreatureKinds.Hostile.Tuning),
+    "a player who cannot be hit draws no blow and costs no cooldown");
+
+// The player's vitals own respawn and grace.
+PlayerVitals vitals = new(40);
+vitals.TakeHit(999, 100);
+Require(vitals.IsDown && !vitals.TryRespawn(100 + PlayerDefeatRules.RespawnDelayTicks - 1), "a defeated player waits out the delay");
+Require(vitals.TryRespawn(100 + PlayerDefeatRules.RespawnDelayTicks) && !vitals.IsDown, "the respawn must be granted on schedule");
+long risen = 100 + PlayerDefeatRules.RespawnDelayTicks;
+Require(vitals.TakeHit(5, risen + 1).Health == vitals.State.MaximumHealth / 2, "a risen player must be untouchable in grace");
+
+// The world frame: positions handed to the Engine are local to the origin, and a rebase announces
+// how far local positions moved.
+WorldFrame frame = new();
+Vector3 moved = Vector3.Zero;
+frame.Rebased += translation => moved = translation;
+frame.Commit(2000, 0, -3000);
+Require(frame.ToLocal(2010.5, 7, -2990) == new Vector3(10.5f, 7, 10), "world-to-local must subtract the origin cell");
+Require(frame.ToWorld(new Vector3(10.5f, 7, 10)) == new Vector3(2010.5f, 7, -2990), "local-to-world must add it back");
+Require(moved == new Vector3(-2000, 0, 3000), $"the rebase must announce the local translation, announced {moved}");
+
+// Spawns spread over the ring instead of bunching in one corner.
+List<(long X, long Z)> placedSpawns = [];
+foreach ((long X, long Z) candidate in CreatureSpawnPlan.Candidates(0, 0))
+{
+    if (CreatureSpawnPlan.FarEnoughFrom(placedSpawns, candidate))
+    {
+        placedSpawns.Add(candidate);
+    }
+
+    if (placedSpawns.Count == 3)
+    {
+        break;
+    }
+}
+
+Require(placedSpawns.All(spawn => Math.Sqrt((spawn.X * spawn.X) + (spawn.Z * spawn.Z)) >= CreatureSpawnPlan.MinimumDistanceMetres - 1),
+    "spawns must start beyond a hostile creature's sight");
+Require(placedSpawns.SelectMany(a => placedSpawns.Where(b => b != a), (a, b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Z - b.Z, 2)))
+    .All(gap => gap >= CreatureSpawnPlan.MinimumSeparationMetres), "spawned creatures must stand apart");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame and spawn spread passed.");

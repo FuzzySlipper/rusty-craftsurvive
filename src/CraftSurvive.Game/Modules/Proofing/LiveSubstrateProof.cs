@@ -493,7 +493,7 @@ internal sealed class LiveSubstrateProof
         if (elapsed % UpdatesPerCase != 0) return;
         int count = VoxelProbeCounts[test % VoxelProbeCounts.Length];
         uint material = (uint)(test < VoxelProbeCounts.Length ? Content.BlockId.Water : Content.BlockId.Stone);
-        EngineVoxelAddress cell = player.LastWaterCell;
+        EngineVoxelAddress cell = player.LastWaterCheck.Feet;
         // Solid fills belong beside the actor. Deliberately enclosing an actor
         // is separately covered by the Engine penetration-rejection fixture.
         if (material == (uint)Content.BlockId.Stone)
@@ -545,9 +545,7 @@ internal sealed class LiveSubstrateProof
             return;
         }
 
-        if (!player.LastWaterCheck.Contains("feetPresent=True", StringComparison.Ordinal)
-            || !(player.LastWaterCheck.Contains($"feetSlot={(ushort)Content.BlockId.Water}", StringComparison.Ordinal)
-                || player.LastWaterCheck.Contains("eyesWater=True", StringComparison.Ordinal)))
+        if (!player.LastWaterCheck.InWater)
         {
             // Report every attempt, not just the verdict: a recorded failure that the
             // proof never gets to print tells the next reader nothing about what the
