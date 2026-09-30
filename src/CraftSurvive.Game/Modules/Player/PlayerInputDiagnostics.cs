@@ -19,6 +19,7 @@ internal sealed class PlayerInputDiagnostics
     private int clears;
     private ulong totalEvents;
     private ulong totalPointerDeltas;
+    private ulong totalKeys;
     private ulong lastEventUpdate;
     private string lastEvent = "none";
     private ulong lastMovementUpdate;
@@ -27,6 +28,9 @@ internal sealed class PlayerInputDiagnostics
     private CharacterStepReceipt? lastMovementStep;
     private Vector3 lastMovementBefore;
     private Vector3 lastMovementAfter;
+
+    /// <summary>Every keyboard event the product has received this session.</summary>
+    internal ulong TotalKeys => totalKeys;
 
     internal void Capture(ReadOnlySpan<ProductInputEvent> input, ulong update)
     {
@@ -44,6 +48,7 @@ internal sealed class PlayerInputDiagnostics
             {
                 case InputEventKind.Key:
                     keys++;
+                    totalKeys = checked(totalKeys + 1UL);
                     lastEvent = $"key:{inputEvent.Keyboard}:{inputEvent.Edge}";
                     break;
                 case InputEventKind.PointerDelta:

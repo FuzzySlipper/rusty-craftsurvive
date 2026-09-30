@@ -204,6 +204,31 @@ internal sealed class PlayerController : IDisposable
         continuation.SaveIfDue(step.Step, Continuation());
     }
 
+    /// <summary>The player's facts for playtest observation: pose, vitals and how much input arrived.</summary>
+    internal PlayerObservation Observe() => new(
+        WorldFeetPosition,
+        Angles.ToDegrees(look.YawRadians),
+        Angles.ToDegrees(look.PitchRadians),
+        motion.Grounded,
+        motion.Stance == CharacterStance.Crouched,
+        Vitals.State.Health,
+        Vitals.MaximumHealth,
+        Progress.Level,
+        diagnostics.TotalKeys,
+        updateCount);
+
+    /// <summary>Turns the view by degrees through the product's own look rules, without stepping anything.</summary>
+    internal void LookBy(double yawDegrees, double pitchDegrees)
+    {
+        EnsureStarted();
+        Vector2 units = new(
+            (float)(yawDegrees / PlayerConstants.LookDegreesPerPointerUnit),
+            (float)(-pitchDegrees / PlayerConstants.LookDegreesPerPointerUnit));
+        look = Look.IntegrateClamped(new LookRequest(look, units, PlayerBody.Look)).After;
+        camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
+        PublishRuntimeComponent();
+    }
+
     /// <summary>What the player is aiming at now, within edit reach.</summary>
     internal TerrainPick Aim()
     {
@@ -248,11 +273,24 @@ internal sealed class PlayerController : IDisposable
         return FormattableString.Invariant($"cameraPresentation={mode};delaySeconds={delaySeconds}");
     }
 
-    /// <summary>Moves the live player through the ordinary product state and Engine publication lane.</summary>
-    internal PlayerRuntimeComponent Teleport(double x, double y, double z)
+    /// <summary>
+    /// Moves the live player through the ordinary product state and Engine publication lane. The
+    /// player goes where asked if a standing body fits there, else onto the ground of that column
+    /// if it fits there; a body placed inside the world would stop the character controller, so
+    /// otherwise nothing moves and the answer is null.
+    /// </summary>
+    internal PlayerRuntimeComponent? Teleport(double x, double y, double z)
     {
         EnsureStarted();
-        playerGlobal = PlayerWorldPosition.FromWorld(x, y, z);
+        PlayerWorldPosition asked = PlayerWorldPosition.FromWorld(x, y, z);
+        PlayerWorldPosition onGround = StandingAt(x, terrain.GroundAt(asked.CellX, asked.CellZ), z);
+        PlayerWorldPosition? target = Fits(asked) ? asked : Fits(onGround) ? onGround : null;
+        if (target is not PlayerWorldPosition place)
+        {
+            return null;
+        }
+
+        playerGlobal = place;
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         playerLocal = playerGlobal.ToLocal(origin);
         motion = PlayerBody.AtRest(playerLocal);
@@ -266,6 +304,9 @@ internal sealed class PlayerController : IDisposable
         PublishRuntimeComponent();
         return entityWorld.Get(playerEntity, RuntimeComponent);
     }
+
+    /// <summary>Whether the player's body covers a cell, so an edit that would fill it can be refused.</summary>
+    internal bool Occupies(TerrainVoxelAddress voxel) => OverlapsVoxel(voxel);
 
     /// <summary>A fresh session: the player returns to where they started with full vitals and no progress.</summary>
     internal void Restart()
@@ -344,6 +385,7 @@ internal sealed class PlayerController : IDisposable
                 Vector3.Zero, impulse, stepSeconds, sequence);
     }
 
+    /// <summary>Home, or the ground of the home column if something now stands there; if neither has room the player stays put.</summary>
     private void MoveHome() => Teleport(spawn.WorldX, spawn.WorldY, spawn.WorldZ);
 
     /// <summary>The capsule centre of a player standing with their feet at a height.</summary>
@@ -468,6 +510,19 @@ internal sealed class PlayerController : IDisposable
         }
     }
 }
+
+/// <summary>What a playtest observation reads of the player.</summary>
+internal readonly record struct PlayerObservation(
+    Vector3 Feet,
+    double YawDegrees,
+    double PitchDegrees,
+    bool Grounded,
+    bool Crouched,
+    int Health,
+    int MaximumHealth,
+    int Level,
+    ulong KeyEvents,
+    ulong Updates);
 
 internal readonly record struct PlayerRuntimeComponent(
     double X,

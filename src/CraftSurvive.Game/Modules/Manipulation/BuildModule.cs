@@ -22,12 +22,16 @@ internal sealed class BuildModule : IProductModule
     private long refused;
     private string lastOutcome = "none";
 
-    internal BuildModule(TerrainWorld terrain, BlockEntityIndex entities)
+    /// <summary>Whether the player's body covers a cell: nothing is built into the player.</summary>
+    private readonly Func<VoxelAddress, bool> occupiedByPlayer;
+
+    internal BuildModule(TerrainWorld terrain, BlockEntityIndex entities, Func<VoxelAddress, bool> occupiedByPlayer)
     {
         ArgumentNullException.ThrowIfNull(terrain);
         ArgumentNullException.ThrowIfNull(entities);
         this.terrain = terrain;
         this.entities = entities;
+        this.occupiedByPlayer = occupiedByPlayer ?? throw new ArgumentNullException(nameof(occupiedByPlayer));
     }
 
     internal long Stamps => plates + walls;
@@ -142,7 +146,7 @@ internal sealed class BuildModule : IProductModule
         }
 
         TerrainWorldEditResult result = terrain.TryEditCells(
-            [cell], TerrainEditKind.Set, TerrainConstants.StoneMaterial, null);
+            [cell], TerrainEditKind.Set, TerrainConstants.StoneMaterial, occupiedByPlayer);
         if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
         {
             lastOutcome = $"{name} refused: {TerrainWorldEditResult.Format(result)}";
@@ -185,7 +189,7 @@ internal sealed class BuildModule : IProductModule
         }
 
         TerrainWorldEditResult result = terrain.TryEditCells(
-            stamp.Cells, TerrainEditKind.Set, stamp.Material, null);
+            stamp.Cells, TerrainEditKind.Set, stamp.Material, occupiedByPlayer);
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
         {
             lastStamp = [.. stamp.Cells];

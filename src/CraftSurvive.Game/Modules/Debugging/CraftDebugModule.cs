@@ -29,12 +29,11 @@ public sealed class CraftDebugModule : IDebugCommandModule
         this.execution = execution;
     }
 
-    [DebugCommand("craft.player.teleport", Description = "Moves the live player through CraftSurvive's ordinary player owner.")]
-    public string Teleport(double x, double y, double z)
-    {
-        PlayerRuntimeComponent state = player.Teleport(x, y, z);
-        return FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}");
-    }
+    [DebugCommand("craft.player.teleport", Description = "Moves the live player where a standing body fits: the point asked for, else the ground of that column.")]
+    public string Teleport(double x, double y, double z) =>
+        player.Teleport(x, y, z) is PlayerRuntimeComponent state
+            ? FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}")
+            : FormattableString.Invariant($"refused: a standing body fits neither at {x:F3},{y:F3},{z:F3} nor on the ground below it");
 
     [DebugCommand("craft.player.camera", Description = "Selects latest, position, or pose camera presentation and delay in seconds.")]
     public string SetCameraPresentation(string mode, double delaySeconds) =>

@@ -141,36 +141,55 @@ leaves the world as it found it.
   request). Every block material therefore needs a region in the scene's own
   atlas image.
 
-## Browser evidence
+## The live-lane client
 
-Screenshots and input-driven evidence go through the crew-services playtest lane
-against a broker-owned session, using the scripts under `tests/` and the
-`.den-playwright.json` serve entry. See
-[rope-playground](rope-playground.md) for the submission form
-(`playtest run SESSION --file <absolute-path> --budget-ms <ms>`) and
-[evidence](evidence/) for retained captures. Do not start a competing host on the
-broker-owned port merely to look at one; run the live proof on an ephemeral port
-as shown above.
-
-The lane itself is verified up to session allocation. `playtest games` lists
-`rusty-craftsurvive` at `http://192.168.1.22:37300/`, and the product serves
-`/product-ui/main.js` there. Capturing a sample screenshot needs a free pool slot:
+`scripts/live.mjs` is the one client for a running product. It needs a host started with
+`--live-debug` (as `.den-serve.json` starts it) and takes the host's address from the
+environment, never from the script:
 
 ```sh
-# 1. serve the world on the lane's declared port
-CRAFTSURVIVE_SCENE=traversal rusty dev \
-  --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \
-  --bind-host 0.0.0.0 --port 37300
-
-# 2. allocate a slot, then capture and stop
-playtest start rusty-craftsurvive     # returns SESSION and a screenshot
-playtest observe SESSION              # returns the current frame
-playtest capture SESSION --json '{}'  # retained capture
-playtest stop SESSION
+rusty dev --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --bind-host 127.0.0.1 --port <port>
+export CRAFT_ORIGIN=http://127.0.0.1:<port>   # or CRAFT_PORT=<port>
 ```
 
-Two caveats recorded on 2026-09-26: the configured pool was fully occupied by other
-projects, so no sample capture is retained yet; and the registered game entry still
-describes "First-person courtyard" while the campaign's world is the traversal
-showcase, so the lane's description and default scene should follow the S2 boot
-switch rather than staying on the retired courtyard.
+```sh
+node scripts/live.mjs walk --seconds 2
+```
+
+Walks the player with the forward control for two seconds and prints the distance, the
+positions before and after, and how many key events the product received. It fails unless the
+player moved at least `--minimum` metres (default 1) *and* the product received the key events,
+so the distance is attributable to input. Other actions: `--action walk-back|strafe-left|strafe-right`.
+
+```sh
+node scripts/live.mjs discovery
+```
+
+Stands the player at the nearest unvisited standing stones and checks the journal counted a first
+visit, stored itself at 32 + 51 bytes per place, and reports what its restore did (`--kind` picks
+another kind of place).
+
+```sh
+node scripts/live.mjs exec <debug command>
+```
+
+Runs any debug command, including the Engine's playtest commands the product registers:
+`playtest.observe` (the player's feet, look, vitals and received key events, as JSON),
+`playtest.action <id>` (which physical control an action is) and `playtest.look <yaw> <pitch>`.
+
+**How input reaches the product.** `walk` does not use a page. It claims input through the
+host's harness lane (`control/claim`, `runtime/input`, `control/release`), which delivers key facts to
+the product's ordinary mappings exactly as a page would; an attached page shows the input as held
+by `craft-live` meanwhile.
+
+**Keyboard input from a page reaches the product only once the Engine canvas has gameplay
+focus.** Measured with a headless page: with the page just loaded (focus on the document body),
+or with a product UI button focused, holding W for 1.5 s delivered no key events and moved the
+player 0 m; after one click on the canvas the same hold delivered 2 key events and moved the
+player about 11 m. A page-driven lane must click the canvas (not the UI panel) before sending
+keys. This is why earlier scripted walks recorded no key events.
+
+**A body placed inside the world stops the product.** The character controller refuses to step a
+body that starts inside a solid cell, and that refusal faults the product. `craft.player.teleport`
+therefore moves the player only where a standing body fits - the point asked for, else the ground
+of that column - and building refuses cells the player's body occupies.

@@ -64,7 +64,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         blast = new BlastModule(context.Engine, terrain, frame, entities);
-        build = new BuildModule(terrain, entities);
+        build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
         actions = new PlayerActionModule(player, blast, build, ui);
 
@@ -87,6 +87,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(new BlastDebugModule(blast)));
         RequireRegistration(registrar.Register(new BuildDebugModule(build, entityStore)));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
+        RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
     }
 
     public void Start()
