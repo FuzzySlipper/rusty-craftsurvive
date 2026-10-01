@@ -36,6 +36,9 @@ internal static class SculptedRock
 
     private const float NoiseFrequency = 0.21f;
 
+    /// <summary>How far from the surface a kept-open or kept-solid cell's density is held, in density units.</summary>
+    private const float KeptMargin = 0.12f;
+
     /// <summary>The rock, the voxels that remain (the building), and a voxel copy of both for the route check.</summary>
     internal static (RockDensity Rock, DungeonVolume Building, DungeonVolume Walkable) Sculpt(DungeonVolume source, DungeonCell arrival, ulong seed)
     {
@@ -56,7 +59,8 @@ internal static class SculptedRock
             }
         }
 
-        bool[] calm = CalmNearFloors(source, arrival, width, height, depth);
+        HashSet<DungeonCell> walkable0 = DungeonWalk.Reachable(source, arrival);
+        bool[] calm = CalmNearFloors(walkable0, width, height, depth);
         float[] blurred = Blur(occupancy, width, height, depth);
         float[] values = new float[blurred.Length];
         for (int z = 0; z < depth; z++)
@@ -69,6 +73,23 @@ internal static class SculptedRock
                     float roughness = calm[index] ? 0f : RoughnessAmplitude * Noise(x, y, z, seed);
                     values[index] = 0.5f - blurred[index] + roughness;
                 }
+            }
+        }
+
+        // What can be walked stays walkable: every standing place and its headroom stay open, and
+        // the rock under a standing place stays solid, whatever the blur and noise did nearby.
+        foreach (DungeonCell cell in walkable0)
+        {
+            for (int up = 0; up < DungeonWalk.Headroom; up++)
+            {
+                int open = Index(cell.X, cell.Y + up, cell.Z, width, height);
+                values[open] = Math.Max(values[open], KeptMargin);
+            }
+
+            if (cell.Y > 0 && IsRock(source, cell.X, cell.Y - 1, cell.Z))
+            {
+                int floor = Index(cell.X, cell.Y - 1, cell.Z, width, height);
+                values[floor] = Math.Min(values[floor], -KeptMargin);
             }
         }
 
@@ -111,10 +132,10 @@ internal static class SculptedRock
     };
 
     /// <summary>Cells within a few of a walkable floor, where the rock is kept smooth.</summary>
-    private static bool[] CalmNearFloors(DungeonVolume source, DungeonCell arrival, int width, int height, int depth)
+    private static bool[] CalmNearFloors(HashSet<DungeonCell> walkable, int width, int height, int depth)
     {
         bool[] calm = new bool[width * height * depth];
-        foreach (DungeonCell cell in DungeonWalk.Reachable(source, arrival))
+        foreach (DungeonCell cell in walkable)
         {
             for (int dx = -FloorCalmRadius; dx <= FloorCalmRadius; dx++)
             {

@@ -9,12 +9,166 @@ using CraftSurvive.Game.Tests;
 if (args is ["render", string renderSeed, string output, ..] && args.Length <= 4)
 {
     ulong chosen = ulong.Parse(renderSeed, System.Globalization.CultureInfo.InvariantCulture);
-    bool sculpted = args.Length == 4 && args[3] == "c";
-    (DungeonVolume shown, DungeonPlan drawnPlan, DungeonVerdict drawnVerdict) = sculpted
-        ? Sculpted(chosen)
-        : Carved(chosen);
-    Cutaway.Write(output, shown, drawnPlan, DungeonWalk.Reachable(shown, drawnPlan.Arrival), slices: 6);
-    Console.WriteLine($"seed {renderSeed} ({(sculpted ? "C" : "A")}): {drawnPlan.Mix}, {drawnPlan.Floors} floors, attempt {drawnPlan.Attempt}, {drawnVerdict.Reason} -> {output}");
+    string which = args.Length == 4 ? args[3] : "a";
+    bool sculpted = which != "a";
+    (DungeonVolume shown, DungeonPlan drawnPlan, DungeonVerdict drawnVerdict) = which switch
+    {
+        "c" => Sculpted(chosen),
+        "b" => Modular(chosen),
+        _ => Carved(chosen),
+    };
+    HashSet<DungeonCell> walkableCells = DungeonWalk.Reachable(shown, drawnPlan.Arrival);
+    Cutaway.Write(output, shown, drawnPlan, walkableCells, slices: 6);
+    Cutaway.Isometric(output.Replace(".png", "-iso.png", StringComparison.Ordinal), shown, drawnPlan, walkableCells);
+    _ = sculpted;
+    Console.WriteLine($"seed {renderSeed} ({which.ToUpperInvariant()}): {drawnPlan.Mix}, {drawnPlan.Floors} floors, attempt {drawnPlan.Attempt}, {drawnVerdict.Reason} -> {output}");
+    return 0;
+}
+
+if (args is ["moduledump", string moduleName])
+{
+    DungeonModuleShape shape = ((DungeonModuleShape[])[DungeonModules.Arrival, .. DungeonModules.CaveRoute, .. DungeonModules.BuildingRooms, DungeonModules.Breach, DungeonModules.Vault]).Single(m => m.Name == moduleName);
+    var (volume, sockets) = ModularDungeon.Isolated(shape);
+    foreach (var (socket, stand) in sockets)
+    {
+        HashSet<DungeonCell> reach = DungeonWalk.Reachable(volume, stand);
+        Console.WriteLine($"from {socket.Face} stand {stand}: {reach.Count} cells, y {reach.Min(c => c.Y)}..{reach.Max(c => c.Y)}");
+    }
+
+    foreach ((int cx, int cz) in new[] { (21, 14), (21, 13), (21, 12), (21, 11), (20, 10) })
+    {
+        Console.WriteLine($"column {cx},{cz}: " + string.Join(" ", Enumerable.Range(8, 9).Select(y => $"{y}:{volume.At(cx, y, cz).ToString()[..2]}{(DungeonWalk.Standable(volume, cx, y, cz) ? "*" : "")}")));
+    }
+
+    var (_, first) = sockets[0];
+    HashSet<DungeonCell> walked = DungeonWalk.Reachable(volume, first);
+    HashSet<DungeonCell> walkedBack = DungeonWalk.Reachable(volume, sockets[^1].Stand);
+    foreach (int level in new[] { 12, 13, 14 })
+    {
+        Console.WriteLine($"-- level y={level} from above (x across, z down); T top-reach, B bottom-reach, # solid");
+        for (int z = 26; z >= 6; z--)
+        {
+            char[] row = new char[24];
+            for (int x = 6; x < 30; x++)
+            {
+                DungeonCell cell = new(x, level, z);
+                row[x - 6] = walked.Contains(cell) ? 'T' : walkedBack.Contains(cell) ? 'B' : volume.At(x, level, z) == BlockId.Air ? ' ' : '#';
+            }
+
+            Console.WriteLine($"{z,3} {new string(row)}");
+        }
+    }
+
+    for (int y = 30; y >= 31; y--)
+    {
+        char[] row = new char[40];
+        for (int x = 4; x < 44; x++)
+        {
+            int z = 12;
+            row[x - 4] = walked.Contains(new DungeonCell(x, y, z)) ? ':' : volume.At(x, y, z) == BlockId.Air ? ' ' : '#';
+        }
+
+        Console.WriteLine($"{y,3} {new string(row)}  (z=12)");
+    }
+
+    return 0;
+}
+
+if (args is ["intrusion", string intrusionSeed])
+{
+    ulong chosenSeed = ulong.Parse(intrusionSeed, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture);
+    var generated = ModularDungeon.Generate(chosenSeed);
+    DungeonVolume building = generated.Layout.Volume;
+    RockDensity rock = generated.Layout.Rock!;
+    Dictionary<string, int> where = [];
+    foreach (PlacedModule module in generated.Modules.Where(m => m.Shape.Kind == ModuleKind.Building))
+    {
+        foreach ((int cx, int cy, int cz) in module.Cells())
+        {
+            for (int x = cx * 8 + 1; x < cx * 8 + 7; x++)
+            {
+                for (int z = cz * 8 + 1; z < cz * 8 + 7; z++)
+                {
+                    for (int dy = 1; dy < 6; dy++)
+                    {
+                        int y = (cy * 6) + ModularDungeon.BaseY + dy;
+                        if (building.At(x, y, z) == BlockId.Air && rock.At(x, y, z) < 0f)
+                        {
+                            bool edge = x == cx * 8 + 1 || x == cx * 8 + 6 || z == cz * 8 + 1 || z == cz * 8 + 6;
+                            string key = $"{module.Shape.Name} storey-height {dy} {(edge ? "by a wall" : "mid-room")}";
+                            where[key] = where.GetValueOrDefault(key) + 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Console.WriteLine(string.Join("\n", where.OrderByDescending(pair => pair.Value).Take(14).Select(pair => $"{pair.Value,5}  {pair.Key}")));
+    return 0;
+}
+
+if (args is ["modulecheck"])
+{
+    foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arrival, .. DungeonModules.CaveRoute, .. DungeonModules.BuildingRooms, DungeonModules.Breach, DungeonModules.Vault])
+    {
+        var (volume, sockets) = ModularDungeon.Isolated(shape);
+        List<string> broken = [];
+        foreach (var (from, fromStand) in sockets)
+        {
+            HashSet<DungeonCell> reach = DungeonWalk.Reachable(volume, fromStand);
+            foreach (var (to, toStand) in sockets.Where(other => other.Socket != from))
+            {
+                if (!reach.Contains(toStand))
+                {
+                    broken.Add($"{from.X},{from.Y},{from.Z}{from.Face.ToString()[0]} -> {to.X},{to.Y},{to.Z}{to.Face.ToString()[0]}");
+                }
+            }
+        }
+
+        Console.WriteLine($"{shape.Name}: {(broken.Count == 0 ? "every socket reaches every other" : string.Join("; ", broken))}");
+    }
+
+    return 0;
+}
+
+if (args is ["modules", string moduleSeed])
+{
+    var result = ModularDungeon.Candidate(ulong.Parse(moduleSeed, System.Globalization.CultureInfo.InvariantCulture), 0);
+    Console.WriteLine(result.Verdict.Reason);
+    foreach (PlacedModule module in result.Modules)
+    {
+        Console.WriteLine($"{module.Shape.Name} turns={module.Turns} at {module.X},{module.Y},{module.Z} sockets: {string.Join(" ", module.Sockets().Select(s => $"{s.X},{s.Y},{s.Z}{s.Face.ToString()[0]}{s.Kind.ToString()[0]}"))}");
+    }
+
+    return 0;
+}
+
+if (args is ["modular", string modularCount])
+{
+    int count = int.Parse(modularCount, System.Globalization.CultureInfo.InvariantCulture);
+    Dictionary<string, int> firstReasons = [];
+    Dictionary<string, int> pieces = [];
+    int good = 0;
+    long candidates = 0;
+    Stopwatch modularClock = Stopwatch.StartNew();
+    for (ulong seed = 1; seed <= (ulong)count; seed++)
+    {
+        var result = ModularDungeon.Generate(seed);
+        good += result.Verdict.Walkable ? 1 : 0;
+        candidates += result.Plan.Attempt + 1;
+        foreach (PlacedModule module in result.Modules)
+        {
+            pieces[module.Shape.Name] = pieces.GetValueOrDefault(module.Shape.Name) + 1;
+        }
+
+        string first = ModularDungeon.Candidate(seed, 0).Verdict.Reason;
+        firstReasons[first] = firstReasons.GetValueOrDefault(first) + 1;
+    }
+
+    Console.WriteLine($"modular: {good}/{count} walkable, {candidates} candidates in {modularClock.Elapsed.TotalSeconds:F1} s");
+    Console.WriteLine($"first candidates: {string.Join("; ", firstReasons.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} x{pair.Value}"))}");
+    Console.WriteLine($"pieces: {string.Join(", ", pieces.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} {pair.Value}"))}");
     return 0;
 }
 
@@ -83,6 +237,26 @@ Console.WriteLine($"mix: {string.Join(", ", mixes.OrderBy(pair => pair.Key).Sele
 Console.WriteLine($"first-candidate failures: {(firstFailures.Count == 0 ? "none" : string.Join("; ", firstFailures.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} x{pair.Value}")))}");
 Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, {rate:P0} did");
 
+// Every authored module, on its own with every socket opened, connects each socket to every other.
+foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arrival, .. DungeonModules.CaveRoute, .. DungeonModules.BuildingRooms, DungeonModules.Breach, DungeonModules.Vault])
+{
+    var (isolated, sockets) = ModularDungeon.Isolated(shape);
+    bool connected = sockets.All(from => DungeonWalk.Reachable(isolated, from.Stand) is var reach && sockets.All(to => reach.Contains(to.Stand)));
+    Check.That(connected, $"module {shape.Name} must connect every socket to every other");
+}
+
+// Approach B: assembled from those modules, sculpted, still walkable.
+const int ModularSeeds = 40;
+int modularWalkable = 0;
+Stopwatch modularBank = Stopwatch.StartNew();
+for (ulong seed = 1; seed <= ModularSeeds; seed++)
+{
+    modularWalkable += ModularDungeon.Generate(seed).Verdict.Walkable ? 1 : 0;
+}
+
+Console.WriteLine($"modular: {modularWalkable}/{ModularSeeds} walkable in {modularBank.Elapsed.TotalSeconds:F1} s");
+Check.That(modularWalkable >= ModularSeeds * 0.95, $"at least 95% of modular dungeons must be walkable, {modularWalkable}/{ModularSeeds} were");
+
 // Approach C must stay walkable after its rock is sculpted, on a smaller bank (sculpting costs more).
 const int SculptedSeeds = 40;
 int sculptedWalkable = 0;
@@ -106,6 +280,12 @@ static (DungeonVolume, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)
 {
     (_, DungeonPlan plan, DungeonVerdict verdict, DungeonVolume walkable) = SculptedCave.Generate(seed);
     return (walkable, plan, verdict);
+}
+
+static (DungeonVolume, DungeonPlan, DungeonVerdict) Modular(ulong seed)
+{
+    var result = ModularDungeon.Generate(seed);
+    return (result.Walkable, result.Plan, result.Verdict);
 }
 
 static void Section(ulong seed)
@@ -209,6 +389,64 @@ internal static class Cutaway
                 }
 
                 Fill(rgb, width, mx + (x * Scale), z * Scale, colour);
+            }
+        }
+
+        File.WriteAllBytes(path, Png(width, height, rgb));
+    }
+
+    /// <summary>
+    /// Every walkable floor cell seen from above and to the side, drawn back to front: building
+    /// floors warm, cave floors cool, brighter the higher they are, key places in yellow. It shows
+    /// what slices cannot - which floors lie over which.
+    /// </summary>
+    internal static void Isometric(string path, DungeonVolume volume, DungeonPlan plan, HashSet<DungeonCell> reach)
+    {
+        const int Tile = 5;
+        const int Rise = 7;
+        int width = (volume.SizeX + volume.SizeZ) * Tile + 20;
+        int height = ((volume.SizeX + volume.SizeZ) * Tile / 2) + (volume.SizeY * Rise) + 20;
+        byte[] rgb = new byte[width * height * 3];
+        for (int i = 0; i < rgb.Length; i += 3)
+        {
+            rgb[i] = 14;
+            rgb[i + 1] = 14;
+            rgb[i + 2] = 18;
+        }
+
+        int top = reach.Count == 0 ? 1 : reach.Max(cell => cell.Y);
+        int bottom = reach.Count == 0 ? 0 : reach.Min(cell => cell.Y);
+        DungeonCell[] marks = [plan.Arrival, plan.Breach, plan.Loot];
+        foreach (DungeonCell cell in reach.OrderBy(cell => cell.X + (volume.SizeZ - cell.Z)).ThenBy(cell => cell.Y))
+        {
+            double t = (cell.Y - bottom) / (double)Math.Max(1, top - bottom);
+            bool built = volume.At(cell.X, cell.Y - 1, cell.Z) is BlockId.Planks or BlockId.Cobblestone or BlockId.Brick;
+            byte[] colour = built
+                ? [(byte)(110 + (130 * t)), (byte)(80 + (100 * t)), (byte)(60 + (60 * t))]
+                : [(byte)(50 + (90 * t)), (byte)(90 + (110 * t)), (byte)(120 + (120 * t))];
+            if (marks.Any(mark => Math.Abs(mark.X - cell.X) <= 1 && Math.Abs(mark.Z - cell.Z) <= 1 && Math.Abs(mark.Y - cell.Y) <= 1))
+            {
+                colour = Mark;
+            }
+
+            int sx = 10 + ((cell.X + (volume.SizeZ - cell.Z)) * Tile);
+            int sy = 10 + ((cell.X + cell.Z) * Tile / 2) + ((volume.SizeY - cell.Y) * Rise);
+            for (int dy = 0; dy < Tile; dy++)
+            {
+                for (int dx = -Tile + (2 * dy); dx <= Tile - (2 * dy); dx++)
+                {
+                    foreach (int row in (ReadOnlySpan<int>)[sy - dy, sy + dy])
+                    {
+                        int px = sx + dx;
+                        if (px >= 0 && px < width && row >= 0 && row < height)
+                        {
+                            int index = ((row * width) + px) * 3;
+                            rgb[index] = colour[0];
+                            rgb[index + 1] = colour[1];
+                            rgb[index + 2] = colour[2];
+                        }
+                    }
+                }
             }
         }
 

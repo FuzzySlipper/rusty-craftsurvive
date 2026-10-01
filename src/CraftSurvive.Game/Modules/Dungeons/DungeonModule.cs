@@ -18,6 +18,9 @@ internal enum DungeonApproach
 
     /// <summary>C: A's structure with its rock sculpted into a smooth mesh around the cubic building.</summary>
     SculptedCave,
+
+    /// <summary>B: assembled from authored 3D modules joined at their sockets, rock sculpted as in C.</summary>
+    Modules,
 }
 
 /// <summary>Where the player stands with respect to dungeons.</summary>
@@ -70,7 +73,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>A closed dungeon waiting for one snapshot without its rock before it is released.</summary>
     private DungeonSpace? retiring;
     private DungeonPlan? plan;
-    private DungeonApproach approach = DungeonApproach.SculptedCave;
+    private DungeonApproach approach = DungeonApproach.Modules;
     private Material? rockMaterial;
 
     /// <summary>The sculpted rock's texture, authored by scripts/generate-cave-rock.mjs.</summary>
@@ -197,9 +200,12 @@ internal sealed class DungeonModule : IProductModule
 
         // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
         ulong seed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
-        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict) = approach == DungeonApproach.SculptedCave
-            ? Sculpted(seed)
-            : CarveAndStamp.Generate(seed);
+        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict) = approach switch
+        {
+            DungeonApproach.SculptedCave => Sculpted(seed),
+            DungeonApproach.Modules => Modular(seed),
+            _ => CarveAndStamp.Generate(seed),
+        };
         plan = generated;
         try
         {
@@ -230,22 +236,29 @@ internal sealed class DungeonModule : IProductModule
         retiring = null;
     }
 
-    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp) or c (sculpted cave).</summary>
+    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules) or c (sculpted cave).</summary>
     internal string Choose(string name)
     {
         DungeonApproach? chosen = name switch
         {
             "a" => DungeonApproach.CarveAndStamp,
+            "b" => DungeonApproach.Modules,
             "c" => DungeonApproach.SculptedCave,
             _ => null,
         };
         if (chosen is not DungeonApproach next)
         {
-            return $"approach refused: \"{name}\" is not a (carve and stamp) or c (sculpted cave)";
+            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules) or c (sculpted cave)";
         }
 
         approach = next;
         return $"the next dungeon is {approach}";
+    }
+
+    private static (DungeonLayout, DungeonPlan, DungeonVerdict) Modular(ulong seed)
+    {
+        var generated = ModularDungeon.Generate(seed);
+        return (generated.Layout, generated.Plan, generated.Verdict);
     }
 
     private static (DungeonLayout, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)

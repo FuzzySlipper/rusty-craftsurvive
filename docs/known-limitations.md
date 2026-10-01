@@ -96,10 +96,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `DungeonModule.ChunksPerUpdate` chunks per update behind the loading screen, never streamed or
   rebased, and placed at `DungeonSpace.Origin` far below the open world so the two never meet in
   view. Each dungeon entrance has its own generated dungeon, drawn again until `DungeonWalk` finds
-  it walkable as its flow intends. Two approaches are in comparison (#8604): A, `CarveAndStamp`
-  (all cubic: a chasm, a ledge down its wall, a building it has torn open), and C, `SculptedCave`
-  (A's structure with its rock meshed smooth from a density, the building still cubic), chosen
-  by `craft.dungeon.approach`. The sculpted rock's texture is projected along one axis per face,
+  it walkable as its flow intends. Three approaches are in comparison (#8604): A, `CarveAndStamp`
+  (all cubic: a chasm, a ledge down its wall, a building it has torn open); C, `SculptedCave`
+  (A's structure with its rock meshed smooth from a density, the building still cubic); and B,
+  `ModularDungeon` (authored 3D pieces from `DungeonModules` joined at their sockets on a lattice
+  of one storey per layer, rock sculpted as in C), chosen by `craft.dungeon.approach`. Sculpting
+  never changes what can be walked: standing places and their headroom stay open. The sculpted rock's texture is projected along one axis per face,
   so it smears on steep curved walls. Nothing inside a dungeon is saved: a session that ends inside one continues at its
   entrance, and the open world's creatures and journal wait while the player is in.
 - **The Engine's navigation cannot see inside a dungeon yet**: collision navigation finds only the
