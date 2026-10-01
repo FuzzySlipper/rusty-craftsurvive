@@ -29,5 +29,7 @@
     <Compile Include="$(ProductModules)Manipulation/BlockEntityIndex.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlockEntityCodec.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Player/PlayerContinuation.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Survival/WorldConditions.cs" LinkBase="Product/Survival" />
+    <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
   </ItemGroup>
 </Project>

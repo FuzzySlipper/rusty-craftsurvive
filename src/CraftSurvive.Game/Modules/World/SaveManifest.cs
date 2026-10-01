@@ -36,6 +36,10 @@ internal static class SaveManifest
     internal static SaveKey PlayerContinuation { get; } =
         new("player/continuation", "player/continuation.backup", "PlayerContinuationStore", 0x5952_4C50, 1);
 
+    /// <summary>The time of day and the difficulty: the world's conditions.</summary>
+    internal static SaveKey WorldConditions { get; } =
+        new("world/conditions", "world/conditions.backup", "WorldConditionsModule", 0x444E_4F43, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation];
+        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions];
 }

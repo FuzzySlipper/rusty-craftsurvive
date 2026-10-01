@@ -7,6 +7,7 @@ using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 
@@ -29,7 +30,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly ProductUiPublisher ui;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
-    private readonly SkyBackground sky;
+    private readonly DayNightSky sky;
+
+    /// <summary>The world's time and difficulty: survival and encounters read them, the sky shows them.</summary>
+    private readonly WorldConditionsModule conditions;
     private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
     private readonly CreatureModule creatures;
@@ -59,7 +63,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         ui = new ProductUiPublisher(context.Engine);
         terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame, store, ui);
         player = new PlayerController(context.Engine, terrain, frame, store, ui);
-        sky = new SkyBackground(context.Engine);
+        sky = new DayNightSky(context.Engine);
+        conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, ui);
         creatures = new CreatureModule(context.Engine, terrain, player, frame);
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
@@ -69,7 +74,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         actions = new PlayerActionModule(player, blast, build, ui);
 
         // The entity store runs last, so it saves what a charge swept or a build placed this update.
-        gameplay = [creatures, discovery, blast, build, entityStore];
+        gameplay = [conditions, creatures, discovery, blast, build, entityStore];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -87,6 +92,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(new BlastDebugModule(blast)));
         RequireRegistration(registrar.Register(new BuildDebugModule(build, entityStore)));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
+        RequireRegistration(registrar.Register(new WorldConditionsDebugModule(conditions)));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
     }
 
@@ -102,7 +108,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
                 module.Start();
             }
 
-            sky.Start();
             PublishAppearanceSnapshot();
             lifecycle = ProductLifecycleState.Running;
         }
@@ -163,7 +168,6 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         }
 
         terrain.Restart();
-        sky.Restart();
         player.Restart();
         actions.Restart();
         foreach (IProductModule module in gameplay)

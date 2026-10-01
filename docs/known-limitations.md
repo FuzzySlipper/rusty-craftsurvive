@@ -52,6 +52,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `TerrainAtlasLayout`); a material from a second atlas fails the directional projection, as S0
   (#8596) recorded upstream. Normal maps, animated tiles and blending are not implemented.
 - The C# runtime draws no shadow maps; the product has no shadow control.
+- **Day and night are a sky blend and two lights.** `DayNightSky` crossfades two authored panoramas
+  and sets one directional light (sun, then moon) and one ambient light from `WorldClock`; the
+  Engine's neutral rig is disabled. Ambient light is unoccluded, so a cave is no darker than the
+  open ground beside it, and the sun and moon do not move across the panoramas.
 
 ## Creatures and navigation
 

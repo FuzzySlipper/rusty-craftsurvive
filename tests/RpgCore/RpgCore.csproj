@@ -29,6 +29,8 @@
     <Compile Include="$(ProductModules)Player/PlayerVitals.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductStep.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/WorldFrame.cs" LinkBase="Product/World" />
+    <!-- The world's clock is rules over a day fraction. -->
+    <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
     <!-- The climbing rule reads blocks through a lookup, so it is checked over a made-up wall. -->
     <Compile Include="$(ProductModules)Player/PlayerClimb.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />

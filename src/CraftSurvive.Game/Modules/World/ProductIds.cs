@@ -19,6 +19,11 @@ internal static class ProductIds
     /// </summary>
     internal const ulong CreatureObserverBase = 0x2_0000UL;
 
+    /// <summary>Retained light ids: the sky's sun (or moon) and its ambient fill.</summary>
+    internal const ulong SunLight = 1UL;
+
+    internal const ulong AmbientLight = 2UL;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

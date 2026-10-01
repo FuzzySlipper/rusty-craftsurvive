@@ -45,6 +45,9 @@ internal readonly record struct DiscoveryUiFacts(
     double LastTick,
     string LastFound);
 
+/// <summary>The world's conditions for the UI projection: the time as a player reads it, its daylight, and the difficulty.</summary>
+internal readonly record struct ConditionsUiFacts(string Time, double Daylight, bool Night, string Difficulty);
+
 /// <summary>The world's facts for the UI projection, read when it is published.</summary>
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);
 
@@ -61,6 +64,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private PlayerUiFacts? player;
     private DiscoveryUiFacts? discovery;
     private ActionUiFacts? actions;
+    private ConditionsUiFacts? conditions;
     private ulong sequence;
 
     internal ProductUiPublisher(IEngineContext engine) => this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -89,6 +93,12 @@ internal sealed class ProductUiPublisher : IDisposable
         Publish();
     }
 
+    internal void PublishConditions(ConditionsUiFacts facts)
+    {
+        conditions = facts;
+        Publish();
+    }
+
     internal void Publish()
     {
         if (stream is null || world is null)
@@ -98,7 +108,7 @@ internal sealed class ProductUiPublisher : IDisposable
 
         WorldUiFacts facts = world();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions)));
+            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions)));
     }
 
     public void Dispose()

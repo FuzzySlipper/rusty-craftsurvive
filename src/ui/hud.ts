@@ -26,6 +26,7 @@ export const text = (values: Values, key: string): string | null => (typeof valu
 const fixed = (value: number | null, digits: number): string | null => (value === null ? null : value.toFixed(digits));
 
 const ROWS: readonly HudRow[] = [
+  { label: 'Time', show: (v) => { const t = text(v, 'worldTime'); return t === null ? null : number(v, 'night') === 1 ? `${t} (night)` : t; } },
   { label: 'Health', show: (v) => { const h = number(v, 'health'); const m = number(v, 'maximumHealth'); return h === null || m === null ? null : `${h} / ${m}`; } },
   { label: 'Level', show: (v) => { const l = number(v, 'level'); const x = number(v, 'experience'); return l === null || x === null ? null : `${l} (${x} xp)`; } },
   { label: 'Items', show: (v) => fixed(number(v, 'itemsCollected'), 0) },

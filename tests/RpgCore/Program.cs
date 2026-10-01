@@ -3,6 +3,7 @@ using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
+using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Tests;
 
@@ -581,6 +582,30 @@ Check.That(new[] { BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Cobblesto
         .All(id => !BlockRegistry.Get(id).Climbable),
     "earth, rock, masonry and timber are climbable; loose, soft and see-through blocks are not");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread and the climbing rule passed.");
+// The world's clock: days pass at a fixed rate, roll over whole, and daylight follows the sun.
+WorldTime morning = WorldClock.Start;
+Check.That(!WorldClock.IsNight(morning.DayFraction), "a new world must start in daylight");
+WorldTime later = WorldClock.Advance(morning, WorldClock.DaySeconds * 2.25);
+Check.That(later.Day == 2 && Math.Abs(later.DayFraction - (WorldClock.FirstMorning + 0.25)) < 1e-9,
+    $"two and a quarter days later must be day 2 at a quarter past, was {later}");
+Check.That(WorldClock.Advance(new WorldTime(4, 0.99), WorldClock.DaySeconds * 0.02) is { Day: 5 } rolled && rolled.DayFraction is >= 0 and < 1,
+    "a day must roll over into the next");
+Check.That(WorldClock.Daylight(0.5) == 1 && WorldClock.Daylight(0) == 0, "noon must be full day and midnight full night");
+Check.That(WorldClock.IsNight(0) && !WorldClock.IsNight(0.5) && WorldClock.IsNight(0.85) && !WorldClock.IsNight(0.3),
+    "night must hold from late evening to early morning");
+double previousLight = -1;
+bool risesThroughMorning = true;
+for (double fraction = 0.15; fraction <= 0.5; fraction += 0.01)
+{
+    double light = WorldClock.Daylight(fraction);
+    risesThroughMorning &= light >= previousLight;
+    previousLight = light;
+}
+
+Check.That(risesThroughMorning, "daylight must never dip while the sun climbs");
+Check.That(WorldClock.TowardSun(0.5).Y > 0.9f && WorldClock.TowardSun(0).Y < -0.9f, "the sun must stand high at noon and below at midnight");
+Check.That(WorldClock.Describe(new WorldTime(2, 0.5 + (1.0 / 24 / 60 * 7))) == "Day 3, 12:07", "the time must read as day and hour");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule and the world's clock passed.");
 
 return Check.Finish("RpgCore");

@@ -55,7 +55,8 @@ save, then terrain's save, then one appearance snapshot.
 | Discovery | `Modules/Discovery`: `DiscoveryModule` and the journal | Persistence through its save slot |
 | Manipulation | `Modules/Manipulation`: blast charges and dust, build stamps, block entities and their store | Voxel edits through `TerrainWorld`, particles |
 | UI actions | `Modules/Actions`: `PlayerAction` (the payload) and `PlayerActionModule` | Input intents (product payload) |
-| Sky | `Modules/Sky`: `SkyBackground` | Appearance, camera view |
+| Sky | `Modules/Sky`: `WorldClock` (rules) and `DayNightSky` (panorama blend, sun and ambient lights) | Camera view sky blend, retained lights |
+| World conditions | `Modules/Survival`: `WorldConditionsModule` (time of day and difficulty, saved) | Persistence |
 | Diagnostics | `Modules/Debugging` plus each module's `*DebugModule`: debug adapters over owners, and the Engine's playtest commands | Debug command catalog |
 
 ## Product/Engine boundary

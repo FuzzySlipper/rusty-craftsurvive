@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
+using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -29,6 +30,7 @@ index.Place(BlockEntityKind.Door, new VoxelAddress(-4, 12, 7), 1);
 index.Place(BlockEntityKind.Container, new VoxelAddress(-4, 12, 8), 5);
 BlockEntityRecord[] entities = index.Snapshot();
 PlayerContinuation player = new(812.5, 14.0, -96.25, 1.25, -0.3, 17, 2, 350, 6);
+WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
 
 SavedForm[] forms =
 [
@@ -40,6 +42,8 @@ SavedForm[] forms =
         (left, right) => left.SequenceEqual(right), seed => new BlockEntityCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.PlayerContinuation, new PlayerContinuationCodec(identity, MaximumHealth), player, PlayerContinuationCodec.RecordBytes,
         (left, right) => left == right, seed => new PlayerContinuationCodec(identity with { Seed = seed }, MaximumHealth)),
+    SavedForm.For(SaveManifest.WorldConditions, new WorldConditionsCodec(identity), conditions, WorldConditionsCodec.RecordBytes,
+        (left, right) => left == right, seed => new WorldConditionsCodec(identity with { Seed = seed })),
 ];
 
 // --- the manifest names every saved key, once ------------------------------------------------------
@@ -97,6 +101,11 @@ Check.That(Throws(() => playerCodec.Encode(player with { FeetX = double.NaN })),
 byte[] twoRecords = [.. playerCodec.Encode(player)];
 BinaryPrimitives.WriteInt32LittleEndian(twoRecords.AsSpan(20), 2);
 Check.That(Refuses(playerCodec, [.. twoRecords, .. new byte[PlayerContinuationCodec.RecordBytes]]), "a continuation holds exactly one record");
+
+WorldConditionsCodec conditionsCodec = new(identity);
+Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");
+Check.That(Throws(() => conditionsCodec.Encode(conditions with { Day = -1 })), "a day before the first cannot be saved");
+Check.That(Throws(() => conditionsCodec.Encode(conditions with { Difficulty = (Difficulty)7 })), "an unknown difficulty cannot be saved");
 
 // --- block entities: identities are per session, meaning survives -------------------------------
 BlockEntityIndex reloaded = new();
