@@ -46,6 +46,16 @@ internal static class WorldClock
         return new WorldTime(time.Day + days, fraction - days);
     }
 
+    /// <summary>When a rest ends: early morning, once it is light.</summary>
+    internal const double WakingFraction = 0.27d;
+
+    /// <summary>Seconds of play from a moment until a day fraction next comes round.</summary>
+    internal static double SecondsUntil(double dayFraction, double target)
+    {
+        double ahead = target - dayFraction;
+        return (ahead <= 0d ? ahead + 1d : ahead) * DaySeconds;
+    }
+
     /// <summary>The sun's elevation as a sine: 1 at noon, 0 at dawn and dusk, -1 at midnight.</summary>
     internal static double SunElevation(double dayFraction) => Math.Sin(2d * Math.PI * (dayFraction - 0.25d));
 

@@ -17,6 +17,9 @@ internal sealed class WorldConditionsModule : IProductModule
 
     private const int MinutesPerDay = 24 * 60;
 
+    /// <summary>The difficulties a player can choose, by name, in order.</summary>
+    private static readonly string Difficulties = string.Join(',', Enum.GetNames<Difficulty>().Select(name => name.ToLowerInvariant()));
+
     private readonly DayNightSky sky;
     private readonly ProductUiPublisher ui;
     private readonly ProductSaveSlot<WorldConditionsState> slot;
@@ -68,6 +71,15 @@ internal sealed class WorldConditionsModule : IProductModule
 
     public void Dispose() => slot.Save(state);
 
+    /// <summary>Lets some seconds of play pass at once, as a rest does.</summary>
+    internal void Pass(double seconds)
+    {
+        WorldTime time = WorldClock.Advance(state.Time, seconds);
+        state = state with { Day = time.Day, DayFraction = time.DayFraction };
+        Show(force: true);
+        slot.Save(state);
+    }
+
     /// <summary>Sets the hour of the current day, for a live check of night and day.</summary>
     internal string SetHour(double hour)
     {
@@ -82,18 +94,22 @@ internal sealed class WorldConditionsModule : IProductModule
         return Readout();
     }
 
+    /// <summary>How many difficulty changes were refused, so a caller can tell a refusal from its answer.</summary>
+    internal long DifficultyRefused { get; private set; }
+
     /// <summary>Sets the difficulty by name: gentle, normal or harsh.</summary>
     internal string SetDifficulty(string name)
     {
-        if (!Enum.TryParse(name, ignoreCase: true, out Difficulty chosen) || !Enum.IsDefined(chosen))
+        if (!Enum.TryParse(name, ignoreCase: true, out Difficulty chosen) || !Enum.IsDefined(chosen) || int.TryParse(name, out _))
         {
+            DifficultyRefused++;
             return $"refused: \"{name}\" is not a difficulty ({string.Join(", ", Enum.GetNames<Difficulty>()).ToLowerInvariant()})";
         }
 
         state = state with { Difficulty = chosen };
         Show(force: true);
         slot.Save(state);
-        return Readout();
+        return $"difficulty is {chosen.ToString().ToLowerInvariant()}";
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
@@ -117,7 +133,8 @@ internal sealed class WorldConditionsModule : IProductModule
                 WorldClock.Describe(state.Time),
                 WorldClock.Daylight(state.DayFraction),
                 IsNight,
-                state.Difficulty.ToString().ToLowerInvariant()));
+                state.Difficulty.ToString().ToLowerInvariant(),
+                Difficulties));
         }
     }
 }

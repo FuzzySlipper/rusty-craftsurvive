@@ -24,6 +24,9 @@ internal static class ProductIds
 
     internal const ulong AmbientLight = 2UL;
 
+    /// <summary>Placed lamps' retained lights are this base plus their slot in the lamp pool.</summary>
+    internal const ulong LampLightBase = 0x100UL;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

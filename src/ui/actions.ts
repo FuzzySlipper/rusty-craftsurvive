@@ -72,7 +72,15 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
   craft.addEventListener('click', () => { if (recipe.value !== '') claim({ action: 'craft', recipe: recipe.value }); });
   use.addEventListener('click', () => { if (item.value !== '') claim({ action: 'use', item: item.value }); });
   recipe.addEventListener('change', () => { craft.disabled = recipe.selectedOptions[0]?.disabled !== false; });
-  kit.append(recipe, craft, item, use);
+  const rest = button('Rest');
+  rest.title = 'Sleep until morning: only at night, with no hostile creature near';
+  rest.disabled = intents === undefined;
+  rest.addEventListener('click', () => claim({ action: 'rest' }));
+  const difficulty = element('select');
+  difficulty.title = 'How hard the world is: hunger, air and recovery';
+  difficulty.disabled = true;
+  difficulty.addEventListener('change', () => { if (difficulty.value !== '') claim({ action: 'difficulty', level: difficulty.value }); });
+  kit.append(recipe, craft, item, use, rest, difficulty);
   host.append(bar, kit);
   if (projection === undefined) return () => {};
 
@@ -90,7 +98,7 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
     picker.disabled = options.length === 0 || intents === undefined;
   };
 
-  const published = { palette: '', recipes: '', usable: '' };
+  const published = { palette: '', recipes: '', usable: '', difficulty: '' };
   const read = (values: ReturnType<typeof projectionValues>): void => {
     if (values === null) return;
     const palette = text(values, 'buildPalette') ?? '';
@@ -106,6 +114,13 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
         return { value: id, label: description, enabled: ready === '1' };
       }));
       craft.disabled = recipe.disabled || recipe.selectedOptions[0]?.disabled !== false;
+    }
+    const difficulties = text(values, 'difficulties') ?? '';
+    const current = text(values, 'difficulty') ?? '';
+    if (`${difficulties}/${current}` !== published.difficulty) {
+      published.difficulty = `${difficulties}/${current}`;
+      fill(difficulty, difficulties.split(',').filter((name) => name.length > 0).map((name) => ({ value: name, label: name, enabled: true })));
+      if (current !== '') difficulty.value = current;
     }
     const usable = text(values, 'usable') ?? '';
     if (usable !== published.usable) {

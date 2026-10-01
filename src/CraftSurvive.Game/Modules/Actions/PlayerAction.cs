@@ -15,6 +15,8 @@ internal enum PlayerActionKind
     Undo,
     Craft,
     Use,
+    Rest,
+    Difficulty,
 }
 
 /// <summary>
@@ -64,6 +66,8 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "undo" => new(PlayerActionKind.Undo),
             "craft" => new(PlayerActionKind.Craft, Name: Named(root, "recipe")),
             "use" => new(PlayerActionKind.Use, Name: Named(root, "item")),
+            "rest" => new(PlayerActionKind.Rest),
+            "difficulty" => new(PlayerActionKind.Difficulty, Name: Named(root, "level")),
             string other => throw new FormatException($"\"{other}\" is not an action the UI can ask for."),
             null => throw new FormatException("A UI action names what it asks for in \"action\"."),
         };

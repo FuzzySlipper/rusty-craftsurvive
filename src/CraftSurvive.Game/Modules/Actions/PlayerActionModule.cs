@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
+using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -30,14 +31,19 @@ internal sealed class PlayerActionModule
     private readonly BlastModule blast;
     private readonly BuildModule build;
     private readonly InventoryModule inventory;
+    private readonly SurvivalModule survival;
+    private readonly WorldConditionsModule conditions;
     private readonly ProductUiPublisher ui;
     private long applied;
     private long refused;
     private string last = "none";
     private bool published;
 
-    internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, InventoryModule inventory, ProductUiPublisher ui)
+    internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, InventoryModule inventory,
+        SurvivalModule survival, WorldConditionsModule conditions, ProductUiPublisher ui)
     {
+        this.survival = survival ?? throw new ArgumentNullException(nameof(survival));
+        this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
         this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.blast = blast ?? throw new ArgumentNullException(nameof(blast));
@@ -102,6 +108,20 @@ internal sealed class PlayerActionModule
         {
             long refusedBefore = inventory.Refused;
             Settle(name, inventory.Use(action.Name), inventory.Refused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind == PlayerActionKind.Rest)
+        {
+            long refusedBefore = survival.RestsRefused;
+            Settle(name, survival.Rest(), survival.RestsRefused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind == PlayerActionKind.Difficulty)
+        {
+            long refusedBefore = conditions.DifficultyRefused;
+            Settle(name, conditions.SetDifficulty(action.Name), conditions.DifficultyRefused > refusedBefore);
             return;
         }
 

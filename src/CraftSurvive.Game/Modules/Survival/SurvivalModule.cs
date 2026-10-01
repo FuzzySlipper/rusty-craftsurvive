@@ -28,9 +28,13 @@ internal sealed class SurvivalModule : IProductModule
     private long regained;
     private long lost;
 
+    /// <summary>How far the nearest awake hostile creature stands from the player, for the rule against sleeping beside one.</summary>
+    private readonly Func<double> nearestHostileMetres;
+
     internal SurvivalModule(IEngineContext engine, ProductStore store, SaveIdentity identity, PlayerController player,
-        WorldConditionsModule conditions, ProductUiPublisher ui)
+        WorldConditionsModule conditions, ProductUiPublisher ui, Func<double> nearestHostileMetres)
     {
+        this.nearestHostileMetres = nearestHostileMetres ?? throw new ArgumentNullException(nameof(nearestHostileMetres));
         ArgumentNullException.ThrowIfNull(engine);
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
@@ -100,6 +104,57 @@ internal sealed class SurvivalModule : IProductModule
     }
 
     public void Dispose() => slot.Save(state);
+
+    /// <summary>How many rests have been refused, so a caller can tell a refusal from its answer.</summary>
+    internal long RestsRefused { get; private set; }
+
+    /// <summary>
+    /// Sleeps until morning: only at night, only when no awake hostile creature is near, and never
+    /// while defeated. The night passes at once; health comes back while there is food to pay for it.
+    /// </summary>
+    internal string Rest()
+    {
+        if (player.Vitals.IsDown)
+        {
+            return RefuseRest("rest refused: the player is down");
+        }
+
+        if (!conditions.IsNight)
+        {
+            return RefuseRest("rest refused: it is not night");
+        }
+
+        double nearest = nearestHostileMetres();
+        if (nearest < SurvivalRules.RestSafetyMetres)
+        {
+            return RefuseRest(string.Create(CultureInfo.InvariantCulture, $"rest refused: a hostile creature is {nearest:F0} m away"));
+        }
+
+        double seconds = Sky.WorldClock.SecondsUntil(conditions.Time.DayFraction, Sky.WorldClock.WakingFraction);
+        SurvivalStep rested = SurvivalRules.Rest(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds);
+        state = rested.State;
+        player.Vitals.Heal(rested.Regained);
+        regained += rested.Regained;
+        if (rested.Lost > 0)
+        {
+            player.Vitals.TakeHit(rested.Lost, 0);
+            lost += rested.Lost;
+            lastHarm = rested.Cause;
+        }
+
+        conditions.Pass(seconds);
+        lastHealth = player.Vitals.State.Health;
+        slot.Save(state);
+        Publish();
+        return string.Create(CultureInfo.InvariantCulture,
+            $"slept {seconds / Sky.WorldClock.DaySeconds * 24d:F1} hours: regained {rested.Regained}, food now {state.Satiety:F0}%");
+    }
+
+    private string RefuseRest(string reason)
+    {
+        RestsRefused++;
+        return reason;
+    }
 
     /// <summary>Eats something worth some nourishment.</summary>
     internal void Eat(double nourishment)

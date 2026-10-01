@@ -68,6 +68,9 @@ internal static class SurvivalRules
     /// <summary>Sprinting burns food this many times faster.</summary>
     internal const double SprintHungerFactor = 2d;
 
+    /// <summary>No one sleeps with an awake hostile creature this close.</summary>
+    internal const double RestSafetyMetres = 24d;
+
     /// <summary>A respawned player comes back at least this fed, and with full breath.</summary>
     internal const double RespawnSatiety = 50d;
 
@@ -118,6 +121,35 @@ internal static class SurvivalRules
         int lost = drowned + starved;
         SurvivalHarm cause = drowned > 0 ? SurvivalHarm.Drowning : starved > 0 ? SurvivalHarm.Starving : SurvivalHarm.None;
         return new SurvivalStep(new SurvivalState(satiety, breath, regain, starve, drown, lost > 0 ? 0d : sinceHurt), regained, lost, cause);
+    }
+
+    /// <summary>A rest is advanced in slices this long, so health regained early is paid for by the food on hand then.</summary>
+    internal const double RestSliceSeconds = 5d;
+
+    /// <summary>
+    /// Sleeping through some seconds: the same rules as staying awake and calm for that long, taken
+    /// a slice at a time, so a rest regains health while there is food and costs the food it uses,
+    /// and never drowns anyone.
+    /// </summary>
+    internal static SurvivalStep Rest(SurvivalState state, int health, int maximumHealth, Difficulty difficulty, double seconds)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(seconds);
+        SurvivalState resting = state with { SinceHurtSeconds = CalmSecondsBeforeRegaining, Breath = MaximumBreathSeconds };
+        int regained = 0;
+        int lost = 0;
+        SurvivalHarm cause = SurvivalHarm.None;
+        for (double slept = 0d; slept < seconds; slept += RestSliceSeconds)
+        {
+            int now = health + regained - lost;
+            SurvivalStep slice = Advance(resting, new SurvivalFacts(now, maximumHealth, HeadSubmerged: false, Sprinting: false, Hurt: false),
+                difficulty, Math.Min(RestSliceSeconds, seconds - slept));
+            resting = slice.State;
+            regained += slice.Regained;
+            lost += slice.Lost;
+            cause = slice.Cause == SurvivalHarm.None ? cause : slice.Cause;
+        }
+
+        return new SurvivalStep(resting, regained, lost, cause);
     }
 
     /// <summary>Eating: food fills the stomach up to full.</summary>

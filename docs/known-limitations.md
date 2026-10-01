@@ -78,6 +78,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   stomach drains health but never below one point. Air runs out while the head is under water,
   and drowning can kill. Gentle turns off both kinds of harm. There is no temperature, thirst or
   disease.
+- **Night is the creatures'.** Hostiles see `CreatureModule.NightSightFactor` further by night. A
+  player rests only at night with no awake hostile within `SurvivalRules.RestSafetyMetres`; the
+  night passes at once to `WorldClock.WakingFraction`, and health comes back as food pays for it.
+- **Placed lights are lamps with real light**, but only the `LampLights.MaximumLitLamps` nearest
+  the player are lit at once, and a lamp's light is unoccluded by walls (no shadows).
 
 - **Supplies come from creatures and places, not from the ground.** `ItemCatalog` holds the items,
   `Recipes` the three recipes, and `SupplyCache` what a place holds on the first reach (a return

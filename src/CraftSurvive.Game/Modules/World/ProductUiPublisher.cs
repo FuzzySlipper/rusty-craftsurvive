@@ -55,8 +55,8 @@ internal readonly record struct InventoryUiFacts(string Carried, string Recipes,
 /// <summary>The player's survival tracks for the UI projection: food and air, and the last harm they did.</summary>
 internal readonly record struct SurvivalUiFacts(double Satiety, double Breath, double MaximumBreath, string LastHarm);
 
-/// <summary>The world's conditions for the UI projection: the time as a player reads it, its daylight, and the difficulty.</summary>
-internal readonly record struct ConditionsUiFacts(string Time, double Daylight, bool Night, string Difficulty);
+/// <summary>The world's conditions for the UI projection: the time as a player reads it, its daylight, the difficulty and the difficulties to choose from.</summary>
+internal readonly record struct ConditionsUiFacts(string Time, double Daylight, bool Night, string Difficulty, string Difficulties);
 
 /// <summary>The world's facts for the UI projection, read when it is published.</summary>
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);

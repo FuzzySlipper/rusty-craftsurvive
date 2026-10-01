@@ -26,6 +26,8 @@ internal static class ActionChecks
         }
 
         Check.Equal(new PlayerAction(PlayerActionKind.Craft, Name: "ration"), Parse("""{"action":"craft","recipe":"ration"}"""), "a craft names its recipe");
+        Check.Equal(new PlayerAction(PlayerActionKind.Rest), Parse("""{"action":"rest"}"""), "a rest names nothing");
+        Check.Equal(new PlayerAction(PlayerActionKind.Difficulty, Name: "harsh"), Parse("""{"action":"difficulty","level":"harsh"}"""), "a difficulty names its level");
         Check.Equal(new PlayerAction(PlayerActionKind.Use, Name: "bandage"), Parse("""{"action":"use","item":"bandage"}"""), "a use names its item");
 
         string[] refused =

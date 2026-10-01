@@ -50,6 +50,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     private readonly BuildModule build;
     private readonly BlockEntityStore entityStore;
 
+    /// <summary>The light placed lamps give, from a pool of Engine lights.</summary>
+    private readonly LampLights lamps;
+
     /// <summary>The player-facing UI's action claims, turned into blast and build requests.</summary>
     private readonly PlayerActionModule actions;
 
@@ -72,18 +75,20 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         player = new PlayerController(context.Engine, terrain, frame, store, ui);
         sky = new DayNightSky(context.Engine);
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, ui);
-        survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui);
-        creatures = new CreatureModule(context.Engine, terrain, player, frame);
+        creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight);
+        survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
+            () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         blast = new BlastModule(context.Engine, terrain, frame, entities);
         build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
+        lamps = new LampLights(context.Engine, entities, player, frame);
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui);
-        actions = new PlayerActionModule(player, blast, build, inventory, ui);
+        actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, ui);
 
         // The entity store runs last, so it saves what a charge swept or a build placed this update.
-        gameplay = [conditions, survival, creatures, discovery, inventory, blast, build, entityStore];
+        gameplay = [conditions, survival, creatures, discovery, inventory, blast, build, entityStore, lamps];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,

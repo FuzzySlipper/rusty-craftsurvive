@@ -64,8 +64,14 @@ internal sealed class CreatureModule : IProductModule
     private string lastPlayerAttack = "none";
     private string lastFailure = "none";
 
-    internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, WorldFrame frame)
+    /// <summary>Hostile creatures see this much further by night: the dark belongs to them.</summary>
+    internal const double NightSightFactor = 1.5;
+
+    private readonly Func<bool> isNight;
+
+    internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, WorldFrame frame, Func<bool> isNight)
     {
+        this.isNight = isNight ?? throw new ArgumentNullException(nameof(isNight));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
@@ -75,6 +81,17 @@ internal sealed class CreatureModule : IProductModule
     }
 
     internal CreatureRoster Roster => roster;
+
+    /// <summary>How far the nearest awake hostile creature stands from a point, in metres, or infinity when none is awake.</summary>
+    internal double NearestAwakeHostileMetres(Vector3 world) => roster.All
+        .Where(creature => creature.Awake && creature.Kind.Tuning.Disposition == CreatureDisposition.Hostile)
+        .Select(creature => CreatureSimulation.PlanarDistance(creature.Position, world))
+        .DefaultIfEmpty(double.PositiveInfinity)
+        .Min();
+
+    /// <summary>How much further than its kind's sight a creature sees now: further for hostiles at night.</summary>
+    private double SightScale(Creature creature) =>
+        isNight() && creature.Kind.Tuning.Disposition == CreatureDisposition.Hostile ? NightSightFactor : 1d;
 
     internal Rusty.Engine.Entities.EntityStore EntityStore => presentation.Entities;
 
@@ -119,7 +136,7 @@ internal sealed class CreatureModule : IProductModule
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
             CreatureSense sense = new(seeing.Contains(creature.Id));
-            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time,
+            if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, SightScale(creature),
                 CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint)) is CreatureStrike strike)
             {
                 ResolveStrike(strike);
@@ -412,7 +429,7 @@ internal sealed class CreatureModule : IProductModule
             ProductIds.CreatureObserverBase + (ulong)creature.Id,
             frame.ToLocal(creature.Position.X, GroundAt(creature.Position) + EyeHeightMetres, creature.Position.Y),
             Vector3.UnitZ,
-            CreatureSimulation.EngineSightRadius(creature.Kind.Tuning.SightRange, MaximumHeightDifference),
+            CreatureSimulation.EngineSightRadius(creature.Kind.Tuning.SightRange * SightScale(creature), MaximumHeightDifference),
             AllAroundFacingCosine,
             FullEvidence)).ToArray();
         PerceptionTarget[] targets = [new PerceptionTarget(ProductIds.PlayerEntity, frame.ToLocal(playerWorld))];

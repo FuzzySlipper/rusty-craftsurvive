@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 
@@ -197,8 +198,10 @@ internal sealed class BuildModule : IProductModule
             return Readout();
         }
 
+        // A light is a lamp, which glows; every other block entity stands in a stone cell.
+        ushort material = kind == BlockEntityKind.Light ? (ushort)BlockId.Lamp : TerrainConstants.StoneMaterial;
         TerrainWorldEditResult result = terrain.TryEditCells(
-            [cell], TerrainEditKind.Set, TerrainConstants.StoneMaterial, occupiedByPlayer);
+            [cell], TerrainEditKind.Set, material, occupiedByPlayer);
         if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
         {
             lastOutcome = $"{name} refused: {TerrainWorldEditResult.Format(result)}";

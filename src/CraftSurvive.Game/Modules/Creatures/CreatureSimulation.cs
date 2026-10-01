@@ -46,6 +46,7 @@ internal static class CreatureSimulation
     /// the combat rules against the player's defence. A player who cannot be hit - down, or in
     /// grace after a respawn - draws no swing and costs the creature no cooldown.
     /// </summary>
+    /// <param name="sightScale">How much further than its kind's sight the creature sees now (1 by day).</param>
     /// <param name="waypoint">
     /// Where a pursuing creature walks next, in world X and Z: the navigation route's next point,
     /// or its own position to wait (see <see cref="WaypointOrWait"/>). A creature never walks
@@ -57,13 +58,15 @@ internal static class CreatureSimulation
         Vector3 playerWorld,
         bool playerCanBeHit,
         ProductStep time,
+        double sightScale,
         Vector2 waypoint)
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
         double distance = PlanarDistance(creature.Position, playerWorld);
         PerceptionFacts facts = new(sense.PlayerVisible, distance, creature.Combat.Health);
-        creature.Behavior = CreatureBehaviorRules.Step(kind.Tuning, creature.Behavior, facts, time.Step);
+        BehaviorTuning tuning = kind.Tuning with { SightRange = kind.Tuning.SightRange * sightScale };
+        creature.Behavior = CreatureBehaviorRules.Step(tuning, creature.Behavior, facts, time.Step);
 
         if (creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking
             && distance > kind.HaltDistanceMetres)

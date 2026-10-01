@@ -443,8 +443,8 @@ const double FixedDelta = 1.0 / 60.0;
 Vector3 playerAt = new(40, 0, 0);
 Creature oneStep = new(1, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
 Creature twoSteps = new(2, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
-CreatureSimulation.Step(oneStep, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2(playerAt.X, playerAt.Z));
-CreatureSimulation.Step(twoSteps, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta), waypoint: new Vector2(playerAt.X, playerAt.Z));
+CreatureSimulation.Step(oneStep, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(playerAt.X, playerAt.Z));
+CreatureSimulation.Step(twoSteps, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(2, 2, FixedDelta), sightScale: 1, waypoint: new Vector2(playerAt.X, playerAt.Z));
 double expectedOne = CreatureKinds.Hostile.PursueSpeedMetresPerSecond * FixedDelta;
 Check.That(Math.Abs(oneStep.Position.X - expectedOne) < 1e-5 && Math.Abs(twoSteps.Position.X - (2 * expectedOne)) < 1e-5,
     $"one step must move {expectedOne:F4} m and two steps twice that, moved {oneStep.Position.X:F4} and {twoSteps.Position.X:F4}");
@@ -452,33 +452,33 @@ Check.That(Math.Abs(oneStep.Position.X - expectedOne) < 1e-5 && Math.Abs(twoStep
 // A pursuer with a route walks to its waypoint, not at the player, and stops at the waypoint
 // rather than passing it.
 Creature router = new(7, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
-CreatureSimulation.Step(router, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2(0, 5));
+CreatureSimulation.Step(router, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(0, 5));
 Check.That(Math.Abs(router.Position.X) < 1e-5 && Math.Abs(router.Position.Y - expectedOne) < 1e-5,
     $"a routed pursuer must walk toward its waypoint, moved to {router.Position}");
 Creature nearWaypoint = new(8, CreatureKinds.Hostile, Vector2.Zero) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
-CreatureSimulation.Step(nearWaypoint, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta), waypoint: new Vector2(0, 0.25f));
+CreatureSimulation.Step(nearWaypoint, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta), sightScale: 1, waypoint: new Vector2(0, 0.25f));
 Check.That(Vector2.Distance(nearWaypoint.Position, new Vector2(0, 0.25f)) < 1e-5,
     $"a pursuer must stop at its waypoint rather than overshoot it, reached {nearWaypoint.Position}");
 
 // Only a routed waypoint moves a pursuer: with no route - outside the published grid, a refused
 // start, or no way through - it waits where it is instead of walking at the player.
 Creature unrouted = new(9, CreatureKinds.Hostile, new Vector2(3, 4)) { Behavior = CreatureBehaviorState.Spawned with { State = CreatureState.Pursuing } };
-CreatureSimulation.Step(unrouted, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta),
+CreatureSimulation.Step(unrouted, new CreatureSense(true), playerAt, playerCanBeHit: true, new ProductStep(60, 60, FixedDelta), 1,
     CreatureSimulation.WaypointOrWait(unrouted.Position, routed: null));
 Check.That(unrouted.Position == new Vector2(3, 4), $"a pursuer without a route must wait, moved to {unrouted.Position}");
 Check.Equal(new Vector2(7, 8), CreatureSimulation.WaypointOrWait(new Vector2(3, 4), new Vector2(7, 8)), "a routed waypoint is followed");
 
 Creature striker = new(3, CreatureKinds.Hostile, new Vector2(38, 0));
 Vector3 closePlayer = new(40, 0, 0);
-Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
+Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
     "a hostile creature within reach must strike");
 long cooldown = CreatureKinds.Hostile.Tuning.AttackCooldownTicks;
-Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null,
+Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown - 1, 2, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null,
     "the cooldown must hold one step short, whatever the steps per update");
-Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
+Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
     "the cooldown must release once its steps have passed, even when an update covers two");
 Creature patientStriker = new(4, CreatureKinds.Hostile, new Vector2(38, 0));
-Check.That(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta), waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null
+Check.That(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null
     && patientStriker.Behavior.CanAttack(11, CreatureKinds.Hostile.Tuning),
     "a player who cannot be hit draws no blow and costs no cooldown");
 
@@ -490,8 +490,8 @@ foreach (double planar in new[] { CreatureKinds.Hostile.Tuning.SightRange - 0.5,
 {
     Creature low = new(5, CreatureKinds.Hostile, Vector2.Zero);
     Creature high = new(6, CreatureKinds.Hostile, Vector2.Zero);
-    CreatureSimulation.Step(low, new CreatureSense(true), new Vector3((float)planar, 0, 0), true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2((float)planar, 0));
-    CreatureSimulation.Step(high, new CreatureSense(true), new Vector3((float)planar, (float)HeightSpan, 0), true, new ProductStep(1, 1, FixedDelta), waypoint: new Vector2((float)planar, 0));
+    CreatureSimulation.Step(low, new CreatureSense(true), new Vector3((float)planar, 0, 0), true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: new Vector2((float)planar, 0));
+    CreatureSimulation.Step(high, new CreatureSense(true), new Vector3((float)planar, (float)HeightSpan, 0), true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: new Vector2((float)planar, 0));
     Check.That(low.Behavior.State == high.Behavior.State,
         $"at {planar} m planar, height must not change the sight decision: {low.Behavior.State} vs {high.Behavior.State}");
 }
@@ -642,6 +642,28 @@ Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { Satiety = 50 }, Calm
 Check.That(SurvivalRules.Respawned(SurvivalState.Fresh with { Satiety = 5, Breath = 0 }) is { Satiety: SurvivalRules.RespawnSatiety, Breath: SurvivalRules.MaximumBreathSeconds },
     "a respawned player comes back half fed and breathing");
 Check.That(SurvivalRules.Eat(SurvivalState.Fresh with { Satiety = 90 }, 30).Satiety == SurvivalRules.MaximumSatiety, "eating fills the stomach no further than full");
+
+// Night widens a hostile's sight: a player just past its daytime sight is seen by night.
+Vector3 farPlayer = new((float)(CreatureKinds.Hostile.Tuning.SightRange + 10), 0, 0);
+Creature byDay = new(20, CreatureKinds.Hostile, Vector2.Zero);
+Creature byNight = new(21, CreatureKinds.Hostile, Vector2.Zero);
+CreatureSimulation.Step(byDay, new CreatureSense(true), farPlayer, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), sightScale: 1, waypoint: Vector2.Zero);
+CreatureSimulation.Step(byNight, new CreatureSense(true), farPlayer, playerCanBeHit: true, new ProductStep(1, 1, FixedDelta), sightScale: 1.5, waypoint: Vector2.Zero);
+Check.That(byDay.Behavior.State == CreatureState.Idle && byNight.Behavior.State != CreatureState.Idle,
+    $"a player past daytime sight must go unseen by day and seen by night, day={byDay.Behavior.State} night={byNight.Behavior.State}");
+
+// Resting: the night passes to morning, and the rest regains health only as far as food pays for it.
+Check.That(Math.Abs(WorldClock.SecondsUntil(0.9, WorldClock.WakingFraction) - ((1 - 0.9 + WorldClock.WakingFraction) * WorldClock.DaySeconds)) < 1e-6
+    && Math.Abs(WorldClock.SecondsUntil(0.1, WorldClock.WakingFraction) - ((WorldClock.WakingFraction - 0.1) * WorldClock.DaySeconds)) < 1e-6,
+    "a rest lasts until the next waking time, across midnight or not");
+SurvivalStep restedFed = SurvivalRules.Rest(SurvivalState.Fresh, 10, 30, Difficulty.Normal, 400);
+SurvivalStep restedHungry = SurvivalRules.Rest(SurvivalState.Fresh with { Satiety = 45 }, 10, 30, Difficulty.Normal, 400);
+Check.That(restedFed.Regained == 20 && restedFed.State.Satiety < SurvivalRules.MaximumSatiety,
+    $"a fed player sleeps back to full health and wakes hungrier, regained {restedFed.Regained}");
+SurvivalStep restedHalfFed = SurvivalRules.Rest(SurvivalState.Fresh with { Satiety = 52 }, 24, 30, Difficulty.Normal, 560);
+Check.That(restedHalfFed.Regained > 0, $"a half-fed player regains health early in a long night, before hunger outruns it, regained {restedHalfFed.Regained}");
+Check.That(restedHungry.Regained < restedFed.Regained && restedHungry.Lost == 0,
+    $"a hungry player regains only what food pays for, regained {restedHungry.Regained}");
 
 Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule, the world's clock and survival passed.");
 

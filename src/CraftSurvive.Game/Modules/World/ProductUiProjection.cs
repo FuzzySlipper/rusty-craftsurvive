@@ -66,6 +66,7 @@ internal static class ProductUiProjection
             values.Add("daylight", world.Daylight);
             values.Add("night", world.Night ? 1d : 0d);
             values.AddText("difficulty", world.Difficulty);
+            values.AddText("difficulties", world.Difficulties);
         }
 
         if (survival is SurvivalUiFacts tracks)
