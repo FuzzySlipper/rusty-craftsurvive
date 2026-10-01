@@ -15,6 +15,12 @@ internal sealed class PlayerProgress
     /// <summary>How many items the player has collected, all kinds together.</summary>
     internal int ItemsCollected { get; private set; }
 
+    /// <summary>Drops awarded and not yet taken by the inventory, which owns what is carried.</summary>
+    private readonly Queue<LootDrop> uncollected = new();
+
+    /// <summary>Takes the oldest awarded drop the inventory has not taken yet, if any.</summary>
+    internal bool TryTakeDrop(out LootDrop drop) => uncollected.TryDequeue(out drop);
+
     internal ProgressionOutcome Award(EncounterReward reward)
     {
         ProgressionOutcome outcome = ProgressionRules.Award(Experience, Level, reward.Experience);
@@ -23,6 +29,7 @@ internal sealed class PlayerProgress
         foreach (LootDrop drop in reward.Drops)
         {
             ItemsCollected += drop.Quantity;
+            uncollected.Enqueue(drop);
         }
 
         return outcome;
@@ -39,6 +46,7 @@ internal sealed class PlayerProgress
 
     internal void Reset()
     {
+        uncollected.Clear();
         Experience = 0;
         Level = CharacterRules.MinimumLevel;
         ItemsCollected = 0;

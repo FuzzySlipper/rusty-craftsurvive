@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Discovery;
+using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
@@ -37,6 +38,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
     /// <summary>The player's hunger and air, which give and take health through the player's vitals.</summary>
     private readonly SurvivalModule survival;
+
+    /// <summary>What the player carries: drops and caches in, crafting and use out.</summary>
+    private readonly InventoryModule inventory;
     private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
     private readonly CreatureModule creatures;
@@ -75,10 +79,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         blast = new BlastModule(context.Engine, terrain, frame, entities);
         build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
-        actions = new PlayerActionModule(player, blast, build, ui);
+        inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui);
+        actions = new PlayerActionModule(player, blast, build, inventory, ui);
 
         // The entity store runs last, so it saves what a charge swept or a build placed this update.
-        gameplay = [conditions, survival, creatures, discovery, blast, build, entityStore];
+        gameplay = [conditions, survival, creatures, discovery, inventory, blast, build, entityStore];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -98,6 +103,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(conditions)));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(survival)));
+        RequireRegistration(registrar.Register(new InventoryDebugModule(inventory)));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
     }
 

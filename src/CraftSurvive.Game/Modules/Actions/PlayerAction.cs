@@ -13,6 +13,8 @@ internal enum PlayerActionKind
     Light,
     Container,
     Undo,
+    Craft,
+    Use,
 }
 
 /// <summary>
@@ -20,7 +22,7 @@ internal enum PlayerActionKind
 /// breaks the aimed block; everything else is placed on the aimed block's open face. A floor or wall
 /// carries the <see cref="BuildPalette"/> block it is built from.
 /// </summary>
-internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air)
+internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air, string Name = "")
 {
     /// <summary>The intent the UI claims, as declared in the product project.</summary>
     internal const string Intent = "craftsurvive.ui";
@@ -60,6 +62,8 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "light" => new(PlayerActionKind.Light),
             "container" => new(PlayerActionKind.Container),
             "undo" => new(PlayerActionKind.Undo),
+            "craft" => new(PlayerActionKind.Craft, Name: Named(root, "recipe")),
+            "use" => new(PlayerActionKind.Use, Name: Named(root, "item")),
             string other => throw new FormatException($"\"{other}\" is not an action the UI can ask for."),
             null => throw new FormatException("A UI action names what it asks for in \"action\"."),
         };
@@ -76,6 +80,16 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
         return value.ValueKind == JsonValueKind.String && BuildPalette.TryFind(value.GetString()!, out BlockId block)
             ? block
             : throw new FormatException($"\"material\" must be one of {BuildPalette.Names}.");
+    }
+
+    /// <summary>A short identifier the request names; the owner it reaches decides whether it exists.</summary>
+    private static string Named(JsonElement root, string name)
+    {
+        const int MaximumNameLength = 32;
+        return root.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String
+            && value.GetString() is { Length: > 0 and <= MaximumNameLength } text && text.All(char.IsAsciiLetterLower)
+            ? text
+            : throw new FormatException($"A UI action of this kind needs a short lower-case \"{name}\".");
     }
 
     private static int Size(JsonElement root, string name, int minimum, int maximum)

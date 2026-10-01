@@ -103,6 +103,7 @@ location.
 - `Modules/Content`: the block registry and the terrain atlas layout, checked against each other.
 - `Modules/Sky`: the world's clock, and the day and night panoramas and lights that show it.
 - `Modules/Survival`: the world's conditions (time of day, difficulty) and the player's hunger and air.
+- `Modules/Inventory`: what the player carries, the recipes, and the caches places hold.
 - `Modules/World`: the save manifest and store, the UI projection, and the world frame.
 - `Modules/Debugging`: debug-command adapters over the owners, and the Engine's playtest commands.
 - `src/ui`: a HUD over the product's projection and an action bar that claims its intent.

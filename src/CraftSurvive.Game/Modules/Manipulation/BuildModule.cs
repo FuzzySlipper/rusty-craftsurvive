@@ -19,6 +19,7 @@ internal sealed class BuildModule : IProductModule
     private long plates;
     private long walls;
     private long undone;
+    private long entitiesPlaced;
     private long refused;
     private string lastOutcome = "none";
 
@@ -54,6 +55,9 @@ internal sealed class BuildModule : IProductModule
     internal string LastOutcome => lastOutcome;
 
     internal long Undone => undone;
+
+    /// <summary>How many new block entities this session placed, so a caller can tell a placement from a refusal.</summary>
+    internal long EntitiesPlaced => entitiesPlaced;
 
     internal string Plate(long x, long y, long z, long width, long depth, long material)
     {
@@ -215,6 +219,7 @@ internal sealed class BuildModule : IProductModule
         }
 
         BlockEntity entity = entities.Place(kind, cell, value);
+        entitiesPlaced++;
         lastOutcome = $"{name} placed at {cell.X},{cell.Y},{cell.Z} id={entity.Id} state={entity.State}";
         return Readout();
     }

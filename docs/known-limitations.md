@@ -42,8 +42,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **A charge resolves on the update after it is fired**, as one transaction, with its dust
   (`BlastDust`, smoke on the authored `dust-puff` sprite) emitted first. A charge past
   `BlastPolicy.MaximumCells` is refused, not truncated; the debris cubes are untextured.
-- Inventory, crafting, construction permissions, networking and multiplayer merge policy are
-  not implemented.
+- Construction permissions, networking and multiplayer merge policy are not implemented.
 
 ## Presentation
 
@@ -79,6 +78,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   stomach drains health but never below one point. Air runs out while the head is under water,
   and drowning can kill. Gentle turns off both kinds of harm. There is no temperature, thirst or
   disease.
+
+- **Supplies come from creatures and places, not from the ground.** `ItemCatalog` holds the items,
+  `Recipes` the three recipes, and `SupplyCache` what a place holds on the first reach (a return
+  holds nothing). The player carries one stack per kind within `ItemCatalog.CarryLimit`; what does
+  not fit is left behind and counted. Building floors and walls is free; a light burns a torch.
+  There are no tools, stations, equipment or containers that hold items.
 
 ## Persistence
 

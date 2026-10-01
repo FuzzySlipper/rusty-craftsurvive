@@ -20,51 +20,100 @@ const CONTROLS: readonly ActionControl[] = [
   { label: 'Floor', title: 'Lay a 3x3 floor on the face you are aiming at', data: { action: 'plate', width: 3, depth: 3 }, built: true },
   { label: 'Wall', title: 'Raise a 4-long, 3-high wall on the face you are aiming at', data: { action: 'wall', length: 4, height: 3 }, built: true },
   { label: 'Door', title: 'Place a door on the face you are aiming at', data: { action: 'door' } },
-  { label: 'Light', title: 'Place a light on the face you are aiming at', data: { action: 'light' } },
+  { label: 'Light', title: 'Place a light on the face you are aiming at; it burns a torch', data: { action: 'light' } },
   { label: 'Chest', title: 'Place a container on the face you are aiming at', data: { action: 'container' } },
   { label: 'Undo', title: 'Take back the last floor or wall', data: { action: 'undo' } },
 ];
 
+/** One option of a picker: the value the request carries, what it reads as, and whether it can be chosen. */
+interface PickerOption {
+  readonly value: string;
+  readonly label: string;
+  readonly enabled: boolean;
+}
+
 /**
  * Claims the product's action intent; the outcome comes back through the projection, not here. The
- * block picker offers the build palette the product publishes, so the UI names blocks the product
- * chose and never their ids.
+ * block, recipe and item pickers offer what the product publishes - its build palette, its recipes
+ * and what can be used - so the UI names what the product chose and never its ids.
  */
 export function mountActions(host: HTMLElement, intents: RustyApplicationUiIntentsPort | undefined,
   projection: RustyApplicationUiProjectionView | undefined): () => void {
+  const claim = (data: Readonly<Record<string, string | number>>): void => {
+    intents?.claim(ACTION_INTENT, { kind: 'product-payload', contract: ACTION_CONTRACT, data });
+  };
+
   const bar = element('div', 'display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.35rem;');
   const block = element('select');
   block.title = 'The block floors and walls are built from';
   block.disabled = true;
   bar.append(block);
   for (const control of CONTROLS) {
-    const claim = button(control.label);
-    claim.title = control.title;
-    claim.disabled = intents === undefined;
-    claim.addEventListener('click', () => {
-      const data = control.built === true && block.value !== '' ? { ...control.data, material: block.value } : control.data;
-      intents?.claim(ACTION_INTENT, { kind: 'product-payload', contract: ACTION_CONTRACT, data });
+    const press = button(control.label);
+    press.title = control.title;
+    press.disabled = intents === undefined;
+    press.addEventListener('click', () => {
+      claim(control.built === true && block.value !== '' ? { ...control.data, material: block.value } : control.data);
     });
-    bar.append(claim);
+    bar.append(press);
   }
 
-  host.append(bar);
+  // Crafting and use: the product publishes the recipes and the usable items; the UI offers them.
+  const kit = element('div', 'display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.25rem;');
+  const recipe = element('select');
+  recipe.title = 'A recipe: what it makes, from what';
+  const craft = button('Craft');
+  craft.title = 'Craft the chosen recipe from what you carry';
+  const item = element('select');
+  item.title = 'Something you carry that can be eaten or applied';
+  const use = button('Use');
+  use.title = 'Eat or apply the chosen item';
+  for (const control of [recipe, craft, item, use]) control.disabled = true;
+  craft.addEventListener('click', () => { if (recipe.value !== '') claim({ action: 'craft', recipe: recipe.value }); });
+  use.addEventListener('click', () => { if (item.value !== '') claim({ action: 'use', item: item.value }); });
+  recipe.addEventListener('change', () => { craft.disabled = recipe.selectedOptions[0]?.disabled !== false; });
+  kit.append(recipe, craft, item, use);
+  host.append(bar, kit);
   if (projection === undefined) return () => {};
 
-  let offered = '';
-  const offer = (palette: string | null): void => {
-    if (palette === null || palette === offered) return;
-    offered = palette;
-    const chosen = block.value;
-    block.replaceChildren(...palette.split(',').filter((name) => name.length > 0).map((name) => {
-      const option = element('option', '', name);
-      option.value = name;
+  /** Replaces a picker's options, keeping the chosen one while it can still be chosen. */
+  const fill = (picker: HTMLSelectElement, options: readonly PickerOption[]): void => {
+    const chosen = picker.value;
+    picker.replaceChildren(...options.map((entry) => {
+      const option = element('option', '', entry.label);
+      option.value = entry.value;
+      option.disabled = !entry.enabled;
       return option;
     }));
-    if (palette.split(',').includes(chosen)) block.value = chosen;
-    block.disabled = block.options.length === 0;
+    const keep = options.find((entry) => entry.value === chosen && entry.enabled) ?? options.find((entry) => entry.enabled);
+    if (keep !== undefined) picker.value = keep.value;
+    picker.disabled = options.length === 0 || intents === undefined;
   };
-  const read = (values: ReturnType<typeof projectionValues>): void => offer(values === null ? null : text(values, 'buildPalette'));
+
+  const published = { palette: '', recipes: '', usable: '' };
+  const read = (values: ReturnType<typeof projectionValues>): void => {
+    if (values === null) return;
+    const palette = text(values, 'buildPalette') ?? '';
+    if (palette !== published.palette) {
+      published.palette = palette;
+      fill(block, palette.split(',').filter((name) => name.length > 0).map((name) => ({ value: name, label: name, enabled: true })));
+    }
+    const recipes = text(values, 'recipes') ?? '';
+    if (recipes !== published.recipes) {
+      published.recipes = recipes;
+      fill(recipe, recipes.split(',').filter((entry) => entry.length > 0).map((entry) => {
+        const [id = '', description = '', ready = '0'] = entry.split(':');
+        return { value: id, label: description, enabled: ready === '1' };
+      }));
+      craft.disabled = recipe.disabled || recipe.selectedOptions[0]?.disabled !== false;
+    }
+    const usable = text(values, 'usable') ?? '';
+    if (usable !== published.usable) {
+      published.usable = usable;
+      fill(item, usable.split(',').filter((id) => id.length > 0).map((id) => ({ value: id, label: id, enabled: true })));
+      use.disabled = item.disabled;
+    }
+  };
   read(projectionValues(projection.current()));
   return projection.subscribe((envelope) => read(projectionValues(envelope)));
 }

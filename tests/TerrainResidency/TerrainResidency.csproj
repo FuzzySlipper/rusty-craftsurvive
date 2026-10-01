@@ -40,8 +40,9 @@
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)Player/PlayerInputState.cs" LinkBase="Product/Player" />
     <!-- The encounter rules are pure policy, so the world facts can be checked against real terrain here. -->
-    <Compile Include="$(ProductModules)Rpg/EncounterRules.cs" LinkBase="Product/Rpg" />
-    <Compile Include="$(ProductModules)Rpg/EncounterPolicy.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Rpg/*.cs" LinkBase="Product/Rpg" />
+    <Compile Include="$(ProductModules)Inventory/ItemCatalog.cs" LinkBase="Product/Inventory" />
+    <Compile Include="$(ProductModules)Inventory/Recipes.cs" LinkBase="Product/Inventory" />
     <Compile Include="$(ProductModules)Terrain/TerrainEncounterFacts.cs" LinkBase="Product/Terrain" />
   </ItemGroup>
 </Project>

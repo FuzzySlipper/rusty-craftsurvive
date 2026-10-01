@@ -25,8 +25,15 @@ internal static class ActionChecks
             Check.Equal(kind, Parse($$"""{"action":"{{name}}"}""").Kind, $"\"{name}\" is an action");
         }
 
+        Check.Equal(new PlayerAction(PlayerActionKind.Craft, Name: "ration"), Parse("""{"action":"craft","recipe":"ration"}"""), "a craft names its recipe");
+        Check.Equal(new PlayerAction(PlayerActionKind.Use, Name: "bandage"), Parse("""{"action":"use","item":"bandage"}"""), "a use names its item");
+
         string[] refused =
         [
+            """{"action":"craft"}""",
+            """{"action":"craft","recipe":"Ration"}""",
+            """{"action":"use","item":"meat; drop table"}""",
+            """{"action":"use","item":7}""",
             """{"action":"detonate"}""",
             """{"action":"blast"}""",
             """{"action":"blast","radius":0}""",

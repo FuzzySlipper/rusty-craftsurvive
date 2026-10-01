@@ -44,6 +44,10 @@ internal static class SaveManifest
     internal static SaveKey PlayerSurvival { get; } =
         new("player/survival", "player/survival.backup", "SurvivalModule", 0x5649_5653, 1);
 
+    /// <summary>What the player carries.</summary>
+    internal static SaveKey PlayerInventory { get; } =
+        new("player/inventory", "player/inventory.backup", "InventoryModule", 0x5652_4E49, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival];
+        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory];
 }

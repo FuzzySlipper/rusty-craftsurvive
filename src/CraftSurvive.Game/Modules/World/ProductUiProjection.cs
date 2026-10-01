@@ -6,13 +6,13 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>
 /// The product's one UI projection, as a flat object of numbers and short texts: the world's scene
 /// facts, the player's pose, vitals and progress, the journal, what the last UI action came to,
-/// the world's time and difficulty, and the player's food and air. Each owner pushes its facts to the publisher; the
+/// the world's time and difficulty, the player's food and air, and what they carry. Each owner pushes its facts to the publisher; the
 /// projection is how they are laid out for the DOM companion.
 /// </summary>
 internal static class ProductUiProjection
 {
     internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, PlayerUiFacts? player,
-        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival)
+        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory)
     {
         NumericObjectBuilder values = new();
         values.Add("revision", scene.SourceRevision);
@@ -74,6 +74,15 @@ internal static class ProductUiProjection
             values.Add("breath", tracks.Breath);
             values.Add("maximumBreath", tracks.MaximumBreath);
             values.AddText("lastHarm", tracks.LastHarm);
+        }
+
+        if (inventory is InventoryUiFacts carried)
+        {
+            values.AddText("carried", carried.Carried);
+            values.AddText("recipes", carried.Recipes);
+            values.AddText("usable", carried.Usable);
+            values.Add("torches", carried.Torches);
+            values.AddText("lastInventory", carried.Last);
         }
 
         return values.Build();

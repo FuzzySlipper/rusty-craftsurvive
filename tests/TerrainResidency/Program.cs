@@ -12,4 +12,5 @@ Check.Section("residency", ResidencyChecks.Run);
 Check.Section("encounter sites", EncounterSiteChecks.Run);
 Check.Section("content and position", ContentChecks.Run);
 Check.Section("UI actions", ActionChecks.Run);
+Check.Section("Inventory and crafting", InventoryChecks.Run);
 return Check.Finish("TerrainResidency");

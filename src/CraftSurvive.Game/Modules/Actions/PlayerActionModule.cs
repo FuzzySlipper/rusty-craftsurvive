@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
@@ -28,14 +29,16 @@ internal sealed class PlayerActionModule
     private readonly PlayerController player;
     private readonly BlastModule blast;
     private readonly BuildModule build;
+    private readonly InventoryModule inventory;
     private readonly ProductUiPublisher ui;
     private long applied;
     private long refused;
     private string last = "none";
     private bool published;
 
-    internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, ProductUiPublisher ui)
+    internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, InventoryModule inventory, ProductUiPublisher ui)
     {
+        this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.blast = blast ?? throw new ArgumentNullException(nameof(blast));
         this.build = build ?? throw new ArgumentNullException(nameof(build));
@@ -88,6 +91,26 @@ internal sealed class PlayerActionModule
     private void Apply(PlayerAction action)
     {
         string name = action.Kind.ToString().ToLowerInvariant();
+        if (action.Kind == PlayerActionKind.Craft)
+        {
+            long refusedBefore = inventory.Refused;
+            Settle(name, inventory.Craft(action.Name), inventory.Refused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind == PlayerActionKind.Use)
+        {
+            long refusedBefore = inventory.Refused;
+            Settle(name, inventory.Use(action.Name), inventory.Refused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind == PlayerActionKind.Light && inventory.Count(ItemCatalog.Torch) <= 0)
+        {
+            Refuse("light: carrying no torch");
+            return;
+        }
+
         if (action.Kind == PlayerActionKind.Undo)
         {
             build.Undo();
@@ -122,7 +145,14 @@ internal sealed class PlayerActionModule
                 build.Door(at.X, at.Y, at.Z, DoorClosed);
                 break;
             case PlayerActionKind.Light:
+                // A light burns a torch, but only once one is actually placed.
+                long placedBefore = build.EntitiesPlaced;
                 build.Light(at.X, at.Y, at.Z, LightLit);
+                if (build.EntitiesPlaced > placedBefore)
+                {
+                    inventory.Spend(ItemCatalog.Torch);
+                }
+
                 break;
             case PlayerActionKind.Container:
                 build.Container(at.X, at.Y, at.Z, ContainerEmpty);
@@ -130,6 +160,19 @@ internal sealed class PlayerActionModule
         }
 
         Accept($"{name} at {at.X},{at.Y},{at.Z}: {build.LastOutcome}");
+    }
+
+    /// <summary>Counts an owner's answer as applied or refused.</summary>
+    private void Settle(string name, string outcome, bool wasRefused)
+    {
+        if (wasRefused)
+        {
+            Refuse($"{name}: {outcome}");
+        }
+        else
+        {
+            Accept($"{name}: {outcome}");
+        }
     }
 
     private void Accept(string outcome)

@@ -41,8 +41,8 @@ internal static class CreatureKinds
     private const int Experience = 120;
 
     /// <summary>
-    /// Placeholder drops: the shape of a table, not designed content. What a creature should drop
-    /// is content work (task #8700).
+    /// What a walker drops: meat, which is food, and the hide and claws a player crafts with. The
+    /// item ids are the inventory's catalogue ids. Tuning the table is content work (task #8700).
     /// </summary>
     private static readonly LootTable PlaceholderLoot = new(
         Id: "creature-placeholder",
@@ -50,6 +50,7 @@ internal static class CreatureKinds
         MaximumRolls: 2,
         Entries:
         [
+            new LootEntry("meat", 1, 2, 1),
             new LootEntry("hide", 1, 2, 2),
             new LootEntry("claw", 1, 1, 4),
         ]);

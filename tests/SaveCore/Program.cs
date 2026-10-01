@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Discovery;
+using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Survival;
@@ -32,6 +33,7 @@ BlockEntityRecord[] entities = index.Snapshot();
 PlayerContinuation player = new(812.5, 14.0, -96.25, 1.25, -0.3, 17, 2, 350, 6);
 WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
 SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 };
+CarriedItems carried = new([new ItemCount(ItemCatalog.Meat, 3), new ItemCount(ItemCatalog.Oil, 1), new ItemCount(ItemCatalog.Torch, 4)]);
 
 SavedForm[] forms =
 [
@@ -47,6 +49,8 @@ SavedForm[] forms =
         (left, right) => left == right, seed => new WorldConditionsCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.PlayerSurvival, new SurvivalCodec(identity), tracks, SurvivalCodec.RecordBytes,
         (left, right) => left == right, seed => new SurvivalCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.PlayerInventory, new InventoryCodec(identity), carried, InventoryCodec.RecordBytes,
+        (left, right) => left.Items.SequenceEqual(right.Items), seed => new InventoryCodec(identity with { Seed = seed })),
 ];
 
 // --- the manifest names every saved key, once ------------------------------------------------------
@@ -113,6 +117,15 @@ Check.That(Throws(() => conditionsCodec.Encode(conditions with { Difficulty = (D
 SurvivalCodec survivalCodec = new(identity);
 Check.That(Throws(() => survivalCodec.Encode(tracks with { Satiety = SurvivalRules.MaximumSatiety + 1 })), "a stomach past full cannot be saved");
 Check.That(Throws(() => survivalCodec.Encode(tracks with { Breath = -1 })), "negative air cannot be saved");
+
+InventoryCodec inventoryCodec = new(identity);
+Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new ItemCount(ItemCatalog.Torch, 1), new ItemCount(ItemCatalog.Meat, 1)]))),
+    "kinds out of catalogue order cannot be saved");
+Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new ItemCount(ItemCatalog.Meat, 0)]))), "an empty stack is not carried");
+byte[] unknownItem = inventoryCodec.Encode(carried);
+BinaryPrimitives.WriteInt32LittleEndian(unknownItem.AsSpan(32), 99);
+Check.That(Refuses(inventoryCodec, unknownItem), "an unknown item code must be refused");
+Check.That(inventoryCodec.Decode(inventoryCodec.Encode(new CarriedItems([]))).Items.Count == 0, "carrying nothing round-trips");
 
 // --- block entities: identities are per session, meaning survives -------------------------------
 BlockEntityIndex reloaded = new();

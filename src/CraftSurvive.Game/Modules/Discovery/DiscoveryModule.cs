@@ -34,6 +34,13 @@ internal sealed class DiscoveryModule : IProductModule
     /// <summary>Places reached for the first time in this session.</summary>
     private long firstVisits;
 
+    /// <summary>
+    /// First reaches not yet taken by their consumer, oldest first. A first reach is an outcome for
+    /// another owner (the supply cache it holds), so it is handed over as a read, never a call
+    /// from here; a reload makes the place a return, so nothing is handed over twice.
+    /// </summary>
+    private readonly Queue<PoiSite> firstReached = new();
+
     /// <summary>The journal tick this session's step zero stands for.</summary>
     private long tickBase;
     private long nextNoticeStep;
@@ -70,6 +77,7 @@ internal sealed class DiscoveryModule : IProductModule
     {
         journal.Restore(new DiscoverySnapshot(terrain.SaveIdentity.Seed, []));
         firstVisits = 0;
+        firstReached.Clear();
         nextNoticeStep = 0;
         noticedOnce = false;
         Restore();
@@ -135,6 +143,7 @@ internal sealed class DiscoveryModule : IProductModule
                 // First reach of this place, not a return to it: the difference between exploring
                 // somewhere and farming somewhere already known.
                 firstVisits++;
+                firstReached.Enqueue(site);
             }
 
             changed |= rose;
@@ -206,6 +215,9 @@ internal sealed class DiscoveryModule : IProductModule
         string known = entry.Stage == DiscoveryStage.Visited ? "visited" : "seen";
         return $"{place}, {known}";
     }
+
+    /// <summary>Takes the oldest place reached for the first time and not yet taken, if any.</summary>
+    internal bool TryTakeFirstVisit(out PoiSite site) => firstReached.TryDequeue(out site);
 
     internal string Readout()
     {

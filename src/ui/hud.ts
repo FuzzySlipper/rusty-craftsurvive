@@ -31,7 +31,7 @@ const ROWS: readonly HudRow[] = [
   { label: 'Food', show: (v) => { const f = number(v, 'satiety'); return f === null ? null : `${f.toFixed(0)}%${f <= 0 ? ' (starving)' : f < 25 ? ' (hungry)' : ''}`; } },
   { label: 'Air', show: (v) => { const b = number(v, 'breath'); const m = number(v, 'maximumBreath'); return b === null || m === null || b >= m ? null : `${b.toFixed(0)} s${b <= 0 ? ' (drowning)' : ''}`; } },
   { label: 'Level', show: (v) => { const l = number(v, 'level'); const x = number(v, 'experience'); return l === null || x === null ? null : `${l} (${x} xp)`; } },
-  { label: 'Items', show: (v) => fixed(number(v, 'itemsCollected'), 0) },
+  { label: 'Carrying', show: (v) => { const c = text(v, 'carried'); return c === null ? null : c === '' ? 'nothing' : c; } },
   { label: 'Defeats', show: (v) => fixed(number(v, 'defeats'), 0) },
   { label: 'Position', show: (v) => { const x = number(v, 'playerX'); const y = number(v, 'playerY'); const z = number(v, 'playerZ'); return x === null || y === null || z === null ? null : `${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`; } },
   { label: 'Places', show: (v) => { const p = number(v, 'discoveryPlaces'); const s = number(v, 'discoveryVisited'); return p === null || s === null ? null : `${p} found, ${s} visited`; } },
@@ -39,6 +39,7 @@ const ROWS: readonly HudRow[] = [
   { label: 'Nearest place', show: (v) => { const d = number(v, 'discoveryNearest'); return d === null || d <= 0 ? null : `${d.toFixed(0)} m`; } },
   { label: 'Edits', show: (v) => fixed(number(v, 'overlayEntries'), 0) },
   { label: 'Last action', show: (v) => text(v, 'lastAction') },
+  { label: 'Inventory', show: (v) => { const t = text(v, 'lastInventory'); return t === null || t === 'none' ? null : t; } },
 ];
 
 /** Shows the product's projection; it reads only what the product publishes and keeps nothing. */
