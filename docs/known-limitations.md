@@ -35,6 +35,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   refused on cells the player occupies. A body placed inside a solid cell faults the product
   (the character controller refuses to step it), which is why `craft.player.teleport` and
   respawn only move the player where a standing body fits.
+- **Building is cubic and separate from the terrain's materials.** The UI builds floors and walls
+  from `BuildPalette` blocks, laid relative to where the player faces, and only over replaceable
+  cells (air, water), so a floor across a slope fills the gaps and leaves the hill. Undo takes back
+  the last floor or wall only, and leaves empty what it clears rather than restoring it.
+- **A charge resolves on the update after it is fired**, as one transaction, with its dust
+  (`BlastDust`, smoke on the authored `dust-puff` sprite) emitted first. A charge past
+  `BlastPolicy.MaximumCells` is refused, not truncated; the debris cubes are untextured.
 - Inventory, crafting, construction permissions, networking and multiplayer merge policy are
   not implemented.
 

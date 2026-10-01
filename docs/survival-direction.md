@@ -196,7 +196,19 @@ that edits are the core verb and DC remesh is expensive — is **mitigated by
 design, not dissolved**: blasts are rare, large, and FX-covered, so the frequency
 pressure goes away, but each blast still pays per-dirty-chunk remesh cost, and no
 voxel-session DC remesh measurement exists. What keeps DC deferred is therefore the content/selection work and
-the deferred session gate, not a claim about edit cost. Second, the threading
+the deferred session gate, not a claim about edit cost.
+
+**Terrain and building are different kinds of voxel.** The product is not built around
+block-by-block mining or widespread reshaping. Runtime terrain edits stay, but they need not be
+fast and they arrive indirectly: charges, environmental effects, and smoothing the ground under
+what a player builds - not a pick chopping through blocks. Terrain may later become a dual
+contouring iso-surface, stylized (jagged or fractal) rather than crisp cubes. Player building is
+the opposite: cubic and grid-precise, because precision is worth more than realistic
+construction for a minor element. A homestead is built around the terrain rather than by
+reshaping it, with the join between grid blocks and the terrain surface smoothed automatically.
+Mixing two voxelizations in one scene is unproven: prototype it before anything depends on it,
+and meanwhile keep building (its palette, stamps and block entities) apart from the terrain's
+materials and edits so the terrain's representation can change under it. Second, the threading
 pressure drops: step-budgeted generation with a disk cache and tolerable pop-in is
 the answer the product took (`TerrainChunkCache`, `MaximumResidencyOperationsPerTick`).
 

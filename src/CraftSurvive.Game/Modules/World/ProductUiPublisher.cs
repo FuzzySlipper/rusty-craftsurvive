@@ -25,13 +25,12 @@ internal readonly record struct PlayerUiFacts(
     internal int ItemsCollected { get; init; }
 }
 
-/// <summary>What the player's UI requests came to, for the UI projection.</summary>
-internal readonly record struct ActionUiFacts(long Applied, long Refused, string Last);
+/// <summary>What the player's UI requests came to, and the build palette it may name, for the UI projection.</summary>
+internal readonly record struct ActionUiFacts(long Applied, long Refused, string Last, string Palette);
 
 /// <summary>
-/// What the journal knows, as numbers, for the UI projection. It is a flat snapshot with no
-/// identity strings: the projection's encoder is numeric by design, and a place's name belongs to
-/// the journal's own readout.
+/// What the journal knows, for the UI projection: its counts, the last place as numbers, and that
+/// place named for a player.
 /// </summary>
 internal readonly record struct DiscoveryUiFacts(
     double Places,

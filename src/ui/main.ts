@@ -26,7 +26,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   panel.append(status);
 
   const unsubscribe = mountHud(panel, context.projection);
-  mountActions(panel, context.intents);
+  const unsubscribeActions = mountActions(panel, context.intents, context.projection);
   panel.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
   const disposeDeveloperTools = mountDeveloperTools(panel, status);
   root.append(panel);
@@ -34,6 +34,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   return Object.freeze({
     dispose: () => {
       unsubscribe();
+      unsubscribeActions();
       disposeDeveloperTools();
       panel.remove();
     },

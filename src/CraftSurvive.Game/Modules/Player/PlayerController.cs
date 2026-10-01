@@ -236,6 +236,9 @@ internal sealed class PlayerController : IDisposable
     }
 
     /// <summary>What the player is aiming at now, within edit reach.</summary>
+    /// <summary>Where the player last looked, as a view direction in world axes; zero before the first look.</summary>
+    internal Vector3 AimForward => aimForward;
+
     internal TerrainPick Aim()
     {
         EnsureStarted();

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CraftSurvive.Game.Modules.Content;
 
 namespace CraftSurvive.Game.Modules.Actions;
 
@@ -16,9 +17,10 @@ internal enum PlayerActionKind
 
 /// <summary>
 /// One request from the player-facing UI, decoded from the product payload it arrives in. A blast
-/// breaks the aimed block; everything else is placed on the aimed block's open face.
+/// breaks the aimed block; everything else is placed on the aimed block's open face. A floor or wall
+/// carries the <see cref="BuildPalette"/> block it is built from.
 /// </summary>
-internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0)
+internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air)
 {
     /// <summary>The intent the UI claims, as declared in the product project.</summary>
     internal const string Intent = "craftsurvive.ui";
@@ -52,8 +54,8 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
         return action.GetString() switch
         {
             "blast" => new(PlayerActionKind.Blast, Size(root, "radius", MinimumBlastRadius, MaximumBlastRadius)),
-            "plate" => new(PlayerActionKind.Plate, Size(root, "width", 1, MaximumStampSide), Size(root, "depth", 1, MaximumStampSide)),
-            "wall" => new(PlayerActionKind.Wall, Size(root, "length", 1, MaximumStampSide), Size(root, "height", 1, MaximumWallHeight)),
+            "plate" => new(PlayerActionKind.Plate, Size(root, "width", 1, MaximumStampSide), Size(root, "depth", 1, MaximumStampSide), NamedMaterial(root)),
+            "wall" => new(PlayerActionKind.Wall, Size(root, "length", 1, MaximumStampSide), Size(root, "height", 1, MaximumWallHeight), NamedMaterial(root)),
             "door" => new(PlayerActionKind.Door),
             "light" => new(PlayerActionKind.Light),
             "container" => new(PlayerActionKind.Container),
@@ -61,6 +63,19 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             string other => throw new FormatException($"\"{other}\" is not an action the UI can ask for."),
             null => throw new FormatException("A UI action names what it asks for in \"action\"."),
         };
+    }
+
+    /// <summary>The palette block a build names in "material", or the palette's default when it names none.</summary>
+    private static BlockId NamedMaterial(JsonElement root)
+    {
+        if (!root.TryGetProperty("material", out JsonElement value))
+        {
+            return BuildPalette.Default;
+        }
+
+        return value.ValueKind == JsonValueKind.String && BuildPalette.TryFind(value.GetString()!, out BlockId block)
+            ? block
+            : throw new FormatException($"\"material\" must be one of {BuildPalette.Names}.");
     }
 
     private static int Size(JsonElement root, string name, int minimum, int maximum)

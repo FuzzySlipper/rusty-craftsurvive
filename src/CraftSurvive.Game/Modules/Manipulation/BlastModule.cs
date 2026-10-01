@@ -24,6 +24,7 @@ internal sealed class BlastModule : IProductModule
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
     private readonly BlockEntityIndex entities;
+    private readonly RenderResourceReference puff;
     private BlastCharge? pending;
     private long fired;
     private long cleared;
@@ -44,6 +45,13 @@ internal sealed class BlastModule : IProductModule
         this.terrain = terrain;
         this.frame = frame;
         this.entities = entities;
+        RenderResourceInfo resource = engine.Graphics.OpenResource(new RenderResourceRequest(BlastDust.PuffContentPath));
+        if (resource.Kind != RenderResourceKind.Texture || resource.ByteLength == 0)
+        {
+            throw new InvalidOperationException($"CraftSurvive dust sprite '{BlastDust.PuffContentPath}' must be a non-empty Engine texture.");
+        }
+
+        puff = resource.Handle;
     }
 
     /// <summary>True while a fired charge waits for the next update.</summary>
@@ -107,7 +115,7 @@ internal sealed class BlastModule : IProductModule
         ulong identity = BlastDust.ChargeIdentity(charge.Centre);
         try
         {
-            engine.Presentation.EmitParticles(BlastDust.Smoke(centre, terrain.AtlasSprite, identity));
+            engine.Presentation.EmitParticles(BlastDust.Smoke(centre, puff, identity));
             engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, identity));
         }
         catch (EngineCallException exception)

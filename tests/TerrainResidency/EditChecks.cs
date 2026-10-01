@@ -107,6 +107,25 @@ internal static class EditChecks
             Check.That(wall.Cells.All(cell => cell.Z == 10), "an along-X wall must keep one Z");
             Check.That(wall.Cells.Select(cell => cell.Y).Distinct().Count() == 3, "a 3-tall wall must occupy 3 courses");
 
+            // A stamp from the UI is laid where the player faces: a floor runs away from them, centred
+            // across their facing, and a wall stands across it - whichever of the four ways they face.
+            Check.That(BuildStamp.Cardinal(0.2f, -0.9f) == (0, -1) && BuildStamp.Cardinal(-0.8f, 0.5f) == (-1, 0),
+                "a facing snaps to the nearer axis");
+            VoxelAddress aimed = new(10, 4, 10);
+            foreach ((int X, int Z) facing in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                BuildStamp ahead = BuildStamp.PlateAhead(aimed, 3, 4, facing, TerrainConstants.StoneMaterial);
+                long Ahead(VoxelAddress cell) => ((cell.X - aimed.X) * facing.X) + ((cell.Z - aimed.Z) * facing.Z);
+                long Across(VoxelAddress cell) => ((cell.Z - aimed.Z) * facing.X) - ((cell.X - aimed.X) * facing.Z);
+                Check.That(ahead.Cells.Count == 12 && ahead.Cells.Distinct().Count() == 12 && ahead.Cells.Contains(aimed)
+                    && ahead.Cells.All(cell => cell.Y == 4 && Ahead(cell) is >= 0 and < 4 && Across(cell) is >= -1 and <= 1),
+                    $"a 3x4 floor facing {facing} must start at the aimed cell and run 4 away, 3 across");
+                BuildStamp across = BuildStamp.WallAcross(aimed, 5, 3, facing, TerrainConstants.StoneMaterial);
+                Check.That(across.Cells.Count == 15 && across.Cells.Distinct().Count() == 15 && across.Cells.Contains(aimed)
+                    && across.Cells.All(cell => Ahead(cell) == 0 && Across(cell) is >= -2 and <= 2 && cell.Y is >= 4 and < 7),
+                    $"a 5x3 wall facing {facing} must stand across the facing, centred on the aimed cell");
+            }
+
             BuildStamp oversizedPlate = BuildStamp.Plate(new VoxelAddress(0, 4, 0), 40, 40, TerrainConstants.StoneMaterial);
             Check.That(!oversizedPlate.Placed, $"a {oversizedPlate.Cells.Count}-cell plate must be refused, not truncated");
             Check.That(BuildStamp.Plate(new VoxelAddress(0, 4, 0), 1, 1, TerrainConstants.StoneMaterial).Cells.Count == 1,

@@ -62,6 +62,53 @@ internal readonly record struct BuildStamp(IReadOnlyList<VoxelAddress> Cells, us
         return new BuildStamp(cells, material);
     }
 
+    /// <summary>
+    /// The cardinal direction a player faces, as a unit step along the nearer axis of their planar
+    /// facing. A stamp built from the UI is laid relative to it, so it goes where the player looks.
+    /// </summary>
+    internal static (int X, int Z) Cardinal(float forwardX, float forwardZ) =>
+        MathF.Abs(forwardX) >= MathF.Abs(forwardZ)
+            ? (forwardX >= 0f ? 1 : -1, 0)
+            : (0, forwardZ >= 0f ? 1 : -1);
+
+    /// <summary>
+    /// A floor laid ahead of the player: it starts at the aimed cell, runs <paramref name="depth"/>
+    /// cells away from them and <paramref name="width"/> cells across, centred on the aimed cell.
+    /// </summary>
+    internal static BuildStamp PlateAhead(VoxelAddress aimed, int width, int depth, (int X, int Z) facing, ushort material)
+    {
+        List<VoxelAddress> cells = new(Math.Max(width, 0) * Math.Max(depth, 0));
+        foreach (VoxelAddress cell in Plate(new VoxelAddress(0, 0, 0), width, depth, material).Cells)
+        {
+            long across = cell.X - ((width - 1) / 2);
+            long ahead = cell.Z;
+            cells.Add(Oriented(aimed, across, 0, ahead, facing));
+        }
+
+        return new BuildStamp(cells, material);
+    }
+
+    /// <summary>
+    /// A wall raised across the player's facing: <paramref name="length"/> cells across, centred on
+    /// the aimed cell, <paramref name="height"/> courses tall.
+    /// </summary>
+    internal static BuildStamp WallAcross(VoxelAddress aimed, int length, int height, (int X, int Z) facing, ushort material)
+    {
+        List<VoxelAddress> cells = new(Math.Max(length, 0) * Math.Max(height, 0));
+        foreach (VoxelAddress cell in Wall(new VoxelAddress(0, 0, 0), length, height, alongX: true, material).Cells)
+        {
+            cells.Add(Oriented(aimed, cell.X - ((length - 1) / 2), cell.Y, 0, facing));
+        }
+
+        return new BuildStamp(cells, material);
+    }
+
+    /// <summary>A cell offset from an origin by steps across, up and ahead of a facing.</summary>
+    private static VoxelAddress Oriented(VoxelAddress origin, long across, long up, long ahead, (int X, int Z) facing) =>
+        new(origin.X + (ahead * facing.X) - (across * facing.Z),
+            origin.Y + up,
+            origin.Z + (ahead * facing.Z) + (across * facing.X));
+
     /// <summary>A straight wall: one course thick, <paramref name="height"/> courses tall.</summary>
     internal static BuildStamp Wall(VoxelAddress corner, int length, int height, bool alongX, ushort material)
     {

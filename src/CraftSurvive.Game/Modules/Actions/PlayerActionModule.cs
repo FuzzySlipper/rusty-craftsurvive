@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
@@ -31,6 +32,7 @@ internal sealed class PlayerActionModule
     private long applied;
     private long refused;
     private string last = "none";
+    private bool published;
 
     internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, ProductUiPublisher ui)
     {
@@ -67,9 +69,11 @@ internal sealed class PlayerActionModule
             }
         }
 
-        if (claimed)
+        // The first update publishes too, so the UI has the palette before anything is claimed.
+        if (claimed || !published)
         {
-            ui.PublishActions(new ActionUiFacts(applied, refused, last));
+            ui.PublishActions(new ActionUiFacts(applied, refused, last, BuildPalette.Names));
+            published = true;
         }
     }
 
@@ -98,8 +102,10 @@ internal sealed class PlayerActionModule
             return;
         }
 
-        // A charge breaks what is aimed at; everything built goes on the aimed block's open face.
+        // A charge breaks what is aimed at; everything built goes on the aimed block's open face,
+        // and a floor or wall is laid relative to where the player faces.
         VoxelAddress at = action.Kind == PlayerActionKind.Blast ? aim.Target : aim.Adjacent;
+        (int X, int Z) facing = BuildStamp.Cardinal(player.AimForward.X, player.AimForward.Z);
         switch (action.Kind)
         {
             case PlayerActionKind.Blast:
@@ -107,10 +113,10 @@ internal sealed class PlayerActionModule
                 Accept($"{name} r{action.Radius} at {at.X},{at.Y},{at.Z}: {blast.LastOutcome}");
                 return;
             case PlayerActionKind.Plate:
-                build.Plate(at.X, at.Y, at.Z, action.Size1, action.Size2, PlayerConstants.PlaceMaterial);
+                build.PlateAhead(at, action.Size1, action.Size2, facing, (ushort)action.Material);
                 break;
             case PlayerActionKind.Wall:
-                build.Wall(at.X, at.Y, at.Z, action.Size1, action.Size2, PlayerConstants.PlaceMaterial);
+                build.WallAcross(at, action.Size1, action.Size2, facing, (ushort)action.Material);
                 break;
             case PlayerActionKind.Door:
                 build.Door(at.X, at.Y, at.Z, DoorClosed);

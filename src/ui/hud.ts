@@ -5,7 +5,15 @@ import { element } from './dom.js';
 export const PROJECTION_STREAM = 'craftsurvive.terrain';
 export const PROJECTION_CONTRACT = 'craftsurvive.terrain.v1';
 
-type Values = Readonly<Record<string, unknown>>;
+export type Values = Readonly<Record<string, unknown>>;
+
+/** The product's values from a projection envelope, or null when it is not the product's stream. */
+export function projectionValues(envelope: RuntimeUiProjectionEnvelope | null): Values | null {
+  return envelope !== null && envelope.stream === PROJECTION_STREAM && envelope.contract === PROJECTION_CONTRACT
+    && typeof envelope.value === 'object' && envelope.value !== null && !Array.isArray(envelope.value)
+    ? envelope.value as Values
+    : null;
+}
 
 /** One HUD row: a label and how to show it from the projection, or null while the fact is absent. */
 interface HudRow {
@@ -14,7 +22,7 @@ interface HudRow {
 }
 
 const number = (values: Values, key: string): number | null => (typeof values[key] === 'number' ? values[key] as number : null);
-const text = (values: Values, key: string): string | null => (typeof values[key] === 'string' ? values[key] as string : null);
+export const text = (values: Values, key: string): string | null => (typeof values[key] === 'string' ? values[key] as string : null);
 const fixed = (value: number | null, digits: number): string | null => (value === null ? null : value.toFixed(digits));
 
 const ROWS: readonly HudRow[] = [
@@ -43,10 +51,7 @@ export function mountHud(host: HTMLElement, projection: RustyApplicationUiProjec
   host.append(waiting, table);
 
   const render = (envelope: RuntimeUiProjectionEnvelope | null): void => {
-    const values = envelope !== null && envelope.stream === PROJECTION_STREAM && envelope.contract === PROJECTION_CONTRACT
-      && typeof envelope.value === 'object' && envelope.value !== null && !Array.isArray(envelope.value)
-      ? envelope.value as Values
-      : null;
+    const values = projectionValues(envelope);
     waiting.hidden = values !== null;
     ROWS.forEach((row, index) => { cells[index]!.textContent = values === null ? '—' : row.show(values) ?? '—'; });
   };

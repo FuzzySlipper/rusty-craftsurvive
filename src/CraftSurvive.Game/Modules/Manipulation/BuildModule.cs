@@ -66,6 +66,20 @@ internal sealed class BuildModule : IProductModule
         return Place(stamp, "plate");
     }
 
+    /// <summary>A floor laid ahead of a player facing <paramref name="facing"/>, from the cell they aim at.</summary>
+    internal string PlateAhead(VoxelAddress aimed, int width, int depth, (int X, int Z) facing, ushort material)
+    {
+        plates++;
+        return Place(BuildStamp.PlateAhead(aimed, width, depth, facing, material), "plate");
+    }
+
+    /// <summary>A wall raised across the facing of a player facing <paramref name="facing"/>, on the cell they aim at.</summary>
+    internal string WallAcross(VoxelAddress aimed, int length, int height, (int X, int Z) facing, ushort material)
+    {
+        walls++;
+        return Place(BuildStamp.WallAcross(aimed, length, height, facing, material), "wall");
+    }
+
     internal string Wall(long x, long y, long z, long length, long height, long material)
     {
         BuildStamp stamp = BuildStamp.Wall(

@@ -57,6 +57,7 @@ internal static class ProductUiProjection
             values.Add("actionsApplied", requests.Applied);
             values.Add("actionsRefused", requests.Refused);
             values.AddText("lastAction", requests.Last);
+            values.AddText("buildPalette", requests.Palette);
         }
 
         return values.Build();

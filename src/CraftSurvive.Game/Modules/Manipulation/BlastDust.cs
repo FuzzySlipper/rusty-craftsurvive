@@ -4,22 +4,26 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Manipulation;
 
 /// <summary>
-/// The smoke and debris that cover a charge. Emitted before the edit, with lifetimes long enough
-/// that the cloud is still moving when the cleared cells disappear, so the blast reads as one event.
+/// The smoke and debris of a charge. Emitted before the edit, with the cloud still billowing when
+/// the cleared cells disappear and settling after, so the blast reads as one event. The smoke is a
+/// soft puff sprite tinted by its colour curve; the debris are cubes in the world's own atlas.
 ///
 /// Everything here is a pure function of the charge - its centre and the identity mixed from it - so the same blast
 /// produces the same dust, as the product's generation draws do.
 /// </summary>
 internal static class BlastDust
 {
+    /// <summary>The smoke's sprite: a soft white puff, authored by scripts/generate-dust-puff.mjs.</summary>
+    internal const string PuffContentPath = "textures/dust-puff.png";
+
     /// <summary>Dust puffs: enough to hide a crater, few enough to stay cheap.</summary>
-    internal const int SmokeParticles = 240;
+    internal const int SmokeParticles = 160;
 
     /// <summary>Thrown blocks: the debris that says something solid came apart.</summary>
     internal const int DebrisParticles = 48;
 
     /// <summary>How long dust lives, in seconds.</summary>
-    internal const float SmokeLifetimeSeconds = 1.2f;
+    internal const float SmokeLifetimeSeconds = 2.8f;
 
     internal const float DebrisLifetimeSeconds = 0.9f;
 
@@ -79,20 +83,20 @@ internal static class BlastDust
         MaxParticles = SmokeParticles,
         LifetimeMinSeconds = SmokeLifetimeSeconds * 0.6f,
         LifetimeMaxSeconds = SmokeLifetimeSeconds,
-        VelocityMin = new Vector3(-3.2f, 0.6f, -3.2f),
-        VelocityMax = new Vector3(3.2f, 4.4f, 3.2f),
-        Acceleration = new Vector3(0f, -1.2f, 0f),
+        VelocityMin = new Vector3(-2.4f, 0.4f, -2.4f),
+        VelocityMax = new Vector3(2.4f, 3.2f, 2.4f),
+        Acceleration = new Vector3(0f, -0.4f, 0f),
         SizeCurve = new PresentationParticleScalarKey[]
         {
-            new() { Age = 0f, Value = 0.35f },
-            new() { Age = 0.25f, Value = 1f },
-            new() { Age = 1f, Value = 1.6f },
+            new() { Age = 0f, Value = 1.5f },
+            new() { Age = 0.2f, Value = 4f },
+            new() { Age = 1f, Value = 6f },
         },
         ColorCurve = new PresentationParticleColorKey[]
         {
-            new() { Age = 0f, Color = new Color(0.62f, 0.58f, 0.52f, 0.95f) },
-            new() { Age = 0.6f, Color = new Color(0.55f, 0.52f, 0.48f, 0.55f) },
-            new() { Age = 1f, Color = new Color(0.5f, 0.48f, 0.45f, 0f) },
+            new() { Age = 0f, Color = new Color(0.72f, 0.66f, 0.58f, 0.9f) },
+            new() { Age = 0.5f, Color = new Color(0.68f, 0.64f, 0.58f, 0.55f) },
+            new() { Age = 1f, Color = new Color(0.66f, 0.63f, 0.6f, 0f) },
         },
         Seed = ParticleSeed(identity),
         HasCollision = false,
