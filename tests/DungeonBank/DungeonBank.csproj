@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The route check is the Engine's own navigation, run headless: the SDK records the pinned
+         pair's test host library for a test project. -->
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
     <!-- Dungeon generation is pure product rules over a voxel volume: this lane draws a bank of
@@ -17,6 +20,10 @@
     <Compile Include="$(ProductModules)Dungeons/SculptedCave.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonModules.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
@@ -24,5 +31,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" Version="9.0.0" />
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
   </ItemGroup>
 </Project>

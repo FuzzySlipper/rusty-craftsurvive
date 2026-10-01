@@ -5,7 +5,8 @@ using CraftSurvive.Game.Tests;
 
 // A bank of dungeon seeds, drawn and route-checked: how many come out walkable on their first
 // candidate, how many after redrawing, and why the rest fail. Pass a seed count to draw more, or
-// "section <seed>" to print one dungeon's side sections.
+// "section <seed>" to print one dungeon's side sections, or "engine <a|b|c> <seeds> [sweep] [quiet]"
+// for the Engine's route check in detail.
 if (args is ["render", string renderSeed, string output, ..] && args.Length <= 4)
 {
     ulong chosen = ulong.Parse(renderSeed, System.Globalization.CultureInfo.InvariantCulture);
@@ -192,6 +193,14 @@ if (args is ["sculpted", string sculptedCount])
     return 0;
 }
 
+if (args is ["engine", string engineApproach, string engineSeeds, ..])
+{
+    // engine <a|b|c> <seeds> [sweep] [quiet]: the Engine's route check over a bank, for the player or a sweep of bodies.
+    IReadOnlyList<NavigationProfile> profiles = args.Contains("sweep") ? EngineRouteBank.Sweep : [NavigationProfile.Player];
+    EngineRouteBank.Run(engineApproach, 1UL, int.Parse(engineSeeds, System.Globalization.CultureInfo.InvariantCulture), profiles, verbose: !args.Contains("quiet"));
+    return 0;
+}
+
 if (args is ["section", string seedText])
 {
     Section(ulong.Parse(seedText, System.Globalization.CultureInfo.InvariantCulture));
@@ -268,6 +277,18 @@ for (ulong seed = 1; seed <= SculptedSeeds; seed++)
 
 Console.WriteLine($"sculpted-cave: {sculptedWalkable}/{SculptedSeeds} walkable in {sculptedClock.Elapsed.TotalSeconds:F1} s");
 Check.That(sculptedWalkable >= SculptedSeeds * 0.95, $"at least 95% of sculpted dungeons must stay walkable, {sculptedWalkable}/{SculptedSeeds} did");
+
+// The Engine's own route check, headless, over a few dungeons of each approach for the player's
+// body. It is reported, not yet required: the Engine's collision navigation refuses sloped rock
+// floors and full-height stair risers (rusty-engine #9032). Every dungeon must still build and
+// publish navigation the Engine can query.
+const int EngineSeeds = 8;
+foreach (string reported in (string[])["a", "b", "c"])
+{
+    IReadOnlyList<EngineRouteBank.Outcome> outcomes = EngineRouteBank.Run(reported, 1UL, EngineSeeds, [NavigationProfile.Player], verbose: false);
+    Check.That(outcomes.Count == EngineSeeds && outcomes.All(outcome => outcome.Verdict.WalkableCells > 0),
+        $"every {reported} dungeon must build in the Engine and publish navigation with supports");
+}
 return Check.Finish("DungeonBank");
 
 static (DungeonVolume, DungeonPlan, DungeonVerdict) Carved(ulong seed)

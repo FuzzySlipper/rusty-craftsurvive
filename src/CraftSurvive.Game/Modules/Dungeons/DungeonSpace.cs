@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Numerics;
-using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -16,12 +15,12 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 internal sealed class DungeonSpace : IDisposable
 {
     /// <summary>Where a dungeon's volume begins, in its session: far below anything in the open world.</summary>
-    internal static readonly Vector3 Origin = new(0f, -2048f, 0f);
+    internal static Vector3 Origin => DungeonCollision.Origin;
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly DungeonLayout layout;
-    private readonly Queue<(int X, int Y, int Z)> pending = new();
+    private readonly Queue<(int X, int Y, int Z)> pending;
     private readonly Material? rockMaterial;
     private MeshResource? rockMesh;
     private Appearance? rockAppearance;
@@ -29,40 +28,14 @@ internal sealed class DungeonSpace : IDisposable
     private VoxelScenePresentation? projection;
     private long loadTicks;
 
-    /// <summary>How often the rock's texture repeats per metre of surface.</summary>
-    private const float RockUvScale = 0.25f;
-
-    /// <summary>Faces meeting at more than this angle keep a hard edge; gentler ones shade smoothly.</summary>
-    private const float RockCreaseDegrees = 50f;
-
-    private const ulong RockAssetId = 1UL;
-    private const ulong RockInstanceId = 1UL;
-
-    /// <summary>Samples written to the Engine's sampled volume per write.</summary>
-    private const int RockWriteBatch = 65_536;
-
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null)
     {
         this.rockMaterial = rockMaterial;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        Session = engine.Spatial.CreateSession(new SpatialSessionConfig(
-            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.GreedyCubes));
-        engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(
-            Session,
-            BlockRegistry.MaterialBlocks.Select(block => new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
-        for (int z = 0; z < layout.Volume.ChunksZ; z++)
-        {
-            for (int y = 0; y < layout.Volume.ChunksY; y++)
-            {
-                for (int x = 0; x < layout.Volume.ChunksX; x++)
-                {
-                    pending.Enqueue((x, y, z));
-                }
-            }
-        }
-
+        Session = DungeonCollision.CreateSession(engine);
+        pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
         totalChunks = pending.Count;
     }
 
@@ -89,36 +62,19 @@ internal sealed class DungeonSpace : IDisposable
     internal string RockReadout { get; private set; } = "voxel rock";
 
     /// <summary>Where a point of the layout stands in the session.</summary>
-    internal static Vector3 InSession(Vector3 layoutPoint) => layoutPoint + Origin;
+    internal static Vector3 InSession(Vector3 layoutPoint) => DungeonCollision.InSession(layoutPoint);
 
     /// <summary>Admits up to some chunks; once every chunk is in, draws the space and lights it.</summary>
     internal void Advance(int chunks)
     {
         long started = Stopwatch.GetTimestamp();
-        List<VoxelResidencyOperation> operations = [];
-        List<uint> materials = [];
-        for (int admitted = 0; admitted < chunks && pending.TryDequeue(out (int X, int Y, int Z) chunk); admitted++)
+        List<(int X, int Y, int Z)> admitted = [];
+        while (admitted.Count < chunks && pending.TryDequeue(out (int X, int Y, int Z) chunk))
         {
-            uint offset = checked((uint)materials.Count);
-            foreach (ushort material in layout.Volume.Chunk(chunk.X, chunk.Y, chunk.Z))
-            {
-                materials.Add(material);
-            }
-
-            operations.Add(new VoxelResidencyOperation(
-                VoxelResidencyOperationKind.Admit,
-                new VoxelChunkIdentity(
-                    chunk.X + ((long)Origin.X / TerrainConstants.ChunkEdgeLength),
-                    chunk.Y + ((long)Origin.Y / TerrainConstants.ChunkEdgeLength),
-                    chunk.Z + ((long)Origin.Z / TerrainConstants.ChunkEdgeLength)),
-                offset,
-                checked((uint)(materials.Count - (int)offset))));
+            admitted.Add(chunk);
         }
 
-        if (operations.Count > 0)
-        {
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(Session, operations.ToArray(), materials.ToArray()));
-        }
+        DungeonCollision.Admit(engine, Session, layout.Volume, admitted);
 
         if (pending.Count == 0 && projection is null)
         {
@@ -139,33 +95,10 @@ internal sealed class DungeonSpace : IDisposable
     private void BuildRock(RockDensity rock)
     {
         long started = Stopwatch.GetTimestamp();
-        using SampledVolume volume = engine.ImplicitSurfaces.CreateSampledVolume(new SampledVolumeCreateRequest(
-            Origin + new Vector3(0.5f, 0.5f, 0.5f), RockDensity.Spacing, (uint)rock.Width, (uint)rock.Height, (uint)rock.Depth, 1f));
-        DensitySample[] batch = new DensitySample[RockWriteBatch];
-        for (int start = 0; start < rock.Values.Length; start += RockWriteBatch)
-        {
-            int count = Math.Min(RockWriteBatch, rock.Values.Length - start);
-            for (int index = 0; index < count; index++)
-            {
-                batch[index] = new DensitySample(rock.Values[start + index]);
-            }
-
-            engine.ImplicitSurfaces.WriteSampledVolume(new SampledVolumeWriteRequest(volume, (uint)start, batch.AsMemory(0, count)));
-        }
-
-        using ImplicitField regions = engine.ImplicitSurfaces.CreateField();
-        rockMesh = engine.ImplicitSurfaces.GenerateSampledVolume(new SampledVolumeGenerateRequest(
-            volume, regions, 0f, RockCreaseDegrees, RockUvScale, rockMaterial!, ReadOnlyMemory<ImplicitMaterialRegion>.Empty,
-            ImplicitMaterialBoundaryMode.Centroid, 0f));
+        rockMesh = DungeonCollision.MeshRock(engine, rock, rockMaterial!, out ImplicitGenerationReadout generated);
         double meshMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(
-            Session,
-            new[] { new StaticMeshAsset(RockAssetId, new MeshResourceReference(rockMesh), 0, 0, 0, 0) },
-            ReadOnlyMemory<Vector3>.Empty,
-            ReadOnlyMemory<Triangle>.Empty,
-            new[] { new StaticMeshInstance(RockInstanceId, RockAssetId, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One)) }));
+        DungeonCollision.AdmitRock(engine, Session, rockMesh);
         rockAppearance = engine.Graphics.CreateMeshAppearance(rockMesh);
-        ImplicitGenerationReadout generated = engine.ImplicitSurfaces.ReadSampledVolumeGeneration(volume);
         RockReadout = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"sculpted rock: {generated.Vertices} vertices, {generated.Triangles} triangles, {generated.BoundaryEdges} boundary edges, meshed in {meshMs:F0} ms, collision and appearance in {Stopwatch.GetElapsedTime(started).TotalMilliseconds - meshMs:F0} ms");
     }

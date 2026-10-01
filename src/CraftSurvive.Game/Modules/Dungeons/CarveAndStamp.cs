@@ -196,25 +196,8 @@ internal static class CarveAndStamp
             : new DungeonVerdict(false, "there is no way back from the loot room", forward.Count);
     }
 
-    /// <summary>Whether a set of standing cells holds one within two cells of a place, on its level.</summary>
-    private static bool Near(HashSet<DungeonCell> cells, DungeonCell place)
-    {
-        for (int dx = -2; dx <= 2; dx++)
-        {
-            for (int dz = -2; dz <= 2; dz++)
-            {
-                for (int dy = -1; dy <= 1; dy++)
-                {
-                    if (cells.Contains(new DungeonCell(place.X + dx, place.Y + dy, place.Z + dz)))
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
+    /// <summary>Whether a set of standing cells holds one close to a place, as <see cref="DungeonWalk.Nearest"/> reads it.</summary>
+    private static bool Near(HashSet<DungeonCell> cells, DungeonCell place) => DungeonWalk.Nearest(cells, place) is not null;
 
     /// <summary>Bands of dirt and gravel in the stone, so the rock reads as layers laid down.</summary>
     private static void Strata(DungeonVolume volume, DungeonRandom random)

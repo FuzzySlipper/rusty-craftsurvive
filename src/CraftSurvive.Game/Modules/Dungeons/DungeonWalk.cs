@@ -104,6 +104,84 @@ internal static class DungeonWalk
         return seen;
     }
 
+    /// <summary>How far, across, a plan's place may be from where a player actually stands at it.</summary>
+    internal const int PlaceReachAcross = 2;
+
+    /// <summary>How far, up or down, a plan's place may be from where a player actually stands at it.</summary>
+    internal const int PlaceReachUpDown = 1;
+
+    /// <summary>
+    /// The standing cell of a set that serves for a plan's place: the closest within a couple of
+    /// cells across and one up or down, or none. Plans name places loosely - a room, a landing - and
+    /// this is where a player stands for them.
+    /// </summary>
+    internal static DungeonCell? Nearest(HashSet<DungeonCell> cells, DungeonCell place)
+    {
+        DungeonCell? best = null;
+        int bestDistance = int.MaxValue;
+        for (int dx = -PlaceReachAcross; dx <= PlaceReachAcross; dx++)
+        {
+            for (int dz = -PlaceReachAcross; dz <= PlaceReachAcross; dz++)
+            {
+                for (int dy = -PlaceReachUpDown; dy <= PlaceReachUpDown; dy++)
+                {
+                    DungeonCell candidate = new(place.X + dx, place.Y + dy, place.Z + dz);
+                    int distance = (dx * dx) + (dy * dy) + (dz * dz);
+                    if (distance < bestDistance && cells.Contains(candidate))
+                    {
+                        best = candidate;
+                        bestDistance = distance;
+                    }
+                }
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>The shortest walk from one cell to another as a list of cells, start and end included; empty when there is none.</summary>
+    internal static IReadOnlyList<DungeonCell> Route(DungeonVolume volume, DungeonCell start, DungeonCell end)
+    {
+        Dictionary<DungeonCell, DungeonCell> cameFrom = [];
+        if (!Standable(volume, start.X, start.Y, start.Z))
+        {
+            return [];
+        }
+
+        Queue<DungeonCell> frontier = new();
+        cameFrom[start] = start;
+        frontier.Enqueue(start);
+        while (frontier.TryDequeue(out DungeonCell cell) && cell != end)
+        {
+            foreach ((int dx, int dz) in Neighbours)
+            {
+                for (int dy = -MaximumDrop; dy <= StepUp; dy++)
+                {
+                    DungeonCell next = new(cell.X + dx, cell.Y + dy, cell.Z + dz);
+                    if (!cameFrom.ContainsKey(next) && Standable(volume, next.X, next.Y, next.Z) && Passable(volume, cell, next))
+                    {
+                        cameFrom[next] = cell;
+                        frontier.Enqueue(next);
+                    }
+                }
+            }
+        }
+
+        if (!cameFrom.ContainsKey(end))
+        {
+            return [];
+        }
+
+        List<DungeonCell> route = [end];
+        while (route[^1] != start)
+        {
+            route.Add(cameFrom[route[^1]]);
+        }
+
+        route.Reverse();
+        return route;
+    }
+
     /// <summary>
     /// Whether a body can move from one standable cell to its neighbour: stepping up needs headroom
     /// over the start, and dropping needs the column above the landing clear for the fall.

@@ -104,8 +104,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   never changes what can be walked: standing places and their headroom stay open. The sculpted rock's texture is projected along one axis per face,
   so it smears on steep curved walls. Nothing inside a dungeon is saved: a session that ends inside one continues at its
   entrance, and the open world's creatures and journal wait while the player is in.
-- **The Engine's navigation cannot see inside a dungeon yet**: collision navigation finds only the
-  top of the rock above an enclosed space (Engine #9024), so dungeon routes are checked by the
+- **Dungeon routes are the Engine's to judge, but it cannot pass them yet.** `DungeonRoutes` builds
+  a dungeon's collision as the game does (`DungeonCollision`), publishes collision navigation for
+  the player's body and asks every route the flow promises; the bank runs it headless through
+  `EngineTestHost` and `craft.dungeon.validate` runs it in a loaded dungeon. The Engine's
+  navigation refuses sloped rock floors and stair risers of exactly its step height and has no
+  drops (Engine #9032), so it is reported, not required: generation is still accepted by the
   product's own walk over its voxel data, and dungeons have no creatures.
 
 ## Persistence

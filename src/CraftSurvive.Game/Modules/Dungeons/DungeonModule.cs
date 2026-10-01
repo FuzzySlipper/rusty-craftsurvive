@@ -73,13 +73,12 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>A closed dungeon waiting for one snapshot without its rock before it is released.</summary>
     private DungeonSpace? retiring;
     private DungeonPlan? plan;
+
+    /// <summary>A voxel copy of the whole loaded dungeon, rock included, that the generator walked.</summary>
+    private DungeonVolume? walkable;
     private DungeonApproach approach = DungeonApproach.Modules;
     private Material? rockMaterial;
 
-    /// <summary>The sculpted rock's texture, authored by scripts/generate-cave-rock.mjs.</summary>
-    internal const string RockTextureContentPath = "textures/cave-rock.png";
-
-    private const float RockRoughness = 0.92f;
     private DungeonState state = DungeonState.Outside;
     private PoiSite? nearbyEntrance;
     private long nextSearchStep;
@@ -200,13 +199,14 @@ internal sealed class DungeonModule : IProductModule
 
         // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
         ulong seed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
-        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict) = approach switch
+        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict, DungeonVolume walked) = approach switch
         {
             DungeonApproach.SculptedCave => Sculpted(seed),
             DungeonApproach.Modules => Modular(seed),
-            _ => CarveAndStamp.Generate(seed),
+            _ => CarveAndStampWalked(seed),
         };
         plan = generated;
+        walkable = walked;
         try
         {
             space = new DungeonSpace(engine, terrain, layout, layout.Rock is null ? null : RockMaterial());
@@ -255,27 +255,26 @@ internal sealed class DungeonModule : IProductModule
         return $"the next dungeon is {approach}";
     }
 
-    private static (DungeonLayout, DungeonPlan, DungeonVerdict) Modular(ulong seed)
+    private static (DungeonLayout, DungeonPlan, DungeonVerdict, DungeonVolume) CarveAndStampWalked(ulong seed)
     {
-        var generated = ModularDungeon.Generate(seed);
-        return (generated.Layout, generated.Plan, generated.Verdict);
+        (DungeonLayout layout, DungeonPlan plan, DungeonVerdict verdict) = CarveAndStamp.Generate(seed);
+        return (layout, plan, verdict, layout.Volume);
     }
 
-    private static (DungeonLayout, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)
+    private static (DungeonLayout, DungeonPlan, DungeonVerdict, DungeonVolume) Modular(ulong seed)
     {
-        (DungeonLayout layout, DungeonPlan plan, DungeonVerdict verdict, _) = SculptedCave.Generate(seed);
-        return (layout, plan, verdict);
+        var generated = ModularDungeon.Generate(seed);
+        return (generated.Layout, generated.Plan, generated.Verdict, generated.Walkable);
     }
+
+    private static (DungeonLayout, DungeonPlan, DungeonVerdict, DungeonVolume) Sculpted(ulong seed) => SculptedCave.Generate(seed);
 
     /// <summary>The sculpted rock's material, made once and kept for every sculpted dungeon.</summary>
     private Material RockMaterial()
     {
         if (rockMaterial is null)
         {
-            RenderResourceInfo texture = engine.Graphics.OpenResource(new RenderResourceRequest(RockTextureContentPath, TextureFilter.Linear, TextureWrap.Repeat));
-            rockMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(
-                new Color(1f, 1f, 1f, 1f), texture.Handle, RockRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false,
-                MaterialAlphaMode.Opaque, 0f));
+            rockMaterial = DungeonCollision.CreateRockMaterial(engine);
         }
 
         return rockMaterial;
@@ -321,49 +320,21 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>
-    /// The Engine's word on the loaded dungeon, beside the generator's own walk check: navigation
-    /// published over the whole space, then routes from the arrival to the breach and the loot, and
-    /// from the loot back. Reported with what the publication and queries cost.
+    /// The Engine's word on the loaded dungeon: navigation published over the whole space for the
+    /// player's body and every route the flow promises asked of it, with where each refused route
+    /// first hangs up along the generator's own walk.
     /// </summary>
     internal string Validate()
     {
-        if (state != DungeonState.Inside || space is null || plan is null)
+        if (state != DungeonState.Inside || space is null || plan is null || walkable is null)
         {
             return "validate refused: not in a dungeon";
         }
 
-        DungeonVolume volume = space.Layout.Volume;
-        long started = System.Diagnostics.Stopwatch.GetTimestamp();
-        CollisionNavigationReplaceReceipt published = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
-            space.Session,
-            DungeonSpace.Origin,
-            DungeonSpace.Origin + new Vector3(volume.SizeX, volume.SizeY, volume.SizeZ),
-            new CollisionNavigationConfig(
-                ValidationGridId, TerrainConstants.VoxelSize, (uint)TerrainConstants.ChunkEdgeLength, ValidationStepCells,
-                ValidationAgentRadius, ValidationAgentHeight, ValidationSlopeDegrees,
-                (uint)(volume.SizeX * volume.SizeY * volume.SizeZ))));
-        double publishMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        string Route(string name, DungeonCell from, DungeonCell to)
-        {
-            NavigationStepResult step = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(
-                space.Session, Feet(from), Feet(to), ValidationStepMetres, ValidationMaxVisited));
-            return $"{name}={step.Outcome}/{step.Path.Length}";
-        }
-
-        return string.Create(CultureInfo.InvariantCulture,
-            $"navigation walkable={published.WalkableCellCount} publishMs={publishMs:F0} ")
-            + $"{Route("arrival->breach", plan.Arrival, plan.Breach)} {Route("arrival->loot", plan.Arrival, plan.Loot)} {Route("loot->arrival", plan.Loot, plan.Arrival)}";
+        DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, space.Session, walkable, plan, NavigationProfile.Player);
+        IReadOnlyList<RouteHangUp> hangUps = DungeonRoutes.HangUps(engine, space.Session, walkable, verdict);
+        return hangUps.Count == 0 ? verdict.ToString() : $"{verdict} hang-ups: {string.Join("; ", hangUps)}";
     }
-
-    private const ulong ValidationGridId = 2UL;
-    private const uint ValidationStepCells = 1U;
-    private const double ValidationAgentRadius = 0.3d;
-    private const double ValidationAgentHeight = 1.75d;
-    private const double ValidationSlopeDegrees = 45d;
-    private const float ValidationStepMetres = 4096f;
-    private const uint ValidationMaxVisited = 1_000_000U;
-
-    private static Vector3 Feet(DungeonCell cell) => DungeonSpace.InSession(new Vector3(cell.X + 0.5f, cell.Y, cell.Z + 0.5f));
 
     /// <summary>Leaves the dungeon from its way out, back to the entrance.</summary>
     internal string Leave()
@@ -405,6 +376,7 @@ internal sealed class DungeonModule : IProductModule
         retiring = space;
         space = null;
         plan = null;
+        walkable = null;
         state = DungeonState.Outside;
         sky.Underground(false, conditions.Time);
         nextSearchStep = 0;
