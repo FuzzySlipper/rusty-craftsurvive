@@ -28,6 +28,8 @@ const fixed = (value: number | null, digits: number): string | null => (value ==
 const ROWS: readonly HudRow[] = [
   { label: 'Time', show: (v) => { const t = text(v, 'worldTime'); return t === null ? null : number(v, 'night') === 1 ? `${t} (night)` : t; } },
   { label: 'Health', show: (v) => { const h = number(v, 'health'); const m = number(v, 'maximumHealth'); return h === null || m === null ? null : `${h} / ${m}`; } },
+  { label: 'Food', show: (v) => { const f = number(v, 'satiety'); return f === null ? null : `${f.toFixed(0)}%${f <= 0 ? ' (starving)' : f < 25 ? ' (hungry)' : ''}`; } },
+  { label: 'Air', show: (v) => { const b = number(v, 'breath'); const m = number(v, 'maximumBreath'); return b === null || m === null || b >= m ? null : `${b.toFixed(0)} s${b <= 0 ? ' (drowning)' : ''}`; } },
   { label: 'Level', show: (v) => { const l = number(v, 'level'); const x = number(v, 'experience'); return l === null || x === null ? null : `${l} (${x} xp)`; } },
   { label: 'Items', show: (v) => fixed(number(v, 'itemsCollected'), 0) },
   { label: 'Defeats', show: (v) => fixed(number(v, 'defeats'), 0) },

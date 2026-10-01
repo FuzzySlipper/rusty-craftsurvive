@@ -34,6 +34,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
     /// <summary>The world's time and difficulty: survival and encounters read them, the sky shows them.</summary>
     private readonly WorldConditionsModule conditions;
+
+    /// <summary>The player's hunger and air, which give and take health through the player's vitals.</summary>
+    private readonly SurvivalModule survival;
     private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
     private readonly CreatureModule creatures;
@@ -65,6 +68,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         player = new PlayerController(context.Engine, terrain, frame, store, ui);
         sky = new DayNightSky(context.Engine);
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, ui);
+        survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui);
         creatures = new CreatureModule(context.Engine, terrain, player, frame);
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
@@ -74,7 +78,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         actions = new PlayerActionModule(player, blast, build, ui);
 
         // The entity store runs last, so it saves what a charge swept or a build placed this update.
-        gameplay = [conditions, creatures, discovery, blast, build, entityStore];
+        gameplay = [conditions, survival, creatures, discovery, blast, build, entityStore];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -93,6 +97,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(new BuildDebugModule(build, entityStore)));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(conditions)));
+        RequireRegistration(registrar.Register(new SurvivalDebugModule(survival)));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
     }
 

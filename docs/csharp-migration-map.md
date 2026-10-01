@@ -57,6 +57,7 @@ save, then terrain's save, then one appearance snapshot.
 | UI actions | `Modules/Actions`: `PlayerAction` (the payload) and `PlayerActionModule` | Input intents (product payload) |
 | Sky | `Modules/Sky`: `WorldClock` (rules) and `DayNightSky` (panorama blend, sun and ambient lights) | Camera view sky blend, retained lights |
 | World conditions | `Modules/Survival`: `WorldConditionsModule` (time of day and difficulty, saved) | Persistence |
+| Survival | `Modules/Survival`: `SurvivalModule` over `SurvivalRules` (hunger, air, recovery; saved), acting through the player's vitals | Character controller submersion fact, persistence |
 | Diagnostics | `Modules/Debugging` plus each module's `*DebugModule`: debug adapters over owners, and the Engine's playtest commands | Debug command catalog |
 
 ## Product/Engine boundary

@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Tests;
 
@@ -606,6 +607,42 @@ Check.That(risesThroughMorning, "daylight must never dip while the sun climbs");
 Check.That(WorldClock.TowardSun(0.5).Y > 0.9f && WorldClock.TowardSun(0).Y < -0.9f, "the sun must stand high at noon and below at midnight");
 Check.That(WorldClock.Describe(new WorldTime(2, 0.5 + (1.0 / 24 / 60 * 7))) == "Day 3, 12:07", "the time must read as day and hour");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule and the world's clock passed.");
+// Survival: hunger drains with time, a fed and calm player regains health and pays in food, an empty
+// stomach drains health but never kills, and drowning can. The difficulty tunes each.
+SurvivalFacts Calm(int health) => new(health, 30, HeadSubmerged: false, Sprinting: false, Hurt: false);
+SurvivalStep hour = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30), Difficulty.Normal, 60);
+Check.That(hour.State.Satiety < SurvivalRules.MaximumSatiety && hour.Regained == 0 && hour.Lost == 0,
+    "a healthy minute costs food and changes no health");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Sprinting = true }, Difficulty.Normal, 60).State.Satiety < hour.State.Satiety,
+    "sprinting must burn food faster");
+SurvivalStep mending = SurvivalRules.Advance(SurvivalState.Fresh with { SinceHurtSeconds = 10 }, Calm(20), Difficulty.Normal, 20);
+Check.That(mending.Regained == 5 && mending.State.Satiety < hour.State.Satiety,
+    $"a fed, calm player must regain a point every few seconds and pay for it in food, regained {mending.Regained}");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh, Calm(20) with { Hurt = true }, Difficulty.Normal, 3).Regained == 0,
+    "a player just hurt must not regain health");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { Satiety = 10, SinceHurtSeconds = 10 }, Calm(20), Difficulty.Normal, 20).Regained == 0,
+    "a hungry player must not regain health");
+SurvivalStep starving = SurvivalRules.Advance(SurvivalState.Fresh with { Satiety = 0 }, Calm(3), Difficulty.Normal, 600);
+Check.That(starving.Lost == 2 && starving.Cause == SurvivalHarm.Starving, $"starving must drain health down to one point and no further, lost {starving.Lost}");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { Satiety = 0 }, Calm(1), Difficulty.Harsh, 600).Lost == 0,
+    "starving must never take the last point, even when harsh");
+SurvivalStep underwater = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { HeadSubmerged = true }, Difficulty.Normal, 10);
+Check.That(underwater.State.Breath < SurvivalRules.MaximumBreathSeconds && underwater.Lost == 0, "a short dive costs air, not health");
+SurvivalStep drowning = SurvivalRules.Advance(SurvivalState.Fresh with { Breath = 0 }, Calm(2) with { HeadSubmerged = true }, Difficulty.Normal, 6);
+Check.That(drowning.Lost == 4 && drowning.Cause == SurvivalHarm.Drowning, $"drowning must be able to kill, lost {drowning.Lost}");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { Breath = 5 }, Calm(30), Difficulty.Normal, 2).State.Breath > 5,
+    "air must come back above water");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { Breath = 0, Satiety = 0 }, Calm(10) with { HeadSubmerged = true }, Difficulty.Gentle, 60).Lost == 0,
+    "nothing in survival may hurt a gentle player");
+Check.That(SurvivalRules.Tuning(Difficulty.Harsh).HungerPerSecond > SurvivalRules.Tuning(Difficulty.Normal).HungerPerSecond
+    && SurvivalRules.Tuning(Difficulty.Normal).HungerPerSecond > SurvivalRules.Tuning(Difficulty.Gentle).HungerPerSecond,
+    "food must last longest when gentle and shortest when harsh");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { Satiety = 50 }, Calm(0), Difficulty.Normal, 600).State.Satiety == 50,
+    "a defeated player's tracks wait for the respawn");
+Check.That(SurvivalRules.Respawned(SurvivalState.Fresh with { Satiety = 5, Breath = 0 }) is { Satiety: SurvivalRules.RespawnSatiety, Breath: SurvivalRules.MaximumBreathSeconds },
+    "a respawned player comes back half fed and breathing");
+Check.That(SurvivalRules.Eat(SurvivalState.Fresh with { Satiety = 90 }, 30).Satiety == SurvivalRules.MaximumSatiety, "eating fills the stomach no further than full");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule, the world's clock and survival passed.");
 
 return Check.Finish("RpgCore");

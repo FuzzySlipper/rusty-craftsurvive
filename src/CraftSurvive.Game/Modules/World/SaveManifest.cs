@@ -40,6 +40,10 @@ internal static class SaveManifest
     internal static SaveKey WorldConditions { get; } =
         new("world/conditions", "world/conditions.backup", "WorldConditionsModule", 0x444E_4F43, 1);
 
+    /// <summary>How fed the player is and how much air they hold.</summary>
+    internal static SaveKey PlayerSurvival { get; } =
+        new("player/survival", "player/survival.backup", "SurvivalModule", 0x5649_5653, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions];
+        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival];
 }

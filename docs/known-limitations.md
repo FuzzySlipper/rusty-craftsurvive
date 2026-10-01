@@ -72,6 +72,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   the box, or with no route, waits; creature movement is planar and follows the ground, so the
   grid's step height is what keeps pursuers out of pits.
 
+## Survival
+
+- **Hunger and air are `SurvivalRules`, tuned by `Difficulty`.** Food drains with time (faster
+  while sprinting); a fed player regains health once calm, and pays for it in food; an empty
+  stomach drains health but never below one point. Air runs out while the head is under water,
+  and drowning can kill. Gentle turns off both kinds of harm. There is no temperature, thirst or
+  disease.
+
 ## Persistence
 
 - Every saved key is listed in `SaveManifest`, written through `ProductSaveSlot` over one store,

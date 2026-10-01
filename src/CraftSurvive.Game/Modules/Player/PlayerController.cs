@@ -59,6 +59,9 @@ internal sealed class PlayerController : IDisposable
 
     /// <summary>Whether the last controller step left the player holding a climb rail.</summary>
     private bool climbHeld;
+
+    /// <summary>Whether the last controller step left the player's head under water.</summary>
+    private bool headSubmerged;
     private Vector3 lastUpdatePositionBefore;
     private Vector3 lastUpdatePositionAfter;
     private TerrainWorldEditResult? lastTerrainEdit;
@@ -236,6 +239,12 @@ internal sealed class PlayerController : IDisposable
     }
 
     /// <summary>What the player is aiming at now, within edit reach.</summary>
+    /// <summary>Whether the player's head is under water, as the last controller step found it.</summary>
+    internal bool HeadSubmerged => headSubmerged;
+
+    /// <summary>Whether the player is sprinting: asking to, and moving.</summary>
+    internal bool Sprinting => lastInputFrame.SprintRequested && lastInputFrame.PlanarIntent != Vector2.Zero;
+
     /// <summary>Where the player last looked, as a view direction in world axes; zero before the first look.</summary>
     internal Vector3 AimForward => aimForward;
 
@@ -367,6 +376,7 @@ internal sealed class PlayerController : IDisposable
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
             climbHeld = receipt.Movement.ClimbAttached;
+            headSubmerged = receipt.Movement.HeadSubmerged;
             jumpPending = false;
             impulsePending = false;
             playerLocal = receipt.Transform.Translation;

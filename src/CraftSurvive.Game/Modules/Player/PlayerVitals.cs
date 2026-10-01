@@ -53,6 +53,16 @@ internal sealed class PlayerVitals
         return true;
     }
 
+    /// <summary>Gives back health, up to the maximum. A defeated player regains nothing until respawned.</summary>
+    internal void Heal(int amount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(amount);
+        if (!IsDown)
+        {
+            state = state with { Health = Math.Min(maximumHealth, state.Health + amount) };
+        }
+    }
+
     internal PlayerDefeatOutcome Outcome(long step) => PlayerDefeatRules.Outcome(state, step);
 
     internal int MaximumHealth => maximumHealth;

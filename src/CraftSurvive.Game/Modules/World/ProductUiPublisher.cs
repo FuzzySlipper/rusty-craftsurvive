@@ -45,6 +45,9 @@ internal readonly record struct DiscoveryUiFacts(
     double LastTick,
     string LastFound);
 
+/// <summary>The player's survival tracks for the UI projection: food and air, and the last harm they did.</summary>
+internal readonly record struct SurvivalUiFacts(double Satiety, double Breath, double MaximumBreath, string LastHarm);
+
 /// <summary>The world's conditions for the UI projection: the time as a player reads it, its daylight, and the difficulty.</summary>
 internal readonly record struct ConditionsUiFacts(string Time, double Daylight, bool Night, string Difficulty);
 
@@ -65,6 +68,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private DiscoveryUiFacts? discovery;
     private ActionUiFacts? actions;
     private ConditionsUiFacts? conditions;
+    private SurvivalUiFacts? survival;
     private ulong sequence;
 
     internal ProductUiPublisher(IEngineContext engine) => this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -93,6 +97,12 @@ internal sealed class ProductUiPublisher : IDisposable
         Publish();
     }
 
+    internal void PublishSurvival(SurvivalUiFacts facts)
+    {
+        survival = facts;
+        Publish();
+    }
+
     internal void PublishConditions(ConditionsUiFacts facts)
     {
         conditions = facts;
@@ -108,7 +118,7 @@ internal sealed class ProductUiPublisher : IDisposable
 
         WorldUiFacts facts = world();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions)));
+            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions, survival)));
     }
 
     public void Dispose()

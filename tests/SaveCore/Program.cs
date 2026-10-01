@@ -31,6 +31,7 @@ index.Place(BlockEntityKind.Container, new VoxelAddress(-4, 12, 8), 5);
 BlockEntityRecord[] entities = index.Snapshot();
 PlayerContinuation player = new(812.5, 14.0, -96.25, 1.25, -0.3, 17, 2, 350, 6);
 WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
+SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 };
 
 SavedForm[] forms =
 [
@@ -44,6 +45,8 @@ SavedForm[] forms =
         (left, right) => left == right, seed => new PlayerContinuationCodec(identity with { Seed = seed }, MaximumHealth)),
     SavedForm.For(SaveManifest.WorldConditions, new WorldConditionsCodec(identity), conditions, WorldConditionsCodec.RecordBytes,
         (left, right) => left == right, seed => new WorldConditionsCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.PlayerSurvival, new SurvivalCodec(identity), tracks, SurvivalCodec.RecordBytes,
+        (left, right) => left == right, seed => new SurvivalCodec(identity with { Seed = seed })),
 ];
 
 // --- the manifest names every saved key, once ------------------------------------------------------
@@ -106,6 +109,10 @@ WorldConditionsCodec conditionsCodec = new(identity);
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { Day = -1 })), "a day before the first cannot be saved");
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { Difficulty = (Difficulty)7 })), "an unknown difficulty cannot be saved");
+
+SurvivalCodec survivalCodec = new(identity);
+Check.That(Throws(() => survivalCodec.Encode(tracks with { Satiety = SurvivalRules.MaximumSatiety + 1 })), "a stomach past full cannot be saved");
+Check.That(Throws(() => survivalCodec.Encode(tracks with { Breath = -1 })), "negative air cannot be saved");
 
 // --- block entities: identities are per session, meaning survives -------------------------------
 BlockEntityIndex reloaded = new();

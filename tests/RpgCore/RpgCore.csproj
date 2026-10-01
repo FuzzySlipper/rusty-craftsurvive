@@ -31,6 +31,9 @@
     <Compile Include="$(ProductModules)World/WorldFrame.cs" LinkBase="Product/World" />
     <!-- The world's clock is rules over a day fraction. -->
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
+    <!-- Survival is rules over tracks and a difficulty. -->
+    <Compile Include="$(ProductModules)Survival/SurvivalRules.cs" LinkBase="Product/Survival" />
+    <Compile Include="$(ProductModules)Survival/Difficulty.cs" LinkBase="Product/Survival" />
     <!-- The climbing rule reads blocks through a lookup, so it is checked over a made-up wall. -->
     <Compile Include="$(ProductModules)Player/PlayerClimb.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />

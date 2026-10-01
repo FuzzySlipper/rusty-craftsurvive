@@ -5,18 +5,6 @@ using Rusty.Engine.Persistence;
 
 namespace CraftSurvive.Game.Modules.Survival;
 
-/// <summary>How hard the world is on the player. Stored by value: append only, never renumber.</summary>
-internal enum Difficulty
-{
-    /// <summary>No hunger damage, no drowning damage, creatures do not seek the player out at night.</summary>
-    Gentle = 0,
-
-    Normal = 1,
-
-    /// <summary>Hunger and air run out faster and hurt more; night is longer in effect.</summary>
-    Harsh = 2,
-}
-
 /// <summary>The world's own conditions that outlive a session: the time of day and the difficulty.</summary>
 internal readonly record struct WorldConditionsState(long Day, double DayFraction, Difficulty Difficulty)
 {
