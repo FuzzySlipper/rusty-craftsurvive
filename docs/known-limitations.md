@@ -109,10 +109,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   character configuration (drops as far as `DungeonWalk.MaximumDrop`), and asks every route the
   flow promises; the bank runs it headless through `EngineTestHost` and requires it for approaches
   A and C, and `craft.dungeon.validate` runs it in a loaded dungeon. Generation in the game is
-  still accepted by the product's own walk over its voxel data. Approach B is reported only: its one-block cave stairs, smoothed, are
-  slopes steeper than the Engine's navigation climbs (Engine #9035), so there is no way back from
-  its loot room. Sculpted rock holds a body-width clearance around every standing place, so a
-  smoothed wall never bulges into it. Dungeons have no creatures.
+  still accepted by the product's own walk over its voxel data. Approach B is reported only: about a quarter of its dungeons still have a
+  step the body cannot take once the rock is smoothed - a step up under a cave chamber's curving
+  ceiling, or a smoothed riser a little over the player's step height. Sculpted rock holds a body-width clearance around every standing place, and a
+  step's lift of room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no creatures.
 
 ## Persistence
 

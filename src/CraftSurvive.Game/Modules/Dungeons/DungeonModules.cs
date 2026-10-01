@@ -164,6 +164,12 @@ internal static class DungeonModules
     private const int Cell = ModuleCanvas.CellSize;
     private const int Storey = ModuleCanvas.StoreyHeight;
 
+    /// <summary>
+    /// How many cells long a cave descent runs to drop a storey: long enough that its steps have
+    /// treads two or three blocks deep, which sculpted rock keeps as steps a body climbs back up.
+    /// </summary>
+    private const int DescentLength = 2;
+
     internal static DungeonModuleShape Arrival { get; } = new("arrival", ModuleKind.Cave, 1, 1, 1,
         [new(0, 0, 0, ModuleFace.South, SocketKind.Cave)],
         (canvas, random) => canvas.Chamber(4, 2.5, 4.5, 3.6, 3.2, 3.4, 1));
@@ -188,14 +194,15 @@ internal static class DungeonModules
             canvas.Chamber(7, 2.6, 4, 2.4, 2.6, 2.4, 1);
         });
 
-    /// <summary>A ramp down one storey: in at the top on the north, out at the bottom on the south.</summary>
-    internal static DungeonModuleShape CaveDescent { get; } = new("cave-descent", ModuleKind.Cave, 1, 2, 1,
-        [new(0, 1, 0, ModuleFace.North, SocketKind.Cave), new(0, 0, 0, ModuleFace.South, SocketKind.Cave)],
+    /// <summary>A stair down one storey over two cells: in at the top on the north, out at the bottom on the south.</summary>
+    internal static DungeonModuleShape CaveDescent { get; } = new("cave-descent", ModuleKind.Cave, 1, 2, DescentLength,
+        [new(0, 1, DescentLength - 1, ModuleFace.North, SocketKind.Cave), new(0, 0, 0, ModuleFace.South, SocketKind.Cave)],
         (canvas, random) =>
         {
-            for (int z = 0; z < Cell; z++)
+            const int run = DescentLength * Cell;
+            for (int z = 0; z < run; z++)
             {
-                int floor = 1 + (int)Math.Round(z * (Storey / (double)(Cell - 1)));
+                int floor = 1 + (int)Math.Round(z * (Storey / (double)(run - 1)));
                 canvas.Fill(1, 0, z, Cell - 2, floor - 1, z, BlockId.Stone);
                 canvas.Fill(1, floor, z, Cell - 2, floor + 3, z, BlockId.Air);
                 canvas.Chamber(4, floor + 2.2, z + 0.5, 3.0, 2.6, 1.4, floor);

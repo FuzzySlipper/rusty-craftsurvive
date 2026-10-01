@@ -55,6 +55,12 @@ internal static class SculptedRock
     /// </summary>
     private const float FloorFirmness = 0.3f;
 
+    /// <summary>
+    /// Cells above a standing place's headroom that are kept open where they were carved open: a
+    /// body stepping up lifts by a step before it moves, and needs that room under the ceiling.
+    /// </summary>
+    private const int StepLiftCells = 1;
+
     private static readonly (int X, int Z)[] AroundBody = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
 
     /// <summary>The rock, the voxels that remain (the building), and a voxel copy of both for the route check.</summary>
@@ -110,7 +116,17 @@ internal static class SculptedRock
                 }
             }
 
+            for (int up = DungeonWalk.Headroom; up < DungeonWalk.Headroom + StepLiftCells; up++)
+            {
+                if (source.Contains(cell.X, cell.Y + up, cell.Z) && source.At(cell.X, cell.Y + up, cell.Z) == BlockId.Air)
+                {
+                    int lift = Index(cell.X, cell.Y + up, cell.Z, width, height);
+                    values[lift] = Math.Max(values[lift], BodyOpenMargin);
+                }
+            }
+
             Soften(source, values, cell.X, cell.Y + DungeonWalk.Headroom, cell.Z);
+            Soften(source, values, cell.X, cell.Y + DungeonWalk.Headroom + StepLiftCells, cell.Z);
         }
 
         foreach (DungeonCell cell in walkable0)

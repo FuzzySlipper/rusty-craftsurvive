@@ -318,8 +318,7 @@ Check.That(sculptedWalkable >= SculptedSeeds * 0.95, $"at least 95% of sculpted 
 
 // The Engine's own route check, headless, over dungeons of each approach for the player's body:
 // every route the flow promises must be one the Engine's collision navigation walks. B is reported,
-// not yet required: its cave stairs, smoothed, are slopes steeper than the Engine climbs, so there
-// is no way back up from its loot room.
+// not yet required: some of its smoothed cave steps are still more than the body can take.
 const int EngineSeeds = 8;
 foreach (string reported in (string[])["a", "b", "c"])
 {
