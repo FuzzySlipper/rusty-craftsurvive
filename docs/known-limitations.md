@@ -101,11 +101,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
 - CI's managed lanes do not launch the runtime; the `product` job serves it, checks it keeps
   updating with a matching generator fingerprint, and walks the player on input.
-- A product fault is visible only through the product's readouts (`craft.runtime` reports
-  `state=Faulted`) and a `--diagnostics-log` file, and exceptions from product `Dispose` leave no
-  trace (Engine #8992).
-- `MechanicsException` carries no typed reason, so the Engine canary checks refusals by type and
-  effect only (Engine #8993).
+- A product fault, or an exception from product `Dispose`, prints one line to the host's stderr;
+  the full record is in a `--diagnostics-log` file, and `craft.runtime` reports `state=Faulted`.
 - The generated C# API exposes named Engine service families, not every Rust source-level API. A
   slice that needs an absent mechanism files or links the upstream capability request and stops
   its downstream substitute work.

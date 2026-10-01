@@ -13,9 +13,9 @@ are in [survival-direction.md](survival-direction.md) §6.1.
 
 ## Operational traps
 
-- **A product fault is quiet.** An exception that escapes a product callback leaves the runtime
-  `state=Faulted` (`craft.runtime`) and prints nothing to the console; start the host with
-  `--diagnostics-log <file>` to see the exception and its stack (Engine #8992).
+- **A product fault stops the world.** An exception that escapes a product callback leaves the
+  runtime `state=Faulted` (`craft.runtime`) and prints one line to the host's stderr; start the
+  host with `--diagnostics-log <file>` for the full exception and its stack.
 - **A stale staged product produces misleading catalog errors.** After changing authored catalog
   code, a previously staged build under `src/CraftSurvive.Game/obj/Rusty.Engine/Product/` can
   still be what runs. If an error does not match the source, remove that directory to force a
