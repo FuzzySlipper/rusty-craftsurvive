@@ -29,7 +29,7 @@ internal static class SculptedRock
     internal const float RoughnessAmplitude = 0.38f;
 
     /// <summary>How weightily a building block counts toward the rock around it.</summary>
-    private const float BuildingWeight = 0.5f;
+    private const float BuildingWeight = 0.3f;
 
     /// <summary>Within this many cells of a walkable floor, rock is left smooth so the floor stays walkable.</summary>
     private const int FloorCalmRadius = 2;
