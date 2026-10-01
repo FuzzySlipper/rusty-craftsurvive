@@ -104,15 +104,19 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   never changes what can be walked: standing places and their headroom stay open. The sculpted rock's texture is projected along one axis per face,
   so it smears on steep curved walls. Nothing inside a dungeon is saved: a session that ends inside one continues at its
   entrance, and the open world's creatures and journal wait while the player is in.
-- **Dungeon routes are the Engine's to judge.** `DungeonRoutes` builds a dungeon's collision as
-  the game does (`DungeonCollision`), publishes collision navigation for the player's own
-  character configuration (drops as far as `DungeonWalk.MaximumDrop`), and asks every route the
-  flow promises; the bank runs it headless through `EngineTestHost` and requires it for approaches
-  A and C, and `craft.dungeon.validate` runs it in a loaded dungeon. Generation in the game is
-  still accepted by the product's own walk over its voxel data. Approach B is reported only: about a quarter of its dungeons still have a
-  step the body cannot take once the rock is smoothed - a step up under a cave chamber's curving
-  ceiling, or a smoothed riser a little over the player's step height. Sculpted rock holds a body-width clearance around every standing place, and a
-  step's lift of room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no creatures.
+- **Dungeons are accepted by the Engine's navigation.** An entrance's dungeons are tried in a
+  fixed order (`DungeonCandidates`, a pure function of its seed). Each one is generated until the
+  product's own walk over its voxel data passes, loaded behind the loading screen, then checked by
+  `DungeonRoutes`: collision navigation for the player's own character configuration (drops as far
+  as `DungeonWalk.MaximumDrop`) must walk every route the flow promises, or the next candidate is
+  loaded. An entrance with no walkable dungeon in `DungeonCandidates.MaximumCandidates` is given up
+  and the player stays outside. The bank enters entrances the same way headless through
+  `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
+  later one, mostly a step up under a cave chamber's curving ceiling or a smoothed riser a little
+  over the player's step height, and each refused candidate adds about a second of loading.
+  Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
+  room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no
+  creatures.
 
 ## Persistence
 

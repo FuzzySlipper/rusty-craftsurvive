@@ -10,19 +10,6 @@ using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Dungeons;
 
-/// <summary>How dungeons are generated: one of the approaches #8604 is comparing.</summary>
-internal enum DungeonApproach
-{
-    /// <summary>A: carve and stamp, all cubic voxels.</summary>
-    CarveAndStamp,
-
-    /// <summary>C: A's structure with its rock sculpted into a smooth mesh around the cubic building.</summary>
-    SculptedCave,
-
-    /// <summary>B: assembled from authored 3D modules joined at their sockets, rock sculpted as in C.</summary>
-    Modules,
-}
-
 /// <summary>Where the player stands with respect to dungeons.</summary>
 internal enum DungeonState
 {
@@ -77,6 +64,14 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>A voxel copy of the whole loaded dungeon, rock included, that the generator walked.</summary>
     private DungeonVolume? walkable;
     private DungeonApproach approach = DungeonApproach.Modules;
+
+    /// <summary>The entrance being entered: its seed, and which of its candidates is loading or loaded.</summary>
+    private ulong entranceSeed;
+    private int candidateIndex;
+
+    /// <summary>The Engine's verdict on the dungeon last loaded, accepted or not.</summary>
+    private DungeonRouteVerdict? routes;
+    private long candidatesRefused;
     private Material? rockMaterial;
 
     private DungeonState state = DungeonState.Outside;
@@ -130,6 +125,11 @@ internal sealed class DungeonModule : IProductModule
                     break;
                 }
 
+                if (loading.Loaded && !Accept(loading))
+                {
+                    break;
+                }
+
                 if (loading.Loaded)
                 {
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival));
@@ -138,7 +138,7 @@ internal sealed class DungeonModule : IProductModule
                     state = DungeonState.Inside;
                     entered++;
                     last = string.Create(CultureInfo.InvariantCulture,
-                        $"entered {loading.Layout.Name}: {loading.TotalChunks} chunks in {loading.LoadMilliseconds:F0} ms");
+                        $"entered {loading.Layout.Name} (candidate {candidateIndex}): {loading.TotalChunks} chunks in {loading.LoadMilliseconds:F0} ms, routes checked in {routes!.PublishMilliseconds + routes.QueryMilliseconds:F0} ms");
                 }
 
                 break;
@@ -198,29 +198,81 @@ internal sealed class DungeonModule : IProductModule
         }
 
         // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
-        ulong seed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
-        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict, DungeonVolume walked) = approach switch
+        entranceSeed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
+        string loading = Load(0);
+        if (state != DungeonState.Loading)
         {
-            DungeonApproach.SculptedCave => Sculpted(seed),
-            DungeonApproach.Modules => Modular(seed),
-            _ => CarveAndStampWalked(seed),
-        };
-        plan = generated;
-        walkable = walked;
+            return Refuse(loading);
+        }
+
+        last = $"{loading} under the entrance at {entrance.X},{entrance.Z}";
+        Publish();
+        return last;
+    }
+
+    /// <summary>Generates one of the entrance's candidates and starts loading it.</summary>
+    private string Load(int index)
+    {
+        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index);
+        candidateIndex = index;
+        plan = candidate.Plan;
+        walkable = candidate.Walkable;
         try
         {
-            space = new DungeonSpace(engine, terrain, layout, layout.Rock is null ? null : RockMaterial());
+            space = new DungeonSpace(engine, terrain, candidate.Layout, candidate.Layout.Rock is null ? null : RockMaterial());
         }
         catch (EngineCallException refusal)
         {
             // The Engine would not make the space: nothing is entered, and the game carries on.
-            return Refuse($"enter refused: the dungeon could not be made: {refusal.Message}");
+            plan = null;
+            walkable = null;
+            return $"enter refused: the dungeon could not be made: {refusal.Message}";
         }
 
         state = DungeonState.Loading;
-        last = $"loading {approach} {generated.Mix} dungeon {seed:x} (attempt {generated.Attempt}, {verdict.Reason}) under the entrance at {entrance.X},{entrance.Z}";
-        Publish();
-        return last;
+        return $"loading {approach} {candidate.Plan.Mix} dungeon {candidate.Seed:x} (candidate {index}, attempt {candidate.Plan.Attempt}, {candidate.Verdict.Reason})";
+    }
+
+    /// <summary>
+    /// Asks the Engine whether a loaded candidate can be walked as its flow promises. If it cannot,
+    /// the candidate is let go and the entrance's next one starts loading, still behind the loading
+    /// screen; when none is left, the entrance is given up and the player stays outside.
+    /// </summary>
+    private bool Accept(DungeonSpace loaded)
+    {
+        try
+        {
+            routes = DungeonRoutes.Check(engine, loaded.Session, walkable!, plan!, NavigationProfile.Player(engine.Spatial, walkable!));
+        }
+        catch (EngineCallException refusal)
+        {
+            Close($"the dungeon's routes could not be checked: {refusal.Message}");
+            return false;
+        }
+
+        if (routes.Walkable)
+        {
+            return true;
+        }
+
+        candidatesRefused++;
+        string refusedRoute = routes.FirstRefused?.ToString() ?? "a route";
+        if (candidateIndex + 1 >= DungeonCandidates.MaximumCandidates)
+        {
+            Close($"no dungeon under this entrance can be walked: candidate {candidateIndex} refused {refusedRoute}");
+            return false;
+        }
+
+        Retire();
+        string loading = Load(candidateIndex + 1);
+        if (state != DungeonState.Loading)
+        {
+            Close(loading);
+            return false;
+        }
+
+        last = $"{loading}; the last refused {refusedRoute}";
+        return false;
     }
 
     /// <summary>What the loaded dungeon adds to the appearance snapshot: a sculpted dungeon's rock.</summary>
@@ -254,20 +306,6 @@ internal sealed class DungeonModule : IProductModule
         approach = next;
         return $"the next dungeon is {approach}";
     }
-
-    private static (DungeonLayout, DungeonPlan, DungeonVerdict, DungeonVolume) CarveAndStampWalked(ulong seed)
-    {
-        (DungeonLayout layout, DungeonPlan plan, DungeonVerdict verdict) = CarveAndStamp.Generate(seed);
-        return (layout, plan, verdict, layout.Volume);
-    }
-
-    private static (DungeonLayout, DungeonPlan, DungeonVerdict, DungeonVolume) Modular(ulong seed)
-    {
-        var generated = ModularDungeon.Generate(seed);
-        return (generated.Layout, generated.Plan, generated.Verdict, generated.Walkable);
-    }
-
-    private static (DungeonLayout, DungeonPlan, DungeonVerdict, DungeonVolume) Sculpted(ulong seed) => SculptedCave.Generate(seed);
 
     /// <summary>The sculpted rock's material, made once and kept for every sculpted dungeon.</summary>
     private Material RockMaterial()
@@ -364,17 +402,13 @@ internal sealed class DungeonModule : IProductModule
         string layout = plan is DungeonPlan current2
             ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}] {space?.RockReadout}"
             : string.Empty;
-        return $"dungeon approach={approach} state={state}{loading}{layout} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
+        return $"dungeon approach={approach} state={state} candidate={candidateIndex}{loading}{layout} routes=[{routes}] candidatesRefused={candidatesRefused} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
     }
 
     private void Close(string outcome)
     {
         Light([]);
-
-        // The rock may be in the snapshot already published: it leaves the next one, then goes.
-        retiring?.Dispose();
-        retiring = space;
-        space = null;
+        Retire();
         plan = null;
         walkable = null;
         state = DungeonState.Outside;
@@ -382,6 +416,14 @@ internal sealed class DungeonModule : IProductModule
         nextSearchStep = 0;
         last = outcome;
         Publish();
+    }
+
+    /// <summary>Lets the current space go. Its rock may be in the snapshot already published: it leaves the next one, then goes.</summary>
+    private void Retire()
+    {
+        retiring?.Dispose();
+        retiring = space;
+        space = null;
     }
 
     private string Refuse(string outcome)

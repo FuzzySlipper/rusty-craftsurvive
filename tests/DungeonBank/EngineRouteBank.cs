@@ -54,61 +54,115 @@ internal static class EngineRouteBank
     /// <summary>Checks seeds of one approach for each profile, printing a line per dungeon and a summary per profile.</summary>
     internal static IReadOnlyList<Outcome> Run(string approach, ulong firstSeed, int seeds, IReadOnlyList<ProfileFor> profiles, bool verbose)
     {
-        using EngineTestHost host = EngineTestHost.Create(new EngineTestHostOptions
-        {
-            Content = new Dictionary<string, ReadOnlyMemory<byte>>
-            {
-                [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(RockTexturePath()),
-            },
-        });
-
+        using EngineTestHost host = CreateHost();
         List<Outcome> outcomes = [];
         for (ulong seed = firstSeed; seed < firstSeed + (ulong)seeds; seed++)
         {
-            (DungeonLayout layout, DungeonPlan plan, DungeonVolume walkable) = Generate(approach, seed);
-            host.Call(engine =>
-            {
-                Stopwatch clock = Stopwatch.StartNew();
-                using SpatialSession session = DungeonCollision.CreateSession(engine);
-                DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume));
-                Material? material = null;
-                MeshResource? mesh = null;
-                try
-                {
-                    if (layout.Rock is RockDensity rock)
-                    {
-                        material = DungeonCollision.CreateRockMaterial(engine);
-                        mesh = DungeonCollision.MeshRock(engine, rock, material, out _);
-                        DungeonCollision.AdmitRock(engine, session, mesh);
-                    }
+            DungeonCandidate candidate = DungeonCandidates.Generate(Approach(approach), seed, 0);
+            outcomes.AddRange(Check(host, approach, candidate, profiles, verbose));
+        }
 
-                    double buildMs = clock.Elapsed.TotalMilliseconds;
-                    foreach (ProfileFor profileFor in profiles)
+        Summarise(approach, outcomes);
+        return outcomes;
+    }
+
+    /// <summary>
+    /// Enters each entrance seed as the game does: candidates in order until the Engine walks one.
+    /// Returns, per seed, the index of the candidate accepted, or -1 when none was.
+    /// </summary>
+    internal static IReadOnlyList<int> Accept(string approach, ulong firstSeed, int seeds)
+    {
+        using EngineTestHost host = CreateHost();
+        List<int> accepted = [];
+        Stopwatch clock = Stopwatch.StartNew();
+        for (ulong seed = firstSeed; seed < firstSeed + (ulong)seeds; seed++)
+        {
+            int found = -1;
+            for (int index = 0; index < DungeonCandidates.MaximumCandidates && found < 0; index++)
+            {
+                DungeonCandidate candidate = DungeonCandidates.Generate(Approach(approach), seed, index);
+                found = Check(host, approach, candidate, [Player], verbose: false)[0].Verdict.Walkable ? index : -1;
+            }
+
+            accepted.Add(found);
+        }
+
+        var tries = accepted.GroupBy(index => index).OrderBy(group => group.Key)
+            .Select(group => group.Key < 0 ? $"none x{group.Count()}" : $"candidate {group.Key} x{group.Count()}");
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"engine-accepted {approach}: {accepted.Count(index => index >= 0)}/{seeds} entrances have a dungeon ({string.Join(", ", tries)}) in {clock.Elapsed.TotalSeconds:F1} s"));
+        return accepted;
+    }
+
+    private static DungeonApproach Approach(string name) => name switch
+    {
+        "b" => DungeonApproach.Modules,
+        "c" => DungeonApproach.SculptedCave,
+        _ => DungeonApproach.CarveAndStamp,
+    };
+
+    private static EngineTestHost CreateHost() => EngineTestHost.Create(new EngineTestHostOptions
+    {
+        Content = new Dictionary<string, ReadOnlyMemory<byte>>
+        {
+            [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(RockTexturePath()),
+        },
+    });
+
+    /// <summary>Builds one candidate in the Engine as the game loads it and checks its routes for each profile.</summary>
+    private static List<Outcome> Check(EngineTestHost host, string approach, DungeonCandidate candidate, IReadOnlyList<ProfileFor> profiles, bool verbose)
+    {
+        List<Outcome> outcomes = [];
+        DungeonLayout layout = candidate.Layout;
+        DungeonPlan plan = candidate.Plan;
+        DungeonVolume walkable = candidate.Walkable;
+        ulong seed = candidate.Seed;
+        host.Call(engine =>
+        {
+            Stopwatch clock = Stopwatch.StartNew();
+            using SpatialSession session = DungeonCollision.CreateSession(engine);
+            DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume));
+            Material? material = null;
+            MeshResource? mesh = null;
+            try
+            {
+                if (layout.Rock is RockDensity rock)
+                {
+                    material = DungeonCollision.CreateRockMaterial(engine);
+                    mesh = DungeonCollision.MeshRock(engine, rock, material, out _);
+                    DungeonCollision.AdmitRock(engine, session, mesh);
+                }
+
+                double buildMs = clock.Elapsed.TotalMilliseconds;
+                foreach (ProfileFor profileFor in profiles)
+                {
+                    NavigationProfile profile = profileFor(engine.Spatial, walkable);
+                    DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, session, walkable, plan, profile);
+                    IReadOnlyList<RouteHangUp> hangUps = verdict.Walkable ? [] : DungeonRoutes.HangUps(engine, session, walkable, verdict);
+                    outcomes.Add(new Outcome(approach, seed, verdict, hangUps, buildMs));
+                    if (verbose)
                     {
-                        NavigationProfile profile = profileFor(engine.Spatial, walkable);
-                        DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, session, walkable, plan, profile);
-                        IReadOnlyList<RouteHangUp> hangUps = verdict.Walkable ? [] : DungeonRoutes.HangUps(engine, session, walkable, verdict);
-                        outcomes.Add(new Outcome(approach, seed, verdict, hangUps, buildMs));
-                        if (verbose)
+                        Console.WriteLine($"{approach} seed {seed} {plan.Mix} floors={plan.Floors}: {verdict}");
+                        foreach (RouteHangUp hangUp in hangUps)
                         {
-                            Console.WriteLine($"{approach} seed {seed} {plan.Mix} floors={plan.Floors}: {verdict}");
-                            foreach (RouteHangUp hangUp in hangUps)
-                            {
-                                Console.WriteLine($"    hangs up: {hangUp}");
-                            }
+                            Console.WriteLine($"    hangs up: {hangUp}");
                         }
                     }
                 }
-                finally
-                {
-                    // The session holds the mesh as collision until it goes.
-                    session.Dispose();
-                    mesh?.Dispose();
-                    material?.Dispose();
-                }
-            });
-        }
+            }
+            finally
+            {
+                // The session holds the mesh as collision until it goes.
+                session.Dispose();
+                mesh?.Dispose();
+                material?.Dispose();
+            }
+        });
+        return outcomes;
+    }
 
+    private static void Summarise(string approach, List<Outcome> outcomes)
+    {
         foreach (string name in outcomes.Select(outcome => outcome.Verdict.Profile.Name).Distinct())
         {
             List<Outcome> mine = outcomes.Where(outcome => outcome.Verdict.Profile.Name == name).ToList();
@@ -126,23 +180,12 @@ internal static class EngineRouteBank
             Console.WriteLine($"    first hang-ups by step: {(walkableCount == mine.Count ? "none" : string.Join("; ", shapes))}");
         }
 
-        return outcomes;
     }
 
     internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVolume Walkable) Generate(string approach, ulong seed)
     {
-        switch (approach)
-        {
-            case "b":
-                var modular = ModularDungeon.Generate(seed);
-                return (modular.Layout, modular.Plan, modular.Walkable);
-            case "c":
-                var sculpted = SculptedCave.Generate(seed);
-                return (sculpted.Layout, sculpted.Plan, sculpted.Walkable);
-            default:
-                var carved = CarveAndStamp.Generate(seed);
-                return (carved.Layout, carved.Plan, carved.Layout.Volume);
-        }
+        DungeonCandidate candidate = DungeonCandidates.Generate(Approach(approach), seed, 0);
+        return (candidate.Layout, candidate.Plan, candidate.Walkable);
     }
 
     internal static string RockTexturePath() => Path.Combine(FindRepository(), RockTexture);

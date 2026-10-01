@@ -193,6 +193,13 @@ if (args is ["sculpted", string sculptedCount])
     return 0;
 }
 
+if (args is ["accept", string acceptApproach, string acceptSeeds])
+{
+    // accept <a|b|c> <seeds>: entrances entered as the game does, candidates tried until the Engine walks one.
+    EngineRouteBank.Accept(acceptApproach, 1UL, int.Parse(acceptSeeds, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+
 if (args is ["engine", string engineApproach, string engineSeeds, ..])
 {
     // engine <a|b|c> <seeds> [sweep] [quiet]: the Engine's route check over a bank, for the player or a sweep of bodies.
@@ -316,19 +323,18 @@ for (ulong seed = 1; seed <= SculptedSeeds; seed++)
 Console.WriteLine($"sculpted-cave: {sculptedWalkable}/{SculptedSeeds} walkable in {sculptedClock.Elapsed.TotalSeconds:F1} s");
 Check.That(sculptedWalkable >= SculptedSeeds * 0.95, $"at least 95% of sculpted dungeons must stay walkable, {sculptedWalkable}/{SculptedSeeds} did");
 
-// The Engine's own route check, headless, over dungeons of each approach for the player's body:
-// every route the flow promises must be one the Engine's collision navigation walks. B is reported,
-// not yet required: some of its smoothed cave steps are still more than the body can take.
+// The Engine's own route check, headless, as the game accepts dungeons: an entrance tries its
+// candidates in order until the Engine's collision navigation walks every route the flow promises
+// for the player's body. Every entrance must have a dungeon; how many candidates it took is
+// reported, and approaches A and C must manage on the first.
 const int EngineSeeds = 8;
 foreach (string reported in (string[])["a", "b", "c"])
 {
-    IReadOnlyList<EngineRouteBank.Outcome> outcomes = EngineRouteBank.Run(reported, 1UL, EngineSeeds, [EngineRouteBank.Player], verbose: false);
-    Check.That(outcomes.Count == EngineSeeds && outcomes.All(outcome => outcome.Verdict.WalkableCells > 0),
-        $"every {reported} dungeon must build in the Engine and publish navigation with supports");
+    IReadOnlyList<int> accepted = EngineRouteBank.Accept(reported, 1UL, EngineSeeds);
+    Check.That(accepted.All(index => index >= 0), $"every {reported} entrance must have a dungeon the Engine walks within {DungeonCandidates.MaximumCandidates} candidates");
     if (reported != "b")
     {
-        int engineWalkable = outcomes.Count(outcome => outcome.Verdict.Walkable);
-        Check.That(engineWalkable == EngineSeeds, $"every {reported} dungeon must be walkable by the Engine's navigation, {engineWalkable}/{EngineSeeds} were");
+        Check.That(accepted.All(index => index == 0), $"every {reported} entrance's first candidate must be walkable by the Engine");
     }
 }
 
