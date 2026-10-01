@@ -16,6 +16,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.enter", Description = "Enters the dungeon at the entrance the player stands at, as the UI's Enter does.")]
     public string Enter() => dungeons.Enter();
 
+    [DebugCommand("craft.dungeon.approach", Description = "Chooses how the next dungeon entered is generated: a (carve and stamp) or c (sculpted cave).")]
+    public string Approach(string name) => dungeons.Choose(name);
+
     [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, or floor0..floorN.")]
     public string Visit(string place) => dungeons.Visit(place);
 

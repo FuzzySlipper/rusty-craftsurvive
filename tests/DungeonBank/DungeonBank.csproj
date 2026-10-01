@@ -13,6 +13,8 @@
     <Compile Include="$(ProductModules)Dungeons/DungeonLayout.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonWalk.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/CarveAndStamp.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/SculptedRock.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/SculptedCave.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />

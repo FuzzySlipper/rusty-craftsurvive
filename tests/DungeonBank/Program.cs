@@ -6,11 +6,35 @@ using CraftSurvive.Game.Tests;
 // A bank of dungeon seeds, drawn and route-checked: how many come out walkable on their first
 // candidate, how many after redrawing, and why the rest fail. Pass a seed count to draw more, or
 // "section <seed>" to print one dungeon's side sections.
-if (args is ["render", string renderSeed, string output])
+if (args is ["render", string renderSeed, string output, ..] && args.Length <= 4)
 {
-    (DungeonLayout drawn, DungeonPlan drawnPlan, DungeonVerdict drawnVerdict) = CarveAndStamp.Generate(ulong.Parse(renderSeed, System.Globalization.CultureInfo.InvariantCulture));
-    Cutaway.Write(output, drawn.Volume, drawnPlan, DungeonWalk.Reachable(drawn.Volume, drawnPlan.Arrival), slices: 6);
-    Console.WriteLine($"seed {renderSeed}: {drawnPlan.Mix}, {drawnPlan.Floors} floors, attempt {drawnPlan.Attempt}, {drawnVerdict.Reason} -> {output}");
+    ulong chosen = ulong.Parse(renderSeed, System.Globalization.CultureInfo.InvariantCulture);
+    bool sculpted = args.Length == 4 && args[3] == "c";
+    (DungeonVolume shown, DungeonPlan drawnPlan, DungeonVerdict drawnVerdict) = sculpted
+        ? Sculpted(chosen)
+        : Carved(chosen);
+    Cutaway.Write(output, shown, drawnPlan, DungeonWalk.Reachable(shown, drawnPlan.Arrival), slices: 6);
+    Console.WriteLine($"seed {renderSeed} ({(sculpted ? "C" : "A")}): {drawnPlan.Mix}, {drawnPlan.Floors} floors, attempt {drawnPlan.Attempt}, {drawnVerdict.Reason} -> {output}");
+    return 0;
+}
+
+if (args is ["sculpted", string sculptedCount])
+{
+    int count = int.Parse(sculptedCount, System.Globalization.CultureInfo.InvariantCulture);
+    Dictionary<string, int> reasons = [];
+    int good = 0;
+    Stopwatch sculptClock = Stopwatch.StartNew();
+    for (ulong seed = 1; seed <= (ulong)count; seed++)
+    {
+        (_, DungeonPlan sculptedPlan, DungeonVerdict sculptedVerdict) = Sculpted(seed);
+        good += sculptedVerdict.Walkable ? 1 : 0;
+        if (!sculptedVerdict.Walkable || sculptedPlan.Attempt > 0)
+        {
+            reasons[sculptedVerdict.Reason] = reasons.GetValueOrDefault(sculptedVerdict.Reason) + 1;
+        }
+    }
+
+    Console.WriteLine($"sculpted-cave: {good}/{count} walkable in {sculptClock.Elapsed.TotalSeconds:F1} s; {string.Join("; ", reasons.Select(pair => $"{pair.Key} x{pair.Value}"))}");
     return 0;
 }
 
@@ -58,7 +82,31 @@ Console.WriteLine($"carve-and-stamp: {walkable}/{seeds} walkable ({rate:P0}); {f
 Console.WriteLine($"mix: {string.Join(", ", mixes.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key} {pair.Value}"))}");
 Console.WriteLine($"first-candidate failures: {(firstFailures.Count == 0 ? "none" : string.Join("; ", firstFailures.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} x{pair.Value}")))}");
 Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, {rate:P0} did");
+
+// Approach C must stay walkable after its rock is sculpted, on a smaller bank (sculpting costs more).
+const int SculptedSeeds = 40;
+int sculptedWalkable = 0;
+Stopwatch sculptedClock = Stopwatch.StartNew();
+for (ulong seed = 1; seed <= SculptedSeeds; seed++)
+{
+    sculptedWalkable += SculptedCave.Generate(seed).Verdict.Walkable ? 1 : 0;
+}
+
+Console.WriteLine($"sculpted-cave: {sculptedWalkable}/{SculptedSeeds} walkable in {sculptedClock.Elapsed.TotalSeconds:F1} s");
+Check.That(sculptedWalkable >= SculptedSeeds * 0.95, $"at least 95% of sculpted dungeons must stay walkable, {sculptedWalkable}/{SculptedSeeds} did");
 return Check.Finish("DungeonBank");
+
+static (DungeonVolume, DungeonPlan, DungeonVerdict) Carved(ulong seed)
+{
+    (DungeonLayout layout, DungeonPlan plan, DungeonVerdict verdict) = CarveAndStamp.Generate(seed);
+    return (layout.Volume, plan, verdict);
+}
+
+static (DungeonVolume, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)
+{
+    (_, DungeonPlan plan, DungeonVerdict verdict, DungeonVolume walkable) = SculptedCave.Generate(seed);
+    return (walkable, plan, verdict);
+}
 
 static void Section(ulong seed)
 {

@@ -10,6 +10,16 @@ using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Dungeons;
 
+/// <summary>How dungeons are generated: one of the approaches #8604 is comparing.</summary>
+internal enum DungeonApproach
+{
+    /// <summary>A: carve and stamp, all cubic voxels.</summary>
+    CarveAndStamp,
+
+    /// <summary>C: A's structure with its rock sculpted into a smooth mesh around the cubic building.</summary>
+    SculptedCave,
+}
+
 /// <summary>Where the player stands with respect to dungeons.</summary>
 internal enum DungeonState
 {
@@ -56,7 +66,17 @@ internal sealed class DungeonModule : IProductModule
     private readonly List<PoiSite> candidates = [];
     private readonly Light?[] pool = new Light?[MaximumLights];
     private DungeonSpace? space;
+
+    /// <summary>A closed dungeon waiting for one snapshot without its rock before it is released.</summary>
+    private DungeonSpace? retiring;
     private DungeonPlan? plan;
+    private DungeonApproach approach = DungeonApproach.SculptedCave;
+    private Material? rockMaterial;
+
+    /// <summary>The sculpted rock's texture, authored by scripts/generate-cave-rock.mjs.</summary>
+    internal const string RockTextureContentPath = "textures/cave-rock.png";
+
+    private const float RockRoughness = 0.92f;
     private DungeonState state = DungeonState.Outside;
     private PoiSite? nearbyEntrance;
     private long nextSearchStep;
@@ -97,7 +117,17 @@ internal sealed class DungeonModule : IProductModule
                 break;
             case DungeonState.Loading:
                 DungeonSpace loading = space!;
-                loading.Advance(ChunksPerUpdate);
+                try
+                {
+                    loading.Advance(ChunksPerUpdate);
+                }
+                catch (EngineCallException refusal)
+                {
+                    // A load the Engine refuses is abandoned with the player still at the entrance.
+                    Close($"the dungeon could not be loaded: {refusal.Message}");
+                    break;
+                }
+
                 if (loading.Loaded)
                 {
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival));
@@ -133,13 +163,23 @@ internal sealed class DungeonModule : IProductModule
         }
     }
 
+    /// <summary>
+    /// Releases everything at shutdown. The product has already published its last snapshot and
+    /// cleared the sky, so the dungeon is released at once and the sky is left alone.
+    /// </summary>
     public void Dispose()
     {
         if (space is not null)
         {
             player.ReturnFromSeparateSpace();
-            Close("closed");
+            Light([]);
+            space.Dispose();
+            space = null;
         }
+
+        AfterAppearanceSnapshot();
+        rockMaterial?.Dispose();
+        rockMaterial = null;
     }
 
     /// <summary>Starts loading the dungeon behind the entrance the player stands at.</summary>
@@ -157,13 +197,75 @@ internal sealed class DungeonModule : IProductModule
 
         // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
         ulong seed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
-        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict) = CarveAndStamp.Generate(seed);
+        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict) = approach == DungeonApproach.SculptedCave
+            ? Sculpted(seed)
+            : CarveAndStamp.Generate(seed);
         plan = generated;
-        space = new DungeonSpace(engine, terrain, layout);
+        try
+        {
+            space = new DungeonSpace(engine, terrain, layout, layout.Rock is null ? null : RockMaterial());
+        }
+        catch (EngineCallException refusal)
+        {
+            // The Engine would not make the space: nothing is entered, and the game carries on.
+            return Refuse($"enter refused: the dungeon could not be made: {refusal.Message}");
+        }
+
         state = DungeonState.Loading;
-        last = $"loading {generated.Mix} dungeon {seed:x} (attempt {generated.Attempt}, {verdict.Reason}) under the entrance at {entrance.X},{entrance.Z}";
+        last = $"loading {approach} {generated.Mix} dungeon {seed:x} (attempt {generated.Attempt}, {verdict.Reason}) under the entrance at {entrance.X},{entrance.Z}";
         Publish();
         return last;
+    }
+
+    /// <summary>What the loaded dungeon adds to the appearance snapshot: a sculpted dungeon's rock.</summary>
+    internal IEnumerable<AppearanceFact> AppearanceFacts => space?.AppearanceFacts ?? [];
+
+    /// <summary>
+    /// Called by the product root once it has published a snapshot: a closed dungeon's appearance is
+    /// no longer in use, so the dungeon can be released.
+    /// </summary>
+    internal void AfterAppearanceSnapshot()
+    {
+        retiring?.Dispose();
+        retiring = null;
+    }
+
+    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp) or c (sculpted cave).</summary>
+    internal string Choose(string name)
+    {
+        DungeonApproach? chosen = name switch
+        {
+            "a" => DungeonApproach.CarveAndStamp,
+            "c" => DungeonApproach.SculptedCave,
+            _ => null,
+        };
+        if (chosen is not DungeonApproach next)
+        {
+            return $"approach refused: \"{name}\" is not a (carve and stamp) or c (sculpted cave)";
+        }
+
+        approach = next;
+        return $"the next dungeon is {approach}";
+    }
+
+    private static (DungeonLayout, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)
+    {
+        (DungeonLayout layout, DungeonPlan plan, DungeonVerdict verdict, _) = SculptedCave.Generate(seed);
+        return (layout, plan, verdict);
+    }
+
+    /// <summary>The sculpted rock's material, made once and kept for every sculpted dungeon.</summary>
+    private Material RockMaterial()
+    {
+        if (rockMaterial is null)
+        {
+            RenderResourceInfo texture = engine.Graphics.OpenResource(new RenderResourceRequest(RockTextureContentPath, TextureFilter.Linear, TextureWrap.Repeat));
+            rockMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(
+                new Color(1f, 1f, 1f, 1f), texture.Handle, RockRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false,
+                MaterialAlphaMode.Opaque, 0f));
+        }
+
+        return rockMaterial;
     }
 
     /// <summary>A dungeon's seed: the world's seed mixed with its entrance's cell, so each entrance is its own dungeon.</summary>
@@ -181,7 +283,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Moves the player to a named place in the dungeon (arrival, breach, loot, or floor0..floorN), for a live look.</summary>
     internal string Visit(string place)
     {
-        if (state != DungeonState.Inside || plan is null)
+        if (state != DungeonState.Inside || plan is null || !player.InSeparateSpace)
         {
             return "visit refused: not in a dungeon";
         }
@@ -276,15 +378,18 @@ internal sealed class DungeonModule : IProductModule
             : string.Empty;
         string entrance = nearbyEntrance is PoiSite site ? $"{site.X},{site.Z}" : "none";
         string layout = plan is DungeonPlan current2
-            ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}]"
+            ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}] {space?.RockReadout}"
             : string.Empty;
-        return $"dungeon state={state}{loading}{layout} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
+        return $"dungeon approach={approach} state={state}{loading}{layout} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
     }
 
     private void Close(string outcome)
     {
         Light([]);
-        space?.Dispose();
+
+        // The rock may be in the snapshot already published: it leaves the next one, then goes.
+        retiring?.Dispose();
+        retiring = space;
         space = null;
         plan = null;
         state = DungeonState.Outside;

@@ -257,8 +257,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()
     {
-        engine.Graphics.PublishSnapshot([.. creatures.AppearanceFacts]);
+        engine.Graphics.PublishSnapshot([.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]);
         creatures.AfterAppearanceSnapshot();
+        dungeons.AfterAppearanceSnapshot();
     }
 
     private enum ProductLifecycleState

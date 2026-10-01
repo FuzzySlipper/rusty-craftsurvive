@@ -39,6 +39,7 @@ internal sealed class DayNightSky : IDisposable
     private Light? ambient;
     private double litDaylight = double.NaN;
     private bool underground;
+    private bool disposed;
 
     /// <summary>Underground there is no sky: a near-black background, no sun, and a faint fill.</summary>
     private static readonly Color UndergroundBackground = new(0.02f, 0.02f, 0.03f, 1f);
@@ -61,6 +62,11 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     internal void Underground(bool below, WorldTime time)
     {
+        if (disposed)
+        {
+            return;
+        }
+
         underground = below;
         litDaylight = double.NaN;
         if (!below)
@@ -82,7 +88,7 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>Shows the sky and lights for a moment. Lights are replaced only when daylight has moved.</summary>
     internal void Show(WorldTime time)
     {
-        if (underground)
+        if (underground || disposed)
         {
             return;
         }
@@ -114,6 +120,7 @@ internal sealed class DayNightSky : IDisposable
     public void Dispose()
     {
         engine.CameraView.ClearSkyBackground(new ClearSkyBackgroundRequest(0U));
+        disposed = true;
         sun = null;
         ambient = null;
         litDaylight = double.NaN;

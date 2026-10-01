@@ -5,10 +5,14 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 
 /// <summary>
 /// A dungeon ready to load: its volume, where the player arrives and where they leave from, and
-/// where its lights hang, all in the volume's own coordinates.
+/// where its lights hang, all in the volume's own coordinates. A sculpted dungeon also carries its
+/// rock as a density the Engine meshes; its volume then holds only the building.
 /// </summary>
 internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 Arrival, Vector3 Exit, IReadOnlyList<Vector3> Lights)
 {
+    /// <summary>The rock as a smooth surface, or null when the rock is voxels.</summary>
+    internal RockDensity? Rock { get; init; }
+
     /// <summary>The most lights a dungeon hangs: the dungeon module's pool of retained lights.</summary>
     internal const int MaximumLights = 16;
 }
