@@ -7,32 +7,59 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Dungeons;
 
 /// <summary>
-/// The body a route is checked for, in the terms the Engine's collision navigation takes: a capsule,
-/// the steepest slope it stands on, and how many cells it steps up or down between neighbours.
+/// The body and rules a route is checked with: the Engine's collision-navigation configuration,
+/// named so a comparison of several reads plainly.
 /// </summary>
-internal sealed record NavigationProfile(string Name, double AgentRadius, double AgentHeight, double SlopeDegrees, uint StepCells)
+internal sealed record NavigationProfile(string Name, CollisionNavigationConfig Config)
 {
-    /// <summary>The player's own capsule and limits.</summary>
-    internal static readonly NavigationProfile Player = new(
-        "player", PlayerConstants.CapsuleRadius, PlayerConstants.StandingHeight, PlayerConstants.MaximumSlopeDegrees, 1U);
+    /// <summary>
+    /// How far a sculpted floor may lie off its cell's boundary and still be stood on from a query
+    /// at the cell's floor: dual-contoured rock settles up to about a third of a cell either way.
+    /// </summary>
+    internal const double SculptedFloorSnapMetres = 0.35d;
+
+    private const ulong GridId = 2UL;
+
+    /// <summary>
+    /// The player's own body, as the character controller has it, over a dungeon's volume: it steps
+    /// up what the player steps up and walks off drops the generator's walk allows.
+    /// </summary>
+    internal static NavigationProfile Player(ISpatialService spatial, DungeonVolume volume)
+    {
+        CollisionNavigationConfig defaults = spatial.DefaultCollisionNavigationConfig();
+        return new NavigationProfile("player", defaults with
+        {
+            GridId = GridId,
+            CellSize = TerrainConstants.VoxelSize,
+            ChunkSize = (uint)TerrainConstants.ChunkEdgeLength,
+            MaximumCells = checked((uint)(volume.SizeX * volume.SizeZ)),
+            Character = PlayerBody.Configure(spatial.DefaultCharacterControllerConfig()),
+            MaximumDrop = DungeonWalk.MaximumDrop * TerrainConstants.VoxelSize,
+            VerticalSearchCells = (uint)DungeonWalk.MaximumDrop,
+            SnapAbove = SculptedFloorSnapMetres,
+            SnapBelow = SculptedFloorSnapMetres,
+        });
+    }
 
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
-        $"{Name}(r={AgentRadius:0.##} h={AgentHeight:0.##} slope={SlopeDegrees:0} step={StepCells})");
+        $"{Name}(r={Config.Character.Shape.Radius:0.##} h={Config.Character.Shape.StandingHeight:0.##} slope={Angles.ToDegrees(Config.Character.Surface.MaximumSlopeRadians):0} step={Config.Character.Surface.MaximumStepHeight:0.##} drop={Config.MaximumDrop:0.##} snap={Config.SnapBelow:0.##}{(Config.DiagonalNeighbors ? " diagonal" : string.Empty)})");
 }
 
 /// <summary>One route the flow promises, and the Engine's answer to it.</summary>
-internal sealed record DungeonRoute(string Name, DungeonCell From, DungeonCell To, NavigationPathOutcome Outcome, int PathLength)
+internal sealed record DungeonRoute(string Name, DungeonCell From, DungeonCell To, NavigationPathOutcome Outcome, int PathLength, DungeonCell? Nearest)
 {
     internal bool Reached => Outcome == NavigationPathOutcome.Reached;
 
-    public override string ToString() => $"{Name}={Outcome}";
+    public override string ToString() => Reached || Nearest is not DungeonCell nearest
+        ? $"{Name}={Outcome}"
+        : $"{Name}={Outcome}(got to {nearest.X},{nearest.Y},{nearest.Z})";
 }
 
 /// <summary>Where the Engine first refuses a step the generator's own walk takes, and how.</summary>
-internal sealed record RouteHangUp(string Route, int StepIndex, int StepCount, DungeonCell From, DungeonCell To, NavigationPathOutcome Outcome, string Around)
+internal sealed record RouteHangUp(string Route, int StepIndex, int StepCount, DungeonCell From, DungeonCell To, string Why, string Around)
 {
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
-        $"{Route} step {StepIndex}/{StepCount} {From}->{To} rise={To.Y - From.Y} {Outcome} [{Around}]");
+        $"{Route} step {StepIndex}/{StepCount} ({From.X},{From.Y},{From.Z})->({To.X},{To.Y},{To.Z}) rise={To.Y - From.Y}: {Why} [{Around}]");
 }
 
 /// <summary>The Engine's word on a loaded dungeon: every promised route, what navigation saw and what it cost.</summary>
@@ -51,21 +78,18 @@ internal sealed record DungeonRouteVerdict(NavigationProfile Profile, IReadOnlyL
 /// loaded space, then every route the flow promises asked of it - from the arrival to the breach,
 /// each floor and the loot, and from the loot back. A dungeon is walkable when the Engine reaches
 /// them all. The generator's own voxel walk is the cheap filter before this; when the two disagree,
-/// <see cref="HangUps"/> follows the walk's route step by step to the first step the Engine refuses.
-/// Places are read as the generator reads them, at the nearest standing cell, and asked from the
-/// ground actually there: a sculpted floor lies a little above or below its cell's boundary.
+/// <see cref="HangUps"/> follows the walk's route step by step to the first step the Engine refuses
+/// and asks the Engine why. Places are read as the generator reads them, at the nearest standing cell.
 /// </summary>
 internal static class DungeonRoutes
 {
-    private const ulong GridId = 2UL;
-
     /// <summary>A route query may cross the whole space in one step.</summary>
     private const float QueryStepMetres = 4096f;
 
     private const uint QueryMaxVisited = 1_000_000U;
 
-    /// <summary>The ground under a cell is looked for from this far above its floor, down twice as far.</summary>
-    private const float GroundSearchMetres = 1f;
+    /// <summary>How far, up or down, a column's surface may be from a cell's floor to be that cell's support.</summary>
+    private const double SupportNearFloorMetres = 0.5d;
 
     /// <summary>Publishes navigation over the space for a profile, replacing any before it.</summary>
     internal static CollisionNavigationReplaceReceipt Publish(IEngineContext engine, SpatialSession session, DungeonVolume volume, NavigationProfile profile) =>
@@ -73,10 +97,7 @@ internal static class DungeonRoutes
             session,
             DungeonCollision.Origin,
             DungeonCollision.Origin + new Vector3(volume.SizeX, volume.SizeY, volume.SizeZ),
-            new CollisionNavigationConfig(
-                GridId, TerrainConstants.VoxelSize, (uint)TerrainConstants.ChunkEdgeLength, profile.StepCells,
-                profile.AgentRadius, profile.AgentHeight, profile.SlopeDegrees,
-                (uint)(volume.SizeX * volume.SizeY * volume.SizeZ))));
+            profile.Config));
 
     /// <summary>The routes a plan's flow promises: there and back.</summary>
     internal static IEnumerable<(string Name, DungeonCell From, DungeonCell To)> Promised(DungeonPlan plan)
@@ -109,7 +130,7 @@ internal static class DungeonRoutes
             DungeonCell from = DungeonWalk.Nearest(standing, place) ?? place;
             DungeonCell to = DungeonWalk.Nearest(standing, otherPlace) ?? otherPlace;
             NavigationStepResult step = Query(engine, session, from, to);
-            routes.Add(new DungeonRoute(name, from, to, step.Outcome, step.Path.Length));
+            routes.Add(new DungeonRoute(name, from, to, step.Outcome, step.Path.Length, step.NearestPresent ? InLayout(step.NearestCell) : null));
         }
 
         return new DungeonRouteVerdict(profile, routes, published.WalkableCellCount, publishMs,
@@ -118,8 +139,8 @@ internal static class DungeonRoutes
 
     /// <summary>
     /// For each route the Engine refused, the generator's walk of it and the first step along that
-    /// walk the Engine cannot make on its own, with the blocks around it. The walk is over the same
-    /// voxel copy <see cref="Check"/> read. Uses the navigation already published.
+    /// walk the Engine cannot make on its own, with the Engine's reason and the blocks around it. The
+    /// walk is over the same voxel copy <see cref="Check"/> read. Uses the navigation already published.
     /// </summary>
     internal static IReadOnlyList<RouteHangUp> HangUps(IEngineContext engine, SpatialSession session, DungeonVolume walkable, DungeonRouteVerdict verdict)
     {
@@ -129,7 +150,7 @@ internal static class DungeonRoutes
             IReadOnlyList<DungeonCell> walk = DungeonWalk.Route(walkable, route.From, route.To);
             if (walk.Count == 0)
             {
-                found.Add(new RouteHangUp(route.Name, 0, 0, route.From, route.To, route.Outcome, "the walk check has no route either"));
+                found.Add(new RouteHangUp(route.Name, 0, 0, route.From, route.To, route.Outcome.ToString(), "the walk check has no route either"));
                 continue;
             }
 
@@ -138,7 +159,8 @@ internal static class DungeonRoutes
                 NavigationStepResult step = Query(engine, session, walk[index - 1], walk[index]);
                 if (step.Outcome != NavigationPathOutcome.Reached)
                 {
-                    found.Add(new RouteHangUp(route.Name, index, walk.Count - 1, walk[index - 1], walk[index], step.Outcome, Around(walkable, walk[index - 1], walk[index])));
+                    found.Add(new RouteHangUp(route.Name, index, walk.Count - 1, walk[index - 1], walk[index],
+                        Why(engine, session, walk[index - 1], walk[index], step.Outcome), Around(walkable, walk[index - 1], walk[index])));
                     break;
                 }
             }
@@ -147,20 +169,65 @@ internal static class DungeonRoutes
         return found;
     }
 
-    /// <summary>Where a body stands in a cell: on the ground under the middle of its column, as collision has it.</summary>
-    internal static Vector3 Ground(IEngineContext engine, SpatialSession session, DungeonCell cell)
+    /// <summary>
+    /// The Engine's reason a step is refused: the edge between the two cells' supports as navigation
+    /// judges it, or, when a cell has no support, what its column's surface near the floor is instead.
+    /// </summary>
+    private static string Why(IEngineContext engine, SpatialSession session, DungeonCell from, DungeonCell to, NavigationPathOutcome outcome)
     {
-        Vector3 feet = DungeonCollision.InSession(new Vector3(cell.X + 0.5f, cell.Y, cell.Z + 0.5f));
-        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
-            session, feet + new Vector3(0f, GroundSearchMetres, 0f), -Vector3.UnitY, 2d * GroundSearchMetres,
-            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
-            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
-        return hit.Present && !hit.StartSolid ? feet with { Y = hit.Point.Y } : feet;
+        (PlanarNavCell? fromSupport, string fromColumn) = Support(engine, session, from);
+        (PlanarNavCell? toSupport, string toColumn) = Support(engine, session, to);
+        if (fromSupport is not PlanarNavCell start || toSupport is not PlanarNavCell end)
+        {
+            return $"{outcome}; from {fromColumn}; to {toColumn}";
+        }
+
+        CollisionNavigationEdgeReadout edge = engine.Spatial.ExplainCollisionNavigationEdge(new CollisionNavigationEdgeRequest(session, start, end));
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{outcome}; edge {edge.Outcome}{(edge.Admitted ? " (admitted)" : string.Empty)} from {fromColumn} to {toColumn}");
     }
 
+    /// <summary>The support standing for a cell - the column's surface nearest its floor - and how the column reads there.</summary>
+    private static (PlanarNavCell? Support, string Reading) Support(IEngineContext engine, SpatialSession session, DungeonCell cell)
+    {
+        Vector3 floor = DungeonCollision.InSession(new Vector3(cell.X, cell.Y, cell.Z));
+        CollisionNavigationColumnResult column = engine.Spatial.ExplainCollisionNavigationColumn(
+            new CollisionNavigationColumnRequest(session, (long)floor.X, (long)floor.Z));
+        CollisionNavigationSample? nearest = null;
+        foreach (CollisionNavigationSample sample in column.Samples.Span)
+        {
+            if (Math.Abs(sample.SurfaceY - floor.Y) <= SupportNearFloorMetres
+                && (nearest is not CollisionNavigationSample best || Math.Abs(sample.SurfaceY - floor.Y) < Math.Abs(best.SurfaceY - floor.Y)))
+            {
+                nearest = sample;
+            }
+        }
+
+        if (nearest is not CollisionNavigationSample found)
+        {
+            return (null, column.BudgetExhausted ? "no surface near the floor (layer budget exhausted)" : "no surface near the floor");
+        }
+
+        string reading = string.Create(CultureInfo.InvariantCulture,
+            $"{found.Outcome} {found.HitKind} at {found.SurfaceY - floor.Y:+0.00;-0.00} m normal.y {found.NormalY:F2}");
+        if (found.Outcome == CollisionNavigationSampleOutcome.CapsuleOverlap)
+        {
+            Vector3 contact = found.OverlapPoint - floor;
+            reading += string.Create(CultureInfo.InvariantCulture, $" against {found.OverlapKind} at ({contact.X:F2},{contact.Y:F2},{contact.Z:F2})");
+        }
+
+        return (found.Outcome == CollisionNavigationSampleOutcome.Support ? found.Cell : null, reading);
+    }
+
+    private static DungeonCell InLayout(PlanarNavCell cell) => new(
+        (int)(cell.X - (long)DungeonCollision.Origin.X),
+        (int)(cell.Y - (long)DungeonCollision.Origin.Y),
+        (int)(cell.Z - (long)DungeonCollision.Origin.Z));
+
     private static NavigationStepResult Query(IEngineContext engine, SpatialSession session, DungeonCell from, DungeonCell to) =>
-        engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(
-            session, Ground(engine, session, from), Ground(engine, session, to), QueryStepMetres, QueryMaxVisited));
+        engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, Feet(from), Feet(to), QueryStepMetres, QueryMaxVisited));
+
+    private static Vector3 Feet(DungeonCell cell) => DungeonCollision.InSession(new Vector3(cell.X + 0.5f, cell.Y, cell.Z + 0.5f));
 
     /// <summary>The two columns of a step, from the floor below the lower to headroom above the higher, as block initials.</summary>
     private static string Around(DungeonVolume volume, DungeonCell from, DungeonCell to)

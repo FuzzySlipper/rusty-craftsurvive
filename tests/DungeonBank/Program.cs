@@ -196,8 +196,46 @@ if (args is ["sculpted", string sculptedCount])
 if (args is ["engine", string engineApproach, string engineSeeds, ..])
 {
     // engine <a|b|c> <seeds> [sweep] [quiet]: the Engine's route check over a bank, for the player or a sweep of bodies.
-    IReadOnlyList<NavigationProfile> profiles = args.Contains("sweep") ? EngineRouteBank.Sweep : [NavigationProfile.Player];
+    IReadOnlyList<EngineRouteBank.ProfileFor> profiles = args.Contains("sweep") ? EngineRouteBank.Sweep : [EngineRouteBank.Player];
     EngineRouteBank.Run(engineApproach, 1UL, int.Parse(engineSeeds, System.Globalization.CultureInfo.InvariantCulture), profiles, verbose: !args.Contains("quiet"));
+    return 0;
+}
+
+if (args is ["around", string aroundApproach, string aroundSeed, string ax, string ay, string az])
+{
+    // around <a|b|c> <seed> <x> <y> <z>: the walked volume's blocks about a cell, layer by layer, and which module holds it.
+    var (_, aroundPlan, aroundVolume) = EngineRouteBank.Generate(aroundApproach, ulong.Parse(aroundSeed, System.Globalization.CultureInfo.InvariantCulture));
+    int cx = int.Parse(ax, System.Globalization.CultureInfo.InvariantCulture), cy = int.Parse(ay, System.Globalization.CultureInfo.InvariantCulture), cz = int.Parse(az, System.Globalization.CultureInfo.InvariantCulture);
+    HashSet<DungeonCell> standing = DungeonWalk.Reachable(aroundVolume, aroundPlan.Arrival);
+    if (aroundApproach == "b")
+    {
+        foreach (PlacedModule placed in ModularDungeon.Generate(ulong.Parse(aroundSeed, System.Globalization.CultureInfo.InvariantCulture)).Modules)
+        {
+            Console.WriteLine(placed);
+        }
+    }
+
+    for (int y = cy + 3; y >= cy - 2; y--)
+    {
+        Console.WriteLine($"y={y}");
+        for (int z = cz - 4; z <= cz + 4; z++)
+        {
+            Console.WriteLine("  " + string.Concat(Enumerable.Range(cx - 4, 9).Select(x =>
+                x == cx && z == cz ? '@' : standing.Contains(new DungeonCell(x, y, z)) ? '.' : aroundVolume.At(x, y, z) == BlockId.Air ? ' ' : aroundVolume.At(x, y, z).ToString()[0])));
+        }
+    }
+
+    return 0;
+}
+
+if (args is ["ramp", .. var rampAngles])
+{
+    // ramp <degrees>...: the Engine walking a smooth dual-contoured ramp up and down.
+    foreach (string angle in rampAngles)
+    {
+        RampProbe.Run(double.Parse(angle, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     return 0;
 }
 
@@ -278,17 +316,23 @@ for (ulong seed = 1; seed <= SculptedSeeds; seed++)
 Console.WriteLine($"sculpted-cave: {sculptedWalkable}/{SculptedSeeds} walkable in {sculptedClock.Elapsed.TotalSeconds:F1} s");
 Check.That(sculptedWalkable >= SculptedSeeds * 0.95, $"at least 95% of sculpted dungeons must stay walkable, {sculptedWalkable}/{SculptedSeeds} did");
 
-// The Engine's own route check, headless, over a few dungeons of each approach for the player's
-// body. It is reported, not yet required: the Engine's collision navigation refuses sloped rock
-// floors and full-height stair risers (rusty-engine #9032). Every dungeon must still build and
-// publish navigation the Engine can query.
+// The Engine's own route check, headless, over dungeons of each approach for the player's body:
+// every route the flow promises must be one the Engine's collision navigation walks. B is reported,
+// not yet required: its cave stairs, smoothed, are slopes steeper than the Engine climbs, so there
+// is no way back up from its loot room.
 const int EngineSeeds = 8;
 foreach (string reported in (string[])["a", "b", "c"])
 {
-    IReadOnlyList<EngineRouteBank.Outcome> outcomes = EngineRouteBank.Run(reported, 1UL, EngineSeeds, [NavigationProfile.Player], verbose: false);
+    IReadOnlyList<EngineRouteBank.Outcome> outcomes = EngineRouteBank.Run(reported, 1UL, EngineSeeds, [EngineRouteBank.Player], verbose: false);
     Check.That(outcomes.Count == EngineSeeds && outcomes.All(outcome => outcome.Verdict.WalkableCells > 0),
         $"every {reported} dungeon must build in the Engine and publish navigation with supports");
+    if (reported != "b")
+    {
+        int engineWalkable = outcomes.Count(outcome => outcome.Verdict.Walkable);
+        Check.That(engineWalkable == EngineSeeds, $"every {reported} dungeon must be walkable by the Engine's navigation, {engineWalkable}/{EngineSeeds} were");
+    }
 }
+
 return Check.Finish("DungeonBank");
 
 static (DungeonVolume, DungeonPlan, DungeonVerdict) Carved(ulong seed)

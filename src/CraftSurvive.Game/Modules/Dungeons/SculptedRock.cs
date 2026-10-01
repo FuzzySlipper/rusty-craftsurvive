@@ -36,8 +36,26 @@ internal static class SculptedRock
 
     private const float NoiseFrequency = 0.21f;
 
-    /// <summary>How far from the surface a kept-open or kept-solid cell's density is held, in density units.</summary>
-    private const float KeptMargin = 0.12f;
+    /// <summary>
+    /// How open a standing place and its headroom are held, in density units. Against a wall held at
+    /// <see cref="WallSoftness"/> this puts the wall's surface three quarters of a cell from the
+    /// place's middle, so a body as wide as the player's stands clear of it.
+    /// </summary>
+    private const float BodyOpenMargin = 0.3f;
+
+    /// <summary>
+    /// The most solid rock beside or above a standing place's body is allowed to read, in density
+    /// units: soft enough that the wall or ceiling sits beyond the cell, not bulging into it.
+    /// </summary>
+    private const float WallSoftness = 0.1f;
+
+    /// <summary>
+    /// How solid the rock under a standing place is held. As firm as the body is open, so a floor
+    /// lies on its cell's boundary and a step up between floors is a riser, not a ramp.
+    /// </summary>
+    private const float FloorFirmness = 0.3f;
+
+    private static readonly (int X, int Z)[] AroundBody = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
 
     /// <summary>The rock, the voxels that remain (the building), and a voxel copy of both for the route check.</summary>
     internal static (RockDensity Rock, DungeonVolume Building, DungeonVolume Walkable) Sculpt(DungeonVolume source, DungeonCell arrival, ulong seed)
@@ -76,20 +94,31 @@ internal static class SculptedRock
             }
         }
 
-        // What can be walked stays walkable: every standing place and its headroom stay open, and
-        // the rock under a standing place stays solid, whatever the blur and noise did nearby.
+        // What can be walked stays walkable for the player's body, whatever the blur and noise did
+        // nearby: every standing place and its headroom are held open, the rock around and above
+        // that body is held back beyond the cell, and the rock under it is held firm. Floors are
+        // held last, so where a wall beside one place is another place's floor, the floor wins.
         foreach (DungeonCell cell in walkable0)
         {
             for (int up = 0; up < DungeonWalk.Headroom; up++)
             {
                 int open = Index(cell.X, cell.Y + up, cell.Z, width, height);
-                values[open] = Math.Max(values[open], KeptMargin);
+                values[open] = Math.Max(values[open], BodyOpenMargin);
+                foreach ((int dx, int dz) in AroundBody)
+                {
+                    Soften(source, values, cell.X + dx, cell.Y + up, cell.Z + dz);
+                }
             }
 
+            Soften(source, values, cell.X, cell.Y + DungeonWalk.Headroom, cell.Z);
+        }
+
+        foreach (DungeonCell cell in walkable0)
+        {
             if (cell.Y > 0 && IsRock(source, cell.X, cell.Y - 1, cell.Z))
             {
                 int floor = Index(cell.X, cell.Y - 1, cell.Z, width, height);
-                values[floor] = Math.Min(values[floor], -KeptMargin);
+                values[floor] = Math.Min(values[floor], -FloorFirmness);
             }
         }
 
@@ -118,6 +147,16 @@ internal static class SculptedRock
         }
 
         return (rock, building, walkable);
+    }
+
+    /// <summary>Holds a rock cell next to a body no more solid than <see cref="WallSoftness"/>.</summary>
+    private static void Soften(DungeonVolume source, float[] values, int x, int y, int z)
+    {
+        if (source.Contains(x, y, z) && IsRock(source, x, y, z))
+        {
+            int index = Index(x, y, z, source.SizeX, source.SizeY);
+            values[index] = Math.Max(values[index], -WallSoftness);
+        }
     }
 
     /// <summary>

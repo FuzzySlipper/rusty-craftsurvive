@@ -104,13 +104,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   never changes what can be walked: standing places and their headroom stay open. The sculpted rock's texture is projected along one axis per face,
   so it smears on steep curved walls. Nothing inside a dungeon is saved: a session that ends inside one continues at its
   entrance, and the open world's creatures and journal wait while the player is in.
-- **Dungeon routes are the Engine's to judge, but it cannot pass them yet.** `DungeonRoutes` builds
-  a dungeon's collision as the game does (`DungeonCollision`), publishes collision navigation for
-  the player's body and asks every route the flow promises; the bank runs it headless through
-  `EngineTestHost` and `craft.dungeon.validate` runs it in a loaded dungeon. The Engine's
-  navigation refuses sloped rock floors and stair risers of exactly its step height and has no
-  drops (Engine #9032), so it is reported, not required: generation is still accepted by the
-  product's own walk over its voxel data, and dungeons have no creatures.
+- **Dungeon routes are the Engine's to judge.** `DungeonRoutes` builds a dungeon's collision as
+  the game does (`DungeonCollision`), publishes collision navigation for the player's own
+  character configuration (drops as far as `DungeonWalk.MaximumDrop`), and asks every route the
+  flow promises; the bank runs it headless through `EngineTestHost` and requires it for approaches
+  A and C, and `craft.dungeon.validate` runs it in a loaded dungeon. Generation in the game is
+  still accepted by the product's own walk over its voxel data, with the Engine check after load
+  reported, not acted on. Approach B is reported only: its one-block cave stairs, smoothed, are
+  slopes steeper than the Engine's navigation climbs (Engine #9035), so there is no way back from
+  its loot room. Sculpted rock holds a body-width clearance around every standing place, so a
+  smoothed wall never bulges into it. Dungeons have no creatures.
 
 ## Persistence
 

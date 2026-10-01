@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using CraftSurvive.Game.Modules.Dungeons;
 using Rusty.Engine;
+using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine.Testing;
 
 namespace CraftSurvive.Game.Tests;
@@ -18,30 +19,46 @@ internal static class EngineRouteBank
     /// <summary>Where the rock texture sits in the repository's content.</summary>
     private const string RockTexture = "content/game/textures/cave-rock.png";
 
-    /// <summary>Bodies to compare when looking for what a refusal hangs on.</summary>
-    internal static readonly NavigationProfile[] Sweep =
+    /// <summary>A profile made for one dungeon's volume, from the Engine's defaults.</summary>
+    internal delegate NavigationProfile ProfileFor(ISpatialService spatial, DungeonVolume volume);
+
+    internal static readonly ProfileFor Player = NavigationProfile.Player;
+
+    /// <summary>The player's body and variations on it, one option at a time, to see what a refusal hangs on.</summary>
+    internal static readonly ProfileFor[] Sweep =
     [
-        NavigationProfile.Player,
-        NavigationProfile.Player with { Name = "slim", AgentRadius = 0.2d },
-        NavigationProfile.Player with { Name = "short", AgentHeight = 1.5d },
-        NavigationProfile.Player with { Name = "steep", SlopeDegrees = 70d },
-        NavigationProfile.Player with { Name = "step2", StepCells = 2U },
-        new NavigationProfile("loose", 0.2d, 1.5d, 70d, 3U),
+        Player,
+        (spatial, volume) => Vary(spatial, volume, "no-drop", config => config with { MaximumDrop = config.Character.Surface.MaximumStepHeight }),
+        (spatial, volume) => Vary(spatial, volume, "tight-snap", config => config with { SnapAbove = DefaultSnap(spatial), SnapBelow = DefaultSnap(spatial) }),
+        (spatial, volume) => Vary(spatial, volume, "slim", config => config with
+        {
+            Character = config.Character with { Shape = config.Character.Shape with { Radius = SlimRadius } },
+        }),
+        (spatial, volume) => Vary(spatial, volume, "diagonal", config => config with { DiagonalNeighbors = true }),
+        (spatial, volume) => Vary(spatial, volume, "deep-columns", config => config with { SupportsPerColumn = DeepColumnSupports }),
     ];
 
-    /// <summary>Above every dungeon's volume, for counting what a column passes through.</summary>
-    private const float TopOfSpace = 200f;
+    private const float SlimRadius = 0.25f;
+    private const uint DeepColumnSupports = 16U;
+
+    private static NavigationProfile Vary(ISpatialService spatial, DungeonVolume volume, string name, Func<CollisionNavigationConfig, CollisionNavigationConfig> change)
+    {
+        NavigationProfile player = NavigationProfile.Player(spatial, volume);
+        return new NavigationProfile(name, change(player.Config));
+    }
+
+    private static double DefaultSnap(ISpatialService spatial) => spatial.DefaultCollisionNavigationConfig().SnapBelow;
 
     internal sealed record Outcome(string Approach, ulong Seed, DungeonRouteVerdict Verdict, IReadOnlyList<RouteHangUp> HangUps, double BuildMilliseconds);
 
     /// <summary>Checks seeds of one approach for each profile, printing a line per dungeon and a summary per profile.</summary>
-    internal static IReadOnlyList<Outcome> Run(string approach, ulong firstSeed, int seeds, IReadOnlyList<NavigationProfile> profiles, bool verbose)
+    internal static IReadOnlyList<Outcome> Run(string approach, ulong firstSeed, int seeds, IReadOnlyList<ProfileFor> profiles, bool verbose)
     {
         using EngineTestHost host = EngineTestHost.Create(new EngineTestHostOptions
         {
             Content = new Dictionary<string, ReadOnlyMemory<byte>>
             {
-                [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(Path.Combine(FindRepository(), RockTexture)),
+                [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(RockTexturePath()),
             },
         });
 
@@ -66,8 +83,9 @@ internal static class EngineRouteBank
                     }
 
                     double buildMs = clock.Elapsed.TotalMilliseconds;
-                    foreach (NavigationProfile profile in profiles)
+                    foreach (ProfileFor profileFor in profiles)
                     {
+                        NavigationProfile profile = profileFor(engine.Spatial, walkable);
                         DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, session, walkable, plan, profile);
                         IReadOnlyList<RouteHangUp> hangUps = verdict.Walkable ? [] : DungeonRoutes.HangUps(engine, session, walkable, verdict);
                         outcomes.Add(new Outcome(approach, seed, verdict, hangUps, buildMs));
@@ -77,7 +95,6 @@ internal static class EngineRouteBank
                             foreach (RouteHangUp hangUp in hangUps)
                             {
                                 Console.WriteLine($"    hangs up: {hangUp}");
-                                Console.WriteLine($"      ground under from: {Ground(engine, session, hangUp.From)}; under to: {Ground(engine, session, hangUp.To)}");
                             }
                         }
                     }
@@ -92,15 +109,16 @@ internal static class EngineRouteBank
             });
         }
 
-        foreach (NavigationProfile profile in profiles)
+        foreach (string name in outcomes.Select(outcome => outcome.Verdict.Profile.Name).Distinct())
         {
-            List<Outcome> mine = outcomes.Where(outcome => outcome.Verdict.Profile == profile).ToList();
+            List<Outcome> mine = outcomes.Where(outcome => outcome.Verdict.Profile.Name == name).ToList();
+            NavigationProfile profile = mine[0].Verdict.Profile;
             int walkableCount = mine.Count(outcome => outcome.Verdict.Walkable);
             var refused = mine.SelectMany(outcome => outcome.Verdict.Routes).Where(route => !route.Reached)
                 .GroupBy(route => $"{route.Name.Split("->")[0]}->{(route.Name.Contains("floor", StringComparison.Ordinal) ? "floorN" : route.Name.Split("->")[1])} {route.Outcome}")
                 .OrderByDescending(group => group.Count()).Select(group => $"{group.Key} x{group.Count()}");
             var shapes = mine.SelectMany(outcome => outcome.HangUps)
-                .GroupBy(hangUp => $"rise {hangUp.To.Y - hangUp.From.Y} {hangUp.Outcome}")
+                .GroupBy(hangUp => $"rise {hangUp.To.Y - hangUp.From.Y}: {hangUp.Why.Split(" m")[0].Split(" at ")[0]}")
                 .OrderByDescending(group => group.Count()).Select(group => $"{group.Key} x{group.Count()}");
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
                 $"engine routes {approach} {profile}: {walkableCount}/{mine.Count} walkable; build {mine.Average(o => o.BuildMilliseconds):F0} ms, publish {mine.Average(o => o.Verdict.PublishMilliseconds):F0} ms, queries {mine.Average(o => o.Verdict.QueryMilliseconds):F0} ms per dungeon"));
@@ -109,43 +127,6 @@ internal static class EngineRouteBank
         }
 
         return outcomes;
-    }
-
-    /// <summary>What a ray straight down the middle of a cell's column meets, from its headroom: the height above the cell's floor and the surface's upward normal.</summary>
-    private static string Ground(IEngineContext engine, SpatialSession session, DungeonCell cell)
-    {
-        System.Numerics.Vector3 top = DungeonCollision.InSession(new System.Numerics.Vector3(cell.X + 0.5f, cell.Y + DungeonWalk.Headroom - 0.05f, cell.Z + 0.5f));
-        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(session, top, -System.Numerics.Vector3.UnitY, DungeonWalk.Headroom + 2d,
-            new SpatialQueryFilter(CraftSurvive.Game.Modules.Terrain.TerrainConstants.CollisionGroupAll, CraftSurvive.Game.Modules.Terrain.TerrainConstants.CollisionMaskAll),
-            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
-        float floorY = DungeonCollision.InSession(new System.Numerics.Vector3(0f, cell.Y, 0f)).Y;
-        System.Numerics.Vector3 corner = DungeonCollision.InSession(new System.Numerics.Vector3(cell.X, 0f, cell.Z));
-        SpatialMapCell column = engine.Spatial.ReadMap(new SpatialMapRequest(session, corner, 1d, 1U, 1U,
-            floorY - 3d, floorY + 3d, floorY - 3d, floorY + 3d, ReadOnlyMemory<SpatialEntityCollider>.Empty)).Cells.Span[0];
-        string supports = column.NavigationSamples == 0
-            ? "no navigation supports within 3 m"
-            : string.Create(CultureInfo.InvariantCulture, $"{column.NavigationSamples} supports {column.MinimumSupportY - floorY:+0.00;-0.00}..{column.MaximumSupportY - floorY:+0.00;-0.00} m");
-        // Every surface a ray straight down the column meets from the top of the space to this floor.
-        int crossings = 0;
-        System.Numerics.Vector3 from = DungeonCollision.InSession(new System.Numerics.Vector3(cell.X + 0.5f, TopOfSpace, cell.Z + 0.5f));
-        while (from.Y > floorY - 0.5f)
-        {
-            SpatialHit next = engine.Spatial.CastRay(new SpatialRaycastRequest(session, from, -System.Numerics.Vector3.UnitY, from.Y - (floorY - 0.5f),
-                new SpatialQueryFilter(CraftSurvive.Game.Modules.Terrain.TerrainConstants.CollisionGroupAll, CraftSurvive.Game.Modules.Terrain.TerrainConstants.CollisionMaskAll),
-                ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
-            if (!next.Present)
-            {
-                break;
-            }
-
-            crossings++;
-            from = next.Point - new System.Numerics.Vector3(0f, 0.001f, 0f);
-        }
-
-        supports += $", {crossings} surfaces from the top";
-        return hit.Present
-            ? string.Create(CultureInfo.InvariantCulture, $"{hit.Kind} at {hit.Point.Y - floorY:+0.00;-0.00} m, normal.y {hit.Normal.Y:F2}{(hit.StartSolid ? " (started solid)" : string.Empty)}, {supports}")
-            : $"nothing, {supports}";
     }
 
     internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVolume Walkable) Generate(string approach, ulong seed)
@@ -164,6 +145,8 @@ internal static class EngineRouteBank
         }
     }
 
+    internal static string RockTexturePath() => Path.Combine(FindRepository(), RockTexture);
+
     private static string FindRepository()
     {
         string? directory = AppContext.BaseDirectory;
@@ -173,5 +156,72 @@ internal static class EngineRouteBank
         }
 
         return directory ?? throw new InvalidOperationException("the repository root was not found above the bank");
+    }
+}
+
+/// <summary>
+/// The smallest case of a smooth slope: a dual-contoured ramp rising along +X at an angle in an
+/// otherwise empty space, and the Engine asked to walk up it and down it for the player's body.
+/// </summary>
+internal static class RampProbe
+{
+    private const int Width = 16;
+    private const int Height = 16;
+    private const int Depth = 6;
+    private const float BaseHeight = 3f;
+
+    internal static void Run(double degrees)
+    {
+        using EngineTestHost host = EngineTestHost.Create(new EngineTestHostOptions
+        {
+            Content = new Dictionary<string, ReadOnlyMemory<byte>>
+            {
+                [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(EngineRouteBank.RockTexturePath()),
+            },
+        });
+        float slope = (float)Math.Tan(degrees * Math.PI / 180d);
+        float[] values = new float[Width * Height * Depth];
+        for (int z = 0; z < Depth; z++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                for (int x = 0; x < Width; x++)
+                {
+                    // Sample centres sit at cell middles; negative below the ramp's surface.
+                    float surface = BaseHeight + (slope * (x + 0.5f));
+                    values[(((z * Height) + y) * Width) + x] = (y + 0.5f) - surface;
+                }
+            }
+        }
+
+        RockDensity rock = new(Width, Height, Depth, values);
+        DungeonVolume empty = new(1, 1, 1, BlockId.Air);
+        host.Call(engine =>
+        {
+            using SpatialSession session = DungeonCollision.CreateSession(engine);
+            Material material = DungeonCollision.CreateRockMaterial(engine);
+            MeshResource mesh = DungeonCollision.MeshRock(engine, rock, material, out _);
+            DungeonCollision.AdmitRock(engine, session, mesh);
+            CollisionNavigationConfig config = NavigationProfile.Player(engine.Spatial, empty).Config with { MaximumCells = Width * Depth };
+            engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
+                session, DungeonCollision.Origin, DungeonCollision.Origin + new System.Numerics.Vector3(Width, Height, Depth), config));
+            System.Numerics.Vector3 At(float x) => DungeonCollision.InSession(new System.Numerics.Vector3(x + 0.5f, BaseHeight + (slope * (x + 0.5f)), 2.5f));
+            NavigationStepResult up = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, At(2), At(Width - 4), 4096f, 100_000U));
+            NavigationStepResult down = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, At(Width - 4), At(2), 4096f, 100_000U));
+            string edges = string.Join(", ", Enumerable.Range(2, 4).Select(x =>
+            {
+                CollisionNavigationColumnResult a = engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x, 2));
+                PlanarNavCell from = a.Samples.Span[0].Cell;
+                CollisionNavigationColumnResult b = engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x + 1, 2));
+                PlanarNavCell to = b.Samples.Span[0].Cell;
+                CollisionNavigationEdgeReadout edge = engine.Spatial.ExplainCollisionNavigationEdge(new CollisionNavigationEdgeRequest(session, from, to));
+                CollisionNavigationEdgeReadout back = engine.Spatial.ExplainCollisionNavigationEdge(new CollisionNavigationEdgeRequest(session, to, from));
+                return $"x{x}->{x + 1} up {edge.Outcome} down {back.Outcome}";
+            }));
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"ramp {degrees:0} deg: up {up.Outcome}, down {down.Outcome}; {edges}"));
+            session.Dispose();
+            mesh.Dispose();
+            material.Dispose();
+        });
     }
 }

@@ -331,7 +331,7 @@ internal sealed class DungeonModule : IProductModule
             return "validate refused: not in a dungeon";
         }
 
-        DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, space.Session, walkable, plan, NavigationProfile.Player);
+        DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, space.Session, walkable, plan, NavigationProfile.Player(engine.Spatial, walkable));
         IReadOnlyList<RouteHangUp> hangUps = DungeonRoutes.HangUps(engine, space.Session, walkable, verdict);
         return hangUps.Count == 0 ? verdict.ToString() : $"{verdict} hang-ups: {string.Join("; ", hangUps)}";
     }

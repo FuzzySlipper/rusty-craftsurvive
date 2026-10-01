@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -29,9 +30,12 @@ internal sealed class CreatureNavigation
     /// <summary>The box's cell budget: its square by its height must stay within it.</summary>
     private const uint MaximumCells = 262_144U;
 
-    private const double AgentRadius = 0.3d;
-    private const double AgentHeight = 1.8d;
-    private const double MaximumSlopeDegrees = 45d;
+    private const float AgentRadius = 0.3f;
+    private const float AgentHeight = 1.8f;
+    private const float MaximumSlopeDegrees = 45f;
+
+    /// <summary>How far a creature's standing capsule is held clear of what it stands on.</summary>
+    private const float ContactSkin = 0.02f;
     private const uint MaximumVisitedCells = 4_096U;
 
     /// <summary>
@@ -60,6 +64,7 @@ internal sealed class CreatureNavigation
     private const float RepublishDistanceMetres = 12f;
 
     private readonly IEngineContext engine;
+    private readonly CollisionNavigationConfig config;
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
     private Vector3? publishedAround;
@@ -76,7 +81,37 @@ internal sealed class CreatureNavigation
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
+        config = Configure(engine.Spatial);
         frame.Rebased += _ => publishedAround = null;
+    }
+
+    /// <summary>
+    /// A creature's body as navigation stands and steps it: a capsule the player's width and a little
+    /// taller, stepping up and down the ground's two-block terraces.
+    /// </summary>
+    private static CollisionNavigationConfig Configure(ISpatialService spatial)
+    {
+        CollisionNavigationConfig defaults = spatial.DefaultCollisionNavigationConfig();
+        CharacterControllerConfig body = defaults.Character;
+        const double stepMetres = TerrainConstants.VoxelSize * MaximumStepCells;
+        return defaults with
+        {
+            GridId = GridId,
+            CellSize = TerrainConstants.VoxelSize,
+            ChunkSize = ChunkSize,
+            MaximumCells = MaximumCells,
+            Character = body with
+            {
+                Shape = body.Shape with { Radius = AgentRadius, StandingHeight = AgentHeight, ContactSkin = ContactSkin },
+                Surface = body.Surface with
+                {
+                    MaximumStepHeight = (float)stepMetres,
+                    MaximumSlopeRadians = Angles.ToRadians(MaximumSlopeDegrees),
+                },
+            },
+            MaximumDrop = stepMetres,
+            VerticalSearchCells = MaximumStepCells,
+        };
     }
 
     /// <summary>Publishes navigation around the player if what was published no longer covers them or the world.</summary>
@@ -104,15 +139,7 @@ internal sealed class CreatureNavigation
             terrain.Session,
             new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent),
             new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent),
-            new CollisionNavigationConfig(
-                GridId,
-                TerrainConstants.VoxelSize,
-                ChunkSize,
-                MaximumStepCells,
-                AgentRadius,
-                AgentHeight,
-                MaximumSlopeDegrees,
-                MaximumCells)));
+            config));
         lastPublishMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         worstPublishMilliseconds = Math.Max(worstPublishMilliseconds, lastPublishMilliseconds);
         totalPublishMilliseconds += lastPublishMilliseconds;
