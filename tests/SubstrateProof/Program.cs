@@ -5,8 +5,8 @@ using Rusty.Engine.StateMachine;
 
 // An Engine canary, not a check of product code: it links no product file. It pins the Engine
 // gameplay substrate the product intends to build on, so a pair update that changes it fails here
-// first. MechanicsException carries no typed reason, so a refusal is checked by its type and its
-// effects (nothing partial, no revision moved); its message is printed as an observation only.
+// first. A refusal is checked by its typed MechanicsRefusal reason and its effects (nothing
+// partial, no revision moved); its message is printed as an observation only.
 //
 // Staged proof for campaign #8595 slice #8596 (S0): can this product admit the
 // Engine's gameplay substrate at all? The product has never constructed an
@@ -62,20 +62,22 @@ string Surface(Action operation)
     }
 }
 
-// Returns the refusal message while reporting the exception type, so a case can
-// assert *why* it was refused rather than only that something was refused.
-string SurfaceMessage(Action operation, out string surface)
+// Returns the typed refusal (null when the operation threw something else, or nothing) while
+// reporting the exception type and message, so a case asserts *why* it was refused.
+MechanicsRefusal? Refusal(Action operation, out string surface, out string message)
 {
     try
     {
         operation();
         surface = "returned without throwing";
-        return string.Empty;
+        message = string.Empty;
+        return null;
     }
     catch (Exception exception)
     {
         surface = exception.GetType().Name;
-        return exception.Message;
+        message = exception.Message;
+        return (exception as MechanicsException)?.Reason;
     }
 }
 
@@ -141,10 +143,10 @@ Check.That(Held(inventory, owner, main) == 6UL, "consume is not visible in the o
 // optimistic-concurrency assumptions Slices 4 and 7 are priced on.
 ulong inventoryRevisionBeforeRefusal = inventory.View(owner).InventoryRevision;
 ulong storeRevisionBeforeRefusal = inventory.View(owner).StoreRevision;
-string insufficientSurface = Surface(() => inventory.Consume(owner, main, 999UL));
+MechanicsRefusal? insufficient = Refusal(() => inventory.Consume(owner, main, 999UL), out string insufficientSurface, out _);
 Check.That(
-    insufficientSurface == nameof(MechanicsException),
-    $"insufficient consume surfaced as {insufficientSurface}, expected MechanicsException");
+    insufficient == MechanicsRefusal.Insufficient,
+    $"insufficient consume surfaced as {insufficientSurface} ({insufficient}), expected MechanicsException (Insufficient)");
 Check.That(Held(inventory, owner, main) == 6UL, "a refused consume changed the stack");
 Check.That(
     inventory.View(owner).InventoryRevision == inventoryRevisionBeforeRefusal,
@@ -155,18 +157,19 @@ Check.That(
 Observe($"insufficient consume surfaced as: {insufficientSurface}");
 
 // A per-stack maximum and a per-metric capacity limit are different refusals
-// with the same exception type, so each case must isolate its cause and the
-// refusal message is asserted too. This one runs against a separate owner whose
+// with the same exception type, so each case isolates its cause and asserts its
+// typed reason. This one runs against a separate owner whose
 // metric limit cannot trip: 1000 exceeds MaximumQuantity and nothing else.
 EntityId bulkOwner = new(3UL);
 inventory.RegisterInventory(new InventoryState(bulkOwner, [new InventoryCapacityLimit(slots, 100_000UL)]));
 ulong storeRevisionBeforeStackRefusal = inventory.View(owner).StoreRevision;
-string stackMaximumMessage = SurfaceMessage(
+MechanicsRefusal? stackMaximum = Refusal(
     () => inventory.Grant(bulkOwner, stone, spill, 1000UL),
-    out string stackMaximumSurface);
+    out string stackMaximumSurface,
+    out string stackMaximumMessage);
 Check.That(
-    stackMaximumSurface == nameof(MechanicsException),
-    $"a stack-maximum refusal surfaced as {stackMaximumSurface}, expected MechanicsException");
+    stackMaximum == MechanicsRefusal.StackMaximum,
+    $"a stack-maximum refusal surfaced as {stackMaximumSurface} ({stackMaximum}), expected MechanicsException (StackMaximum)");
 Check.That(Held(inventory, bulkOwner, spill) == 0UL, "a stack-maximum refusal left a partial stack");
 Check.That(
     inventory.View(bulkOwner).InventoryRevision == 0UL,
@@ -180,12 +183,13 @@ Observe($"exceeding the per-stack maximum surfaced as: {stackMaximumSurface}: {s
 // exceeds the metric maximum of 64. The store-revision baseline is taken here
 // because registering the isolation inventory above legitimately advanced it.
 ulong storeRevisionBeforeCapacityRefusal = inventory.View(owner).StoreRevision;
-string capacityMessage = SurfaceMessage(
+MechanicsRefusal? capacity = Refusal(
     () => inventory.Grant(owner, stone, spill, 60UL),
-    out string capacitySurface);
+    out string capacitySurface,
+    out string capacityMessage);
 Check.That(
-    capacitySurface == nameof(MechanicsException),
-    $"a capacity refusal surfaced as {capacitySurface}, expected MechanicsException");
+    capacity == MechanicsRefusal.Capacity,
+    $"a capacity refusal surfaced as {capacitySurface} ({capacity}), expected MechanicsException (Capacity)");
 Check.That(Held(inventory, owner, spill) == 0UL, "a capacity refusal left a partial stack");
 Check.That(
     inventory.View(owner).InventoryRevision == inventoryRevisionBeforeRefusal,
@@ -204,10 +208,10 @@ Check.That(
 Check.That(
     CapacityUsed(inventory, owner, slots) == MetricMaximum,
     $"the filled inventory reports {CapacityUsed(inventory, owner, slots)} used, expected {MetricMaximum}");
-string boundarySurface = Surface(() => inventory.Grant(owner, stone, spare, 1UL));
+MechanicsRefusal? boundary = Refusal(() => inventory.Grant(owner, stone, spare, 1UL), out string boundarySurface, out _);
 Check.That(
-    boundarySurface == nameof(MechanicsException),
-    $"a grant past the capacity boundary surfaced as {boundarySurface}, expected MechanicsException");
+    boundary == MechanicsRefusal.Capacity,
+    $"a grant past the capacity boundary surfaced as {boundarySurface} ({boundary}), expected MechanicsException (Capacity)");
 Check.That(Held(inventory, owner, spare) == 0UL, "a refused boundary grant left a partial stack");
 Observe("the metric capacity boundary accepts an exact fill and refuses the next unit");
 
