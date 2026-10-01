@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
@@ -33,6 +34,7 @@ internal sealed class PlayerActionModule
     private readonly InventoryModule inventory;
     private readonly SurvivalModule survival;
     private readonly WorldConditionsModule conditions;
+    private readonly DungeonModule dungeons;
     private readonly ProductUiPublisher ui;
     private long applied;
     private long refused;
@@ -40,8 +42,9 @@ internal sealed class PlayerActionModule
     private bool published;
 
     internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, InventoryModule inventory,
-        SurvivalModule survival, WorldConditionsModule conditions, ProductUiPublisher ui)
+        SurvivalModule survival, WorldConditionsModule conditions, DungeonModule dungeons, ProductUiPublisher ui)
     {
+        this.dungeons = dungeons ?? throw new ArgumentNullException(nameof(dungeons));
         this.survival = survival ?? throw new ArgumentNullException(nameof(survival));
         this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
         this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
@@ -108,6 +111,14 @@ internal sealed class PlayerActionModule
         {
             long refusedBefore = inventory.Refused;
             Settle(name, inventory.Use(action.Name), inventory.Refused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind is PlayerActionKind.Enter or PlayerActionKind.Leave)
+        {
+            long refusedBefore = dungeons.Refused;
+            string outcome = action.Kind == PlayerActionKind.Enter ? dungeons.Enter() : dungeons.Leave();
+            Settle(name, outcome, dungeons.Refused > refusedBefore);
             return;
         }
 

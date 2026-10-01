@@ -3,6 +3,7 @@ import { mountActions } from './actions.js';
 import { mountDeveloperTools } from './developer.js';
 import { element, isolateEvents } from './dom.js';
 import { mountHud } from './hud.js';
+import { mountLoading } from './loading.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; J attacks; F clears and G places terrain. '
   + 'Controller: left stick moves, right stick looks, A jumps, B crouches, RT clears, LT places.';
@@ -30,11 +31,13 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   panel.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
   const disposeDeveloperTools = mountDeveloperTools(panel, status);
   root.append(panel);
+  const disposeLoading = mountLoading(root, context.projection);
 
   return Object.freeze({
     dispose: () => {
       unsubscribe();
       unsubscribeActions();
+      disposeLoading();
       disposeDeveloperTools();
       panel.remove();
     },

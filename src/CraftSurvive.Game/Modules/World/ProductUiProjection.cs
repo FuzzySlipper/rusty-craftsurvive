@@ -6,13 +6,13 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>
 /// The product's one UI projection, as a flat object of numbers and short texts: the world's scene
 /// facts, the player's pose, vitals and progress, the journal, what the last UI action came to,
-/// the world's time and difficulty, the player's food and air, and what they carry. Each owner pushes its facts to the publisher; the
+/// the world's time and difficulty, the player's food and air, what they carry, and where they stand with dungeons. Each owner pushes its facts to the publisher; the
 /// projection is how they are laid out for the DOM companion.
 /// </summary>
 internal static class ProductUiProjection
 {
     internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, PlayerUiFacts? player,
-        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory)
+        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon)
     {
         NumericObjectBuilder values = new();
         values.Add("revision", scene.SourceRevision);
@@ -84,6 +84,16 @@ internal static class ProductUiProjection
             values.AddText("usable", carried.Usable);
             values.Add("torches", carried.Torches);
             values.AddText("lastInventory", carried.Last);
+        }
+
+        if (dungeon is DungeonUiFacts below)
+        {
+            values.AddText("dungeonState", below.State);
+            values.Add("dungeonProgress", below.Progress);
+            values.AddText("dungeonPrompt", below.Prompt);
+            values.Add("dungeonCanEnter", below.CanEnter ? 1d : 0d);
+            values.Add("dungeonCanLeave", below.CanLeave ? 1d : 0d);
+            values.AddText("dungeonLast", below.Last);
         }
 
         return values.Build();

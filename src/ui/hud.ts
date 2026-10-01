@@ -21,11 +21,12 @@ interface HudRow {
   readonly show: (values: Values) => string | null;
 }
 
-const number = (values: Values, key: string): number | null => (typeof values[key] === 'number' ? values[key] as number : null);
+export const number = (values: Values, key: string): number | null => (typeof values[key] === 'number' ? values[key] as number : null);
 export const text = (values: Values, key: string): string | null => (typeof values[key] === 'string' ? values[key] as string : null);
 const fixed = (value: number | null, digits: number): string | null => (value === null ? null : value.toFixed(digits));
 
 const ROWS: readonly HudRow[] = [
+  { label: 'Dungeon', show: (v) => { const p = text(v, 'dungeonPrompt'); return p === null || p === '' ? null : p; } },
   { label: 'Time', show: (v) => { const t = text(v, 'worldTime'); return t === null ? null : number(v, 'night') === 1 ? `${t} (night)` : t; } },
   { label: 'Health', show: (v) => { const h = number(v, 'health'); const m = number(v, 'maximumHealth'); return h === null || m === null ? null : `${h} / ${m}`; } },
   { label: 'Food', show: (v) => { const f = number(v, 'satiety'); return f === null ? null : `${f.toFixed(0)}%${f <= 0 ? ' (starving)' : f < 25 ? ' (hungry)' : ''}`; } },
@@ -39,6 +40,7 @@ const ROWS: readonly HudRow[] = [
   { label: 'Nearest place', show: (v) => { const d = number(v, 'discoveryNearest'); return d === null || d <= 0 ? null : `${d.toFixed(0)} m`; } },
   { label: 'Edits', show: (v) => fixed(number(v, 'overlayEntries'), 0) },
   { label: 'Last action', show: (v) => text(v, 'lastAction') },
+  { label: 'Underground', show: (v) => { const t = text(v, 'dungeonLast'); return t === null || t === 'none' ? null : t; } },
   { label: 'Inventory', show: (v) => { const t = text(v, 'lastInventory'); return t === null || t === 'none' ? null : t; } },
 ];
 

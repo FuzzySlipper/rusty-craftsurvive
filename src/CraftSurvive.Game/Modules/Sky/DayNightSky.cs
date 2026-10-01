@@ -38,6 +38,12 @@ internal sealed class DayNightSky : IDisposable
     private Light? sun;
     private Light? ambient;
     private double litDaylight = double.NaN;
+    private bool underground;
+
+    /// <summary>Underground there is no sky: a near-black background, no sun, and a faint fill.</summary>
+    private static readonly Color UndergroundBackground = new(0.02f, 0.02f, 0.03f, 1f);
+
+    private const float UndergroundAmbientIntensity = 0.3f;
 
     internal DayNightSky(IEngineContext engine)
     {
@@ -49,9 +55,38 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>The daylight the lights were last set for.</summary>
     internal double Daylight => litDaylight;
 
+    /// <summary>
+    /// Goes underground or comes back up. Underground the sky is a dark background and the sun is
+    /// out; coming back up shows the sky for the time of day again.
+    /// </summary>
+    internal void Underground(bool below, WorldTime time)
+    {
+        underground = below;
+        litDaylight = double.NaN;
+        if (!below)
+        {
+            Show(time);
+            return;
+        }
+
+        engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(UndergroundBackground));
+        LightDescriptor dark = Directional(MoonColour, 0f, -Vector3.UnitY) with { Enabled = false };
+        LightDescriptor fill = Fill(0d) with { Intensity = UndergroundAmbientIntensity };
+        if (sun is Light retainedSun && ambient is Light retainedFill)
+        {
+            engine.Graphics.UpdateLight(new LightUpdateRequest(retainedSun, Request(ProductIds.SunLight, dark)));
+            engine.Graphics.UpdateLight(new LightUpdateRequest(retainedFill, Request(ProductIds.AmbientLight, fill)));
+        }
+    }
+
     /// <summary>Shows the sky and lights for a moment. Lights are replaced only when daylight has moved.</summary>
     internal void Show(WorldTime time)
     {
+        if (underground)
+        {
+            return;
+        }
+
         double daylight = WorldClock.Daylight(time.DayFraction);
         engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(day, night, (float)(1d - daylight)));
         if (sun is not null && Math.Abs(daylight - litDaylight) < RelightStep)

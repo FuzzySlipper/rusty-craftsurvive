@@ -27,6 +27,9 @@ internal static class ProductIds
     /// <summary>Placed lamps' retained lights are this base plus their slot in the lamp pool.</summary>
     internal const ulong LampLightBase = 0x100UL;
 
+    /// <summary>A dungeon's own lights are this base plus their index in its layout.</summary>
+    internal const ulong DungeonLightBase = 0x200UL;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

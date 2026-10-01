@@ -62,6 +62,12 @@ internal sealed class PlayerController : IDisposable
 
     /// <summary>Whether the last controller step left the player's head under water.</summary>
     private bool headSubmerged;
+
+    /// <summary>The separate space the player is in, and where they left the open world; null in the open world.</summary>
+    private SeparateSpace? away;
+
+    /// <summary>The session the player stands in: a separate space's, or the open world's.</summary>
+    private SpatialSession Session => away?.Session ?? terrain.Session;
     private Vector3 lastUpdatePositionBefore;
     private Vector3 lastUpdatePositionAfter;
     private TerrainWorldEditResult? lastTerrainEdit;
@@ -184,7 +190,7 @@ internal sealed class PlayerController : IDisposable
         diagnostics.RecordMovement(updateCount, frame, lastControllerStepCount, lastStepReceipt,
             lastUpdatePositionBefore, lastUpdatePositionAfter);
 
-        if (WorldOriginRebaser.IsNeeded(playerLocal))
+        if (away is null && WorldOriginRebaser.IsNeeded(playerLocal))
         {
             Vector3 before = playerLocal;
             playerLocal = rebaser.Rebase(terrain.Session, playerGlobal, playerLocal);
@@ -195,8 +201,12 @@ internal sealed class PlayerController : IDisposable
             camera.Cut();
         }
 
-        terrain.SynchronizeAround(playerGlobal.FloorVoxel());
-        if (frame.Edit is TerrainEditKind edit)
+        if (away is null)
+        {
+            terrain.SynchronizeAround(playerGlobal.FloorVoxel());
+        }
+
+        if (away is null && frame.Edit is TerrainEditKind edit)
         {
             lastTerrainEdit = terrain.TryEditFromView(
                 EyePosition(),
@@ -238,7 +248,6 @@ internal sealed class PlayerController : IDisposable
         PublishRuntimeComponent();
     }
 
-    /// <summary>What the player is aiming at now, within edit reach.</summary>
     /// <summary>Whether the player's head is under water, as the last controller step found it.</summary>
     internal bool HeadSubmerged => headSubmerged;
 
@@ -248,12 +257,44 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Where the player last looked, as a view direction in world axes; zero before the first look.</summary>
     internal Vector3 AimForward => aimForward;
 
+    /// <summary>What the player is aiming at now, within edit reach. Nothing in a dungeon is aimed at: it is not built on.</summary>
     internal TerrainPick Aim()
     {
         EnsureStarted();
-        return aimForward == Vector3.Zero
+        return aimForward == Vector3.Zero || away is not null
             ? TerrainPick.Missed(TerrainPickOutcome.CastMiss)
             : terrain.PickFromView(EyePosition(), aimForward);
+    }
+
+    /// <summary>Whether the player is in a separate space (a dungeon) rather than the open world.</summary>
+    internal bool InSeparateSpace => away is not null;
+
+    /// <summary>
+    /// Moves the player into a separate, finite space: its own spatial session, never rebased or
+    /// streamed, with its origin at zero, so its local and global coordinates agree. Where the player
+    /// stood in the open world is kept to come back to, and is what the continuation saves meanwhile.
+    /// </summary>
+    internal void EnterSeparateSpace(SpatialSession session, Vector3 standingFeet)
+    {
+        EnsureStarted();
+        if (away is not null)
+        {
+            throw new InvalidOperationException("The player is already in a separate space.");
+        }
+
+        away = new SeparateSpace(session, playerGlobal);
+        Place(PlayerWorldPosition.FromWorld(standingFeet.X, standingFeet.Y + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance, standingFeet.Z));
+    }
+
+    /// <summary>Brings the player back to where they left the open world. A player already there stays put.</summary>
+    internal void ReturnFromSeparateSpace()
+    {
+        EnsureStarted();
+        if (away is SeparateSpace space)
+        {
+            away = null;
+            Place(space.Return);
+        }
     }
 
     /// <summary>What was restored at start and how the continuation save is going.</summary>
@@ -308,20 +349,33 @@ internal sealed class PlayerController : IDisposable
             return null;
         }
 
+        // A teleport is in the open world: a player in a separate space is brought out first.
+        away = null;
+        Place(place);
+        return entityWorld.Get(playerEntity, RuntimeComponent);
+    }
+
+    /// <summary>Stands the player at a place in the session they are now in, at rest.</summary>
+    private void Place(PlayerWorldPosition place)
+    {
         playerGlobal = place;
-        WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
+        WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
         playerLocal = playerGlobal.ToLocal(origin);
         motion = PlayerBody.AtRest(playerLocal);
         climbHeld = false;
+        headSubmerged = false;
         controllerStepAccumulator = 0d;
         jumpPending = false;
         impulsePending = false;
-        terrain.SynchronizeAround(playerGlobal.FloorVoxel());
+        if (away is null)
+        {
+            terrain.SynchronizeAround(playerGlobal.FloorVoxel());
+        }
+
         camera.Cut();
         camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
         ui.PublishPlayer(ToUiFacts());
         PublishRuntimeComponent();
-        return entityWorld.Get(playerEntity, RuntimeComponent);
     }
 
     /// <summary>Whether the player's body covers a cell, so an edit that would fill it can be refused.</summary>
@@ -365,7 +419,7 @@ internal sealed class PlayerController : IDisposable
                 : controllerConfig;
             commandSequence = checked(commandSequence + 1UL);
             CharacterStepReceipt receipt = engine.Spatial.ProposeCharacterStep(new CharacterStepRequest(
-                terrain.Session,
+                Session,
                 playerLocal,
                 motion,
                 default,
@@ -381,7 +435,7 @@ internal sealed class PlayerController : IDisposable
             impulsePending = false;
             playerLocal = receipt.Transform.Translation;
             motion = receipt.Motion;
-            WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
+            WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
             controllerStepAccumulator -= PlayerConstants.ControllerStepSeconds;
         }
@@ -398,8 +452,8 @@ internal sealed class PlayerController : IDisposable
             ? (lookReceipt.Right * PlayerConstants.ImpulseSpeed) + (Vector3.UnitY * PlayerConstants.ImpulseLift)
             : Vector3.Zero;
         float stepSeconds = (float)PlayerConstants.ControllerStepSeconds;
-        if (water.TrySwim(terrain.Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement)
-            || (!jumpPending && climb.TryClimb(terrain.Session, playerGlobal, playerLocal, motion.Stance,
+        if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement)
+            || (!jumpPending && climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance,
                 lookReceipt.Forward, frame.PlanarIntent.Y, climbHeld, out movement)))
         {
             return new CharacterControllerCommand(
@@ -419,12 +473,17 @@ internal sealed class PlayerController : IDisposable
     private static PlayerWorldPosition StandingAt(double x, double feetY, double z) =>
         PlayerWorldPosition.FromWorld(x, feetY + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance, z);
 
+    /// <summary>
+    /// What a session leaves for the next. A player in a separate space is saved where they left the
+    /// open world, so a session that ends inside a dungeon continues at its entrance.
+    /// </summary>
     private PlayerContinuation Continuation()
     {
-        Vector3 feet = WorldFeetPosition;
+        PlayerWorldPosition at = away?.Return ?? playerGlobal;
+        double feetY = away is null ? WorldFeetPosition.Y : at.WorldY - (PlayerBody.Height(CharacterStance.Standing) / 2f);
         PlayerDefeatState vitals = Vitals.State;
         return new PlayerContinuation(
-            playerGlobal.WorldX, feet.Y, playerGlobal.WorldZ,
+            at.WorldX, feetY, at.WorldZ,
             look.YawRadians, look.PitchRadians,
             vitals.Health, vitals.Defeats, Progress.Experience, Progress.ItemsCollected);
     }
@@ -559,3 +618,6 @@ internal readonly record struct PlayerRuntimeComponent(
     double PitchDegrees,
     bool Grounded,
     bool Crouched);
+
+/// <summary>A separate space the player has gone into, and where they left the open world.</summary>
+internal sealed record SeparateSpace(SpatialSession Session, PlayerWorldPosition Return);

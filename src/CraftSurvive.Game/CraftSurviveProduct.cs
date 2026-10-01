@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Discovery;
+using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
@@ -41,6 +42,9 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
     /// <summary>What the player carries: drops and caches in, crafting and use out.</summary>
     private readonly InventoryModule inventory;
+
+    /// <summary>Going into dungeons and coming out: each its own finite space, loaded whole.</summary>
+    private readonly DungeonModule dungeons;
     private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
     private readonly CreatureModule creatures;
@@ -85,10 +89,11 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
         lamps = new LampLights(context.Engine, entities, player, frame);
         inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui);
-        actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, ui);
+        dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
+        actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui);
 
         // The entity store runs last, so it saves what a charge swept or a build placed this update.
-        gameplay = [conditions, survival, creatures, discovery, inventory, blast, build, entityStore, lamps];
+        gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, entityStore, lamps];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -109,6 +114,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(conditions)));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(survival)));
         RequireRegistration(registrar.Register(new InventoryDebugModule(inventory)));
+        RequireRegistration(registrar.Register(new DungeonDebugModule(dungeons)));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
     }
 

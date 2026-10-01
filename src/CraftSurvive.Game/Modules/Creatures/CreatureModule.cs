@@ -118,6 +118,12 @@ internal sealed class CreatureModule : IProductModule
             return;
         }
 
+        // The open world's creatures wait while the player is in a dungeon.
+        if (player.InSeparateSpace)
+        {
+            return;
+        }
+
         step = time.Step;
         if (player.AttackRequested)
         {

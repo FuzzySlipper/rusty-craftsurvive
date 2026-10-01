@@ -90,6 +90,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   not fit is left behind and counted. Building floors and walls is free; a light burns a torch.
   There are no tools, stations, equipment or containers that hold items.
 
+## Dungeons
+
+- **A dungeon is its own finite space**, a second spatial session filled from a `DungeonLayout`
+  `DungeonModule.ChunksPerUpdate` chunks per update behind the loading screen, never streamed or
+  rebased, and placed at `DungeonSpace.Origin` far below the open world so the two never meet in
+  view. There is one hand-made test chamber (`TestChamber`); dungeon generation is the open
+  investigation of #8604. Nothing inside a dungeon is saved: a session that ends inside one
+  continues at its entrance, and the open world's creatures and journal wait while the player is in.
+
 ## Persistence
 
 - Every saved key is listed in `SaveManifest`, written through `ProductSaveSlot` over one store,

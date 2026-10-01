@@ -58,6 +58,7 @@ save, then terrain's save, then one appearance snapshot.
 | Sky | `Modules/Sky`: `WorldClock` (rules) and `DayNightSky` (panorama blend, sun and ambient lights) | Camera view sky blend, retained lights |
 | World conditions | `Modules/Survival`: `WorldConditionsModule` (time of day and difficulty, saved) | Persistence |
 | Inventory | `Modules/Inventory`: `InventoryModule` over `ItemCatalog`, `Recipes`, `SupplyCache` (saved); takes creature drops and first-visit caches, crafts as one edit | Mechanics `InventoryStore` and `InventoryEdit`, persistence |
+| Dungeons | `Modules/Dungeons`: `DungeonModule` (enter, load, leave), `DungeonSpace` (one finite session), `DungeonVolume` and `DungeonLayout` | A second spatial session, voxel residency, voxel projection with the world's materials, retained lights |
 | Survival | `Modules/Survival`: `SurvivalModule` over `SurvivalRules` (hunger, air, recovery; saved), acting through the player's vitals | Character controller submersion fact, persistence |
 | Diagnostics | `Modules/Debugging` plus each module's `*DebugModule`: debug adapters over owners, and the Engine's playtest commands | Debug command catalog |
 

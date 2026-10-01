@@ -98,7 +98,8 @@ internal sealed class DiscoveryModule : IProductModule
     /// </summary>
     public void Update(ProductStep time)
     {
-        if (disposed || !started || time.Step < nextNoticeStep)
+        // Places are noticed in the open world; inside a dungeon the journal waits.
+        if (disposed || !started || time.Step < nextNoticeStep || player.InSeparateSpace)
         {
             return;
         }

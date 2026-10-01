@@ -52,6 +52,12 @@ internal readonly record struct DiscoveryUiFacts(
 /// </summary>
 internal readonly record struct InventoryUiFacts(string Carried, string Recipes, string Usable, int Torches, string Last);
 
+/// <summary>
+/// Where the player stands with dungeons, for the UI projection: outside, loading (with progress) or
+/// inside, the prompt to show, whether entering or leaving is possible now, and the last outcome.
+/// </summary>
+internal readonly record struct DungeonUiFacts(string State, double Progress, string Prompt, bool CanEnter, bool CanLeave, string Last);
+
 /// <summary>The player's survival tracks for the UI projection: food and air, and the last harm they did.</summary>
 internal readonly record struct SurvivalUiFacts(double Satiety, double Breath, double MaximumBreath, string LastHarm);
 
@@ -77,6 +83,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private ConditionsUiFacts? conditions;
     private SurvivalUiFacts? survival;
     private InventoryUiFacts? inventory;
+    private DungeonUiFacts? dungeon;
     private ulong sequence;
 
     internal ProductUiPublisher(IEngineContext engine) => this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -102,6 +109,12 @@ internal sealed class ProductUiPublisher : IDisposable
     internal void PublishActions(ActionUiFacts facts)
     {
         actions = facts;
+        Publish();
+    }
+
+    internal void PublishDungeon(DungeonUiFacts facts)
+    {
+        dungeon = facts;
         Publish();
     }
 
@@ -132,7 +145,7 @@ internal sealed class ProductUiPublisher : IDisposable
 
         WorldUiFacts facts = world();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions, survival, inventory)));
+            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions, survival, inventory, dungeon)));
     }
 
     public void Dispose()

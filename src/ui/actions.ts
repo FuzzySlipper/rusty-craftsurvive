@@ -80,7 +80,15 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
   difficulty.title = 'How hard the world is: hunger, air and recovery';
   difficulty.disabled = true;
   difficulty.addEventListener('change', () => { if (difficulty.value !== '') claim({ action: 'difficulty', level: difficulty.value }); });
-  kit.append(recipe, craft, item, use, rest, difficulty);
+  const enter = button('Enter');
+  enter.title = 'Go down into the dungeon at this entrance';
+  enter.disabled = true;
+  enter.addEventListener('click', () => claim({ action: 'enter' }));
+  const leave = button('Leave');
+  leave.title = 'Climb out of the dungeon from its way out';
+  leave.disabled = true;
+  leave.addEventListener('click', () => claim({ action: 'leave' }));
+  kit.append(recipe, craft, item, use, rest, difficulty, enter, leave);
   host.append(bar, kit);
   if (projection === undefined) return () => {};
 
@@ -115,6 +123,8 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
       }));
       craft.disabled = recipe.disabled || recipe.selectedOptions[0]?.disabled !== false;
     }
+    enter.disabled = intents === undefined || values['dungeonCanEnter'] !== 1;
+    leave.disabled = intents === undefined || values['dungeonCanLeave'] !== 1;
     const difficulties = text(values, 'difficulties') ?? '';
     const current = text(values, 'difficulty') ?? '';
     if (`${difficulties}/${current}` !== published.difficulty) {

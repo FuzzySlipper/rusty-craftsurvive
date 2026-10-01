@@ -75,6 +75,9 @@ internal sealed class TerrainWorld : IDisposable
 
     internal SpatialSession Session => session ?? throw new InvalidOperationException("Terrain spatial session is unavailable.");
 
+    /// <summary>Draws a separate space's session with this world's block materials; the caller disposes the projection.</summary>
+    internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate) => presentation.ProjectAnother(separate);
+
     /// <summary>The atlas image every block material is built from.</summary>
     internal RenderResourceReference AtlasSprite => presentation.AtlasSprite;
 

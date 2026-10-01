@@ -38,6 +38,16 @@ internal sealed class TerrainPresentation : IDisposable
         CaptureMapping();
     }
 
+    /// <summary>
+    /// Draws another session with the same block materials: a separate space built from the same
+    /// atlas. The caller owns the projection and disposes it with the session.
+    /// </summary>
+    internal VoxelScenePresentation ProjectAnother(SpatialSession session) =>
+        engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
+            session,
+            MaterialBindings(),
+            FaceMaterialBindings()));
+
     /// <summary>Re-meshes the projection after the scene or the world origin changed.</summary>
     internal VoxelScenePresentationReadout Refresh()
     {
