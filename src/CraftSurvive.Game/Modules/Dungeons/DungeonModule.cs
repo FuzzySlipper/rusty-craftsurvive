@@ -37,7 +37,7 @@ internal sealed class DungeonModule : IProductModule
     internal const int ChunksPerUpdate = 6;
 
     /// <summary>How many lights a dungeon may hang, from a pool of retained Engine lights.</summary>
-    internal const int MaximumLights = 16;
+    internal const int MaximumLights = DungeonLayout.MaximumLights;
 
     /// <summary>How often, in steps, the open world is searched for an entrance near the player.</summary>
     private const long EntranceSearchIntervalSteps = 30;
@@ -56,6 +56,7 @@ internal sealed class DungeonModule : IProductModule
     private readonly List<PoiSite> candidates = [];
     private readonly Light?[] pool = new Light?[MaximumLights];
     private DungeonSpace? space;
+    private DungeonPlan? plan;
     private DungeonState state = DungeonState.Outside;
     private PoiSite? nearbyEntrance;
     private long nextSearchStep;
@@ -154,12 +155,100 @@ internal sealed class DungeonModule : IProductModule
             return Refuse(string.Create(CultureInfo.InvariantCulture, $"enter refused: no dungeon entrance within {EnterReachMetres:F0} m"));
         }
 
-        space = new DungeonSpace(engine, terrain, TestChamber.Build());
+        // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
+        ulong seed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
+        (DungeonLayout layout, DungeonPlan generated, DungeonVerdict verdict) = CarveAndStamp.Generate(seed);
+        plan = generated;
+        space = new DungeonSpace(engine, terrain, layout);
         state = DungeonState.Loading;
-        last = $"loading the dungeon under the entrance at {entrance.X},{entrance.Z}";
+        last = $"loading {generated.Mix} dungeon {seed:x} (attempt {generated.Attempt}, {verdict.Reason}) under the entrance at {entrance.X},{entrance.Z}";
         Publish();
         return last;
     }
+
+    /// <summary>A dungeon's seed: the world's seed mixed with its entrance's cell, so each entrance is its own dungeon.</summary>
+    internal static ulong DungeonSeed(ulong worldSeed, PoiSite entrance)
+    {
+        ulong hash = worldSeed ^ 0x6A09_E667_F3BC_C908UL;
+        foreach (long coordinate in (ReadOnlySpan<long>)[entrance.CellX, entrance.CellZ])
+        {
+            hash = unchecked((hash ^ (ulong)coordinate) * 0x0000_0100_0000_01B3UL);
+        }
+
+        return hash;
+    }
+
+    /// <summary>Moves the player to a named place in the dungeon (arrival, breach, loot, or floor0..floorN), for a live look.</summary>
+    internal string Visit(string place)
+    {
+        if (state != DungeonState.Inside || plan is null)
+        {
+            return "visit refused: not in a dungeon";
+        }
+
+        DungeonCell? cell = place switch
+        {
+            "arrival" => plan.Arrival,
+            "breach" => plan.Breach,
+            "loot" => plan.Loot,
+            _ when place.StartsWith("floor", StringComparison.Ordinal)
+                && int.TryParse(place.AsSpan(5), NumberStyles.Integer, CultureInfo.InvariantCulture, out int floor)
+                && floor >= 0 && floor < plan.FloorAnchors.Count => plan.FloorAnchors[floor],
+            _ => null,
+        };
+        if (cell is not DungeonCell at)
+        {
+            return $"visit refused: \"{place}\" is not arrival, breach, loot or floor0..floor{plan.FloorAnchors.Count - 1}";
+        }
+
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3(at.X + 0.5f, at.Y, at.Z + 0.5f)));
+        return $"at the {place}: {at}";
+    }
+
+    /// <summary>
+    /// The Engine's word on the loaded dungeon, beside the generator's own walk check: navigation
+    /// published over the whole space, then routes from the arrival to the breach and the loot, and
+    /// from the loot back. Reported with what the publication and queries cost.
+    /// </summary>
+    internal string Validate()
+    {
+        if (state != DungeonState.Inside || space is null || plan is null)
+        {
+            return "validate refused: not in a dungeon";
+        }
+
+        DungeonVolume volume = space.Layout.Volume;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        CollisionNavigationReplaceReceipt published = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
+            space.Session,
+            DungeonSpace.Origin,
+            DungeonSpace.Origin + new Vector3(volume.SizeX, volume.SizeY, volume.SizeZ),
+            new CollisionNavigationConfig(
+                ValidationGridId, TerrainConstants.VoxelSize, (uint)TerrainConstants.ChunkEdgeLength, ValidationStepCells,
+                ValidationAgentRadius, ValidationAgentHeight, ValidationSlopeDegrees,
+                (uint)(volume.SizeX * volume.SizeY * volume.SizeZ))));
+        double publishMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        string Route(string name, DungeonCell from, DungeonCell to)
+        {
+            NavigationStepResult step = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(
+                space.Session, Feet(from), Feet(to), ValidationStepMetres, ValidationMaxVisited));
+            return $"{name}={step.Outcome}/{step.Path.Length}";
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"navigation walkable={published.WalkableCellCount} publishMs={publishMs:F0} ")
+            + $"{Route("arrival->breach", plan.Arrival, plan.Breach)} {Route("arrival->loot", plan.Arrival, plan.Loot)} {Route("loot->arrival", plan.Loot, plan.Arrival)}";
+    }
+
+    private const ulong ValidationGridId = 2UL;
+    private const uint ValidationStepCells = 1U;
+    private const double ValidationAgentRadius = 0.3d;
+    private const double ValidationAgentHeight = 1.75d;
+    private const double ValidationSlopeDegrees = 45d;
+    private const float ValidationStepMetres = 4096f;
+    private const uint ValidationMaxVisited = 1_000_000U;
+
+    private static Vector3 Feet(DungeonCell cell) => DungeonSpace.InSession(new Vector3(cell.X + 0.5f, cell.Y, cell.Z + 0.5f));
 
     /// <summary>Leaves the dungeon from its way out, back to the entrance.</summary>
     internal string Leave()
@@ -186,7 +275,10 @@ internal sealed class DungeonModule : IProductModule
             ? string.Create(CultureInfo.InvariantCulture, $" progress={current.Progress:F2} chunks={current.TotalChunks} loadMs={current.LoadMilliseconds:F1}")
             : string.Empty;
         string entrance = nearbyEntrance is PoiSite site ? $"{site.X},{site.Z}" : "none";
-        return $"dungeon state={state}{loading} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
+        string layout = plan is DungeonPlan current2
+            ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}]"
+            : string.Empty;
+        return $"dungeon state={state}{loading}{layout} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
     }
 
     private void Close(string outcome)
@@ -194,6 +286,7 @@ internal sealed class DungeonModule : IProductModule
         Light([]);
         space?.Dispose();
         space = null;
+        plan = null;
         state = DungeonState.Outside;
         sky.Underground(false, conditions.Time);
         nextSearchStep = 0;

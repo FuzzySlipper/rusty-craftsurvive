@@ -41,6 +41,8 @@ jobs:
         run: dotnet run --project tests/DiscoveryCore -c Release
       - name: Check the save manifest, codecs and restore rule
         run: dotnet run --project tests/SaveCore -c Release
+      - name: Check a bank of dungeon seeds can be walked as their flow intends
+        run: dotnet run --project tests/DungeonBank -c Release
 
   product:
     runs-on: ubuntu-latest

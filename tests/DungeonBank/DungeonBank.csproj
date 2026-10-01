@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Dungeon generation is pure product rules over a voxel volume: this lane draws a bank of
+         seeds, checks each can be walked as its flow intends, and reports the rate and reasons. -->
+    <Compile Include="$(ProductModules)Dungeons/DungeonVolume.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonLayout.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonWalk.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/CarveAndStamp.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product/Terrain" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Hashing" Version="9.0.0" />
+  </ItemGroup>
+</Project>

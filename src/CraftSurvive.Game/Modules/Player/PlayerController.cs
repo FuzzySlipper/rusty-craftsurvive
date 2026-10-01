@@ -286,6 +286,18 @@ internal sealed class PlayerController : IDisposable
         Place(PlayerWorldPosition.FromWorld(standingFeet.X, standingFeet.Y + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance, standingFeet.Z));
     }
 
+    /// <summary>Moves the player within the separate space they are in, standing at a point.</summary>
+    internal void MoveWithinSeparateSpace(Vector3 standingFeet)
+    {
+        EnsureStarted();
+        if (away is null)
+        {
+            throw new InvalidOperationException("The player is not in a separate space.");
+        }
+
+        Place(PlayerWorldPosition.FromWorld(standingFeet.X, standingFeet.Y + (PlayerConstants.StandingHeight / 2f) + PlayerConstants.SpawnClearance, standingFeet.Z));
+    }
+
     /// <summary>Brings the player back to where they left the open world. A player already there stays put.</summary>
     internal void ReturnFromSeparateSpace()
     {

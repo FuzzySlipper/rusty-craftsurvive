@@ -7,7 +7,11 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// A dungeon ready to load: its volume, where the player arrives and where they leave from, and
 /// where its lights hang, all in the volume's own coordinates.
 /// </summary>
-internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 Arrival, Vector3 Exit, IReadOnlyList<Vector3> Lights);
+internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 Arrival, Vector3 Exit, IReadOnlyList<Vector3> Lights)
+{
+    /// <summary>The most lights a dungeon hangs: the dungeon module's pool of retained lights.</summary>
+    internal const int MaximumLights = 16;
+}
 
 /// <summary>
 /// The first dungeon: one hand-made test chamber for the load path, not a generator. A cave hall
