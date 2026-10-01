@@ -38,6 +38,7 @@ internal sealed class DiscoveryModule : IProductModule
     private long tickBase;
     private long nextNoticeStep;
     private bool noticedOnce;
+    private double publishedNearest;
     private bool started;
     private bool disposed;
 
@@ -151,11 +152,14 @@ internal sealed class DiscoveryModule : IProductModule
             }
 
             // The first look publishes too, so the UI surface carries a journal from the start
-            // rather than only after something is found. This runs from Update, not the
-            // constructor, because the projection reads the live scene.
-            if (changed || !noticedOnce)
+            // rather than only after something is found, and so does a change in the nearest
+            // place's whole-metre distance, which moves as the player walks. This runs from
+            // Update, not the constructor, because the projection reads the live scene.
+            double nearestShown = double.IsFinite(nearest) && nearest < double.MaxValue ? Math.Round(nearest) : 0d;
+            if (changed || !noticedOnce || nearestShown != publishedNearest)
             {
-                Publish(nearest);
+                Publish(nearestShown);
+                publishedNearest = nearestShown;
                 noticedOnce = true;
             }
         }
