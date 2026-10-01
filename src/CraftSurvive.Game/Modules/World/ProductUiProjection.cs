@@ -37,9 +37,8 @@ internal static class ProductUiProjection
         }
         if (discovery is DiscoveryUiFacts journal)
         {
-            // A journal is numbers only, deliberately: this object is a flat numeric map, and
-            // naming a place is the journal's own readout's job. Kind and stage are their
-            // enum values, which is why neither may ever be renumbered.
+            // Kind and stage are their enum values, which is why neither may ever be renumbered;
+            // the journal names the last place itself, so the UI shows it without a copy of either enum.
             values.Add("discoveryPlaces", journal.Places);
             values.Add("discoveryVisited", journal.Visited);
             values.Add("discoverySeen", journal.Seen);
@@ -50,6 +49,7 @@ internal static class ProductUiProjection
             values.Add("discoveryLastKind", journal.LastKind);
             values.Add("discoveryLastStage", journal.LastStage);
             values.Add("discoveryLastTick", journal.LastTick);
+            values.AddText("discoveryLastFound", journal.LastFound);
         }
 
         if (actions is ActionUiFacts requests)

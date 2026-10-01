@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
@@ -535,6 +536,51 @@ Check.That(placedSpawns.All(spawn => Math.Sqrt((spawn.X * spawn.X) + (spawn.Z * 
 Check.That(placedSpawns.SelectMany(a => placedSpawns.Where(b => b != a), (a, b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Z - b.Z, 2)))
     .All(gap => gap >= CreatureSpawnPlan.MinimumSeparationMetres), "spawned creatures must stand apart");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame and spawn spread passed.");
+// Climbing: a stone wall six cells tall rises from x = 1 beside a player standing on the ground at
+// y = 0; a one-cell sand kerb lies at z = 1 and a one-cell stone step at z = -1.
+BlockId ClimbWorld(long x, long y, long z) =>
+    y < 0 ? BlockId.Stone
+    : x == 1 && y <= 5 ? BlockId.Stone
+    : x == -1 && y <= 5 ? BlockId.Sand
+    : z == 2 && y == 0 ? BlockId.Stone
+    : BlockId.Air;
+Vector2 east = new(1f, 0.2f);
+ClimbRail? taken = PlayerClimb.Find(0.7, 0, 0.5, east, 1f, holding: false, ClimbWorld);
+Check.That(taken is ClimbRail rail
+    && Math.Abs(rail.X - (1 - PlayerConstants.CapsuleRadius - PlayerClimb.StandoffMetres)) < 1e-9 && rail.Z == 0.5
+    && rail.BottomFeetY == -1 && Math.Abs(rail.TopFeetY - (6 + PlayerConstants.SpawnClearance)) < 1e-6,
+    $"pushing into a stone wall must take hold of a rail from below the feet to its top ledge, took {taken}");
+Check.That(PlayerClimb.Find(0.7, 0, 0.5, east, 0f, holding: false, ClimbWorld) is null,
+    "standing at a wall without pushing into it must not climb");
+Check.That(PlayerClimb.Find(0.7, 3, 0.5, east, 0f, holding: true, ClimbWorld) is not null,
+    "a player holding on must keep hanging without intent");
+Check.That(PlayerClimb.Find(0.7, 0, 0.5, new Vector2(0f, 1f), 1f, holding: false, ClimbWorld) is null,
+    "the face climbed is the one looked at, not one beside the player");
+Check.That(PlayerClimb.Find(0.1, 0, 0.5, east, 1f, holding: false, ClimbWorld) is null,
+    "a face beyond reach must not be climbed");
+Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, holding: false, ClimbWorld) is null,
+    "a sand face must not be climbed");
+Check.That(PlayerClimb.Find(0.5, 0, 1.7, new Vector2(0f, 1f), 1f, holding: false, ClimbWorld) is null,
+    "a single block is the controller's step, not a climb");
+Check.That(PlayerClimb.Find(0.7, 0, 0.5, east, -1f, holding: true, ClimbWorld) is null,
+    "stepping back onto ground must let go");
+Check.That(PlayerClimb.Find(0.7, 3, 0.5, east, -1f, holding: true, ClimbWorld) is not null,
+    "climbing down mid-face must keep hold");
+Check.That(PlayerClimb.Find(0.7, 5.2, 0.5, east, 1f, holding: true, ClimbWorld) is ClimbRail atTop
+    && Math.Abs(atTop.TopFeetY - (6 + PlayerConstants.SpawnClearance)) < 1e-6,
+    "a player holding the top cell must keep the rail to the ledge");
+Check.That(PlayerClimb.Find(0.7, 6.05, 0.5, east, 1f, holding: true, ClimbWorld) is null,
+    "feet clear of the ledge must let go, so walking on steps onto it");
+Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, holding: false, (x, y, z) => ClimbWorld(-x, y, z)) is ClimbRail west
+    && west.TopFeetY > 6
+    && Math.Abs(west.X - (PlayerConstants.CapsuleRadius + PlayerClimb.StandoffMetres)) < 1e-9,
+    "a face toward negative X must be held from its positive side");
+Check.That(new[] { BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Cobblestone, BlockId.Brick, BlockId.Log, BlockId.Planks, BlockId.Bedrock }
+        .All(id => BlockRegistry.Get(id).Climbable)
+    && new[] { BlockId.Air, BlockId.Sand, BlockId.Gravel, BlockId.Leaves, BlockId.Water, BlockId.Glass, BlockId.Lamp, BlockId.Snow }
+        .All(id => !BlockRegistry.Get(id).Climbable),
+    "earth, rock, masonry and timber are climbable; loose, soft and see-through blocks are not");
+
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread and the climbing rule passed.");
 
 return Check.Finish("RpgCore");

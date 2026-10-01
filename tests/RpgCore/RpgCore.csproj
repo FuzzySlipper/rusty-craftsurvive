@@ -29,5 +29,12 @@
     <Compile Include="$(ProductModules)Player/PlayerVitals.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductStep.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/WorldFrame.cs" LinkBase="Product/World" />
+    <!-- The climbing rule reads blocks through a lookup, so it is checked over a made-up wall. -->
+    <Compile Include="$(ProductModules)Player/PlayerClimb.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
   </ItemGroup>
 </Project>

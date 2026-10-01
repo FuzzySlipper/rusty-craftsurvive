@@ -54,11 +54,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Pursuit follows Engine navigation, published around the player.** `CreatureNavigation`
   publishes collision-derived navigation over a box around the player (its extents and cell
   budget are its constants) only while something pursues, and again after the player moves
-  `RepublishDistanceMetres`, a rebase, or an edit. A publication costs tens of milliseconds, so it
-  is a visible hitch while a chase moves the player far: every publication rebuilds the whole box
-  (#8975 records the measurement; the incremental update is Engine #8999). A
-  pursuer outside the box, or with no route, waits; creature movement is planar and follows the
-  ground, so the grid's step height is what keeps pursuers out of pits.
+  `RepublishDistanceMetres`, a rebase, or an edit. The Engine re-derives only the columns new to
+  the box or near changed collision, as long as the box's vertical range is unchanged, so the
+  range holds while the player's feet stay within `VerticalSlackMetres`; leaving that band, or
+  the first publication, rebuilds the whole box, which is a visible hitch. A pursuer outside
+  the box, or with no route, waits; creature movement is planar and follows the ground, so the
+  grid's step height is what keeps pursuers out of pits.
 
 ## Persistence
 
@@ -80,6 +81,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Keyboard input from a page reaches the product only after the Engine canvas has gameplay
   focus.** Keys pressed with the page body or a product UI control focused are not delivered (see
   [live-proofs](live-proofs.md)).
+- **Climbing is pushing into a climbable face.** `PlayerClimb` decides it: a face whose block is
+  `Climbable` in `BlockRegistry` (earth, rock, masonry, timber) and rises past a single step,
+  within `HoldReachMetres`; forward climbs, back climbs down, a jump or crouch lets go, and the
+  top lets go where the feet clear the ledge. There are no ladders, mantling animation or
+  climbing stamina.
 - Controller mapping is product policy in `PlayerInputState` and the project's input intents.
 
 ## UI

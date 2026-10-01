@@ -24,6 +24,7 @@ const ROWS: readonly HudRow[] = [
   { label: 'Defeats', show: (v) => fixed(number(v, 'defeats'), 0) },
   { label: 'Position', show: (v) => { const x = number(v, 'playerX'); const y = number(v, 'playerY'); const z = number(v, 'playerZ'); return x === null || y === null || z === null ? null : `${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`; } },
   { label: 'Places', show: (v) => { const p = number(v, 'discoveryPlaces'); const s = number(v, 'discoveryVisited'); return p === null || s === null ? null : `${p} found, ${s} visited`; } },
+  { label: 'Last found', show: (v) => { const t = text(v, 'discoveryLastFound'); return t === null || t === '' ? null : t; } },
   { label: 'Nearest place', show: (v) => { const d = number(v, 'discoveryNearest'); return d === null || d <= 0 ? null : `${d.toFixed(0)} m`; } },
   { label: 'Edits', show: (v) => fixed(number(v, 'overlayEntries'), 0) },
   { label: 'Last action', show: (v) => text(v, 'lastAction') },

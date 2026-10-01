@@ -166,9 +166,9 @@ internal sealed class DiscoveryModule : IProductModule
     }
 
     /// <summary>
-    /// Hands the journal's numbers to the world, which owns the product's one UI stream.
-    /// Nothing here is a name: the projection is a flat numeric map, so kind and stage travel
-    /// as their enum values - which is why neither may ever be renumbered.
+    /// Hands the journal's facts to the world, which owns the product's one UI stream. Kind and
+    /// stage travel as their enum values - which is why neither may ever be renumbered - and the
+    /// last place found is also named here, so the UI shows it without knowing either enum.
     /// </summary>
     private void Publish(double nearestMetres)
     {
@@ -183,7 +183,24 @@ internal sealed class DiscoveryModule : IProductModule
             last?.Z ?? 0d,
             last is DiscoveryEntry kind ? (double)(ushort)kind.Kind : 0d,
             last is DiscoveryEntry stage ? (byte)stage.Stage : 0d,
-            last?.LastTick ?? 0d));
+            last?.LastTick ?? 0d,
+            last is DiscoveryEntry found ? Describe(found) : string.Empty));
+    }
+
+    /// <summary>What a player calls a place they have found, and how well they know it.</summary>
+    private static string Describe(DiscoveryEntry entry)
+    {
+        string place = entry.Kind switch
+        {
+            PoiKind.StandingStones => "Standing stones",
+            PoiKind.Ruin => "Ruin",
+            PoiKind.CaveMouth => "Cave mouth",
+            PoiKind.DungeonEntrance => "Dungeon entrance",
+            PoiKind.VantagePoint => "Vantage point",
+            _ => "A place",
+        };
+        string known = entry.Stage == DiscoveryStage.Visited ? "visited" : "seen";
+        return $"{place}, {known}";
     }
 
     internal string Readout()

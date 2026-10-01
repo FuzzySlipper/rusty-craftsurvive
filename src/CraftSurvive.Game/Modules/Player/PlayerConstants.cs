@@ -21,6 +21,13 @@ internal static class PlayerConstants
     internal const float WaterVerticalNeutral = 0f;
     internal const float NoClimbReach = 0f;
 
+    /// <summary>
+    /// Climbing, composed by the product and solved by the Engine: how fast a body climbs a rail
+    /// and how far from it the Engine takes hold. Which faces are climbable is <see cref="PlayerClimb"/>'s.
+    /// </summary>
+    internal const float ClimbSpeed = 2.5f;
+    internal const float ClimbReach = 0.6f;
+
     // One 60 Hz sample of translation delay; orientation stays authoritative and immediate.
     internal const double CameraPresentationDelaySeconds = 1d / 60d;
 

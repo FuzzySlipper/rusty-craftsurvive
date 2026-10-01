@@ -43,7 +43,8 @@ internal readonly record struct DiscoveryUiFacts(
     double LastZ,
     double LastKind,
     double LastStage,
-    double LastTick);
+    double LastTick,
+    string LastFound);
 
 /// <summary>The world's facts for the UI projection, read when it is published.</summary>
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);

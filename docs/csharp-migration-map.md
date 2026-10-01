@@ -49,7 +49,7 @@ save, then terrain's save, then one appearance snapshot.
 | Generation | `Modules/WorldGen`: `TerrainRecipe`, the contract, point-of-interest and crossing placement and structures | Keyed random draws |
 | Terrain | `Modules/Terrain`: `TerrainWorld` over the residency streamer, the edit service and transaction, the overlay and its store, the chunk cache and presentation | Spatial sessions, voxel residency, edits and scene reads, authored content, directional voxel presentation |
 | Blocks and atlas | `Modules/Content`: `BlockRegistry`, `TerrainAtlasLayout` | Authored materials |
-| Player | `Modules/Player`: `PlayerController` over input, camera, water probe, body, origin rebasing, vitals, progress and continuation | Character controller, look, camera view, world origin |
+| Player | `Modules/Player`: `PlayerController` over input, camera, water and climb probes, body, origin rebasing, vitals, progress and continuation | Character controller (walking, swimming, climbing), look, camera view, world origin |
 | RPG rules | `Modules/Rpg`: combat, loot, progression, encounters, creature kinds, character sheet | none (pure rules) |
 | Creatures | `Modules/Creatures`: `CreatureModule` over the roster, simulation, spawn plan and presentation | Perception, appearance, entity store; collision navigation while pursuing |
 | Discovery | `Modules/Discovery`: `DiscoveryModule` and the journal | Persistence through its save slot |

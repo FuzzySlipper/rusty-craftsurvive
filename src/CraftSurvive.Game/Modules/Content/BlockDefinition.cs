@@ -18,8 +18,8 @@ internal enum BlockTransparency
 /// Engine's authored-material fields, so this is the single place a block's
 /// behaviour is declared rather than a parallel model beside the Engine's.
 /// Properties that later slices read - replaceability, blast resistance, light
-/// attenuation - are declared here from the start instead of appearing as
-/// scattered constants the first time a slice needs them.
+/// attenuation, whether a face can be climbed - are declared here from the start instead of
+/// appearing as scattered constants the first time a slice needs them.
 /// </summary>
 internal readonly record struct BlockDefinition(
     BlockId Id,
@@ -33,7 +33,8 @@ internal readonly record struct BlockDefinition(
     bool Replaceable,
     float BlastResistance,
     float LightEmission,
-    float LightAttenuation)
+    float LightAttenuation,
+    bool Climbable = false)
 {
     /// <summary>The world's material slot for this block.</summary>
     internal ushort Slot => (ushort)Id;

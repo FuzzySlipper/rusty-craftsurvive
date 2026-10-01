@@ -7,6 +7,10 @@ namespace CraftSurvive.Game.Modules.Content;
 /// atlas, except grass, which owns a base tile and a top-face tile.
 ///
 /// The world's material slot is the block's numeric id. Append only.
+///
+/// A face is climbable when it offers holds: earth, rock, masonry and timber. Loose sand and
+/// gravel, snow, leaves, glass and lamps are not, so a player reads a climb from what a wall is
+/// made of.
 /// </summary>
 internal static class BlockRegistry
 {
@@ -18,15 +22,18 @@ internal static class BlockRegistry
 
         new(BlockId.Grass, "grass", "grass-side", "grass-top", BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 0.6f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 0.6f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Dirt, "dirt", "dirt", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 0.5f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 0.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Stone, "stone", "stone", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Sand, "sand", "sand", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
@@ -38,19 +45,23 @@ internal static class BlockRegistry
 
         new(BlockId.Cobblestone, "cobblestone", "cobblestone", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 2f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 2f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Brick, "brick", "brick", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 2f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 2f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Log, "log", "log", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 1.2f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 1.2f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Planks, "planks", "planks", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         // Canopy: leaves are solid for collision and movement, do not occlude,
         // and are cheap to blast, so a tree comes apart without opening a hole in
@@ -76,7 +87,8 @@ internal static class BlockRegistry
         // Bedrock is the world's floor and border: placeable by generation only.
         new(BlockId.Bedrock, "bedrock", "bedrock", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: float.MaxValue, LightEmission: 0f, LightAttenuation: 1f),
+            BlastResistance: float.MaxValue, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
 
         new(BlockId.Snow, "snow", "snow", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,

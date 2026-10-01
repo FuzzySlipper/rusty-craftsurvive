@@ -13,7 +13,7 @@ namespace CraftSurvive.Game.Modules.Player;
 /// <summary>
 /// Product-owned player policy: it reads input, steps the Engine's character controller, aims
 /// edits, and keeps the player's pose in world coordinates. It owns the player's vitals and
-/// progress and applies the respawn they request. The camera, the water decision, input
+/// progress and applies the respawn they request. The camera, the water and climb decisions, input
 /// diagnostics and world-origin rebasing are its parts; Engine services integrate look,
 /// collision, world origin and the camera view.
 /// </summary>
@@ -30,6 +30,7 @@ internal sealed class PlayerController : IDisposable
     private readonly PlayerInputState input = new();
     private readonly PlayerInputDiagnostics diagnostics = new();
     private readonly PlayerWaterProbe water;
+    private readonly PlayerClimbProbe climb;
     private readonly PlayerCamera camera;
     private readonly WorldOriginRebaser rebaser;
     private readonly PlayerContinuationStore continuation;
@@ -55,6 +56,9 @@ internal sealed class PlayerController : IDisposable
     private uint lastControllerStepCount;
     private PlayerInputFrame lastInputFrame;
     private CharacterStepReceipt? lastStepReceipt;
+
+    /// <summary>Whether the last controller step left the player holding a climb rail.</summary>
+    private bool climbHeld;
     private Vector3 lastUpdatePositionBefore;
     private Vector3 lastUpdatePositionAfter;
     private TerrainWorldEditResult? lastTerrainEdit;
@@ -69,6 +73,7 @@ internal sealed class PlayerController : IDisposable
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         ArgumentNullException.ThrowIfNull(frame);
         water = new PlayerWaterProbe(engine);
+        climb = new PlayerClimbProbe(engine);
         camera = new PlayerCamera(engine);
         rebaser = new WorldOriginRebaser(engine, frame);
         continuation = new PlayerContinuationStore(engine, store, terrain.SaveIdentity, Vitals.MaximumHealth);
@@ -135,6 +140,7 @@ internal sealed class PlayerController : IDisposable
         }
 
         motion = PlayerBody.AtRest(playerLocal);
+        climbHeld = false;
         camera.Create(EyePosition(), look, updateCount);
         terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         ui.PublishPlayer(ToUiFacts());
@@ -256,7 +262,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -294,6 +300,7 @@ internal sealed class PlayerController : IDisposable
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(terrain.Session));
         playerLocal = playerGlobal.ToLocal(origin);
         motion = PlayerBody.AtRest(playerLocal);
+        climbHeld = false;
         controllerStepAccumulator = 0d;
         jumpPending = false;
         impulsePending = false;
@@ -356,6 +363,7 @@ internal sealed class PlayerController : IDisposable
                 Command(frame, lookReceipt, commandSequence)));
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
+            climbHeld = receipt.Movement.ClimbAttached;
             jumpPending = false;
             impulsePending = false;
             playerLocal = receipt.Transform.Translation;
@@ -367,8 +375,9 @@ internal sealed class PlayerController : IDisposable
     }
 
     /// <summary>
-    /// The controller command for one step: walking, or swimming when the player's own cells are
-    /// water, in which case the water probe composes the volume the Engine swims them through.
+    /// The controller command for one step: swimming when the player's own cells are water, climbing
+    /// when they face a climbable face (a jump lets go), else walking. The probes compose the volume
+    /// or rail the Engine moves them through.
     /// </summary>
     private CharacterControllerCommand Command(PlayerInputFrame frame, LookReceipt lookReceipt, ulong sequence)
     {
@@ -376,13 +385,18 @@ internal sealed class PlayerController : IDisposable
             ? (lookReceipt.Right * PlayerConstants.ImpulseSpeed) + (Vector3.UnitY * PlayerConstants.ImpulseLift)
             : Vector3.Zero;
         float stepSeconds = (float)PlayerConstants.ControllerStepSeconds;
-        return water.TrySwim(terrain.Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest swim)
-            ? new CharacterControllerCommand(
-                swim, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,
-                frame.CrouchRequested, Vector3.Zero, impulse, stepSeconds, sequence)
-            : new CharacterControllerCommand(
-                frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld, frame.CrouchRequested,
-                Vector3.Zero, impulse, stepSeconds, sequence);
+        if (water.TrySwim(terrain.Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement)
+            || (!jumpPending && climb.TryClimb(terrain.Session, playerGlobal, playerLocal, motion.Stance,
+                lookReceipt.Forward, frame.PlanarIntent.Y, climbHeld, out movement)))
+        {
+            return new CharacterControllerCommand(
+                movement, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,
+                frame.CrouchRequested, Vector3.Zero, impulse, stepSeconds, sequence);
+        }
+
+        return new CharacterControllerCommand(
+            frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld, frame.CrouchRequested,
+            Vector3.Zero, impulse, stepSeconds, sequence);
     }
 
     /// <summary>Home, or the ground of the home column if something now stands there; if neither has room the player stays put.</summary>
