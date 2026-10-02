@@ -114,7 +114,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
   later one, mostly a step up under a cave chamber's curving ceiling or a smoothed riser a little
   over the player's step height, and each refused candidate adds about a second of loading.
-  `craft.dungeon.surface dc|faceted|mc` loads the next dungeon as voxels
+  `craft.dungeon.surface dc|faceted|ruined|mc` loads the next dungeon as voxels
   throughout (`DungeonSurfaces`): its sculpted rock becomes voxel densities the Engine reconstructs
   (dual contoured, smooth or flat-faceted, or marched), building blocks keep the grid (Blocky dual
   contouring, or cubes beside marched rock), all textured with the world's block materials, and
@@ -125,7 +125,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   (`NavigationProfile.JumpableStepMetres`, the jump's peak less a margin) while the player's own
   controller keeps its step height: such a step is a jump in play, and navigation has no jump
   edges to say so or to check the arc's headroom (Engine #9123). Roughness, which jostles every
-  vertex, refuses more candidates: it is off in `dc` and small in `faceted`.
+  vertex, refuses more candidates: it is off in `dc` and small in `faceted`. `ruined` weathers
+  brick only - sharp-featured, slightly rough, its sideways-open blocks worn back by density - since
+  a sharp-featured floor or stair block has chamfered edges the body cannot step; planks,
+  cobblestone and timber stay on the grid. Geometry is no finer than the one-metre voxel: the bank's
+  `fine` probe measures a half-metre grid at about seven times the load and four to five times the
+  navigation publication, with navigation cells kept at a metre (a cell must be the body's width).
   `craft.dungeon.blast <radius>` carves a sphere where the player aims through the Engine's density
   brush; the dungeon's navigation is not republished after it. Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
   room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no

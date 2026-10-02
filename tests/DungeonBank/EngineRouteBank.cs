@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Diagnostics;
 using System.Globalization;
 using CraftSurvive.Game.Modules.Dungeons;
@@ -132,7 +133,7 @@ internal static class EngineRouteBank
         {
             Stopwatch clock = Stopwatch.StartNew();
             using SpatialSession session = DungeonCollision.CreateSession(engine, surface);
-            DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume), layout.Densities);
+            DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume), layout.Densities, DungeonSurfaces.Weathers(surface));
             Material? material = null;
             MeshResource? mesh = null;
             try
@@ -192,6 +193,8 @@ internal static class EngineRouteBank
         }
 
     }
+
+    internal static DungeonCandidate Candidate(string approach, ulong seed) => DungeonCandidates.Generate(Approach(approach), seed, 0);
 
     internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVolume Walkable) Generate(string approach, ulong seed)
     {
@@ -277,5 +280,101 @@ internal static class RampProbe
             mesh.Dispose();
             material.Dispose();
         });
+    }
+}
+
+/// <summary>
+/// What a finer voxel grid would cost: one dungeon built as the game builds an all-voxel one, at
+/// its own one-metre voxels and again upsampled to half-metre voxels (each block eight), each
+/// measured for loading, navigation, a route and a blast. Shapes are the same; only the grid is
+/// finer, so this measures cost, not look.
+/// </summary>
+internal static class FineGridProbe
+{
+    private const double Fine = 0.5d;
+    private const float BlastRadiusMetres = 3f;
+    private const float RouteStepMetres = 4096f;
+    private const uint RouteMaxVisited = 4_000_000U;
+    private const ulong GridId = 3UL;
+
+    internal static void Run(string approach, ulong seed, DungeonSurface surface)
+    {
+        DungeonCandidate candidate = EngineRouteBank.Candidate(approach, seed);
+        DungeonLayout layout = candidate.AllVoxels;
+        using EngineTestHost host = EngineTestHost.Create(new EngineTestHostOptions
+        {
+            Content = new Dictionary<string, ReadOnlyMemory<byte>>
+            {
+                [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(EngineRouteBank.RockTexturePath()),
+            },
+        });
+        HashSet<DungeonCell> standing = DungeonWalk.Reachable(candidate.Walkable, candidate.Plan.Arrival);
+        Measure(host, "1 m", layout.Volume, layout.Densities, 1, candidate.Plan, standing, surface);
+        (DungeonVolume fineVolume, RockDensity? fineDensities) = Upsample(layout.Volume, layout.Densities);
+        Measure(host, "0.5 m", fineVolume, fineDensities, 2, candidate.Plan, standing, surface);
+    }
+
+    private static void Measure(EngineTestHost host, string name, DungeonVolume volume, RockDensity? densities, int perMetre, DungeonPlan plan,
+        HashSet<DungeonCell> standing, DungeonSurface surface)
+    {
+        double voxel = 1d / perMetre;
+        host.Call(engine =>
+        {
+            Stopwatch clock = Stopwatch.StartNew();
+            using SpatialSession session = DungeonCollision.CreateSession(engine, surface, voxel);
+            DungeonCollision.Admit(engine, session, volume, DungeonCollision.Chunks(volume), densities, DungeonSurfaces.Weathers(surface), (0L, 0L, 0L));
+            double loadMs = clock.Elapsed.TotalMilliseconds;
+
+            NavigationProfile player = NavigationProfile.Player(engine.Spatial, volume);
+            // Navigation cells stay a metre: a cell must be at least the body's width, so they do
+            // not follow a finer voxel grid.
+            CollisionNavigationConfig config = player.Config with { GridId = GridId };
+            Vector3 size = new(volume.SizeX * (float)voxel, volume.SizeY * (float)voxel, volume.SizeZ * (float)voxel);
+            config = config with { MaximumCells = checked((uint)(MathF.Ceiling(size.X) * MathF.Ceiling(size.Z))) };
+            clock.Restart();
+            CollisionNavigationReplaceReceipt published = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(session, Vector3.Zero, size, config));
+            double navigationMs = clock.Elapsed.TotalMilliseconds;
+
+            // Where the walk check put the arrival and loot, in metres; the plan is in one-metre cells.
+            Vector3 Feet(DungeonCell place) => DungeonWalk.Nearest(standing, place) is DungeonCell at ? new Vector3(at.X + 0.5f, at.Y, at.Z + 0.5f) : new Vector3(place.X + 0.5f, place.Y, place.Z + 0.5f);
+            clock.Restart();
+            NavigationStepResult down = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, Feet(plan.Arrival), Feet(plan.Loot), RouteStepMetres, RouteMaxVisited));
+            NavigationStepResult back = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, Feet(plan.Loot), Feet(plan.Arrival), RouteStepMetres, RouteMaxVisited));
+            double routesMs = clock.Elapsed.TotalMilliseconds;
+
+            clock.Restart();
+            VoxelDensityReceipt blast = engine.Voxel.ApplyDensityEdits(new VoxelDensityTransaction(session,
+                new[] { VoxelDensityEdit.Sphere(Feet(plan.Breach) + new Vector3(0f, 1f, 0f), BlastRadiusMetres, VoxelDensityOperation.Subtract, (uint)BlockId.Stone) }));
+            double blastMs = clock.Elapsed.TotalMilliseconds;
+
+            int chunks = volume.ChunksX * volume.ChunksY * volume.ChunksZ;
+            Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"{name} voxels: {chunks} chunks, load {loadMs:F0} ms; navigation {published.WalkableCellCount} cells in {navigationMs:F0} ms; "
+                + $"arrival->loot {down.Outcome} back {back.Outcome} visited {down.Visited}+{back.Visited} in {routesMs:F0} ms; "
+                + $"{BlastRadiusMetres:F0} m blast: {blast.ChangedVoxels} voxels, {blast.RebuiltMeshChunks} chunks, meshing {blast.MeshMicroseconds / 1000d:F1} ms, {blastMs:F1} ms in all"));
+        });
+    }
+
+    /// <summary>Each block as eight half-size blocks, each density copied to its eight.</summary>
+    private static (DungeonVolume, RockDensity?) Upsample(DungeonVolume coarse, RockDensity? densities)
+    {
+        DungeonVolume fine = new(coarse.ChunksX * 2, coarse.ChunksY * 2, coarse.ChunksZ * 2, BlockId.Air);
+        float[]? values = densities is null ? null : new float[fine.SizeX * fine.SizeY * fine.SizeZ];
+        for (int z = 0; z < fine.SizeZ; z++)
+        {
+            for (int y = 0; y < fine.SizeY; y++)
+            {
+                for (int x = 0; x < fine.SizeX; x++)
+                {
+                    fine.Set(x, y, z, coarse.At(x / 2, y / 2, z / 2));
+                    if (values is not null)
+                    {
+                        values[(((z * fine.SizeY) + y) * fine.SizeX) + x] = densities!.At(x / 2, y / 2, z / 2);
+                    }
+                }
+            }
+        }
+
+        return (fine, values is null ? null : new RockDensity(fine.SizeX, fine.SizeY, fine.SizeZ, values));
     }
 }

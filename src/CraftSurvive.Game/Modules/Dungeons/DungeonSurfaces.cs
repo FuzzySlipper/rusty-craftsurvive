@@ -20,6 +20,13 @@ internal enum DungeonSurface
 
     /// <summary>Rock marched (marching cubes) in flat facets, building blocks as cubes.</summary>
     Marched,
+
+    /// <summary>
+    /// As <see cref="Faceted"/>, with the building's masonry weathered: brick reconstructed with sharp
+    /// features rather than kept on the grid, a little rough, its exposed corners and edges worn back
+    /// by its densities. Floors, stairs and timber stay on the grid.
+    /// </summary>
+    Ruined,
 }
 
 /// <summary>
@@ -38,17 +45,33 @@ internal static class DungeonSurfaces
     /// <summary>How far chiselled rock's vertices are jostled, in cells.</summary>
     private const float ChiselledRoughness = 0.05f;
 
+    /// <summary>How far weathered building blocks' vertices are jostled, in cells.</summary>
+    private const float WeatheredRoughness = 0.06f;
+
     /// <summary>Flat shading: every facet its own normal.</summary>
     private const float FlatCreaseDegrees = 0f;
 
     private static readonly BlockId[] Rock = [BlockId.Stone, BlockId.Dirt, BlockId.Gravel, BlockId.Bedrock];
 
+    /// <summary>
+    /// The building blocks that weather: masonry walls. Floors, stairs and timber (planks,
+    /// cobblestone, logs) stay on the grid in every look, since a sharp-featured block has chamfered
+    /// edges and a chamfered stair is a ramp the body cannot step.
+    /// </summary>
+    private static readonly BlockId[] Weathering = [BlockId.Brick];
+
+    /// <summary>Whether a block wears back under a weathering look.</summary>
+    internal static bool Wears(BlockId block) => Array.IndexOf(Weathering, block) >= 0;
+
     internal static bool IsRock(BlockId block) => Array.IndexOf(Rock, block) >= 0;
+
+    /// <summary>Whether a look wears its building back by density, not only its rock.</summary>
+    internal static bool Weathers(DungeonSurface surface) => surface == DungeonSurface.Ruined;
 
     /// <summary>The mode of every material not listed by <see cref="Materials"/>.</summary>
     internal static VoxelSurfaceMode SessionMode(DungeonSurface surface) => surface switch
     {
-        DungeonSurface.Smooth or DungeonSurface.Faceted => VoxelSurfaceMode.DualContouring,
+        DungeonSurface.Smooth or DungeonSurface.Faceted or DungeonSurface.Ruined => VoxelSurfaceMode.DualContouring,
         _ => VoxelSurfaceMode.GreedyCubes,
     };
 
@@ -69,11 +92,13 @@ internal static class DungeonSurfaces
         (VoxelSurfaceMode Mode, SurfaceCharacter Character) building = surface == DungeonSurface.Marched
             ? (VoxelSurfaceMode.GreedyCubes, SurfaceCharacter.Default)
             : (VoxelSurfaceMode.DualContouring, new SurfaceCharacter(VertexPlacement.Blocky, FlatCreaseDegrees, 0f));
+        SurfaceCharacter weathered = new(VertexPlacement.Sharp, FlatCreaseDegrees, WeatheredRoughness);
         return BlockRegistry.BoundBlocks
-            .Where(block => block.Id != BlockId.Air)
             .Select(block => IsRock(block.Id)
                 ? new VoxelMaterialSurface(block.Slot, rockMode, rock)
-                : new VoxelMaterialSurface(block.Slot, building.Mode, building.Character))
+                : Weathers(surface) && Wears(block.Id)
+                    ? new VoxelMaterialSurface(block.Slot, VoxelSurfaceMode.DualContouring, weathered)
+                    : new VoxelMaterialSurface(block.Slot, building.Mode, building.Character))
             .ToArray();
     }
 
@@ -83,6 +108,7 @@ internal static class DungeonSurfaces
         "dc" => DungeonSurface.Smooth,
         "faceted" => DungeonSurface.Faceted,
         "mc" => DungeonSurface.Marched,
+        "ruined" => DungeonSurface.Ruined,
         _ => null,
     };
 }

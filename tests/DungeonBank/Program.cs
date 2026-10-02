@@ -249,6 +249,14 @@ if (args is ["ramp", .. var rampAngles])
     return 0;
 }
 
+if (args is ["fine", string fineApproach, string fineSeed, ..])
+{
+    // fine <a|b|c> <seed> [surface]: one dungeon at one-metre and half-metre voxels, for cost.
+    DungeonSurface fineSurface = args.Length > 3 ? DungeonSurfaces.Parse(args[3]) ?? DungeonSurface.Faceted : DungeonSurface.Faceted;
+    FineGridProbe.Run(fineApproach, ulong.Parse(fineSeed, System.Globalization.CultureInfo.InvariantCulture), fineSurface);
+    return 0;
+}
+
 if (args is ["section", string seedText])
 {
     Section(ulong.Parse(seedText, System.Globalization.CultureInfo.InvariantCulture));

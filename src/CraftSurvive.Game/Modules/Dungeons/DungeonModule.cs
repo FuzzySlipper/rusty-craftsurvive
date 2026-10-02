@@ -297,12 +297,12 @@ internal sealed class DungeonModule : IProductModule
         retiring = null;
     }
 
-    /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (worn rock), faceted (chiselled rock) or mc (marched rock).</summary>
+    /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (worn rock), faceted (chiselled rock), ruined (weathered building) or mc (marched rock).</summary>
     internal string ChooseSurface(string name)
     {
         if (DungeonSurfaces.Parse(name) is not DungeonSurface next)
         {
-            return $"surface refused: \"{name}\" is not cubes, dc, faceted or mc";
+            return $"surface refused: \"{name}\" is not cubes, dc, faceted, ruined or mc";
         }
 
         surface = next;

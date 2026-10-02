@@ -22,6 +22,7 @@ internal sealed class DungeonSpace : IDisposable
     private readonly DungeonLayout layout;
     private readonly Queue<(int X, int Y, int Z)> pending;
     private readonly Material? rockMaterial;
+    private readonly DungeonSurface surface;
     private MeshResource? rockMesh;
     private Appearance? rockAppearance;
     private readonly int totalChunks;
@@ -32,6 +33,7 @@ internal sealed class DungeonSpace : IDisposable
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
         DungeonSurface surface = DungeonSurface.Cubes)
     {
+        this.surface = surface;
         this.rockMaterial = rockMaterial;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
@@ -76,7 +78,7 @@ internal sealed class DungeonSpace : IDisposable
             admitted.Add(chunk);
         }
 
-        DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities);
+        DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities, DungeonSurfaces.Weathers(surface));
 
         if (pending.Count == 0 && projection is null)
         {

@@ -46,11 +46,13 @@ internal static class DungeonCollision
     /// A dungeon's own session, with the world's blocks colliding as they do outside and its
     /// voxels surfaced as the look asks: cubes, or rock reconstructed beside grid-kept building.
     /// </summary>
-    internal static SpatialSession CreateSession(IEngineContext engine, DungeonSurface surface = DungeonSurface.Cubes)
+    /// <param name="voxelSize">The side of a voxel in metres: the world's block unless a finer grid is being measured.</param>
+    internal static SpatialSession CreateSession(IEngineContext engine, DungeonSurface surface = DungeonSurface.Cubes,
+        double voxelSize = TerrainConstants.VoxelSize)
     {
         VoxelSurfaceMode mode = DungeonSurfaces.SessionMode(surface);
         SpatialSession session = engine.Spatial.CreateSession(new SpatialSessionConfig(
-            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, mode));
+            voxelSize, TerrainConstants.VoxelChunkSize, mode));
         VoxelMaterialSurface[] materials = DungeonSurfaces.Materials(surface);
         if (materials.Length > 0)
         {
@@ -83,9 +85,14 @@ internal static class DungeonCollision
     /// layout has them: each solid voxel's density is negative and each empty one's positive, as the
     /// Engine requires, taken from the sculpted field where it agrees and from the cube face where not.
     /// </summary>
+    /// <param name="firstChunk">The chunk the volume's first chunk is admitted as; by default the one at <see cref="Origin"/> in metre voxels.</param>
     internal static void Admit(IEngineContext engine, SpatialSession session, DungeonVolume volume, IEnumerable<(int X, int Y, int Z)> chunks,
-        RockDensity? densities = null)
+        RockDensity? densities = null, bool weathered = false, (long X, long Y, long Z)? firstChunk = null)
     {
+        (long X, long Y, long Z) first = firstChunk ?? (
+            (long)Origin.X / TerrainConstants.ChunkEdgeLength,
+            (long)Origin.Y / TerrainConstants.ChunkEdgeLength,
+            (long)Origin.Z / TerrainConstants.ChunkEdgeLength);
         List<VoxelResidencyOperation> operations = [];
         List<uint> materials = [];
         List<float> chunkDensities = [];
@@ -104,16 +111,13 @@ internal static class DungeonCollision
                     int cx = (x * edge) + (index % edge);
                     int cy = (y * edge) + (index / edge % edge);
                     int cz = (z * edge) + (index / (edge * edge));
-                    chunkDensities.Add(Density(volume, field, cx, cy, cz, (BlockId)material));
+                    chunkDensities.Add(Density(volume, field, cx, cy, cz, (BlockId)material, weathered));
                 }
             }
 
             operations.Add(new VoxelResidencyOperation(
                 VoxelResidencyOperationKind.Admit,
-                new VoxelChunkIdentity(
-                    x + ((long)Origin.X / TerrainConstants.ChunkEdgeLength),
-                    y + ((long)Origin.Y / TerrainConstants.ChunkEdgeLength),
-                    z + ((long)Origin.Z / TerrainConstants.ChunkEdgeLength)),
+                new VoxelChunkIdentity(x + first.X, y + first.Y, z + first.Z),
                 offset,
                 checked((uint)(materials.Count - (int)offset)),
                 densityOffset,
@@ -169,7 +173,7 @@ internal static class DungeonCollision
     /// passage keeps its full height; walls take the sculpted field, and building blocks keep the
     /// cube face.
     /// </summary>
-    private static float Density(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block)
+    private static float Density(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block, bool weathered)
     {
         bool rock = DungeonSurfaces.IsRock(block);
         bool air = block == BlockId.Air;
@@ -182,10 +186,80 @@ internal static class DungeonCollision
             return block == BlockId.Air ? FaceDensity : -FaceDensity;
         }
 
-        float sculpted = field.At(x, y, z);
-        return block == BlockId.Air
-            ? Math.Clamp(sculpted, DensityFloor, FaceDensity)
-            : Math.Clamp(rock ? sculpted : -FaceDensity, -FaceDensity, -DensityFloor);
+        if (air)
+        {
+            // Beside building blocks the face stays where the block puts it; the rock's field, which
+            // counts building weakly, would otherwise pull masonry out toward the rock.
+            return BesideBuilding(volume, x, y, z) ? FaceDensity : Math.Clamp(field.At(x, y, z), DensityFloor, FaceDensity);
+        }
+
+        if (rock)
+        {
+            return Math.Clamp(field.At(x, y, z), -FaceDensity, -DensityFloor);
+        }
+
+        return weathered && DungeonSurfaces.Wears(block) ? -Weathered(volume, x, y, z) : -FaceDensity;
+    }
+
+    /// <summary>The most a weathered block's exposed surface is worn back, in density units (0.5 is none).</summary>
+    private const float MaximumWear = 0.4f;
+
+    /// <summary>How much more an exposed corner wears than a face, per further exposed side.</summary>
+    private const float CornerWear = 0.12f;
+
+    private static readonly (int X, int Y, int Z)[] Sides = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)];
+
+    /// <summary>
+    /// How solid a weathered building block reads: a block with no open side, or open only above or
+    /// below, stays a full block; one open to a side is worn back by a fixed, per-block amount, more
+    /// where several sides are open, so edges and corners round off and wall faces go uneven.
+    /// </summary>
+    private static float Weathered(DungeonVolume volume, int x, int y, int z)
+    {
+        int open = 0;
+        bool sideOpen = false;
+        foreach ((int dx, int dy, int dz) in Sides)
+        {
+            bool empty = volume.At(x + dx, y + dy, z + dz) == BlockId.Air;
+            open += empty ? 1 : 0;
+            sideOpen |= empty && dy == 0;
+        }
+
+        // Only what faces sideways wears - walls, wall tops, ledge edges. A block open only above or
+        // below is a floor or a ceiling, kept whole so routes and headroom hold.
+        if (!sideOpen)
+        {
+            return FaceDensity;
+        }
+
+        float wear = (MaximumWear * Wear(x, y, z)) + (CornerWear * (open - 1));
+        return Math.Clamp(FaceDensity - wear, DensityFloor + DensityFloor, FaceDensity);
+    }
+
+    /// <summary>A block's wear in [0, 1]: a fixed hash of its cell, squared so most blocks wear little.</summary>
+    private static float Wear(int x, int y, int z)
+    {
+        ulong h = ((ulong)(uint)x * 0x9E37_79B1UL) ^ ((ulong)(uint)y * 0x85EB_CA77UL << 17) ^ ((ulong)(uint)z * 0xC2B2_AE3DUL << 31);
+        h ^= h >> 33;
+        h *= 0xFF51_AFD7_ED55_8CCDUL;
+        h ^= h >> 33;
+        float unit = (h >> 40) / (float)(1UL << 24);
+        return unit * unit;
+    }
+
+    /// <summary>Whether an empty cell touches a building block on any side.</summary>
+    private static bool BesideBuilding(DungeonVolume volume, int x, int y, int z)
+    {
+        foreach ((int dx, int dy, int dz) in Sides)
+        {
+            BlockId side = volume.At(x + dx, y + dy, z + dz);
+            if (side != BlockId.Air && !DungeonSurfaces.IsRock(side) && volume.Contains(x + dx, y + dy, z + dz))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Admits the rock mesh as the session's static collision.</summary>
