@@ -17,6 +17,7 @@ if (args is ["render", string renderSeed, string output, ..] && args.Length <= 4
         "c" => Sculpted(chosen),
         "b" => Modular(chosen),
         "v" => Vertical(chosen),
+        "s" => Shaft(chosen),
         _ => Carved(chosen),
     };
     HashSet<DungeonCell> walkableCells = DungeonWalk.Reachable(shown, drawnPlan.Arrival);
@@ -382,6 +383,15 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     }
 }
 
+// The shaft sketch: its ledge winds all the way down to the loot on the floor, walked by both checks.
+{
+    Check.That(VerticalSampler.Shaft(1UL).Verdict.Walkable, "the shaft sketch must be walkable");
+    foreach (DungeonSurface sketchSurface in (DungeonSurface[])[DungeonSurface.Cubes, DungeonSurface.Faceted])
+    {
+        Check.That(EngineRouteBank.Shaft(sketchSurface).Verdict.Walkable, $"the Engine must walk the {sketchSurface} shaft sketch");
+    }
+}
+
 // Approach B: assembled from those modules, sculpted, still walkable.
 const int ModularSeeds = 40;
 int modularWalkable = 0;
@@ -447,6 +457,12 @@ static (DungeonVolume, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)
 static (DungeonVolume, DungeonPlan, DungeonVerdict) Vertical(ulong seed)
 {
     var result = VerticalSampler.Generate(seed);
+    return (result.Walkable, result.Plan, result.Verdict);
+}
+
+static (DungeonVolume, DungeonPlan, DungeonVerdict) Shaft(ulong seed)
+{
+    var result = VerticalSampler.Shaft(seed);
     return (result.Walkable, result.Plan, result.Verdict);
 }
 

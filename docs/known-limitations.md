@@ -141,7 +141,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   check knows only walking (steps up to a jump's height, drops), so a climb or a drop deeper than
   `DungeonWalk.MaximumDrop` is never part of a promised route: a route that needs one is refused.
   `craft.dungeon.approach v` loads `VerticalSampler`, a hand-placed sketch of a bridged chasm with a
-  route crossing beneath the bridge.
+  route crossing beneath the bridge, and `s` its shaft sketch: a ledge winding five storeys down an
+  open shaft.
+- **Underground is dark by design.** `DayNightSky.Underground` drops the ambient fill to a trace and
+  fades distance into near-black fog (exponential squared), so a dungeon is lit by its own lights
+  and a drop reads as depth. The fog is a camera-view setting, turned off on the way back up.
 
 ## Persistence
 

@@ -110,6 +110,7 @@ internal static class EngineRouteBank
         "b" => DungeonApproach.Modules,
         "c" => DungeonApproach.SculptedCave,
         "v" => DungeonApproach.Vertical,
+        "s" => DungeonApproach.Shaft,
         _ => DungeonApproach.CarveAndStamp,
     };
 
@@ -202,6 +203,13 @@ internal static class EngineRouteBank
         DungeonCandidate candidate = new(0, 1UL, sketch.Layout, sketch.Plan, sketch.Verdict, sketch.Walkable);
         using EngineTestHost host = CreateHost();
         return Check(host, withoutStair ? "v-without-stair" : "v", candidate, [Player], verbose, surface)[0];
+    }
+
+    /// <summary>The shaft sketch, checked by the Engine for the player's body.</summary>
+    internal static Outcome Shaft(DungeonSurface surface)
+    {
+        using EngineTestHost host = CreateHost();
+        return Check(host, "s", Candidate("s", 1UL), [Player], verbose: false, surface)[0];
     }
 
     internal static DungeonCandidate Candidate(string approach, ulong seed) => DungeonCandidates.Generate(Approach(approach), seed, 0);

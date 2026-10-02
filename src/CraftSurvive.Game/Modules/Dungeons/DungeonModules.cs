@@ -340,6 +340,88 @@ internal static class DungeonModules
             canvas.Light(across - (Cell / 2), 3, Cell * 1.5);
         });
 
+    /// <summary>
+    /// A shaft five storeys deep and three cells across, open down the middle, with a ledge on its
+    /// walls that winds one full turn from the top socket (north) to the floor. Halfway down the ledge
+    /// passes the south socket, the way into whatever lies beside the shaft. Stepping off the ledge
+    /// drops into the depths; the ledge's lower turns lead back up.
+    /// </summary>
+    internal static DungeonModuleShape Abyss { get; } = new("abyss", ModuleKind.Cave, 3, 5, 3,
+        [new(1, 4, 2, ModuleFace.North, SocketKind.Cave), new(1, 2, 0, ModuleFace.South, SocketKind.Cave)],
+        (canvas, random) =>
+        {
+            const int ledgeHeadroom = 4;
+            const int corbelDepth = 3;
+            int size = canvas.SizeX;
+            int near = 2;
+            int far = size - 3;
+            int middle = size / 2;
+            int top = (4 * Storey) + 1;
+
+            // The walk: from the north socket east along the north wall, down the east wall, west
+            // along the south wall past the south socket, up the west wall, and east along the north
+            // wall again to under where it began.
+            List<(int X, int Z)> path = [];
+            for (int x = middle; x < far; x++)
+            {
+                path.Add((x, far));
+            }
+
+            for (int z = far; z > near; z--)
+            {
+                path.Add((far, z));
+            }
+
+            for (int x = far; x > near; x--)
+            {
+                path.Add((x, near));
+            }
+
+            for (int z = near; z < far; z++)
+            {
+                path.Add((near, z));
+            }
+
+            for (int x = near; x < middle - 2; x++)
+            {
+                path.Add((x, far));
+            }
+
+            // Down a storey every quarter of the way, so the ledge is level with the south socket
+            // when it passes it and reaches the floor at the end.
+            int halfway = path.IndexOf((middle, near));
+            int Feet(int step) => step <= halfway
+                ? top - (int)Math.Round(step * ((top - (2 * Storey) - 1) / (double)halfway))
+                : (2 * Storey) + 1 - (int)Math.Round((step - halfway) * ((2 * Storey) / (double)(path.Count - 1 - halfway)));
+
+            // The shaft, then a corbel under the whole ledge, then the ledge's headroom, then its
+            // treads, so each tread's front is the riser down to the next.
+            canvas.Fill(1, 1, 1, size - 2, canvas.SizeY - 2, size - 2, BlockId.Air);
+            for (int step = 0; step < path.Count; step++)
+            {
+                (int x, int z) = path[step];
+                int feet = Feet(step);
+                canvas.Fill(x - 1, Math.Max(0, feet - 1 - corbelDepth), z - 1, x + 1, feet - 1, z + 1, BlockId.Stone);
+            }
+
+            for (int step = 0; step < path.Count; step++)
+            {
+                (int x, int z) = path[step];
+                int feet = Feet(step);
+                canvas.Fill(x - 1, feet, z - 1, x + 1, feet + ledgeHeadroom - 1, z + 1, BlockId.Air);
+            }
+
+            for (int step = 0; step < path.Count; step++)
+            {
+                (int x, int z) = path[step];
+                canvas.Fill(x - 1, Feet(step) - 1, z - 1, x + 1, Feet(step) - 1, z + 1, BlockId.Stone);
+            }
+
+            // A glow at the bottom, so the depth reads from the ledge above, and one by the way in.
+            canvas.Light(middle, 2, middle);
+            canvas.Light(middle, top + 3, far);
+        });
+
     internal static DungeonModuleShape Room { get; } = new("room", ModuleKind.Building, 1, 1, 1,
         [
             new(0, 0, 0, ModuleFace.North, SocketKind.Door), new(0, 0, 0, ModuleFace.East, SocketKind.Door),

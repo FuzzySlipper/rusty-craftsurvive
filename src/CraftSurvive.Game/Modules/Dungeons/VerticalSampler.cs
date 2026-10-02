@@ -11,6 +11,8 @@ internal static class VerticalSampler
 {
     private const int Upper = 3;
     private const int Lower = 2;
+    private const int ShaftBottom = 1;
+    private const int ShaftTop = 5;
 
     /// <summary>
     /// The sketch, sculpted and walk-checked. Without its stair (<paramref name="withoutStair"/>) the
@@ -39,5 +41,20 @@ internal static class VerticalSampler
         }
 
         return ModularDungeon.Placed(seed, placed, breach, grotto);
+    }
+
+    /// <summary>
+    /// The shaft sketch: arrive at the top of a shaft five storeys deep, wind down the ledge on its
+    /// walls past the way into a building halfway down, to the loot on the shaft's floor. The
+    /// middle is open all the way down.
+    /// </summary>
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable, IReadOnlyList<PlacedModule> Modules) Shaft(ulong seed)
+    {
+        PlacedModule arrival = new(DungeonModules.Arrival, 0, 5, ShaftTop, 7);
+        PlacedModule abyss = new(DungeonModules.Abyss, 0, 4, ShaftBottom, 4);
+        PlacedModule breach = new(DungeonModules.Breach, 2, 5, ShaftBottom + 2, 3);
+        PlacedModule hall = new(DungeonModules.Room, 0, 5, ShaftBottom + 2, 2);
+        PlacedModule side = new(DungeonModules.Room, 0, 6, ShaftBottom + 2, 3);
+        return ModularDungeon.Placed(seed, [arrival, abyss, breach, hall, side], breach, abyss);
     }
 }

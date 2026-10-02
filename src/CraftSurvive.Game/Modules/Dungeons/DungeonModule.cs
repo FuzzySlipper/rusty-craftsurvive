@@ -309,7 +309,7 @@ internal sealed class DungeonModule : IProductModule
         return $"the next dungeon's voxels are surfaced {surface}";
     }
 
-    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave) or v (vertical sketch).</summary>
+    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave), v (chasm sketch) or s (shaft sketch).</summary>
     internal string Choose(string name)
     {
         DungeonApproach? chosen = name switch
@@ -318,11 +318,12 @@ internal sealed class DungeonModule : IProductModule
             "b" => DungeonApproach.Modules,
             "c" => DungeonApproach.SculptedCave,
             "v" => DungeonApproach.Vertical,
+            "s" => DungeonApproach.Shaft,
             _ => null,
         };
         if (chosen is not DungeonApproach next)
         {
-            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules), c (sculpted cave) or v (vertical sketch)";
+            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules), c (sculpted cave), v (chasm sketch) or s (shaft sketch)";
         }
 
         approach = next;

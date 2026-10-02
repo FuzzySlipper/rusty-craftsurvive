@@ -44,7 +44,23 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>Underground there is no sky: a near-black background, no sun, and a faint fill.</summary>
     private static readonly Color UndergroundBackground = new(0.02f, 0.02f, 0.03f, 1f);
 
-    private const float UndergroundAmbientIntensity = 0.3f;
+    /// <summary>
+    /// The fill underground: faint, so what the dungeon's own lights do not reach falls toward
+    /// black and a drop reads as depth.
+    /// </summary>
+    private const float UndergroundAmbientIntensity = 0.08f;
+
+    /// <summary>
+    /// How quickly distance fades underground into the background colour (exponential squared: clear
+    /// near, closing in beyond about twenty metres), so far floors and depths sink into the dark.
+    /// </summary>
+    private const float UndergroundFogDensity = 0.045f;
+
+    /// <summary>
+    /// What distance fades to underground, in linear light: darker than the background's colour
+    /// reads, so depth closes into black rather than a grey haze.
+    /// </summary>
+    private static readonly Color UndergroundFog = new(0.002f, 0.002f, 0.003f, 1f);
 
     internal DayNightSky(IEngineContext engine)
     {
@@ -71,11 +87,13 @@ internal sealed class DayNightSky : IDisposable
         litDaylight = double.NaN;
         if (!below)
         {
+            engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
             Show(time);
             return;
         }
 
         engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(UndergroundBackground));
+        engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, UndergroundFogDensity));
         LightDescriptor dark = Directional(MoonColour, 0f, -Vector3.UnitY) with { Enabled = false };
         LightDescriptor fill = Fill(0d) with { Intensity = UndergroundAmbientIntensity };
         if (sun is Light retainedSun && ambient is Light retainedFill)

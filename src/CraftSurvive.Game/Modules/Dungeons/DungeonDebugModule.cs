@@ -16,7 +16,7 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.enter", Description = "Enters the dungeon at the entrance the player stands at, as the UI's Enter does.")]
     public string Enter() => dungeons.Enter();
 
-    [DebugCommand("craft.dungeon.approach", Description = "Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave) or v (the vertical sketch).")]
+    [DebugCommand("craft.dungeon.approach", Description = "Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave), v (the chasm sketch) or s (the shaft sketch).")]
     public string Approach(string name) => dungeons.Choose(name);
 
     [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual-contoured worn rock, building on the grid), faceted (flat-faceted rock), ruined (faceted rock, weathered building) or mc (marched rock, cube building).")]
