@@ -16,6 +16,7 @@ if (args is ["render", string renderSeed, string output, ..] && args.Length <= 4
     {
         "c" => Sculpted(chosen),
         "b" => Modular(chosen),
+        "v" => Vertical(chosen),
         _ => Carved(chosen),
     };
     HashSet<DungeonCell> walkableCells = DungeonWalk.Reachable(shown, drawnPlan.Arrival);
@@ -257,6 +258,54 @@ if (args is ["fine", string fineApproach, string fineSeed, ..])
     return 0;
 }
 
+if (args is ["vertical", ..])
+{
+    // vertical [surface]: the vertical sketch and its broken twin, walked and checked by the Engine.
+    DungeonSurface verticalSurface = args.Length > 1 ? DungeonSurfaces.Parse(args[1]) ?? DungeonSurface.Faceted : DungeonSurface.Faceted;
+    foreach (bool withoutStair in (bool[])[false, true])
+    {
+        var sketch = VerticalSampler.Generate(1UL, withoutStair);
+        Console.WriteLine($"vertical{(withoutStair ? " without stair" : string.Empty)}: walk {sketch.Verdict.Reason}");
+        EngineRouteBank.Vertical(withoutStair, verticalSurface, verbose: true);
+    }
+
+    return 0;
+}
+
+if (args is ["sections", string sectionApproach, string sectionSeed, string sectionOutput, string acrossText, string alongText, string bottomText, string topText])
+{
+    // sections <approach> <seed> <out.png> <z,z..> <x,x..> <bottom> <top>: sections across at each z and along at each x.
+    DungeonCandidate candidate = EngineRouteBank.Candidate(sectionApproach, ulong.Parse(sectionSeed, System.Globalization.CultureInfo.InvariantCulture));
+    static int[] Ints(string text) => text.Length == 0 || text == "-" ? [] : [.. text.Split(',').Select(part => int.Parse(part, System.Globalization.CultureInfo.InvariantCulture))];
+    Cutaway.Sections(sectionOutput, candidate.Walkable, candidate.Plan, DungeonWalk.Reachable(candidate.Walkable, candidate.Plan.Arrival),
+        Ints(acrossText), Ints(alongText), int.Parse(bottomText, System.Globalization.CultureInfo.InvariantCulture), int.Parse(topText, System.Globalization.CultureInfo.InvariantCulture));
+    return 0;
+}
+
+if (args is ["column", string columnApproach, string columnSeed, string columnX, string columnZ])
+{
+    // column <approach> <seed> <x> <z>: one column of a dungeon, bottom up: the walked block and the
+    // sculpted density, to read a shape where a body hangs up.
+    DungeonCandidate candidate = EngineRouteBank.Candidate(columnApproach, ulong.Parse(columnSeed, System.Globalization.CultureInfo.InvariantCulture));
+    int cx = int.Parse(columnX, System.Globalization.CultureInfo.InvariantCulture);
+    int cz = int.Parse(columnZ, System.Globalization.CultureInfo.InvariantCulture);
+    for (int y = 0; y < candidate.Walkable.SizeY; y++)
+    {
+        BlockId block = candidate.Walkable.At(cx, y, cz);
+        float? density = candidate.Layout.Rock?.At(cx, y, cz);
+        if (block != BlockId.Air || density is < 0.5f)
+        {
+            Console.WriteLine($"{y,3} {block,-12} {density:F2}");
+        }
+        else
+        {
+            Console.WriteLine($"{y,3} .");
+        }
+    }
+
+    return 0;
+}
+
 if (args is ["section", string seedText])
 {
     Section(ulong.Parse(seedText, System.Globalization.CultureInfo.InvariantCulture));
@@ -308,6 +357,29 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     var (isolated, sockets) = ModularDungeon.Isolated(shape);
     bool connected = sockets.All(from => DungeonWalk.Reachable(isolated, from.Stand) is var reach && sockets.All(to => reach.Contains(to.Stand)));
     Check.That(connected, $"module {shape.Name} must connect every socket to every other");
+}
+
+// The chasm crosses itself a storey apart: its bridge joins its upper ways on, its floor its lower
+// ones, and walking alone never joins the two (that takes a drop and a climb).
+{
+    var (chasm, chasmSockets) = ModularDungeon.Isolated(DungeonModules.Chasm);
+    HashSet<DungeonCell> overBridge = DungeonWalk.Reachable(chasm, chasmSockets[0].Stand);
+    HashSet<DungeonCell> alongFloor = DungeonWalk.Reachable(chasm, chasmSockets[2].Stand);
+    Check.That(overBridge.Contains(chasmSockets[1].Stand), "the chasm's bridge must join its north and south ways on");
+    Check.That(alongFloor.Contains(chasmSockets[3].Stand), "the chasm's floor must join its east and west ways on");
+    Check.That(!alongFloor.Contains(chasmSockets[0].Stand), "the chasm's floor must not walk up to its bridge");
+}
+
+// The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the
+// way back only by a climb - both the walk and the Engine refuse it.
+{
+    Check.That(VerticalSampler.Generate(1UL).Verdict.Walkable, "the vertical sketch must be walkable");
+    Check.That(!VerticalSampler.Generate(1UL, withoutStair: true).Verdict.Walkable, "the vertical sketch without its stair must not be walkable");
+    foreach (DungeonSurface sketchSurface in (DungeonSurface[])[DungeonSurface.Cubes, DungeonSurface.Faceted])
+    {
+        Check.That(EngineRouteBank.Vertical(false, sketchSurface, verbose: false).Verdict.Walkable, $"the Engine must walk the {sketchSurface} vertical sketch");
+        Check.That(!EngineRouteBank.Vertical(true, sketchSurface, verbose: false).Verdict.Walkable, $"the Engine must refuse the {sketchSurface} vertical sketch without its stair");
+    }
 }
 
 // Approach B: assembled from those modules, sculpted, still walkable.
@@ -370,6 +442,12 @@ static (DungeonVolume, DungeonPlan, DungeonVerdict) Sculpted(ulong seed)
 {
     (_, DungeonPlan plan, DungeonVerdict verdict, DungeonVolume walkable) = SculptedCave.Generate(seed);
     return (walkable, plan, verdict);
+}
+
+static (DungeonVolume, DungeonPlan, DungeonVerdict) Vertical(ulong seed)
+{
+    var result = VerticalSampler.Generate(seed);
+    return (result.Walkable, result.Plan, result.Verdict);
 }
 
 static (DungeonVolume, DungeonPlan, DungeonVerdict) Modular(ulong seed)
@@ -490,6 +568,55 @@ internal static class Cutaway
     /// floors warm, cave floors cool, brighter the higher they are, key places in yellow. It shows
     /// what slices cannot - which floors lie over which.
     /// </summary>
+    /// <summary>
+    /// Sections through one dungeon at chosen places: across it (x up the page's width) at each z,
+    /// and along it (z across) at each x, side by side, cropped to a window of heights. Walkable
+    /// cells green, key places yellow.
+    /// </summary>
+    internal static void Sections(string path, DungeonVolume volume, DungeonPlan plan, HashSet<DungeonCell> reach,
+        IReadOnlyList<int> acrossAtZ, IReadOnlyList<int> alongAtX, int bottom, int top)
+    {
+        const int Big = 6;
+        int rows = top - bottom + 1;
+        int panels = acrossAtZ.Count + alongAtX.Count;
+        int panelWidth = Math.Max(volume.SizeX, volume.SizeZ) * Big;
+        int width = panels * (panelWidth + 8);
+        int height = rows * Big;
+        byte[] rgb = new byte[width * height * 3];
+        DungeonCell[] marks = [plan.Arrival, plan.Breach, plan.Loot];
+        int panel = 0;
+        foreach ((bool across, int at) in acrossAtZ.Select(z => (true, z)).Concat(alongAtX.Select(x => (false, x))))
+        {
+            int ox = panel++ * (panelWidth + 8);
+            int span = across ? volume.SizeX : volume.SizeZ;
+            for (int u = 0; u < span; u++)
+            {
+                for (int y = bottom; y <= top; y++)
+                {
+                    DungeonCell cell = across ? new DungeonCell(u, y, at) : new DungeonCell(at, y, u);
+                    byte[] colour = Colour(volume.At(cell.X, cell.Y, cell.Z), reach.Contains(cell));
+                    if (marks.Contains(cell))
+                    {
+                        colour = Mark;
+                    }
+
+                    for (int py = 0; py < Big; py++)
+                    {
+                        for (int px = 0; px < Big; px++)
+                        {
+                            int i = ((((top - y) * Big) + py) * width + ox + (u * Big) + px) * 3;
+                            rgb[i] = colour[0];
+                            rgb[i + 1] = colour[1];
+                            rgb[i + 2] = colour[2];
+                        }
+                    }
+                }
+            }
+        }
+
+        File.WriteAllBytes(path, Png(width, height, rgb));
+    }
+
     internal static void Isometric(string path, DungeonVolume volume, DungeonPlan plan, HashSet<DungeonCell> reach)
     {
         const int Tile = 5;

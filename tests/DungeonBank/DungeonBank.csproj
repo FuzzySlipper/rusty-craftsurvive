@@ -20,6 +20,7 @@
     <Compile Include="$(ProductModules)Dungeons/SculptedCave.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonModules.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/VerticalSampler.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCandidates.cs" LinkBase="Product/Dungeons" />

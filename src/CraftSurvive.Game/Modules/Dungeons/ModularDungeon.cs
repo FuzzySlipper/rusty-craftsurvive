@@ -86,28 +86,60 @@ internal static class ModularDungeon
             return (nothing, failed, new DungeonVerdict(false, failure, 0), empty, assembly.Placed);
         }
 
-        DungeonVolume volume = new(CarveAndStamp.ChunksX, CarveAndStamp.ChunksY, CarveAndStamp.ChunksZ, BlockId.Stone);
-        foreach (PlacedModule module in assembly.Placed)
+        return Finish(seed, attempt, mix, assembly.Placed, assembly.Joins, assembly.BreachModule, assembly.VaultModule, random);
+    }
+
+    /// <summary>
+    /// A dungeon from modules already placed: stamped, joined wherever two placed sockets face each
+    /// other, sculpted and walk-checked as an assembled one is. For hand-placed sketches.
+    /// </summary>
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable, IReadOnlyList<PlacedModule> Modules) Placed(
+        ulong seed, IReadOnlyList<PlacedModule> placed, PlacedModule breach, PlacedModule vault)
+    {
+        List<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> joins = [];
+        HashSet<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> sockets = [.. placed.SelectMany(module => module.Sockets())];
+        foreach (var socket in sockets)
         {
-            Stamp(volume, module, random);
+            (int dx, int dz) = Step(socket.Face);
+            var facing = (socket.X + dx, socket.Y, socket.Z + dz, Opposite(socket.Face), socket.Kind);
+            if (socket.Face is ModuleFace.North or ModuleFace.East && sockets.Contains(facing))
+            {
+                joins.Add(socket);
+            }
         }
 
-        foreach ((int x, int y, int z, ModuleFace face, SocketKind kind) in assembly.Joins)
+        return Finish(seed, 0, DungeonMix.Balanced, placed, joins, breach, vault, new DungeonRandom(seed));
+    }
+
+    private static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable, IReadOnlyList<PlacedModule> Modules) Finish(
+        ulong seed, int attempt, DungeonMix mix, IReadOnlyList<PlacedModule> placed,
+        IReadOnlyList<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> joins, PlacedModule? breachModule, PlacedModule? vaultModule,
+        DungeonRandom random)
+    {
+        DungeonVolume volume = new(CarveAndStamp.ChunksX, CarveAndStamp.ChunksY, CarveAndStamp.ChunksZ, BlockId.Stone);
+        HashSet<DungeonCell> climbs = [];
+        Dictionary<PlacedModule, List<Vector3>> moduleLights = [];
+        foreach (PlacedModule module in placed)
+        {
+            moduleLights[module] = Stamp(volume, module, random, climbs);
+        }
+
+        foreach ((int x, int y, int z, ModuleFace face, SocketKind kind) in joins)
         {
             Open(volume, x, y, z, face, kind);
         }
 
-        PlacedModule arrival = assembly.Placed[0];
+        PlacedModule arrival = placed[0];
         DungeonCell arrivalCell = Floor(arrival, 0, 0);
-        DungeonCell breach = assembly.BreachModule is PlacedModule b ? Floor(b, 0, 0) : arrivalCell;
-        DungeonCell loot = assembly.VaultModule is PlacedModule v ? Floor(v, 0, 0) : arrivalCell;
-        List<DungeonCell> rooms = [.. assembly.Placed.Where(module => module.Shape.Kind == ModuleKind.Building).Select(module => Floor(module, 0, 0))];
-        int storeys = assembly.Placed.Where(module => module.Shape.Kind == ModuleKind.Building).SelectMany(module => module.Cells()).Select(cell => cell.Y).Distinct().Count();
+        DungeonCell breach = breachModule is PlacedModule b ? Floor(b, 0, 0) : arrivalCell;
+        DungeonCell loot = vaultModule is PlacedModule v ? Floor(v, 0, 0) : arrivalCell;
+        List<DungeonCell> rooms = [.. placed.Where(module => module.Shape.Kind == ModuleKind.Building).Select(module => Floor(module, 0, 0))];
+        int storeys = placed.Where(module => module.Shape.Kind == ModuleKind.Building).SelectMany(module => module.Cells()).Select(cell => cell.Y).Distinct().Count();
         DungeonPlan plan = new(seed, attempt, mix, storeys, arrivalCell, breach, rooms, loot);
 
-        (RockDensity rock, DungeonVolume building, DungeonVolume walkable) = SculptedRock.Sculpt(volume, arrivalCell, seed);
+        (RockDensity rock, DungeonVolume building, DungeonVolume walkable) = SculptedRock.Sculpt(volume, arrivalCell, seed, climbs);
         DungeonVerdict verdict = CarveAndStamp.Check(walkable, plan);
-        List<Vector3> lights = [.. Lights(assembly.Placed)];
+        List<Vector3> lights = [.. Lights(placed, moduleLights)];
         DungeonLayout layout = new(
             $"modular-{seed:x}",
             building,
@@ -117,7 +149,7 @@ internal static class ModularDungeon
         {
             Rock = rock,
         };
-        return (layout, plan, verdict, walkable, assembly.Placed);
+        return (layout, plan, verdict, walkable, placed);
     }
 
     /// <summary>
@@ -129,7 +161,7 @@ internal static class ModularDungeon
     {
         DungeonVolume volume = new(3, 3, 3, BlockId.Stone);
         PlacedModule module = new(shape, 0, 1, 1, 1);
-        Stamp(volume, module, new DungeonRandom(1UL));
+        Stamp(volume, module, new DungeonRandom(1UL), []);
         List<(ModuleSocket, DungeonCell)> stands = [];
         foreach ((ModuleSocket socket, var placed) in shape.Sockets.Zip(module.Sockets()))
         {
@@ -173,8 +205,11 @@ internal static class ModularDungeon
             ((module.Y + storey) * ModuleCanvas.StoreyHeight) + BaseY + 1,
             (module.Z * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2));
 
-    /// <summary>Lays a module's voxels into the dungeon, turned, leaving rock where the module left it.</summary>
-    private static void Stamp(DungeonVolume volume, PlacedModule module, DungeonRandom random)
+    /// <summary>
+    /// Lays a module's voxels into the dungeon, turned, leaving rock where the module left it, and
+    /// adds its climb lanes to <paramref name="climbs"/>. Returns the lights it hangs, in the dungeon.
+    /// </summary>
+    private static List<Vector3> Stamp(DungeonVolume volume, PlacedModule module, DungeonRandom random, HashSet<DungeonCell> climbs)
     {
         DungeonModuleShape shape = module.Shape;
         ModuleCanvas canvas = new(shape.Width, shape.Height, shape.Depth);
@@ -196,6 +231,22 @@ internal static class ModularDungeon
                 }
             }
         }
+
+        foreach ((int x, int y, int z) in canvas.Climbs)
+        {
+            (int tx, int tz) = Turn(x, z, canvas.SizeX, canvas.SizeZ, module.Turns);
+            climbs.Add(new DungeonCell(ox + tx, oy + y, oz + tz));
+        }
+
+        List<Vector3> lights = [];
+        foreach ((double x, double y, double z) in canvas.Lights)
+        {
+            // Turned as a cell's corner is: the light's cell, then its offset within the cell.
+            (int tx, int tz) = Turn((int)x, (int)z, canvas.SizeX, canvas.SizeZ, module.Turns);
+            lights.Add(new Vector3(ox + tx + 0.5f, oy + (float)y, oz + tz + 0.5f));
+        }
+
+        return lights;
     }
 
     /// <summary>
@@ -231,17 +282,30 @@ internal static class ModularDungeon
         }
     }
 
-    /// <summary>One light per module's first cell, up to the dungeon's light budget, spread along the assembly.</summary>
-    private static IEnumerable<Vector3> Lights(IReadOnlyList<PlacedModule> placed)
+    /// <summary>
+    /// The lights each module hangs, its own or one over its first cell, up to the dungeon's light
+    /// budget, spread along the assembly.
+    /// </summary>
+    private static IEnumerable<Vector3> Lights(IReadOnlyList<PlacedModule> placed, Dictionary<PlacedModule, List<Vector3>> own)
     {
-        int stride = Math.Max(1, (int)Math.Ceiling(placed.Count / (double)DungeonLayout.MaximumLights));
-        for (int index = 0; index < placed.Count; index += stride)
+        List<Vector3> all = [.. placed.SelectMany(module => own.TryGetValue(module, out List<Vector3>? mine) && mine.Count > 0
+            ? mine
+            : [DefaultLight(module)])];
+        int stride = Math.Max(1, (int)Math.Ceiling(all.Count / (double)DungeonLayout.MaximumLights));
+        for (int index = 0; index < all.Count; index += stride)
         {
-            PlacedModule module = placed[index];
-            DungeonCell floor = Floor(module, 0, 0);
-            yield return new Vector3(floor.X + 0.5f, floor.Y + 3.2f, floor.Z + 0.5f);
+            yield return all[index];
         }
     }
+
+    private static Vector3 DefaultLight(PlacedModule module)
+    {
+        DungeonCell floor = Floor(module, 0, 0);
+        return new Vector3(floor.X + 0.5f, floor.Y + DefaultLightHeight, floor.Z + 0.5f);
+    }
+
+    /// <summary>How high over a module's floor its default light hangs.</summary>
+    private const float DefaultLightHeight = 3.2f;
 
     /// <summary>
     /// The growing assembly: which lattice cells are taken, the placed modules in order, and every

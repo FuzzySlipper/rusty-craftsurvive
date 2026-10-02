@@ -11,6 +11,9 @@ internal enum DungeonApproach
 
     /// <summary>B: assembled from authored 3D modules joined at their sockets, rock sculpted as in C.</summary>
     Modules,
+
+    /// <summary>V: the hand-placed vertical sketch of #7916, from the same modules as B.</summary>
+    Vertical,
 }
 
 /// <summary>One generated dungeon: its layout, its plan, the generator's own verdict, and the voxel copy that was walked.</summary>
@@ -48,6 +51,9 @@ internal static class DungeonCandidates
             case DungeonApproach.Modules:
                 var modular = ModularDungeon.Generate(seed);
                 return new DungeonCandidate(index, seed, modular.Layout, modular.Plan, modular.Verdict, modular.Walkable);
+            case DungeonApproach.Vertical:
+                var vertical = VerticalSampler.Generate(seed);
+                return new DungeonCandidate(index, seed, vertical.Layout, vertical.Plan, vertical.Verdict, vertical.Walkable);
             case DungeonApproach.SculptedCave:
                 var sculpted = SculptedCave.Generate(seed);
                 return new DungeonCandidate(index, seed, sculpted.Layout, sculpted.Plan, sculpted.Verdict, sculpted.Walkable);

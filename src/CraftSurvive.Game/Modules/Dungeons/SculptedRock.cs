@@ -64,7 +64,12 @@ internal static class SculptedRock
     private static readonly (int X, int Z)[] AroundBody = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
 
     /// <summary>The rock, the voxels that remain (the building), and a voxel copy of both for the route check.</summary>
-    internal static (RockDensity Rock, DungeonVolume Building, DungeonVolume Walkable) Sculpt(DungeonVolume source, DungeonCell arrival, ulong seed)
+    /// <remarks>
+    /// <paramref name="climbs"/> are cells a body climbs through: held open like a standing body,
+    /// with the rock around them held back, so a climbed face stays where the climb rule reads it.
+    /// </remarks>
+    internal static (RockDensity Rock, DungeonVolume Building, DungeonVolume Walkable) Sculpt(DungeonVolume source, DungeonCell arrival, ulong seed,
+        IReadOnlySet<DungeonCell>? climbs = null)
     {
         int width = source.SizeX;
         int height = source.SizeY;
@@ -127,6 +132,19 @@ internal static class SculptedRock
 
             Soften(source, values, cell.X, cell.Y + DungeonWalk.Headroom, cell.Z);
             Soften(source, values, cell.X, cell.Y + DungeonWalk.Headroom + StepLiftCells, cell.Z);
+        }
+
+        foreach (DungeonCell cell in climbs ?? new HashSet<DungeonCell>())
+        {
+            if (source.Contains(cell.X, cell.Y, cell.Z) && source.At(cell.X, cell.Y, cell.Z) == BlockId.Air)
+            {
+                int open = Index(cell.X, cell.Y, cell.Z, width, height);
+                values[open] = Math.Max(values[open], BodyOpenMargin);
+                foreach ((int dx, int dz) in AroundBody)
+                {
+                    Soften(source, values, cell.X + dx, cell.Y, cell.Z + dz);
+                }
+            }
         }
 
         foreach (DungeonCell cell in walkable0)

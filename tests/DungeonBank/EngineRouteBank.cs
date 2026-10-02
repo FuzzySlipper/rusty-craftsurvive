@@ -109,6 +109,7 @@ internal static class EngineRouteBank
     {
         "b" => DungeonApproach.Modules,
         "c" => DungeonApproach.SculptedCave,
+        "v" => DungeonApproach.Vertical,
         _ => DungeonApproach.CarveAndStamp,
     };
 
@@ -192,6 +193,15 @@ internal static class EngineRouteBank
             Console.WriteLine($"    first hang-ups by step: {(walkableCount == mine.Count ? "none" : string.Join("; ", shapes))}");
         }
 
+    }
+
+    /// <summary>The vertical sketch, whole or without its stair, checked by the Engine for the player's body.</summary>
+    internal static Outcome Vertical(bool withoutStair, DungeonSurface surface, bool verbose)
+    {
+        var sketch = VerticalSampler.Generate(1UL, withoutStair);
+        DungeonCandidate candidate = new(0, 1UL, sketch.Layout, sketch.Plan, sketch.Verdict, sketch.Walkable);
+        using EngineTestHost host = CreateHost();
+        return Check(host, withoutStair ? "v-without-stair" : "v", candidate, [Player], verbose, surface)[0];
     }
 
     internal static DungeonCandidate Candidate(string approach, ulong seed) => DungeonCandidates.Generate(Approach(approach), seed, 0);

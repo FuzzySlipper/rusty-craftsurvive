@@ -135,6 +135,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   brush; the dungeon's navigation is not republished after it. Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
   room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no
   creatures.
+- **Climbs are not routes.** A module's climb lanes (`ModuleCanvas.Climb`) are held open by
+  sculpting like a standing body, so the face beside them stays on its cell boundary where
+  `PlayerClimb`'s rail runs; any other sculpted face may bulge and stop a climb partway. The route
+  check knows only walking (steps up to a jump's height, drops), so a climb or a drop deeper than
+  `DungeonWalk.MaximumDrop` is never part of a promised route: a route that needs one is refused.
+  `craft.dungeon.approach v` loads `VerticalSampler`, a hand-placed sketch of a bridged chasm with a
+  route crossing beneath the bridge.
 
 ## Persistence
 

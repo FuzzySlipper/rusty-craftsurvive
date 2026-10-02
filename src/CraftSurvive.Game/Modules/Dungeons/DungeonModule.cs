@@ -309,7 +309,7 @@ internal sealed class DungeonModule : IProductModule
         return $"the next dungeon's voxels are surfaced {surface}";
     }
 
-    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules) or c (sculpted cave).</summary>
+    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave) or v (vertical sketch).</summary>
     internal string Choose(string name)
     {
         DungeonApproach? chosen = name switch
@@ -317,11 +317,12 @@ internal sealed class DungeonModule : IProductModule
             "a" => DungeonApproach.CarveAndStamp,
             "b" => DungeonApproach.Modules,
             "c" => DungeonApproach.SculptedCave,
+            "v" => DungeonApproach.Vertical,
             _ => null,
         };
         if (chosen is not DungeonApproach next)
         {
-            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules) or c (sculpted cave)";
+            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules), c (sculpted cave) or v (vertical sketch)";
         }
 
         approach = next;
@@ -367,11 +368,11 @@ internal sealed class DungeonModule : IProductModule
             _ when place.StartsWith("floor", StringComparison.Ordinal)
                 && int.TryParse(place.AsSpan(5), NumberStyles.Integer, CultureInfo.InvariantCulture, out int floor)
                 && floor >= 0 && floor < plan.FloorAnchors.Count => plan.FloorAnchors[floor],
-            _ => null,
+            _ => Cell(place),
         };
         if (cell is not DungeonCell at)
         {
-            return $"visit refused: \"{place}\" is not arrival, breach, loot or floor0..floor{plan.FloorAnchors.Count - 1}";
+            return $"visit refused: \"{place}\" is not arrival, breach, loot, floor0..floor{plan.FloorAnchors.Count - 1} or a cell x,y,z";
         }
 
         // A plan names its places loosely; the player is put on the standing cell that serves for one,
@@ -383,6 +384,18 @@ internal sealed class DungeonModule : IProductModule
 
         player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3(stand.X + 0.5f, stand.Y, stand.Z + 0.5f)));
         return $"at the {place}: {stand}";
+    }
+
+    /// <summary>A layout cell written x,y,z, or null.</summary>
+    private static DungeonCell? Cell(string text)
+    {
+        string[] parts = text.Split(',');
+        return parts.Length == 3
+            && int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int x)
+            && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int y)
+            && int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out int z)
+            ? new DungeonCell(x, y, z)
+            : null;
     }
 
     /// <summary>
