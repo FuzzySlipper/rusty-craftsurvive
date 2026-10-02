@@ -36,10 +36,17 @@ internal static class EngineRouteBank
         }),
         (spatial, volume) => Vary(spatial, volume, "diagonal", config => config with { DiagonalNeighbors = true }),
         (spatial, volume) => Vary(spatial, volume, "deep-columns", config => config with { SupportsPerColumn = DeepColumnSupports }),
+        (spatial, volume) => Vary(spatial, volume, "step-1.2", config => config with
+        {
+            Character = config.Character with { Surface = config.Character.Surface with { MaximumStepHeight = HigherStepMetres } },
+        }),
     ];
 
     private const float SlimRadius = 0.25f;
     private const uint DeepColumnSupports = 16U;
+
+    /// <summary>A step allowance a little over one block, for surfaces whose one-block steps come out uneven.</summary>
+    private const float HigherStepMetres = 1.2f;
 
     private static NavigationProfile Vary(ISpatialService spatial, DungeonVolume volume, string name, Func<CollisionNavigationConfig, CollisionNavigationConfig> change)
     {
@@ -52,14 +59,15 @@ internal static class EngineRouteBank
     internal sealed record Outcome(string Approach, ulong Seed, DungeonRouteVerdict Verdict, IReadOnlyList<RouteHangUp> HangUps, double BuildMilliseconds);
 
     /// <summary>Checks seeds of one approach for each profile, printing a line per dungeon and a summary per profile.</summary>
-    internal static IReadOnlyList<Outcome> Run(string approach, ulong firstSeed, int seeds, IReadOnlyList<ProfileFor> profiles, bool verbose)
+    internal static IReadOnlyList<Outcome> Run(string approach, ulong firstSeed, int seeds, IReadOnlyList<ProfileFor> profiles, bool verbose,
+        DungeonSurface surface = DungeonSurface.Cubes)
     {
         using EngineTestHost host = CreateHost();
         List<Outcome> outcomes = [];
         for (ulong seed = firstSeed; seed < firstSeed + (ulong)seeds; seed++)
         {
             DungeonCandidate candidate = DungeonCandidates.Generate(Approach(approach), seed, 0);
-            outcomes.AddRange(Check(host, approach, candidate, profiles, verbose));
+            outcomes.AddRange(Check(host, approach, candidate, profiles, verbose, surface));
         }
 
         Summarise(approach, outcomes);
@@ -70,10 +78,11 @@ internal static class EngineRouteBank
     /// Enters each entrance seed as the game does: candidates in order until the Engine walks one.
     /// Returns, per seed, the index of the candidate accepted, or -1 when none was.
     /// </summary>
-    internal static IReadOnlyList<int> Accept(string approach, ulong firstSeed, int seeds)
+    internal static IReadOnlyList<int> Accept(string approach, ulong firstSeed, int seeds, DungeonSurface surface = DungeonSurface.Cubes)
     {
         using EngineTestHost host = CreateHost();
         List<int> accepted = [];
+        List<double> buildMs = [];
         Stopwatch clock = Stopwatch.StartNew();
         for (ulong seed = firstSeed; seed < firstSeed + (ulong)seeds; seed++)
         {
@@ -81,7 +90,9 @@ internal static class EngineRouteBank
             for (int index = 0; index < DungeonCandidates.MaximumCandidates && found < 0; index++)
             {
                 DungeonCandidate candidate = DungeonCandidates.Generate(Approach(approach), seed, index);
-                found = Check(host, approach, candidate, [Player], verbose: false)[0].Verdict.Walkable ? index : -1;
+                Outcome checkedOne = Check(host, approach, candidate, [Player], verbose: false, surface)[0];
+                buildMs.Add(checkedOne.BuildMilliseconds);
+                found = checkedOne.Verdict.Walkable ? index : -1;
             }
 
             accepted.Add(found);
@@ -90,7 +101,7 @@ internal static class EngineRouteBank
         var tries = accepted.GroupBy(index => index).OrderBy(group => group.Key)
             .Select(group => group.Key < 0 ? $"none x{group.Count()}" : $"candidate {group.Key} x{group.Count()}");
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"engine-accepted {approach}: {accepted.Count(index => index >= 0)}/{seeds} entrances have a dungeon ({string.Join(", ", tries)}) in {clock.Elapsed.TotalSeconds:F1} s"));
+            $"engine-accepted {approach} {surface}: {accepted.Count(index => index >= 0)}/{seeds} entrances have a dungeon ({string.Join(", ", tries)}); build {buildMs.Average():F0} ms per candidate; {clock.Elapsed.TotalSeconds:F1} s"));
         return accepted;
     }
 
@@ -110,18 +121,19 @@ internal static class EngineRouteBank
     });
 
     /// <summary>Builds one candidate in the Engine as the game loads it and checks its routes for each profile.</summary>
-    private static List<Outcome> Check(EngineTestHost host, string approach, DungeonCandidate candidate, IReadOnlyList<ProfileFor> profiles, bool verbose)
+    private static List<Outcome> Check(EngineTestHost host, string approach, DungeonCandidate candidate, IReadOnlyList<ProfileFor> profiles, bool verbose,
+        DungeonSurface surface)
     {
         List<Outcome> outcomes = [];
-        DungeonLayout layout = candidate.Layout;
+        DungeonLayout layout = surface == DungeonSurface.Cubes ? candidate.Layout : candidate.AllVoxels;
         DungeonPlan plan = candidate.Plan;
         DungeonVolume walkable = candidate.Walkable;
         ulong seed = candidate.Seed;
         host.Call(engine =>
         {
             Stopwatch clock = Stopwatch.StartNew();
-            using SpatialSession session = DungeonCollision.CreateSession(engine);
-            DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume));
+            using SpatialSession session = DungeonCollision.CreateSession(engine, surface);
+            DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume), layout.Densities);
             Material? material = null;
             MeshResource? mesh = null;
             try

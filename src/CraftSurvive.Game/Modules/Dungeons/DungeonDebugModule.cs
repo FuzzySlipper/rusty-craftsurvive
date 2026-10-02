@@ -19,8 +19,11 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.approach", Description = "Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules) or c (sculpted cave).")]
     public string Approach(string name) => dungeons.Choose(name);
 
-    [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual contouring, flat colours) or mc (marching cubes, flat colours).")]
+    [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual-contoured worn rock, building on the grid), faceted (flat-faceted rougher rock) or mc (marched rock, cube building).")]
     public string Surface(string name) => dungeons.ChooseSurface(name);
+
+    [DebugCommand("craft.dungeon.blast", Description = "Carves a sphere of the given radius (metres) out of the loaded dungeon where the player aims, and reports the rebuild cost.")]
+    public string Blast(float radius) => dungeons.Blast(radius);
 
     [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, or floor0..floorN.")]
     public string Visit(string place) => dungeons.Visit(place);

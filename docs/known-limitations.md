@@ -114,10 +114,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
   later one, mostly a step up under a cave chamber's curving ceiling or a smoothed riser a little
   over the player's step height, and each refused candidate adds about a second of loading.
-  `craft.dungeon.surface dc|mc` loads the next dungeon as voxels throughout, meshed
-  by the Engine's dual-contouring or marching-cubes surface mode; those modes draw only untextured
-  materials, so it is shown in flat colours, and its collision stays cubic. It is a look test,
-  not a mode to play in. Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
+  `craft.dungeon.surface dc|faceted|mc` loads the next dungeon as voxels
+  throughout (`DungeonSurfaces`): its sculpted rock becomes voxel densities the Engine reconstructs
+  (dual contoured, smooth or flat-faceted, or marched), building blocks keep the grid (Blocky dual
+  contouring, or cubes beside marched rock), all textured with the world's block materials, and
+  collision and navigation follow the drawn surface. The rock is stone throughout; its strata and
+  the cave-rock texture are the separate-mesh look's. One-block rock steps come out a few
+  centimetres over or under a block, past the player's step height, so many approach B dungeons
+  are refused by the route check and an entrance can run out of candidates. Rock roughness is off
+  in `dc` because jostled vertices refuse even more; `faceted` keeps it for the look.
+  `craft.dungeon.blast <radius>` carves a sphere where the player aims through the Engine's density
+  brush; the dungeon's navigation is not republished after it. Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
   room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no
   creatures.
 

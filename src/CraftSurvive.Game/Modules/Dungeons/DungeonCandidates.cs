@@ -14,7 +14,14 @@ internal enum DungeonApproach
 }
 
 /// <summary>One generated dungeon: its layout, its plan, the generator's own verdict, and the voxel copy that was walked.</summary>
-internal sealed record DungeonCandidate(int Index, ulong Seed, DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable);
+internal sealed record DungeonCandidate(int Index, ulong Seed, DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable)
+{
+    /// <summary>
+    /// The candidate as voxels throughout, for a reconstructed surface: the walked copy (sculpted
+    /// rock as stone where its density is solid) with the sculpted field as the voxels' densities.
+    /// </summary>
+    internal DungeonLayout AllVoxels => Layout with { Volume = Walkable, Rock = null, Densities = Layout.Rock };
+}
 
 /// <summary>
 /// The dungeons an entrance may have, in the order they are tried. Each generator already redraws

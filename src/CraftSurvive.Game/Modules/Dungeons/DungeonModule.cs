@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
@@ -75,12 +76,10 @@ internal sealed class DungeonModule : IProductModule
     private Material? rockMaterial;
 
     /// <summary>
-    /// How the next dungeon's voxels are surfaced. Cubes by default; a smooth mode loads the
-    /// dungeon as voxels throughout - sculpted rock as stone blocks - meshed by the Engine and drawn
-    /// in flat colours, to judge how a smooth voxel surface reads.
+    /// How the next dungeon's voxels are surfaced. Cubes by default; the other looks load the
+    /// dungeon as voxels throughout, its sculpted rock as voxel densities the Engine reconstructs.
     /// </summary>
-    private VoxelSurfaceMode surface = VoxelSurfaceMode.GreedyCubes;
-    private DungeonFlatMaterials? flatMaterials;
+    private DungeonSurface surface = DungeonSurface.Cubes;
 
     private DungeonState state = DungeonState.Outside;
     private PoiSite? nearbyEntrance;
@@ -190,8 +189,6 @@ internal sealed class DungeonModule : IProductModule
         AfterAppearanceSnapshot();
         rockMaterial?.Dispose();
         rockMaterial = null;
-        flatMaterials?.Dispose();
-        flatMaterials = null;
     }
 
     /// <summary>Starts loading the dungeon behind the entrance the player stands at.</summary>
@@ -229,10 +226,9 @@ internal sealed class DungeonModule : IProductModule
         walkable = candidate.Walkable;
         try
         {
-            space = surface == VoxelSurfaceMode.GreedyCubes
+            space = surface == DungeonSurface.Cubes
                 ? new DungeonSpace(engine, terrain, candidate.Layout, candidate.Layout.Rock is null ? null : RockMaterial())
-                : new DungeonSpace(engine, terrain, candidate.Layout with { Volume = candidate.Walkable, Rock = null }, null,
-                    (surface, flatMaterials ??= new DungeonFlatMaterials(engine)));
+                : new DungeonSpace(engine, terrain, candidate.AllVoxels, null, surface);
         }
         catch (EngineCallException refusal)
         {
@@ -301,19 +297,12 @@ internal sealed class DungeonModule : IProductModule
         retiring = null;
     }
 
-    /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual contouring) or mc (marching cubes).</summary>
+    /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (worn rock), faceted (chiselled rock) or mc (marched rock).</summary>
     internal string ChooseSurface(string name)
     {
-        VoxelSurfaceMode? chosen = name switch
+        if (DungeonSurfaces.Parse(name) is not DungeonSurface next)
         {
-            "cubes" => VoxelSurfaceMode.GreedyCubes,
-            "dc" => VoxelSurfaceMode.DualContouring,
-            "mc" => VoxelSurfaceMode.MarchingCubes,
-            _ => null,
-        };
-        if (chosen is not VoxelSurfaceMode next)
-        {
-            return $"surface refused: \"{name}\" is not cubes, dc (dual contouring) or mc (marching cubes)";
+            return $"surface refused: \"{name}\" is not cubes, dc, faceted or mc";
         }
 
         surface = next;
@@ -411,6 +400,52 @@ internal sealed class DungeonModule : IProductModule
         DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, space.Session, walkable, plan, NavigationProfile.Player(engine.Spatial, walkable));
         IReadOnlyList<RouteHangUp> hangUps = DungeonRoutes.HangUps(engine, space.Session, walkable, verdict);
         return hangUps.Count == 0 ? verdict.ToString() : $"{verdict} hang-ups: {string.Join("; ", hangUps)}";
+    }
+
+    /// <summary>How far a dungeon blast reaches along the player's aim.</summary>
+    private const float BlastReachMetres = 24f;
+
+    private const BlockId BlastBrushMaterial = BlockId.Stone;
+
+    /// <summary>The largest dungeon blast, in metres of radius.</summary>
+    private const float MaximumBlastRadiusMetres = 8f;
+
+    /// <summary>
+    /// Carves a sphere of rock and building out of the loaded dungeon where the player aims, through
+    /// the Engine's density brush, and reports what it changed and what the rebuild cost. A look and
+    /// cost test for runtime destruction; the dungeon's navigation is not republished after it.
+    /// </summary>
+    internal string Blast(float radius)
+    {
+        if (state != DungeonState.Inside || space is null)
+        {
+            return "blast refused: not in a dungeon";
+        }
+
+        if (radius <= 0f || radius > MaximumBlastRadiusMetres)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"blast refused: the radius must be above 0 and at most {MaximumBlastRadiusMetres:F0} m");
+        }
+
+        Vector3 eye = player.WorldEyePosition;
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            space.Session, eye, player.AimForward, BlastReachMetres,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        if (!hit.Present)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"blast refused: nothing within {BlastReachMetres:F0} m along the aim");
+        }
+
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        // A carve fills nothing, but the brush still names a real material slot.
+        VoxelDensityReceipt receipt = engine.Voxel.ApplyDensityEdits(new VoxelDensityTransaction(
+            space.Session, new[] { VoxelDensityEdit.Sphere(hit.Point, radius, VoxelDensityOperation.Subtract, (uint)BlastBrushMaterial) }));
+        double editMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        space.Refresh();
+        double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"blast {radius:0.#} m at {hit.Point.X:F1},{hit.Point.Y:F1},{hit.Point.Z:F1}: {receipt.Status}, {receipt.ChangedVoxels} voxels changed ({receipt.SolidityChanges} cleared), {receipt.RebuiltMeshChunks} chunks rebuilt, meshing {receipt.MeshMicroseconds / 1000d:F1} ms, edit {editMs:F1} ms, {elapsedMs:F1} ms with the redraw");
     }
 
     /// <summary>Leaves the dungeon from its way out, back to the entrance.</summary>

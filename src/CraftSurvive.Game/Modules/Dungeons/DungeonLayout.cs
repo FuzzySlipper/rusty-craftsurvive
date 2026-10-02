@@ -13,6 +13,13 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>The rock as a smooth surface, or null when the rock is voxels.</summary>
     internal RockDensity? Rock { get; init; }
 
+    /// <summary>
+    /// Densities for the voxels themselves, placing a reconstructed surface between cell centres:
+    /// the sculpted rock's field when the whole dungeon is voxels. Null keeps every surface on the
+    /// faces between solid and empty cells.
+    /// </summary>
+    internal RockDensity? Densities { get; init; }
+
     /// <summary>The most lights a dungeon hangs: the dungeon module's pool of retained lights.</summary>
     internal const int MaximumLights = 16;
 }

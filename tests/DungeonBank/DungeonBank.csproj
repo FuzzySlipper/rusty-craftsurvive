@@ -23,6 +23,7 @@
     <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCandidates.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonSurfaces.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerBody.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />

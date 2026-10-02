@@ -193,18 +193,21 @@ if (args is ["sculpted", string sculptedCount])
     return 0;
 }
 
-if (args is ["accept", string acceptApproach, string acceptSeeds])
+if (args is ["accept", string acceptApproach, string acceptSeeds, ..])
 {
-    // accept <a|b|c> <seeds>: entrances entered as the game does, candidates tried until the Engine walks one.
-    EngineRouteBank.Accept(acceptApproach, 1UL, int.Parse(acceptSeeds, System.Globalization.CultureInfo.InvariantCulture));
+    // accept <a|b|c> <seeds> [cubes|dc|faceted|mc]: entrances entered as the game does, candidates
+    // tried until the Engine walks one, with the dungeon's voxels surfaced as asked.
+    DungeonSurface acceptSurface = args.Length > 3 ? DungeonSurfaces.Parse(args[3]) ?? DungeonSurface.Cubes : DungeonSurface.Cubes;
+    EngineRouteBank.Accept(acceptApproach, 1UL, int.Parse(acceptSeeds, System.Globalization.CultureInfo.InvariantCulture), acceptSurface);
     return 0;
 }
 
 if (args is ["engine", string engineApproach, string engineSeeds, ..])
 {
-    // engine <a|b|c> <seeds> [sweep] [quiet]: the Engine's route check over a bank, for the player or a sweep of bodies.
+    // engine <a|b|c> <seeds> [sweep] [quiet] [cubes|dc|faceted|mc]: the Engine's route check over a bank, for the player or a sweep of bodies.
     IReadOnlyList<EngineRouteBank.ProfileFor> profiles = args.Contains("sweep") ? EngineRouteBank.Sweep : [EngineRouteBank.Player];
-    EngineRouteBank.Run(engineApproach, 1UL, int.Parse(engineSeeds, System.Globalization.CultureInfo.InvariantCulture), profiles, verbose: !args.Contains("quiet"));
+    DungeonSurface engineSurface = args.Select(DungeonSurfaces.Parse).FirstOrDefault(parsed => parsed is not null) ?? DungeonSurface.Cubes;
+    EngineRouteBank.Run(engineApproach, 1UL, int.Parse(engineSeeds, System.Globalization.CultureInfo.InvariantCulture), profiles, verbose: !args.Contains("quiet"), engineSurface);
     return 0;
 }
 

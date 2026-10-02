@@ -36,14 +36,27 @@ internal static class DungeonCollision
     /// <summary>Where a point of the layout stands in the session.</summary>
     internal static Vector3 InSession(Vector3 layoutPoint) => layoutPoint + Origin;
 
+    /// <summary>A voxel's density beside its sign: how close to the surface an air or solid voxel may be held.</summary>
+    private const float DensityFloor = 0.001f;
+
+    /// <summary>A voxel's density without a sculpted one: the surface on the cube face between solid and empty.</summary>
+    private const float FaceDensity = 0.5f;
+
     /// <summary>
-    /// A dungeon's own session, with the world's blocks colliding as they do outside, its voxels
-    /// surfaced as cubes unless a smooth mode is asked for.
+    /// A dungeon's own session, with the world's blocks colliding as they do outside and its
+    /// voxels surfaced as the look asks: cubes, or rock reconstructed beside grid-kept building.
     /// </summary>
-    internal static SpatialSession CreateSession(IEngineContext engine, VoxelSurfaceMode surface = VoxelSurfaceMode.GreedyCubes)
+    internal static SpatialSession CreateSession(IEngineContext engine, DungeonSurface surface = DungeonSurface.Cubes)
     {
+        VoxelSurfaceMode mode = DungeonSurfaces.SessionMode(surface);
         SpatialSession session = engine.Spatial.CreateSession(new SpatialSessionConfig(
-            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, surface));
+            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, mode));
+        VoxelMaterialSurface[] materials = DungeonSurfaces.Materials(surface);
+        if (materials.Length > 0)
+        {
+            engine.Voxel.ConfigureMaterialSurfaces(new VoxelMaterialSurfaceRequest(session, mode, materials));
+        }
+
         engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(
             session,
             BlockRegistry.MaterialBlocks.Select(block => new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
@@ -65,17 +78,34 @@ internal static class DungeonCollision
         }
     }
 
-    /// <summary>Admits some of a volume's chunks into the session's voxels.</summary>
-    internal static void Admit(IEngineContext engine, SpatialSession session, DungeonVolume volume, IEnumerable<(int X, int Y, int Z)> chunks)
+    /// <summary>
+    /// Admits some of a volume's chunks into the session's voxels, with their densities when the
+    /// layout has them: each solid voxel's density is negative and each empty one's positive, as the
+    /// Engine requires, taken from the sculpted field where it agrees and from the cube face where not.
+    /// </summary>
+    internal static void Admit(IEngineContext engine, SpatialSession session, DungeonVolume volume, IEnumerable<(int X, int Y, int Z)> chunks,
+        RockDensity? densities = null)
     {
         List<VoxelResidencyOperation> operations = [];
         List<uint> materials = [];
+        List<float> chunkDensities = [];
+        int edge = TerrainConstants.ChunkEdgeLength;
         foreach ((int x, int y, int z) in chunks)
         {
             uint offset = checked((uint)materials.Count);
-            foreach (ushort material in volume.Chunk(x, y, z))
+            uint densityOffset = checked((uint)chunkDensities.Count);
+            ushort[] chunkMaterials = volume.Chunk(x, y, z);
+            for (int index = 0; index < chunkMaterials.Length; index++)
             {
+                ushort material = chunkMaterials[index];
                 materials.Add(material);
+                if (densities is RockDensity field)
+                {
+                    int cx = (x * edge) + (index % edge);
+                    int cy = (y * edge) + (index / edge % edge);
+                    int cz = (z * edge) + (index / (edge * edge));
+                    chunkDensities.Add(Density(volume, field, cx, cy, cz, (BlockId)material));
+                }
             }
 
             operations.Add(new VoxelResidencyOperation(
@@ -85,12 +115,16 @@ internal static class DungeonCollision
                     y + ((long)Origin.Y / TerrainConstants.ChunkEdgeLength),
                     z + ((long)Origin.Z / TerrainConstants.ChunkEdgeLength)),
                 offset,
-                checked((uint)(materials.Count - (int)offset))));
+                checked((uint)(materials.Count - (int)offset)),
+                densityOffset,
+                checked((uint)(chunkDensities.Count - (int)densityOffset))));
         }
 
         if (operations.Count > 0)
         {
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(session, operations.ToArray(), materials.ToArray()));
+            engine.Voxel.ApplyResidency(densities is null
+                ? new VoxelResidencyTransaction(session, operations.ToArray(), materials.ToArray())
+                : new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, session, operations.ToArray(), materials.ToArray(), chunkDensities.ToArray()));
         }
     }
 
@@ -126,6 +160,28 @@ internal static class DungeonCollision
             ImplicitMaterialBoundaryMode.Centroid, 0f));
         readout = engine.ImplicitSurfaces.ReadSampledVolumeGeneration(volume);
         return mesh;
+    }
+
+    /// <summary>
+    /// A voxel's density: negative when solid, positive when empty, as the Engine requires. Rock
+    /// floors - rock with empty space above - and the space over them sit exactly on the cell face,
+    /// so treads stay flat and a one-block step stays one block; elsewhere rock takes its sculpted
+    /// field, and building blocks keep the cube face.
+    /// </summary>
+    private static float Density(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block)
+    {
+        bool rock = DungeonSurfaces.IsRock(block);
+        bool floor = rock && volume.At(x, y + 1, z) == BlockId.Air;
+        bool overFloor = block == BlockId.Air && y > 0 && DungeonSurfaces.IsRock(volume.At(x, y - 1, z));
+        if (floor || overFloor)
+        {
+            return block == BlockId.Air ? FaceDensity : -FaceDensity;
+        }
+
+        float sculpted = field.At(x, y, z);
+        return block == BlockId.Air
+            ? Math.Clamp(sculpted, DensityFloor, FaceDensity)
+            : Math.Clamp(rock ? sculpted : -FaceDensity, -FaceDensity, -DensityFloor);
     }
 
     /// <summary>Admits the rock mesh as the session's static collision.</summary>
