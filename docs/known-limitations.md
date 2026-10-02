@@ -114,7 +114,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
   later one, mostly a step up under a cave chamber's curving ceiling or a smoothed riser a little
   over the player's step height, and each refused candidate adds about a second of loading.
-  Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
+  `craft.dungeon.surface dc|mc` loads the next dungeon as voxels throughout, meshed
+  by the Engine's dual-contouring or marching-cubes surface mode; those modes draw only untextured
+  materials, so it is shown in flat colours, and its collision stays cubic. It is a look test,
+  not a mode to play in. Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
   room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no
   creatures.
 

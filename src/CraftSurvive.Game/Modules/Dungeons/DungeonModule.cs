@@ -74,6 +74,14 @@ internal sealed class DungeonModule : IProductModule
     private long candidatesRefused;
     private Material? rockMaterial;
 
+    /// <summary>
+    /// How the next dungeon's voxels are surfaced. Cubes by default; a smooth mode loads the
+    /// dungeon as voxels throughout - sculpted rock as stone blocks - meshed by the Engine and drawn
+    /// in flat colours, to judge how a smooth voxel surface reads.
+    /// </summary>
+    private VoxelSurfaceMode surface = VoxelSurfaceMode.GreedyCubes;
+    private DungeonFlatMaterials? flatMaterials;
+
     private DungeonState state = DungeonState.Outside;
     private PoiSite? nearbyEntrance;
     private long nextSearchStep;
@@ -182,6 +190,8 @@ internal sealed class DungeonModule : IProductModule
         AfterAppearanceSnapshot();
         rockMaterial?.Dispose();
         rockMaterial = null;
+        flatMaterials?.Dispose();
+        flatMaterials = null;
     }
 
     /// <summary>Starts loading the dungeon behind the entrance the player stands at.</summary>
@@ -219,7 +229,10 @@ internal sealed class DungeonModule : IProductModule
         walkable = candidate.Walkable;
         try
         {
-            space = new DungeonSpace(engine, terrain, candidate.Layout, candidate.Layout.Rock is null ? null : RockMaterial());
+            space = surface == VoxelSurfaceMode.GreedyCubes
+                ? new DungeonSpace(engine, terrain, candidate.Layout, candidate.Layout.Rock is null ? null : RockMaterial())
+                : new DungeonSpace(engine, terrain, candidate.Layout with { Volume = candidate.Walkable, Rock = null }, null,
+                    (surface, flatMaterials ??= new DungeonFlatMaterials(engine)));
         }
         catch (EngineCallException refusal)
         {
@@ -288,6 +301,25 @@ internal sealed class DungeonModule : IProductModule
         retiring = null;
     }
 
+    /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual contouring) or mc (marching cubes).</summary>
+    internal string ChooseSurface(string name)
+    {
+        VoxelSurfaceMode? chosen = name switch
+        {
+            "cubes" => VoxelSurfaceMode.GreedyCubes,
+            "dc" => VoxelSurfaceMode.DualContouring,
+            "mc" => VoxelSurfaceMode.MarchingCubes,
+            _ => null,
+        };
+        if (chosen is not VoxelSurfaceMode next)
+        {
+            return $"surface refused: \"{name}\" is not cubes, dc (dual contouring) or mc (marching cubes)";
+        }
+
+        surface = next;
+        return $"the next dungeon's voxels are surfaced {surface}";
+    }
+
     /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules) or c (sculpted cave).</summary>
     internal string Choose(string name)
     {
@@ -353,8 +385,15 @@ internal sealed class DungeonModule : IProductModule
             return $"visit refused: \"{place}\" is not arrival, breach, loot or floor0..floor{plan.FloorAnchors.Count - 1}";
         }
 
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3(at.X + 0.5f, at.Y, at.Z + 0.5f)));
-        return $"at the {place}: {at}";
+        // A plan names its places loosely; the player is put on the standing cell that serves for one,
+        // never inside the blocks around it.
+        if (walkable is null || DungeonWalk.Nearest(DungeonWalk.Reachable(walkable, plan.Arrival), at) is not DungeonCell stand)
+        {
+            return $"visit refused: nowhere to stand at the {place}";
+        }
+
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3(stand.X + 0.5f, stand.Y, stand.Z + 0.5f)));
+        return $"at the {place}: {stand}";
     }
 
     /// <summary>
@@ -402,7 +441,7 @@ internal sealed class DungeonModule : IProductModule
         string layout = plan is DungeonPlan current2
             ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}] {space?.RockReadout}"
             : string.Empty;
-        return $"dungeon approach={approach} state={state} candidate={candidateIndex}{loading}{layout} routes=[{routes}] candidatesRefused={candidatesRefused} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
+        return $"dungeon approach={approach} surface={surface} state={state} candidate={candidateIndex}{loading}{layout} routes=[{routes}] candidatesRefused={candidatesRefused} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
     }
 
     private void Close(string outcome)

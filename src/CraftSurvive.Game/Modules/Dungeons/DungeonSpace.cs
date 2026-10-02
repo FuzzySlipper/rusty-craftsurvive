@@ -22,19 +22,26 @@ internal sealed class DungeonSpace : IDisposable
     private readonly DungeonLayout layout;
     private readonly Queue<(int X, int Y, int Z)> pending;
     private readonly Material? rockMaterial;
+    private readonly (VoxelSurfaceMode Mode, DungeonFlatMaterials Materials)? flat;
     private MeshResource? rockMesh;
     private Appearance? rockAppearance;
     private readonly int totalChunks;
     private VoxelScenePresentation? projection;
     private long loadTicks;
 
-    internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null)
+    /// <param name="flat">
+    /// For a dungeon whose voxels are surfaced smooth: the session's surface mode and the untextured
+    /// materials it is drawn with. Null draws cubes with the world's block materials.
+    /// </param>
+    internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
+        (VoxelSurfaceMode Mode, DungeonFlatMaterials Materials)? flat = null)
     {
+        this.flat = flat;
         this.rockMaterial = rockMaterial;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        Session = DungeonCollision.CreateSession(engine);
+        Session = DungeonCollision.CreateSession(engine, flat?.Mode ?? VoxelSurfaceMode.GreedyCubes);
         pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
         totalChunks = pending.Count;
     }
@@ -78,7 +85,9 @@ internal sealed class DungeonSpace : IDisposable
 
         if (pending.Count == 0 && projection is null)
         {
-            projection = terrain.ProjectSeparateSpace(Session);
+            projection = flat is (_, DungeonFlatMaterials materials)
+                ? engine.VoxelScenePresentation.ProjectScene(new ProjectVoxelSceneRequest(Session, materials.Bindings))
+                : terrain.ProjectSeparateSpace(Session);
             if (layout.Rock is RockDensity rock)
             {
                 BuildRock(rock);

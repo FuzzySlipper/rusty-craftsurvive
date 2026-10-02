@@ -36,11 +36,14 @@ internal static class DungeonCollision
     /// <summary>Where a point of the layout stands in the session.</summary>
     internal static Vector3 InSession(Vector3 layoutPoint) => layoutPoint + Origin;
 
-    /// <summary>A dungeon's own session, with the world's blocks colliding as they do outside.</summary>
-    internal static SpatialSession CreateSession(IEngineContext engine)
+    /// <summary>
+    /// A dungeon's own session, with the world's blocks colliding as they do outside, its voxels
+    /// surfaced as cubes unless a smooth mode is asked for.
+    /// </summary>
+    internal static SpatialSession CreateSession(IEngineContext engine, VoxelSurfaceMode surface = VoxelSurfaceMode.GreedyCubes)
     {
         SpatialSession session = engine.Spatial.CreateSession(new SpatialSessionConfig(
-            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.GreedyCubes));
+            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, surface));
         engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(
             session,
             BlockRegistry.MaterialBlocks.Select(block => new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
