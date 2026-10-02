@@ -344,8 +344,10 @@ internal static class ModularDungeon
             {
                 bool deep = end.Y - breachStorey >= 3;
                 DungeonModuleShape[] choices = deep
-                    ? [DungeonModules.CaveShaft, DungeonModules.CaveShaft, DungeonModules.CaveShaft, DungeonModules.CaveDescent, DungeonModules.CaveDescent, DungeonModules.CaveTunnel, DungeonModules.CaveBend, DungeonModules.CaveChamber]
-                    : [DungeonModules.CaveDescent, DungeonModules.CaveDescent, DungeonModules.CaveTunnel, DungeonModules.CaveBend, DungeonModules.CaveChamber];
+                    ? [DungeonModules.CaveShaft, DungeonModules.CaveShaft, DungeonModules.CaveDescent, DungeonModules.CaveDescent, DungeonModules.CaveTunnel, DungeonModules.CaveBend, DungeonModules.CaveChamber,
+                        DungeonModules.Abyss, DungeonModules.Abyss, DungeonModules.ChasmStair, DungeonModules.Cavern]
+                    : [DungeonModules.CaveDescent, DungeonModules.CaveDescent, DungeonModules.CaveTunnel, DungeonModules.CaveBend, DungeonModules.CaveChamber,
+                        DungeonModules.ChasmStair, DungeonModules.Cavern];
                 if (Attach(end, choices, mustNotRise: true) is not PlacedModule next)
                 {
                     return "the cave ran into itself or the edge";
@@ -389,7 +391,8 @@ internal static class ModularDungeon
                     : doors[random.Range(0, doors.Count - 1)];
                 DungeonModuleShape[] choices = descend
                     ? [DungeonModules.Stair, DungeonModules.Stair, DungeonModules.Collapse, DungeonModules.Room, DungeonModules.Corridor]
-                    : [DungeonModules.Room, DungeonModules.Room, DungeonModules.Corridor, DungeonModules.Hall, DungeonModules.Hall, DungeonModules.Gallery, DungeonModules.Gallery, DungeonModules.Gallery, DungeonModules.Stair, DungeonModules.Collapse];
+                    : [DungeonModules.Room, DungeonModules.Room, DungeonModules.Corridor, DungeonModules.Hall, DungeonModules.Hall, DungeonModules.Gallery, DungeonModules.Gallery, DungeonModules.Gallery, DungeonModules.Stair, DungeonModules.Collapse,
+                        DungeonModules.GreatHall, DungeonModules.GreatHall, DungeonModules.GreatHall];
                 Attach(from, choices);
             }
 
@@ -435,7 +438,7 @@ internal static class ModularDungeon
             ModuleFace facing = Opposite(socket.Face);
             PlacedModule? best = null;
             double bestScore = double.NegativeInfinity;
-            foreach (DungeonModuleShape shape in choices.Distinct())
+            foreach (DungeonModuleShape shape in choices.Distinct().Where(shape => !shape.SetPiece || !Placed.Any(module => module.Shape == shape)))
             {
                 double weight = choices.Count(choice => choice == shape);
                 for (int turns = 0; turns < 4; turns++)

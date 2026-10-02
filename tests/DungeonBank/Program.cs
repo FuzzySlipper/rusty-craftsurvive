@@ -283,6 +283,45 @@ if (args is ["sections", string sectionApproach, string sectionSeed, string sect
     return 0;
 }
 
+if (args is ["census", string censusSeeds])
+{
+    // census <seeds>: which modules approach B's dungeons use, and the seeds that show each.
+    Dictionary<string, List<ulong>> uses = [];
+    int censusWalkable = 0;
+    int count = int.Parse(censusSeeds, System.Globalization.CultureInfo.InvariantCulture);
+    for (ulong seed = 1; seed <= (ulong)count; seed++)
+    {
+        var drawn = ModularDungeon.Generate(seed);
+        censusWalkable += drawn.Verdict.Walkable ? 1 : 0;
+        foreach (string name in drawn.Modules.Select(module => module.Shape.Name).Distinct())
+        {
+            (uses.TryGetValue(name, out List<ulong>? drawnIn) ? drawnIn : uses[name] = []).Add(seed);
+        }
+    }
+
+    Console.WriteLine($"{censusWalkable}/{count} walkable");
+    foreach ((string name, List<ulong> shown) in uses.OrderBy(pair => pair.Key))
+    {
+        Console.WriteLine($"{name,-14} {shown.Count,3}  e.g. {string.Join(" ", shown.Take(8))}");
+    }
+
+    return 0;
+}
+
+if (args is ["modules", string modulesSeed])
+{
+    // modules <seed>: approach B's placed modules for a seed, with the voxel box each occupies.
+    foreach (PlacedModule module in ModularDungeon.Generate(ulong.Parse(modulesSeed, System.Globalization.CultureInfo.InvariantCulture)).Modules)
+    {
+        int x0 = module.X * ModuleCanvas.CellSize;
+        int y0 = (module.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY;
+        int z0 = module.Z * ModuleCanvas.CellSize;
+        Console.WriteLine($"{module.Shape.Name,-13} turns={module.Turns} x {x0}..{x0 + (module.Width * ModuleCanvas.CellSize) - 1} y {y0}..{y0 + (module.Shape.Height * ModuleCanvas.StoreyHeight) - 1} z {z0}..{z0 + (module.Depth * ModuleCanvas.CellSize) - 1}");
+    }
+
+    return 0;
+}
+
 if (args is ["column", string columnApproach, string columnSeed, string columnX, string columnZ])
 {
     // column <approach> <seed> <x> <z>: one column of a dungeon, bottom up: the walked block and the

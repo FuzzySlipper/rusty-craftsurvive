@@ -43,6 +43,9 @@ internal sealed record DungeonModuleShape(
 {
     /// <summary>A module that ends a route: it has one socket, the one it was joined by.</summary>
     internal bool DeadEnd => Sockets.Count == 1;
+
+    /// <summary>A landmark piece a dungeon has at most one of, so it stays a moment rather than a pattern.</summary>
+    internal bool SetPiece { get; init; }
 }
 
 /// <summary>
@@ -163,6 +166,29 @@ internal sealed class ModuleCanvas
                     }
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// A ledge three cells wide walked along a path, each step at its own feet height: rock under the
+    /// whole ledge first (a corbel <paramref name="corbelDepth"/> deep), then headroom over every
+    /// step, then every step's tread, so each tread's front is the riser down to the next.
+    /// </summary>
+    internal void Ledge(IReadOnlyList<(int X, int Feet, int Z)> steps, int headroom, int corbelDepth)
+    {
+        foreach ((int x, int feet, int z) in steps)
+        {
+            Fill(x - 1, Math.Max(0, feet - 1 - corbelDepth), z - 1, x + 1, feet - 1, z + 1, BlockId.Stone);
+        }
+
+        foreach ((int x, int feet, int z) in steps)
+        {
+            Fill(x - 1, feet, z - 1, x + 1, feet + headroom - 1, z + 1, BlockId.Air);
+        }
+
+        foreach ((int x, int feet, int z) in steps)
+        {
+            Fill(x - 1, feet - 1, z - 1, x + 1, feet - 1, z + 1, BlockId.Stone);
         }
     }
 
@@ -295,50 +321,182 @@ internal static class DungeonModules
     /// <summary>
     /// A chasm two storeys deep and three cells across, crossed by a brick bridge on the upper
     /// storey: the bridge's ways on are north and south, and a cave runs east to west along the chasm
-    /// floor beneath it, so the two routes cross a storey apart. The ledges' rock faces are climbable,
-    /// so a player who drops off the bridge can climb back up beside its footings.
+    /// floor beneath it, so the two routes cross a storey apart. The ledges' rock faces are climbable
+    /// beside the bridge's footings. The two routes meet only by a drop and a climb.
     /// </summary>
-    internal static DungeonModuleShape Chasm { get; } = new("chasm", ModuleKind.Cave, 3, 2, 3,
+    internal static DungeonModuleShape Chasm { get; } = new("chasm", ModuleKind.Cave, 3, 2, 3, ChasmSockets,
+        (canvas, random) => BuildChasm(canvas, withStair: false));
+
+    /// <summary>
+    /// The chasm with a ledge stair down its south-west wall from the bridge's south ledge to the
+    /// floor, so all four ways on are walked between and a fall is never a trap: the chasm as
+    /// assembled dungeons use it.
+    /// </summary>
+    internal static DungeonModuleShape ChasmStair { get; } = new("chasm-stair", ModuleKind.Cave, 3, 2, 3, ChasmSockets,
+        (canvas, random) => BuildChasm(canvas, withStair: true))
+    {
+        SetPiece = true,
+    };
+
+    private static ModuleSocket[] ChasmSockets =>
+    [
+        new(1, 1, 2, ModuleFace.North, SocketKind.Cave), new(1, 1, 0, ModuleFace.South, SocketKind.Cave),
+        new(2, 0, 1, ModuleFace.East, SocketKind.Cave), new(0, 0, 1, ModuleFace.West, SocketKind.Cave),
+    ];
+
+    private static void BuildChasm(ModuleCanvas canvas, bool withStair)
+    {
+        const int upper = Storey + 1;
+        const int ledgeHeadroom = 4;
+        const int ledgeWest = Cell - 2;
+        const int ledgeEast = (2 * Cell) + 1;
+        const int bridgeWest = Cell + 2;
+        const int bridgeEast = Cell + 5;
+        const int footingDepth = 2;
+        const int stairCorbelDepth = 2;
+        int across = canvas.SizeX;
+
+        // The ledges the bridge leaves from, at either end, on the upper storey.
+        canvas.Fill(ledgeWest, upper, 1, ledgeEast, upper + ledgeHeadroom - 1, Cell - 1, BlockId.Air);
+        canvas.Fill(ledgeWest, upper, 2 * Cell, ledgeEast, upper + ledgeHeadroom - 1, (3 * Cell) - 2, BlockId.Air);
+
+        // The chasm: open from the lower storey's floor to under the roof, the whole module across.
+        canvas.Fill(1, 1, Cell, across - 2, canvas.SizeY - 2, (2 * Cell) - 1, BlockId.Air);
+
+        // The cave along the chasm floor, wall to wall, under the bridge.
+        canvas.Chamber(across / 2.0, 2.6, Cell * 1.5, across / 2.0, 2.6, 2.6, 1);
+
+        if (withStair)
+        {
+            // West from the south ledge along the chasm's south wall, then north a few cells in from
+            // its west wall (clear of the west way on's mouth) down to the floor: a storey in eleven
+            // steps.
+            const int stairLeg = 4;
+            List<(int X, int Z)> path = [];
+            for (int x = ledgeWest + 2; x >= stairLeg; x--)
+            {
+                path.Add((x, Cell + 1));
+            }
+
+            for (int z = Cell + 2; z <= (2 * Cell) - 1; z++)
+            {
+                path.Add((stairLeg, z));
+            }
+
+            canvas.Ledge([.. path.Select((cell, step) => (cell.X, upper - (int)Math.Round(step * Storey / (double)(path.Count - 1)), cell.Z))],
+                ledgeHeadroom, stairCorbelDepth);
+        }
+        else
+        {
+            canvas.Climb(ledgeWest, 1, Cell, bridgeWest - 2, upper + 1, Cell);
+            canvas.Climb(ledgeWest, 1, (2 * Cell) - 1, bridgeWest - 2, upper + 1, (2 * Cell) - 1);
+        }
+
+        // Climb lanes up the ledge faces east of the bridge, from the chasm floor to the ledge.
+        canvas.Climb(bridgeEast + 2, 1, Cell, ledgeEast, upper + 1, Cell);
+        canvas.Climb(bridgeEast + 2, 1, (2 * Cell) - 1, ledgeEast, upper + 1, (2 * Cell) - 1);
+
+        // The bridge, and a footing of brick where it meets each ledge.
+        canvas.Fill(bridgeWest, Storey, Cell, bridgeEast, Storey, (2 * Cell) - 1, BlockId.Brick);
+        canvas.Fill(bridgeWest - 1, Storey - footingDepth, Cell - 1, bridgeEast + 1, Storey, Cell - 1, BlockId.Brick);
+        canvas.Fill(bridgeWest - 1, Storey - footingDepth, 2 * Cell, bridgeEast + 1, Storey, 2 * Cell, BlockId.Brick);
+
+        // Light down in the chasm either side of the bridge, so its depth reads from above.
+        canvas.Light(Cell / 2, 3, Cell * 1.5);
+        canvas.Light(across - (Cell / 2), 3, Cell * 1.5);
+    }
+
+    /// <summary>
+    /// A cavern three cells across and two storeys high: one rounded dome with a shelf along its
+    /// north side, a rough ramp up to it, ways on at the floor to the south, east and west and one on
+    /// the shelf to the north.
+    /// </summary>
+    internal static DungeonModuleShape Cavern { get; } = new("cavern", ModuleKind.Cave, 3, 2, 3,
         [
-            new(1, 1, 2, ModuleFace.North, SocketKind.Cave), new(1, 1, 0, ModuleFace.South, SocketKind.Cave),
-            new(2, 0, 1, ModuleFace.East, SocketKind.Cave), new(0, 0, 1, ModuleFace.West, SocketKind.Cave),
+            new(1, 0, 0, ModuleFace.South, SocketKind.Cave), new(2, 0, 1, ModuleFace.East, SocketKind.Cave),
+            new(0, 0, 1, ModuleFace.West, SocketKind.Cave), new(1, 1, 2, ModuleFace.North, SocketKind.Cave),
         ],
         (canvas, random) =>
         {
-            const int upper = Storey + 1;
-            const int ledgeHeadroom = 4;
-            const int ledgeWest = Cell - 2;
-            const int ledgeEast = (2 * Cell) + 1;
-            const int bridgeWest = Cell + 2;
-            const int bridgeEast = Cell + 5;
-            const int footingDepth = 2;
+            const int shelfSouth = (2 * Cell) - 1;
+            const int rampWest = Cell + 3;
+            const int rampEast = Cell + 5;
+            const int treadDepth = 2;
+            const int shelfHeadroom = 4;
             int across = canvas.SizeX;
+            double middle = across / 2.0;
 
-            // The ledges the bridge leaves from, at either end, on the upper storey.
-            canvas.Fill(ledgeWest, upper, 1, ledgeEast, upper + ledgeHeadroom - 1, Cell - 1, BlockId.Air);
-            canvas.Fill(ledgeWest, upper, 2 * Cell, ledgeEast, upper + ledgeHeadroom - 1, (3 * Cell) - 2, BlockId.Air);
+            canvas.Chamber(middle, (canvas.SizeY / 2.0) + 0.5, middle, middle - 0.6 + (random.Unit() * 0.6), (canvas.SizeY / 2.0) + 0.4,
+                middle - 0.6 + (random.Unit() * 0.6), 1);
 
-            // The chasm: open from the lower storey's floor to under the roof, the whole module across.
-            canvas.Fill(1, 1, Cell, across - 2, canvas.SizeY - 2, (2 * Cell) - 1, BlockId.Air);
+            // The shelf, the full storey up, along the north side.
+            canvas.Fill(1, 0, shelfSouth, across - 2, Storey, across - 2, BlockId.Stone);
+            canvas.Fill(Cell, Storey + 1, shelfSouth, (2 * Cell) - 1, Storey + shelfHeadroom, across - 2, BlockId.Air);
 
-            // The cave along the chasm floor, wall to wall, under the bridge.
-            canvas.Chamber(across / 2.0, 2.6, Cell * 1.5, across / 2.0, 2.6, 2.6, 1);
+            // The ramp: up a block every two cells, its top tread level with the shelf.
+            for (int rise = 1; rise <= Storey; rise++)
+            {
+                int z = shelfSouth - ((Storey - rise + 1) * treadDepth);
+                canvas.Fill(rampWest, 0, z, rampEast, rise, z + treadDepth - 1, BlockId.Stone);
+            }
 
-            // Climb lanes up both ledge faces either side of the bridge, from the chasm floor to the ledge.
-            canvas.Climb(ledgeWest, 1, Cell, bridgeWest - 2, upper + 1, Cell);
-            canvas.Climb(bridgeEast + 2, 1, Cell, ledgeEast, upper + 1, Cell);
-            canvas.Climb(ledgeWest, 1, (2 * Cell) - 1, bridgeWest - 2, upper + 1, (2 * Cell) - 1);
-            canvas.Climb(bridgeEast + 2, 1, (2 * Cell) - 1, ledgeEast, upper + 1, (2 * Cell) - 1);
+            canvas.Light(middle, 4, middle);
+            canvas.Light(middle, Storey + 3, across - 4);
+        })
+    {
+        SetPiece = true,
+    };
 
-            // The bridge, and a footing of brick where it meets each ledge.
-            canvas.Fill(bridgeWest, Storey, Cell, bridgeEast, Storey, (2 * Cell) - 1, BlockId.Brick);
-            canvas.Fill(bridgeWest - 1, Storey - footingDepth, Cell - 1, bridgeEast + 1, Storey, Cell - 1, BlockId.Brick);
-            canvas.Fill(bridgeWest - 1, Storey - footingDepth, 2 * Cell, bridgeEast + 1, Storey, 2 * Cell, BlockId.Brick);
+    /// <summary>
+    /// A great hall three cells across and two storeys high, pillared, doors in the middle of each
+    /// side, and its north-east corner fallen into a rounded cave that leaves the hall by a cave way
+    /// on: the building and the cave in one room.
+    /// </summary>
+    internal static DungeonModuleShape GreatHall { get; } = new("great-hall", ModuleKind.Building, 3, 2, 3,
+        [
+            new(1, 0, 0, ModuleFace.South, SocketKind.Door), new(2, 0, 1, ModuleFace.East, SocketKind.Door),
+            new(0, 0, 1, ModuleFace.West, SocketKind.Door), new(1, 0, 2, ModuleFace.North, SocketKind.Door),
+            new(2, 0, 2, ModuleFace.East, SocketKind.Cave),
+        ],
+        (canvas, random) =>
+        {
+            const int pillarNear = 6;
+            const int pillarFar = 16;
+            const int pillarWidth = 2;
+            const int rubbleHeaps = 4;
+            int across = canvas.SizeX;
+            int roof = canvas.SizeY - 2;
 
-            // Light down in the chasm either side of the bridge, so its depth reads from above.
-            canvas.Light(Cell / 2, 3, Cell * 1.5);
-            canvas.Light(across - (Cell / 2), 3, Cell * 1.5);
-        });
+            canvas.Rooms(BlockId.Cobblestone);
+            canvas.Fill(1, Storey, 1, across - 2, Storey, across - 2, BlockId.Air);
+            foreach (int x in (int[])[pillarNear, pillarFar])
+            {
+                foreach (int z in (int[])[pillarNear, pillarFar])
+                {
+                    canvas.Fill(x, 1, z, x + pillarWidth - 1, roof, z + pillarWidth - 1, BlockId.Brick);
+                }
+            }
+
+            // The fallen corner: rock where the hall's corner stood, and a rounded cave through it.
+            int corner = 2 * Cell;
+            canvas.Fill(corner, 1, corner, across - 1, roof, across - 1, BlockId.Stone);
+            canvas.Chamber(corner + 3.5, 4.2, corner + 3.5, 6.4, 4.2, 6.4, 1);
+
+            // Rubble where the corner came down.
+            for (int heap = 0; heap < rubbleHeaps; heap++)
+            {
+                int x = corner - 4 + random.Range(0, 4);
+                int z = corner - 4 + random.Range(0, 4);
+                canvas.Fill(x, 1, z, x + 1, 1, z, BlockId.Gravel);
+            }
+
+            canvas.Light(Cell * 1.5, Storey + 2, Cell * 0.75);
+            canvas.Light(Cell * 0.75, Storey + 2, Cell * 2);
+            canvas.Light(corner + 3.5, 3, corner + 3.5);
+        })
+    {
+        SetPiece = true,
+    };
 
     /// <summary>
     /// A shaft five storeys deep and three cells across, open down the middle, with a ledge on its
@@ -394,33 +552,16 @@ internal static class DungeonModules
                 ? top - (int)Math.Round(step * ((top - (2 * Storey) - 1) / (double)halfway))
                 : (2 * Storey) + 1 - (int)Math.Round((step - halfway) * ((2 * Storey) / (double)(path.Count - 1 - halfway)));
 
-            // The shaft, then a corbel under the whole ledge, then the ledge's headroom, then its
-            // treads, so each tread's front is the riser down to the next.
             canvas.Fill(1, 1, 1, size - 2, canvas.SizeY - 2, size - 2, BlockId.Air);
-            for (int step = 0; step < path.Count; step++)
-            {
-                (int x, int z) = path[step];
-                int feet = Feet(step);
-                canvas.Fill(x - 1, Math.Max(0, feet - 1 - corbelDepth), z - 1, x + 1, feet - 1, z + 1, BlockId.Stone);
-            }
-
-            for (int step = 0; step < path.Count; step++)
-            {
-                (int x, int z) = path[step];
-                int feet = Feet(step);
-                canvas.Fill(x - 1, feet, z - 1, x + 1, feet + ledgeHeadroom - 1, z + 1, BlockId.Air);
-            }
-
-            for (int step = 0; step < path.Count; step++)
-            {
-                (int x, int z) = path[step];
-                canvas.Fill(x - 1, Feet(step) - 1, z - 1, x + 1, Feet(step) - 1, z + 1, BlockId.Stone);
-            }
+            canvas.Ledge([.. path.Select((cell, step) => (cell.X, Feet(step), cell.Z))], ledgeHeadroom, corbelDepth);
 
             // A glow at the bottom, so the depth reads from the ledge above, and one by the way in.
             canvas.Light(middle, 2, middle);
             canvas.Light(middle, top + 3, far);
-        });
+        })
+    {
+        SetPiece = true,
+    };
 
     internal static DungeonModuleShape Room { get; } = new("room", ModuleKind.Building, 1, 1, 1,
         [
@@ -532,9 +673,9 @@ internal static class DungeonModules
             canvas.Fill(1, 1, 2, 2, 1, 3, BlockId.Gravel);
         });
 
-    internal static IReadOnlyList<DungeonModuleShape> CaveRoute { get; } = [CaveTunnel, CaveBend, CaveDescent, CaveChamber, CaveShaft];
+    internal static IReadOnlyList<DungeonModuleShape> CaveRoute { get; } = [CaveTunnel, CaveBend, CaveDescent, CaveChamber, CaveShaft, ChasmStair, Abyss, Cavern];
 
-    internal static IReadOnlyList<DungeonModuleShape> BuildingRooms { get; } = [Room, Corridor, Hall, Stair, Gallery, Collapse];
+    internal static IReadOnlyList<DungeonModuleShape> BuildingRooms { get; } = [Room, Corridor, Hall, Stair, Gallery, Collapse, GreatHall];
 
     /// <summary>The cells of a square ring two in from the walls, walked anticlockwise from above.</summary>
     private static IEnumerable<(int X, int Z)> Ring(int size)

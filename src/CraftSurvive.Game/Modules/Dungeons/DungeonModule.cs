@@ -81,6 +81,9 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     private DungeonSurface surface = DungeonSurface.Cubes;
 
+    /// <summary>A seed the next dungeon entered uses in place of its entrance's own, or null: for looking at a chosen dungeon.</summary>
+    private ulong? seedOverride;
+
     private DungeonState state = DungeonState.Outside;
     private PoiSite? nearbyEntrance;
     private long nextSearchStep;
@@ -205,7 +208,7 @@ internal sealed class DungeonModule : IProductModule
         }
 
         // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
-        entranceSeed = DungeonSeed(terrain.SaveIdentity.Seed, entrance);
+        entranceSeed = seedOverride ?? DungeonSeed(terrain.SaveIdentity.Seed, entrance);
         string loading = Load(0);
         if (state != DungeonState.Loading)
         {
@@ -295,6 +298,24 @@ internal sealed class DungeonModule : IProductModule
     {
         retiring?.Dispose();
         retiring = null;
+    }
+
+    /// <summary>Makes every dungeon entered use a chosen seed (the bank's seeds), or clears that with "entrance".</summary>
+    internal string ChooseSeed(string text)
+    {
+        if (text == "entrance")
+        {
+            seedOverride = null;
+            return "dungeons use their entrance's own seed";
+        }
+
+        if (!ulong.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong chosen))
+        {
+            return $"seed refused: \"{text}\" is not a number or \"entrance\"";
+        }
+
+        seedOverride = chosen;
+        return string.Create(CultureInfo.InvariantCulture, $"dungeons entered use seed {chosen}");
     }
 
     /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (worn rock), faceted (chiselled rock), ruined (weathered building) or mc (marched rock).</summary>

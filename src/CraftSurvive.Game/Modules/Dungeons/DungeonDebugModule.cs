@@ -19,6 +19,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.approach", Description = "Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave), v (the chasm sketch) or s (the shaft sketch).")]
     public string Approach(string name) => dungeons.Choose(name);
 
+    [DebugCommand("craft.dungeon.seed", Description = "Makes every dungeon entered use a chosen seed (as the dungeon bank numbers them), or \"entrance\" to go back to each entrance's own.")]
+    public string Seed(string seed) => dungeons.ChooseSeed(seed);
+
     [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual-contoured worn rock, building on the grid), faceted (flat-faceted rock), ruined (faceted rock, weathered building) or mc (marched rock, cube building).")]
     public string Surface(string name) => dungeons.ChooseSurface(name);
 
