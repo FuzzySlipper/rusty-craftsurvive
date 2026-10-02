@@ -22,26 +22,32 @@ internal sealed class DungeonSpace : IDisposable
     private readonly DungeonLayout layout;
     private readonly Queue<(int X, int Y, int Z)> pending;
     private readonly Material? rockMaterial;
-    private readonly (VoxelSurfaceMode Mode, DungeonFlatMaterials Materials)? flat;
+    private readonly DungeonFlatMaterials? flat;
     private MeshResource? rockMesh;
     private Appearance? rockAppearance;
     private readonly int totalChunks;
     private VoxelScenePresentation? projection;
     private long loadTicks;
 
+    /// <param name="surface">How the dungeon's voxels are surfaced; null draws cubes.</param>
     /// <param name="flat">
-    /// For a dungeon whose voxels are surfaced smooth: the session's surface mode and the untextured
-    /// materials it is drawn with. Null draws cubes with the world's block materials.
+    /// For a surface drawn untextured: the flat colours it is drawn with. Null draws the world's
+    /// block materials.
     /// </param>
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
-        (VoxelSurfaceMode Mode, DungeonFlatMaterials Materials)? flat = null)
+        DungeonSurface? surface = null, DungeonFlatMaterials? flat = null)
     {
         this.flat = flat;
         this.rockMaterial = rockMaterial;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        Session = DungeonCollision.CreateSession(engine, flat?.Mode ?? VoxelSurfaceMode.GreedyCubes);
+        surface ??= DungeonSurface.Cubes;
+        Session = DungeonCollision.CreateSession(engine, surface.Mode);
+        if (surface.Materials.Length > 0)
+        {
+            engine.Voxel.ConfigureMaterialSurfaces(new VoxelMaterialSurfaceRequest(Session, surface.Mode, surface.Materials));
+        }
         pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
         totalChunks = pending.Count;
     }
@@ -65,6 +71,18 @@ internal sealed class DungeonSpace : IDisposable
         ? [new AppearanceFact(ProductIds.DungeonRockObject, false, 0UL, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), appearance, true, RenderLayer.Scene)]
         : [];
 
+    /// <summary>Redraws the chunks a change to the session's voxels rebuilt.</summary>
+    internal void Refresh()
+    {
+        if (projection is VoxelScenePresentation current)
+        {
+            engine.VoxelScenePresentation.RefreshScene(current);
+        }
+    }
+
+    /// <summary>The Engine's meshing time for the chunks its last change rebuilt, in milliseconds.</summary>
+    internal double LastMeshMilliseconds => engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).MeshMicroseconds / 1000.0;
+
     /// <summary>The rock mesh's size and cost, once built.</summary>
     internal string RockReadout { get; private set; } = "voxel rock";
 
@@ -85,7 +103,7 @@ internal sealed class DungeonSpace : IDisposable
 
         if (pending.Count == 0 && projection is null)
         {
-            projection = flat is (_, DungeonFlatMaterials materials)
+            projection = flat is DungeonFlatMaterials materials
                 ? engine.VoxelScenePresentation.ProjectScene(new ProjectVoxelSceneRequest(Session, materials.Bindings))
                 : terrain.ProjectSeparateSpace(Session);
             if (layout.Rock is RockDensity rock)

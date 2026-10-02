@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
@@ -75,11 +76,20 @@ internal sealed class DungeonModule : IProductModule
     private Material? rockMaterial;
 
     /// <summary>
-    /// How the next dungeon's voxels are surfaced. Cubes by default; a smooth mode loads the
-    /// dungeon as voxels throughout - sculpted rock as stone blocks - meshed by the Engine and drawn
-    /// in flat colours, to judge how a smooth voxel surface reads.
+    /// How the next dungeon's voxels are surfaced. Cubes by default; a smooth surface loads the
+    /// dungeon as voxels throughout - sculpted rock as stone blocks - meshed by the Engine, to judge
+    /// how a smooth voxel surface reads.
     /// </summary>
-    private VoxelSurfaceMode surface = VoxelSurfaceMode.GreedyCubes;
+    private DungeonSurface surface = DungeonSurface.Cubes;
+
+    /// <summary>Trial switch: enter a dungeon even when the Engine's route check refuses it.</summary>
+    internal bool AcceptUnwalkable { get; set; }
+
+    /// <summary>A blast's radius when none is given, in metres.</summary>
+    private const float DefaultBlastRadius = 2.5f;
+
+    /// <summary>How far a blast reaches from the eye along the view.</summary>
+    private const float BlastReach = 32f;
     private DungeonFlatMaterials? flatMaterials;
 
     private DungeonState state = DungeonState.Outside;
@@ -229,10 +239,10 @@ internal sealed class DungeonModule : IProductModule
         walkable = candidate.Walkable;
         try
         {
-            space = surface == VoxelSurfaceMode.GreedyCubes
+            space = !surface.Smooth
                 ? new DungeonSpace(engine, terrain, candidate.Layout, candidate.Layout.Rock is null ? null : RockMaterial())
                 : new DungeonSpace(engine, terrain, candidate.Layout with { Volume = candidate.Walkable, Rock = null }, null,
-                    (surface, flatMaterials ??= new DungeonFlatMaterials(engine)));
+                    surface, surface.Textured ? null : flatMaterials ??= new DungeonFlatMaterials(engine));
         }
         catch (EngineCallException refusal)
         {
@@ -263,7 +273,7 @@ internal sealed class DungeonModule : IProductModule
             return false;
         }
 
-        if (routes.Walkable)
+        if (routes.Walkable || AcceptUnwalkable)
         {
             return true;
         }
@@ -301,24 +311,49 @@ internal sealed class DungeonModule : IProductModule
         retiring = null;
     }
 
-    /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual contouring) or mc (marching cubes).</summary>
+    /// <summary>Chooses how the next dungeon's voxels are surfaced; see <see cref="DungeonSurface.Named"/>.</summary>
     internal string ChooseSurface(string name)
     {
-        VoxelSurfaceMode? chosen = name switch
+        if (DungeonSurface.Named(name) is not DungeonSurface next)
         {
-            "cubes" => VoxelSurfaceMode.GreedyCubes,
-            "dc" => VoxelSurfaceMode.DualContouring,
-            "mc" => VoxelSurfaceMode.MarchingCubes,
-            _ => null,
-        };
-        if (chosen is not VoxelSurfaceMode next)
-        {
-            return $"surface refused: \"{name}\" is not cubes, dc (dual contouring) or mc (marching cubes)";
+            return $"surface refused: \"{name}\" is not cubes, dc, mc, dc-textured, mc-textured, dc-mixed or dc-blocky";
         }
 
         surface = next;
         return $"the next dungeon's voxels are surfaced {surface}";
     }
+
+    /// <summary>
+    /// Blasts a sphere out of the dungeon where the view meets it (straight down when the player
+    /// has not looked), or fills one back with stone.
+    /// </summary>
+    internal string Blast(float radius, bool fill)
+    {
+        if (state != DungeonState.Inside || space is null)
+        {
+            return "blast refused: not in a dungeon";
+        }
+
+        Vector3 eye = player.WorldEyePosition;
+        Vector3 direction = player.AimForward == Vector3.Zero ? -Vector3.UnitY : Vector3.Normalize(player.AimForward);
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            space.Session, eye, direction, BlastReach,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        if (!hit.Present)
+        {
+            return "blast refused: the view meets nothing within reach";
+        }
+
+        VoxelDensityReceipt receipt = engine.Voxel.ApplyDensityEdits(new VoxelDensityTransaction(space.Session,
+            new[] { VoxelDensityEdit.Sphere(hit.Point, radius, fill ? VoxelDensityOperation.Add : VoxelDensityOperation.Subtract, (uint)BlockId.Stone) }));
+        space.Refresh();
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{(fill ? "filled" : "blasted")} r={radius:F1} at {hit.Point.X:F1},{hit.Point.Y:F1},{hit.Point.Z:F1}: {receipt.Status} changed={receipt.ChangedVoxels} solidity={receipt.SolidityChanges} rebuilt={receipt.RebuiltMeshChunks} meshMs={receipt.MeshMicroseconds / 1000.0:F1}");
+    }
+
+    internal static float BlastRadius(string? radius) =>
+        float.TryParse(radius, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed) && parsed > 0f ? parsed : DefaultBlastRadius;
 
     /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules) or c (sculpted cave).</summary>
     internal string Choose(string name)
@@ -435,7 +470,7 @@ internal sealed class DungeonModule : IProductModule
     internal string Readout()
     {
         string loading = space is DungeonSpace current
-            ? string.Create(CultureInfo.InvariantCulture, $" progress={current.Progress:F2} chunks={current.TotalChunks} loadMs={current.LoadMilliseconds:F1}")
+            ? string.Create(CultureInfo.InvariantCulture, $" progress={current.Progress:F2} chunks={current.TotalChunks} loadMs={current.LoadMilliseconds:F1} lastMeshMs={current.LastMeshMilliseconds:F1}")
             : string.Empty;
         string entrance = nearbyEntrance is PoiSite site ? $"{site.X},{site.Z}" : "none";
         string layout = plan is DungeonPlan current2

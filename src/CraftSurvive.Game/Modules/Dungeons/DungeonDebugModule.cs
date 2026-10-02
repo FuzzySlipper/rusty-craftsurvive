@@ -19,8 +19,21 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.approach", Description = "Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules) or c (sculpted cave).")]
     public string Approach(string name) => dungeons.Choose(name);
 
-    [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual contouring, flat colours) or mc (marching cubes, flat colours).")]
+    [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc or mc (flat colours), dc-textured or mc-textured, dc-mixed (rock dual contoured, built blocks cubes) or dc-blocky (all dual contoured, built blocks crisp).")]
     public string Surface(string name) => dungeons.ChooseSurface(name);
+
+    [DebugCommand("craft.dungeon.trust", Description = "Trial: on enters dungeons even when their route check fails; off restores the check.")]
+    public string Trust(string on)
+    {
+        dungeons.AcceptUnwalkable = on == "on";
+        return $"accept unwalkable dungeons: {dungeons.AcceptUnwalkable}";
+    }
+
+    [DebugCommand("craft.dungeon.blast", Description = "Blasts a sphere (radius in metres, default 2.5) out of the dungeon where the view meets it.")]
+    public string Blast(string radius) => dungeons.Blast(DungeonModule.BlastRadius(radius), false);
+
+    [DebugCommand("craft.dungeon.fill", Description = "Fills a sphere (radius in metres, default 2.5) of stone where the view meets the dungeon.")]
+    public string Fill(string radius) => dungeons.Blast(DungeonModule.BlastRadius(radius), true);
 
     [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, or floor0..floorN.")]
     public string Visit(string place) => dungeons.Visit(place);
