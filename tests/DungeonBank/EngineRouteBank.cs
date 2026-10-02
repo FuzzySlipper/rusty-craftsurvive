@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using CraftSurvive.Game.Modules.Dungeons;
+using CraftSurvive.Game.Modules.Player;
 using Rusty.Engine;
 using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine.Testing;
@@ -36,17 +37,15 @@ internal static class EngineRouteBank
         }),
         (spatial, volume) => Vary(spatial, volume, "diagonal", config => config with { DiagonalNeighbors = true }),
         (spatial, volume) => Vary(spatial, volume, "deep-columns", config => config with { SupportsPerColumn = DeepColumnSupports }),
-        (spatial, volume) => Vary(spatial, volume, "step-1.2", config => config with
+        (spatial, volume) => Vary(spatial, volume, "walk-only", config => config with
         {
-            Character = config.Character with { Surface = config.Character.Surface with { MaximumStepHeight = HigherStepMetres } },
+            Character = config.Character with { Surface = config.Character.Surface with { MaximumStepHeight = PlayerConstants.MaximumStepHeight } },
         }),
     ];
 
     private const float SlimRadius = 0.25f;
     private const uint DeepColumnSupports = 16U;
 
-    /// <summary>A step allowance a little over one block, for surfaces whose one-block steps come out uneven.</summary>
-    private const float HigherStepMetres = 1.2f;
 
     private static NavigationProfile Vary(ISpatialService spatial, DungeonVolume volume, string name, Func<CollisionNavigationConfig, CollisionNavigationConfig> change)
     {

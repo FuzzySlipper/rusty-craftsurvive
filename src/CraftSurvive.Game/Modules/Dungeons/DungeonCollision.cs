@@ -164,16 +164,20 @@ internal static class DungeonCollision
 
     /// <summary>
     /// A voxel's density: negative when solid, positive when empty, as the Engine requires. Rock
-    /// floors - rock with empty space above - and the space over them sit exactly on the cell face,
-    /// so treads stay flat and a one-block step stays one block; elsewhere rock takes its sculpted
-    /// field, and building blocks keep the cube face.
+    /// floors and ceilings - rock with empty space above or below - and the space against them sit
+    /// exactly on the cell face, so treads stay flat, a one-block step stays one block and a
+    /// passage keeps its full height; walls take the sculpted field, and building blocks keep the
+    /// cube face.
     /// </summary>
     private static float Density(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block)
     {
         bool rock = DungeonSurfaces.IsRock(block);
+        bool air = block == BlockId.Air;
         bool floor = rock && volume.At(x, y + 1, z) == BlockId.Air;
-        bool overFloor = block == BlockId.Air && y > 0 && DungeonSurfaces.IsRock(volume.At(x, y - 1, z));
-        if (floor || overFloor)
+        bool ceiling = rock && y > 0 && volume.At(x, y - 1, z) == BlockId.Air;
+        bool overFloor = air && y > 0 && DungeonSurfaces.IsRock(volume.At(x, y - 1, z));
+        bool underCeiling = air && DungeonSurfaces.IsRock(volume.At(x, y + 1, z));
+        if (floor || ceiling || overFloor || underCeiling)
         {
             return block == BlockId.Air ? FaceDensity : -FaceDensity;
         }

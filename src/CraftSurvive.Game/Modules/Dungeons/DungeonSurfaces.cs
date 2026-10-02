@@ -36,7 +36,7 @@ internal static class DungeonSurfaces
     private const float WornRoughness = 0f;
 
     /// <summary>How far chiselled rock's vertices are jostled, in cells.</summary>
-    private const float ChiselledRoughness = 0.2f;
+    private const float ChiselledRoughness = 0.05f;
 
     /// <summary>Flat shading: every facet its own normal.</summary>
     private const float FlatCreaseDegrees = 0f;

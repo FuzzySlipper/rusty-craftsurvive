@@ -341,6 +341,15 @@ foreach (string reported in (string[])["a", "b", "c"])
     }
 }
 
+// The same, with the dungeon voxels throughout and its rock reconstructed in flat facets: the look
+// being pursued. Retries are expected (rougher rock refuses more first candidates); every entrance
+// must still have a dungeon.
+foreach (string faceted in (string[])["b", "c"])
+{
+    IReadOnlyList<int> accepted = EngineRouteBank.Accept(faceted, 1UL, EngineSeeds, DungeonSurface.Faceted);
+    Check.That(accepted.All(index => index >= 0), $"every faceted {faceted} entrance must have a dungeon the Engine walks within {DungeonCandidates.MaximumCandidates} candidates");
+}
+
 return Check.Finish("DungeonBank");
 
 static (DungeonVolume, DungeonPlan, DungeonVerdict) Carved(ulong seed)

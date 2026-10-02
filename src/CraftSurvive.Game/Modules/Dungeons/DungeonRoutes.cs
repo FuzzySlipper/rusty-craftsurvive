@@ -21,19 +21,34 @@ internal sealed record NavigationProfile(string Name, CollisionNavigationConfig 
     private const ulong GridId = 2UL;
 
     /// <summary>
-    /// The player's own body, as the character controller has it, over a dungeon's volume: it steps
-    /// up what the player steps up and walks off drops the generator's walk allows.
+    /// How far below the top of the player's jump a ledge the route check accepts must stay: room for
+    /// a jump that is not perfectly timed.
+    /// </summary>
+    internal const float JumpMarginMetres = 0.25f;
+
+    /// <summary>
+    /// The highest step the route check accepts: a ledge the player jumps up, short of the jump's
+    /// peak by <see cref="JumpMarginMetres"/>. Navigation has no jump edges yet (rusty-engine #9123),
+    /// so a jump stands in as a tall step; the player's own controller keeps its step height.
+    /// </summary>
+    internal static float JumpableStepMetres =>
+        (PlayerConstants.JumpSpeed * PlayerConstants.JumpSpeed / (2f * PlayerConstants.Gravity)) - JumpMarginMetres;
+
+    /// <summary>
+    /// The player's own body, as the character controller has it, over a dungeon's volume: it walks
+    /// off the drops the generator's walk allows and climbs what the player can step or jump up.
     /// </summary>
     internal static NavigationProfile Player(ISpatialService spatial, DungeonVolume volume)
     {
         CollisionNavigationConfig defaults = spatial.DefaultCollisionNavigationConfig();
+        CharacterControllerConfig body = PlayerBody.Configure(spatial.DefaultCharacterControllerConfig());
         return new NavigationProfile("player", defaults with
         {
             GridId = GridId,
             CellSize = TerrainConstants.VoxelSize,
             ChunkSize = (uint)TerrainConstants.ChunkEdgeLength,
             MaximumCells = checked((uint)(volume.SizeX * volume.SizeZ)),
-            Character = PlayerBody.Configure(spatial.DefaultCharacterControllerConfig()),
+            Character = body with { Surface = body.Surface with { MaximumStepHeight = Math.Max(body.Surface.MaximumStepHeight, JumpableStepMetres) } },
             MaximumDrop = DungeonWalk.MaximumDrop * TerrainConstants.VoxelSize,
             VerticalSearchCells = (uint)DungeonWalk.MaximumDrop,
             SnapAbove = SculptedFloorSnapMetres,

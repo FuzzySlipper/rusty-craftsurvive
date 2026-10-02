@@ -108,7 +108,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   fixed order (`DungeonCandidates`, a pure function of its seed). Each one is generated until the
   product's own walk over its voxel data passes, loaded behind the loading screen, then checked by
   `DungeonRoutes`: collision navigation for the player's own character configuration (drops as far
-  as `DungeonWalk.MaximumDrop`) must walk every route the flow promises, or the next candidate is
+  as `DungeonWalk.MaximumDrop`, steps as high as the player can jump) must walk every route the flow promises, or the next candidate is
   loaded. An entrance with no walkable dungeon in `DungeonCandidates.MaximumCandidates` is given up
   and the player stays outside. The bank enters entrances the same way headless through
   `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
@@ -119,10 +119,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   (dual contoured, smooth or flat-faceted, or marched), building blocks keep the grid (Blocky dual
   contouring, or cubes beside marched rock), all textured with the world's block materials, and
   collision and navigation follow the drawn surface. The rock is stone throughout; its strata and
-  the cave-rock texture are the separate-mesh look's. One-block rock steps come out a few
-  centimetres over or under a block, past the player's step height, so many approach B dungeons
-  are refused by the route check and an entrance can run out of candidates. Rock roughness is off
-  in `dc` because jostled vertices refuse even more; `faceted` keeps it for the look.
+  the cave-rock texture are the separate-mesh look's. Rock floors and ceilings sit on cell faces
+  and only walls take the sculpted field. Reconstructed one-block steps still come out a few
+  centimetres over a block, so the route check accepts a step up to what the player can jump
+  (`NavigationProfile.JumpableStepMetres`, the jump's peak less a margin) while the player's own
+  controller keeps its step height: such a step is a jump in play, and navigation has no jump
+  edges to say so or to check the arc's headroom (Engine #9123). Roughness, which jostles every
+  vertex, refuses more candidates: it is off in `dc` and small in `faceted`.
   `craft.dungeon.blast <radius>` carves a sphere where the player aims through the Engine's density
   brush; the dungeon's navigation is not republished after it. Sculpted rock holds a body-width clearance around every standing place, and a step's lift of
   room above it, so a smoothed wall or ceiling never bulges into the body. Dungeons have no
