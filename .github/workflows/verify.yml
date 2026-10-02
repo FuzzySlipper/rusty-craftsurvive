@@ -37,6 +37,8 @@ jobs:
         run: dotnet run --project tests/SubstrateProof -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release
+      - name: Check the player's body recovers from deep overlaps instead of stopping the game
+        run: dotnet run --project tests/PlayerBody -c Release
       - name: Check point-of-interest placement
         run: dotnet run --project tests/DiscoveryCore -c Release
       - name: Check the save manifest, codecs and restore rule

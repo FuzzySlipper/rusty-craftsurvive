@@ -138,6 +138,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - The character controller steps at `PlayerConstants.ControllerStepSeconds`; the world origin is
   rebased under the player past `PlayerConstants.RebaseThreshold`. Cross-origin multiplayer policy
   is not certified.
+- **A body found deep in collision is moved, not stuck.** The controller pushes the player out of
+  shallow overlaps itself; deeper, the Engine refuses the step, and `PlayerRecovery` stands the
+  player at the first place their body fits - where they last stood clear, then straight above
+  them within `PlayerRecovery.SearchHeightMetres`. With nowhere clear in reach the player stays
+  put and it is tried again next update; it never searches sideways. `craft.player.readout`
+  reports the count and the last recovery.
 - **Keyboard input from a page reaches the product only after the Engine canvas has gameplay
   focus.** Keys pressed with the page body or a product UI control focused are not delivered (see
   [live-proofs](live-proofs.md)).

@@ -141,11 +141,12 @@ Focused normal-lane checks:
 pnpm run check:ui
 pnpm run audit:textures
 dotnet build src/CraftSurvive.Game/CraftSurvive.Game.csproj --configuration Release
-dotnet run --project tests/<lane> -c Release   # TerrainResidency, RpgCore, DiscoveryCore, SaveCore, SubstrateProof
+dotnet run --project tests/<lane> -c Release   # TerrainResidency, RpgCore, PlayerBody, DiscoveryCore, SaveCore, DungeonBank, SubstrateProof
 ```
 
 Each lane reports every failed check, not just the first. `tests/SubstrateProof` is an Engine
-canary: it links no product code. Against a running host, `scripts/live.mjs` walks the player,
+canary: it links no product code. `tests/PlayerBody` and `tests/DungeonBank` run product code against
+the Engine's own services headless, through `EngineTestHost`. Against a running host, `scripts/live.mjs` walks the player,
 checks discovery and runs debug commands; see [`docs/live-proofs.md`](docs/live-proofs.md).
 
 Run NativeAOT verification only when the task needs fidelity/release evidence:

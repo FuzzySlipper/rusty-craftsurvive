@@ -57,6 +57,11 @@ internal sealed class PlayerController : IDisposable
     private PlayerInputFrame lastInputFrame;
     private CharacterStepReceipt? lastStepReceipt;
 
+    /// <summary>Where the player last stood with a step accepted or a placement made: a place their body fit.</summary>
+    private Vector3 lastClearLocal;
+    private long recoveries;
+    private string lastRecovery = "none";
+
     /// <summary>Whether the last controller step left the player holding a climb rail.</summary>
     private bool climbHeld;
 
@@ -327,7 +332,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];recoveries={recoveries};lastRecovery=[{lastRecovery}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -373,6 +378,7 @@ internal sealed class PlayerController : IDisposable
         playerGlobal = place;
         WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
         playerLocal = playerGlobal.ToLocal(origin);
+        lastClearLocal = playerLocal;
         motion = PlayerBody.AtRest(playerLocal);
         climbHeld = false;
         headSubmerged = false;
@@ -430,15 +436,27 @@ internal sealed class PlayerController : IDisposable
                 ? PlayerBody.WithSprintSpeed(controllerConfig)
                 : controllerConfig;
             commandSequence = checked(commandSequence + 1UL);
-            CharacterStepReceipt receipt = engine.Spatial.ProposeCharacterStep(new CharacterStepRequest(
-                Session,
-                playerLocal,
-                motion,
-                default,
-                ReadOnlyMemory<CharacterObstacle>.Empty,
-                ReadOnlyMemory<CharacterMeshInstance>.Empty,
-                stepConfig,
-                Command(frame, lookReceipt, commandSequence)));
+            CharacterStepReceipt receipt;
+            try
+            {
+                receipt = engine.Spatial.ProposeCharacterStep(new CharacterStepRequest(
+                    Session,
+                    playerLocal,
+                    motion,
+                    default,
+                    ReadOnlyMemory<CharacterObstacle>.Empty,
+                    ReadOnlyMemory<CharacterMeshInstance>.Empty,
+                    stepConfig,
+                    Command(frame, lookReceipt, commandSequence)));
+            }
+            catch (EngineCallException refusal) when (PlayerRecovery.IsPenetration(refusal))
+            {
+                // Too deep in collision to step: stand the player clear and take up steps next update.
+                Recover();
+                controllerStepAccumulator = 0d;
+                break;
+            }
+
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
             climbHeld = receipt.Movement.ClimbAttached;
@@ -449,8 +467,35 @@ internal sealed class PlayerController : IDisposable
             motion = receipt.Motion;
             WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
+            lastClearLocal = playerLocal;
             controllerStepAccumulator -= PlayerConstants.ControllerStepSeconds;
         }
+    }
+
+    /// <summary>
+    /// Stands the player at the first nearby place their body fits, at rest. With nowhere clear
+    /// nearby, the player stays put and the next update tries again; the game keeps running.
+    /// </summary>
+    private void Recover()
+    {
+        Vector3 from = playerLocal;
+        Vector3? clear = PlayerRecovery.FirstClear(engine.Spatial, Session, PlayerRecovery.Candidates(playerLocal, lastClearLocal),
+            PlayerBody.Height(motion.Stance), controllerConfig.Shape.Radius, controllerConfig.Shape.ContactSkin);
+        recoveries++;
+        if (clear is not Vector3 to)
+        {
+            lastRecovery = string.Create(CultureInfo.InvariantCulture, $"stuck at {PlayerInputDiagnostics.Format(from)}: nowhere clear within {PlayerRecovery.SearchHeightMetres:F0} m");
+            return;
+        }
+
+        playerLocal = to;
+        lastClearLocal = to;
+        motion = PlayerBody.AtRest(to);
+        climbHeld = false;
+        WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
+        playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
+        camera.Cut();
+        lastRecovery = $"moved clear from {PlayerInputDiagnostics.Format(from)} to {PlayerInputDiagnostics.Format(to)}";
     }
 
     /// <summary>
