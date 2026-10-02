@@ -102,7 +102,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `ModularDungeon` (authored 3D pieces from `DungeonModules` joined at their sockets on a lattice
   of one storey per layer, rock sculpted as in C), chosen by `craft.dungeon.approach`. B's set
   pieces (the chasm with its ledge stair, the abyss, the cavern, the great hall) appear at most once
-  per dungeon; `craft.dungeon.seed <n>` loads a chosen seed as the bank numbers them. Sculpting
+  per dungeon, each with a flat landing held open inside its cave ways on. Ledge stairs (the
+  shafts, the chasm's stair) have masonry treads, which keep to the grid where reconstructed rock
+  would round a step past the step height. `craft.dungeon.seed <n>` loads a chosen seed as the
+  bank numbers them. Sculpting
   never changes what can be walked: standing places and their headroom stay open. The sculpted rock's texture is projected along one axis per face,
   so it smears on steep curved walls. Nothing inside a dungeon is saved: a session that ends inside one continues at its
   entrance, and the open world's creatures and journal wait while the player is in.

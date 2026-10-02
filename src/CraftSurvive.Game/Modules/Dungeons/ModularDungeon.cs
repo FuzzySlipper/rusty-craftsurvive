@@ -214,6 +214,13 @@ internal static class ModularDungeon
         DungeonModuleShape shape = module.Shape;
         ModuleCanvas canvas = new(shape.Width, shape.Height, shape.Depth);
         shape.Build(canvas, random);
+        if (shape.SetPiece)
+        {
+            foreach (ModuleSocket socket in shape.Sockets.Where(socket => socket.Kind == SocketKind.Cave))
+            {
+                canvas.Landing(socket);
+            }
+        }
         int ox = module.X * ModuleCanvas.CellSize;
         int oy = (module.Y * ModuleCanvas.StoreyHeight) + BaseY;
         int oz = module.Z * ModuleCanvas.CellSize;

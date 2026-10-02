@@ -88,6 +88,35 @@ internal sealed class ModuleCanvas
 
     internal void Light(double x, double y, double z) => Lights.Add((x, y, z));
 
+    /// <summary>How far a landing reaches in from its socket's face, how wide it is, and its headroom.</summary>
+    internal const int LandingDepth = 3;
+
+    internal const int LandingHalfWidth = 3;
+
+    internal const int LandingHeadroom = 4;
+
+    /// <summary>
+    /// A flat landing just inside a socket: floor under it, air over it, and its cells held open
+    /// like a climb lane, so a reconstructed surface cannot crowd the way in. Set pieces get one at
+    /// every cave socket, where their rock meets a neighbour's mouth.
+    /// </summary>
+    internal void Landing(ModuleSocket socket)
+    {
+        int floor = (socket.Y * StoreyHeight) + 1;
+        int centreX = (socket.X * CellSize) + (CellSize / 2);
+        int centreZ = (socket.Z * CellSize) + (CellSize / 2);
+        (int x0, int x1, int z0, int z1) = socket.Face switch
+        {
+            ModuleFace.North => (centreX - LandingHalfWidth, centreX + LandingHalfWidth - 1, ((socket.Z + 1) * CellSize) - LandingDepth, ((socket.Z + 1) * CellSize) - 1),
+            ModuleFace.South => (centreX - LandingHalfWidth, centreX + LandingHalfWidth - 1, socket.Z * CellSize, (socket.Z * CellSize) + LandingDepth - 1),
+            ModuleFace.East => (((socket.X + 1) * CellSize) - LandingDepth, ((socket.X + 1) * CellSize) - 1, centreZ - LandingHalfWidth, centreZ + LandingHalfWidth - 1),
+            _ => (socket.X * CellSize, (socket.X * CellSize) + LandingDepth - 1, centreZ - LandingHalfWidth, centreZ + LandingHalfWidth - 1),
+        };
+        Fill(x0, floor - 1, z0, x1, floor - 1, z1, BlockId.Stone);
+        Fill(x0, floor, z0, x1, floor + LandingHeadroom - 1, z1, BlockId.Air);
+        Climb(x0, floor, z0, x1, floor + LandingHeadroom - 1, z1);
+    }
+
     /// <summary>Marks a box of cells as a climb lane (<see cref="Climbs"/>).</summary>
     internal void Climb(int x0, int y0, int z0, int x1, int y1, int z1)
     {
@@ -188,7 +217,7 @@ internal sealed class ModuleCanvas
 
         foreach ((int x, int feet, int z) in steps)
         {
-            Fill(x - 1, feet - 1, z - 1, x + 1, feet - 1, z + 1, BlockId.Stone);
+            Fill(x - 1, feet - 1, z - 1, x + 1, feet - 1, z + 1, DungeonModules.LedgeTread);
         }
     }
 
@@ -215,6 +244,12 @@ internal static class DungeonModules
 {
     private const int Cell = ModuleCanvas.CellSize;
     private const int Storey = ModuleCanvas.StoreyHeight;
+
+    /// <summary>
+    /// What a ledge's treads are cut from: masonry, an ancient stair on the rock, which keeps to the
+    /// grid where reconstructed rock would round each step past what a body steps up.
+    /// </summary>
+    internal const BlockId LedgeTread = BlockId.Cobblestone;
 
     /// <summary>
     /// How many cells long a cave descent runs to drop a storey: long enough that its steps have
@@ -313,7 +348,7 @@ internal static class DungeonModules
 
             foreach ((int x, int ly, int z) in ledge)
             {
-                canvas.Fill(x - 1, ly - 1, z - 1, x + 1, ly - 1, z + 1, BlockId.Stone);
+                canvas.Fill(x - 1, ly - 1, z - 1, x + 1, ly - 1, z + 1, LedgeTread);
             }
 
         });
