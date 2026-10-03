@@ -26,12 +26,17 @@ internal sealed class PlayerVitals
 
     internal bool IsInvulnerable(long step) => PlayerDefeatRules.IsInvulnerable(graceUntilStep, step);
 
+    /// <summary>How many times this session health has been lost, from any harm: what the HUD flashes on.</summary>
+    internal long HitsTaken { get; private set; }
+
     /// <summary>Applies a landed blow. A player in grace or already down absorbs nothing.</summary>
     internal PlayerDefeatState TakeHit(int damage, long step)
     {
         if (!IsInvulnerable(step))
         {
+            int before = state.Health;
             state = PlayerDefeatRules.Strike(state, damage, step);
+            HitsTaken += state.Health < before ? 1 : 0;
         }
 
         return state;

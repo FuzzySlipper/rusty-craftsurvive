@@ -668,6 +668,8 @@ internal sealed class PlayerController : IDisposable
         Stamina = Stamina.Current,
         MaximumStamina = Stamina.Maximum,
         Climbing = climbHeld,
+        HitsTaken = Vitals.HitsTaken,
+        Submerged = headSubmerged,
     };
 
     private void PublishRuntimeComponent()

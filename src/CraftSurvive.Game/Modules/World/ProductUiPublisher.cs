@@ -29,6 +29,12 @@ internal readonly record struct PlayerUiFacts(
     internal int MaximumStamina { get; init; }
 
     internal bool Climbing { get; init; }
+
+    /// <summary>How many times health has been lost this session; the HUD flashes when it rises.</summary>
+    internal long HitsTaken { get; init; }
+
+    /// <summary>Whether the player's head is under water.</summary>
+    internal bool Submerged { get; init; }
 }
 
 /// <summary>What the player's UI requests came to, and the build palette it may name, for the UI projection.</summary>

@@ -4,13 +4,17 @@ import { mountDeveloperTools } from './developer.js';
 import { element, isolateEvents } from './dom.js';
 import { mountHud } from './hud.js';
 import { mountLoading } from './loading.js';
+import { mountOverlay } from './overlay.js';
 
-const CONTROLS_HELP = 'WASD and mouse to move and look; J attacks; F clears and G places terrain. '
-  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, RT clears, LT places.';
+const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
+  + '(and lets go); J attacks; F clears and G places terrain. '
+  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places.';
 
 /**
  * The DOM companion. It shows what the product publishes through the projection and claims the
- * product's action intent; C# owns every game fact and decides what each request does.
+ * product's action intent; C# owns every game fact and decides what each request does. The game's
+ * HUD sits over the view; the journal - every published fact, the actions and the tools - is a
+ * drawer, closed until the player opens it.
  */
 export function mountProductUi(root: Element, context: RustyApplicationUiContext): Readonly<{ dispose(): void }> {
   const panel = element('aside', 'background:rgb(15 19 25 / 88%);border:1px solid #62748a;border-radius:.35rem;color:#edf5ff;'
@@ -20,23 +24,29 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   panel.setAttribute('data-rusty-ui-interactive', '');
   isolateEvents(panel);
 
-  panel.append(element('strong', '', 'Rusty CraftSurvive'));
+  const drawer = element('details', '');
+  drawer.append(element('summary', 'cursor:pointer;font-weight:700;', 'Journal'));
+  const contents = element('div', '');
+  drawer.append(contents);
+  panel.append(drawer);
   const status = element('p', 'margin:.3rem 0 0;');
   status.hidden = true;
   status.setAttribute('role', 'alert');
   panel.append(status);
 
-  const unsubscribe = mountHud(panel, context.projection);
-  const unsubscribeActions = mountActions(panel, context.intents, context.projection);
-  panel.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
-  const disposeDeveloperTools = mountDeveloperTools(panel, status);
+  const unsubscribe = mountHud(contents, context.projection);
+  const unsubscribeActions = mountActions(contents, context.intents, context.projection);
+  contents.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
+  const disposeDeveloperTools = mountDeveloperTools(contents, status);
   root.append(panel);
+  const disposeOverlay = mountOverlay(root, context.projection);
   const disposeLoading = mountLoading(root, context.projection);
 
   return Object.freeze({
     dispose: () => {
       unsubscribe();
       unsubscribeActions();
+      disposeOverlay();
       disposeLoading();
       disposeDeveloperTools();
       panel.remove();

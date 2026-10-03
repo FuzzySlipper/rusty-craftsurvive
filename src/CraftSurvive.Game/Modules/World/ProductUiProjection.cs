@@ -37,6 +37,8 @@ internal static class ProductUiProjection
             values.Add("stamina", facts.Stamina);
             values.Add("maximumStamina", facts.MaximumStamina);
             values.Add("climbing", facts.Climbing ? 1d : 0d);
+            values.Add("hitsTaken", facts.HitsTaken);
+            values.Add("submerged", facts.Submerged ? 1d : 0d);
         }
         if (discovery is DiscoveryUiFacts journal)
         {
