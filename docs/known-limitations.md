@@ -55,6 +55,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   and sets one directional light (sun, then moon) and one ambient light from `WorldClock`; the
   Engine's neutral rig is disabled. Ambient light is unoccluded, so a cave is no darker than the
   open ground beside it, and the sun and moon do not move across the panoramas.
+- **Under water the view closes into murk.** While the player's eyes are under water,
+  `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same
+  colour (exponential squared), in the open and underground alike. The Engine's voxel mesher does
+  not yet honour a material's non-occluding declaration (rusty-engine #9310), so water hides the
+  faces of the bed and banks it touches: under water nothing below the waterline draws, and from
+  above the bed is not seen through the surface. Glass and leaves hide their neighbours' faces the
+  same way.
 
 ## Creatures and navigation
 

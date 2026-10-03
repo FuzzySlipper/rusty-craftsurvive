@@ -7,8 +7,9 @@ namespace CraftSurvive.Game.Modules.Survival;
 
 /// <summary>
 /// The one owner of the world's conditions: it advances the clock on Engine step time, shows the
-/// sky and light for it, keeps the difficulty, publishes both to the UI and saves them. Survival
-/// and encounters read the time and difficulty from here.
+/// sky and light for it (closing the view into water's murk while the player's eyes are under),
+/// keeps the difficulty, publishes both to the UI and saves them. Survival and encounters read the
+/// time and difficulty from here.
 /// </summary>
 internal sealed class WorldConditionsModule : IProductModule
 {
@@ -21,16 +22,18 @@ internal sealed class WorldConditionsModule : IProductModule
     private static readonly string Difficulties = string.Join(',', Enum.GetNames<Difficulty>().Select(name => name.ToLowerInvariant()));
 
     private readonly DayNightSky sky;
+    private readonly Func<bool> eyesSubmerged;
     private readonly ProductUiPublisher ui;
     private readonly ProductSaveSlot<WorldConditionsState> slot;
     private WorldConditionsState state = WorldConditionsState.Fresh;
     private long lastSaveStep = long.MinValue;
     private long publishedMinute = long.MinValue;
 
-    internal WorldConditionsModule(IEngineContext engine, ProductStore store, SaveIdentity identity, DayNightSky sky, ProductUiPublisher ui)
+    internal WorldConditionsModule(IEngineContext engine, ProductStore store, SaveIdentity identity, DayNightSky sky, Func<bool> eyesSubmerged, ProductUiPublisher ui)
     {
         ArgumentNullException.ThrowIfNull(engine);
         this.sky = sky ?? throw new ArgumentNullException(nameof(sky));
+        this.eyesSubmerged = eyesSubmerged ?? throw new ArgumentNullException(nameof(eyesSubmerged));
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         slot = new ProductSaveSlot<WorldConditionsState>(engine, store, SaveManifest.WorldConditions, new WorldConditionsCodec(identity));
     }
@@ -55,6 +58,7 @@ internal sealed class WorldConditionsModule : IProductModule
     {
         WorldTime time = WorldClock.Advance(state.Time, step.ElapsedSeconds);
         state = state with { Day = time.Day, DayFraction = time.DayFraction };
+        sky.Submerged(eyesSubmerged());
         Show();
         if (lastSaveStep == long.MinValue)
         {
@@ -113,7 +117,7 @@ internal sealed class WorldConditionsModule : IProductModule
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"world time={WorldClock.Describe(state.Time)} fraction={state.DayFraction:F4} daylight={WorldClock.Daylight(state.DayFraction):F3} night={IsNight} difficulty={state.Difficulty} restore={slot.RestoreOutcome} saves={slot.Saves} failure={slot.LastFailure ?? "none"}");
+        $"world time={WorldClock.Describe(state.Time)} fraction={state.DayFraction:F4} daylight={WorldClock.Daylight(state.DayFraction):F3} night={IsNight} underwater={sky.ViewSubmerged} difficulty={state.Difficulty} restore={slot.RestoreOutcome} saves={slot.Saves} failure={slot.LastFailure ?? "none"}");
 
     private void Save(long step)
     {

@@ -39,6 +39,7 @@ internal sealed class DayNightSky : IDisposable
     private Light? ambient;
     private double litDaylight = double.NaN;
     private bool underground;
+    private bool submerged;
     private bool disposed;
 
     /// <summary>Underground there is no sky: a near-black background, no sun, and a faint fill.</summary>
@@ -61,6 +62,18 @@ internal sealed class DayNightSky : IDisposable
     /// reads, so depth closes into black rather than a grey haze.
     /// </summary>
     private static readonly Color UndergroundFog = new(0.002f, 0.002f, 0.003f, 1f);
+
+    /// <summary>
+    /// Under water there is no sky either: distance and the background are both the water's own
+    /// murk, a dim blue-green in linear light, so what is far fades exactly into it.
+    /// </summary>
+    private static readonly Color WaterMurk = new(0.02f, 0.08f, 0.09f, 1f);
+
+    /// <summary>
+    /// How quickly distance fades under water (exponential squared): the near bank and the bed
+    /// read, and beyond about ten metres everything has gone into the murk.
+    /// </summary>
+    private const float WaterFogDensity = 0.11f;
 
     internal DayNightSky(IEngineContext engine)
     {
@@ -85,15 +98,13 @@ internal sealed class DayNightSky : IDisposable
 
         underground = below;
         litDaylight = double.NaN;
+        Veil();
         if (!below)
         {
-            engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
             Show(time);
             return;
         }
 
-        engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(UndergroundBackground));
-        engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, UndergroundFogDensity));
         LightDescriptor dark = Directional(MoonColour, 0f, -Vector3.UnitY) with { Enabled = false };
         LightDescriptor fill = Fill(0d) with { Intensity = UndergroundAmbientIntensity };
         if (sun is Light retainedSun && ambient is Light retainedFill)
@@ -102,6 +113,24 @@ internal sealed class DayNightSky : IDisposable
             engine.Graphics.UpdateLight(new LightUpdateRequest(retainedFill, Request(ProductIds.AmbientLight, fill)));
         }
     }
+
+    /// <summary>
+    /// Puts the player's eyes under water or brings them back out. Under water the view closes into
+    /// a blue-green murk, whether in the open or underground; coming out shows what was there before.
+    /// </summary>
+    internal void Submerged(bool below)
+    {
+        if (disposed || below == submerged)
+        {
+            return;
+        }
+
+        submerged = below;
+        Veil();
+    }
+
+    /// <summary>Whether the view is under water.</summary>
+    internal bool ViewSubmerged => submerged;
 
     /// <summary>Shows the sky and lights for a moment. Lights are replaced only when daylight has moved.</summary>
     internal void Show(WorldTime time)
@@ -112,7 +141,11 @@ internal sealed class DayNightSky : IDisposable
         }
 
         double daylight = WorldClock.Daylight(time.DayFraction);
-        engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(day, night, (float)(1d - daylight)));
+        if (!submerged)
+        {
+            engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(day, night, (float)(1d - daylight)));
+        }
+
         if (sun is not null && Math.Abs(daylight - litDaylight) < RelightStep)
         {
             return;
@@ -142,6 +175,28 @@ internal sealed class DayNightSky : IDisposable
         sun = null;
         ambient = null;
         litDaylight = double.NaN;
+    }
+
+    /// <summary>
+    /// The fog and background for where the eyes are: water's murk under water, the dark underground,
+    /// and in the open no fog, the sky's background being shown by <see cref="Show"/>.
+    /// </summary>
+    private void Veil()
+    {
+        if (submerged)
+        {
+            engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(WaterMurk));
+            engine.CameraView.SetFog(new(FogMode.ExponentialSquared, WaterMurk, 0f, 0f, WaterFogDensity));
+        }
+        else if (underground)
+        {
+            engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(UndergroundBackground));
+            engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, UndergroundFogDensity));
+        }
+        else
+        {
+            engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
+        }
     }
 
     /// <summary>The sun by day, warming toward dusk, and the moon opposite it by night.</summary>

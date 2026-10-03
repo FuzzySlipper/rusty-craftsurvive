@@ -78,7 +78,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame, store, ui);
         player = new PlayerController(context.Engine, terrain, frame, store, ui);
         sky = new DayNightSky(context.Engine);
-        conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, ui);
+        conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
