@@ -178,11 +178,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Keyboard input from a page reaches the product only after the Engine canvas has gameplay
   focus.** Keys pressed with the page body or a product UI control focused are not delivered (see
   [live-proofs](live-proofs.md)).
-- **Climbing is pushing into a climbable face.** `PlayerClimb` decides it: a face whose block is
-  `Climbable` in `BlockRegistry` (earth, rock, masonry, timber) and rises past a single step,
-  within `HoldReachMetres`; forward climbs, back climbs down, a jump or crouch lets go, and the
-  top lets go where the feet clear the ledge. There are no ladders, mantling animation or
-  climbing stamina.
+- **Climbing is deliberate and costs stamina.** The climb action (E, controller Y) takes hold of
+  a face reached within `PlayerConstants.TakeHoldWindowSeconds` of pressing it; pushing into a wall
+  never climbs. `PlayerClimb` decides the face: its block is `Climbable` in `BlockRegistry` (earth,
+  rock, masonry, timber), it rises past a single step, and it is within `HoldReachMetres`. Forward
+  climbs, back climbs down, the climb action again, a jump or crouch lets go, and the top lets go
+  where the feet clear the ledge. `PlayerStamina` drains while holding on (faster while moving),
+  comes back only on the ground, and lets go when it runs out; taking hold needs a quarter of the
+  bar. A full bar's reach, `PlayerStamina.ClimbReachMetres`, is a storey and a half for a starting
+  character: a layout puts a place out of reach with a taller face. Stamina is not saved, and
+  sprinting does not spend it. There are no ladders or mantling animation.
 - Controller mapping is product policy in `PlayerInputState` and the project's input intents.
 
 ## UI

@@ -29,6 +29,9 @@ internal sealed class PlayerInputState
 
     private bool attackPending;
 
+    /// <summary>A press of the climb action, waiting for the next frame: take hold of a face, or let go of one.</summary>
+    private bool climbPending;
+
     internal PlayerInputFrame Consume(ReadOnlySpan<ProductInputEvent> events, float simulationDeltaSeconds)
     {
         foreach (ProductInputEvent input in events)
@@ -38,7 +41,8 @@ internal sealed class PlayerInputState
                 ClearHeld();
                 pendingLookDelta = Vector2.Zero;
                 pendingEdit = null;
-        attackPending = false;
+                attackPending = false;
+                climbPending = false;
                 continue;
             }
 
@@ -92,10 +96,12 @@ internal sealed class PlayerInputState
             pendingLookDelta + controllerLook * (PlayerConstants.ControllerLookInputUnitsPerSecond * simulationDeltaSeconds),
             pendingEdit,
             attackPending,
-            brushRadius);
+            brushRadius,
+            climbPending);
         pendingLookDelta = Vector2.Zero;
         pendingEdit = null;
         attackPending = false;
+        climbPending = false;
         return frame;
     }
 
@@ -146,6 +152,9 @@ internal sealed class PlayerInputState
         {
             case KeyboardControl.KeyJ:
                 attackPending = true;
+                break;
+            case KeyboardControl.KeyE:
+                climbPending = true;
                 break;
             case KeyboardControl.KeyF:
                 pendingEdit = TerrainEditKind.Clear;
@@ -234,6 +243,11 @@ internal sealed class PlayerInputState
             return;
         }
 
+        if (button == ControllerButton.Button3)
+        {
+            climbPending = true;
+        }
+
         pendingEdit = button switch
         {
             ControllerButton.Button7 => TerrainEditKind.Clear,
@@ -268,4 +282,5 @@ internal readonly record struct PlayerInputFrame(
     Vector2 LookDelta,
     TerrainEditKind? Edit,
     bool AttackRequested,
-    int BrushRadius);
+    int BrushRadius,
+    bool ClimbRequested);

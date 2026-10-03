@@ -547,36 +547,69 @@ BlockId ClimbWorld(long x, long y, long z) =>
     : z == 2 && y == 0 ? BlockId.Stone
     : BlockId.Air;
 Vector2 east = new(1f, 0.2f);
-ClimbRail? taken = PlayerClimb.Find(0.7, 0, 0.5, east, 1f, holding: false, ClimbWorld);
+ClimbRail? taken = PlayerClimb.Find(0.7, 0, 0.5, east, 0f, ClimbGrip.Taking, ClimbWorld);
 Check.That(taken is ClimbRail rail
     && Math.Abs(rail.X - (1 - PlayerConstants.CapsuleRadius - PlayerClimb.StandoffMetres)) < 1e-9 && rail.Z == 0.5
     && rail.BottomFeetY == -1 && Math.Abs(rail.TopFeetY - (6 + PlayerConstants.SpawnClearance)) < 1e-6,
-    $"pushing into a stone wall must take hold of a rail from below the feet to its top ledge, took {taken}");
-Check.That(PlayerClimb.Find(0.7, 0, 0.5, east, 0f, holding: false, ClimbWorld) is null,
-    "standing at a wall without pushing into it must not climb");
-Check.That(PlayerClimb.Find(0.7, 3, 0.5, east, 0f, holding: true, ClimbWorld) is not null,
+    $"taking hold of a stone wall must give a rail from below the feet to its top ledge, gave {taken}");
+Check.That(PlayerClimb.Find(0.7, 0, 0.5, east, 1f, ClimbGrip.None, ClimbWorld) is null,
+    "pushing into a wall without taking hold must never climb");
+Check.That(PlayerClimb.Find(0.7, 3, 0.5, east, 0f, ClimbGrip.Holding, ClimbWorld) is not null,
     "a player holding on must keep hanging without intent");
-Check.That(PlayerClimb.Find(0.7, 0, 0.5, new Vector2(0f, 1f), 1f, holding: false, ClimbWorld) is null,
+Check.That(PlayerClimb.Find(0.7, 0, 0.5, new Vector2(0f, 1f), 1f, ClimbGrip.Taking, ClimbWorld) is null,
     "the face climbed is the one looked at, not one beside the player");
-Check.That(PlayerClimb.Find(0.1, 0, 0.5, east, 1f, holding: false, ClimbWorld) is null,
+Check.That(PlayerClimb.Find(0.1, 0, 0.5, east, 1f, ClimbGrip.Taking, ClimbWorld) is null,
     "a face beyond reach must not be climbed");
-Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, holding: false, ClimbWorld) is null,
+Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, ClimbGrip.Taking, ClimbWorld) is null,
     "a sand face must not be climbed");
-Check.That(PlayerClimb.Find(0.5, 0, 1.7, new Vector2(0f, 1f), 1f, holding: false, ClimbWorld) is null,
+Check.That(PlayerClimb.Find(0.5, 0, 1.7, new Vector2(0f, 1f), 1f, ClimbGrip.Taking, ClimbWorld) is null,
     "a single block is the controller's step, not a climb");
-Check.That(PlayerClimb.Find(0.7, 0, 0.5, east, -1f, holding: true, ClimbWorld) is null,
+Check.That(PlayerClimb.Find(0.7, 0, 0.5, east, -1f, ClimbGrip.Holding, ClimbWorld) is null,
     "stepping back onto ground must let go");
-Check.That(PlayerClimb.Find(0.7, 3, 0.5, east, -1f, holding: true, ClimbWorld) is not null,
+Check.That(PlayerClimb.Find(0.7, 3, 0.5, east, -1f, ClimbGrip.Holding, ClimbWorld) is not null,
     "climbing down mid-face must keep hold");
-Check.That(PlayerClimb.Find(0.7, 5.2, 0.5, east, 1f, holding: true, ClimbWorld) is ClimbRail atTop
+Check.That(PlayerClimb.Find(0.7, 5.2, 0.5, east, 1f, ClimbGrip.Holding, ClimbWorld) is ClimbRail atTop
     && Math.Abs(atTop.TopFeetY - (6 + PlayerConstants.SpawnClearance)) < 1e-6,
     "a player holding the top cell must keep the rail to the ledge");
-Check.That(PlayerClimb.Find(0.7, 6.05, 0.5, east, 1f, holding: true, ClimbWorld) is null,
+Check.That(PlayerClimb.Find(0.7, 6.05, 0.5, east, 1f, ClimbGrip.Holding, ClimbWorld) is null,
     "feet clear of the ledge must let go, so walking on steps onto it");
-Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, holding: false, (x, y, z) => ClimbWorld(-x, y, z)) is ClimbRail west
+Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, ClimbGrip.Taking, (x, y, z) => ClimbWorld(-x, y, z)) is ClimbRail west
     && west.TopFeetY > 6
     && Math.Abs(west.X - (PlayerConstants.CapsuleRadius + PlayerClimb.StandoffMetres)) < 1e-9,
     "a face toward negative X must be held from its positive side");
+
+// Stamina: climbing spends it, faster than hanging; only the ground gives it back; taking hold
+// needs a share of the bar; and a full bar's reach is what climbing speed and drain make it.
+const double StaminaStep = 1d / 60d;
+int startingStamina = CharacterSheet.Starting.Derived.MaximumStamina;
+PlayerStamina stamina = new(startingStamina);
+Check.That(stamina.Full && stamina.CanTakeHold && !stamina.Exhausted, "a fresh bar must be full and able to take hold");
+double climbedSeconds = 0;
+while (!stamina.Exhausted)
+{
+    stamina.Tick(PlayerExertion.Climbing, StaminaStep);
+    climbedSeconds += StaminaStep;
+}
+
+double reach = PlayerStamina.ClimbReachMetres(startingStamina);
+Check.That(Math.Abs((climbedSeconds * PlayerConstants.ClimbSpeed) - reach) < PlayerConstants.ClimbSpeed * StaminaStep * 2,
+    $"a full bar must climb {reach:F2} m before running out, climbed {climbedSeconds * PlayerConstants.ClimbSpeed:F2} m");
+Check.That(reach > 6.5 && reach < 12, $"a starting character must climb a storey (6 m) but not two, reach was {reach:F2} m");
+Check.That(!stamina.CanTakeHold, "an exhausted climber must not take hold again");
+stamina.Tick(PlayerExertion.Airborne, 5);
+Check.That(stamina.Exhausted, "falling must not give stamina back");
+stamina.Tick(PlayerExertion.Resting, (startingStamina * PlayerStamina.TakeHoldShare / PlayerStamina.RecoveryPerSecond) + StaminaStep);
+Check.That(stamina.CanTakeHold && !stamina.Full, "resting on the ground must give back enough to take hold, before a full bar");
+stamina.Tick(PlayerExertion.Resting, 60);
+Check.That(stamina.Full, "resting long enough must fill the bar");
+PlayerStamina hanging = new(startingStamina);
+PlayerStamina moving = new(startingStamina);
+hanging.Tick(PlayerStamina.OnFace(0f), 1);
+moving.Tick(PlayerStamina.OnFace(1f), 1);
+Check.That(hanging.Current > moving.Current && hanging.Current < startingStamina,
+    "hanging still must spend stamina, more slowly than climbing");
+Check.That(PlayerStamina.ClimbReachMetres(startingStamina * 2) > reach, "a bigger bar must reach higher");
+
 Check.That(new[] { BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Cobblestone, BlockId.Brick, BlockId.Log, BlockId.Planks, BlockId.Bedrock }
         .All(id => BlockRegistry.Get(id).Climbable)
     && new[] { BlockId.Air, BlockId.Sand, BlockId.Gravel, BlockId.Leaves, BlockId.Water, BlockId.Glass, BlockId.Lamp, BlockId.Snow }

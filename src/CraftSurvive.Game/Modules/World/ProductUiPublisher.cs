@@ -23,6 +23,12 @@ internal readonly record struct PlayerUiFacts(
     internal int Level { get; init; }
 
     internal int ItemsCollected { get; init; }
+
+    internal double Stamina { get; init; }
+
+    internal int MaximumStamina { get; init; }
+
+    internal bool Climbing { get; init; }
 }
 
 /// <summary>What the player's UI requests came to, and the build palette it may name, for the UI projection.</summary>

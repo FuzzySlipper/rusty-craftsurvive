@@ -36,6 +36,7 @@
     <Compile Include="$(ProductModules)Survival/Difficulty.cs" LinkBase="Product/Survival" />
     <!-- The climbing rule reads blocks through a lookup, so it is checked over a made-up wall. -->
     <Compile Include="$(ProductModules)Player/PlayerClimb.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Player/PlayerStamina.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />

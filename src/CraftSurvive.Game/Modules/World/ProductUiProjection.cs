@@ -34,6 +34,9 @@ internal static class ProductUiProjection
             values.Add("experience", facts.Experience);
             values.Add("level", facts.Level);
             values.Add("itemsCollected", facts.ItemsCollected);
+            values.Add("stamina", facts.Stamina);
+            values.Add("maximumStamina", facts.MaximumStamina);
+            values.Add("climbing", facts.Climbing ? 1d : 0d);
         }
         if (discovery is DiscoveryUiFacts journal)
         {

@@ -9,10 +9,20 @@ namespace CraftSurvive.Game.Modules.Player;
 /// </summary>
 internal readonly record struct ClimbRail(double X, double Z, double BottomFeetY, double TopFeetY);
 
+/// <summary>How the player stands with a face: not holding one, taking hold this step, or holding on.</summary>
+internal enum ClimbGrip
+{
+    None,
+    Taking,
+    Holding,
+}
+
 /// <summary>
-/// The climbing rule: which face the player may climb and the rail up it. A face is climbable when
-/// the block it belongs to says so (<see cref="BlockDefinition.Climbable"/>) and it rises past a
-/// step, so the controller's own step still takes a single block. The rail runs from the cell
+/// The climbing rule: which face the player may climb and the rail up it. Climbing is deliberate:
+/// the player takes hold with the climb action (<see cref="PlayerStamina"/> decides whether they
+/// have the strength), never by walking into a wall. A face is climbable when the block it belongs
+/// to says so (<see cref="BlockDefinition.Climbable"/>) and it rises past a step, so the
+/// controller's own step still takes a single block. The rail runs from the cell
 /// below the feet to the top of the face's climbable run, and the top is where the feet clear the
 /// ledge, so walking on at the top steps onto it. The Engine solves the climb; this decides it.
 /// </summary>
@@ -27,18 +37,16 @@ internal static class PlayerClimb
     /// <summary>The most cells a single rail climbs; a taller face is climbed a rail at a time.</summary>
     internal const int MaximumRailCells = 32;
 
-    /// <summary>How much forward intent takes hold of a face; holding on needs none.</summary>
-    internal const float TakeHoldIntent = 0.5f;
-
     /// <summary>Keeps a body standing exactly on a cell boundary in that cell.</summary>
     private const double FeetCellEpsilon = 1e-3d;
 
     private const float FacingEpsilon = 1e-4f;
 
     /// <summary>
-    /// The rail the player climbs, or null when they should walk: no climbable face in front within
-    /// reach, no intent to take hold, or stepping back onto ground. <paramref name="material"/>
-    /// reads the block at a global cell.
+    /// The rail the player climbs, or null when they should walk: neither holding on nor taking hold,
+    /// no climbable face in front within reach, or stepping back onto ground. Taking hold needs the
+    /// face to rise past a step; holding on keeps the top cell to the ledge. <paramref name="forwardIntent"/>
+    /// moves the player along the face. <paramref name="material"/> reads the block at a global cell.
     /// </summary>
     internal static ClimbRail? Find(
         double x,
@@ -46,11 +54,11 @@ internal static class PlayerClimb
         double z,
         Vector2 facing,
         float forwardIntent,
-        bool holding,
+        ClimbGrip grip,
         Func<long, long, long, BlockId> material)
     {
         ArgumentNullException.ThrowIfNull(material);
-        if (facing.LengthSquared() < FacingEpsilon || (!holding && forwardIntent < TakeHoldIntent))
+        if (facing.LengthSquared() < FacingEpsilon || grip == ClimbGrip.None)
         {
             return null;
         }
@@ -77,7 +85,7 @@ internal static class PlayerClimb
         }
 
         bool climbable(long y) => BlockRegistry.Get(material(wallX, y, wallZ)).Climbable;
-        if (!climbable(feet + 1) && !(holding && climbable(feet)))
+        if (!climbable(feet + 1) && !(grip == ClimbGrip.Holding && climbable(feet)))
         {
             return null;
         }

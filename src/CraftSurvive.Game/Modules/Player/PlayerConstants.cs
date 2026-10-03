@@ -26,6 +26,9 @@ internal static class PlayerConstants
     /// and how far from it the Engine takes hold. Which faces are climbable is <see cref="PlayerClimb"/>'s.
     /// </summary>
     internal const float ClimbSpeed = 2.5f;
+
+    /// <summary>How long after the climb action the player takes hold of a face they reach: walking or jumping onto a wall just after pressing still grabs it.</summary>
+    internal const double TakeHoldWindowSeconds = 0.5d;
     internal const float ClimbReach = 0.6f;
 
     // One 60 Hz sample of translation delay; orientation stays authoritative and immediate.

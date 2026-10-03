@@ -55,6 +55,7 @@
     <RustyEngineProductInputIntent Include="craftsurvive.edit.primary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.edit.secondary" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.impulse" Value="digital" />
+    <RustyEngineProductInputIntent Include="craftsurvive.climb" Value="digital" />
     <!-- The player-facing UI claims its requests as one payload intent; PlayerAction decodes them. -->
     <RustyEngineProductInputIntent Include="craftsurvive.ui" Value="payload:craftsurvive.ui.action.v1" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-x" Value="axis" />
@@ -68,6 +69,7 @@
     <RustyEngineProductInputMapping Include="craftsurvive.jump.space" Intent="craftsurvive.jump" Trigger="key:space:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.crouch.control-left" Intent="craftsurvive.crouch" Trigger="key:control-left:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.sprint.shift-left" Intent="craftsurvive.sprint" Trigger="key:shift-left:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.climb.key-e" Intent="craftsurvive.climb" Trigger="key:key-e:pressed" />
     <RustyEngineProductInputMapping Include="craftsurvive.move.analog-x.left-stick" Intent="craftsurvive.move.analog-x" Trigger="controller-axis:axis-0" />
     <RustyEngineProductInputMapping Include="craftsurvive.move.analog-y.left-stick" Intent="craftsurvive.move.analog-y" Trigger="controller-axis:axis-1" />
     <RustyEngineProductInputMapping Include="craftsurvive.look.analog-x.right-stick" Intent="craftsurvive.look.analog-x" Trigger="controller-axis:axis-2" />
@@ -76,6 +78,7 @@
     <RustyEngineProductInputMapping Include="craftsurvive.crouch.controller-b" Intent="craftsurvive.crouch" Trigger="controller-button:button-1:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.impulse.controller-x" Intent="craftsurvive.impulse" Trigger="controller-button:button-2:held" />
     <RustyEngineProductInputMapping Include="craftsurvive.sprint.controller-left-stick" Intent="craftsurvive.sprint" Trigger="controller-button:button-10:held" />
+    <RustyEngineProductInputMapping Include="craftsurvive.climb.controller-y" Intent="craftsurvive.climb" Trigger="controller-button:button-3:pressed" />
     <RustyEngineProductInputMapping Include="craftsurvive.edit.primary.controller-right-trigger" Intent="craftsurvive.edit.primary" Trigger="controller-button:button-7:pressed" />
     <RustyEngineProductInputMapping Include="craftsurvive.edit.secondary.controller-left-trigger" Intent="craftsurvive.edit.secondary" Trigger="controller-button:button-6:pressed" />
   </ItemGroup>

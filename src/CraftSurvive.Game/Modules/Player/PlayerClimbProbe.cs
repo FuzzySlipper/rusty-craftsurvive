@@ -5,8 +5,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Player;
 
 /// <summary>
-/// Decides whether the player climbs the face in front of them and, when they do, composes the
-/// climb movement up its rail. <see cref="PlayerClimb"/> owns the rule; the Engine owns the solver.
+/// Decides whether the player climbs the face in front of them, given how they hold it, and when
+/// they do composes the climb movement up its rail. <see cref="PlayerClimb"/> owns the rule; the Engine owns the solver.
 /// </summary>
 internal sealed class PlayerClimbProbe(IEngineContext engine)
 {
@@ -14,19 +14,19 @@ internal sealed class PlayerClimbProbe(IEngineContext engine)
     internal ClimbRail? LastRail { get; private set; }
 
     /// <summary>
-    /// Composes a climb when the player faces a climbable face. Rail heights are global feet
-    /// heights, so they are moved into the local frame by the player's own offset; the rail's
-    /// position along the face is local the same way.
+    /// Composes a climb when the player holds, or takes hold of, a climbable face in front of them.
+    /// Rail heights are global feet heights, so they are moved into the local frame by the player's
+    /// own offset; the rail's position along the face is local the same way.
     /// </summary>
     internal bool TryClimb(SpatialSession session, PlayerWorldPosition world, Vector3 local, CharacterStance stance,
-        Vector3 forward, float forwardIntent, bool holding, out CharacterMovementRequest movement)
+        Vector3 forward, float forwardIntent, ClimbGrip grip, out CharacterMovementRequest movement)
     {
         movement = default;
         float halfHeight = PlayerBody.Height(stance) / 2f;
         double feetY = world.WorldY - halfHeight;
         LastRail = stance == CharacterStance.Crouched
             ? null
-            : PlayerClimb.Find(world.WorldX, feetY, world.WorldZ, new Vector2(forward.X, forward.Z), forwardIntent, holding,
+            : PlayerClimb.Find(world.WorldX, feetY, world.WorldZ, new Vector2(forward.X, forward.Z), forwardIntent, grip,
                 (x, y, z) => Material(session, x, y, z));
         if (LastRail is not ClimbRail rail)
         {

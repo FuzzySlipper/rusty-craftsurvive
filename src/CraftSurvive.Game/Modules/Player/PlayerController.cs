@@ -49,6 +49,12 @@ internal sealed class PlayerController : IDisposable
     private bool impulseHeld;
     private bool jumpPending;
     private bool impulsePending;
+
+    /// <summary>How much longer a climb action pressed while not holding on takes hold of a face the player reaches.</summary>
+    private double takeHoldSeconds;
+
+    /// <summary>A climb action pressed while holding on, not yet acted on by a controller step: let go.</summary>
+    private bool letGoPending;
     private bool started;
     private ulong updateCount;
     private ulong lastSimulationStep;
@@ -113,6 +119,9 @@ internal sealed class PlayerController : IDisposable
     /// <summary>What the player has earned.</summary>
     internal PlayerProgress Progress { get; } = new();
 
+    /// <summary>What the player's climbs spend.</summary>
+    internal PlayerStamina Stamina { get; } = new(CharacterSheet.Starting.Derived.MaximumStamina);
+
     /// <summary>The player's character as the rules see it, at the level they have reached.</summary>
     internal CharacterSheet Sheet => CharacterSheet.Starting with { Level = Progress.Level };
 
@@ -173,6 +182,7 @@ internal sealed class PlayerController : IDisposable
             // A defeated player comes back where they started, outside the ring creatures spawn
             // at, rather than inside the reach of whatever defeated them.
             MoveHome();
+            Stamina.Refill(Sheet.Derived.MaximumStamina);
         }
 
         lastSimulationStep = update.Facts.SimulationStep;
@@ -188,6 +198,17 @@ internal sealed class PlayerController : IDisposable
 
         jumpPending |= frame.JumpHeld && !jumpHeld;
         impulsePending |= frame.ImpulseHeld && !impulseHeld;
+        if (frame.ClimbRequested)
+        {
+            if (climbHeld)
+            {
+                letGoPending = true;
+            }
+            else
+            {
+                takeHoldSeconds = PlayerConstants.TakeHoldWindowSeconds;
+            }
+        }
         jumpHeld = frame.JumpHeld;
         impulseHeld = frame.ImpulseHeld;
         StepCharacter(frame, lookReceipt, step.ElapsedSeconds);
@@ -332,7 +353,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];recoveries={recoveries};lastRecovery=[{lastRecovery}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -385,6 +406,8 @@ internal sealed class PlayerController : IDisposable
         controllerStepAccumulator = 0d;
         jumpPending = false;
         impulsePending = false;
+        takeHoldSeconds = 0d;
+        letGoPending = false;
         if (away is null)
         {
             terrain.SynchronizeAround(playerGlobal.FloorVoxel());
@@ -405,6 +428,7 @@ internal sealed class PlayerController : IDisposable
         EnsureStarted();
         Vitals.Reset();
         Progress.Reset();
+        Stamina.Refill(Sheet.Derived.MaximumStamina);
         look = StartingLook;
         MoveHome();
     }
@@ -463,8 +487,13 @@ internal sealed class PlayerController : IDisposable
             headSubmerged = receipt.Movement.HeadSubmerged;
             jumpPending = false;
             impulsePending = false;
+            letGoPending = false;
+            takeHoldSeconds = climbHeld ? 0d : Math.Max(0d, takeHoldSeconds - PlayerConstants.ControllerStepSeconds);
             playerLocal = receipt.Transform.Translation;
             motion = receipt.Motion;
+            Stamina.Tick(
+                climbHeld ? PlayerStamina.OnFace(frame.PlanarIntent.Y) : motion.Grounded ? PlayerExertion.Resting : PlayerExertion.Airborne,
+                PlayerConstants.ControllerStepSeconds);
             WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
             lastClearLocal = playerLocal;
@@ -500,8 +529,10 @@ internal sealed class PlayerController : IDisposable
 
     /// <summary>
     /// The controller command for one step: swimming when the player's own cells are water, climbing
-    /// when they face a climbable face (a jump lets go), else walking. The probes compose the volume
-    /// or rail the Engine moves them through.
+    /// when they hold a climbable face, else walking. The climb action takes hold of a face reached
+    /// within a moment of pressing it, when there is the stamina for it, and lets go when pressed
+    /// again; a jump also lets go, and so does running out.
+    /// The probes compose the volume or rail the Engine moves them through.
     /// </summary>
     private CharacterControllerCommand Command(PlayerInputFrame frame, LookReceipt lookReceipt, ulong sequence)
     {
@@ -509,9 +540,12 @@ internal sealed class PlayerController : IDisposable
             ? (lookReceipt.Right * PlayerConstants.ImpulseSpeed) + (Vector3.UnitY * PlayerConstants.ImpulseLift)
             : Vector3.Zero;
         float stepSeconds = (float)PlayerConstants.ControllerStepSeconds;
+        ClimbGrip grip = climbHeld
+            ? letGoPending || Stamina.Exhausted ? ClimbGrip.None : ClimbGrip.Holding
+            : takeHoldSeconds > 0d && Stamina.CanTakeHold ? ClimbGrip.Taking : ClimbGrip.None;
         if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement)
             || (!jumpPending && climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance,
-                lookReceipt.Forward, frame.PlanarIntent.Y, climbHeld, out movement)))
+                lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)))
         {
             return new CharacterControllerCommand(
                 movement, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,
@@ -631,6 +665,9 @@ internal sealed class PlayerController : IDisposable
         Experience = Progress.Experience,
         Level = Progress.Level,
         ItemsCollected = Progress.ItemsCollected,
+        Stamina = Stamina.Current,
+        MaximumStamina = Stamina.Maximum,
+        Climbing = climbHeld,
     };
 
     private void PublishRuntimeComponent()
