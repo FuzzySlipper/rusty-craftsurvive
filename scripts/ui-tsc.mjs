@@ -6,7 +6,9 @@
 import { execFile } from 'node:child_process';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
@@ -22,17 +24,20 @@ export async function compileUi(types, { check = false } = {}) {
   await mkdir(generated, { recursive: true });
   const project = join(generated, 'tsconfig.sdk.json');
   await writeFile(project, JSON.stringify({ extends: '../tsconfig.json', include: ['../*.ts'], files: [types] }, null, 2));
-  const args = ['exec', 'tsc', '--project', project];
+  // The repository's own TypeScript, run by this Node: no shell or package-manager shim, so the
+  // same call works on Windows and Linux.
+  const tsc = createRequire(join(repositoryRoot, 'package.json')).resolve('typescript/bin/tsc');
+  const args = [tsc, '--project', project];
   if (check) {
     args.push('--noEmit');
   } else {
     // The staged UI is exactly this compile's output: nothing a removed source once emitted stays.
     await rm(join(generated, 'source'), { recursive: true, force: true });
   }
-  await promisify(execFile)('pnpm', args, { cwd: repositoryRoot });
+  await promisify(execFile)(process.execPath, args, { cwd: repositoryRoot });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const argv = process.argv.slice(2);
   const typesIndex = argv.indexOf('--types');
   try {
