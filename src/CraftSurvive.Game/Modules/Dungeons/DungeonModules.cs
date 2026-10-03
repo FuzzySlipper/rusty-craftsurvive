@@ -112,7 +112,19 @@ internal sealed class ModuleCanvas
             ModuleFace.East => (((socket.X + 1) * CellSize) - LandingDepth, ((socket.X + 1) * CellSize) - 1, centreZ - LandingHalfWidth, centreZ + LandingHalfWidth - 1),
             _ => (socket.X * CellSize, (socket.X * CellSize) + LandingDepth - 1, centreZ - LandingHalfWidth, centreZ + LandingHalfWidth - 1),
         };
-        Fill(x0, floor - 1, z0, x1, floor - 1, z1, BlockId.Stone);
+        // Floor only where there was none: a tread or slab already there stays what it is, so the
+        // landing never patches one floor with another material.
+        for (int x = x0; x <= x1; x++)
+        {
+            for (int z = z0; z <= z1; z++)
+            {
+                if (At(x, floor - 1, z) == BlockId.Air)
+                {
+                    Set(x, floor - 1, z, BlockId.Stone);
+                }
+            }
+        }
+
         Fill(x0, floor, z0, x1, floor + LandingHeadroom - 1, z1, BlockId.Air);
         Climb(x0, floor, z0, x1, floor + LandingHeadroom - 1, z1);
     }
