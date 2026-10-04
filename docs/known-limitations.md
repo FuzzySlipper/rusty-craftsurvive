@@ -203,9 +203,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - `src/ui` is a DOM companion over the product's UI projection. The game's HUD (`overlay.ts`)
   draws a crosshair, the vitals as segmented bars (stamina and air only while below full, climbing
   or under water), the product's prompt for where the player stands, short notices when something
-  is found or done, and a red flash when health is lost (`hitsTaken` rising). Everything else -
-  the published facts, the actions that claim the `craftsurvive.ui` intent, the controls - is the
-  Journal drawer, closed by default. It holds no game state, only what it last drew. The
+  is found or done, and a red flash when health is lost (`hitsTaken` rising). Two screens open over
+  it (`screens.ts`, I and M, or the buttons at the top right; Esc closes): the pack - what is
+  carried, eating and applying, and the recipe book with what each needs - and the journal of
+  places, a north-up map around the player (north is -Z) and a list by distance. The journal lists
+  the 48 places most recently learned (`DiscoveryModule.JournalShown`), not every place found.
+  Everything else - the published facts, the building actions, rest, difficulty, the controls - is
+  the Menu drawer, closed by default. The UI holds no game state, only what it last drew and which
+  screen is open; the screens' keys are read by the page, so a controller cannot open them yet. The
   projection is the product's one UI channel, stream `craftsurvive.game` and contract
   `craftsurvive.game.v1` (`ProductUiPublisher.StreamName`); kind and stage enums travel as
   numbers and may be appended to but never renumbered.

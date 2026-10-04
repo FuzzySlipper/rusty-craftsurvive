@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
@@ -20,6 +21,9 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// </summary>
 internal sealed class DiscoveryModule : IProductModule
 {
+    /// <summary>How many places the journal screen lists, most recently learned first.</summary>
+    internal const int JournalShown = 48;
+
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
     private readonly DiscoveryState journal;
@@ -198,24 +202,33 @@ internal sealed class DiscoveryModule : IProductModule
             last is DiscoveryEntry kind ? (double)(ushort)kind.Kind : 0d,
             last is DiscoveryEntry stage ? (byte)stage.Stage : 0d,
             last?.LastTick ?? 0d,
-            last is DiscoveryEntry found ? Describe(found) : string.Empty));
+            last is DiscoveryEntry found ? Describe(found) : string.Empty,
+            Journal()));
     }
 
+    /// <summary>
+    /// The places the journal screen lists: the most recently learned first, at most
+    /// <see cref="JournalShown"/>, each as <c>name|stage|x|z</c> with stage seen or visited.
+    /// </summary>
+    private string Journal() => string.Join(";", journal.Snapshot().Entries
+        .OrderByDescending(entry => entry.LastTick)
+        .Take(JournalShown)
+        .Select(entry => string.Create(CultureInfo.InvariantCulture,
+            $"{PlaceName(entry.Kind)}|{(entry.Stage == DiscoveryStage.Visited ? "visited" : "seen")}|{entry.X}|{entry.Z}")));
+
     /// <summary>What a player calls a place they have found, and how well they know it.</summary>
-    private static string Describe(DiscoveryEntry entry)
+    private static string Describe(DiscoveryEntry entry) =>
+        $"{PlaceName(entry.Kind)}, {(entry.Stage == DiscoveryStage.Visited ? "visited" : "seen")}";
+
+    private static string PlaceName(PoiKind kind) => kind switch
     {
-        string place = entry.Kind switch
-        {
-            PoiKind.StandingStones => "Standing stones",
-            PoiKind.Ruin => "Ruin",
-            PoiKind.CaveMouth => "Cave mouth",
-            PoiKind.DungeonEntrance => "Dungeon entrance",
-            PoiKind.VantagePoint => "Vantage point",
-            _ => "A place",
-        };
-        string known = entry.Stage == DiscoveryStage.Visited ? "visited" : "seen";
-        return $"{place}, {known}";
-    }
+        PoiKind.StandingStones => "Standing stones",
+        PoiKind.Ruin => "Ruin",
+        PoiKind.CaveMouth => "Cave mouth",
+        PoiKind.DungeonEntrance => "Dungeon entrance",
+        PoiKind.VantagePoint => "Vantage point",
+        _ => "A place",
+    };
 
     /// <summary>Takes the oldest place reached for the first time and not yet taken, if any.</summary>
     internal bool TryTakeFirstVisit(out PoiSite site) => firstReached.TryDequeue(out site);

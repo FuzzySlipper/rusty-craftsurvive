@@ -34,8 +34,8 @@ interface PickerOption {
 
 /**
  * Claims the product's action intent; the outcome comes back through the projection, not here. The
- * block, recipe and item pickers offer what the product publishes - its build palette, its recipes
- * and what can be used - so the UI names what the product chose and never its ids.
+ * block and difficulty pickers offer what the product publishes, so the UI names what the product
+ * chose and never its ids. Crafting and using items are on the pack screen (screens.ts).
  */
 export function mountActions(host: HTMLElement, intents: RustyApplicationUiIntentsPort | undefined,
   projection: RustyApplicationUiProjectionView | undefined): () => void {
@@ -58,20 +58,8 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
     bar.append(press);
   }
 
-  // Crafting and use: the product publishes the recipes and the usable items; the UI offers them.
+  // Crafting and using items live on the pack screen; the rest of what the player can ask for is here.
   const kit = element('div', 'display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.25rem;');
-  const recipe = element('select');
-  recipe.title = 'A recipe: what it makes, from what';
-  const craft = button('Craft');
-  craft.title = 'Craft the chosen recipe from what you carry';
-  const item = element('select');
-  item.title = 'Something you carry that can be eaten or applied';
-  const use = button('Use');
-  use.title = 'Eat or apply the chosen item';
-  for (const control of [recipe, craft, item, use]) control.disabled = true;
-  craft.addEventListener('click', () => { if (recipe.value !== '') claim({ action: 'craft', recipe: recipe.value }); });
-  use.addEventListener('click', () => { if (item.value !== '') claim({ action: 'use', item: item.value }); });
-  recipe.addEventListener('change', () => { craft.disabled = recipe.selectedOptions[0]?.disabled !== false; });
   const rest = button('Rest');
   rest.title = 'Sleep until morning: only at night, with no hostile creature near';
   rest.disabled = intents === undefined;
@@ -88,7 +76,7 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
   leave.title = 'Climb out of the dungeon from its way out';
   leave.disabled = true;
   leave.addEventListener('click', () => claim({ action: 'leave' }));
-  kit.append(recipe, craft, item, use, rest, difficulty, enter, leave);
+  kit.append(rest, difficulty, enter, leave);
   host.append(bar, kit);
   if (projection === undefined) return () => {};
 
@@ -106,22 +94,13 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
     picker.disabled = options.length === 0 || intents === undefined;
   };
 
-  const published = { palette: '', recipes: '', usable: '', difficulty: '' };
+  const published = { palette: '', difficulty: '' };
   const read = (values: ReturnType<typeof projectionValues>): void => {
     if (values === null) return;
     const palette = text(values, 'buildPalette') ?? '';
     if (palette !== published.palette) {
       published.palette = palette;
       fill(block, palette.split(',').filter((name) => name.length > 0).map((name) => ({ value: name, label: name, enabled: true })));
-    }
-    const recipes = text(values, 'recipes') ?? '';
-    if (recipes !== published.recipes) {
-      published.recipes = recipes;
-      fill(recipe, recipes.split(',').filter((entry) => entry.length > 0).map((entry) => {
-        const [id = '', description = '', ready = '0'] = entry.split(':');
-        return { value: id, label: description, enabled: ready === '1' };
-      }));
-      craft.disabled = recipe.disabled || recipe.selectedOptions[0]?.disabled !== false;
     }
     enter.disabled = intents === undefined || values['dungeonCanEnter'] !== 1;
     leave.disabled = intents === undefined || values['dungeonCanLeave'] !== 1;
@@ -131,12 +110,6 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
       published.difficulty = `${difficulties}/${current}`;
       fill(difficulty, difficulties.split(',').filter((name) => name.length > 0).map((name) => ({ value: name, label: name, enabled: true })));
       if (current !== '') difficulty.value = current;
-    }
-    const usable = text(values, 'usable') ?? '';
-    if (usable !== published.usable) {
-      published.usable = usable;
-      fill(item, usable.split(',').filter((id) => id.length > 0).map((id) => ({ value: id, label: id, enabled: true })));
-      use.disabled = item.disabled;
     }
   };
   read(projectionValues(projection.current()));

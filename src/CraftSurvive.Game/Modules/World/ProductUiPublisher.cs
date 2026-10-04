@@ -55,14 +55,17 @@ internal readonly record struct DiscoveryUiFacts(
     double LastKind,
     double LastStage,
     double LastTick,
-    string LastFound);
+    string LastFound,
+    string Journal);
 
 /// <summary>
-/// What the player carries, for the UI projection: the items, the recipes as
-/// <c>id:description:craftable</c> entries, the items that can be used, the torches for lights,
-/// and what the last inventory action came to.
+/// What the player carries, for the UI projection: the items as one line, each carried kind as an
+/// <c>id|name|count|use</c> entry (use is food, healing, light or material), the recipe book as
+/// <c>id|makes|count|name*count+name*count|ready</c> entries, entries separated by <c>;</c>, how
+/// much is carried of how much can be, the torches for lights, and what the last inventory action
+/// came to.
 /// </summary>
-internal readonly record struct InventoryUiFacts(string Carried, string Recipes, string Usable, int Torches, string Last);
+internal readonly record struct InventoryUiFacts(string Carried, string Items, string RecipeBook, double Load, double Limit, int Torches, string Last);
 
 /// <summary>
 /// Where the player stands with dungeons, for the UI projection: outside, loading (with progress) or

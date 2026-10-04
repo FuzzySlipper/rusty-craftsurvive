@@ -6,8 +6,10 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>
 /// The product's one UI projection, as a flat object of numbers and short texts: the world's scene
 /// facts, the player's pose, vitals and progress, the journal, what the last UI action came to,
-/// the world's time and difficulty, the player's food and air, what they carry, and where they stand with dungeons. Each owner pushes its facts to the publisher; the
-/// projection is how they are laid out for the DOM companion.
+/// the world's time and difficulty, the player's food and air, what they carry and can make, and
+/// where they stand with dungeons. Each owner pushes its facts to the publisher; the projection is
+/// how they are laid out for the DOM companion. A list travels as one text of entries separated by
+/// <c>;</c>, with fields separated by <c>|</c>.
 /// </summary>
 internal static class ProductUiProjection
 {
@@ -55,6 +57,7 @@ internal static class ProductUiProjection
             values.Add("discoveryLastStage", journal.LastStage);
             values.Add("discoveryLastTick", journal.LastTick);
             values.AddText("discoveryLastFound", journal.LastFound);
+            values.AddText("journalPlaces", journal.Journal);
         }
 
         if (actions is ActionUiFacts requests)
@@ -85,8 +88,10 @@ internal static class ProductUiProjection
         if (inventory is InventoryUiFacts carried)
         {
             values.AddText("carried", carried.Carried);
-            values.AddText("recipes", carried.Recipes);
-            values.AddText("usable", carried.Usable);
+            values.AddText("packItems", carried.Items);
+            values.AddText("recipeBook", carried.RecipeBook);
+            values.Add("packLoad", carried.Load);
+            values.Add("packLimit", carried.Limit);
             values.Add("torches", carried.Torches);
             values.AddText("lastInventory", carried.Last);
         }

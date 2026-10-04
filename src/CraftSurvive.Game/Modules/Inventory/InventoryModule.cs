@@ -303,6 +303,17 @@ internal sealed class InventoryModule : IProductModule
 
     private string Carried() => string.Join(", ", ItemCatalog.All.Where(item => Count(item) > 0).Select(item => $"{item.Id} {Count(item)}"));
 
+    private bool Craftable(Recipe recipe) => recipe.Inputs.All(input => Count(input.Item) >= input.Count);
+
+    /// <summary>What an item is for, as the UI names it.</summary>
+    private static string UseName(ItemUse use) => use switch
+    {
+        ItemUse.Food => "food",
+        ItemUse.Healing => "healing",
+        ItemUse.Light => "light",
+        _ => "material",
+    };
+
     private static string Describe(IEnumerable<ItemCount> items) => string.Join(", ", items.Select(item => $"{item.Count} {item.Item.Id}"));
 
     /// <summary>Publishes what is carried, what can be made, and what can be used, when any of it changed.</summary>
@@ -310,8 +321,11 @@ internal sealed class InventoryModule : IProductModule
     {
         InventoryUiFacts facts = new(
             Carried(),
-            string.Join(",", Recipes.All.Select(recipe => $"{recipe.Id}:{recipe.Describe()}:{(recipe.Inputs.All(input => Count(input.Item) >= input.Count) ? 1 : 0)}")),
-            string.Join(",", ItemCatalog.All.Where(item => item.Use is ItemUse.Food or ItemUse.Healing && Count(item) > 0).Select(item => item.Id)),
+            string.Join(";", ItemCatalog.All.Where(item => Count(item) > 0).Select(item => $"{item.Id}|{item.Name}|{Count(item)}|{UseName(item.Use)}")),
+            string.Join(";", Recipes.All.Select(recipe =>
+                $"{recipe.Id}|{recipe.Output.Item.Name}|{recipe.Output.Count}|{string.Join("+", recipe.Inputs.Select(input => $"{input.Item.Name}*{input.Count}"))}|{(Craftable(recipe) ? 1 : 0)}")),
+            Load(),
+            ItemCatalog.CarryLimit,
             Count(ItemCatalog.Torch),
             last);
         if (published != facts)
