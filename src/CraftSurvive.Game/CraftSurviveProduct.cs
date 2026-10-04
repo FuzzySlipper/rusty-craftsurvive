@@ -159,6 +159,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             PublishAppearanceSnapshot();
             lifecycle = ProductLifecycleState.Running;
             PublishWorld();
+            // Opt into observation updates so a watching page can resume a held world.
+            engine.GameplayTime.RunRealtime();
         }
         catch
         {
@@ -180,6 +182,16 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
+        bool watching = engine.CameraView.ReadSurface().Watching;
+        if (!update.Facts.GameplayTimeSelected || (update.Facts.GameplayRate > 0) != watching)
+            engine.GameplayTime.SetRate(watching ? 1 : 0);
+        if (!watching)
+        {
+            // Nobody watching pauses all product work, including streaming and saves. The
+            // Engine holds admitted time, so cooldowns cannot jump forward on reattachment.
+            player.ClearInput();
+            return ProductUpdateResult.None;
+        }
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (mapOpen) return ProductUpdateResult.None;
         ProductStep step = ProductStep.From(update.Facts);
@@ -228,6 +240,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         PublishAppearanceSnapshot();
         lifecycle = ProductLifecycleState.Running;
+        engine.GameplayTime.RunRealtime();
     }
 
     public void Shutdown()

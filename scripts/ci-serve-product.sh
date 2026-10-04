@@ -11,7 +11,8 @@ port=$2
 origin=http://127.0.0.1:$port
 log=${RUNNER_TEMP:-/tmp}/craftsurvive-serve.log
 
-rusty dev --project "$project" --live-debug --bind-host 127.0.0.1 --port "$port" > "$log" 2>&1 &
+# The product pauses without a watching page; input/debug claims are not watchers.
+rusty dev --project "$project" --headless --live-debug --bind-host 127.0.0.1 --port "$port" > "$log" 2>&1 &
 dev=$!
 stop() {
     kill -INT "$dev" 2>/dev/null || true
