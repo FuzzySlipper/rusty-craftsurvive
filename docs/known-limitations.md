@@ -6,6 +6,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
 ## World and generation
 
+- **Overworld ground is a reconstructed height field.** `TerrainDensity` supplies
+  continuous samples to the Engine's DC path; `TerrainSurfaces` keeps construction,
+  vegetation, bedrock, and water on the grid. This establishes smooth ground,
+  not a new terrain recipe with natural caves, overhangs, or a biome system.
+  Natural ground uses the generated maps in `content/game/textures/terrain-studies`
+  through Engine triplanar projection. Three authored landscape studies are reachable
+  through Menu → Landscape study → Visit landscape; they are small material/topography
+  experiments in the streamed world, not a biome distribution system.
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in
@@ -16,6 +24,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `TerrainGenerationFingerprint.CacheIdentity`: the live output fingerprint mixed with a
   build-time stamp of the generator's sources (`TerrainGeneratorSource.targets`). Any source
   change to generation therefore empties the cache on the next start.
+- **Cached materials do not store density.** The chunk generator rebuilds scalar
+  samples from the same versioned height recipe on cache hits. Saved material
+  edits preserve their generated density magnitude when replayed, matching the
+  Engine's material-edit path. Freeform density-brush edits are not persisted by
+  the overworld's material overlay.
 - **Residency follows the player only.** The request window is
   `TerrainConstants.RequestedChunkRadius`, the retained ring `RetainedChunkRadius`, capped at
   `MaximumResidentChunks`, admitting at most `MaximumResidencyOperationsPerTick` per update
@@ -32,9 +45,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - The player's edits are an overlay of at most `TerrainConstants.MaximumOverlayEntries` cells.
   An edit that would exceed it is refused at admission (`OverlayFull`) before the Engine is asked.
 - Nothing is placed into the player's body: brush placement, stamps and block entities are
-  refused on cells the player occupies. A body placed inside a solid cell faults the product
-  (the character controller refuses to step it), which is why `craft.player.teleport` and
-  respawn only move the player where a standing body fits.
+  refused on cells the player occupies. Teleport and respawn check standing-body clearance.
+  If changing collision leaves the body deeply embedded, `PlayerRecovery` tries the last clear
+  position and a bounded search above it; this is recovery, not permission to place into a body.
 - **Building is cubic and separate from the terrain's materials.** The UI builds floors and walls
   from `BuildPalette` blocks, laid relative to where the player faces, and only over replaceable
   cells (air, water), so a floor across a slope fills the gaps and leaves the hill. Undo takes back
@@ -47,10 +60,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
 ## Presentation
 
-- **One atlas per voxel scene.** Every block material resolves through the scene's one atlas
-  (`content/game/textures/terrain-atlas.*`, validated against `BlockRegistry` by
-  `TerrainAtlasLayout`); a material from a second atlas fails the directional projection, as S0
-  (#8596) recorded upstream. Normal maps, animated tiles and blending are not implemented.
+- **Natural ground uses repeating triplanar maps.** `TerrainGroundMaterials` binds generated
+  sage ground, ochre rock, dune sand and frost stone at the scale in `materials.json`.
+  Grass and dirt share the sage material, with no directional top/side override.
+  Construction, vegetation and water still use the provisional `terrain-atlas.*`, validated
+  against `BlockRegistry` by `TerrainAtlasLayout`. Normal maps and animated tiles are not
+  authored. `triplanarSharpness` controls the axis projections of one map; it does not
+  blend distinct ground materials. Cross-material blending needs a supported Engine
+  layer/weight mechanism; see Den for its owning work. The provisional asset arrangement
+  is not a constraint on replacement art.
 - The C# runtime draws no shadow maps; the product has no shadow control.
 - **Day and night are a sky blend and two lights.** `DayNightSky` crossfades two authored panoramas
   and sets one directional light (sun, then moon) and one ambient light from `WorldClock`; the
@@ -123,8 +141,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   shafts, the chasm's stair) have masonry treads, which keep to the grid where reconstructed rock
   would round a step past the step height. `craft.dungeon.seed <n>` loads a chosen seed as the
   bank numbers them. Sculpting
-  never changes what can be walked: standing places and their headroom stay open. The sculpted rock's texture is projected along one axis per face,
-  so it smears on steep curved walls. Nothing inside a dungeon is saved: a session that ends inside one continues at its
+  never changes what can be walked: standing places and their headroom stay open. Sculpted ground shares the world's
+  triplanar materials; construction and non-ground surfaces still use the provisional atlas.
+  Nothing inside a dungeon is saved: a session that ends inside one continues at its
   entrance, and the open world's creatures and journal wait while the player is in.
 - **Dungeons are accepted by the Engine's navigation.** An entrance's dungeons are tried in a
   fixed order (`DungeonCandidates`, a pure function of its seed). Each one is generated until the
@@ -175,7 +194,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - Every saved key is listed in `SaveManifest`, written through `ProductSaveSlot` over one store,
   and guarded by the revision this session last read or wrote: a key changed outside the session
   is reported, not overwritten.
-- **Worlds are disposable.** A save written for another seed or generator version is discarded,
+- **Development worlds are ephemeral.** Preserving them does not justify migration work or
+  constrain terrain, content or schema changes. A save written for another seed or generator version is discarded,
   kept as the key's one backup, and the world regenerates. Within a world, a key whose schema moves
   is discarded the same way unless its codec reads the old schema: the inventory reads its schema 1
   (one count per kind) and lays it out into slots.

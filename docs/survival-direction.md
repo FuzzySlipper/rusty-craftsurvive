@@ -1,244 +1,394 @@
-# Survival direction: what a Minecraft-like game requires here
+# CraftSurvive: scavenging, expeditions, and a home worth returning to
 
-This is the durable design record for CraftSurvive as an adventurer RPG on a cubic world.
-It states the target, the settled decisions, and the boundary with the Engine; what the
-product has built is in [csharp-migration-map.md](csharp-migration-map.md).
+CraftSurvive is an exploration and scavenging adventure in a vast, beautiful,
+dangerous fantasy landscape. The player searches for exposed remnants of an
+ancient world, enters buried dungeons, and brings back materials, discoveries,
+and magically trapped people. These finds grow a player-built home whose
+residents and services support further expeditions.
 
-Work state does not live here. Den campaign **#8595** (slices #8596-#8606) is the
-work record of record, with upstream requests in the `rusty-engine` project; live
-evidence is in [live-proofs.md](live-proofs.md). The assessment-era sections of this
-document — the current-state survey, the capability finding, the upstream request
-list, the first slice sequence, the unchosen exploration-first variant, and the
-evidence appendix — are in Den as `history/survival-direction-campaign-record`, and the
-module-level survey that was §4 is `history/survival-direction-module-survey`.
+This is the durable gameplay direction, not a statement that these systems are
+implemented. [csharp-migration-map.md](csharp-migration-map.md) describes product
+owners; [known-limitations.md](known-limitations.md) describes implementation
+limits. Work state, unresolved design discussion, and implementation sequencing
+belong in Den project `rusty-craftsurvive`.
 
-- **Direction.** A cubic-world adventurer RPG: exploration and encounters primary,
-  crafting and survival secondary, slow and irregular bomb-driven manipulation rather
-  than per-block mining, a finite ~100 km² streamed world, static water with swimming
-  and drowning, vertical authored dungeons behind a load transition, and the old
-  experiments retired to an authoring lane. §10.
-- **Target.** §2 states the design acceptance.
-- **Decisions.** §6 records the settled content floor, manipulation model, world
-  extent, save policy, surface mode and water path, plus the constraints the live
-  proofs established.
-- **Boundary.** §8 records what stays, what retires and what is refused.
+The principal section numbers (2, 6, 8, and 10) retain their subjects for existing
+references. The preceding design is preserved in Den under
+`history/survival-direction-adventurer-baseline`; earlier assessment and module
+surveys remain under `history/survival-direction-campaign-record` and
+`history/survival-direction-module-survey`. Historical requirements are not an
+additional gameplay checklist.
 
-Section numbering is kept from the full record so citations in Den tasks stay valid;
-numbers missing here live in the Den records above.
+## 2. Gameplay identity and design target
 
+### The player fantasy
 
-## 2. The target, stated as design acceptance
+Be an adventurer who can read a hostile landscape, find what it has exposed,
+brave the places beneath it, and bring something worthwhile home. Over time,
+a shelter becomes an inhabited base: a visible expression of the journeys taken
+and a practical foundation for journeys still to come.
 
-"More proper survival MC clone" needs to be testable, so this is the design
-target in acceptance terms. Each line is a property of the shipped game, not a
-task.
+The game's defining verbs are **prepare, roam, discover, descend, scavenge,
+rescue, return, and build**. Resource acquisition centers on finding and
+recovering things. There is no general block-by-block mining progression.
+Building is a major part of progression, alongside exploration and dungeon
+adventure.
 
-1. **Unbounded-feeling world** (conditional on the §6 world-scale decision; the
-   finite option satisfies this by *scale and border policy* instead). A player
-   can walk in any horizontal direction for hours without reaching a boundary,
-   with terrain variety (biomes, 3D caves, ores, water) rather than an arena
-   recipe.
-2. **A block/content model.** A registry of block types carrying properties
-   (solidity, hardness, tool class, drops, blast resistance, flammability,
-   friction, footstep material, map colour, light emission/attenuation,
-   orientation, replaceability) and a world representation that can hold
-   per-block state (door open/closed, chest contents, crop growth, furnace
-   progress).
-3. **The gather → craft → build → survive loop.** Break/place with correct drops
-   and tool gating, inventory and hotbar, crafting recipes with and without a
-   station, tool durability, storage containers.
-4. **Survival pressure.** Health, hunger, damage sources, regeneration,
-   day/night, hostile spawns, death and respawn.
-5. **Creatures.** Passive and hostile mobs with spawn/despawn rules, navigation,
-   senses, simple behaviour, combat, drops, and animation.
-6. **Continuity.** A single world save that restores terrain edits, block
-   entities, creatures, the player (pose, inventory, stats, effects), and world
-   time, with a stated schema/version policy.
-7. **Readable feedback.** HUD, inventory/crafting screens, audio, particles, and
-   lighting that make state legible without debug commands.
-8. **Budgeted performance.** A stated chunk-throughput, tick-time, memory, and
-   view-distance budget that the streaming design is verified against.
+### Design pillars
 
-**The V1 content floor.** "Proper" needs a number, otherwise Slices 2, 4 and 6
-cannot be priced and the lighting decision (§6) cannot be judged. Proposed
-floor, to be confirmed as a decision rather than assumed: roughly **30–40 block
-types** spanning wood, stone, ores, glass, and the functional set (crafting
-table, furnace, chest, door, bed, torch), **30–50 items** including tools in
-three or four tiers, food, and fuel, **2–3 biomes**, **3–5 mobs** with at least
-one hostile and one passive, and one dimension. Anything beyond that floor is
-content scale (Slice 6), not a different design.
+| Pillar | What it means for play |
+| --- | --- |
+| Beautiful danger | The landscape invites exploration through scale, atmosphere, and landmarks while climate and exposure make travel consequential. |
+| Discovery supplies progress | Useful resources and opportunities come from places worth seeking out. Repeatedly excavating ordinary terrain is not the economic foundation. |
+| Two kinds of expedition pressure | The open world emphasizes environmental danger and weather; dungeons concentrate combat, climbing, and close exploration. Neither space needs to be exclusively one kind of challenge. |
+| A useful, inhabited home | Salvage becomes buildings and capabilities. Rescued residents occupy rooms and provide services or bonuses. |
+| Ancient mystery | Buried magic and technology suggest a remote past whose relationship to the living world remains partly unknown. |
 
-Explicit non-goals at this level: multiplayer, redstone-grade simulation
-(a binary on/off floor for doors and levers is in scope), a mod API, enchanting and brewing, and a
-large content catalogue beyond the floor above. Those are scope decisions
-(§6), not oversights.
+### Setting and technology
 
+The living world is fantasy dominated by magic, with an early-modern level of
+technology in which gunpowder exists and is common. Ancient magic and technology
+lie deep beneath the landscape. Their remnants are encountered where erosion,
+caves, canyons, or other openings have exposed a way in.
 
-## 6. Decisions this direction depends on
+Breath of the Wild is a reference for the feeling of very long-lost technology
+within a fantasy world. It does not prescribe CraftSurvive's ancient civilization,
+its visual motifs, or an explanation of how magic and machinery relate. The exact
+technology mix and lore remain deliberately unspecified. Common gunpowder is
+part of the setting; it does not yet settle the player's weapon roster or combat
+balance.
 
-Every decision this direction owed is settled. This section is the durable record of
-what was decided and what bounds it.
+### The expedition loop
 
-| Decision | Settled answer | Consequence |
+1. **Prepare at home.** Use the base's available storage, facilities, and resident
+   services to prepare for the intended journey and its conditions.
+2. **Travel and discover.** Undertake an overland journey, read landmarks and
+   weather, and explore sites locally to find entrances to the buried world.
+3. **Enter a dungeon.** Transition into a distinct interior, explore its routes,
+   climb through its vertical spaces, and face its encounters.
+4. **Recover what matters.** Gather useful salvage and discoveries, including
+   people held in a portable magical confinement.
+5. **Extract and return.** Bring finds out of the dungeon and home from the
+   expedition. Finding something, getting it topside, and getting it home are
+   distinct parts of the journey, with their detailed logistics still to be designed.
+6. **Build and restore.** Improve the base, prepare rooms, and release rescued
+   people to live there and contribute services or bonuses.
+7. **Venture farther.** Use the resulting capabilities to undertake further
+   exploration and more demanding expeditions.
+
+This is the main progression loop, not a rule that every outing must contain
+all seven steps. Reconnaissance, a short salvage trip, or building at home can
+still be worthwhile play.
+
+### World scale and generation
+
+The world is large and finite. Streaming and bounded residency are necessary,
+but no square-kilometre target defines the design. Neither infinite generation
+nor continuous first-person traversal of the entire world map is required.
+
+The working generation concept is a discrete world-map generation step during
+new-game creation, with RimWorld as the reference for that separation of scales.
+Later local voxel terrain generation would refer back to that world map. The
+map would establish the broad geography and regional relationships; local
+terrain would realize the relevant place in detail. This is a design hypothesis,
+not a settled map topology, generation algorithm, or promise that every map
+location will support entry into a first-person scene.
+
+Generation should separate **geographic structure from local surface detail**.
+The map stage establishes coherent landforms and relationships: ridgelines,
+basins, drainage, passes, and regional climate and geology. Erosion and drainage
+simulation are candidate tools for that stage, not committed algorithms.
+Local terrain samples that geography as its anchor, then adds smaller rock
+formations, gullies, and surface relief before producing the voxel density field.
+Detail uses continuous world coordinates so chunk boundaries do not become
+geographic boundaries.
+
+Several independently weighted noise banks can contribute at different scales;
+each bank may itself use fBm. Their amplitude, frequency, shape, and geographic
+masks matter more than simply increasing octave count or voxel resolution.
+A sheltered valley floor should not receive the same relief as exposed rock.
+Local variation must preserve the map's important connections and landmarks,
+including drainage and navigable passes. The map format and the mechanisms for
+enforcing those constraints remain design work; terrain studies are a place to
+test the smaller-scale treatment, not an implementation of that map generator.
+
+Regional scale should allow tundra, deep desert, and other environments to have
+credible separation. Biome variety should not depend on squeezing radically
+different climates next to one another within a short walk.
+
+### Overland travel and local exploration
+
+A separate overland travel mode is under consideration, with Mount & Blade as
+a reference for moving through a world at a larger scale. It could present the
+world map as a coarse terrain mesh, while local exploration, home building, and
+dungeon dives use detailed first-person spaces. How and where the player moves
+between these scales remains open.
+
+In this concept, substantial survival simulation concentrates on the journey:
+route, weather, supplies, time, and carrying capacity. The aim is meaningful
+expedition decisions at a scale that suits them, rather than a fast-ticking
+survival clock while the player walks around in first person. Local weather and
+immediate environmental danger still matter; the distinction is where sustained
+travel logistics and resource consumption are focused. Exact time advancement
+and the relationship between modes are not yet decided.
+
+Travel may involve a vehicle, beast of burden, sled, or another transport form.
+The important proposed distinction is between what a person can carry into a
+site and what their overland transport can hold. Both capacities remain finite;
+transport expands the expedition's reach without becoming unlimited storage.
+No particular conveyance, fuel, feeding, maintenance, or driving system is
+implied by this concept.
+
+### The open world: travel, climate, and discovery
+
+The world should feel large enough that a journey is an undertaking. Frozen
+tundra and deep deserts express the intended combination of severity and awe;
+they are reference environments, not an exhaustive biome list or a content quota.
+
+Environmental and climatic dangers provide much of the open world's pressure.
+Weather is a gameplay system: snowstorms, sandstorms, and other regional weather
+can roll in and change the conditions of an expedition. Their purpose is to
+create decisions about routes, shelter, preparation, and whether to continue.
+Weather should be perceptible in the world and allow meaningful responses;
+an unexplained damage timer alone does not fulfill that purpose.
+
+The landscape also needs stretches in which the player can look, navigate,
+anticipate, and appreciate the place. Constant combat or uninterrupted survival
+maintenance would crowd out that experience. Open-world encounters remain
+possible, but the bulk of combat belongs in dungeons.
+
+Discovery follows the land. A canyon face, cave mouth, or exposed fragment of
+ancient construction gives the player a reason to investigate. The game should
+reward finding an opening into the buried world rather than digging arbitrary
+shafts until a dungeon is reached.
+
+### Dungeons: descent, combat, and recovery
+
+Dungeons are distinct spaces reached from discovered entrances through a load
+transition. They are the primary setting for combat and concentrated scavenging.
+Their layouts also make climbing and spatial exploration central: shafts,
+ledges, stacked chambers, bridges, stairs, and drops give a descent a physical
+shape and make routes more than corridors between fights.
+
+An entrance belongs to a place in the landscape, and leaving the dungeon returns
+the player to that wider journey. Interior exploration should make valuable
+finds feel situated in a buried place, rather than supplied by an abstract reward
+screen. Dungeon identity rests on the combination of place, traversal,
+encounters, and things worth bringing back.
+
+### Dungeon extraction and supply caches
+
+The working expedition concept gives dungeon finds a journey back to the
+surface. Pushing farther in can make ferrying salvage out more demanding and
+may attract additional dangers. Depth and the commitment to keep exploring
+should create decisions about recovery, not merely increase the distance of
+repeated uneventful walks.
+
+One candidate is a deployable supply cache that provides a magical or ancient
+technological teleport connection to the overland transport. Deployment could
+consume resources, and the cache or its use could attract enemies. This would
+let the player invest in an extraction point while creating a new source of
+risk. Caches, their costs, and enemy attraction are possibilities, not committed
+features or a requirement for timed defense encounters.
+
+The connection's payload is unresolved: cargo, the player, rescued people, or
+some combination. Neither a cache nor a teleport implies delivery directly to
+the home base or bypassing transport capacity. Range, persistence, placement,
+activation, and how danger responds all need further design. The intended
+question is whether to push deeper, secure a way to recover more, or return
+with what the expedition already holds.
+
+### Scavenging and the building economy
+
+Scavenging yields an abstract building resource or currency. A magical or
+technological building implement turns that resource into the chosen
+construction form. A wooden door and a stone wall do not require separate wood
+and stone gathering chains simply because they look like different materials.
+The currency and implement are functional descriptions, not settled lore names.
+
+This connects expeditions directly to architectural freedom: recover useful
+scavenge, then spend it on the home the player wants to build. Construction
+forms may have different costs, but choosing an appearance does not by itself
+create a separate raw-material economy. Exact yields, conversion rules, costs,
+and any unlocks remain to be designed.
+
+The abstraction applies to building supplies; it does not automatically turn
+equipment, expedition provisions, discoveries, or rescued residents into one
+universal currency. Recovery and hauling must remain meaningful: conversion
+must not let the player effortlessly sweep a location into a building balance
+and bypass the journey out. Exact conversion location, timing, weight, and
+volume rules remain open, but convenient abstraction at the building stage
+cannot erase carrying and extraction limits during an expedition.
+
+Terrain manipulation and building are separate activities. The player can place
+construction precisely; adventuring terrain changes can remain occasional,
+indirect actions such as charges. The absence of mining does not remove the
+ability to build or make targeted changes to the world.
+
+### Terrain and construction form
+
+The wider world's terrain direction is **dual contouring (DC), not exposed
+cubic terrain**. It should have smoother, stylized landforms in the same broad
+spirit as the dungeons. Valheim is a useful reference for the terrain's level of
+stylization; realistic AAA detail is not the target. See
+[visual-direction.md](visual-direction.md) for the retro surface treatment,
+atmosphere, and mood guidance.
+
+Building may retain blocks, a grid, or discrete construction pieces because
+they make assembling a home convenient and precise. The exact building system
+is open. Cubic assembly is a usability option for construction, not a constraint
+on the landscape's visible shape. Building should not require fiddly freeform
+voxel sculpting merely because terrain uses DC.
+
+### The base: construction with a gameplay purpose
+
+The player establishes a home in the world and builds it up with expedition
+finds. Terraria is the reference for a base whose rooms and inhabitants matter
+to progression as well as appearance. Construction should give the player
+practical reasons to expand and arrange the home, while leaving room for
+personal expression.
+
+Rooms make space for rescued residents. Residents live in those spaces, move
+around locally, and offer services or bonuses. Their contributions should make
+bringing someone home and providing a room a tangible improvement to the base
+and to future adventuring.
+
+This is a small inhabited home, not a colony simulation. The direction does not
+require worker assignments, production logistics, population management, or
+complex autonomous schedules. The exact housing rules and service roster need
+separate design; Terraria is a reference for the relationship between building
+and residents, not a specification to reproduce all of its systems.
+
+### Rescuing residents
+
+A prospective resident is discovered during exploration as a person trapped in
+some form of magical confinement. That confinement can be collected and carried
+home. At the base, the player opens or releases it and the rescued person takes
+an available room, becoming an inhabitant who provides a service or bonus.
+
+The core sequence is **discover a trapped person → recover and carry them home
+→ provide a room → release and house them → gain their contribution**.
+Building the room can happen before the expedition or after returning; the key
+relationship is that the rescue and the housing both contribute to progression.
+
+The confinement's fictional form is intentionally unnamed. This establishes
+rescue as a find that can be brought home, without deciding who trapped these
+people, when they were trapped, or how their magic works. It does not imply an
+escort mission, recruitment negotiation, or colony labor system. Identity,
+duplicates, carrying rules, and what happens when no room is available remain
+separate design decisions.
+
+### Intended rhythm and presentation
+
+The emotional rhythm moves between awe and exposure outside, tension and
+discovery below ground, and relief and accomplishment at home. The home grows
+more inhabited as the player's knowledge of the world grows.
+
+Visual direction must support that rhythm: beautiful landscapes can be deadly,
+weather must read as a changing condition, exposed ancient places must invite
+investigation, and the base must feel like somewhere worth returning to. These
+are gameplay-facing requirements. Smooth, stylized DC terrain is a firm part
+of the direction. [visual-direction.md](visual-direction.md) establishes the
+restrained retro rendering and dreamy, sometimes harsh mood. Exact palettes,
+shape language, and the appearance of ancient technology remain open.
+
+### Design acceptance
+
+A representative complete expedition should demonstrate that:
+
+- Landscape features draw the player toward a discoverable buried site.
+- Environmental conditions or weather create an understandable travel decision.
+- The dungeon offers combat, vertical traversal, and worthwhile recovery.
+- Salvage from exploration supports a meaningful improvement to the base.
+- A magically confined person can be recovered, carried home, released, and
+  housed, with a visible service or bonus resulting from their presence.
+- The improved home gives the player a reason or new capability to head out again.
+- This progression works without a general mining loop or colony micromanagement.
+
+These are design properties for the connected experience, not claims about a
+finished build or mandatory acceptance criteria for every individual task.
+
+## 6. Technical foundations and constraints
+
+These foundations bound implementation; they do not define the whole game's
+content budget or establish that the gameplay above is already available.
+
+| Foundation | Constraint | Design consequence |
 | --- | --- | --- |
-| Content floor | 12-16 blocks, 6-10 items, 2 creatures, one biome family plus cave and dungeon tilesets | The atlas is the binding constraint, not lighting: every block type costs a region in one atlas image |
-| Manipulation | Adventurer manipulation: place blocks and detonate charges; no general break-and-collect | Charges and blasts stay; any general break-time table goes; block-breaking survives only where a slice names a target |
-| World extent | Finite ~100 km² (10 km x 10 km at one-metre voxels, 625 x 625 chunks per layer) with an authored hard border | Residency is on demand; navigation is published per box rather than for the whole extent |
-| Save policy | Worlds are disposable: version the envelope, detect a mismatch explicitly, discard and regenerate, keep one previous backup | Every key is in `SaveManifest`; a save for another seed or generator version is discarded and kept as the key's backup (`SaveRestore`) |
-| Surface mode | Greedy cubes now, dual contouring as a later projection | Per-cell orientation, rotation and growth stage are GreedyCubes-only, so cubes-first is a dependency rather than a preference |
-| Water and movement | Static water with Engine swim mode; no water material needed for behaviour | The product supplies the volume and owns breath and drowning; only the appearance needs authored tiles |
+| Manipulation | Place blocks and detonate charges; no general break-and-collect | Construction and deliberate adventuring edits remain distinct from mining. |
+| World extent | Large and finite; no fixed area target | Streaming and bounded residency remain necessary. Map scale, local extent, and border presentation must follow the travel design rather than a nominal area. |
+| Development save policy | Version the envelope, detect incompatible worlds explicitly, discard and regenerate, retain one previous backup | Development saves are disposable. This is not a gameplay death penalty or a promise about release save compatibility. |
+| Surface and building | Smooth, stylized DC terrain; convenient, precise building with blocks or pieces still an option | The terrain direction is settled; construction interaction remains open. Implementation limits are recorded separately. |
+| Water and movement | Static water with Engine swim mechanisms | The product owns water placement, breath, and drowning policy. Flowing water is not assumed. |
 
-Multiplayer stays outside the initial scope, and enchanting and brewing are explicit
-V1 non-goals.
+Multiplayer remains outside the initial scope. Content and subsystem choices
+follow the expedition and inhabited-base design rather than a genre checklist.
 
-### 6.1 Constraints the live proofs established
+### 6.1 Implementation contracts
 
-These are settled too: they bound the decisions above rather than remaining open
-questions. Evidence is in [live-proofs.md](live-proofs.md).
+The product uses Engine-owned meshing, collision, navigation, residency, and
+presentation. A terrain surface must agree with the geometry the player and
+creatures move over; changing its appearance alone is insufficient. Building,
+terrain edits, and dungeon transitions must preserve that agreement.
 
-- **One atlas per voxel scene.** Every block material needs its own region in that
-  scene's atlas image, and a material whose surface resolves through a second atlas
-  fails the directional projection.
-- **Water behaviour is separable from water appearance.** Swim mode, immersion and
-  `HeadSubmerged` work from a product-supplied volume with no water material at all.
-- **Navigation must be published.** A world without a collision-derived navigation
-  projection answers every path query with `ProjectionUnavailable`, and query cells
-  are relative to the published box.
-- **A dimension is a second session.** One can be created, filled, read and disposed
-  inside the running product without disturbing the loaded world, so a dimension load
-  is a product concern rather than an Engine request.
-- **Residency admission is applied in place.** The product composes chunk payloads and
-  the Engine admits them within the update; there is no background preparation to poll
-  or commit, so the residency budget is the product's per-update operation count.
-- **A body inside a solid cell stops the character controller.** The controller refuses
-  to step it and the product faults, so the product only ever places the player where a
-  standing body fits.
+Water's presentation and movement behaviour are separate concerns and both need
+verification. Navigation is explicitly published through the Engine, and its
+coordinates follow the installed SDK contract. Product generation and residency
+work must remain bounded as the player travels.
+
+The module map and [known limitations](known-limitations.md) describe supported
+implementation paths and their constraints. [Live proofs](live-proofs.md) describes
+how to verify them. Historical substrate measurements are evidence, not a
+permanent restriction on the game's materials or terrain style.
 
 
-## 8. Keep, retire, refuse
+## 8. Ownership and scope boundaries
 
-**Keep.** The product/Engine boundary and its vocabulary; Read → Decide → Apply
-→ Publish; edits admitted in full before the Engine is asked; receipts and
-evidence; the rule that a missing capability is a valid result.
+**The product decides. The Engine guarantees.** C# owns the terrain recipe,
+expedition rules, weather and exposure policy, encounters, salvage economy,
+building and housing rules, resident services, and persistence meaning. The
+Engine owns lifecycle, input delivery, rendering and frame construction, spatial
+mechanisms, and content and persistence primitives exposed through its safe SDK.
+Naming a desired gameplay system here is not a claim that its required Engine
+mechanisms are available.
 
-**Retired.** The Courtyard/Stoneworks studies, the procgen workbench and artifact bank,
-the scene switch and the arena traversal recipe left the product repository (#8901);
-Den's `history/authoring-lane` records where each went. The procgen artifact bank
-remains a possible *content source* for authored interiors, from its own repository.
+Use one explicit owner for each mutable state family and thin coordination
+through Read → Decide → Apply → Publish where useful. The DOM companion presents
+product state and accepts intent; gameplay state and decisions stay in C#.
 
-**Refuse.** A second renderer, a custom transport, product-side P/Invoke, UI-held
-gameplay state, per-voxel state smuggled through material slots, and any
-downstream substitute for a missing Engine capability. Of the original G1–G8
-requests, only flowing fluids remains unimplemented; if flowing water or
-multiplayer matter, the request is upstream, not a workaround.
+A second renderer, custom transport, downstream P/Invoke, unsafe game code,
+UI-owned gameplay state, or a replacement product runtime is out of bounds.
+If a needed mechanism cannot be expressed through the installed SDK, identify
+the upstream capability and stop that implementation slice rather than
+recreating it downstream.
 
+Retired Courtyard, Stoneworks, and procgen workbench experiments remain semantic
+or content-authoring references in Den history. They do not return as parallel
+product runtimes.
 
-## 10. Chosen direction: adventurer RPG on a cubic world
+## 10. Applying the direction
 
-The assessment sections, the exploration-first variant (§9) and the module survey (§4)
-are in Den; this section records the direction actually chosen and how it re-weights them.
-The durable work record is the Den campaign **#8595** with slices #8596–#8606
-and upstream requests #8607–#8612.
+Evaluate additions by their contribution to the connected experience:
+**exploration leads to recovery; recovery builds an inhabited home; that home
+supports further exploration.**
 
-**The decision.** Cubic world only (`GreedyCubes`); DC terrain and the mixed
-mesh+voxel session gate stay future work (§4.12 and §9 in the Den records). The game is an RPG
-first: the player is an adventurer, not a miner; exploration, encounters, and
-progression are primary; crafting and survival are secondary activities; world
-manipulation still exists but is deliberately slow and irregular. The world is
-finite but very large — order 100 km² — so streaming, residency budgets, and a
-generated-chunk cache are still required, while an infinite-world generator
-contract is not. Dimensions are in scope as *authored dungeon interiors reached
-from the world through a load transition*, not seamless portals, and those
-interiors are **vertical by design**: stacked levels joined by shafts, ladders,
-bridges, stairs, and drops, in the spirit of the original Daggerfall donor levels.
-Water is in scope as a common adventuring feature — lakes, rivers, and coastal
-water as a static, non-solid, translucent material with swimming and drowning —
-while *flowing* water is not assumed. Multiplayer stays deferred as long as
-possible. Enchanting and brewing are out. The existing Courtyard/procgen
-experiments retire to an authoring lane rather than the boot experience, and the
-three tentative procgen expansions are folded into that lane as authoring work.
+World generation should create compelling journeys and discoverable openings.
+Weather should change travel decisions. Dungeon work should strengthen combat,
+traversal, and discovery together. Item and crafting work should connect finds
+to useful preparation and construction. Base work should make housing and
+rescued residents matter alongside architectural freedom.
 
-**What water needs, and what it does not.** Two separate things. For **looking**
-like water, the flags exist at two layers: `AuthoredMaterialInput` separates
-`Solid`, `Collidable`, and `Occludes`, the authored voxel-surface input carries
-an alpha mode (`Opaque`/`Mask`/`Blend`) with `AlphaCutoff`, and voxel slots bind
-to a render material — the layer where `DoubleSided` lives. For **behaving** like
-water, the Engine made swimming first-class (#8609): the product selects the
-swim mode on `CharacterControllerCommand.Movement`, supplies the water volume as
-an environmental AABB with buoyancy and drag, and reads immersion and
-`HeadSubmerged` back from `CharacterStepReceipt.Movement`. The Engine owns the
-solver; the product owns the volume, the breath timer, and the drowning
-consequence. That replaces the earlier plan of detecting submersion by reading
-the voxel under the player and composing buoyancy by hand.
+Develop the wider terrain toward smooth, stylized DC surfaces while keeping
+construction precise and usable. Treat world-map generation, travel mode,
+transport capacity, and extraction caches as connected design hypotheses;
+do not turn them into implementation mandates before their rules are settled.
+Occasional blasts may use bounded edits and presentation that covers their
+update cost; their infrequency does not remove the need to measure that cost.
+World streaming, residency, navigation, and frame budgets remain engineering
+requirements regardless of the economic shift away from mining.
 
-What remains unproven is the *rendering and passthrough* half — that a voxel
-marked non-solid, non-collidable, and non-occluding still emits a visible surface
-while the character passes through it, that a blend voxel surface sorts
-correctly in the GreedyCubes path, and that double-sidedness is reachable for a
-voxel-bound material. Those are S0's (#8596) staged checks, not upstream requests;
-whatever fails becomes the upstream request instead of a downstream workaround.
-
-*Flowing* water — currents, spread, source blocks, buckets — remains a genuinely
-new Engine capability and is deliberately unfiled, because static water is the
-working assumption. Underwater tint or fog still has no dedicated mechanism: the
-lighting work provides a CPU direct-light readout rather than a rendered
-underwater effect, so it stays a known gap rather than an assumed feature.
-Vertical dungeons no longer depend on unlanded work — the climb half of #8609
-shipped — so ladders and rails are usable now; keep a non-climbing fallback only
-as level-design redundancy, not as a schedule dependency.
-
-**How manipulation works, and why it matters here.** Blasts and similar
-infrequent, high-impact actions arrive as one bounded revisioned edit
-transaction, with dust, smoke, and debris presentation deliberately covering the
-remesh and presentation update; base building stays rapid and blocky. Two
-consequences follow. First, the strongest objection to smooth terrain in the module survey —
-that edits are the core verb and DC remesh is expensive — is **mitigated by
-design, not dissolved**: blasts are rare, large, and FX-covered, so the frequency
-pressure goes away, but each blast still pays per-dirty-chunk remesh cost, and no
-voxel-session DC remesh measurement exists. What keeps DC deferred is therefore the content/selection work and
-the deferred session gate, not a claim about edit cost.
-
-**Terrain and building are different kinds of voxel.** The product is not built around
-block-by-block mining or widespread reshaping. Runtime terrain edits stay, but they need not be
-fast and they arrive indirectly: charges, environmental effects, and smoothing the ground under
-what a player builds - not a pick chopping through blocks. Terrain may later become a dual
-contouring iso-surface, stylized (jagged or fractal) rather than crisp cubes. Player building is
-the opposite: cubic and grid-precise, because precision is worth more than realistic
-construction for a minor element. A homestead is built around the terrain rather than by
-reshaping it, with the join between grid blocks and the terrain surface smoothed automatically.
-Mixing two voxelizations in one scene is unproven: prototype it before anything depends on it,
-and meanwhile keep building (its palette, stamps and block entities) apart from the terrain's
-materials and edits so the terrain's representation can change under it. Second, the threading
-pressure drops: step-budgeted generation with a disk cache and tolerable pop-in is
-the answer the product took (`TerrainChunkCache`, `MaximumResidencyOperationsPerTick`).
-
-**Per-world authored materials.** A finite world makes an old technique viable
-again: instead of one global atlas trying to cover every world, a world can carry
-its own bounded material set, baked once and reused. In this Engine that is
-authored content — hash- and version-pinned material, texture, atlas-region, and
-voxel-surface entries (`AuthoredVoxelSurfaceInput`) — published through the
-content store as an artifact. The store's artifact roles already name voxel
-assets, voxel objects, scene documents, and prefab registries; whether a material
-set needs a shape of its own is part of the S0 proof rather than assumed here. It
-would remove any runtime material blending or "which grass is this world's grass"
-problem, and make a world's look a stable, inspectable artifact. The costs are a
-per-world asset to generate and store, and regeneration when the material set
-changes. It is an option to validate, not a promise: S0 proves one world-scoped
-material set end to end, and S2 consumes it only if that proof is clean. The
-current implementation remains one global hash-pinned atlas.
-
-**What this re-weights from the module survey.** Shrinks or drops: ore distribution and
-progression, mining-speed and tool gating, drop economy, *flowing* fluids, and
-the large edit overlay (bases fit comfortably in the existing 65,536-entry
-budget — to be confirmed once bases have a stated size). Static water and the
-swim/climb request are back in the initial scope, so the static-water default is a
-settled decision rather than a fallback. Moves to the centre: point-of-interest
-generation and discovery state (new product state with no home in the tree
-today), encounters and combat, the dungeon authoring and load path — now with
-verticality as its defining shape — and
-presentation that makes an unknown world readable. Stays with a different owner:
-survival pressure becomes expedition supply; creatures and progression become the
-core rather than one slice among many; lighting becomes the most valuable
-upstream gap because dungeons and caves are the product's set pieces (#8607).
-
-
+Do not infer hunger timers, durability ladders, escalating enemy tiers, base
+raids, automation, or full colony systems solely from the survival/building genre.
+A proposal for any such system needs a clear role in this game's experience.
+Technical prototypes and small content baselines are means of establishing
+capabilities, not substitutes for the gameplay identity above.

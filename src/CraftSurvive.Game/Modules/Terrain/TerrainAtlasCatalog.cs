@@ -1,4 +1,5 @@
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Terrain;
@@ -21,6 +22,8 @@ internal sealed class TerrainAtlasCatalog : IDisposable
     private const float NoEmission = 0f;
     private const float CutoutThreshold = 0.5f;
     private const float Roughness = TerrainConstants.TerrainRoughness;
+    private const float GroundTriplanarSharpness = 4f;
+    private const float PlanarProjection = 0f;
     private const float Alpha = TerrainConstants.MaterialAlpha;
     private const float LampRed = 1f;
     private const float LampGreen = 0.85f;
@@ -66,13 +69,14 @@ internal sealed class TerrainAtlasCatalog : IDisposable
 
             foreach (BlockDefinition block in BlockRegistry.BoundBlocks)
             {
-                baseMaterials[block.Id] = AdmitMaterial(engine, admittedCatalog, block.MaterialId, texture.Handle);
+                float projectionSharpness = TerrainDensity.IsGround(block.Slot) ? GroundTriplanarSharpness : PlanarProjection;
+                baseMaterials[block.Id] = AdmitMaterial(engine, admittedCatalog, block.MaterialId, texture.Handle, projectionSharpness);
                 if (block.TopRegion is null)
                 {
                     continue;
                 }
 
-                topMaterials[block.Id] = AdmitMaterial(engine, admittedCatalog, block.TopMaterialId, texture.Handle);
+                topMaterials[block.Id] = AdmitMaterial(engine, admittedCatalog, block.TopMaterialId, texture.Handle, projectionSharpness);
             }
 
             catalog = admittedCatalog;
@@ -127,10 +131,13 @@ internal sealed class TerrainAtlasCatalog : IDisposable
             : throw new InvalidOperationException($"Block '{BlockRegistry.Get(id).Name}' has no admitted material.");
 
     private Material AdmitMaterial(IEngineContext engine, AuthoredCatalog admittedCatalog, string materialId,
-        RenderResource texture)
+        RenderResource texture, float projectionSharpness)
     {
         Material material = engine.Graphics.CreateAuthoredMaterial(
-            new AuthoredMaterialAppearanceRequest(admittedCatalog, materialId, texture));
+            new AuthoredMaterialAppearanceRequest(admittedCatalog, materialId, texture)
+            {
+                TriplanarSharpness = projectionSharpness,
+            });
         materials.Add(material);
         return material;
     }

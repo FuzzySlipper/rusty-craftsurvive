@@ -78,6 +78,19 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
   leave.addEventListener('click', () => claim({ action: 'leave' }));
   kit.append(rest, difficulty, enter, leave);
   host.append(bar, kit);
+  const studies = element('div', 'display:flex;gap:.35rem;align-items:center;margin-top:.5rem;');
+  const landscape = element('select');
+  landscape.setAttribute('aria-label', 'Landscape study');
+  for (const [value, label] of [['canyon', 'Ochre canyon'], ['uplands', 'Sage uplands'], ['tundra', 'Frost ridge'], ['canyonfull', 'Canyon · loaded study'], ['uplandsfull', 'Uplands · loaded study'], ['tundrafull', 'Frost · loaded study']] as const) {
+    const option = element('option', '', label);
+    option.value = value;
+    landscape.append(option);
+  }
+  const visit = button('Visit landscape');
+  visit.disabled = intents === undefined;
+  visit.addEventListener('click', () => claim({ action: 'landscape', name: landscape.value }));
+  studies.append(landscape, visit);
+  host.append(studies);
   if (projection === undefined) return () => {};
 
   /** Replaces a picker's options, keeping the chosen one while it can still be chosen. */

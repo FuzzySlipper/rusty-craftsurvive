@@ -11,6 +11,7 @@ internal sealed class TerrainPresentation : IDisposable
 {
     private readonly IEngineContext engine;
     private TerrainAtlasCatalog? atlas;
+    private TerrainGroundMaterials? ground;
     private VoxelScenePresentation? projection;
 
     /// <summary>Authored content is admitted at product create, so every later projection can bind it.</summary>
@@ -18,6 +19,8 @@ internal sealed class TerrainPresentation : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         atlas = new TerrainAtlasCatalog(engine, content);
+        try { ground = new TerrainGroundMaterials(engine, content); }
+        catch { atlas.Dispose(); throw; }
     }
 
     /// <summary>
@@ -57,6 +60,8 @@ internal sealed class TerrainPresentation : IDisposable
     {
         projection?.Dispose();
         projection = null;
+        ground?.Dispose();
+        ground = null;
         atlas?.Dispose();
         atlas = null;
     }
@@ -68,11 +73,12 @@ internal sealed class TerrainPresentation : IDisposable
     /// its material closure, so a block exists in the world only once both agree.
     /// </summary>
     private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings() =>
-        BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot, Atlas.BaseMaterial(block.Id))).ToArray();
+        BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
+            ground?.For(block.Id) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings() =>
         BlockRegistry.BoundBlocks
-            .Where(block => Atlas.TopMaterial(block.Id) is not null)
+            .Where(block => ground?.For(block.Id) is null && Atlas.TopMaterial(block.Id) is not null)
             .Select(block => new VoxelSceneFaceMaterialBinding(block.Slot, SpatialFace.PosY, Atlas.TopMaterial(block.Id)!))
             .ToArray();
 }

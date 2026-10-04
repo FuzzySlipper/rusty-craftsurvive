@@ -26,6 +26,10 @@ internal static class ActionChecks
             Check.Equal(kind, Parse($$"""{"action":"{{name}}"}""").Kind, $"\"{name}\" is an action");
         }
 
+        foreach (string name in new[] { "canyonfull", "uplandsfull", "tundrafull" })
+            Check.Equal(new PlayerAction(PlayerActionKind.Landscape, Name: name),
+                Parse($$"""{"action":"landscape","name":"{{name}}"}"""), "loaded study IDs pass the UI action contract");
+
         Check.Equal(new PlayerAction(PlayerActionKind.Craft, Name: "ration"), Parse("""{"action":"craft","recipe":"ration"}"""), "a craft names its recipe");
         Check.Equal(new PlayerAction(PlayerActionKind.Enter), Parse("""{"action":"enter"}"""), "entering a dungeon names nothing");
         Check.Equal(new PlayerAction(PlayerActionKind.Leave), Parse("""{"action":"leave"}"""), "leaving a dungeon names nothing");

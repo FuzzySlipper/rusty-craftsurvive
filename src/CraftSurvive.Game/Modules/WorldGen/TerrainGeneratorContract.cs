@@ -39,7 +39,7 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// higher bank left the lower one unclimbable; version 12 seeds the height field through the
     /// contract, so a version bump redraws the ground as well as what stands on it.
     /// </summary>
-    internal const uint CurrentVersion = 12;
+    internal const uint CurrentVersion = 16;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

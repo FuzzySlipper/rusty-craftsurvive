@@ -2,6 +2,13 @@
 
 ## Direction and ownership
 
+Read `docs/survival-direction.md` and `docs/visual-direction.md` for product
+intent. CraftSurvive is a scavenging expedition game with an inhabited base;
+the overworld terrain target is smooth, stylized dual contouring. Grid-based
+building is an independent usability choice. World size requires streaming,
+not a fixed area quota or infinite generation. Older campaign descriptions of
+a cubic-only world are historical scope, not standing design restrictions.
+
 CraftSurvive is an ordinary C# product that develops against the installed
 Rusty.Engine SDK and its paired runtime pack. `rusty dev` loads the staged
 CoreCLR product; that is the normal local and Den lane. NativeAOT is an
@@ -98,13 +105,17 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 
 ## Documentation status
 
+- Development saves are ephemeral. Recipe and schema changes may invalidate them;
+  do not add migration or compatibility work solely to preserve development worlds.
+  Existing art is provisional; the approved visual references guide replacement.
+
 - **Den holds state.** Tasks, campaign slices, decisions, board discussion, and
   history live in Den project `rusty-craftsurvive`. If a repository document and
   a task disagree, the task wins.
 - **The repository holds durable references only**: start at
-  [`docs/index.md`](docs/index.md), which maps the four live documents
-  (`survival-direction.md`, `csharp-migration-map.md`, `known-limitations.md`,
-  `live-proofs.md`) and the root `README.md`.
+  [`docs/index.md`](docs/index.md), which maps the five live documents
+  (`survival-direction.md`, `visual-direction.md`, `csharp-migration-map.md`,
+  `known-limitations.md`, `live-proofs.md`) and the root `README.md`.
 - Do not record volatile state in a document: current Engine pair, run results,
   task status, "the current X", or dated observations belong in Den, not in the
   working tree.

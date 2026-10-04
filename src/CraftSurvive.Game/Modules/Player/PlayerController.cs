@@ -85,6 +85,8 @@ internal sealed class PlayerController : IDisposable
 
     /// <summary>The separate space the player is in, and where they left the open world; null in the open world.</summary>
     private SeparateSpace? away;
+    private LandscapeSampleSpace? landscapeSpace;
+    private bool landscapeEntered;
 
     /// <summary>The session the player stands in: a separate space's, or the open world's.</summary>
     private SpatialSession Session => away?.Session ?? terrain.Session;
@@ -162,7 +164,8 @@ internal sealed class PlayerController : IDisposable
         // Home is whatever ground the generator put under the spawn column, so a generator change
         // can never start the player inside the terrain. A saved session continues where it ended
         // when the player still fits there, and from home when they do not.
-        spawn = StandingAt(PlayerConstants.SpawnColumn.X, terrain.GroundAt(playerGlobal.CellX, playerGlobal.CellZ), PlayerConstants.SpawnColumn.Y);
+        spawn = StandingAt(PlayerConstants.SpawnColumn.X,
+            terrain.GroundAt(PlayerConstants.SpawnColumn.X, PlayerConstants.SpawnColumn.Y), PlayerConstants.SpawnColumn.Y);
         playerGlobal = spawn;
         if (continuation.Restore() is PlayerContinuation saved)
         {
@@ -190,6 +193,20 @@ internal sealed class PlayerController : IDisposable
         updateCount = checked(updateCount + 1UL);
         ProductStep step = ProductStep.From(update.Facts);
         CurrentStep = step.Step;
+        if (landscapeSpace is { } studySpace && !landscapeEntered)
+        {
+            if (away is not null) { studySpace.Dispose(); landscapeSpace = null; }
+            else
+            {
+                studySpace.Advance();
+                if (studySpace.Loaded)
+                {
+                    EnterSeparateSpace(studySpace.Session, studySpace.Arrival);
+                    look = new LookState(0f, Modules.WorldGen.LandscapeStudies.ArrivalPitch);
+                    landscapeEntered = true;
+                }
+            }
+        }
         if (Vitals.TryRespawn(step.Step))
         {
             // A defeated player comes back where they started, outside the ring creatures spawn
@@ -356,6 +373,9 @@ internal sealed class PlayerController : IDisposable
             away = null;
             Place(space.Return);
         }
+        landscapeSpace?.Dispose();
+        landscapeSpace = null;
+        landscapeEntered = false;
     }
 
     /// <summary>What was restored at start and how the continuation save is going.</summary>
@@ -376,7 +396,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -395,8 +415,9 @@ internal sealed class PlayerController : IDisposable
     internal PlayerRuntimeComponent? Teleport(double x, double y, double z)
     {
         EnsureStarted();
+        if (landscapeSpace is not null) ReturnFromSeparateSpace();
         PlayerWorldPosition asked = PlayerWorldPosition.FromWorld(x, y, z);
-        PlayerWorldPosition onGround = StandingAt(x, terrain.GroundAt(asked.CellX, asked.CellZ), z);
+        PlayerWorldPosition onGround = StandingAt(x, terrain.GroundAt(x, z), z);
         PlayerWorldPosition? target = Fits(asked) ? asked : Fits(onGround) ? onGround : null;
         if (target is not PlayerWorldPosition place)
         {
@@ -407,6 +428,28 @@ internal sealed class PlayerController : IDisposable
         away = null;
         Place(place);
         return entityWorld.Get(playerEntity, RuntimeComponent);
+    }
+
+    /// <summary>Visits an authored terrain study through the ordinary relocation path.</summary>
+    internal bool VisitLandscape(string name)
+    {
+        if (InSeparateSpace && landscapeSpace is null) return false;
+        const string FullSuffix = "full";
+        bool full = name.EndsWith(FullSuffix, StringComparison.Ordinal);
+        string id = full ? name[..^FullSuffix.Length] : name;
+        if (Modules.WorldGen.LandscapeStudies.Find(id) is not { } study) return false;
+        if (landscapeSpace is not null) ReturnFromSeparateSpace();
+        if (full)
+        {
+            landscapeSpace = terrain.CreateLandscapeStudy(study);
+            return true;
+        }
+        double x = study.CentreX;
+        double z = study.CentreZ + Modules.WorldGen.LandscapeStudies.ArrivalOffsetZ;
+        double y = terrain.GroundAt(x, z) + Modules.WorldGen.LandscapeStudies.ArrivalClearance;
+        if (Teleport(x, y, z) is null) return false;
+        look = new LookState(0f, Modules.WorldGen.LandscapeStudies.ArrivalPitch);
+        return true;
     }
 
     /// <summary>Stands the player at a place in the session they are now in, at rest.</summary>
@@ -458,6 +501,8 @@ internal sealed class PlayerController : IDisposable
             continuation.Save(Continuation(), CurrentStep);
         }
 
+        landscapeSpace?.Dispose();
+        landscapeSpace = null;
         camera.Dispose();
         started = false;
         entityWorld.Dispose();

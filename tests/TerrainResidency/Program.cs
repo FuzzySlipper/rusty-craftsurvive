@@ -7,6 +7,7 @@ Check.Section("generator identity", GeneratorChecks.Run);
 Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);
 Check.Section("generation", GenerationChecks.Run);
+Check.Section("continuous density", DensityChecks.Run);
 Check.Section("edits", EditChecks.Run);
 Check.Section("residency", ResidencyChecks.Run);
 Check.Section("encounter sites", EncounterSiteChecks.Run);

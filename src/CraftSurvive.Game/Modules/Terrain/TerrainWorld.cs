@@ -24,7 +24,9 @@ internal sealed class TerrainWorld : IDisposable
     private static readonly TerrainChunkAddress FixedResidencyCenter = new(0, 0, 0);
 
     private readonly IEngineContext engine;
+    private readonly ProductContent content;
     private readonly ProductUiPublisher ui;
+    private readonly WorldFrame frame;
     private readonly TerrainRecipe recipe;
     private readonly TerrainChunkCache chunkCache;
     private readonly TerrainOverlayStore overlayStore;
@@ -40,7 +42,9 @@ internal sealed class TerrainWorld : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
+        this.content = content;
         ArgumentNullException.ThrowIfNull(frame);
+        this.frame = frame;
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         frame.Rebased += OnRebased;
         recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random));
@@ -63,6 +67,9 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The generation recipe, for the modules that reason about the generated world.</summary>
     internal TerrainRecipe Recipe => recipe;
+
+    internal LandscapeSampleSpace CreateLandscapeStudy(LandscapeStudy study) =>
+        new(engine, content, study);
 
     /// <summary>The world every save belongs to; a save written for another is discarded.</summary>
     internal SaveIdentity SaveIdentity { get; }
@@ -103,7 +110,8 @@ internal sealed class TerrainWorld : IDisposable
             session = engine.Spatial.CreateSession(new SpatialSessionConfig(
                 TerrainConstants.VoxelSize,
                 TerrainConstants.VoxelChunkSize,
-                VoxelSurfaceMode.GreedyCubes));
+                VoxelSurfaceMode.DualContouring));
+            TerrainSurfaces.Apply(engine, session);
             VoxelMaterialRules.Apply(engine, session);
             ui.Open(ProductUiPublisher.StreamName, ProductUiPublisher.StreamContract, WorldFacts);
             overlayStore.Restore();
@@ -163,16 +171,31 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>
-    /// The height something standing in a column stands at: the top of its highest collidable
-    /// block, as the world stands now - edits and structures included. Searches a band around the
-    /// generated surface, and answers the generated surface when the band is empty.
+    /// The Engine's standing surface in resident terrain, including its reconstructed shape.
+    /// Outside residency, the recipe and edit overlay give a coarse placement estimate; collision
+    /// must be available before a body actually moves there.
     /// </summary>
-    internal float GroundAt(long x, long z)
+    internal float GroundAt(double x, double z)
     {
-        long surface = recipe.SurfaceAt(x, z);
+        long cellX = (long)Math.Floor(x), cellZ = (long)Math.Floor(z);
+        long surface = recipe.SurfaceAt(cellX, cellZ);
+        if (session is not null && IsResident(new VoxelAddress(cellX, surface, cellZ)))
+        {
+            double top = surface + GroundSearchAbove + 1;
+            SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+                session, frame.ToLocal(x, top, z), -Vector3.UnitY, GroundSearchAbove + GroundSearchBelow + 1,
+                new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+                ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty,
+                ReadOnlyMemory<SpatialEntityCollider>.Empty));
+            if (hit.Present)
+            {
+                return (float)(top - hit.Distance);
+            }
+        }
+
         for (long y = surface + GroundSearchAbove; y >= surface - GroundSearchBelow; y--)
         {
-            if (BlockRegistry.TryGetBySlot(MaterialAt(new VoxelAddress(x, y, z)), out BlockDefinition block) && block.Collidable)
+            if (BlockRegistry.TryGetBySlot(MaterialAt(new VoxelAddress(cellX, y, cellZ)), out BlockDefinition block) && block.Collidable)
             {
                 return y + 1;
             }

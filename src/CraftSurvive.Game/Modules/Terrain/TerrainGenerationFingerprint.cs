@@ -107,9 +107,14 @@ internal static class TerrainGenerationFingerprint
         TerrainOverlaySnapshot pristine = new(contract.Seed, []);
         foreach (TerrainChunkAddress address in ProbeChunks(recipe, scale, nearest))
         {
-            foreach (ushort material in generator.Generate(address, pristine).Materials.Span)
+            TerrainChunk chunk = generator.Generate(address, pristine);
+            foreach (ushort material in chunk.Materials.Span)
             {
                 hash = Mix(hash, material);
+            }
+            foreach (float density in chunk.Densities.Span)
+            {
+                hash = Mix(hash, BitConverter.SingleToUInt32Bits(density));
             }
         }
 

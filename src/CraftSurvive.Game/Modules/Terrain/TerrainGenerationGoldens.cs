@@ -12,5 +12,9 @@ internal static class TerrainGenerationGoldens
     internal static IReadOnlyDictionary<uint, ulong> Live { get; } = new Dictionary<uint, ulong>
     {
         [12] = 0x5be1df75e73f58b7UL,
+        [13] = 0x8f58f123a8572be0UL,
+        [14] = 0xf3b43051f222d0d6UL,
+        [15] = 0x6c0b940b85d1f8beUL,
+        [16] = 0xd5e257893c70a6cbUL,
     };
 }

@@ -4,16 +4,14 @@ internal static class TerrainConstants
 {
     internal const ulong DefaultSeed = 0x4352_4146_5453_5552UL;
     /// <summary>
-    /// The finite world's extent in voxels per side: 10,240 is 640 chunks of 16, or
-    /// about 105 km2 at one-metre voxels. Generation is chunk-local and residency is
-    /// on demand, so the extent costs nothing until a chunk near it is requested.
+    /// The configured finite extent in voxels per side, not a gameplay area target.
+    /// Generation is chunk-local and residency is on demand.
     /// </summary>
     internal const int DefaultSize = 10_240;
     internal const int MinimumSize = 32;
     /// <summary>
-    /// The largest extent the product accepts. A finite world of about 100 km2 is
-    /// 10,240 voxels per side; the ceiling is set well above it so a larger world is
-    /// a declared contract change rather than a silent one.
+    /// The largest extent the product accepts; raising it is a declared generator
+    /// contract change rather than an implicit requirement for infinite generation.
     /// </summary>
     internal const int MaximumSize = 65_536;
 

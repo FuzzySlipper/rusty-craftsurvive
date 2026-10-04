@@ -1,0 +1,34 @@
+[
+  {
+    "id": "dune-sand",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "97c5ff068c42f1393bf1d157114b3fd029c4008efeba1d819045fdbc732e6ed3",
+    "metresPerTile": 8,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "frost-stone",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "abb0e9ba80a55be57d0ea726e6e56918c180c9342d80b08695033482797f4a6f",
+    "metresPerTile": 6,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "ochre-rock",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "bee1e61c142fa660279463e8cfdd2de0ca761b99a4d24155d07a0a2e0fbbc197",
+    "metresPerTile": 6,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "sage-ground",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "8e3b3ef892ee0c7cea178c0539f959fb0393b4a452964faaed2873816191ef6e",
+    "metresPerTile": 6,
+    "triplanarSharpness": 4
+  }
+]

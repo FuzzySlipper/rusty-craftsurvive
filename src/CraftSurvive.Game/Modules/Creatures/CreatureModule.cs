@@ -470,5 +470,5 @@ internal sealed class CreatureModule : IProductModule
 
     /// <summary>The height a creature stands at: the ground of the column it is over.</summary>
     private float GroundAt(Vector2 position) =>
-        terrain.GroundAt((long)Math.Floor(position.X), (long)Math.Floor(position.Y));
+        terrain.GroundAt(position.X, position.Y);
 }

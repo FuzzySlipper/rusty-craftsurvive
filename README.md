@@ -1,5 +1,11 @@
 # Rusty CraftSurvive
 
+An exploration and scavenging adventure through beautiful, dangerous wilderness
+and buried dungeons. Bring salvage and magically trapped people home to build
+an inhabited base whose residents and services support further expeditions.
+See [the gameplay direction](docs/survival-direction.md) and
+[visual direction](docs/visual-direction.md) for the design targets.
+
 Rusty CraftSurvive is a C# game product developed with the installed
 `Rusty.Engine` SDK and paired runtime pack. The ordinary development and Den
 lane is `rusty dev`, which stages and loads the CoreCLR product. NativeAOT is
@@ -36,6 +42,13 @@ The SDK creates its CoreCLR and NativeAOT composition below ignored `obj/`.
 Those generated artifacts are not checked projects and must not be edited.
 Only `content/game/` is staged into the product. `content/animations/` and
 `content/voxels/` are preserved user-owned assets that the product does not load.
+
+For terrain appearance studies, open **Menu**, choose **Landscape study**, and
+press **Visit landscape**. Ochre canyon, Sage uplands and Frost ridge are authored
+areas of the normal streamed world, with ordinary walking, collision and editing.
+Their natural surfaces use the generated maps and exact prompts in
+[`content/game/textures/terrain-studies/`](content/game/textures/terrain-studies/).
+`materials.json` controls repeat scale; the Engine supplies DC and triplanar mapping.
 
 ## Develop or use the Den service
 
@@ -117,10 +130,13 @@ This is a bounded survival slice, not a claim of complete survival gameplay. See
 
 ## The world
 
-The product has one scene: the adventurer's generated cubic world, configured in
-`Modules/Terrain/TerrainConfiguration.cs`. It has the settled block floor, water bodies,
+The product boots into a generated overworld, configured in
+`Modules/Terrain/TerrainConfiguration.cs`, and loads dungeon interiors separately.
+The overworld has a registered material set, water bodies,
 surface features, points of interest and crossings, an authored bedrock border, and a
-finite extent of about 105 km2 (10,240 voxels per side). The generator lives in
+finite configured extent. World size is a generation setting, not a design quota.
+The design calls for smooth DC terrain, with world-map generation and overland
+travel under consideration. The generator lives in
 `Modules/WorldGen`; its output is pinned per version by a golden fingerprint (see
 `tests/TerrainResidency` and `Modules/Terrain/TerrainGenerationGoldens.cs`).
 
@@ -143,11 +159,12 @@ Focused normal-lane checks:
 pnpm run check:ui
 pnpm run audit:textures
 dotnet build src/CraftSurvive.Game/CraftSurvive.Game.csproj --configuration Release
-dotnet run --project tests/<lane> -c Release   # TerrainResidency, RpgCore, PlayerBody, DiscoveryCore, SaveCore, DungeonBank, SubstrateProof
+dotnet run --project tests/<lane> -c Release   # TerrainResidency, TerrainSurface, RpgCore, PlayerBody, DiscoveryCore, SaveCore, DungeonBank, SubstrateProof
 ```
 
 Each lane reports every failed check, not just the first. `tests/SubstrateProof` is an Engine
-canary: it links no product code. `tests/PlayerBody` and `tests/DungeonBank` run product code against
+canary: it links no product code. `tests/PlayerBody`, `tests/TerrainSurface`, and
+`tests/DungeonBank` run product code against
 the Engine's own services headless, through `EngineTestHost`. Against a running host, `scripts/live.mjs` walks the player,
 checks discovery and runs debug commands; see [`docs/live-proofs.md`](docs/live-proofs.md).
 

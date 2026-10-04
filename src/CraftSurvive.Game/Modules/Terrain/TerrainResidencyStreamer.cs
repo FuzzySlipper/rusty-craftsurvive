@@ -37,6 +37,7 @@ internal sealed class TerrainResidencyStreamer(
         TerrainResidencyPlan plan = policy.PlanFor(center, overlay);
         List<VoxelResidencyOperation> operations = [];
         List<uint> materialSlots = [];
+        List<float> densities = [];
         foreach (TerrainChunkAddress address in plan.Requested)
         {
             if (resident.ContainsKey(address))
@@ -44,7 +45,7 @@ internal sealed class TerrainResidencyStreamer(
                 continue;
             }
 
-            AddAdmission(plan.Chunk(address), operations, materialSlots);
+            AddAdmission(plan.Chunk(address), operations, materialSlots, densities);
             admissions++;
             if (operations.Count == plan.MaximumOperationsPerTick)
             {
@@ -76,7 +77,8 @@ internal sealed class TerrainResidencyStreamer(
             return false;
         }
 
-        engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(session, operations.ToArray(), materialSlots.ToArray()));
+        engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty,
+            session, operations.ToArray(), materialSlots.ToArray(), densities.ToArray()));
         Refresh(session, operations.Select(operation => new TerrainChunkAddress(operation.Chunk.X, operation.Chunk.Y, operation.Chunk.Z)));
         return true;
     }
@@ -116,19 +118,27 @@ internal sealed class TerrainResidencyStreamer(
         cache.Write(address, chunk.Materials.Span);
     }
 
-    private static void AddAdmission(TerrainChunk chunk, List<VoxelResidencyOperation> operations, List<uint> materialSlots)
+    private static void AddAdmission(TerrainChunk chunk, List<VoxelResidencyOperation> operations,
+        List<uint> materialSlots, List<float> densities)
     {
         uint offset = checked((uint)materialSlots.Count);
+        uint densityOffset = checked((uint)densities.Count);
         foreach (ushort material in chunk.Materials.Span)
         {
             materialSlots.Add(material);
+        }
+        foreach (float density in chunk.Densities.Span)
+        {
+            densities.Add(density);
         }
 
         operations.Add(new VoxelResidencyOperation(
             VoxelResidencyOperationKind.Admit,
             ToEngine(chunk.Address),
             offset,
-            checked((uint)chunk.Materials.Length)));
+            checked((uint)chunk.Materials.Length),
+            densityOffset,
+            checked((uint)chunk.Densities.Length)));
     }
 
     private static VoxelChunkIdentity ToEngine(TerrainChunkAddress address) => new(address.X, address.Y, address.Z);

@@ -2,16 +2,18 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// Dense product-owned material payload in the original z/y/x order. It is a
+/// Dense product-owned material and density payload in the original z/y/x order. It is a
 /// value to hand to a later Engine residency adapter, not a renderer payload.
 /// </summary>
 internal sealed class TerrainChunk
 {
     private readonly ushort[] materials;
+    private readonly float[] densities;
 
-    internal TerrainChunk(TerrainChunkAddress address, ushort[] materials)
+    internal TerrainChunk(TerrainChunkAddress address, ushort[] materials, float[] densities)
     {
         ArgumentNullException.ThrowIfNull(materials);
+        ArgumentNullException.ThrowIfNull(densities);
         if (materials.Length != TerrainConstants.ChunkVolume)
         {
             throw new ArgumentException($"Terrain chunks require {TerrainConstants.ChunkVolume} material slots.", nameof(materials));
@@ -19,12 +21,18 @@ internal sealed class TerrainChunk
 
         Address = address;
         this.materials = materials;
+        this.densities = densities;
+        if (this.densities.Length != materials.Length)
+        {
+            throw new ArgumentException("Terrain density and material payloads must have equal lengths.", nameof(densities));
+        }
         SolidVoxelCount = CountSolid(materials);
     }
 
     internal TerrainChunkAddress Address { get; }
 
     internal ReadOnlyMemory<ushort> Materials => materials;
+    internal ReadOnlyMemory<float> Densities => densities;
 
     internal int SolidVoxelCount { get; }
 
@@ -64,31 +72,37 @@ internal sealed class TerrainChunkGenerator
         // simply generation - and a hit is only trusted because the cache refuses any
         // payload whose shape does not match a chunk.
         ArgumentNullException.ThrowIfNull(overlay);
-        if (cache is not null && !overlay.TouchesChunk(address) && cache.TryRead(address, out ushort[] cached))
+        ushort[]? cached = null;
+        if (cache is not null && !overlay.TouchesChunk(address) && cache.TryRead(address, out ushort[] found))
         {
             CacheHits++;
-            return new TerrainChunk(address, cached);
+            cached = found;
         }
 
-        ushort[] materials = new ushort[TerrainConstants.ChunkVolume];
+        ushort[] materials = cached ?? new ushort[TerrainConstants.ChunkVolume];
+        float[] densities = new float[TerrainConstants.ChunkVolume];
         VoxelAddress origin = address.Origin;
         for (int z = 0; z < TerrainConstants.ChunkEdgeLength; z++)
         {
             for (int x = 0; x < TerrainConstants.ChunkEdgeLength; x++)
             {
-                TerrainColumn column = recipe.ColumnAt(origin.X + x, origin.Z + z);
+                TerrainColumn column = cached is null ? recipe.ColumnAt(origin.X + x, origin.Z + z) : default;
+                double height = recipe.ContinuousHeightAt(origin.X + x, origin.Z + z);
                 for (int y = 0; y < TerrainConstants.ChunkEdgeLength; y++)
                 {
                     VoxelAddress voxel = new(origin.X + x, origin.Y + y, origin.Z + z);
+                    int index = ToIndex(x, y, z);
+                    ushort generated = cached is not null ? cached[index] : recipe.MaterialAt(voxel, column);
                     ushort material = overlay.TryGetMaterial(voxel, out ushort overridden)
                         ? overridden
-                        : recipe.MaterialAt(voxel, column);
-                    materials[ToIndex(x, y, z)] = material;
+                        : generated;
+                    materials[index] = material;
+                    densities[index] = TerrainDensity.At(voxel.Y, height, generated, material);
                 }
             }
         }
 
-        return new TerrainChunk(address, materials);
+        return new TerrainChunk(address, materials, densities);
     }
 
     private static int ToIndex(int x, int y, int z) => (z * TerrainConstants.ChunkPlaneLength)

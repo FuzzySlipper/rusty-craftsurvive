@@ -1,11 +1,12 @@
 # Documentation map
 
-Four documents carry current meaning. Everything else — experiment records,
+Five documents carry current meaning. Everything else — experiment records,
 provenance, and superseded state — lives in Den and is deliberately not copied here.
 
 | Document | What it is |
 | --- | --- |
-| [survival-direction.md](survival-direction.md) | The durable design record: target, settled decisions, and the Engine boundary |
+| [survival-direction.md](survival-direction.md) | Gameplay identity, scavenging expeditions, rescued residents, base progression, and the Engine boundary |
+| [visual-direction.md](visual-direction.md) | Retro surface character, stylized terrain, atmosphere, mood references, and visual readability |
 | [csharp-migration-map.md](csharp-migration-map.md) | Where product modules, Engine services, and content live |
 | [known-limitations.md](known-limitations.md) | What the product does not do today, and the limits a change must respect |
 | [live-proofs.md](live-proofs.md) | The live lane: the client, what it proves, captures, and the operational traps |
@@ -13,12 +14,18 @@ provenance, and superseded state — lives in Den and is deliberately not copied
 `README.md` at the repository root is the entry point for developing and running the
 product. `AGENTS.md` holds the working rules.
 
+The visual guide is supported by the approved
+[Paperback Sanctum style references](style-references/paperback-sanctum/README.md):
+four original images, exact generation prompts, and the source style prompt.
+This is a durable art reference set, not a record of runtime evidence.
+
 ## Where everything else lives
 
 Den project `rusty-craftsurvive`:
 
-- **Work state**: campaign #8595 with slices #8596–#8606 is the work record. If a
-  document here and a task disagree, the task wins.
+- **Work state**: live tasks and their context hold scope, dependencies, and
+  implementation progress. Historical campaign restrictions do not override
+  later explicit owner decisions or the task implementing them.
 - **History**: retired study records and superseded sections are documents with
   `history/` slugs — for example `history/courtyard-verdict`,
   `history/procgen-workbench`, `history/known-limitations-full`,

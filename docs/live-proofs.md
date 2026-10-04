@@ -1,15 +1,17 @@
 # Live proofs and evidence lanes
 
 Two lanes prove different things. The **managed lanes** (`tests/`) run in CI and cover product
-rules and SDK values that need no host. The **live lane** runs the real product against the
+rules and SDK values; the focused collision lanes use the Engine's packaged
+headless test host. The **live lane** runs the real product against the
 installed runtime pack and is the only lane that can prove host-bound mechanisms, rendering and
 load paths. A build passing is not evidence about the live lane. CI's `product` job is the one
 automated live check: it serves the product, checks it keeps updating with a matching generator
 fingerprint, and walks the player on input with the client below.
 
 The live substrate proof that established the Engine constraints this product builds on left
-with the authoring lane; its record is Den `history/live-substrate-proof`, and the constraints
-are in [survival-direction.md](survival-direction.md) §6.1.
+with the authoring lane; its record is Den `history/live-substrate-proof`.
+The [product map](csharp-migration-map.md) and [limitations](known-limitations.md)
+describe the implementation contracts that a new proof must exercise.
 
 ## Operational traps
 

@@ -18,8 +18,9 @@ content/game               the content the product loads
 Directory.Build.props      the one Engine SDK/runtime pair pin
 ```
 
-The product has one scene, the generated cubic world configured in
-`Modules/Terrain/TerrainConfiguration.cs`. The Engine host owns canvas, renderer resources,
+The product boots into the generated overworld configured in
+`Modules/Terrain/TerrainConfiguration.cs` and loads dungeons as separate spaces.
+The Engine host owns canvas, renderer resources,
 frame construction, input delivery and runtime integration. Product C# publishes product facts
 through named SDK services; neither C# nor UI code recreates those mechanisms.
 
@@ -46,8 +47,8 @@ save, then terrain's save, then one appearance snapshot.
 | Shared product facts | `Modules/World`: `ProductStep`, `WorldFrame` (the one world-to-local conversion), `ProductIds` | World origin |
 | Saves | `Modules/World`: `SaveManifest` (every key), `ProductStore` (the one store), `ProductSaveSlot`, `SaveEnvelope`, `SaveRestore`; each owner saves its own key | Persistence |
 | UI projection | `Modules/World`: `ProductUiPublisher` and `ProductUiProjection` | UI streams |
-| Generation | `Modules/WorldGen`: `TerrainRecipe`, the contract, point-of-interest and crossing placement and structures | Keyed random draws |
-| Terrain | `Modules/Terrain`: `TerrainWorld` over the residency streamer, the edit service and transaction, the overlay and its store, the chunk cache and presentation | Spatial sessions, voxel residency, edits and scene reads, authored content, directional voxel presentation |
+| Generation | `Modules/WorldGen`: `TerrainRecipe`, continuous samples in `TerrainDensity`, the contract, point-of-interest and crossing placement and structures | Keyed random draws |
+| Terrain | `Modules/Terrain`: `TerrainWorld`, `TerrainSurfaces`, the residency streamer, edit service and transaction, overlay and its store, chunk cache and presentation | Spatial sessions, density-bearing voxel residency, per-material surfaces, edits and scene reads, collision queries, authored content, directional voxel presentation |
 | Blocks and atlas | `Modules/Content`: `BlockRegistry`, `TerrainAtlasLayout` | Authored materials |
 | Player | `Modules/Player`: `PlayerController` over input, camera, water and climb probes, body, origin rebasing, vitals, progress and continuation | Character controller (walking, swimming, climbing), look, camera view, world origin |
 | RPG rules | `Modules/Rpg`: combat, loot, progression, encounters, creature kinds, character sheet | none (pure rules) |
@@ -70,10 +71,10 @@ ABI-sensitive implementation only below ignored `obj/`. Add a missing mechanism 
 coherent Engine service family; do not add handwritten P/Invoke, JSON dispatch, a second
 renderer, or a downstream substitute.
 
-## Next areas
+## Extending the product
 
-Campaign #8595 in Den holds the slices still to come - HUD and screens (S9, #8605), dimensions
-and authored interiors, crafting and inventory, and performance budgets (S10, #8606). A slice
-first names its C# owner and the Engine mechanisms it needs, and stops to file an upstream task
-if a named capability is absent. See [`known-limitations.md`](known-limitations.md) for current
-behavioural limits.
+Use the gameplay and visual direction for design intent and the live Den task for
+implementation scope. A slice first names its C# owner and the Engine mechanisms
+it needs, and stops to file an upstream task if a named capability is absent.
+See [`known-limitations.md`](known-limitations.md) for behavioural limits; an
+implemented prototype mechanism is not a requirement to preserve its old genre.

@@ -22,6 +22,7 @@ internal enum PlayerActionKind
     Leave,
     Move,
     Select,
+    Landscape,
 }
 
 /// <summary>
@@ -88,6 +89,7 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "enter" => new(PlayerActionKind.Enter),
             "leave" => new(PlayerActionKind.Leave),
             "difficulty" => new(PlayerActionKind.Difficulty, Name: Named(root, "level")),
+            "landscape" => new(PlayerActionKind.Landscape, Name: Named(root, "name")),
             string other => throw new FormatException($"\"{other}\" is not an action the UI can ask for."),
             null => throw new FormatException("A UI action names what it asks for in \"action\"."),
         };

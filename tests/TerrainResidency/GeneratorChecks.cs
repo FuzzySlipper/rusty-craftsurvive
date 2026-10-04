@@ -21,8 +21,16 @@ internal static class GeneratorChecks
         {
             Dictionary<(uint Version, ulong Seed), ulong> golden = new()
             {
+                [(16, TerrainConstants.DefaultSeed)] = 0x4c024e23973f0a81UL,
+                [(16, 12345UL)] = 0x91f6ecedc0505ef4UL,
+                [(15, TerrainConstants.DefaultSeed)] = 0x6691638c856c2cc5UL,
+                [(15, 12345UL)] = 0xf15c8a71097f20b0UL,
                 [(12, TerrainConstants.DefaultSeed)] = 0x04ce381c4bc1ec87UL,
                 [(12, 12345UL)] = 0x8a9c21d06e49334bUL,
+                [(13, TerrainConstants.DefaultSeed)] = 0x5bd56a7343bb75d1UL,
+                [(13, 12345UL)] = 0x7295b23670915ba5UL,
+                [(14, TerrainConstants.DefaultSeed)] = 0xe41634f42355d93cUL,
+                [(14, 12345UL)] = 0x413df3e94ad58c97UL,
             };
             List<string> mismatches = [];
             foreach (ulong seed in new[] { TerrainConstants.DefaultSeed, 12345UL })

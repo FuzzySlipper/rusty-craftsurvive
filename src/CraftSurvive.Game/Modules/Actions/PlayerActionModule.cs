@@ -118,6 +118,12 @@ internal sealed class PlayerActionModule
     private void Apply(PlayerAction action)
     {
         string name = action.Kind.ToString().ToLowerInvariant();
+        if (action.Kind == PlayerActionKind.Landscape)
+        {
+            if (player.VisitLandscape(action.Name)) Accept($"Visiting {action.Name}");
+            else Refuse("Landscape visit unavailable: leave the dungeon first and choose a known study.");
+            return;
+        }
         if (action.Kind == PlayerActionKind.Craft)
         {
             long refusedBefore = inventory.Refused;

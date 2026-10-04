@@ -6,8 +6,8 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>
 /// The world generator: the material at every voxel, as a pure function of the generator
-/// contract. It emits only material facts; the terrain module turns those into the Engine's
-/// voxel scene.
+/// contract. It emits material facts and an unquantized height; TerrainDensity describes the
+/// scalar field and the Engine reconstructs the admitted samples.
 /// </summary>
 internal sealed class TerrainRecipe : ITerrainColumns
 {
@@ -45,7 +45,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal long MinimumMaterialY => MinimumMaterialYValue;
 
-    internal long MaximumMaterialY => GenerationConstants.TerrainSummitHeight + GenerationConstants.TerrainHeadroom;
+    internal long MaximumMaterialY => Math.Max(GenerationConstants.TerrainSummitHeight + GenerationConstants.TerrainHeadroom, LandscapeStudies.MaximumHeight);
 
     internal ushort MaterialAt(VoxelAddress address) => MaterialAt(address, ColumnAt(address.X, address.Z));
 
@@ -71,6 +71,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // for the same reason sites come after the ground: a bridge is built over water, and
         // water is what the ground pass leaves behind.
         ushort material = BaseMaterialAt(address, column);
+        if (LandscapeStudies.At(address.X, address.Z) is not null) return material;
         material = StructurePasses.ApplySite(material, PoiAt(address.X, address.Y, address.Z), address.Y, column);
         return CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span
             ? StructurePasses.ApplyCrossing(material, span, address.Y, column)
@@ -111,7 +112,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         // Features only fill air, so they never displace terrain: a canopy that
         // meets a slope loses to the slope rather than leaving a floating leaf.
-        if (material == TerrainConstants.EmptyMaterial)
+        if (material == TerrainConstants.EmptyMaterial && LandscapeStudies.At(address.X, address.Z) is null)
         {
             material = FeatureMaterialAt(address.X, address.Y, address.Z);
         }
@@ -150,6 +151,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         long slope = column.Slope;
+        if (LandscapeStudies.At(address.X, address.Z) is LandscapeStudy study)
+            return (ushort)LandscapeStudies.Material(study, address.X, address.Z);
         long depthFromSurface = top - address.Y;
         if (depthFromSurface == 0 && slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
@@ -274,6 +277,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
                 }
             }
         }
+
+        if (LandscapeStudies.At(xStart, zStart) is LandscapeStudy first
+            && LandscapeStudies.At(xStart + edge - 1, zStart + edge - 1) == first) return false;
 
         return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
             || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
@@ -479,7 +485,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// The height field. Its noise is seeded through the contract, so a version bump redraws the
     /// ground as well as the features on it.
     /// </summary>
-    private long TerrainHeight(long x, long z)
+    private long TerrainHeight(long x, long z) =>
+        (long)Math.Round(ContinuousHeightAt(x, z), MidpointRounding.AwayFromZero);
+
+    /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
+    internal double ContinuousHeightAt(long x, long z)
     {
         ulong seed = Contract.NoiseSeed;
         double broad = ValueNoise(seed, x, z, GenerationConstants.BroadNoiseScale);
@@ -495,7 +505,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
             + ((detail - GenerationConstants.BroadCenter) * GenerationConstants.DetailDeviationWeight)
             + (ValueNoise(seed ^ GenerationConstants.LargeNoiseSalt, x, z, GenerationConstants.LargeNoiseScale)
                 * GenerationConstants.LargeWeight);
-        return Math.Max((long)Math.Round(height, MidpointRounding.AwayFromZero), GenerationConstants.MinimumTerrainHeight);
+        return LandscapeStudies.Height(x, z, Math.Max(height, GenerationConstants.MinimumTerrainHeight));
     }
 
     private long CardinalSlope(long x, long z, long top)
@@ -507,12 +517,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return Math.Max(Math.Max(west, east), Math.Max(north, south));
     }
 
-    private static double ValueNoise(ulong seed, long x, long z, int scale)
+    internal static double ValueNoise(ulong seed, double x, double z, int scale)
     {
-        long cellX = GridMath.FloorDivide(x, scale);
-        long cellZ = GridMath.FloorDivide(z, scale);
-        double localX = GridMath.PositiveMod(x, scale) / (double)scale;
-        double localZ = GridMath.PositiveMod(z, scale) / (double)scale;
+        long cellX = (long)Math.Floor(x / scale);
+        long cellZ = (long)Math.Floor(z / scale);
+        double localX = (x - cellX * scale) / scale;
+        double localZ = (z - cellZ * scale) / scale;
         double blendX = Smoothstep(localX);
         double blendZ = Smoothstep(localZ);
         double near = Lerp(HashUnit(CoordinateHash(seed, cellX, cellZ)),
