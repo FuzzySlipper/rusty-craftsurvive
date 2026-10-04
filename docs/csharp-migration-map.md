@@ -53,7 +53,8 @@ save, then terrain's save, then one appearance snapshot.
 | RPG rules | `Modules/Rpg`: combat, loot, progression, encounters, creature kinds, character sheet | none (pure rules) |
 | Creatures | `Modules/Creatures`: `CreatureModule` over the roster, simulation, spawn plan and presentation | Perception, appearance, entity store; collision navigation while pursuing |
 | Discovery | `Modules/Discovery`: `DiscoveryModule` and the journal | Persistence through its save slot |
-| Manipulation | `Modules/Manipulation`: blast charges and dust, build stamps, block entities and their store, lamps' lights (`LampLights`) | Voxel edits through `TerrainWorld`, particles, retained point lights |
+| Manipulation | `Modules/Manipulation`: blast charges, build stamps, block entities and their store, lamps' lights (`LampLights`) | Voxel edits through `TerrainWorld`, retained point lights |
+| Feedback | `Modules/Feedback`: `Cues` raised by gameplay, `FeedbackModule` over `BurstEmitter` (`Bursts`); `Modules/Audio`: `SoundPlayer` over `SoundCatalog` and the generated clips | One-shot particle emission, audio clips, voices and buses |
 | UI actions | `Modules/Actions`: `PlayerAction` (the payload) and `PlayerActionModule` | Input intents (product payload) |
 | Sky | `Modules/Sky`: `WorldClock` (rules) and `DayNightSky` (panorama blend, sun and ambient lights) | Camera view sky blend, retained lights |
 | World conditions | `Modules/Survival`: `WorldConditionsModule` (time of day and difficulty, saved) | Persistence |

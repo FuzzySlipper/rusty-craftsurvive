@@ -38,7 +38,7 @@
     <Compile Include="$(ProductModules)Player/PlayerClimb.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerStamina.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerFootfalls.cs" LinkBase="Product/Player" />
-    <Compile Include="$(ProductModules)Audio/SoundCues.cs" LinkBase="Product/Audio" />
+    <Compile Include="$(ProductModules)Feedback/Cues.cs" LinkBase="Product/Feedback" />
     <Compile Include="$(ProductModules)Audio/SoundCatalog.cs" LinkBase="Product/Audio" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />

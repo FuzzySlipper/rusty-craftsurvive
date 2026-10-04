@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Numerics;
-using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
@@ -28,7 +28,7 @@ internal sealed class PlayerController : IDisposable
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
     private readonly ProductUiPublisher ui;
-    private readonly SoundCues sounds;
+    private readonly Cues cues;
     private readonly PlayerFootfalls footfalls = new();
     private readonly PlayerInputState input = new();
     private readonly PlayerInputDiagnostics diagnostics = new();
@@ -95,10 +95,10 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Where the view pointed after the latest update's look; zero before the first update.</summary>
     private Vector3 aimForward;
 
-    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, SoundCues sounds)
+    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, Cues cues)
     {
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
-        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
+        this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         ArgumentNullException.ThrowIfNull(frame);
@@ -198,7 +198,7 @@ internal sealed class PlayerController : IDisposable
         // Whatever hurt the player last update - a creature, hunger, drowning - is heard now.
         if (Vitals.HitsTaken > hitsHeard)
         {
-            sounds.Raise(SoundCue.Hurt);
+            cues.Raise(Cue.Hurt);
         }
 
         hitsHeard = Vitals.HitsTaken;
@@ -299,6 +299,9 @@ internal sealed class PlayerController : IDisposable
 
     /// <summary>Where the player last looked, as a view direction in world axes; zero before the first look.</summary>
     internal Vector3 AimForward => aimForward;
+
+    /// <summary>A point some metres in front of the player's eyes, along where they look, in the session's local frame.</summary>
+    internal Vector3 LocalAhead(float metres) => EyePosition() + (aimForward * metres);
 
     /// <summary>What the player is aiming at now, within edit reach. Nothing in a dungeon is aimed at: it is not built on.</summary>
     internal TerrainPick Aim()
@@ -535,23 +538,25 @@ internal sealed class PlayerController : IDisposable
             receipt.Movement.Immersion,
             climbHeld,
             receipt.Movement.ClimbAttached));
-        foreach ((BodySound sound, SoundCue cue) in BodyCues)
+        // Body sounds are heard as the player's own, but a landing or a splash is seen at the feet.
+        Vector3 feet = receipt.Transform.Translation - (Vector3.UnitY * (PlayerBody.Height(receipt.Motion.Stance) / 2f));
+        foreach ((BodySound sound, Cue cue) in BodyCues)
         {
             if (heard.HasFlag(sound))
             {
-                sounds.Raise(cue);
+                cues.RaiseAt(cue, feet);
             }
         }
     }
 
-    private static readonly (BodySound Sound, SoundCue Cue)[] BodyCues =
+    private static readonly (BodySound Sound, Cue Cue)[] BodyCues =
     [
-        (BodySound.Footstep, SoundCue.Footstep),
-        (BodySound.Jump, SoundCue.Jump),
-        (BodySound.Land, SoundCue.Land),
-        (BodySound.HardLanding, SoundCue.HardLanding),
-        (BodySound.Splash, SoundCue.Splash),
-        (BodySound.Grip, SoundCue.Grip),
+        (BodySound.Footstep, Cue.Footstep),
+        (BodySound.Jump, Cue.Jump),
+        (BodySound.Land, Cue.Land),
+        (BodySound.HardLanding, Cue.HardLanding),
+        (BodySound.Splash, Cue.Splash),
+        (BodySound.Grip, Cue.Grip),
     ];
 
     /// <summary>

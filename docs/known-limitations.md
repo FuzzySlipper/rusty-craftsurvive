@@ -39,9 +39,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   from `BuildPalette` blocks, laid relative to where the player faces, and only over replaceable
   cells (air, water), so a floor across a slope fills the gaps and leaves the hill. Undo takes back
   the last floor or wall only, and leaves empty what it clears rather than restoring it.
-- **A charge resolves on the update after it is fired**, as one transaction, with its dust
-  (`BlastDust`, smoke on the authored `dust-puff` sprite) emitted first. A charge past
-  `BlastPolicy.MaximumCells` is refused, not truncated; the debris cubes are untextured.
+- **A charge resolves on the update after it is fired**, as one transaction, with its cue raised
+  first, so its smoke and debris (`Bursts.BlastSmoke`, `BlastDebris`, seeded from the charge's
+  `BlastDust.ChargeIdentity`) are already in flight. A charge past `BlastPolicy.MaximumCells` is
+  refused, not truncated; the debris cubes are untextured.
 - Construction permissions, networking and multiplayer merge policy are not implemented.
 
 ## Presentation
@@ -210,20 +211,30 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - Developer tools in the panel (renderer metrics, the live-debug panel) work only on a host
   started with `--live-debug`.
 
-## Sound
+## Feedback: sound and particles
 
+- **One cue, heard and seen.** Gameplay owners raise a `Cue` where they decide something happened
+  (`Cues`, with where it happened in the local frame); `FeedbackModule` runs after them and has
+  each cue heard (`SoundPlayer`) and seen (`BurstEmitter`). A refused clip, emission or burst is
+  counted in `craft.feedback.readout` and play goes on; `craft.feedback.cue <name>` presents one
+  cue in front of the player.
+- **Bursts are a small vocabulary.** `Bursts` holds each burst's style - dust puffs on the authored
+  `dust-puff` sprite sized in metres, or settling chips in the terrain atlas - and `Bursts.ByCue`
+  which cues have one: a blast's smoke and debris, landing dust (more for a hard landing), a
+  splash's drops and spray, a puff on a struck creature, a cloud when one goes down, and dust where
+  a block is placed. Footsteps, jumps and interface cues have none. Bursts draw only through the
+  Engine's one-shot emission and share its particle budget.
 - **Every sound is generated.** `scripts/generate-sounds.mjs` synthesises the effects and four
   ambience loops (square waves, filtered noise, envelopes; seeded, so the files are reproducible)
   into `content/game/audio/`; rerun it after changing a sound. There is no music.
-- **One owner plays them.** Gameplay owners raise a `SoundCue` where they decide something
-  happened (`SoundCues`); `SoundModule` alone plays them through the Engine's `Audio` service and
-  keeps the wind, night, cave and water beds looping, faded to the player's surroundings
-  (`SoundCatalog.Level`). Only a blast is placed in the world; every other cue plays at the
-  listener. The player's body sounds come from `PlayerFootfalls`. A refused clip or emission is
-  counted in `craft.audio.readout` and play goes on; `craft.audio.cue <name>` plays one cue.
+- **One owner plays them.** `SoundPlayer` alone plays cues through the Engine's `Audio` service
+  and keeps the wind, night, cave and water beds looping, faded to the player's surroundings
+  (`SoundCatalog.Level`). Only a blast is heard from where it happened; every other cue plays at
+  the listener. The player's body cues come from `PlayerFootfalls`.
 - **Sound plays where the runtime runs.** The Engine plays audio on the runtime process's own
   output device, not in the browser page: a LAN viewer of a streamed host hears nothing, and a
-  host with no device runs silent. Hearing the game needs it run on the listener's machine.
+  host with no device runs silent. Hearing the game needs it run on the listener's machine until
+  the Engine can play a stream's audio in the viewing page (rusty-engine #9315).
 - There are no volume settings in the UI, and creatures make no sound of their own beyond their
   swings.
 

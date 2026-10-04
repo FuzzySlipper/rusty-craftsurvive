@@ -98,8 +98,10 @@ location.
 - `Modules/Creatures` and `Modules/Rpg`: creatures that spawn, see, chase, strike and are
   defeated, under pure combat, loot, progression and encounter rules.
 - `Modules/Discovery`: points of interest noticed and reached, kept in a saved journal.
-- `Modules/Manipulation` and `Modules/Actions`: blast charges with dust, build stamps and block
+- `Modules/Manipulation` and `Modules/Actions`: blast charges, build stamps and block
   entities (doors, lights, containers), reached from the UI's action bar and debug commands.
+- `Modules/Feedback` and `Modules/Audio`: cues raised by gameplay, presented as particle bursts
+  and generated sounds, and the ambience that follows where the player is.
 - `Modules/Content`: the block registry and the terrain atlas layout, checked against each other.
 - `Modules/Sky`: the world's clock, and the day and night panoramas and lights that show it.
 - `Modules/Survival`: the world's conditions (time of day, difficulty) and the player's hunger and air.

@@ -1,9 +1,14 @@
+using CraftSurvive.Game.Modules.Feedback;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Audio;
 
-/// <summary>How one cue sounds: the clips it takes turns between, its bus and level, and how far it carries when placed.</summary>
-internal sealed record CueSound(string[] Clips, AudioBus Bus, float Volume, float RangeMetres = CueSound.DefaultRangeMetres)
+/// <summary>
+/// How one cue sounds: the clips it takes turns between, its bus and level, and whether it is heard
+/// from where it happened (<paramref name="Placed"/>) and then how far it carries. An unplaced cue
+/// plays at the listener, wherever it happened: the player's own body is heard as their own.
+/// </summary>
+internal sealed record CueSound(string[] Clips, AudioBus Bus, float Volume, bool Placed = false, float RangeMetres = CueSound.DefaultRangeMetres)
 {
     /// <summary>How far a placed cue carries before it falls silent.</summary>
     internal const float DefaultRangeMetres = 48f;
@@ -39,25 +44,25 @@ internal static class SoundCatalog
     /// <summary>What is left of the other beds while the player's head is under water.</summary>
     private const float Muffled = 0.15f;
 
-    internal static readonly IReadOnlyDictionary<SoundCue, CueSound> Cues = new Dictionary<SoundCue, CueSound>
+    internal static readonly IReadOnlyDictionary<Cue, CueSound> Cues = new Dictionary<Cue, CueSound>
     {
-        [SoundCue.Footstep] = new(["step-1", "step-2", "step-3"], AudioBus.Sfx, 0.32f),
-        [SoundCue.Jump] = new(["jump"], AudioBus.Sfx, 0.22f),
-        [SoundCue.Land] = new(["land"], AudioBus.Sfx, 0.45f),
-        [SoundCue.HardLanding] = new(["land-hard"], AudioBus.Sfx, 0.7f),
-        [SoundCue.Splash] = new(["splash"], AudioBus.Sfx, 0.55f),
-        [SoundCue.Grip] = new(["grip"], AudioBus.Sfx, 0.4f),
-        [SoundCue.Hurt] = new(["hurt"], AudioBus.Sfx, 0.6f),
-        [SoundCue.Swing] = new(["swing"], AudioBus.Sfx, 0.4f),
-        [SoundCue.Strike] = new(["strike"], AudioBus.Sfx, 0.55f),
-        [SoundCue.Defeat] = new(["defeat"], AudioBus.Sfx, 0.5f),
-        [SoundCue.Blast] = new(["blast"], AudioBus.Sfx, 0.9f, RangeMetres: 96f),
-        [SoundCue.Place] = new(["place"], AudioBus.Sfx, 0.5f),
-        [SoundCue.Craft] = new(["craft"], AudioBus.Ui, 0.35f),
-        [SoundCue.Pickup] = new(["pickup"], AudioBus.Ui, 0.35f),
-        [SoundCue.Discovery] = new(["discovery"], AudioBus.Ui, 0.4f),
-        [SoundCue.Refused] = new(["refused"], AudioBus.Ui, 0.3f),
-        [SoundCue.Portal] = new(["portal"], AudioBus.Sfx, 0.6f),
+        [Cue.Footstep] = new(["step-1", "step-2", "step-3"], AudioBus.Sfx, 0.32f),
+        [Cue.Jump] = new(["jump"], AudioBus.Sfx, 0.22f),
+        [Cue.Land] = new(["land"], AudioBus.Sfx, 0.45f),
+        [Cue.HardLanding] = new(["land-hard"], AudioBus.Sfx, 0.7f),
+        [Cue.Splash] = new(["splash"], AudioBus.Sfx, 0.55f),
+        [Cue.Grip] = new(["grip"], AudioBus.Sfx, 0.4f),
+        [Cue.Hurt] = new(["hurt"], AudioBus.Sfx, 0.6f),
+        [Cue.Swing] = new(["swing"], AudioBus.Sfx, 0.4f),
+        [Cue.Strike] = new(["strike"], AudioBus.Sfx, 0.55f),
+        [Cue.Defeat] = new(["defeat"], AudioBus.Sfx, 0.5f),
+        [Cue.Blast] = new(["blast"], AudioBus.Sfx, 0.9f, Placed: true, RangeMetres: 96f),
+        [Cue.Place] = new(["place"], AudioBus.Sfx, 0.5f),
+        [Cue.Craft] = new(["craft"], AudioBus.Ui, 0.35f),
+        [Cue.Pickup] = new(["pickup"], AudioBus.Ui, 0.35f),
+        [Cue.Discovery] = new(["discovery"], AudioBus.Ui, 0.4f),
+        [Cue.Refused] = new(["refused"], AudioBus.Ui, 0.3f),
+        [Cue.Portal] = new(["portal"], AudioBus.Sfx, 0.6f),
     };
 
     internal static readonly IReadOnlyDictionary<AmbienceBed, string> Beds = new Dictionary<AmbienceBed, string>

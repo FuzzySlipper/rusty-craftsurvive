@@ -1,5 +1,6 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Audio;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
@@ -655,7 +656,7 @@ Check.That(SoundCatalog.Level(AmbienceBed.Water, noon with { Submerged = true })
     && SoundCatalog.Level(AmbienceBed.Wind, noon with { Submerged = true }) < SoundCatalog.Level(AmbienceBed.Wind, noon)
     && SoundCatalog.Level(AmbienceBed.Water, noon) == 0f,
     "under water the water rumbles and the wind is muffled");
-Check.That(Enum.GetValues<SoundCue>().All(cue => SoundCatalog.Cues.TryGetValue(cue, out CueSound? sound) && sound.Clips.Length > 0)
+Check.That(Enum.GetValues<Cue>().All(cue => SoundCatalog.Cues.TryGetValue(cue, out CueSound? sound) && sound.Clips.Length > 0)
     && Enum.GetValues<AmbienceBed>().All(SoundCatalog.Beds.ContainsKey),
     "every cue and bed must have a sound");
 string audioDirectory = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "content", "game");

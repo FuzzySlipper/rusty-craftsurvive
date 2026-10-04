@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Numerics;
-using CraftSurvive.Game.Modules.Audio;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
@@ -30,6 +30,9 @@ internal sealed class CreatureModule : IProductModule
 
     /// <summary>Eye height above the ground, where a creature perceives from.</summary>
     private const float EyeHeightMetres = 1.5f;
+
+    /// <summary>Height above the ground where a blow on a creature is seen landing.</summary>
+    private const float StruckHeightMetres = 0.8f;
 
     /// <summary>Creatures stand in the middle of a cell, never on the corner four columns share.</summary>
     private const float CellCentre = 0.5f;
@@ -69,11 +72,11 @@ internal sealed class CreatureModule : IProductModule
     internal const double NightSightFactor = 1.5;
 
     private readonly Func<bool> isNight;
-    private readonly SoundCues sounds;
+    private readonly Cues cues;
 
-    internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, WorldFrame frame, Func<bool> isNight, SoundCues sounds)
+    internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, WorldFrame frame, Func<bool> isNight, Cues cues)
     {
-        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
+        this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.isNight = isNight ?? throw new ArgumentNullException(nameof(isNight));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
@@ -192,7 +195,7 @@ internal sealed class CreatureModule : IProductModule
         if (!outcome.Hit)
         {
             // A blow that lands is heard as the player's hurt; one that misses is the swing going by.
-            sounds.Raise(SoundCue.Swing);
+            cues.Raise(Cue.Swing);
             lastEvent = string.Create(CultureInfo.InvariantCulture,
                 $"creature {strike.CreatureId} missed the player: roll {outcome.Roll} total {outcome.Total} vs evasion {outcome.Defence}");
             return;
@@ -247,12 +250,13 @@ internal sealed class CreatureModule : IProductModule
         (CombatantState struck, AttackOutcome outcome) = EncounterResolutionRules.Strike(roll, player.Sheet.Unarmed, target.Combat, step);
         if (!outcome.Hit)
         {
-            sounds.Raise(SoundCue.Swing);
+            cues.Raise(Cue.Swing);
             return string.Create(CultureInfo.InvariantCulture, $"missed {target.Id}: roll {outcome.Roll} vs defence {outcome.Defence}");
         }
 
         target.Combat = struck;
-        sounds.Raise(struck.IsDown ? SoundCue.Defeat : SoundCue.Strike);
+        cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
+            frame.ToLocal(target.Position.X, GroundAt(target.Position) + StruckHeightMetres, target.Position.Y));
         if (!struck.IsDown)
         {
             return string.Create(CultureInfo.InvariantCulture,

@@ -30,6 +30,8 @@
     <Compile Include="$(ProductModules)Manipulation/BlastPolicy.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlastCharge.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlastDust.cs" LinkBase="Product/Manipulation" />
+    <Compile Include="$(ProductModules)Feedback/Cues.cs" LinkBase="Product/Feedback" />
+    <Compile Include="$(ProductModules)Feedback/Bursts.cs" LinkBase="Product/Feedback" />
     <Compile Include="$(ProductModules)Manipulation/BuildStamp.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlockEntityIndex.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product/Terrain" />

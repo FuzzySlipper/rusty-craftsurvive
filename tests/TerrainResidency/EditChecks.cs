@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
@@ -84,9 +85,29 @@ internal static class EditChecks
             ulong[] identities = [.. centres.Select(BlastDust.ChargeIdentity)];
             foreach (ulong identity in identities)
             {
-                Check.That(BlastDust.Smoke(default, default, identity).Seed <= BlastDust.MaximumParticleSeed
-                    && BlastDust.Debris(default, default, identity).Seed <= BlastDust.MaximumParticleSeed,
+                Check.That(Bursts.Describe(Bursts.BlastSmoke, default, default, identity).Seed <= Bursts.MaximumSeed
+                    && Bursts.Describe(Bursts.BlastDebris, default, default, identity).Seed <= Bursts.MaximumSeed,
                     $"a dust seed must fit 53 bits, identity {identity:x16} does not");
+            }
+
+            // Every burst a cue is seen as must be one the Engine admits: a burst within its capacity,
+            // ordered lifetimes and throws, and curves keyed from 0 to 1 with sizes and colours in range.
+            foreach ((Cue cue, BurstStyle[] styles) in Bursts.ByCue)
+            {
+                foreach (BurstStyle style in styles)
+                {
+                    Rusty.Engine.PresentationParticleDescriptor burst = Bursts.Describe(style, new System.Numerics.Vector3(1, 2, 3), default, 7UL);
+                    float[] sizeAges = [.. burst.SizeCurve.ToArray().Select(key => key.Age)];
+                    float[] colourAges = [.. burst.ColorCurve.ToArray().Select(key => key.Age)];
+                    bool keyed(float[] ages) => ages.Length >= 2 && ages[0] == 0f && ages[^1] == 1f && ages.Zip(ages.Skip(1)).All(pair => pair.First < pair.Second);
+                    Check.That(burst.BurstCount > 0 && burst.BurstCount <= burst.MaxParticles
+                        && burst.LifetimeMinSeconds > 0f && burst.LifetimeMinSeconds <= burst.LifetimeMaxSeconds
+                        && burst.VelocityMin.X <= burst.VelocityMax.X && burst.VelocityMin.Y <= burst.VelocityMax.Y && burst.VelocityMin.Z <= burst.VelocityMax.Z
+                        && keyed(sizeAges) && keyed(colourAges)
+                        && burst.SizeCurve.ToArray().All(key => key.Value >= 0f)
+                        && burst.ColorCurve.ToArray().All(key => key.Color.R is >= 0f and <= 1f && key.Color.G is >= 0f and <= 1f && key.Color.B is >= 0f and <= 1f && key.Color.A is >= 0f and <= 1f),
+                        $"the {cue} burst '{style.Label}' must be one the Engine admits");
+                }
             }
 
             Check.That(identities.Distinct().Count() == identities.Length, "different charge centres must have different dust identities");

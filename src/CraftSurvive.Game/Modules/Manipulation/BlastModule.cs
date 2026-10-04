@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
-using CraftSurvive.Game.Modules.Audio;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -9,52 +9,39 @@ using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 namespace CraftSurvive.Game.Modules.Manipulation;
 
 /// <summary>
-/// Fires charges. A fired charge is planned at once and resolved on the next update: the dust and
-/// debris go out first, so the cloud is already in flight when the world changes, and the cleared
-/// cells then go through the world's edit route as one transaction. Block entities standing in the
+/// Fires charges. A fired charge is planned at once and resolved on the next update: its cue goes
+/// out first, so the cloud is already in flight when the world changes, and the cleared cells then
+/// go through the world's edit route as one transaction. Block entities standing in the
 /// cleared cells are swept in the same step.
 /// </summary>
 internal sealed class BlastModule : IProductModule
 {
-    /// <summary>A charge's centre voxel, offset to the middle of the cell for the dust anchor.</summary>
+    /// <summary>A charge's centre voxel, offset to the middle of the cell for where it is seen and heard.</summary>
     private const float CellCentre = 0.5f;
 
     private const int MaximumRadius = 16;
 
-    private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
     private readonly BlockEntityIndex entities;
-    private readonly RenderResourceReference puff;
-    private readonly SoundCues sounds;
+    private readonly Cues cues;
     private BlastCharge? pending;
     private long fired;
     private long cleared;
     private long refused;
     private long swept;
-    private long dustRefused;
     private double lastResolveMs;
     private string lastOutcome = "none";
-    private string lastDustFailure = "none";
 
-    internal BlastModule(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, BlockEntityIndex entities, SoundCues sounds)
+    internal BlastModule(TerrainWorld terrain, WorldFrame frame, BlockEntityIndex entities, Cues cues)
     {
-        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
-        ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(terrain);
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(entities);
-        this.engine = engine;
+        this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.terrain = terrain;
         this.frame = frame;
         this.entities = entities;
-        RenderResourceInfo resource = engine.Graphics.OpenResource(new RenderResourceRequest(BlastDust.PuffContentPath));
-        if (resource.Kind != RenderResourceKind.Texture || resource.ByteLength == 0)
-        {
-            throw new InvalidOperationException($"CraftSurvive dust sprite '{BlastDust.PuffContentPath}' must be a non-empty Engine texture.");
-        }
-
-        puff = resource.Handle;
     }
 
     /// <summary>True while a fired charge waits for the next update.</summary>
@@ -81,8 +68,9 @@ internal sealed class BlastModule : IProductModule
             return;
         }
 
-        EmitDust(charge);
-        sounds.RaiseAt(SoundCue.Blast, DustCentre(charge.Centre));
+        // The blast is seen and heard before the edit, so the cloud is still billowing when the
+        // cleared cells disappear and settles after: one event.
+        cues.RaiseAt(Cue.Blast, DustCentre(charge.Centre), BlastDust.ChargeIdentity(charge.Centre));
         long started = Stopwatch.GetTimestamp();
 
         // A cell that turns out to be empty already is delivered, not refused: only a result that
@@ -109,27 +97,9 @@ internal sealed class BlastModule : IProductModule
     }
 
     /// <summary>
-    /// The dust is presentation: a refused emission is counted and reported, and the charge still
-    /// resolves. The charge's cell is global; the emitter's anchor and the debris' collision box
-    /// are positions, so they are placed in the session's local frame.
+    /// Where a charge is seen and heard: the middle of its centre cell. The cell is global; the cue
+    /// is a position, so it is placed in the session's local frame.
     /// </summary>
-    private void EmitDust(BlastCharge charge)
-    {
-        Vector3 centre = DustCentre(charge.Centre);
-        ulong identity = BlastDust.ChargeIdentity(charge.Centre);
-        try
-        {
-            engine.Presentation.EmitParticles(BlastDust.Smoke(centre, puff, identity));
-            engine.Presentation.EmitParticles(BlastDust.Debris(centre, terrain.AtlasSprite, identity));
-        }
-        catch (EngineCallException exception)
-        {
-            dustRefused++;
-            lastDustFailure = exception.Message;
-        }
-    }
-
-    /// <summary>Where a charge's dust is anchored: the middle of its centre cell, in the local frame.</summary>
     internal Vector3 DustCentre(VoxelAddress cell) =>
         frame.ToLocal(cell.X + CellCentre, cell.Y + CellCentre, cell.Z + CellCentre);
 
@@ -159,7 +129,7 @@ internal sealed class BlastModule : IProductModule
         FormattableString.Invariant(
             $"blast fired={fired} pending={Pending} cleared={cleared} refused={refused} swept={swept} ")
         + FormattableString.Invariant(
-            $"dustRefused={dustRefused} lastResolveMs={lastResolveMs:F2} last={lastOutcome} dustFailure={lastDustFailure} ")
-        + (pending is BlastCharge charge ? FormattableString.Invariant($"dustAnchor={DustCentre(charge.Centre)} ") : string.Empty)
+            $"lastResolveMs={lastResolveMs:F2} last={lastOutcome} ")
+        + (pending is BlastCharge charge ? FormattableString.Invariant($"cueAt={DustCentre(charge.Centre)} ") : string.Empty)
         + $"editTiming[{terrain.LastEditTiming}]";
 }

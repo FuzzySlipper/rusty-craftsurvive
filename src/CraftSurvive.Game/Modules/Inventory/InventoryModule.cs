@@ -1,5 +1,5 @@
-using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Discovery;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Survival;
@@ -27,7 +27,7 @@ internal sealed class InventoryModule : IProductModule
     private readonly DiscoveryModule discovery;
     private readonly SurvivalModule survival;
     private readonly ProductUiPublisher ui;
-    private readonly SoundCues sounds;
+    private readonly Cues cues;
     private readonly ulong seed;
     private readonly ProductSaveSlot<CarriedItems> slot;
     private readonly EntityId owner = new(ProductIds.PlayerEntity);
@@ -42,10 +42,10 @@ internal sealed class InventoryModule : IProductModule
     private InventoryUiFacts? published;
 
     internal InventoryModule(IEngineContext engine, ProductStore saves, SaveIdentity identity, PlayerController player,
-        DiscoveryModule discovery, SurvivalModule survival, ProductUiPublisher ui, SoundCues sounds)
+        DiscoveryModule discovery, SurvivalModule survival, ProductUiPublisher ui, Cues cues)
     {
         ArgumentNullException.ThrowIfNull(engine);
-        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
+        this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
         this.survival = survival ?? throw new ArgumentNullException(nameof(survival));
@@ -76,7 +76,7 @@ internal sealed class InventoryModule : IProductModule
             if (ItemCatalog.TryFind(drop.ItemId, out CatalogItem item))
             {
                 Take([new ItemCount(item, drop.Quantity)], $"picked up {drop.Quantity} {item.Id}");
-                sounds.Raise(SoundCue.Pickup);
+                cues.Raise(Cue.Pickup);
             }
         }
 
@@ -85,7 +85,7 @@ internal sealed class InventoryModule : IProductModule
             ItemCount[] cache = SupplyCache.For(seed, site);
             caches++;
             Take(cache, $"found a cache at the {site.Kind}: {Describe(cache)}");
-            sounds.Raise(SoundCue.Discovery);
+            cues.Raise(Cue.Discovery);
         }
 
         if (store.Revision != savedRevision)
