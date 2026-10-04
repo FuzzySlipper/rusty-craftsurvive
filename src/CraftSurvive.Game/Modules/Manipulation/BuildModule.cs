@@ -117,10 +117,11 @@ internal sealed class BuildModule : IProductModule
             return Readout();
         }
 
+        int entitiesBefore = entities.Count;
         TerrainWorldEditResult result = terrain.TryEditCells(cells, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
         {
-            int broken = entities.BreakAll(cells);
+            int broken = entitiesBefore - entities.Count;
             lastOutcome = $"dug {cells.Length} cells{(broken > 0 ? $", breaking {broken} entities" : string.Empty)}";
         }
         else
@@ -139,6 +140,7 @@ internal sealed class BuildModule : IProductModule
             return Readout();
         }
 
+        int entitiesBefore = entities.Count;
         TerrainWorldEditResult result = terrain.TryEditCells(
             lastStamp, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
@@ -146,7 +148,7 @@ internal sealed class BuildModule : IProductModule
             undone++;
 
             // Undoing a stamp opens its cells, so anything standing in them is taken with it.
-            int broken = entities.BreakAll(lastStamp);
+            int broken = entitiesBefore - entities.Count;
             lastOutcome = broken == 0
                 ? $"undid {lastStamp.Length} cells, no entities"
                 : $"undid {lastStamp.Length} cells, broke {broken} entit{(broken == 1 ? "y" : "ies")}";

@@ -14,6 +14,32 @@ internal static class EditChecks
 {
     internal static void Run()
     {
+        // A view brush and a decided volume share this commit boundary. Entity cleanup must
+        // happen only after an accepted edit, and its revision must reach the save owner.
+        {
+            VoxelAddress lamp = new(4, 7, 218), untouched = new(6, 7, 218);
+            BlockEntityIndex index = new();
+            TerrainOverlayState overlay = new(TerrainConstants.DefaultSeed);
+            index.Place(BlockEntityKind.Light, lamp, 1);
+            index.Place(BlockEntityKind.Light, untouched, 1);
+            long before = index.Revision;
+            TerrainEditTransaction.Run(TerrainEditRequest.Clear(lamp, 0), null, overlay,
+                _ => true, index.ApplyTerrainEdits);
+            Check.That(!index.Occupies(lamp) && index.Occupies(untouched), "clearing a lamp through the edit transaction sweeps only its entity");
+            Check.That(index.Revision > before && index.Snapshot().All(record => record.Cell != lamp),
+                "the entity save observes the lamp removal");
+            index.Place(BlockEntityKind.Light, lamp, 1);
+            TerrainEditTransaction.Run(TerrainEditRequest.Set(lamp, (ushort)BlockId.Lamp, 0),
+                _ => true, overlay, _ => throw new Exception("refused edit reached Engine"), index.ApplyTerrainEdits);
+            Check.That(index.Occupies(lamp), "a refused edit cannot sweep a lamp");
+            TerrainEditTransaction.Run(TerrainEditRequest.Set(lamp, (ushort)BlockId.Lamp, 0),
+                null, overlay, _ => false, index.ApplyTerrainEdits);
+            Check.That(index.Occupies(lamp), "accepted solid cells retain their entities");
+            TerrainEditTransaction.Run(TerrainEditRequest.Clear(lamp, 0), null, overlay,
+                _ => false, index.ApplyTerrainEdits);
+            Check.That(!index.Occupies(lamp), "an accepted already-empty cell also removes a stale entity");
+        }
+
         // A decided cell set is applied exactly as given - that is the whole point of it - and it is
         // bounded, because the bound is the manipulation slice's promise about update latency.
         {

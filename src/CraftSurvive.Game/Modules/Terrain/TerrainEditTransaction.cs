@@ -22,7 +22,8 @@ internal static class TerrainEditTransaction
 {
     /// <param name="applyToEngine">Applies the admitted edits as one Engine transaction; returns whether anything changed.</param>
     internal static TerrainEditTransactionOutcome Run(TerrainEditRequest request, Func<VoxelAddress, bool>? playerOverlaps,
-        TerrainOverlayState overlay, Func<TerrainEditAccepted, bool> applyToEngine)
+        TerrainOverlayState overlay, Func<TerrainEditAccepted, bool> applyToEngine,
+        Action<IReadOnlyList<TerrainVoxelEdit>>? committed = null)
     {
         ArgumentNullException.ThrowIfNull(overlay);
         ArgumentNullException.ThrowIfNull(applyToEngine);
@@ -33,8 +34,12 @@ internal static class TerrainEditTransaction
         }
 
         TerrainEditAccepted accepted = (TerrainEditAccepted)admission;
-        return applyToEngine(accepted)
+        TerrainEditTransactionOutcome outcome = applyToEngine(accepted)
             ? new TerrainEditRecorded(overlay.Apply(accepted))
             : new TerrainEditUnchanged();
+        // NoChanges is still an accepted final cell state. Reconcile dependent product state
+        // only after Engine admission and overlay recording, never for a refused/failed edit.
+        committed?.Invoke(accepted.Edits);
+        return outcome;
     }
 }

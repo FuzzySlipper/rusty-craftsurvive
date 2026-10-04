@@ -75,6 +75,7 @@ internal sealed class BlastModule : IProductModule
 
         // A cell that turns out to be empty already is delivered, not refused: only a result that
         // says the route would not take the edit at all abandons the charge.
+        int entitiesBefore = entities.Count;
         TerrainWorldEditResult result = charge.Cleared.Count == 0
             ? TerrainWorldEditResult.CastMiss
             : terrain.TryEditCells(charge.Cleared, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
@@ -92,7 +93,7 @@ internal sealed class BlastModule : IProductModule
         }
 
         cleared += charge.Cleared.Count;
-        swept += entities.Sweep(charge.Cleared);
+        swept += entitiesBefore - entities.Count;
         lastOutcome = $"cleared {charge.Cleared.Count} of {charge.Admission.Cells} cells";
     }
 

@@ -72,7 +72,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The player-facing UI's action claims, turned into blast and build requests.</summary>
     private PlayerActionModule actions = null!;
 
-    /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
+    /// <summary>One owner for block entities: placed by building, swept by every clearing edit.</summary>
     private BlockEntityIndex entities = new();
 
     /// <summary>
@@ -102,6 +102,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private void CreateWorld()
     {
         terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
+        terrain.Edited += entities.ApplyTerrainEdits;
         player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
         sky = new DayNightSky(context.Engine);
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);

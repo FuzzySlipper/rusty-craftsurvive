@@ -63,8 +63,12 @@ internal sealed class TerrainWorld : IDisposable
         overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
         presentation = new TerrainPresentation(engine, content);
-        edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish);
+        edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
+            committed => Edited?.Invoke(committed));
     }
+
+    /// <summary>Accepted final cell states, after the Engine and overlay agree on the edit.</summary>
+    internal event Action<IReadOnlyList<TerrainVoxelEdit>>? Edited;
 
     /// <summary>The generation recipe, for the modules that reason about the generated world.</summary>
     internal TerrainRecipe Recipe => recipe;

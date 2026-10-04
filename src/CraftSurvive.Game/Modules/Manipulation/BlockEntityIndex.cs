@@ -107,6 +107,10 @@ internal sealed class BlockEntityIndex
     /// <summary>Blast: the entities inside a charge's decided volume are destroyed with it.</summary>
     internal int Sweep(IEnumerable<VoxelAddress> clearedCells) => BreakAll(clearedCells);
 
+    /// <summary>Every edit route removes entities from the cells it leaves empty.</summary>
+    internal void ApplyTerrainEdits(IReadOnlyList<TerrainVoxelEdit> edits) =>
+        Sweep(edits.Where(edit => edit.Material == TerrainConstants.EmptyMaterial).Select(edit => edit.Address));
+
     /// <summary>Changes the one bit of product meaning an entity carries, without moving it.</summary>
     internal bool SetState(VoxelAddress cell, ushort state)
     {
