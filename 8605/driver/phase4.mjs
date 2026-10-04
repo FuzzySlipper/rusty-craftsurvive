@@ -1,0 +1,22 @@
+// Phase 4: a torch placed from the hotbar, the fight's meat made into a ration, a meal, the journal.
+import { press, click, frame, capture, read, observe, log, sleep, lookTo, lock, KEY, DIGIT } from './lane.mjs';
+log('phase 4: torch, craft from the fight, eat, journal');
+await lock();
+const o = await observe();
+await lookTo(o.yawDegrees + 40, -40); frame();
+log(`lights before: ${(await read('craft.build.entities')).match(/entities=\d+/)?.[0]}`);
+press([DIGIT(1)]); await sleep(300); press([KEY.R]); await sleep(800); frame();
+log(`lights after: ${(await read('craft.build.entities')).match(/entities=\d+/)?.[0]}`);
+capture('torch-placed');
+press([KEY.I]); await sleep(700);
+click('button[data-recipe="ration"]'); await sleep(800); frame();
+log(`after crafting from the fight: ${(await read('craft.inventory.readout')).slice(0, 130)}`);
+capture('pack-ration-from-meat');
+press([KEY.ESC]); await sleep(300);
+await lock();
+press([DIGIT(6)]); await sleep(300); press([KEY.R]); await sleep(700); frame();
+log(`after eating: ${(await read('craft.survival.readout')).match(/satiety=\S+/)?.[0]}`);
+press([KEY.M]); await sleep(800);
+capture('journal-end');
+press([KEY.ESC]); await sleep(300); await lock(); frame();
+capture('end');

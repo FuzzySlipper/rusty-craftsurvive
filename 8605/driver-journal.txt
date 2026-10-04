@@ -1,0 +1,64 @@
+2026-10-04T02:05:10.258Z phase 0: focus and eat
+2026-10-04T02:05:12.363Z after stick: {"feet":{"x":4.5190973,"y":8.015,"z":221.92091},"yawDegrees":-0.000013660378340025502,"pitchDegrees":-35.00000325069345,"grounded":true,"crouched":false,"health
+2026-10-04T02:05:15.370Z capture start: /home/agent/.local/state/crew-playtest-local/browser/ccc7e6fa-5102-4eac-ab80-6dc065e954fb/82483737-ac97-4da7-8f3b-a858d3e79c5b.png
+2026-10-04T02:05:15.375Z start: survival satiety=0.0 breath=20.0 calm=8.8s regained=0 lost=9 lastHarm=Starving difficulty=Normal health=11/30 submerged=False restore=restored saves=29 failure=none
+2026-10-04T02:05:27.584Z after R: survival satiety=39.7 breath=20.0 calm=10.9s regained=0 lost=10 lastHarm=Starving difficulty=Normal health=10/30 submerged=False restore=restored saves=31 failure=none
+2026-10-04T02:05:30.826Z capture ate-from-hotbar: /home/agent/.local/state/crew-playtest-local/browser/ccc7e6fa-5102-4eac-ab80-6dc065e954fb/34ad0d16-1e2c-48c9-b9a9-399291d58974.png
+2026-10-04T02:06:39.957Z phase 1: pack, bandage, journal
+2026-10-04T02:06:51.942Z capture pack-open: /home/agent/.local/state/crew-playtest-local/browser/ccc7e6fa-5102-4eac-ab80-6dc065e954fb/3468c4ac-c1f2-449f-a590-e459965008ab.png
+2026-10-04T02:06:56.991Z after craft: inventory carrying=[hide 2, claw 1, cloth 30, oil 31, ration 45, bandage 3, torch 2] carry=114/120 crafted=1 refused=0 leftBehind=0 caches=0
+2026-10-04T02:06:57.231Z capture pack-crafted-torches: /home/agent/.local/state/crew-playtest-local/browser/ccc7e6fa-5102-4eac-ab80-6dc065e954fb/249c4603-1274-4bf0-8ea5-e1dc8f9721a5.png
+2026-10-04T02:07:06.065Z after bandage: health=18/30
+2026-10-04T02:07:09.068Z capture journal: /home/agent/.local/state/crew-playtest-local/browser/ccc7e6fa-5102-4eac-ab80-6dc065e954fb/5c51651c-c2fc-492d-89c7-997296c5eaaa.png
+2026-10-04T02:07:28.092Z phase 2: fight
+2026-10-04T02:07:28.218Z target {"id":"1","kind":"hostile-walker","x":60.5,"z":221.5,"awake":"False","state":"Idle","hp":24}
+2026-10-04T02:07:44.327Z phase 2: fight
+2026-10-04T02:07:44.454Z target {"id":"1","kind":"hostile-walker","x":60.5,"z":221.5,"awake":"False","state":"Idle","hp":24}
+2026-10-04T02:07:58.321Z phase 2: fight
+2026-10-04T02:08:09.271Z phase 2: fight
+2026-10-04T02:08:09.918Z target {"id":"1","kind":"hostile-walker","x":60.5,"z":221.5,"awake":"False","state":"Idle","hp":24}
+2026-10-04T02:08:14.915Z round 0: d=56.0 creature Pursuing hp=24 player=18
+2026-10-04T02:08:21.621Z creature 1 is gone: defeated
+2026-10-04T02:08:23.613Z capture after-fight: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/18942468-af46-4b4d-b468-c728a99516d7.png
+2026-10-04T02:08:23.618Z creatures: defeated=1 items=12 experience=360 level=3 player=4/30 defeats=6
+2026-10-04T02:08:23.618Z inventory before: inventory carrying=[hide 2, claw 1, cloth 30, oil 31, ration 45, bandage 2, torch 2] carry=113/120 crafted=1 refused=0 l
+2026-10-04T02:08:23.622Z inventory after:  inventory carrying=[meat 2, hide 2, claw 2, cloth 30, oil 31, ration 45, bandage 2, torch 2] carry=116/120 crafted=1 ref
+2026-10-04T02:08:41.272Z phase 3: dungeon
+2026-10-04T02:08:43.300Z healed: 12
+2026-10-04T02:09:01.030Z phase 3: dungeon
+2026-10-04T02:09:01.543Z healed: 12
+2026-10-04T02:09:02.417Z walk to entrance: {"arrived":true,"distance":1.148354749980501} dungeon: dungeon approach=Modules surface=Cubes state=Outside candidate=0 routes=[] candidatesRefused=0 nearbyEntrance=5,240 entered=0 refused=0 last=none
+2026-10-04T02:09:02.868Z capture at-entrance: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/cb9f2aff-ba7e-41f4-bc77-ee845f660ecf.png
+2026-10-04T02:09:10.135Z phase 3: dungeon
+2026-10-04T02:09:10.803Z healed: 12
+2026-10-04T02:09:10.829Z walk to entrance: {"arrived":true,"distance":1.148354749980501} dungeon: dungeon approach=Modules surface=Cubes state=Outside candidate=0 routes=[] candidatesRefused=0 nearbyEntrance=5,240 entered=0 refused=0 last=none
+2026-10-04T02:09:11.244Z capture at-entrance: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/8559887d-6a01-4649-9201-0eddfcad0f94.png
+2026-10-04T02:09:27.570Z phase 3: dungeon
+2026-10-04T02:09:28.106Z healed: 12
+2026-10-04T02:09:28.139Z walk to entrance: {"arrived":true,"distance":1.148354749980501} dungeon: dungeon approach=Modules surface=Cubes state=Outside candidate=0 routes=[] candidatesRefused=0 nearbyEntrance=5,240 entered=0 refused=0 last=none
+2026-10-04T02:09:28.452Z capture at-entrance: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/a1afaad0-1ca9-4afa-bde9-070b139a0212.png
+2026-10-04T02:10:29.440Z phase 3: dungeon
+2026-10-04T02:10:30.106Z healed: 12
+2026-10-04T02:10:30.137Z walk to entrance: {"arrived":true,"distance":1.148354749980501} dungeon: dungeon approach=Modules surface=Cubes state=Outside candidate=0 routes=[] candidatesRefused=0 nearbyEntrance=5,240 entered=0 refused=0 last=none
+2026-10-04T02:10:30.992Z capture at-entrance: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/83d0ed32-b15d-4008-a445-e95c224600ad.png
+2026-10-04T02:10:35.294Z capture loading: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/63652528-0ff8-4725-862e-1eaf9bca825c.png
+2026-10-04T02:10:35.317Z inside: dungeon approach=Modules surface=Cubes state=Inside candidate=0 progress=1.00 chunks=180 loadMs=414.9 plan=[MostlyBuilding floors=5 attempt=0 arrival=DungeonCell { X = 68, Y = 38, Z = 52 } breach=Dung
+2026-10-04T02:10:36.943Z capture inside-dungeon: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/492bff53-c1ef-498e-ba00-1235f634b82b.png
+2026-10-04T02:10:39.480Z capture inside-dungeon-walked: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/5825c8f2-e497-4f97-87e9-0d88642e8d2e.png
+2026-10-04T02:11:07.596Z phase 3b: leave the dungeon
+2026-10-04T02:11:08.763Z walk back: {"arrived":true,"distance":0.575720000000004}
+2026-10-04T02:11:28.332Z phase 3b: leave the dungeon
+2026-10-04T02:11:28.908Z walk back: {"arrived":true,"distance":0.575720000000004}
+2026-10-04T02:11:37.584Z outside: dungeon approach=Modules surface=Cubes state=Outside candidate=0 routes=[navigation player(r=0.3 h=1.75 slope=50 step=1.
+2026-10-04T02:11:37.827Z capture back-outside: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/75eb8ac2-58d2-4526-8a28-041172709fa5.png
+2026-10-04T02:12:38.077Z phase 4: torch, craft from the fight, eat, journal
+2026-10-04T02:12:39.001Z lights before: entities=9
+2026-10-04T02:12:40.643Z lights after: entities=9
+2026-10-04T02:12:40.918Z capture torch-placed: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/f2529068-c1de-43d4-a23f-9c5a958702f3.png
+2026-10-04T02:12:42.836Z after crafting from the fight: inventory carrying=[hide 2, claw 2, cloth 30, oil 31, ration 46, bandage 1, torch 2] carry=114/120 crafted=2 refused=0 leftBehind=
+2026-10-04T02:12:43.080Z capture pack-ration-from-meat: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/42721bdf-f9d3-4200-8980-deb162188590.png
+2026-10-04T02:12:45.389Z after eating: satiety=54.8
+2026-10-04T02:12:46.548Z capture journal-end: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/6468edd4-c05a-49f4-a6e0-4dfec48b724a.png
+2026-10-04T02:12:48.007Z capture end: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/c963b834-9cee-4134-8675-6e1819ef0576.png
+2026-10-04T02:13:09.482Z torch: lights entities=10, torch 1
+2026-10-04T02:13:10.071Z capture torch-placed: /home/agent/.local/state/crew-playtest-local/browser/9df71974-26ce-4419-a7df-cceecc9eb086/b12ed244-0e24-4ade-9a53-84193fab3b86.png
