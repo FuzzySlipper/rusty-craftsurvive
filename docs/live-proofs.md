@@ -69,6 +69,24 @@ Runs any debug command, including the Engine's playtest commands the product reg
 `playtest.observe` (the player's feet, look, vitals and received key events, as JSON),
 `playtest.action <id>` (which physical control an action is) and `playtest.look <yaw> <pitch>`.
 
+**The `craft.*` commands are developer tooling, never part of play.** Everything in the core
+loop has a player path: moving, climbing and swimming on keys; fighting on the attack key;
+crafting, eating, resting, building, blasting, choosing a difficulty and going in and out of
+dungeons from the HUD's actions. A command that does one of these (`craft.player.attack`,
+`craft.inventory.craft`/`use`, `craft.dungeon.enter`/`leave`, `craft.build.*`,
+`craft.blast.fire`, `craft.world.difficulty`) is a scripted stand-in for that path. The rest
+are for the lane:
+- reading an owner's state (each family's `readout`, `craft.terrain.*`, `craft.runtime`,
+  `craft.save.manifest`, `craft.discovery.near`/`find`/`crossings`, `craft.feedback.readout`);
+- setting up a live check (`craft.player.teleport`/`strike`, `craft.survival.set`,
+  `craft.world.hour`, `craft.inventory.grant`, `craft.creatures.restart`,
+  `craft.dungeon.visit`, `craft.feedback.cue`, `craft.build.dig`);
+- comparing generators and measuring costs (`craft.dungeon.approach`/`surface`/`seed`/
+  `validate`/`blast`, `craft.creatures.navigation`, `craft.terrain.timing`).
+
+A command earns its place by serving one of these; one whose experiment has ended is retired
+with it.
+
 **How input reaches the product.** `walk` does not use a page. It claims input through the
 host's harness lane (`control/claim`, `runtime/input`, `control/release`), which delivers key facts to
 the product's ordinary mappings exactly as a page would; an attached page shows the input as held

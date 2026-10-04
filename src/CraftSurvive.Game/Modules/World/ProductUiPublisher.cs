@@ -86,6 +86,13 @@ internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int Overla
 /// </summary>
 internal sealed class ProductUiPublisher : IDisposable
 {
+    /// <summary>
+    /// The product's one UI stream and its contract, which the project file and the UI
+    /// (<c>src/ui/hud.ts</c>) name too.
+    /// </summary>
+    internal const string StreamName = "craftsurvive.game";
+    internal const string StreamContract = "craftsurvive.game.v1";
+
     private readonly IEngineContext engine;
     private UiStream? stream;
     private Func<WorldUiFacts>? world;

@@ -2,8 +2,8 @@ import type { RuntimeUiProjectionEnvelope, RustyApplicationUiProjectionView } fr
 import { element } from './dom.js';
 
 /** The projection the product publishes; see ProductUiProjection in C#. */
-export const PROJECTION_STREAM = 'craftsurvive.terrain';
-export const PROJECTION_CONTRACT = 'craftsurvive.terrain.v1';
+export const PROJECTION_STREAM = 'craftsurvive.game';
+export const PROJECTION_CONTRACT = 'craftsurvive.game.v1';
 
 export type Values = Readonly<Record<string, unknown>>;
 

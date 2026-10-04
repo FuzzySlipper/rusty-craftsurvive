@@ -35,12 +35,6 @@ public sealed class CraftDebugModule : IDebugCommandModule
             ? FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}")
             : FormattableString.Invariant($"refused: a standing body fits neither at {x:F3},{y:F3},{z:F3} nor on the ground below it");
 
-    [DebugCommand("craft.player.camera", Description = "Selects latest, position, or pose camera presentation and delay in seconds.")]
-    public string SetCameraPresentation(string mode, double delaySeconds) =>
-        Enum.TryParse(mode, ignoreCase: true, out CameraInterpolation selected) && Enum.IsDefined(selected)
-            ? player.SetCameraPresentation(selected, delaySeconds)
-            : $"camera mode must be one of {string.Join(", ", Enum.GetNames<CameraInterpolation>())}";
-
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();
 
@@ -69,9 +63,6 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]
     public string ReadGeneration() => terrain.GenerationReadout();
 
-    [DebugCommand("craft.terrain.layout", Description = "Reads the selected product terrain layout and its stable dimensions.")]
-    public string ReadTerrainLayout() => terrain.ReadLayout();
-
     [DebugCommand("craft.terrain.edit", Description = "Reads the latest terrain target and typed edit outcome.")]
     public string ReadTerrainEdit() => player.TerrainEditReadout();
 
@@ -80,35 +71,6 @@ public sealed class CraftDebugModule : IDebugCommandModule
     {
         terrain.EditTimingEnabled = enabled != 0;
         return $"editTiming={(terrain.EditTimingEnabled ? "on" : "off")}";
-    }
-
-    [DebugCommand("craft.terrain.materials", Description = "Reads the copied Engine directional terrain material mapping.")]
-    public string ReadTerrainMaterials()
-    {
-        VoxelSceneMaterialMappingResult mapping = terrain.ReadMaterialMapping();
-        uint grassRows = 0;
-        uint dirtRows = 0;
-        uint stoneRows = 0;
-        bool grassTopOverride = false;
-        foreach (VoxelSceneMaterialMappingRow row in mapping.Mappings.Span)
-        {
-            switch (row.SourceSlot)
-            {
-                case TerrainConstants.GrassMaterial:
-                    grassRows++;
-                    grassTopOverride |= row.Face == SpatialFace.PosY && row.Overridden;
-                    break;
-                case TerrainConstants.DirtMaterial:
-                    dirtRows++;
-                    break;
-                case TerrainConstants.StoneMaterial:
-                    stoneRows++;
-                    break;
-            }
-        }
-
-        return string.Create(CultureInfo.InvariantCulture,
-            $"rows={mapping.Mappings.Length};source1={grassRows};source2={dirtRows};source3={stoneRows};grassTop+Y={grassTopOverride};sourceRevision={mapping.SourceRevision};meshRevision={mapping.MeshRevision}");
     }
 
     [DebugCommand("craft.runtime", Description = "Reads the latest committed Rust host lifecycle and binding facts.")]

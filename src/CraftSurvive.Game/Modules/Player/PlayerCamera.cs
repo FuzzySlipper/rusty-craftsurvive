@@ -11,8 +11,9 @@ namespace CraftSurvive.Game.Modules.Player;
 internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
 {
     private Camera? camera;
-    private CameraInterpolation interpolation = CameraInterpolation.Position;
-    private double delaySeconds = PlayerConstants.CameraPresentationDelaySeconds;
+    /// <summary>The Engine interpolates the eye's position between samples, a short delay behind the latest.</summary>
+    private const CameraInterpolation Interpolation = CameraInterpolation.Position;
+    private const double DelaySeconds = PlayerConstants.CameraPresentationDelaySeconds;
     private bool cut = true;
     private ulong publications;
     private ulong publishedUpdate;
@@ -32,26 +33,14 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
     {
         Camera active = camera ?? throw new InvalidOperationException("CraftSurvive camera is unavailable.");
         engine.CameraView.UpdateCameraSample(new CameraSampleRequest(active, Descriptor(eye, look),
-            sampleTimeSeconds, delaySeconds, interpolation, cut ? (byte)1 : (byte)0));
+            sampleTimeSeconds, DelaySeconds, Interpolation, cut ? (byte)1 : (byte)0));
         cut = false;
         publications = checked(publications + 1UL);
         publishedUpdate = update;
     }
 
-    internal void SetPresentation(CameraInterpolation mode, double delay)
-    {
-        if (!double.IsFinite(delay) || delay <= 0d)
-        {
-            throw new ArgumentOutOfRangeException(nameof(delay), "Delay must be finite and positive.");
-        }
-
-        interpolation = mode;
-        delaySeconds = delay;
-        cut = true;
-    }
-
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"cameraPresentation={interpolation};cameraDelaySeconds={delaySeconds};cameraPublications={publications};cameraPublishedUpdate={publishedUpdate}");
+        $"cameraPresentation={Interpolation};cameraDelaySeconds={DelaySeconds};cameraPublications={publications};cameraPublishedUpdate={publishedUpdate}");
 
     public void Dispose()
     {

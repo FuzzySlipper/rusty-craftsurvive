@@ -383,13 +383,6 @@ internal sealed class PlayerController : IDisposable
         return TerrainWorldEditResult.Format(lastTerrainEdit);
     }
 
-    internal string SetCameraPresentation(CameraInterpolation mode, double delaySeconds)
-    {
-        camera.SetPresentation(mode, delaySeconds);
-        camera.Publish(EyePosition(), look, cameraSampleTimeSeconds, updateCount);
-        return FormattableString.Invariant($"cameraPresentation={mode};delaySeconds={delaySeconds}");
-    }
-
     /// <summary>
     /// Moves the live player through the ordinary product state and Engine publication lane. The
     /// player goes where asked if a standing body fits there, else onto the ground of that column

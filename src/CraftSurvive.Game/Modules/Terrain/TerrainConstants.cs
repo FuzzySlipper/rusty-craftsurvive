@@ -45,8 +45,6 @@ internal static class TerrainConstants
 
     internal const double VoxelSize = 1d;
     internal const uint VoxelChunkSize = ChunkEdgeLength;
-    internal const string UiStreamName = "craftsurvive.terrain";
-    internal const string UiStreamContract = "craftsurvive.terrain.v1";
     internal const uint CollisionGroupAll = uint.MaxValue;
     internal const uint CollisionMaskAll = uint.MaxValue;
     internal const double EditReach = 8d;

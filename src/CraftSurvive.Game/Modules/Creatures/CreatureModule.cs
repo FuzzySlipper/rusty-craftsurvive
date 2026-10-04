@@ -297,36 +297,12 @@ internal sealed class CreatureModule : IProductModule
             + $"attack={lastPlayerAttack} perception={perceptionStatus} failure={lastFailure}; last={lastEvent}; {rows}";
     }
 
-    /// <summary>
-    /// Evaluates one navigation step from the first creature toward the player. The probe exists
-    /// only for the request: nothing on the update path publishes or evaluates navigation.
-    /// </summary>
     /// <summary>Publishes navigation around the player now and reports the publication.</summary>
     internal string PublishNavigation()
     {
         try
         {
             return navigation.Publish(player.WorldFeetPosition);
-        }
-        catch (EngineCallException exception)
-        {
-            return $"navigation refused: {exception.Message}";
-        }
-    }
-
-    internal string ProbeNavigation()
-    {
-        if (roster.Count == 0)
-        {
-            return "no creatures";
-        }
-
-        try
-        {
-            navigation.Publish(player.WorldFeetPosition);
-            return string.Join(" | ", roster.All.Select(creature => creature.Awake
-                ? $"creature {creature.Id}: {navigation.Probe(Feet(creature.Position), player.WorldFeetPosition)}"
-                : $"creature {creature.Id}: dormant over ground that is not resident"));
         }
         catch (EngineCallException exception)
         {

@@ -181,17 +181,4 @@ internal sealed class CreatureNavigation
         EnsurePublished(playerFeetWorld, force: true);
         return Readout();
     }
-
-    /// <summary>A full route query from one creature over what is published, for the route debug command.</summary>
-    internal string Probe(Vector3 creatureFeetWorld, Vector3 playerFeetWorld)
-    {
-        EnsurePublished(playerFeetWorld);
-        NavigationStepResult step = Step(creatureFeetWorld, playerFeetWorld);
-        Vector3 waypoint = frame.ToWorld(step.NextWaypoint);
-        return string.Create(CultureInfo.InvariantCulture,
-            $"walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} revision={lastPublished.NavigationRevision} outcome={step.Outcome} "
-            + $"path={step.Path.Length} visited={step.Visited} next={waypoint.X:F1},{waypoint.Y:F1},{waypoint.Z:F1} "
-            + $"from={creatureFeetWorld.X:F1},{creatureFeetWorld.Y:F1},{creatureFeetWorld.Z:F1} "
-            + $"to={playerFeetWorld.X:F1},{playerFeetWorld.Y:F1},{playerFeetWorld.Z:F1}");
-    }
 }

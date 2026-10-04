@@ -5,14 +5,13 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
 /// How the voxel world is drawn: the block atlas's materials bound to the Engine's directional
-/// voxel projection, and the copy of the material mapping the Engine reports back.
+/// voxel projection.
 /// </summary>
 internal sealed class TerrainPresentation : IDisposable
 {
     private readonly IEngineContext engine;
     private TerrainAtlasCatalog? atlas;
     private VoxelScenePresentation? projection;
-    private VoxelSceneMaterialMappingResult mapping;
 
     /// <summary>Authored content is admitted at product create, so every later projection can bind it.</summary>
     internal TerrainPresentation(IEngineContext engine, ProductContent content)
@@ -20,8 +19,6 @@ internal sealed class TerrainPresentation : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         atlas = new TerrainAtlasCatalog(engine, content);
     }
-
-    internal VoxelSceneMaterialMappingResult Mapping => mapping;
 
     /// <summary>
     /// The atlas image every material in this world is built from, for anything that needs to draw
@@ -35,7 +32,6 @@ internal sealed class TerrainPresentation : IDisposable
             session,
             MaterialBindings(),
             FaceMaterialBindings()));
-        CaptureMapping();
     }
 
     /// <summary>
@@ -52,9 +48,7 @@ internal sealed class TerrainPresentation : IDisposable
     internal VoxelScenePresentationReadout Refresh()
     {
         VoxelScenePresentation current = projection ?? throw new InvalidOperationException("Terrain presentation is unavailable.");
-        VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.RefreshScene(current);
-        CaptureMapping();
-        return readout;
+        return engine.VoxelScenePresentation.RefreshScene(current);
     }
 
     internal bool Projected => projection is not null;
@@ -65,7 +59,6 @@ internal sealed class TerrainPresentation : IDisposable
         projection = null;
         atlas?.Dispose();
         atlas = null;
-        mapping = default;
     }
 
     private TerrainAtlasCatalog Atlas => atlas ?? throw new InvalidOperationException("Terrain atlas catalog is unavailable.");
@@ -82,12 +75,4 @@ internal sealed class TerrainPresentation : IDisposable
             .Where(block => Atlas.TopMaterial(block.Id) is not null)
             .Select(block => new VoxelSceneFaceMaterialBinding(block.Slot, SpatialFace.PosY, Atlas.TopMaterial(block.Id)!))
             .ToArray();
-
-    private void CaptureMapping()
-    {
-        if (projection is not null)
-        {
-            mapping = engine.VoxelScenePresentation.ReadMaterialMapping(projection);
-        }
-    }
 }

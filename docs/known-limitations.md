@@ -205,9 +205,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   or under water), the product's prompt for where the player stands, short notices when something
   is found or done, and a red flash when health is lost (`hitsTaken` rising). Everything else -
   the published facts, the actions that claim the `craftsurvive.ui` intent, the controls - is the
-  Journal drawer, closed by default. It holds no game state, only what it last drew. The projection
-  keeps the stream name `craftsurvive.terrain` and contract `craftsurvive.terrain.v1`; kind and
-  stage enums travel as numbers and may be appended to but never renumbered.
+  Journal drawer, closed by default. It holds no game state, only what it last drew. The
+  projection is the product's one UI channel, stream `craftsurvive.game` and contract
+  `craftsurvive.game.v1` (`ProductUiPublisher.StreamName`); kind and stage enums travel as
+  numbers and may be appended to but never renumbered.
 - Developer tools in the panel (renderer metrics, the live-debug panel) work only on a host
   started with `--live-debug`.
 

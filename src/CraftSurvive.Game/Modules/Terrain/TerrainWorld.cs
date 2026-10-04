@@ -108,7 +108,7 @@ internal sealed class TerrainWorld : IDisposable
                 session,
                 BlockRegistry.MaterialBlocks.Select(block =>
                     new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
-            ui.Open(TerrainConstants.UiStreamName, TerrainConstants.UiStreamContract, WorldFacts);
+            ui.Open(ProductUiPublisher.StreamName, ProductUiPublisher.StreamContract, WorldFacts);
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
@@ -246,17 +246,6 @@ internal sealed class TerrainWorld : IDisposable
         EnsureStarted();
         return engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
     }
-
-    /// <summary>Returns the copied Engine-owned directional material mapping.</summary>
-    internal VoxelSceneMaterialMappingResult ReadMaterialMapping()
-    {
-        EnsureStarted();
-        return presentation.Mapping;
-    }
-
-    /// <summary>The world's identity and the state of the player's edits.</summary>
-    internal string ReadLayout() => string.Create(CultureInfo.InvariantCulture,
-        $"seed={recipe.Contract.Seed:x16};extent={recipe.Contract.Extent};version={recipe.Contract.Version};overlay={overlayStore.Overlay.Count} entries, {overlayStore.RestoreOutcome};overlaySaves={overlayStore.Saves};overlaySaveFailure={overlayStore.LastFailure}");
 
     /// <summary>Moves what the world holds in local space after the player commits a rebase.</summary>
     private void OnRebased(Vector3 translation)

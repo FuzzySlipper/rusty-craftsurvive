@@ -24,7 +24,4 @@ public sealed class CreatureDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.creatures.navigation", Description = "Publishes navigation around the player now and reports the columns it re-derived and reused, and its cost.")]
     public string Navigation() => creatures.PublishNavigation();
-
-    [DebugCommand("craft.creatures.route", Description = "Publishes navigation around the player and evaluates one step from the first creature toward them.")]
-    public string Route() => creatures.ProbeNavigation();
 }
