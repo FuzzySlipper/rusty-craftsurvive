@@ -76,10 +76,11 @@ internal sealed class DungeonModule : IProductModule
     private Material? rockMaterial;
 
     /// <summary>
-    /// How the next dungeon's voxels are surfaced. Cubes by default; the other looks load the
-    /// dungeon as voxels throughout, its sculpted rock as voxel densities the Engine reconstructs.
+    /// How the next dungeon's voxels are surfaced. Faceted by default: worn rock reconstructed with
+    /// flat faces, the building kept on the grid. The other looks are for comparing; every look but
+    /// cubes loads the sculpted rock as voxel densities the Engine reconstructs.
     /// </summary>
-    private DungeonSurface surface = DungeonSurface.Cubes;
+    private DungeonSurface surface = DungeonSurface.Faceted;
 
     /// <summary>A seed the next dungeon entered uses in place of its entrance's own, or null: for looking at a chosen dungeon.</summary>
     private ulong? seedOverride;

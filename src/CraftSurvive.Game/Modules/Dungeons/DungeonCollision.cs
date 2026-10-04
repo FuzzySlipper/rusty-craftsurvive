@@ -59,9 +59,7 @@ internal static class DungeonCollision
             engine.Voxel.ConfigureMaterialSurfaces(new VoxelMaterialSurfaceRequest(session, mode, materials));
         }
 
-        engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(
-            session,
-            BlockRegistry.MaterialBlocks.Select(block => new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
+        VoxelMaterialRules.Apply(engine, session);
         return session;
     }
 

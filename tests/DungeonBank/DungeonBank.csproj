@@ -22,6 +22,7 @@
     <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/VerticalSampler.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Terrain/VoxelMaterialRules.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Dungeons/DungeonRoutes.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCandidates.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonSurfaces.cs" LinkBase="Product/Dungeons" />

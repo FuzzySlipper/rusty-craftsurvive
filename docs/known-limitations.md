@@ -58,11 +58,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   open ground beside it, and the sun and moon do not move across the panoramas.
 - **Under water the view closes into murk.** While the player's eyes are under water,
   `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same
-  colour (exponential squared), in the open and underground alike. The Engine's voxel mesher does
-  not yet honour a material's non-occluding declaration (rusty-engine #9310), so water hides the
-  faces of the bed and banks it touches: under water nothing below the waterline draws, and from
-  above the bed is not seen through the surface. Glass and leaves hide their neighbours' faces the
-  same way.
+  colour (exponential squared), in the open and underground alike. Water, glass and leaves are
+  declared non-occluding to every voxel session (`VoxelMaterialRules`), so the bed and banks under
+  a river draw from above and below and the surface is seen from beneath.
 
 ## Creatures and navigation
 
@@ -138,7 +136,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
   later one, mostly a step up under a cave chamber's curving ceiling or a smoothed riser a little
   over the player's step height, and each refused candidate adds about a second of loading.
-  `craft.dungeon.surface dc|faceted|ruined|mc` loads the next dungeon as voxels
+  Dungeons load faceted by default; `craft.dungeon.surface cubes|dc|faceted|ruined|mc` chooses the
+  next one's look. Every look but cubes loads the dungeon as voxels
   throughout (`DungeonSurfaces`): its sculpted rock becomes voxel densities the Engine reconstructs
   (dual contoured, smooth or flat-faceted, or marched), building blocks keep the grid (Blocky dual
   contouring, or cubes beside marched rock), all textured with the world's block materials, and
@@ -255,10 +254,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   and keeps the wind, night, cave and water beds looping, faded to the player's surroundings
   (`SoundCatalog.Level`). Only a blast is heard from where it happened; every other cue plays at
   the listener. The player's body cues come from `PlayerFootfalls`.
-- **Sound plays where the runtime runs.** The Engine plays audio on the runtime process's own
-  output device, not in the browser page: a LAN viewer of a streamed host hears nothing, and a
-  host with no device runs silent. Hearing the game needs it run on the listener's machine until
-  the Engine can play a stream's audio in the viewing page (rusty-engine #9315).
+- **Sound plays in the page that watches.** With streamed frames the Engine mixes on the host and
+  every watching page plays the mix once it has had a click or a key press (a browser plays sound
+  only after a gesture); a native window plays on the runtime's own device.
 - There are no volume settings in the UI, and creatures make no sound of their own beyond their
   swings.
 
@@ -268,6 +266,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   updating with a matching generator fingerprint, and walks the player on input.
 - A product fault, or an exception from product `Dispose`, prints one line to the host's stderr;
   the full record is in a `--diagnostics-log` file, and `craft.runtime` reports `state=Faulted`.
+- **The world runs while nobody watches.** The clock, hunger and creatures advance on Engine step
+  time whether or not a page is attached, so a host left running starves its player. The product
+  cannot yet tell that no page watches (rusty-engine #9360), so it cannot pause.
 - The generated C# API exposes named Engine service families, not every Rust source-level API. A
   slice that needs an absent mechanism files or links the upstream capability request and stops
   its downstream substitute work.

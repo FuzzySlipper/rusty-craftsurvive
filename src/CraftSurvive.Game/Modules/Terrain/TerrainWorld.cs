@@ -104,10 +104,7 @@ internal sealed class TerrainWorld : IDisposable
                 TerrainConstants.VoxelSize,
                 TerrainConstants.VoxelChunkSize,
                 VoxelSurfaceMode.GreedyCubes));
-            engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(
-                session,
-                BlockRegistry.MaterialBlocks.Select(block =>
-                    new VoxelMaterialCollision((uint)block.Id, block.Collidable)).ToArray()));
+            VoxelMaterialRules.Apply(engine, session);
             ui.Open(ProductUiPublisher.StreamName, ProductUiPublisher.StreamContract, WorldFacts);
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
