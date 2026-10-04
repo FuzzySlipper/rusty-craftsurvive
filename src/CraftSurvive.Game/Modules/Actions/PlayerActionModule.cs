@@ -180,11 +180,11 @@ internal sealed class PlayerActionModule
             return;
         }
 
-        long builtBefore = Built;
         if (action.Kind == PlayerActionKind.Undo)
         {
             build.Undo();
-            Accept($"{name}: {build.LastOutcome}", Built > builtBefore ? Cue.Place : Cue.Refused);
+            if (build.Feedback.Accepted) Accept(build.Feedback.Message, Cue.Place);
+            else Refuse(build.Feedback.Message);
             return;
         }
 
@@ -222,15 +222,15 @@ internal sealed class PlayerActionModule
                 break;
         }
 
-        if (Built > builtBefore)
+        if (build.Feedback.Accepted)
         {
             // Seen where it was built: the middle of the aimed cell, in the session's local frame.
-            Accept($"{name} at {at.X},{at.Y},{at.Z}: {build.LastOutcome}");
+            Accept(build.Feedback.Message);
             cues.RaiseAt(Cue.Place, frame.ToLocal(at.X + CellCentre, at.Y + CellCentre, at.Z + CellCentre));
             return;
         }
 
-        Accept($"{name} at {at.X},{at.Y},{at.Z}: {build.LastOutcome}", Cue.Refused);
+        Refuse(build.Feedback.Message);
     }
 
     /// <summary>A light burns a torch - from the slot asked for, when it holds one - but only once one is actually placed.</summary>
@@ -279,7 +279,7 @@ internal sealed class PlayerActionModule
                     return;
                 }
 
-                Refuse($"use: {build.LastOutcome}");
+                Refuse(build.Feedback.Message);
                 return;
             default:
                 Refuse($"use: {held.Item.Name.ToLowerInvariant()} is for crafting, not using");

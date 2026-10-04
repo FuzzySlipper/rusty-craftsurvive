@@ -52,8 +52,10 @@ internal sealed class BuildModule : IProductModule
 
     public void Dispose() => lastStamp = [];
 
-    /// <summary>What the last request came to, for the player-facing UI.</summary>
+    /// <summary>Detailed diagnostics, retained for craft.build.readout.</summary>
     internal string LastOutcome => lastOutcome;
+
+    internal BuildFeedback Feedback { get; private set; } = BuildFeedback.Refused("Nothing built yet.");
 
     internal long Undone => undone;
 
@@ -114,11 +116,13 @@ internal sealed class BuildModule : IProductModule
         {
             refused++;
             lastOutcome = $"dig refused: {cells.Length} cells is past the {BuildStamp.MaximumStampCells}-cell bound";
+            Feedback = BuildFeedback.Refused("That area is too large.");
             return Readout();
         }
 
         int entitiesBefore = entities.Count;
         TerrainWorldEditResult result = terrain.TryEditCells(cells, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
+        Feedback = BuildFeedback.FromEdit(result, "Cleared the area.");
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
         {
             int broken = entitiesBefore - entities.Count;
@@ -137,12 +141,14 @@ internal sealed class BuildModule : IProductModule
         if (lastStamp.Length == 0)
         {
             lastOutcome = "nothing to undo";
+            Feedback = BuildFeedback.Refused("Nothing to undo.");
             return Readout();
         }
 
         int entitiesBefore = entities.Count;
         TerrainWorldEditResult result = terrain.TryEditCells(
             lastStamp, TerrainEditKind.Clear, TerrainConstants.EmptyMaterial, null);
+        Feedback = BuildFeedback.FromEdit(result, "Removed the last building shape.");
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
         {
             undone++;
@@ -197,6 +203,7 @@ internal sealed class BuildModule : IProductModule
         {
             refused++;
             lastOutcome = $"{name} refused: {cell.X},{cell.Y},{cell.Z} is not replaceable";
+            Feedback = BuildFeedback.Refused("No room: something is already there.");
             return Readout();
         }
 
@@ -204,6 +211,7 @@ internal sealed class BuildModule : IProductModule
         ushort material = kind == BlockEntityKind.Light ? (ushort)BlockId.Lamp : TerrainConstants.StoneMaterial;
         TerrainWorldEditResult result = terrain.TryEditCells(
             [cell], TerrainEditKind.Set, material, occupiedByPlayer);
+        Feedback = BuildFeedback.FromEdit(result, $"Placed the {name}.");
         if (result is not (TerrainWorldEditApplied or TerrainWorldEditNoChanges))
         {
             lastOutcome = $"{name} refused: {TerrainWorldEditResult.Format(result)}";
@@ -220,6 +228,7 @@ internal sealed class BuildModule : IProductModule
         {
             entities.SetState(cell, value);
             lastOutcome = $"{name} at {cell.X},{cell.Y},{cell.Z} id={existing.Id} state={value} (changed)";
+            Feedback = new(true, $"Updated the {name}.");
             return Readout();
         }
 
@@ -235,6 +244,7 @@ internal sealed class BuildModule : IProductModule
         {
             refused++;
             lastOutcome = $"refused: {planned.Cells.Count} cells is past the {BuildStamp.MaximumStampCells}-cell bound";
+            Feedback = BuildFeedback.Refused("That building shape is too large.");
             return Readout();
         }
 
@@ -243,11 +253,13 @@ internal sealed class BuildModule : IProductModule
         {
             refused++;
             lastOutcome = $"{shape} refused: none of its {planned.Cells.Count} cells is replaceable";
+            Feedback = BuildFeedback.Refused("No room: something is already there.");
             return Readout();
         }
 
         TerrainWorldEditResult result = terrain.TryEditCells(
             stamp.Cells, TerrainEditKind.Set, stamp.Material, occupiedByPlayer);
+        Feedback = BuildFeedback.FromEdit(result, shape == "plate" ? "Placed the floor." : "Placed the wall.");
         if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
         {
             lastStamp = [.. stamp.Cells];
