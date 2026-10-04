@@ -238,6 +238,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
         needs.append(element('span', `color:${have >= input.count ? READY : SHORT};`, `${input.name} ${have}/${input.count}`));
       });
       const make = button('Craft');
+      make.dataset['recipe'] = recipe.id;
       make.disabled = intents === undefined || !recipe.ready;
       make.addEventListener('click', () => claim({ action: 'craft', recipe: recipe.id }));
       row.append(needs, make);
