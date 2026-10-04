@@ -15,6 +15,12 @@ describe the implementation contracts that a new proof must exercise.
 
 ## Operational traps
 
+- **An unwatched stream pauses the entire product.** The product reads Engine
+  `Watching` once per update and holds Engine gameplay time when false. Clock,
+  survival, creatures, streaming and saving all wait; an attached page resumes
+  them. Debug commands and input claims are not watchers. Use `--headless` for
+  unattended live checks so its browser page watches. A playtest session already
+  supplies a page; do not add another watcher when testing detachment.
 - **A product fault stops the world.** An exception that escapes a product callback leaves the
   runtime `state=Faulted` (`craft.runtime`) and prints one line to the host's stderr; start the
   host with `--diagnostics-log <file>` for the full exception and its stack.
@@ -42,7 +48,7 @@ describe the implementation contracts that a new proof must exercise.
 environment, never from the script:
 
 ```sh
-rusty dev --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --live-debug --bind-host 127.0.0.1 --port <port>
+rusty dev --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj --headless --live-debug --bind-host 127.0.0.1 --port <port>
 export CRAFT_ORIGIN=http://127.0.0.1:<port>   # or CRAFT_PORT=<port>
 ```
 
