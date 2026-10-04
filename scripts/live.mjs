@@ -21,7 +21,8 @@
 const INPUT_CONTEXT = 'gameplay.default';
 const CLAIM_LABEL = 'craft-live';
 const LEASE_MS = '30000';
-const SETTLE_MS = 400;
+const INPUT_OBSERVATION_TIMEOUT_MS = 5000;
+const INPUT_OBSERVATION_POLL_MS = 100;
 const DISCOVERY_WAIT_MS = 3000;
 const JOURNAL_HEADER_BYTES = 32;
 const JOURNAL_RECORD_BYTES = 51;
@@ -66,7 +67,7 @@ function options(argv, defaults) {
 }
 
 /** Holds one action's control for a while through the harness lane, then gives input back. */
-async function hold(key, milliseconds) {
+async function hold(key, milliseconds, initialKeyEvents) {
   const presentation = JSON.parse(await exec('engine.renderer.presentation'));
   let claim = await post('/__rusty/product/runtime/control/claim', { runtime: presentation.runtime, label: CLAIM_LABEL, leaseMs: LEASE_MS });
   let binding = claim.binding;
@@ -82,7 +83,16 @@ async function hold(key, milliseconds) {
     await send('pressed');
     await sleep(milliseconds);
     await send('released');
-    await sleep(SETTLE_MS);
+    // A queued input receipt is not product consumption. Keep the claim until both
+    // edges reach an update: releasing it first clears queued input on a slow host.
+    const deadline = Date.now() + INPUT_OBSERVATION_TIMEOUT_MS;
+    let observed = await observe();
+    while (observed.keyEvents - initialKeyEvents < 2) {
+      if (Date.now() >= deadline) throw new Error('timed out waiting for the product to observe both key edges');
+      await sleep(INPUT_OBSERVATION_POLL_MS);
+      observed = await observe();
+    }
+    return observed;
   } finally {
     await post('/__rusty/product/runtime/control/release', { runtime: binding });
   }
@@ -93,8 +103,7 @@ async function walk(argv) {
   const control = JSON.parse(await exec(`playtest.action ${action}`));
   if (!control.available) throw new Error(`${action}: ${control.reason}`);
   const before = await observe();
-  await hold(control.key, seconds * 1000);
-  const after = await observe();
+  const after = await hold(control.key, seconds * 1000, before.keyEvents);
   const distance = Math.hypot(after.feet.x - before.feet.x, after.feet.z - before.feet.z);
   const keyEvents = after.keyEvents - before.keyEvents;
   const report = { action, key: control.key, seconds, distance: Number(distance.toFixed(3)), keyEvents, before: before.feet, after: after.feet };
