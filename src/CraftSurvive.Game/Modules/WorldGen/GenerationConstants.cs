@@ -29,7 +29,8 @@ internal static class GenerationConstants
     /// </summary>
     internal const int WorldFloorThickness = 1;
     internal const int WorldWallThickness = 2;
-    internal const int WorldWallTop = 6;
+    private const int WorldWallClearance = 6;
+    internal const int WorldWallTop = (int)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit) + WorldWallClearance;
     /// <summary>
     /// How far below the local ground a structure may cut. The character has no climb reach
     /// and steps one block, so a deeper hole is one a player can walk into and not walk out
@@ -38,7 +39,6 @@ internal static class GenerationConstants
     /// </summary>
     internal const long MaximumStructureStepBelowGround = 1;
     internal const int TerrainDepth = 9;
-    internal const int TerrainSummitHeight = 12;
     internal const int TerrainHeadroom = 16;
     internal const int MinimumTerrainHeight = -2;
     internal const int TopsoilSlopeMaximum = 2;
@@ -49,7 +49,6 @@ internal static class GenerationConstants
     internal const ulong CoordinateHashMultiplier = 0x94D0_49BB_1331_11EBUL;
     internal const ulong RollingNoiseSalt = 0xA076_1D64_78BD_642FUL;
     internal const ulong DetailNoiseSalt = 0xE703_7ED1_A0B4_28DBUL;
-    internal const ulong LargeNoiseSalt = 0x8EBC_6AF0_9C88_C6E3UL;
     internal const int HashFractionShift = 11;
     internal const ulong HashFractionMaximum = (1UL << 53) - 1UL;
     internal const int CoordinateRotation = 29;
@@ -59,12 +58,8 @@ internal static class GenerationConstants
     internal const int BroadNoiseScale = 20;
     internal const int RollingNoiseScale = 9;
     internal const int DetailNoiseScale = 4;
-    internal const int LargeNoiseScale = 48;
-    internal const double HeightBase = 1d;
     internal const double BroadWeight = 4d;
     internal const double BroadCenter = 0.5d;
-    internal const double BroadDeviationWeight = 8d;
     internal const double RidgeWeight = 3d;
     internal const double DetailDeviationWeight = 2d;
-    internal const double LargeWeight = 3d;
 }

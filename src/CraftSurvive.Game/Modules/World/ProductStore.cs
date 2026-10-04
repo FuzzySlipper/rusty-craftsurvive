@@ -18,6 +18,11 @@ internal sealed class ProductStore : IDisposable
 
     internal PersistenceStore Store => store ??= engine.Persistence.OpenStore(new PersistenceOpenRequest(Scope));
 
+    internal long WorldGeneration { get; set; }
+
+    internal string KeyFor(string key) => WorldGeneration == 0 || key == SaveManifest.WorldMap.Key || key == SaveManifest.WorldMap.BackupKey
+        ? key : $"worlds/{WorldGeneration}/{key}";
+
     public void Dispose()
     {
         store?.Dispose();

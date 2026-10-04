@@ -18,6 +18,8 @@ internal sealed class ProductSaveSlot<TState>
 
     /// <summary>The stored revision this session last read or wrote; zero while the key is absent.</summary>
     private ulong revision;
+    private readonly string storageKey;
+    private readonly string backupKey;
 
     internal ProductSaveSlot(IEngineContext engine, ProductStore store, SaveKey key, IProductStateCodec<TState> codec)
     {
@@ -25,6 +27,8 @@ internal sealed class ProductSaveSlot<TState>
         this.store = store ?? throw new ArgumentNullException(nameof(store));
         Key = key ?? throw new ArgumentNullException(nameof(key));
         this.codec = codec ?? throw new ArgumentNullException(nameof(codec));
+        storageKey = store.KeyFor(key.Key);
+        backupKey = store.KeyFor(key.BackupKey);
     }
 
     internal SaveKey Key { get; }
@@ -43,7 +47,7 @@ internal sealed class ProductSaveSlot<TState>
     /// </summary>
     internal SaveRestoreDecision<TState> Restore()
     {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, Key.Key));
+        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, storageKey));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         byte[] bytes = info.Present ? engine.Persistence.ReadBlobBytes(blob).ToArray() : [];
         revision = info.Present ? info.Revision : 0;
@@ -54,7 +58,7 @@ internal sealed class ProductSaveSlot<TState>
             try
             {
                 engine.Persistence.Save(new PersistenceSaveRequest(
-                    store.Store, Key.BackupKey, PersistenceRevisionGuard.Any, 0, bytes));
+                    store.Store, backupKey, PersistenceRevisionGuard.Any, 0, bytes));
             }
             catch (EngineCallException failure)
             {
@@ -73,7 +77,7 @@ internal sealed class ProductSaveSlot<TState>
         codec.Encode(in state, payload);
         PersistenceSaveReceipt receipt = engine.Persistence.Save(new PersistenceSaveRequest(
             store.Store,
-            Key.Key,
+            storageKey,
             revision == 0 ? PersistenceRevisionGuard.Absent : PersistenceRevisionGuard.Exact,
             revision,
             payload.WrittenMemory));
@@ -91,7 +95,7 @@ internal sealed class ProductSaveSlot<TState>
     /// <summary>Whether the key is stored now, and how many bytes it holds.</summary>
     internal (bool Present, int Bytes) Probe()
     {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, Key.Key));
+        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, storageKey));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         return info.Present ? (true, checked((int)info.PayloadLen)) : (false, 0);
     }

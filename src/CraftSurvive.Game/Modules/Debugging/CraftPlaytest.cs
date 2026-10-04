@@ -31,11 +31,11 @@ internal static class CraftPlaytest
         ["place-terrain"] = new("place-terrain", "key-g", TapMilliseconds, Hold: false),
     };
 
-    internal static PlaytestDebugModule Create(PlayerController player)
+    internal static PlaytestDebugModule Create(Func<PlayerController> player)
     {
         ArgumentNullException.ThrowIfNull(player);
         return new PlaytestDebugModule(
-            () => DebugCommandResult.Success(JsonSerializer.Serialize(Observation(player.Observe()), Json)),
+            () => DebugCommandResult.Success(JsonSerializer.Serialize(Observation(player().Observe()), Json)),
             id => Actions.TryGetValue(id, out PlaytestAction? action)
                 ? action
                 : new PlaytestAction(id, string.Empty, 0, Hold: false, Available: false,
@@ -43,8 +43,8 @@ internal static class CraftPlaytest
             [.. Actions.Keys],
             (yaw, pitch) =>
             {
-                player.LookBy(yaw, pitch);
-                PlayerObservation after = player.Observe();
+                player().LookBy(yaw, pitch);
+                PlayerObservation after = player().Observe();
                 return DebugCommandResult.Success(string.Create(CultureInfo.InvariantCulture,
                     $"yawDegrees={after.YawDegrees:F2};pitchDegrees={after.PitchDegrees:F2}"));
             });

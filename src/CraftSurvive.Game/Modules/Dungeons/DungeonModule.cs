@@ -193,6 +193,8 @@ internal sealed class DungeonModule : IProductModule
         AfterAppearanceSnapshot();
         rockMaterial?.Dispose();
         rockMaterial = null;
+        foreach (Light? light in pool) light?.Dispose();
+        Array.Clear(pool);
     }
 
     /// <summary>Starts loading the dungeon behind the entrance the player stands at.</summary>

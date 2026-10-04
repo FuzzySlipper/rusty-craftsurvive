@@ -63,6 +63,12 @@ internal static class PlayerInputChecks
         frame = input.Consume([Button(ControllerButton.Button6, InputEdge.Pressed)], 1f / 60f);
         Check.That(frame.Edit == TerrainEditKind.Set, "left trigger did not queue a set edit");
 
+        input.Reset();
+        frame = input.Consume([], 1f / 60f);
+        Check.That(frame.PlanarIntent == Vector2.Zero && frame.LookDelta == Vector2.Zero
+            && !frame.JumpHeld && !frame.CrouchRequested && !frame.ImpulseHeld && !frame.SprintRequested
+            && frame.Edit is null, "map suspension must release actions even if their key-up arrives while gameplay is paused");
+        input.Consume([Key(KeyboardControl.KeyW, InputEdge.Pressed)], 1f / 60f);
         frame = input.Consume([Clear()], 1f / 60f);
         Check.That(frame.PlanarIntent == Vector2.Zero && frame.LookDelta == Vector2.Zero
             && !frame.JumpHeld && !frame.CrouchRequested && !frame.ImpulseHeld && !frame.SprintRequested

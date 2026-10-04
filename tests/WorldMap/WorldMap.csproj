@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors><IsTestProject>true</IsTestProject></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayCodec.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationFingerprint.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationGoldens.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductStore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductSaveSlot.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveRestore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldMapSave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldCatalog.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
+  </ItemGroup>
+</Project>

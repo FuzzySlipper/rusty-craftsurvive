@@ -18,10 +18,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly PoiPlacement pois;
     private readonly CrossingPlacement crossings;
 
-    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws)
+    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws, WorldMap? map = null)
     {
         this.configuration = configuration.Validate();
         this.draws = draws ?? throw new ArgumentNullException(nameof(draws));
+        Map = map ?? WorldMapGenerator.Generate(configuration);
+        if (Map.Configuration != configuration) throw new ArgumentException("Terrain and map must share an identity.", nameof(map));
         radius = configuration.Size / 2;
         pois = new PoiPlacement(configuration.Contract, draws, this, radius);
         crossings = new CrossingPlacement(configuration.Contract, draws, this, radius);
@@ -41,11 +43,13 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal TerrainConfiguration Configuration => configuration;
 
+    internal WorldMap Map { get; }
+
     private const long MinimumMaterialYValue = -GenerationConstants.TerrainDepth;
 
     internal long MinimumMaterialY => MinimumMaterialYValue;
 
-    internal long MaximumMaterialY => Math.Max(GenerationConstants.TerrainSummitHeight + GenerationConstants.TerrainHeadroom, LandscapeStudies.MaximumHeight);
+    internal long MaximumMaterialY => (long)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit) + GenerationConstants.TerrainHeadroom;
 
     internal ushort MaterialAt(VoxelAddress address) => MaterialAt(address, ColumnAt(address.X, address.Z));
 
@@ -71,7 +75,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // for the same reason sites come after the ground: a bridge is built over water, and
         // water is what the ground pass leaves behind.
         ushort material = BaseMaterialAt(address, column);
-        if (LandscapeStudies.At(address.X, address.Z) is not null) return material;
         material = StructurePasses.ApplySite(material, PoiAt(address.X, address.Y, address.Z), address.Y, column);
         return CrossingAt(address.X, address.Y, address.Z) is PoiVoxel span
             ? StructurePasses.ApplyCrossing(material, span, address.Y, column)
@@ -112,7 +115,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         // Features only fill air, so they never displace terrain: a canopy that
         // meets a slope loses to the slope rather than leaving a floating leaf.
-        if (material == TerrainConstants.EmptyMaterial && LandscapeStudies.At(address.X, address.Z) is null)
+        if (material == TerrainConstants.EmptyMaterial && !WorldMap.Arid(Map.Sample(address.X, address.Z)) && !WorldMap.Frozen(Map.Sample(address.X, address.Z)))
         {
             material = FeatureMaterialAt(address.X, address.Y, address.Z);
         }
@@ -151,8 +154,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         long slope = column.Slope;
-        if (LandscapeStudies.At(address.X, address.Z) is LandscapeStudy study)
-            return (ushort)LandscapeStudies.Material(study, address.X, address.Z);
+        MapSample geography = Map.Sample(address.X, address.Z);
+        if (slope <= GenerationConstants.TopsoilSlopeMaximum)
+        {
+            if (WorldMap.Frozen(geography)) return (ushort)BlockId.Snow;
+            if (WorldMap.Arid(geography)) return (ushort)BlockId.Sand;
+        }
         long depthFromSurface = top - address.Y;
         if (depthFromSurface == 0 && slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
@@ -277,9 +284,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
                 }
             }
         }
-
-        if (LandscapeStudies.At(xStart, zStart) is LandscapeStudy first
-            && LandscapeStudies.At(xStart + edge - 1, zStart + edge - 1) == first) return false;
 
         return ChunkFeaturesReach(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
             || ChunkPoisChange(xStart, xStart + edge - 1, yMinimum, yMaximum, zStart, zStart + edge - 1)
@@ -492,20 +496,18 @@ internal sealed class TerrainRecipe : ITerrainColumns
     internal double ContinuousHeightAt(long x, long z)
     {
         ulong seed = Contract.NoiseSeed;
+        MapSample geography = Map.Sample(x, z);
         double broad = ValueNoise(seed, x, z, GenerationConstants.BroadNoiseScale);
         double rolling = ValueNoise(seed ^ GenerationConstants.RollingNoiseSalt, x, z, GenerationConstants.RollingNoiseScale);
         double detail = ValueNoise(seed ^ GenerationConstants.DetailNoiseSalt, x, z, GenerationConstants.DetailNoiseScale);
 
         // A ridge folds the rolling noise about its middle: 1 at the middle, 0 at either end.
         double ridge = 1d - Math.Abs((rolling * 2d) - 1d);
-        double height = GenerationConstants.HeightBase
-            + (broad * GenerationConstants.BroadWeight)
-            + ((broad - GenerationConstants.BroadCenter) * GenerationConstants.BroadDeviationWeight)
-            + (ridge * GenerationConstants.RidgeWeight)
-            + ((detail - GenerationConstants.BroadCenter) * GenerationConstants.DetailDeviationWeight)
-            + (ValueNoise(seed ^ GenerationConstants.LargeNoiseSalt, x, z, GenerationConstants.LargeNoiseScale)
-                * GenerationConstants.LargeWeight);
-        return LandscapeStudies.Height(x, z, Math.Max(height, GenerationConstants.MinimumTerrainHeight));
+        double local = (broad - GenerationConstants.BroadCenter) * GenerationConstants.BroadWeight
+            + (ridge - GenerationConstants.BroadCenter) * GenerationConstants.RidgeWeight
+            + (detail - GenerationConstants.BroadCenter) * GenerationConstants.DetailDeviationWeight;
+        return Math.Max(geography.Elevation + Math.Clamp(local, -WorldMap.LocalReliefLimit, WorldMap.LocalReliefLimit) * geography.Detail,
+            GenerationConstants.MinimumTerrainHeight);
     }
 
     private long CardinalSlope(long x, long z, long top)

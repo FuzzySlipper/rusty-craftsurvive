@@ -9,11 +9,22 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Overworld ground is a reconstructed height field.** `TerrainDensity` supplies
   continuous samples to the Engine's DC path; `TerrainSurfaces` keeps construction,
   vegetation, bedrock, and water on the grid. This establishes smooth ground,
-  not a new terrain recipe with natural caves, overhangs, or a biome system.
+  without natural volumetric caves or overhangs.
   Natural ground uses the generated maps in `content/game/textures/terrain-studies`
   through Engine triplanar projection. Three authored landscape studies are reachable
   through Menu → Landscape study → Visit landscape; they are small material/topography
-  experiments in the streamed world, not a biome distribution system.
+  experiments loaded as separate spaces.
+- **The world map is a geography foundation.** `WorldMapGenerator` produces a bounded
+  coarse grid of elevation, climate, rock and local-detail fields. Local terrain
+  samples it continuously; representative regions are reachable from **World**.
+  The map is an inspection view that pauses local gameplay. Region visits are
+  provisional and do not implement travel, weather, logistics or route costs.
+  There is no erosion/drainage simulation, guaranteed pass connectivity, final
+  biome catalogue or broad landscape recipe system. Height variation and map
+  resolution are bounded by `WorldMap`. The provisional bedrock perimeter rises
+  above the map and local-detail height limit; it is not final geographic edge art.
+  Far terrain has no overview LOD in the
+  first-person view. See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in

@@ -48,15 +48,7 @@ internal sealed class PlayerInputState
         {
             if (input.Kind == InputEventKind.Clear)
             {
-                ClearHeld();
-                pendingLookDelta = Vector2.Zero;
-                pendingEdit = null;
-                attackPending = false;
-                climbPending = false;
-                hotbarPick = -1;
-                hotbarSteps = 0;
-                wheelTravel = 0f;
-                usePending = false;
+                Reset();
                 continue;
             }
 
@@ -205,6 +197,20 @@ internal sealed class PlayerInputState
                 hotbarPick = (int)(key - KeyboardControl.Digit1);
                 break;
         }
+    }
+
+    /// <summary>Drops held and queued actions when gameplay gives input to the world map.</summary>
+    internal void Reset()
+    {
+        ClearHeld();
+        pendingLookDelta = Vector2.Zero;
+        pendingEdit = null;
+        attackPending = false;
+        climbPending = false;
+        hotbarPick = -1;
+        hotbarSteps = 0;
+        wheelTravel = 0f;
+        usePending = false;
     }
 
     private void ClearHeld()

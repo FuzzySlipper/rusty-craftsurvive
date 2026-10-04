@@ -5,11 +5,12 @@ namespace CraftSurvive.Game.Modules.Discovery;
 /// <summary>Live-debug adapters over <see cref="DiscoveryModule"/>; it owns no state of its own.</summary>
 public sealed class DiscoveryDebugModule : IDebugCommandModule
 {
-    private readonly DiscoveryModule discovery;
+    private readonly Func<DiscoveryModule> discoverySource;
+    private DiscoveryModule discovery => discoverySource();
 
-    internal DiscoveryDebugModule(DiscoveryModule discovery)
+    internal DiscoveryDebugModule(Func<DiscoveryModule> discovery)
     {
-        this.discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
+        this.discoverySource = discovery ?? throw new ArgumentNullException(nameof(discovery));
     }
 
     [DebugCommand("craft.discovery.readout", Description = "Reads the journal: what has been seen or reached, and whether it is stored.")]

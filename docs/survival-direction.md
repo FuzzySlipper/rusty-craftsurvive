@@ -86,13 +86,13 @@ The world is large and finite. Streaming and bounded residency are necessary,
 but no square-kilometre target defines the design. Neither infinite generation
 nor continuous first-person traversal of the entire world map is required.
 
-The working generation concept is a discrete world-map generation step during
-new-game creation, with RimWorld as the reference for that separation of scales.
-Later local voxel terrain generation would refer back to that world map. The
-map would establish the broad geography and regional relationships; local
-terrain would realize the relevant place in detail. This is a design hypothesis,
-not a settled map topology, generation algorithm, or promise that every map
-location will support entry into a first-person scene.
+Generation separates a discrete world-map step at new-game creation from local
+voxel terrain, with RimWorld as a reference for that separation of scales. The
+map establishes broad geography and regional relationships; local terrain
+realizes a place in detail. The prototype uses a bounded square map, described
+in [the product map](csharp-migration-map.md#world-map-contract). This does not
+settle the final topology, generation algorithm, travel mode, or promise that
+every map location will support entry into a first-person scene.
 
 Generation should separate **geographic structure from local surface detail**.
 The map stage establishes coherent landforms and relationships: ridgelines,
@@ -108,9 +108,10 @@ each bank may itself use fBm. Their amplitude, frequency, shape, and geographic
 masks matter more than simply increasing octave count or voxel resolution.
 A sheltered valley floor should not receive the same relief as exposed rock.
 Local variation must preserve the map's important connections and landmarks,
-including drainage and navigable passes. The map format and the mechanisms for
-enforcing those constraints remain design work; terrain studies are a place to
-test the smaller-scale treatment, not an implementation of that map generator.
+including drainage and navigable passes. The prototype bounds local relief and
+reduces it near candidate passes; drainage simulation and guaranteed route
+connectivity still require design work. Authored terrain studies remain
+comparisons for the smaller-scale treatment.
 
 Regional scale should allow tundra, deep desert, and other environments to have
 credible separation. Biome variety should not depend on squeezing radically
@@ -379,8 +380,8 @@ to useful preparation and construction. Base work should make housing and
 rescued residents matter alongside architectural freedom.
 
 Develop the wider terrain toward smooth, stylized DC surfaces while keeping
-construction precise and usable. Treat world-map generation, travel mode,
-transport capacity, and extraction caches as connected design hypotheses;
+construction precise and usable. Treat travel mode, transport capacity, and
+extraction caches as connected design hypotheses;
 do not turn them into implementation mandates before their rules are settled.
 Occasional blasts may use bounded edits and presentation that covers their
 update cost; their infrequency does not remove the need to measure that cost.

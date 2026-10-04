@@ -38,15 +38,15 @@ internal static class DensityChecks
         Check.Equal(original.Densities.Span[editedIndex], built.Densities.Span[editedIndex], "replacement preserves generated density magnitude");
         Check.That(original.Densities.Span.ToArray().Any(d => Math.Abs(d) != 0.5f), "terrain carries a scalar field, not binary cube densities");
 
-        // Authored study terrain must not escape the streamer's vertical bounds or disappear
-        // when its occupancy predicate suppresses the ordinary structures and trees.
-        foreach (LandscapeStudy study in LandscapeStudies.All)
+        // Sample streamed geography at representative map sites; authored studies now live
+        // only in their finite comparison spaces.
+        foreach (MapSite study in recipe.Map.Sites)
         {
             double minimum = double.PositiveInfinity, maximum = double.NegativeInfinity;
             for (int z = -(int)LandscapeStudies.Radius; z <= LandscapeStudies.Radius; z++)
             for (int x = -(int)LandscapeStudies.Radius; x <= LandscapeStudies.Radius; x++)
             {
-                double height = recipe.ContinuousHeightAt((long)study.CentreX + x, (long)study.CentreZ + z);
+                double height = recipe.ContinuousHeightAt((long)study.X + x, (long)study.Z + z);
                 minimum = Math.Min(minimum, height);
                 maximum = Math.Max(maximum, height);
             }
@@ -54,12 +54,12 @@ internal static class DensityChecks
                 && minimum > recipe.MinimumMaterialY + GenerationConstants.WorldFloorThickness
                 && maximum <= recipe.MaximumMaterialY,
                 "all study columns fit the terrain residency bounds without clipping against the world floor");
-            Console.WriteLine($"{study.Id} height range: {minimum:F2} to {maximum:F2} metres.");
+            Console.WriteLine($"{study.Name} height range: {minimum:F2} to {maximum:F2} metres.");
             foreach (int offset in new[] { -6, -1, 0, 5, 6 })
             {
                 for (int y = 0; y <= 2; y++)
                 {
-                    TerrainChunkAddress address = new((long)study.CentreX / edge + offset, y, (long)study.CentreZ / edge);
+                    TerrainChunkAddress address = new((long)study.X / edge + offset, y, (long)study.Z / edge);
                     TerrainChunk chunk = generator.Generate(address, pristine);
                     Check.That(recipe.ChunkHasContent(address) || chunk.SolidVoxelCount == 0,
                         "study residency never rejects a populated chunk");

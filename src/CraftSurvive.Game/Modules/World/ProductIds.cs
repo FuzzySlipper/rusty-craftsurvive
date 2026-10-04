@@ -22,6 +22,9 @@ internal static class ProductIds
     /// <summary>A sculpted dungeon's rock mesh: one appearance object.</summary>
     internal const ulong DungeonRockObject = 0x3_0000UL;
 
+    internal const ulong WorldMapObject = 0x4_0000UL;
+    internal const ulong WorldMapSiteBase = 0x4_0010UL;
+
     /// <summary>Retained light ids: the sky's sun (or moon) and its ambient fill.</summary>
     internal const ulong SunLight = 1UL;
 

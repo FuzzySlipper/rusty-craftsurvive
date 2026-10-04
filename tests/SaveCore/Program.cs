@@ -35,8 +35,13 @@ WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
 SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 };
 CarriedItems carried = new([new SlotContents(0, ItemCatalog.Torch, 4), new SlotContents(3, ItemCatalog.Meat, 3), new SlotContents(20, ItemCatalog.Oil, 1)]);
 
+WorldMapSave mapSave = new(3, WorldMapGenerator.Generate(new TerrainConfiguration(Seed, 4096)));
+
 SavedForm[] forms =
 [
+    SavedForm.For(SaveManifest.WorldMap, new WorldMapCodec(), mapSave, 6 * sizeof(double),
+        (left, right) => left.Generation == right.Generation && left.Map.Fingerprint == right.Map.Fingerprint
+            && left.Map.Nodes.SequenceEqual(right.Map.Nodes), null),
     SavedForm.For(SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity), overlay, TerrainOverlayCodec.RecordBytes,
         (left, right) => left.Entries.SequenceEqual(right.Entries), seed => new TerrainOverlayCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.DiscoveryJournal, new DiscoveryCodec(identity), journal, DiscoveryCodec.RecordBytes,
@@ -220,7 +225,7 @@ static bool Refuses<T>(IProductStateCodec<T> codec, byte[] bytes) => Throws(() =
 internal sealed record SavedForm(SaveKey Key, string Name, Action<Action<bool, string>> Run)
 {
     internal static SavedForm For<T>(SaveKey key, IProductStateCodec<T> codec, T sample, int recordBytes,
-        Func<T, T, bool> same, Func<ulong, IProductStateCodec<T>> forSeed) => new(key, key.Key, check =>
+        Func<T, T, bool> same, Func<ulong, IProductStateCodec<T>>? forSeed) => new(key, key.Key, check =>
     {
         byte[] honest = Encode(codec, sample);
         T back = codec.Decode(honest);
@@ -253,7 +258,7 @@ internal sealed record SavedForm(SaveKey Key, string Name, Action<Action<bool, s
             check(Refuses(codec, bytes), $"{key.Key} must refuse {name}");
         }
 
-        check(Refuses(forSeed(0x0BAD_5EEDUL), honest), $"{key.Key} must refuse a save from another world");
+        if (forSeed is not null) check(Refuses(forSeed(0x0BAD_5EEDUL), honest), $"{key.Key} must refuse a save from another world");
     });
 
     private static byte[] Encode<T>(IProductStateCodec<T> codec, T state)

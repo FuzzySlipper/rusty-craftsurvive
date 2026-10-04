@@ -5,10 +5,11 @@ namespace CraftSurvive.Game.Modules.Feedback;
 /// <summary>Live-debug adapter over the game's feedback: read what has been heard and seen, or present one cue now.</summary>
 public sealed class FeedbackDebugModule : IDebugCommandModule
 {
-    private readonly FeedbackModule feedback;
+    private readonly Func<FeedbackModule> feedbackSource;
+    private FeedbackModule feedback => feedbackSource();
 
-    internal FeedbackDebugModule(FeedbackModule feedback) =>
-        this.feedback = feedback ?? throw new ArgumentNullException(nameof(feedback));
+    internal FeedbackDebugModule(Func<FeedbackModule> feedback) =>
+        this.feedbackSource = feedback ?? throw new ArgumentNullException(nameof(feedback));
 
     [DebugCommand("craft.feedback.readout", Description = "Reads the admitted clips, the ambience levels, what each cue has played, the device's completions and the bursts shown.")]
     public string Readout() => feedback.Readout();

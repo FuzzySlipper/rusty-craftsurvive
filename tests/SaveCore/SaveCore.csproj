@@ -10,6 +10,7 @@
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <!-- The save manifest, the shared envelope, the restore rule and every codec are pure product
          code over the Engine's codec shape, so they are checked without a runtime. -->
+    <Compile Include="$(ProductModules)World/WorldMapSave.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/SaveRestore.cs" LinkBase="Product/World" />

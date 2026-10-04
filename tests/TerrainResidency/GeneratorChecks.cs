@@ -21,6 +21,8 @@ internal static class GeneratorChecks
         {
             Dictionary<(uint Version, ulong Seed), ulong> golden = new()
             {
+                [(17, TerrainConstants.DefaultSeed)] = 0xd2278bad4e00b244UL,
+                [(17, 12345UL)] = 0x75a45035a5557fc5UL,
                 [(16, TerrainConstants.DefaultSeed)] = 0x4c024e23973f0a81UL,
                 [(16, 12345UL)] = 0x91f6ecedc0505ef4UL,
                 [(15, TerrainConstants.DefaultSeed)] = 0x6691638c856c2cc5UL,

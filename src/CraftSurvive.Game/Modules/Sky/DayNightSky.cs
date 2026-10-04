@@ -167,10 +167,15 @@ internal sealed class DayNightSky : IDisposable
         litDaylight = daylight;
     }
 
-    /// <summary>Clears the sky before its panoramas are released. Lights are Engine-owned and go with the session.</summary>
+    /// <summary>Releases this world's Engine lights and panorama handles before another world takes their place.</summary>
     public void Dispose()
     {
+        if (disposed) return;
         engine.CameraView.ClearSkyBackground(new ClearSkyBackgroundRequest(0U));
+        sun?.Dispose();
+        ambient?.Dispose();
+        day.Dispose();
+        night.Dispose();
         disposed = true;
         sun = null;
         ambient = null;

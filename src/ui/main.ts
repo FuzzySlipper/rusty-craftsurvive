@@ -1,4 +1,5 @@
 import type { RustyApplicationUiContext } from '@rusty-engine/product-ui';
+import { mountWorld } from './world.js';
 import { mountActions } from './actions.js';
 import { mountDeveloperTools } from './developer.js';
 import { element, isolateEvents } from './dom.js';
@@ -19,6 +20,8 @@ const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprin
  * published fact, the building actions and the tools - is a drawer, closed until the player opens it.
  */
 export function mountProductUi(root: Element, context: RustyApplicationUiContext): Readonly<{ dispose(): void }> {
+  const gameUi = element('div');
+  root.append(gameUi);
   const panel = element('aside', 'background:rgb(15 19 25 / 88%);border:1px solid #62748a;border-radius:.35rem;color:#edf5ff;'
     + 'font:.76rem/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:calc(100vh - 1rem);max-width:min(26rem,calc(100vw - 1rem));'
     + 'overflow:auto;padding:.35rem .45rem;pointer-events:auto;position:relative;width:fit-content;z-index:1;');
@@ -40,10 +43,12 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const unsubscribeActions = mountActions(contents, context.intents, context.projection);
   contents.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
   const disposeDeveloperTools = mountDeveloperTools(contents, status);
-  root.append(panel);
-  const disposeOverlay = mountOverlay(root, context.projection);
-  const disposeLoading = mountLoading(root, context.projection);
-  const disposeScreens = mountScreens(root, context.intents, context.projection);
+  gameUi.append(panel);
+  const disposeOverlay = mountOverlay(gameUi, context.projection);
+  const disposeLoading = mountLoading(gameUi, context.projection);
+  const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
+
+  const disposeWorld = mountWorld(root, gameUi, context.intents, context.projection);
 
   return Object.freeze({
     dispose: () => {
@@ -53,7 +58,8 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
       disposeLoading();
       disposeScreens();
       disposeDeveloperTools();
-      panel.remove();
+      disposeWorld();
+      gameUi.remove();
     },
   });
 }

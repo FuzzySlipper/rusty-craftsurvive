@@ -60,8 +60,11 @@ internal sealed class LampLights : IProductModule
 
     public void Restart() => Show();
 
-    /// <summary>Lights are Engine-owned and go with the session; the pool is forgotten.</summary>
-    public void Dispose() => Array.Clear(pool);
+    public void Dispose()
+    {
+        foreach (Light? light in pool) light?.Dispose();
+        Array.Clear(pool);
+    }
 
     private void Show()
     {

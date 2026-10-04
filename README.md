@@ -43,9 +43,14 @@ Those generated artifacts are not checked projects and must not be edited.
 Only `content/game/` is staged into the product. `content/animations/` and
 `content/voxels/` are preserved user-owned assets that the product does not load.
 
-For terrain appearance studies, open **Menu**, choose **Landscape study**, and
-press **Visit landscape**. Ochre canyon, Sage uplands and Frost ridge are authored
-areas of the normal streamed world, with ordinary walking, collision and editing.
+Open **World** to inspect the generated geography, visit a representative region,
+or create a fresh world from a seed and width. The map pauses local gameplay;
+**Return to exploration** returns to the place you left. Region visits are a
+prototype inspection affordance, not the proposed overland travel system.
+
+For terrain appearance comparisons, open **Menu**, choose **Landscape study**, and
+press **Visit landscape**. Ochre canyon, Sage uplands and Frost ridge are authored,
+separately loaded spaces with ordinary walking, collision and editing.
 Their natural surfaces use the generated maps and exact prompts in
 [`content/game/textures/terrain-studies/`](content/game/textures/terrain-studies/).
 `materials.json` controls repeat scale; the Engine supplies DC and triplanar mapping.
@@ -130,13 +135,14 @@ This is a bounded survival slice, not a claim of complete survival gameplay. See
 
 ## The world
 
-The product boots into a generated overworld, configured in
-`Modules/Terrain/TerrainConfiguration.cs`, and loads dungeon interiors separately.
+The product restores its saved finite world map, or generates the default in
+`Modules/Terrain/TerrainConfiguration.cs` before creating local terrain. Dungeon
+interiors load separately.
 The overworld has a registered material set, water bodies,
 surface features, points of interest and crossings, an authored bedrock border, and a
 finite configured extent. World size is a generation setting, not a design quota.
-The design calls for smooth DC terrain, with world-map generation and overland
-travel under consideration. The generator lives in
+Local DC terrain samples coarse map geography, then adds bounded surface relief.
+Overland travel remains a design question. The generator lives in
 `Modules/WorldGen`; its output is pinned per version by a golden fingerprint (see
 `tests/TerrainResidency` and `Modules/Terrain/TerrainGenerationGoldens.cs`).
 

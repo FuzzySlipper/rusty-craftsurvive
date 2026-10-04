@@ -5,13 +5,15 @@ namespace CraftSurvive.Game.Modules.Manipulation;
 /// <summary>Live-debug adapters over <see cref="BuildModule"/>; it owns no state of its own.</summary>
 public sealed class BuildDebugModule : IDebugCommandModule
 {
-    private readonly BuildModule build;
-    private readonly BlockEntityStore entityStore;
+    private readonly Func<BuildModule> buildSource;
+    private BuildModule build => buildSource();
+    private readonly Func<BlockEntityStore> entityStoreSource;
+    private BlockEntityStore entityStore => entityStoreSource();
 
-    internal BuildDebugModule(BuildModule build, BlockEntityStore entityStore)
+    internal BuildDebugModule(Func<BuildModule> build, Func<BlockEntityStore> entityStore)
     {
-        this.build = build ?? throw new ArgumentNullException(nameof(build));
-        this.entityStore = entityStore ?? throw new ArgumentNullException(nameof(entityStore));
+        this.buildSource = build ?? throw new ArgumentNullException(nameof(build));
+        this.entityStoreSource = entityStore ?? throw new ArgumentNullException(nameof(entityStore));
     }
 
     [DebugCommand("craft.build.plate", Description = "Places a flat floor: a width-by-depth plate of one course at a corner, as one transaction.")]

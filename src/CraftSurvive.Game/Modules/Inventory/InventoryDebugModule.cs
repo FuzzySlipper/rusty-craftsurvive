@@ -5,10 +5,11 @@ namespace CraftSurvive.Game.Modules.Inventory;
 /// <summary>Live-debug adapter over the inventory: read it, grant items, craft and use, as the UI does.</summary>
 public sealed class InventoryDebugModule : IDebugCommandModule
 {
-    private readonly InventoryModule inventory;
+    private readonly Func<InventoryModule> inventorySource;
+    private InventoryModule inventory => inventorySource();
 
-    internal InventoryDebugModule(InventoryModule inventory) =>
-        this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+    internal InventoryDebugModule(Func<InventoryModule> inventory) =>
+        this.inventorySource = inventory ?? throw new ArgumentNullException(nameof(inventory));
 
     [DebugCommand("craft.inventory.readout", Description = "Reads what the player carries, crafting and use counts, and how the inventory save is going.")]
     public string Readout() => inventory.Readout();

@@ -57,6 +57,11 @@ internal static class ResidencyChecks
         state.Restore(new TerrainOverlaySnapshot(configuration.Seed, []));
         Check.That(!policy.PlanFor(center, state).Requested.Contains(edited), "restore reused stale payload");
         CheckAgainstFullScan(new(-2, 1, -1));
+        var ridge = recipe.Map.Sites[2];
+        TerrainChunkAddress ridgeSurface = new VoxelAddress((long)ridge.X, recipe.SurfaceAt((long)ridge.X, (long)ridge.Z), (long)ridge.Z).Chunk;
+        var ridgePlan = policy.PlanFor(ridgeSurface, state);
+        Check.That(ridgePlan.Requested[0] == ridgeSurface, "a highland arrival admits the player's supporting surface before buried chunks");
+        Check.That(ridgePlan.Retained.Count <= TerrainConstants.MaximumResidentChunks, "highland columns respect the residency bound");
         var distant = policy.PlanFor(new(12, 0, 0), state);
         try { distant.Chunk(unchanged); throw new Exception("out-of-window payload was retained"); }
         catch (KeyNotFoundException) { }
@@ -77,7 +82,7 @@ internal static class ResidencyChecks
                 Check.That(generated.Materials.Span.SequenceEqual(planned.Materials.Span), "planned material payload differs from fresh generation");
                 if (generated.SolidVoxelCount > 0) populated.Add(address);
             }
-            var ordered = populated.OrderBy(a => ((a.X-location.X)*(a.X-location.X)+(a.Z-location.Z)*(a.Z-location.Z), a.Y, a)).ToArray();
+            var ordered = populated.OrderBy(a => ((a.X-location.X)*(a.X-location.X)+(a.Z-location.Z)*(a.Z-location.Z), Math.Abs(a.Y-location.Y), a)).ToArray();
             // Derived from the policy's own radius, so widening the stream window does not
             // silently invalidate this check.
             var expectedRequested = ordered.Where(a =>

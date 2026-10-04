@@ -12,20 +12,23 @@ namespace CraftSurvive.Game.Modules.Debugging;
 /// <summary>Thin live-debug adapters over ordinary CraftSurvive and Engine operations.</summary>
 public sealed class CraftDebugModule : IDebugCommandModule
 {
-    private readonly PlayerController player;
-    private readonly CreatureModule creatures;
-    private readonly TerrainWorld terrain;
+    private readonly Func<PlayerController> playerSource;
+    private PlayerController player => playerSource();
+    private readonly Func<CreatureModule> creaturesSource;
+    private CreatureModule creatures => creaturesSource();
+    private readonly Func<TerrainWorld> terrainSource;
+    private TerrainWorld terrain => terrainSource();
     private readonly DebugExecutionContext execution;
 
     internal CraftDebugModule(
-        PlayerController player,
-        CreatureModule creatures,
-        TerrainWorld terrain,
+        Func<PlayerController> player,
+        Func<CreatureModule> creatures,
+        Func<TerrainWorld> terrain,
         DebugExecutionContext execution)
     {
-        this.player = player;
-        this.creatures = creatures;
-        this.terrain = terrain;
+        this.playerSource = player;
+        this.creaturesSource = creatures;
+        this.terrainSource = terrain;
         this.execution = execution;
     }
 

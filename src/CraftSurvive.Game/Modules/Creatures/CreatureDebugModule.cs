@@ -5,11 +5,12 @@ namespace CraftSurvive.Game.Modules.Creatures;
 /// <summary>Live-debug adapters over the creature module; it owns no state of its own.</summary>
 public sealed class CreatureDebugModule : IDebugCommandModule
 {
-    private readonly CreatureModule creatures;
+    private readonly Func<CreatureModule> creaturesSource;
+    private CreatureModule creatures => creaturesSource();
 
-    internal CreatureDebugModule(CreatureModule creatures)
+    internal CreatureDebugModule(Func<CreatureModule> creatures)
     {
-        this.creatures = creatures ?? throw new ArgumentNullException(nameof(creatures));
+        this.creaturesSource = creatures ?? throw new ArgumentNullException(nameof(creatures));
     }
 
     [DebugCommand("craft.creatures.readout", Description = "Reads every creature, the player's vitals and progress, and the last creature event.")]

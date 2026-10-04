@@ -14,7 +14,7 @@ namespace CraftSurvive.Game.Modules.World;
 internal static class ProductUiProjection
 {
     internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, PlayerUiFacts? player,
-        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon)
+        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null)
     {
         NumericObjectBuilder values = new();
         values.Add("revision", scene.SourceRevision);
@@ -107,6 +107,16 @@ internal static class ProductUiProjection
             values.Add("dungeonCanEnter", below.CanEnter ? 1d : 0d);
             values.Add("dungeonCanLeave", below.CanLeave ? 1d : 0d);
             values.AddText("dungeonLast", below.Last);
+        }
+
+        if (map is WorldMapUiFacts geography)
+        {
+            values.Add("worldMapOpen", geography.Open ? 1 : 0);
+            values.AddText("worldSeed", geography.Seed);
+            values.Add("worldSize", geography.Size);
+            values.AddText("worldSites", geography.Sites);
+            values.AddText("worldMessage", geography.Message);
+            values.Add("worldGeneration", geography.Generation);
         }
 
         return values.Build();

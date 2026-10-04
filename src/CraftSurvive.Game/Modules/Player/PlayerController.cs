@@ -439,18 +439,13 @@ internal sealed class PlayerController : IDisposable
         string id = full ? name[..^FullSuffix.Length] : name;
         if (Modules.WorldGen.LandscapeStudies.Find(id) is not { } study) return false;
         if (landscapeSpace is not null) ReturnFromSeparateSpace();
-        if (full)
-        {
-            landscapeSpace = terrain.CreateLandscapeStudy(study);
-            return true;
-        }
-        double x = study.CentreX;
-        double z = study.CentreZ + Modules.WorldGen.LandscapeStudies.ArrivalOffsetZ;
-        double y = terrain.GroundAt(x, z) + Modules.WorldGen.LandscapeStudies.ArrivalClearance;
-        if (Teleport(x, y, z) is null) return false;
-        look = new LookState(0f, Modules.WorldGen.LandscapeStudies.ArrivalPitch);
+        landscapeSpace = terrain.CreateLandscapeStudy(study);
         return true;
     }
+
+    internal void ActivateCamera() => camera.Activate();
+
+    internal void ClearInput() => input.Reset();
 
     /// <summary>Stands the player at a place in the session they are now in, at rest.</summary>
     private void Place(PlayerWorldPosition place)

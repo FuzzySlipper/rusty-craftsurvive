@@ -161,12 +161,12 @@ internal sealed class TerrainResidencyPolicy
         address.X >= center.X - radius && address.X <= center.X + radius
         && address.Z >= center.Z - radius && address.Z <= center.Z + radius;
 
-    private static (long HorizontalDistance, long Y, TerrainChunkAddress Address) DistancePriority(
+    private static (long HorizontalDistance, long VerticalDistance, TerrainChunkAddress Address) DistancePriority(
         TerrainChunkAddress address, TerrainChunkAddress center)
     {
         long x = address.X - center.X;
         long z = address.Z - center.Z;
-        return ((x * x) + (z * z), address.Y, address);
+        return ((x * x) + (z * z), Math.Abs(address.Y - center.Y), address);
     }
 
 }

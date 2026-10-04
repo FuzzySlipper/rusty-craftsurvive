@@ -57,6 +57,7 @@
     <RustyEngineProductInputIntent Include="craftsurvive.impulse" Value="digital" />
     <RustyEngineProductInputIntent Include="craftsurvive.climb" Value="digital" />
     <!-- The player-facing UI claims its requests as one payload intent; PlayerAction decodes them. -->
+    <RustyEngineProductInputIntent Include="craftsurvive.world" Value="payload:craftsurvive.world.action.v1" />
     <RustyEngineProductInputIntent Include="craftsurvive.ui" Value="payload:craftsurvive.ui.action.v1" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-x" Value="axis" />
     <RustyEngineProductInputIntent Include="craftsurvive.move.analog-y" Value="axis" />

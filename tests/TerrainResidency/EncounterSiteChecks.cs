@@ -21,9 +21,10 @@ internal static class EncounterSiteChecks
             TerrainEncounterFacts facts = new(encounterRecipe);
             long waterX = 0, waterZ = 0, landX = 0, landZ = 0;
             bool foundWater = false, foundLand = false;
-            for (long x = -96; x <= 96 && !(foundWater && foundLand); x += 2)
+            long scanStep = Math.Max(1, (long)encounterRecipe.Map.Spacing / 2);
+            for (long x = -encounterRecipe.Radius + scanStep; x < encounterRecipe.Radius && !(foundWater && foundLand); x += scanStep)
             {
-                for (long z = -96; z <= 96 && !(foundWater && foundLand); z += 2)
+                for (long z = -encounterRecipe.Radius + scanStep; z < encounterRecipe.Radius && !(foundWater && foundLand); z += scanStep)
                 {
                     long surface = encounterRecipe.SurfaceAt(x, z);
                     if (!foundWater && surface < facts.WaterLevel) { waterX = x; waterZ = z; foundWater = true; }
@@ -31,8 +32,8 @@ internal static class EncounterSiteChecks
                 }
             }
 
-            Check.That(foundWater, "the sample window contained no water column to place against");
-            Check.That(foundLand, "the sample window contained no land column to place against");
+            Check.That(foundWater, "the generated map contained no water column to place against");
+            Check.That(foundLand, "the generated map contained no land column to place against");
 
             Check.That(facts.TryDescribe(RegionKind.Wilderness, 1, landX, landZ, out EncounterSite landSite),
                 "a land column inside the world must be describable");

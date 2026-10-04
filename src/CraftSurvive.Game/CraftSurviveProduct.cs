@@ -1,4 +1,5 @@
 using Rusty.Engine;
+using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine.Debugging;
 using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Audio;
@@ -21,74 +22,92 @@ namespace CraftSurvive.Game;
 /// The intentionally small product root. Gameplay domains join here while the
 /// installed SDK supplies the generated CoreCLR and fidelity compositions.
 /// </summary>
-public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSource
+public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSource
 {
     private readonly IEngineContext engine;
+    private readonly ProductCreateContext context;
+    private readonly WorldCatalog worlds;
+    private WorldMapPresentation? overview;
+    private bool mapOpen;
+    private string worldMessage = "";
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
 
     /// <summary>The one world-to-local conversion; the player commits rebases through it.</summary>
-    private readonly WorldFrame frame = new();
+    private WorldFrame frame = new();
 
     /// <summary>The product's one persistence store and one UI stream, shared by the owners that use them.</summary>
     private readonly ProductStore store;
     private readonly ProductUiPublisher ui;
-    private readonly TerrainWorld terrain;
-    private readonly PlayerController player;
-    private readonly DayNightSky sky;
+    private TerrainWorld terrain = null!;
+    private PlayerController player = null!;
+    private DayNightSky sky = null!;
 
     /// <summary>The world's time and difficulty: survival and encounters read them, the sky shows them.</summary>
-    private readonly WorldConditionsModule conditions;
+    private WorldConditionsModule conditions = null!;
 
     /// <summary>The player's hunger and air, which give and take health through the player's vitals.</summary>
-    private readonly SurvivalModule survival;
+    private SurvivalModule survival = null!;
 
     /// <summary>What the player carries: drops and caches in, crafting and use out.</summary>
-    private readonly InventoryModule inventory;
+    private InventoryModule inventory = null!;
 
     /// <summary>Going into dungeons and coming out: each its own finite space, loaded whole.</summary>
-    private readonly DungeonModule dungeons;
+    private DungeonModule dungeons = null!;
     private readonly EntityStoreDebugModule entityDebug = new();
     private readonly CraftDebugModule productDebug;
-    private readonly CreatureModule creatures;
+    private CreatureModule creatures = null!;
     private readonly CreatureDebugModule creatureDebug;
-    private readonly DiscoveryModule discovery;
-    private readonly BlastModule blast;
-    private readonly BuildModule build;
-    private readonly BlockEntityStore entityStore;
+    private DiscoveryModule discovery = null!;
+    private BlastModule blast = null!;
+    private BuildModule build = null!;
+    private BlockEntityStore entityStore = null!;
 
     /// <summary>The light placed lamps give, from a pool of Engine lights.</summary>
-    private readonly LampLights lamps;
+    private LampLights lamps = null!;
 
     /// <summary>The cues gameplay raises each update, and the one owner that plays them and the ambience.</summary>
-    private readonly Cues cues = new();
-    private readonly FeedbackModule feedback;
+    private Cues cues = new();
+    private FeedbackModule feedback = null!;
 
     /// <summary>The player-facing UI's action claims, turned into blast and build requests.</summary>
-    private readonly PlayerActionModule actions;
+    private PlayerActionModule actions = null!;
 
     /// <summary>One owner for block entities: placed by building, swept by a charge.</summary>
-    private readonly BlockEntityIndex entities = new();
+    private BlockEntityIndex entities = new();
 
     /// <summary>
     /// The gameplay modules the player's update feeds, in the order they run: each reads what
     /// the ones before it decided this update.
     /// </summary>
-    private readonly IProductModule[] gameplay;
+    private IProductModule[] gameplay = null!;
 
     public CraftSurviveProduct(ProductCreateContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
+        this.context = context;
         engine = context.Engine;
         store = new ProductStore(context.Engine);
         ui = new ProductUiPublisher(context.Engine);
-        terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame, store, ui);
+        worlds = new WorldCatalog(engine, store);
+        CreateWorld();
+        creatureDebug = new CreatureDebugModule(() => creatures);
+        entityDebug.RegisterStore("craft", player.EntityStore);
+        entityDebug.RegisterStore("creatures", creatures.EntityStore);
+        entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
+            static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
+                $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
+        productDebug = new CraftDebugModule(() => player, () => creatures, () => terrain, context.Debugging);
+    }
+
+    private void CreateWorld()
+    {
+        terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
         player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
         sky = new DayNightSky(context.Engine);
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
-        creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         blast = new BlastModule(terrain, frame, entities, cues);
         build = new BuildModule(terrain, entities, player.Occupies);
@@ -104,29 +123,24 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
         gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, entityStore, lamps, feedback];
-        entityDebug.RegisterStore("craft", player.EntityStore);
-        entityDebug.RegisterStore("creatures", creatures.EntityStore);
-        entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
-            static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
-                $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
-        productDebug = new CraftDebugModule(player, creatures, terrain, context.Debugging);
     }
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
+        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => terrain)));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
-        RequireRegistration(registrar.Register(new DiscoveryDebugModule(discovery)));
-        RequireRegistration(registrar.Register(new BlastDebugModule(blast)));
-        RequireRegistration(registrar.Register(new BuildDebugModule(build, entityStore)));
+        RequireRegistration(registrar.Register(new DiscoveryDebugModule(() => discovery)));
+        RequireRegistration(registrar.Register(new BlastDebugModule(() => blast)));
+        RequireRegistration(registrar.Register(new BuildDebugModule(() => build, () => entityStore)));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
-        RequireRegistration(registrar.Register(new WorldConditionsDebugModule(conditions)));
-        RequireRegistration(registrar.Register(new SurvivalDebugModule(survival)));
-        RequireRegistration(registrar.Register(new InventoryDebugModule(inventory)));
-        RequireRegistration(registrar.Register(new DungeonDebugModule(dungeons)));
-        RequireRegistration(registrar.Register(new FeedbackDebugModule(feedback)));
-        RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
+        RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => conditions)));
+        RequireRegistration(registrar.Register(new SurvivalDebugModule(() => survival)));
+        RequireRegistration(registrar.Register(new InventoryDebugModule(() => inventory)));
+        RequireRegistration(registrar.Register(new DungeonDebugModule(() => dungeons)));
+        RequireRegistration(registrar.Register(new FeedbackDebugModule(() => feedback)));
+        RequireRegistration(registrar.Register(CraftPlaytest.Create(() => player)));
     }
 
     public void Start()
@@ -143,6 +157,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
 
             PublishAppearanceSnapshot();
             lifecycle = ProductLifecycleState.Running;
+            PublishWorld();
         }
         catch
         {
@@ -164,6 +179,8 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
+        if (HandleWorldActions(update)) return ProductUpdateResult.None;
+        if (mapOpen) return ProductUpdateResult.None;
         ProductStep step = ProductStep.From(update.Facts);
 
         // The player moves first on this update's input, then the UI's requests are aimed from
@@ -235,6 +252,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
             Shutdown();
         }
 
+        overview?.Dispose();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         foreach (IProductModule module in gameplay.Reverse())
         {
@@ -268,7 +286,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()
     {
-        engine.Graphics.PublishSnapshot([.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]);
+        engine.Graphics.PublishSnapshot(mapOpen && overview is not null ? overview.Facts : [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
     }

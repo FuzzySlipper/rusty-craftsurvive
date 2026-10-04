@@ -23,6 +23,12 @@ internal readonly record struct SaveBounds(int MaximumRecords, int RecordBytes)
 /// </summary>
 internal static class SaveEnvelope
 {
+    internal static SaveIdentity IdentityOf(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length < HeaderBytes) throw new InvalidOperationException("Save header is incomplete.");
+        return new(BinaryPrimitives.ReadUInt32LittleEndian(bytes[GeneratorVersionOffset..]),
+            BinaryPrimitives.ReadUInt64LittleEndian(bytes[SeedOffset..]));
+    }
     internal const int HeaderBytes = 32;
 
     private const int SchemaOffset = sizeof(uint);

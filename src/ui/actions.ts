@@ -81,7 +81,7 @@ export function mountActions(host: HTMLElement, intents: RustyApplicationUiInten
   const studies = element('div', 'display:flex;gap:.35rem;align-items:center;margin-top:.5rem;');
   const landscape = element('select');
   landscape.setAttribute('aria-label', 'Landscape study');
-  for (const [value, label] of [['canyon', 'Ochre canyon'], ['uplands', 'Sage uplands'], ['tundra', 'Frost ridge'], ['canyonfull', 'Canyon · loaded study'], ['uplandsfull', 'Uplands · loaded study'], ['tundrafull', 'Frost · loaded study']] as const) {
+  for (const [value, label] of [['canyon', 'Ochre canyon · authored study'], ['uplands', 'Sage uplands · authored study'], ['tundra', 'Frost ridge · authored study']] as const) {
     const option = element('option', '', label);
     option.value = value;
     landscape.append(option);

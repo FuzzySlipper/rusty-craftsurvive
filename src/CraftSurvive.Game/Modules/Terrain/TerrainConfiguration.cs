@@ -8,7 +8,7 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// </summary>
 internal readonly record struct TerrainConfiguration(ulong Seed, int Size, uint GeneratorVersion)
 {
-    /// <summary>The world the product boots into.</summary>
+    /// <summary>The starting world when no compatible map has been saved.</summary>
     internal static TerrainConfiguration Default => new(
         TerrainConstants.DefaultSeed,
         TerrainConstants.DefaultSize,
@@ -36,6 +36,8 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, uint 
     }
 
     internal TerrainRecipe CreateRecipe(ITerrainDraws draws) => new(this.Validate(), draws);
+
+    internal TerrainRecipe CreateRecipe(ITerrainDraws draws, WorldMap map) => new(this.Validate(), draws, map);
 
     /// <summary>The versioned identity generation draws from.</summary>
     internal TerrainGeneratorContract Contract => new(Seed, GeneratorVersion, Size);

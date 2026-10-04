@@ -18,8 +18,9 @@ content/game               the content the product loads
 Directory.Build.props      the one Engine SDK/runtime pair pin
 ```
 
-The product boots into the generated overworld configured in
-`Modules/Terrain/TerrainConfiguration.cs` and loads dungeons as separate spaces.
+`WorldCatalog` restores or generates the finite map before composing the
+overworld; `TerrainConfiguration.Default` supplies an absent-save starting world.
+Dungeons load as separate spaces.
 The Engine host owns canvas, renderer resources,
 frame construction, input delivery and runtime integration. Product C# publishes product facts
 through named SDK services; neither C# nor UI code recreates those mechanisms.
@@ -47,7 +48,8 @@ save, then terrain's save, then one appearance snapshot.
 | Shared product facts | `Modules/World`: `ProductStep`, `WorldFrame` (the one world-to-local conversion), `ProductIds` | World origin |
 | Saves | `Modules/World`: `SaveManifest` (every key), `ProductStore` (the one store), `ProductSaveSlot`, `SaveEnvelope`, `SaveRestore`; each owner saves its own key | Persistence |
 | UI projection | `Modules/World`: `ProductUiPublisher` and `ProductUiProjection` | UI streams |
-| Generation | `Modules/WorldGen`: `TerrainRecipe`, continuous samples in `TerrainDensity`, the contract, point-of-interest and crossing placement and structures | Keyed random draws |
+| World selection | `Modules/World`: `WorldCatalog`, `WorldMapCodec`, `WorldMapPresentation`; root `WorldSelection` | Persistence, mesh/material resources, camera, input intents and UI streams |
+| Generation | `Modules/WorldGen`: `WorldMapGenerator`, immutable `WorldMap`, `TerrainRecipe`, continuous samples in `TerrainDensity`, the contract, point-of-interest and crossing placement and structures | Keyed random draws |
 | Terrain | `Modules/Terrain`: `TerrainWorld`, `TerrainSurfaces`, the residency streamer, edit service and transaction, overlay and its store, chunk cache and presentation | Spatial sessions, density-bearing voxel residency, per-material surfaces, edits and scene reads, collision queries, authored content, directional voxel presentation |
 | Blocks and atlas | `Modules/Content`: `BlockRegistry`, `TerrainAtlasLayout` | Authored materials |
 | Player | `Modules/Player`: `PlayerController` over input, camera, water and climb probes, body, origin rebasing, vitals, progress and continuation | Character controller (walking, swimming, climbing), look, camera view, world origin |
@@ -78,3 +80,46 @@ implementation scope. A slice first names its C# owner and the Engine mechanisms
 it needs, and stops to file an upstream task if a named capability is absent.
 See [`known-limitations.md`](known-limitations.md) for behavioural limits; an
 implemented prototype mechanism is not a requirement to preserve its old genre.
+
+## World map contract
+
+`WorldCatalog` owns the selected world. New-game generation produces an immutable
+`WorldMap` before `TerrainWorld` starts; restore reads its saved samples instead
+of rerunning generation. The bounded grid has at most 64 segments per axis,
+with fewer nodes for tiny test extents. It stores elevation in metres plus unit
+fields for temperature, moisture, exposed rock, permitted local detail and
+candidate ridge passages. Seed, extent and generator version identify the recipe.
+The initial generator establishes a bent ridge, a basin, a lowered pass and
+continuous regional climate relationships. It is not an erosion simulation.
+
+Coordinates use world X/Z metres, north toward -Z, with the square centred on
+the origin. Grid nodes include both edges. Sampling clamps geographic coordinates
+at the edge and uses smoothstep bilinear interpolation, including for density
+and neighbouring normal samples. Clamping does not extend the playable world:
+`TerrainRecipe` retains finite occupancy and the provisional bedrock boundary.
+The overview uses a scaled mesh in Engine presentation coordinates, independent
+of the rebased local terrain frame; DOM code supplies labels and controls only.
+
+Local density samples map elevation, then adds continuous world-coordinate noise
+bounded by `WorldMap.LocalReliefLimit` and the map's detail field. Regional fields
+select surface materials and vegetation eligibility. Map samples remain
+unchanged by local noise or player edits. Later erosion should refine the map
+before local terrain is realized; drainage and route preservation must become
+explicit constraints rather than increasing detail amplitude. The authored
+landscape studies are separate loaded comparison spaces, not hidden overrides
+of geographic sampling.
+
+The map and its configuration share one Engine persistence record. That record
+also selects a generation namespace for gameplay saves, so starting again with
+the same seed still starts fresh. Each save slot captures its keys at creation;
+retiring owners can flush without writing into the new world. The source stamp,
+map fingerprint and recipe output identity invalidate generated chunk caches.
+A generator-version change discards incompatible development saves.
+
+The root replaces per-world owners on a new-game intent while retaining the
+Engine product session, one persistence store and one UI stream. It releases
+old appearance, spatial, camera and light handles before installing replacements;
+debug adapters follow the active owners. Only nearby voxel chunks are generated
+and admitted to the existing bounded residency window. The map is an inspection
+view that suspends local updates; its region visit controls are not a travel
+simulation or a commitment to unrestricted fast travel.

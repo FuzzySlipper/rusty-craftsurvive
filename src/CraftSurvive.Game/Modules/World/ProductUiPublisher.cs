@@ -91,6 +91,8 @@ internal readonly record struct ConditionsUiFacts(string Time, double Daylight, 
 /// <summary>The world's facts for the UI projection, read when it is published.</summary>
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);
 
+internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation);
+
 /// <summary>
 /// The product's one UI stream. Owners push their facts - the player its pose and vitals, discovery
 /// its counts, the UI actions their outcome, the world its scene - and each push republishes the
@@ -116,6 +118,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private InventoryUiFacts? inventory;
     private DungeonUiFacts? dungeon;
     private ulong sequence;
+    private WorldMapUiFacts? map;
 
     internal ProductUiPublisher(IEngineContext engine) => this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
 
@@ -124,6 +127,13 @@ internal sealed class ProductUiPublisher : IDisposable
         stream ??= engine.Ui.OpenStream(new UiStreamRequest(name, contract));
         world = worldFacts ?? throw new ArgumentNullException(nameof(worldFacts));
     }
+
+    internal void ResetWorld()
+    {
+        world = null; player = null; discovery = null; actions = null; conditions = null; survival = null; inventory = null; dungeon = null;
+    }
+
+    internal void PublishMap(WorldMapUiFacts facts) { map = facts; Publish(); }
 
     internal void PublishPlayer(PlayerUiFacts facts)
     {
@@ -176,7 +186,7 @@ internal sealed class ProductUiPublisher : IDisposable
 
         WorldUiFacts facts = world();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions, survival, inventory, dungeon)));
+            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions, survival, inventory, dungeon, map)));
     }
 
     public void Dispose()

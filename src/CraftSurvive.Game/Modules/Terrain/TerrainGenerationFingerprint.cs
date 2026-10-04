@@ -60,6 +60,7 @@ internal static class TerrainGenerationFingerprint
         ulong hash = FnvOffsetBasis;
         TerrainGeneratorContract contract = recipe.Contract;
         hash = Mix(hash, contract.Version);
+        hash = Mix(hash, recipe.Map.Fingerprint);
         hash = Mix(hash, (ulong)contract.Extent);
 
         // Heights over the whole world, edge to edge.

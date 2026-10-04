@@ -38,7 +38,7 @@ internal sealed class TerrainWorld : IDisposable
     private bool started;
 
     internal TerrainWorld(IEngineContext engine, ProductContent content, TerrainConfiguration configuration,
-        WorldFrame frame, ProductStore store, ProductUiPublisher ui)
+        WorldFrame frame, ProductStore store, ProductUiPublisher ui, WorldMap? map = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
@@ -47,12 +47,13 @@ internal sealed class TerrainWorld : IDisposable
         this.frame = frame;
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         frame.Rebased += OnRebased;
-        recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random));
+        map ??= WorldMapGenerator.Generate(configuration);
+        recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map);
 
         // The fingerprint comes from a fresh recipe, so nothing the live one memoises can hide a
         // change in the generator or in the Engine's keyed draws underneath it.
         GenerationFingerprint = TerrainGenerationFingerprint.Compute(
-            configuration.CreateRecipe(new EngineTerrainDraws(engine.Random)),
+            configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map),
             TerrainGenerationFingerprint.Startup);
         CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
@@ -253,7 +254,7 @@ internal sealed class TerrainWorld : IDisposable
     internal string GenerationReadout()
     {
         uint version = recipe.Contract.Version;
-        string golden = TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
+        string golden = recipe.Configuration != TerrainConfiguration.Default ? "custom-world" : TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
             ? expected == GenerationFingerprint ? "match" : string.Create(CultureInfo.InvariantCulture, $"mismatch expected={expected:x16}")
             : "unrecorded";
         return string.Create(CultureInfo.InvariantCulture,

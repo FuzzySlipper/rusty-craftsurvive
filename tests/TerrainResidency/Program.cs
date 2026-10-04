@@ -3,6 +3,7 @@ using CraftSurvive.Game.Tests;
 // Terrain, generation, residency, edits and player input: the pure product policy the world is
 // built from, checked without an Engine context. Each area reports every failure it finds.
 Check.Section("player input", PlayerInputChecks.Run);
+Check.Section("world map", WorldMapChecks.Run);
 Check.Section("generator identity", GeneratorChecks.Run);
 Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);

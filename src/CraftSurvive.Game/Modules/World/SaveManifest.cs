@@ -20,6 +20,8 @@ internal sealed record SaveKey(string Key, string BackupKey, string Owner, uint 
 /// </summary>
 internal static class SaveManifest
 {
+    internal static SaveKey WorldMap { get; } =
+        new("world/map", "world/map.backup", "WorldCatalog", 0x50414D57, 1);
     /// <summary>The player's voxel edits: the overlay over the generated world.</summary>
     internal static SaveKey TerrainOverlay { get; } =
         new("terrain/overlay", "terrain/overlay.backup", "TerrainOverlayStore", 0x4F54_5343, 1);
@@ -49,5 +51,5 @@ internal static class SaveManifest
         new("player/inventory", "player/inventory.backup", "InventoryModule", 0x5652_4E49, 2);
 
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory];
 }

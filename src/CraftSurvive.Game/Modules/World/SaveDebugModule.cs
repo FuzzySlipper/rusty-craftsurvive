@@ -21,7 +21,7 @@ public sealed class SaveDebugModule : IDebugCommandModule
 
     private string Describe(string key)
     {
-        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, key));
+        using PersistenceBlob blob = engine.Persistence.Load(new PersistenceLoadRequest(store.Store, store.KeyFor(key)));
         PersistenceBlobInfo info = engine.Persistence.DescribeBlob(blob);
         return info.Present ? $"{info.PayloadLen}B@r{info.Revision}" : "no";
     }

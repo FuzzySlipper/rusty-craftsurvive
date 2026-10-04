@@ -5,10 +5,11 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// <summary>Live-debug adapter over dungeons: read the state, enter at an entrance, leave by the way out.</summary>
 public sealed class DungeonDebugModule : IDebugCommandModule
 {
-    private readonly DungeonModule dungeons;
+    private readonly Func<DungeonModule> dungeonsSource;
+    private DungeonModule dungeons => dungeonsSource();
 
-    internal DungeonDebugModule(DungeonModule dungeons) =>
-        this.dungeons = dungeons ?? throw new ArgumentNullException(nameof(dungeons));
+    internal DungeonDebugModule(Func<DungeonModule> dungeons) =>
+        this.dungeonsSource = dungeons ?? throw new ArgumentNullException(nameof(dungeons));
 
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();

@@ -5,10 +5,11 @@ namespace CraftSurvive.Game.Modules.Survival;
 /// <summary>Live-debug adapter over the world's conditions: read them, set the hour or the difficulty.</summary>
 public sealed class WorldConditionsDebugModule : IDebugCommandModule
 {
-    private readonly WorldConditionsModule conditions;
+    private readonly Func<WorldConditionsModule> conditionsSource;
+    private WorldConditionsModule conditions => conditionsSource();
 
-    internal WorldConditionsDebugModule(WorldConditionsModule conditions) =>
-        this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
+    internal WorldConditionsDebugModule(Func<WorldConditionsModule> conditions) =>
+        this.conditionsSource = conditions ?? throw new ArgumentNullException(nameof(conditions));
 
     [DebugCommand("craft.world.readout", Description = "Reads the world's time of day, daylight, difficulty and how its save is going.")]
     public string Readout() => conditions.Readout();

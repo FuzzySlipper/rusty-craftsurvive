@@ -29,6 +29,12 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
     /// <summary>The next sample jumps rather than interpolating: a teleport or a rebase moved the eye.</summary>
     internal void Cut() => cut = true;
 
+    internal void Activate()
+    {
+        if (camera is not null) engine.CameraView.SetActiveCamera(camera);
+        Cut();
+    }
+
     internal void Publish(Vector3 eye, LookState look, double sampleTimeSeconds, ulong update)
     {
         Camera active = camera ?? throw new InvalidOperationException("CraftSurvive camera is unavailable.");
