@@ -12,11 +12,12 @@ using Rusty.Engine.Mechanics;
 namespace CraftSurvive.Game.Modules.Inventory;
 
 /// <summary>
-/// The one owner of what the player carries, held in the Engine's <see cref="InventoryStore"/>. It
-/// takes in what creatures drop and what a place's cache holds on a first reach, crafts by recipe as
-/// one inventory edit (all of it or none), and uses items: food through survival, bandages through
-/// the player's vitals, torches when a light is placed. It publishes the carried items and recipes
-/// to the UI and saves them.
+/// The one owner of what the player carries, held in the Engine's <see cref="InventoryStore"/> as
+/// one stack per occupied slot (<see cref="InventorySlots"/>: the hotbar and the pack). It takes in
+/// what creatures drop and what a place's cache holds on a first reach, moves stacks between slots
+/// as the player drags them, crafts by recipe, and uses items: food through survival, bandages
+/// through the player's vitals, torches when a light is placed. Every change is one inventory edit,
+/// all of it or none. It publishes the slots and recipes to the UI and saves them.
 /// </summary>
 internal sealed class InventoryModule : IProductModule
 {
@@ -59,9 +60,9 @@ internal sealed class InventoryModule : IProductModule
         Register();
         if (slot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: CarriedItems saved })
         {
-            foreach (ItemCount carried in saved.Items)
+            foreach (SlotContents contents in saved.Slots)
             {
-                store.Grant(owner, carried.Item.Definition, carried.Item.Stack, (ulong)carried.Count);
+                store.Grant(owner, contents.Item.Definition, InventorySlots.Stack(contents.Slot), (ulong)contents.Count);
             }
         }
 
@@ -125,18 +126,34 @@ internal sealed class InventoryModule : IProductModule
     /// <summary>How many requests the inventory has refused, so a caller can tell a refusal from its answer.</summary>
     internal long Refused => refused;
 
-    /// <summary>How many of an item the player carries.</summary>
-    internal int Count(CatalogItem item)
+    /// <summary>How many of an item the player carries, across every slot.</summary>
+    internal int Count(CatalogItem item) => Held().Where(contents => contents.Item == item).Sum(contents => contents.Count);
+
+    /// <summary>What each occupied slot holds, in slot order.</summary>
+    internal IReadOnlyList<SlotContents> Held() => [.. store.View(owner).Stacks
+        .Select(stack => new SlotContents(InventorySlots.SlotOf(stack.Id), ItemCatalog.All.First(item => item.DefinitionId.Equals(stack.Definition)), (int)stack.Quantity))
+        .OrderBy(contents => contents.Slot)];
+
+    /// <summary>
+    /// Moves a stack, or <paramref name="count"/> of it (zero for all), from one slot to another, as
+    /// the player drags it: into an empty slot, onto the same kind, or swapping with another kind.
+    /// </summary>
+    internal string Move(int from, int to, int count)
     {
-        foreach (InventoryStack stack in store.View(owner).Stacks)
+        SlotPlan plan = InventorySlots.PlanMove(Held(), from, to, count);
+        if (plan.Refusal is string why)
         {
-            if (stack.Id.Equals(item.Stack))
-            {
-                return (int)stack.Quantity;
-            }
+            return Refuse($"move refused: {why}");
         }
 
-        return 0;
+        if (Apply(plan.Taken, plan.Given) is string failed)
+        {
+            return Refuse($"move refused: {failed}");
+        }
+
+        last = $"moved {plan.Given[0].Count} {plan.Given[0].Item.Id} to slot {plan.Given[0].Slot}";
+        Publish();
+        return last;
     }
 
     /// <summary>
@@ -158,20 +175,20 @@ internal sealed class InventoryModule : IProductModule
             }
         }
 
-        try
+        List<SlotChange> taken = [];
+        foreach (ItemCount input in recipe.Inputs)
         {
-            using InventoryEdit edit = store.Prepare();
-            foreach (ItemCount input in recipe.Inputs)
-            {
-                edit.Consume(owner, input.Item.Stack, (ulong)input.Count);
-            }
-
-            edit.Grant(owner, recipe.Output.Item.Definition, recipe.Output.Item.Stack, (ulong)recipe.Output.Count);
-            edit.Publish();
+            taken.AddRange(InventorySlots.PlanSpend(After(Held(), taken), input.Item, input.Count)!);
         }
-        catch (MechanicsException exception)
+
+        if (InventorySlots.PlanTake(After(Held(), taken), [recipe.Output]) is not IReadOnlyList<SlotChange> given)
         {
-            return Refuse($"craft {recipe.Id} refused: {exception.Reason}");
+            return Refuse($"craft {recipe.Id} refused: no slot for the {recipe.Output.Item.Id}");
+        }
+
+        if (Apply(taken, given) is string failed)
+        {
+            return Refuse($"craft {recipe.Id} refused: {failed}");
         }
 
         crafted++;
@@ -180,8 +197,11 @@ internal sealed class InventoryModule : IProductModule
         return last;
     }
 
-    /// <summary>Uses one of an item: eats food or applies a bandage. Materials and torches are not used this way.</summary>
-    internal string Use(string itemId)
+    /// <summary>
+    /// Uses one of an item: eats food or applies a bandage, from <paramref name="fromSlot"/> when it
+    /// holds that kind. Materials and torches are not used this way.
+    /// </summary>
+    internal string Use(string itemId, int fromSlot = -1)
     {
         if (!ItemCatalog.TryFind(itemId, out CatalogItem item))
         {
@@ -198,7 +218,7 @@ internal sealed class InventoryModule : IProductModule
             return Refuse("use refused: already at full health");
         }
 
-        if (!Spend(item))
+        if (!Spend(item, fromSlot))
         {
             return Refuse($"use refused: carrying no {item.Id}");
         }
@@ -218,15 +238,14 @@ internal sealed class InventoryModule : IProductModule
         return last;
     }
 
-    /// <summary>Spends one of an item, or returns false when none is carried.</summary>
-    internal bool Spend(CatalogItem item)
+    /// <summary>Spends one of an item, from a slot when it is asked and holds one, or returns false when none is carried.</summary>
+    internal bool Spend(CatalogItem item, int fromSlot = -1)
     {
-        if (Count(item) <= 0)
+        if (InventorySlots.PlanSpend(Held(), item, 1, fromSlot) is not IReadOnlyList<SlotChange> taken || Apply(taken, []) is not null)
         {
             return false;
         }
 
-        store.Consume(owner, item.Stack, 1UL);
         Publish();
         return true;
     }
@@ -252,23 +271,49 @@ internal sealed class InventoryModule : IProductModule
     /// <summary>Takes items in as one edit; when they do not all fit, they are left behind together and counted.</summary>
     private void Take(IReadOnlyList<ItemCount> items, string outcome)
     {
+        string? failed = InventorySlots.PlanTake(Held(), items) is IReadOnlyList<SlotChange> given ? Apply([], given) : "no free slot";
+        if (failed is null)
+        {
+            last = outcome;
+            return;
+        }
+
+        leftBehind += items.Sum(carried => carried.Count);
+        last = $"{outcome} - left behind: {failed}";
+    }
+
+    /// <summary>
+    /// Carries out a plan as one edit: everything taken out first, so a swap never holds both stacks
+    /// at once, then everything put in. Returns why the Engine refused it, or null when it is done.
+    /// </summary>
+    private string? Apply(IReadOnlyList<SlotChange> taken, IReadOnlyList<SlotChange> given)
+    {
         try
         {
             using InventoryEdit edit = store.Prepare();
-            foreach (ItemCount carried in items)
+            foreach (SlotChange change in taken)
             {
-                edit.Grant(owner, carried.Item.Definition, carried.Item.Stack, (ulong)carried.Count);
+                edit.Consume(owner, InventorySlots.Stack(change.Slot), (ulong)change.Count);
+            }
+
+            foreach (SlotChange change in given)
+            {
+                edit.Grant(owner, change.Item.Definition, InventorySlots.Stack(change.Slot), (ulong)change.Count);
             }
 
             edit.Publish();
-            last = outcome;
+            return null;
         }
         catch (MechanicsException exception)
         {
-            leftBehind += items.Sum(carried => carried.Count);
-            last = $"{outcome} - left behind: {exception.Reason}";
+            return exception.Reason.ToString();
         }
     }
+
+    /// <summary>What the slots would hold after some counts are taken out of them.</summary>
+    private static IReadOnlyList<SlotContents> After(IReadOnlyList<SlotContents> held, IReadOnlyList<SlotChange> taken) =>
+        [.. held.Select(contents => contents with { Count = contents.Count - taken.Where(change => change.Slot == contents.Slot).Sum(change => change.Count) })
+            .Where(contents => contents.Count > 0)];
 
     private string Refuse(string outcome)
     {
@@ -280,10 +325,7 @@ internal sealed class InventoryModule : IProductModule
 
     private void Save()
     {
-        List<ItemCount> carried = [.. ItemCatalog.All
-            .Select(item => new ItemCount(item, Count(item)))
-            .Where(item => item.Count > 0)];
-        slot.Save(new CarriedItems(carried));
+        slot.Save(new CarriedItems(Held()));
         savedRevision = store.Revision;
         changedAtStep = long.MinValue;
     }
@@ -321,13 +363,17 @@ internal sealed class InventoryModule : IProductModule
     {
         InventoryUiFacts facts = new(
             Carried(),
-            string.Join(";", ItemCatalog.All.Where(item => Count(item) > 0).Select(item => $"{item.Id}|{item.Name}|{Count(item)}|{UseName(item.Use)}")),
+            string.Join(";", Held().Select(contents => $"{contents.Slot}|{contents.Item.Id}|{contents.Item.Name}|{contents.Count}|{UseName(contents.Item.Use)}")),
             string.Join(";", Recipes.All.Select(recipe =>
                 $"{recipe.Id}|{recipe.Output.Item.Name}|{recipe.Output.Count}|{string.Join("+", recipe.Inputs.Select(input => $"{input.Item.Name}*{input.Count}"))}|{(Craftable(recipe) ? 1 : 0)}")),
             Load(),
             ItemCatalog.CarryLimit,
             Count(ItemCatalog.Torch),
-            last);
+            last)
+        {
+            HotbarSlots = InventorySlots.HotbarSlots,
+            PackSlots = InventorySlots.PackSlots,
+        };
         if (published != facts)
         {
             published = facts;

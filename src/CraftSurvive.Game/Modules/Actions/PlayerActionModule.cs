@@ -118,7 +118,14 @@ internal sealed class PlayerActionModule
         if (action.Kind == PlayerActionKind.Use)
         {
             long refusedBefore = inventory.Refused;
-            Settle(name, inventory.Use(action.Name), inventory.Refused > refusedBefore);
+            Settle(name, inventory.Use(action.Name, action.Slot), inventory.Refused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind == PlayerActionKind.Move)
+        {
+            long refusedBefore = inventory.Refused;
+            Settle(name, inventory.Move(action.FromSlot, action.ToSlot, action.Count), inventory.Refused > refusedBefore);
             return;
         }
 

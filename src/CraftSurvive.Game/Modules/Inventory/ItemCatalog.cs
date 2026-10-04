@@ -23,9 +23,6 @@ internal sealed record CatalogItem(int Code, string Id, string Name, ItemUse Use
 {
     internal ItemDefinitionId DefinitionId { get; } = ItemDefinitionId.Parse($"craftsurvive.{Id}");
 
-    /// <summary>The player carries each kind in one stack, named by the kind.</summary>
-    internal InventoryStackId Stack { get; } = InventoryStackId.Parse(Id);
-
     internal ItemDefinition Definition => new(
         DefinitionId,
         ItemKind.Fungible,

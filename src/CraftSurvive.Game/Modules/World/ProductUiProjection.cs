@@ -89,6 +89,8 @@ internal static class ProductUiProjection
         {
             values.AddText("carried", carried.Carried);
             values.AddText("packItems", carried.Items);
+            values.Add("hotbarSlots", carried.HotbarSlots);
+            values.Add("packSlots", carried.PackSlots);
             values.AddText("recipeBook", carried.RecipeBook);
             values.Add("packLoad", carried.Load);
             values.Add("packLimit", carried.Limit);

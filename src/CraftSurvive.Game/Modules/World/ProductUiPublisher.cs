@@ -59,13 +59,19 @@ internal readonly record struct DiscoveryUiFacts(
     string Journal);
 
 /// <summary>
-/// What the player carries, for the UI projection: the items as one line, each carried kind as an
-/// <c>id|name|count|use</c> entry (use is food, healing, light or material), the recipe book as
+/// What the player carries, for the UI projection: the items as one line, each occupied slot as a
+/// <c>slot|id|name|count|use</c> entry (use is food, healing, light or material), the recipe book as
 /// <c>id|makes|count|name*count+name*count|ready</c> entries, entries separated by <c>;</c>, how
 /// much is carried of how much can be, the torches for lights, and what the last inventory action
 /// came to.
 /// </summary>
-internal readonly record struct InventoryUiFacts(string Carried, string Items, string RecipeBook, double Load, double Limit, int Torches, string Last);
+internal readonly record struct InventoryUiFacts(string Carried, string Items, string RecipeBook, double Load, double Limit, int Torches, string Last)
+{
+    /// <summary>How many hotbar slots there are, numbered first, and pack slots after them.</summary>
+    internal double HotbarSlots { get; init; }
+
+    internal double PackSlots { get; init; }
+}
 
 /// <summary>
 /// Where the player stands with dungeons, for the UI projection: outside, loading (with progress) or

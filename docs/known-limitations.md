@@ -94,9 +94,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
 - **Supplies come from creatures and places, not from the ground.** `ItemCatalog` holds the items,
   `Recipes` the three recipes, and `SupplyCache` what a place holds on the first reach (a return
-  holds nothing). The player carries one stack per kind within `ItemCatalog.CarryLimit`; what does
-  not fit is left behind and counted. Building floors and walls is free; a light burns a torch.
-  There are no tools, stations, equipment or containers that hold items.
+  holds nothing). What the player carries sits in slots (`InventorySlots`): 9 hotbar slots and 27
+  pack slots in one numbering, each one stack of one kind up to `ItemCatalog.StackMaximum`, all
+  within `ItemCatalog.CarryLimit`. The hotbar is slots of its own, not shortcuts to the pack: a
+  thing lives in one slot. A pickup tops up its kind, then takes the first empty slot, hotbar first;
+  spending takes from the pack before the hotbar; a move (dragged in the UI) goes into an empty
+  slot, merges onto its kind, or swaps a whole stack. What does not fit is left behind and counted.
+  Nothing selects a hotbar slot or uses it from the HUD yet. Building floors and walls is free; a
+  light burns a torch. There are no tools, stations, equipment or containers that hold items; the
+  pack screen's equipment slots are placeholders that refuse anything dropped on them.
 
 ## Dungeons
 
@@ -166,7 +172,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   and guarded by the revision this session last read or wrote: a key changed outside the session
   is reported, not overwritten.
 - **Worlds are disposable.** A save written for another seed or generator version is discarded,
-  kept as the key's one backup, and the world regenerates; there is no migration.
+  kept as the key's one backup, and the world regenerates. Within a world, a key whose schema moves
+  is discarded the same way unless its codec reads the old schema: the inventory reads its schema 1
+  (one count per kind) and lays it out into slots.
 - Player continuation restores position, look, vitals and progress, not controller motion: the
   player starts at rest. A position where a standing body no longer fits restores at home.
 - The discovery journal holds at most `PoiConstants.MaximumDiscoveryEntries` places and refuses
@@ -203,10 +211,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - `src/ui` is a DOM companion over the product's UI projection. The game's HUD (`overlay.ts`)
   draws a crosshair, the vitals as segmented bars (stamina and air only while below full, climbing
   or under water), the product's prompt for where the player stands, short notices when something
-  is found or done, and a red flash when health is lost (`hitsTaken` rising). Two screens open over
-  it (`screens.ts`, I and M, or the buttons at the top right; Esc closes): the pack - what is
-  carried, eating and applying, and the recipe book with what each needs - and the journal of
-  places, a north-up map around the player (north is -Z) and a list by distance. The journal lists
+  is found or done, and a red flash when health is lost (`hitsTaken` rising). The hotbar's slots sit
+  at the foot of the view and a minimap of the journal's places (200 m, north up, an arrow for the
+  facing) in the corner (`screens.ts`, `map.ts`). Two screens open over it (I and M, the buttons
+  under the minimap, or a click on the minimap for the journal; Esc closes): the pack - the
+  equipment placeholders, the pack and hotbar slots, and the recipe book with what each needs - and
+  the journal of places, a north-up map around the player (north is -Z) and a list by distance.
+  Stacks are dragged between slots while the pointer is free (`slots.ts`: Shift or right-drag for
+  half, double-click to eat or apply); each drop claims a move and the product publishes the slots
+  again. Items are drawn as a coloured block by use and an initial: there is no item art. The journal lists
   the 48 places most recently learned (`DiscoveryModule.JournalShown`), not every place found.
   Everything else - the published facts, the building actions, rest, difficulty, the controls - is
   the Menu drawer, closed by default. The UI holds no game state, only what it last drew and which

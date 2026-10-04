@@ -33,7 +33,7 @@ BlockEntityRecord[] entities = index.Snapshot();
 PlayerContinuation player = new(812.5, 14.0, -96.25, 1.25, -0.3, 17, 2, 350, 6);
 WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
 SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 };
-CarriedItems carried = new([new ItemCount(ItemCatalog.Meat, 3), new ItemCount(ItemCatalog.Oil, 1), new ItemCount(ItemCatalog.Torch, 4)]);
+CarriedItems carried = new([new SlotContents(0, ItemCatalog.Torch, 4), new SlotContents(3, ItemCatalog.Meat, 3), new SlotContents(20, ItemCatalog.Oil, 1)]);
 
 SavedForm[] forms =
 [
@@ -50,7 +50,7 @@ SavedForm[] forms =
     SavedForm.For(SaveManifest.PlayerSurvival, new SurvivalCodec(identity), tracks, SurvivalCodec.RecordBytes,
         (left, right) => left == right, seed => new SurvivalCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.PlayerInventory, new InventoryCodec(identity), carried, InventoryCodec.RecordBytes,
-        (left, right) => left.Items.SequenceEqual(right.Items), seed => new InventoryCodec(identity with { Seed = seed })),
+        (left, right) => left.Slots.SequenceEqual(right.Slots), seed => new InventoryCodec(identity with { Seed = seed })),
 ];
 
 // --- the manifest names every saved key, once ------------------------------------------------------
@@ -119,13 +119,60 @@ Check.That(Throws(() => survivalCodec.Encode(tracks with { Satiety = SurvivalRul
 Check.That(Throws(() => survivalCodec.Encode(tracks with { Breath = -1 })), "negative air cannot be saved");
 
 InventoryCodec inventoryCodec = new(identity);
-Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new ItemCount(ItemCatalog.Torch, 1), new ItemCount(ItemCatalog.Meat, 1)]))),
-    "kinds out of catalogue order cannot be saved");
-Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new ItemCount(ItemCatalog.Meat, 0)]))), "an empty stack is not carried");
+Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new SlotContents(5, ItemCatalog.Torch, 1), new SlotContents(2, ItemCatalog.Meat, 1)]))),
+    "slots out of order cannot be saved");
+Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new SlotContents(0, ItemCatalog.Meat, 0)]))), "an empty stack is not carried");
+Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new SlotContents(InventorySlots.Count, ItemCatalog.Meat, 1)]))), "a slot past the last cannot be saved");
 byte[] unknownItem = inventoryCodec.Encode(carried);
-BinaryPrimitives.WriteInt32LittleEndian(unknownItem.AsSpan(32), 99);
+BinaryPrimitives.WriteInt32LittleEndian(unknownItem.AsSpan(SaveEnvelope.HeaderBytes + sizeof(int)), 99);
 Check.That(Refuses(inventoryCodec, unknownItem), "an unknown item code must be refused");
-Check.That(inventoryCodec.Decode(inventoryCodec.Encode(new CarriedItems([]))).Items.Count == 0, "carrying nothing round-trips");
+Check.That(inventoryCodec.Decode(inventoryCodec.Encode(new CarriedItems([]))).Slots.Count == 0, "carrying nothing round-trips");
+
+// A save from before slots - one count per kind, schema 1 - still loads, laid out into slots as a
+// pickup would place them, so a player's things survive the change.
+SaveKey kindKey = SaveManifest.PlayerInventory with { Schema = 1 };
+ItemCount[] kinds = [new(ItemCatalog.Meat, 3), new(ItemCatalog.Oil, 1), new(ItemCatalog.Torch, 4)];
+byte[] kindSave = SaveEnvelope.Allocate(kindKey, identity, new SaveBounds(ItemCatalog.All.Count, InventoryCodec.KindRecordBytes), kinds.Length);
+SaveWriter kindWriter = SaveEnvelope.Records(kindSave);
+SaveFingerprint kindHash = SaveFingerprint.Start(identity.Seed);
+foreach (ItemCount kind in kinds)
+{
+    kindWriter.Int32(kind.Item.Code);
+    kindWriter.Int32(kind.Count);
+    kindHash.Mix((long)kind.Item.Code);
+    kindHash.Mix((long)kind.Count);
+}
+
+SaveEnvelope.Seal(kindSave, kindHash.Value);
+CarriedItems migrated = inventoryCodec.Decode(kindSave);
+Check.That(migrated.Slots.SequenceEqual([new SlotContents(0, ItemCatalog.Meat, 3), new SlotContents(1, ItemCatalog.Oil, 1), new SlotContents(2, ItemCatalog.Torch, 4)]),
+    $"a schema 1 save must load into the first slots, loaded {string.Join(", ", migrated.Slots)}");
+
+// Slots: a pickup tops up its kind first, then the first empty slot, hotbar before pack, or leaves
+// everything when it cannot all fit; spending takes from the pack before the hotbar; a move goes
+// into an empty slot, merges onto its kind up to a full stack, or swaps a whole stack with another kind.
+SlotContents[] held = [new(0, ItemCatalog.Meat, 98), new(4, ItemCatalog.Meat, 2), new(10, ItemCatalog.Oil, 5)];
+IReadOnlyList<SlotChange>? pickup = InventorySlots.PlanTake(held, [new ItemCount(ItemCatalog.Meat, 4), new ItemCount(ItemCatalog.Hide, 1)]);
+Check.That(pickup is not null && pickup.SequenceEqual([new SlotChange(0, ItemCatalog.Meat, 1), new SlotChange(4, ItemCatalog.Meat, 3), new SlotChange(1, ItemCatalog.Hide, 1)]),
+    $"a pickup must top up its kind, then take the first empty slot, planned {string.Join(", ", pickup ?? [])}");
+SlotContents[] full = [.. Enumerable.Range(0, InventorySlots.Count).Select(slot => new SlotContents(slot, ItemCatalog.Claw, 99))];
+Check.That(InventorySlots.PlanTake(full, [new ItemCount(ItemCatalog.Claw, 1)]) is null, "a pickup that does not fit must be left whole");
+IReadOnlyList<SlotChange>? spent = InventorySlots.PlanSpend([new(0, ItemCatalog.Meat, 2), new(12, ItemCatalog.Meat, 1)], ItemCatalog.Meat, 2);
+Check.That(spent is not null && spent.SequenceEqual([new SlotChange(12, ItemCatalog.Meat, 1), new SlotChange(0, ItemCatalog.Meat, 1)]),
+    "spending must take from the pack before the hotbar");
+Check.That(InventorySlots.PlanSpend([new(0, ItemCatalog.Meat, 2), new(12, ItemCatalog.Meat, 1)], ItemCatalog.Meat, 1, preferredSlot: 0)![0].Slot == 0,
+    "spending must take from the slot asked for first");
+Check.That(InventorySlots.PlanSpend(held, ItemCatalog.Hide, 1) is null, "spending what is not carried must be refused");
+SlotPlan intoEmpty = InventorySlots.PlanMove(held, 10, 20, 2);
+Check.That(intoEmpty.Refusal is null && intoEmpty.Given.SequenceEqual([new SlotChange(20, ItemCatalog.Oil, 2)]), "part of a stack can move into an empty slot");
+SlotPlan merge = InventorySlots.PlanMove(held, 4, 0, 0);
+Check.That(merge.Refusal is null && merge.Given.SequenceEqual([new SlotChange(0, ItemCatalog.Meat, 1)]), "a merge moves only what the stack has room for");
+SlotPlan swap = InventorySlots.PlanMove(held, 10, 4, 0);
+Check.That(swap.Refusal is null && swap.Given.SequenceEqual([new SlotChange(4, ItemCatalog.Oil, 5), new SlotChange(10, ItemCatalog.Meat, 2)]), "whole stacks of different kinds swap");
+Check.That(InventorySlots.PlanMove(held, 10, 4, 1).Refusal is not null, "part of a stack cannot swap");
+Check.That(InventorySlots.PlanMove(held, 7, 3, 0).Refusal is not null && InventorySlots.PlanMove(held, 0, 0, 0).Refusal is not null
+    && InventorySlots.PlanMove(held, 0, InventorySlots.Count, 0).Refusal is not null,
+    "an empty source, the same slot and a slot past the last are refused");
 
 // --- block entities: identities are per session, meaning survives -------------------------------
 BlockEntityIndex reloaded = new();

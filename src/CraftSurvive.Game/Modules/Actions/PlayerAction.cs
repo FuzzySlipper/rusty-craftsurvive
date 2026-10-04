@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Inventory;
 
 namespace CraftSurvive.Game.Modules.Actions;
 
@@ -19,14 +20,16 @@ internal enum PlayerActionKind
     Difficulty,
     Enter,
     Leave,
+    Move,
 }
 
 /// <summary>
 /// One request from the player-facing UI, decoded from the product payload it arrives in. A blast
 /// breaks the aimed block; everything else is placed on the aimed block's open face. A floor or wall
-/// carries the <see cref="BuildPalette"/> block it is built from.
+/// carries the <see cref="BuildPalette"/> block it is built from. A move names the slots it drags a
+/// stack between and how many (zero for all); a use may name the slot it takes from.
 /// </summary>
-internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air, string Name = "")
+internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 0, int Size2 = 0, BlockId Material = BlockId.Air, string Name = "", int Count = 0)
 {
     /// <summary>The intent the UI claims, as declared in the product project.</summary>
     internal const string Intent = "craftsurvive.ui";
@@ -39,8 +42,17 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
     internal const int MaximumStampSide = 8;
     internal const int MaximumWallHeight = 4;
 
+    /// <summary>The largest count a move names: a whole stack.</summary>
+    internal const int MaximumMoveCount = 99;
+
     /// <summary>A charge's radius.</summary>
     internal int Radius => Size1;
+
+    /// <summary>A move's slots, and a use's slot (-1 when it names none).</summary>
+    internal int FromSlot => Size1;
+    internal int ToSlot => Size2;
+    internal int Slot => Size1 - 1;
+
 
     /// <summary>
     /// Decodes a payload such as <c>{"action":"blast","radius":2}</c> or
@@ -67,7 +79,9 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "container" => new(PlayerActionKind.Container),
             "undo" => new(PlayerActionKind.Undo),
             "craft" => new(PlayerActionKind.Craft, Name: Named(root, "recipe")),
-            "use" => new(PlayerActionKind.Use, Name: Named(root, "item")),
+            "use" => new(PlayerActionKind.Use, root.TryGetProperty("slot", out _) ? Size(root, "slot", 0, InventorySlots.Count - 1) + 1 : 0, Name: Named(root, "item")),
+            "move" => new(PlayerActionKind.Move, Size(root, "from", 0, InventorySlots.Count - 1), Size(root, "to", 0, InventorySlots.Count - 1),
+                Count: root.TryGetProperty("count", out _) ? Size(root, "count", 0, MaximumMoveCount) : 0),
             "rest" => new(PlayerActionKind.Rest),
             "enter" => new(PlayerActionKind.Enter),
             "leave" => new(PlayerActionKind.Leave),

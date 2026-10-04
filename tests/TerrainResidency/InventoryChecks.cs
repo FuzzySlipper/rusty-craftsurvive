@@ -67,18 +67,21 @@ internal static class InventoryChecks
     }
 
     private static void Grant(InventoryStore store, CatalogItem item, int count) =>
-        store.Grant(Owner, item.Definition, item.Stack, (ulong)count);
+        store.Grant(Owner, item.Definition, Stack(item), (ulong)count);
 
-    /// <summary>The same edit the inventory module makes: consume every input, grant the output, publish.</summary>
+    /// <summary>One stack per kind, which is all these recipe checks need of where things sit.</summary>
+    private static InventoryStackId Stack(CatalogItem item) => InventoryStackId.Parse(item.Id);
+
+    /// <summary>A recipe as one edit, as the inventory module makes it: consume every input, grant the output, publish.</summary>
     private static void Craft(InventoryStore store, Recipe recipe)
     {
         using InventoryEdit edit = store.Prepare();
         foreach (ItemCount input in recipe.Inputs)
         {
-            edit.Consume(Owner, input.Item.Stack, (ulong)input.Count);
+            edit.Consume(Owner, Stack(input.Item), (ulong)input.Count);
         }
 
-        edit.Grant(Owner, recipe.Output.Item.Definition, recipe.Output.Item.Stack, (ulong)recipe.Output.Count);
+        edit.Grant(Owner, recipe.Output.Item.Definition, Stack(recipe.Output.Item), (ulong)recipe.Output.Count);
         edit.Publish();
     }
 
@@ -86,7 +89,7 @@ internal static class InventoryChecks
     {
         foreach (InventoryStack stack in store.View(Owner).Stacks)
         {
-            if (stack.Id.Equals(item.Stack))
+            if (stack.Id.Equals(Stack(item)))
             {
                 return (int)stack.Quantity;
             }

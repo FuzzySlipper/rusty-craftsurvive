@@ -58,6 +58,10 @@ internal static class SaveEnvelope
     internal static void Seal(byte[] bytes, ulong fingerprint) =>
         BinaryPrimitives.WriteUInt64LittleEndian(bytes.AsSpan(FingerprintOffset), fingerprint);
 
+    /// <summary>The schema a stored form says it was written in, or null when it is too short to say.</summary>
+    internal static int? SchemaOf(ReadOnlySpan<byte> bytes) =>
+        bytes.Length >= SchemaOffset + sizeof(int) ? BinaryPrimitives.ReadInt32LittleEndian(bytes[SchemaOffset..]) : null;
+
     /// <summary>
     /// Checks everything the header can say about a stored form and returns its record count. The
     /// caller reads the records, then checks them with <see cref="Verify"/>.

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Inventory;
 
 namespace CraftSurvive.Game.Tests;
 
@@ -31,6 +32,10 @@ internal static class ActionChecks
         Check.Equal(new PlayerAction(PlayerActionKind.Rest), Parse("""{"action":"rest"}"""), "a rest names nothing");
         Check.Equal(new PlayerAction(PlayerActionKind.Difficulty, Name: "harsh"), Parse("""{"action":"difficulty","level":"harsh"}"""), "a difficulty names its level");
         Check.Equal(new PlayerAction(PlayerActionKind.Use, Name: "bandage"), Parse("""{"action":"use","item":"bandage"}"""), "a use names its item");
+        Check.Equal(12, Parse("""{"action":"use","item":"meat","slot":12}""").Slot, "a use may name the slot it takes from");
+        Check.Equal(-1, Parse("""{"action":"use","item":"meat"}""").Slot, "a use that names no slot takes from any");
+        Check.Equal(new PlayerAction(PlayerActionKind.Move, 3, 20, Count: 5), Parse("""{"action":"move","from":3,"to":20,"count":5}"""), "a move names its slots and count");
+        Check.Equal(0, Parse("""{"action":"move","from":3,"to":20}""").Count, "a move that names no count takes the whole stack");
 
         string[] refused =
         [
@@ -38,6 +43,11 @@ internal static class ActionChecks
             """{"action":"craft","recipe":"Ration"}""",
             """{"action":"use","item":"meat; drop table"}""",
             """{"action":"use","item":7}""",
+            $$"""{"action":"use","item":"meat","slot":{{InventorySlots.Count}}}""",
+            """{"action":"move","from":3}""",
+            $$"""{"action":"move","from":0,"to":{{InventorySlots.Count}}}""",
+            """{"action":"move","from":0,"to":1,"count":100}""",
+            """{"action":"move","from":-1,"to":1}""",
             """{"action":"detonate"}""",
             """{"action":"blast"}""",
             """{"action":"blast","radius":0}""",
