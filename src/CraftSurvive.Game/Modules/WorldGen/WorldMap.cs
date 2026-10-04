@@ -22,7 +22,7 @@ internal sealed class WorldMap
     internal const int MinimumNodeSpacing = 8;
     internal const int MaximumNodes = (MaximumSegments + 1) * (MaximumSegments + 1);
     internal const double MaximumElevation = 48;
-    internal const double LocalReliefLimit = 5;
+    internal const double LocalReliefLimit = 12;
     private const ulong FingerprintBasis = 0xCBF29CE484222325;
     private const ulong FingerprintPrime = 0x100000001B3;
     private const double FrostTemperature = 0.3;

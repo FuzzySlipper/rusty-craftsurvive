@@ -5,6 +5,7 @@ using CraftSurvive.Game.Tests;
 Check.Section("player input", PlayerInputChecks.Run);
 Check.Section("world map", WorldMapChecks.Run);
 Check.Section("drainage", DrainageChecks.Run);
+Check.Section("regional terrain", RegionalTerrainChecks.Run);
 Check.Section("generator identity", GeneratorChecks.Run);
 Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);

@@ -47,19 +47,10 @@ internal static class GenerationConstants
     internal const ulong CoordinateXMultiplier = 0x9E37_79B9_7F4A_7C15UL;
     internal const ulong CoordinateZMultiplier = 0xBF58_476D_1CE4_E5B9UL;
     internal const ulong CoordinateHashMultiplier = 0x94D0_49BB_1331_11EBUL;
-    internal const ulong RollingNoiseSalt = 0xA076_1D64_78BD_642FUL;
-    internal const ulong DetailNoiseSalt = 0xE703_7ED1_A0B4_28DBUL;
     internal const int HashFractionShift = 11;
     internal const ulong HashFractionMaximum = (1UL << 53) - 1UL;
     internal const int CoordinateRotation = 29;
     internal const int FirstHashShift = 30;
     internal const int SecondHashShift = 27;
     internal const int FinalHashShift = 31;
-    internal const int BroadNoiseScale = 20;
-    internal const int RollingNoiseScale = 9;
-    internal const int DetailNoiseScale = 4;
-    internal const double BroadWeight = 4d;
-    internal const double BroadCenter = 0.5d;
-    internal const double RidgeWeight = 3d;
-    internal const double DetailDeviationWeight = 2d;
 }

@@ -22,8 +22,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   Drainage uses a deterministic downhill forest with bounded incision, preserving
   closed basins; it is not hydraulic weathering or flowing water. Channel floors,
   the starting reserve and important passes constrain local relief, but there is
-  no guaranteed route network, final biome catalogue or broad landscape recipe
-  system. Reaches follow adjacent coarse nodes; finer meandering and spill/breach
+  no guaranteed route network or final biome catalogue. `RegionalTerrain` supplies
+  three climate-blended local shape families with independent structural/fine detail;
+  they remain bounded height-field relief, not geological simulation.
+  Reaches follow adjacent coarse nodes; finer meandering and spill/breach
   policy remain outside this foundation. Height variation and map
   resolution are bounded by `WorldMap`. The provisional bedrock perimeter rises
   above the map and local-detail height limit; it is not final geographic edge art.

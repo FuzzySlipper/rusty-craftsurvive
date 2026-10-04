@@ -500,18 +500,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
     internal double ContinuousHeightAt(long x, long z)
     {
-        ulong seed = Contract.GeographyNoiseSeed;
         MapSample geography = Map.Sample(x, z);
-        double broad = ValueNoise(seed, x, z, GenerationConstants.BroadNoiseScale);
-        double rolling = ValueNoise(seed ^ GenerationConstants.RollingNoiseSalt, x, z, GenerationConstants.RollingNoiseScale);
-        double detail = ValueNoise(seed ^ GenerationConstants.DetailNoiseSalt, x, z, GenerationConstants.DetailNoiseScale);
-
-        // A ridge folds the rolling noise about its middle: 1 at the middle, 0 at either end.
-        double ridge = 1d - Math.Abs((rolling * 2d) - 1d);
-        double local = (broad - GenerationConstants.BroadCenter) * GenerationConstants.BroadWeight
-            + (ridge - GenerationConstants.BroadCenter) * GenerationConstants.RidgeWeight
-            + (detail - GenerationConstants.BroadCenter) * GenerationConstants.DetailDeviationWeight;
-        return Math.Max(geography.Elevation + Math.Clamp(local, -WorldMap.LocalReliefLimit, WorldMap.LocalReliefLimit) * geography.Detail,
+        return Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
             GenerationConstants.MinimumTerrainHeight);
     }
 

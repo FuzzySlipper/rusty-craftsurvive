@@ -122,8 +122,16 @@ The overview uses a scaled mesh in Engine presentation coordinates, independent
 of the rebased local terrain frame; DOM code supplies labels and controls only.
 
 Local density samples map elevation, then adds continuous world-coordinate noise
-bounded by `WorldMap.LocalReliefLimit` and the map's detail field. Regional fields
-select surface materials and vegetation eligibility. Map samples remain
+bounded by `WorldMap.LocalReliefLimit` and the map's detail field.
+`RegionalTerrain` blends dry shelves/scarps, rolling uplands/outcrops and stretched
+frozen ridges using continuous climate weights. Each family has independently
+named structural and fine noise banks; wavelengths are in world metres and the
+finest lattice remains larger than a voxel. A seeded bearing and smooth domain
+warp break grid alignment. A broader activity field leaves quieter patches,
+while rock exposure permits more fine relief. The density grid remains one metre;
+changing its resolution is separate from tuning those banks.
+
+Regional fields also select surface materials and vegetation eligibility. Map samples remain
 unchanged by local noise or player edits. Channel floors and fully protected
 areas suppress local noise. Eroded shoulders expose rock through the existing
 material policy. These constraints preserve the map's intended routes without
