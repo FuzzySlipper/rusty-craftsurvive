@@ -50,7 +50,7 @@ prototype inspection affordance, not the proposed overland travel system.
 
 For terrain appearance comparisons, open **Menu**, choose **Landscape study**, and
 press **Visit landscape**. Ochre canyon, Sage uplands and Frost ridge are authored,
-separately loaded spaces with ordinary walking, collision and editing.
+separately loaded spaces with ordinary walking and collision.
 Their natural surfaces use the generated maps and exact prompts in
 [`content/game/textures/terrain-studies/`](content/game/textures/terrain-studies/).
 `materials.json` controls repeat scale; the Engine supplies DC and triplanar mapping.
