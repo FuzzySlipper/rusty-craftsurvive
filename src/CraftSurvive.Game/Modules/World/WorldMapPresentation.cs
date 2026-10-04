@@ -78,7 +78,8 @@ internal sealed class WorldMapPresentation : IDisposable
         Color baseColor = WorldMap.Frozen(s) ? new(0.72f, 0.81f, 0.82f, 1)
             : WorldMap.Arid(s) ? new(0.64f, 0.44f, 0.25f, 1) : new(0.39f, 0.48f, 0.31f, 1);
         const float RockDarkening = 0.28f;
-        float shade = 1 - (float)s.Rock * RockDarkening;
+        const float DrainageDarkening = 0.40f;
+        float shade = 1 - (float)s.Rock * RockDarkening - (float)s.Drainage * DrainageDarkening;
         return new(baseColor.R * shade, baseColor.G * shade, baseColor.B * shade, 1);
     }
 

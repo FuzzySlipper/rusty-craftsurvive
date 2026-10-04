@@ -108,9 +108,11 @@ each bank may itself use fBm. Their amplitude, frequency, shape, and geographic
 masks matter more than simply increasing octave count or voxel resolution.
 A sheltered valley floor should not receive the same relief as exposed rock.
 Local variation must preserve the map's important connections and landmarks,
-including drainage and navigable passes. The prototype bounds local relief and
-reduces it near candidate passes; drainage simulation and guaranteed route
-connectivity still require design work. Authored terrain studies remain
+including drainage and navigable passes. The prototype bounds local relief,
+preserves closed drainage basins, and
+suppresses noise on incised channel floors and protected passes. A complete
+travel-route network and guaranteed connectivity between destinations remain
+separate design work. Authored terrain studies remain
 comparisons for the smaller-scale treatment.
 
 Regional scale should allow tundra, deep desert, and other environments to have

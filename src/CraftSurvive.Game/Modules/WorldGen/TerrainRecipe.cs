@@ -11,6 +11,8 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// </summary>
 internal sealed class TerrainRecipe : ITerrainColumns
 {
+    private const double ErodedRockThreshold = 0.65;
+    private const double MinimumErosionExposure = 0.08;
     private readonly TerrainConfiguration configuration;
     private readonly ITerrainDraws draws;
     private readonly long radius;
@@ -155,6 +157,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         long slope = column.Slope;
         MapSample geography = Map.Sample(address.X, address.Z);
+        // Incised shoulders expose stone; the quiet channel floor keeps regional soil/snow.
+        if (geography.Erosion >= MinimumErosionExposure && geography.Rock >= ErodedRockThreshold)
+            return TerrainConstants.StoneMaterial;
         if (slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
             if (WorldMap.Frozen(geography)) return (ushort)BlockId.Snow;
@@ -486,8 +491,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>
-    /// The height field. Its noise is seeded through the contract, so a version bump redraws the
-    /// ground as well as the features on it.
+    /// The height field. Stable geographic noise lets map refinement preserve the underlying
+    /// landforms; the full recipe version still invalidates saves and generated chunks.
     /// </summary>
     private long TerrainHeight(long x, long z) =>
         (long)Math.Round(ContinuousHeightAt(x, z), MidpointRounding.AwayFromZero);
@@ -495,7 +500,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
     internal double ContinuousHeightAt(long x, long z)
     {
-        ulong seed = Contract.NoiseSeed;
+        ulong seed = Contract.GeographyNoiseSeed;
         MapSample geography = Map.Sample(x, z);
         double broad = ValueNoise(seed, x, z, GenerationConstants.BroadNoiseScale);
         double rolling = ValueNoise(seed ^ GenerationConstants.RollingNoiseSalt, x, z, GenerationConstants.RollingNoiseScale);

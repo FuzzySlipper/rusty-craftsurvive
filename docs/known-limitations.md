@@ -19,8 +19,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   samples it continuously; representative regions are reachable from **World**.
   The map is an inspection view that pauses local gameplay. Region visits are
   provisional and do not implement travel, weather, logistics or route costs.
-  There is no erosion/drainage simulation, guaranteed pass connectivity, final
-  biome catalogue or broad landscape recipe system. Height variation and map
+  Drainage uses a deterministic downhill forest with bounded incision, preserving
+  closed basins; it is not hydraulic weathering or flowing water. Channel floors,
+  the starting reserve and important passes constrain local relief, but there is
+  no guaranteed route network, final biome catalogue or broad landscape recipe
+  system. Reaches follow adjacent coarse nodes; finer meandering and spill/breach
+  policy remain outside this foundation. Height variation and map
   resolution are bounded by `WorldMap`. The provisional bedrock perimeter rises
   above the map and local-detail height limit; it is not final geographic edge art.
   Far terrain has no overview LOD in the

@@ -10,7 +10,7 @@ internal sealed record WorldMapSave(long Generation, WorldMap Map);
 /// <summary>The map's samples are persisted, not merely a seed that a later implementation might reinterpret.</summary>
 internal sealed class WorldMapCodec : IProductStateCodec<WorldMapSave>
 {
-    private const int FieldsPerNode = 6;
+    private const int FieldsPerNode = 12;
     private const int RecordBytes = FieldsPerNode * sizeof(double);
     private static SaveBounds Bounds => new(WorldMap.MaximumNodes + 1, RecordBytes);
     private static SaveKey Key => SaveManifest.WorldMap;
@@ -24,10 +24,14 @@ internal sealed class WorldMapCodec : IProductStateCodec<WorldMapSave>
         writer.Int64(config.Size);
         // Reserve the rest of the first record; these bytes are required to remain zero.
         for (int i = 2; i < FieldsPerNode; i++) writer.Int64(0);
-        foreach (MapSample n in state.Map.Nodes)
+        for (int i = 0; i < state.Map.Nodes.Length; i++)
         {
+            MapSample n = state.Map.Nodes[i];
+            DrainageNode route = state.Map.Drainage[i];
             writer.Double(n.Elevation); writer.Double(n.Temperature); writer.Double(n.Moisture);
             writer.Double(n.Rock); writer.Double(n.Detail); writer.Double(n.Passage);
+            writer.Double(n.Protection); writer.Double(n.Drainage); writer.Double(n.Erosion);
+            writer.Int64(route.Receiver); writer.Int64(route.Catchment); writer.Double(route.Bed);
         }
         SaveEnvelope.Seal(bytes, Fingerprint(state));
         destination.Write(bytes);
@@ -47,9 +51,14 @@ internal sealed class WorldMapCodec : IProductStateCodec<WorldMapSave>
         for (int i = 2; i < FieldsPerNode; i++)
             if (reader.Int64() != 0) throw new InvalidOperationException("World map has unsupported configuration fields.");
         MapSample[] samples = new MapSample[count - 1];
+        DrainageNode[] routes = new DrainageNode[samples.Length];
         for (int i = 0; i < samples.Length; i++)
-            samples[i] = new(reader.Double(), reader.Double(), reader.Double(), reader.Double(), reader.Double(), reader.Double());
-        WorldMapSave state = new(generation, new(new(identity.Seed, size, identity.GeneratorVersion), samples));
+        {
+            samples[i] = new(reader.Double(), reader.Double(), reader.Double(), reader.Double(), reader.Double(), reader.Double(),
+                reader.Double(), reader.Double(), reader.Double());
+            routes[i] = new(checked((int)reader.Int64()), checked((int)reader.Int64()), reader.Double());
+        }
+        WorldMapSave state = new(generation, new(new(identity.Seed, size, identity.GeneratorVersion), samples, routes));
         SaveEnvelope.Verify(Key, payload, Fingerprint(state));
         return state;
     }

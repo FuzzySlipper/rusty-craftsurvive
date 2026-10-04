@@ -21,6 +21,8 @@ internal static class GeneratorChecks
         {
             Dictionary<(uint Version, ulong Seed), ulong> golden = new()
             {
+                [(18, TerrainConstants.DefaultSeed)] = 0x8780952811978cd6UL,
+                [(18, 12345UL)] = 0x2a0d018c5f4a8184UL,
                 [(17, TerrainConstants.DefaultSeed)] = 0xd2278bad4e00b244UL,
                 [(17, 12345UL)] = 0x75a45035a5557fc5UL,
                 [(16, TerrainConstants.DefaultSeed)] = 0x4c024e23973f0a81UL,
@@ -57,7 +59,7 @@ internal static class GeneratorChecks
             Check.That(startup != TerrainGenerationFingerprint.Compute((baseline with { Seed = baseline.Seed + 1 }).CreateRecipe(new TestDraws(baseline.Seed + 1)), TerrainGenerationFingerprint.Startup),
                 "a different seed must move the fingerprint");
             Check.That(startup != TerrainGenerationFingerprint.Compute((baseline with { GeneratorVersion = baseline.GeneratorVersion + 1 }).CreateRecipe(new TestDraws(baseline.Seed)), TerrainGenerationFingerprint.Startup),
-                "a different version must move the fingerprint, heights included");
+                "a different recipe version must move the complete terrain fingerprint");
 
             // A structure's geometry is part of the identity even when this seed's probe holds no site of
             // its kind: each kind, and the crossing, changed on its own moves the catalogue, and a

@@ -6,7 +6,8 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// The versioned identity of a generated world, and the source of every random value
 /// generation uses: feature draws go through the Engine's keyed RNG under
 /// <see cref="DrawLong"/>, and the height field's noise is seeded from
-/// <see cref="NoiseSeed"/>. Both mix in the version.
+/// <see cref="GeographyNoiseSeed"/>. Feature draws mix in the recipe version;
+/// geographic noise keeps its own stable seed revision.
 ///
 /// Two properties matter for the keyed draws:
 /// <list type="bullet">
@@ -39,7 +40,7 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// higher bank left the lower one unclimbable; version 12 seeds the height field through the
     /// contract, so a version bump redraws the ground as well as what stands on it.
     /// </summary>
-    internal const uint CurrentVersion = 17;
+    internal const uint CurrentVersion = 18;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
@@ -85,8 +86,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
         return DrawLong(draws, purpose, key, 0, UnitScale - 1) < UnitScale / oneIn;
     }
 
-    /// <summary>The seed of the height field's noise: the world seed with the version mixed in.</summary>
-    internal ulong NoiseSeed => MixVersion(Seed);
+    // Erosion refines the established geography instead of redrawing it on a recipe revision.
+    // The full recipe version still owns save/cache identity and feature draws.
+    private const uint GeographySeedVersion = 17;
+    internal ulong GeographyNoiseSeed => Seed ^ unchecked(GeographySeedVersion * VersionSpread);
 
     /// <summary>Spreads the version across every bit of the seed, so neighbouring versions share nothing.</summary>
     private const ulong VersionSpread = 0x9e3779b97f4a7c15UL;

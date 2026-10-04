@@ -87,15 +87,36 @@ implemented prototype mechanism is not a requirement to preserve its old genre.
 `WorldMap` before `TerrainWorld` starts; restore reads its saved samples instead
 of rerunning generation. The bounded grid has at most 64 segments per axis,
 with fewer nodes for tiny test extents. It stores elevation in metres plus unit
-fields for temperature, moisture, exposed rock, permitted local detail and
-candidate ridge passages. Seed, extent and generator version identify the recipe.
-The initial generator establishes a bent ridge, a basin, a lowered pass and
-continuous regional climate relationships. It is not an erosion simulation.
+fields for temperature, moisture, exposed rock, permitted local detail, candidate
+ridge passages, protection, drainage and incision. Seed, extent and generator
+version identify the recipe. Base geography establishes a bent ridge, a basin,
+a lowered pass and continuous climate relationships. Stable geographic seed
+mixing lets later refinement preserve those landforms; the full recipe version
+still invalidates development saves and generated caches.
+
+`WorldMapDrainage` builds a downhill receiver forest and accumulates catchments
+at map resolution. Every edge node is an outlet; interior local minima remain
+closed basins. Equal-height nodes descend by stable index, so flat regions also
+terminate. This models static landforms, not flowing water. It does not fill or
+breach every depression. One sorted traversal and two ordered passes bound the
+work independently of the voxel world size.
+
+The map stores each receiver, catchment size and channel bed alongside its
+geographic fields. Downstream-first incision never puts an upstream bed below
+its receiver or cuts through a protected downstream pass. The centre reserve,
+important ridge crests and ridge pass constrain incision and local relief.
+Named constants in `WorldMapDrainage` control catchment thresholds, depth,
+climate transitions and cross-section widths.
 
 Coordinates use world X/Z metres, north toward -Z, with the square centred on
 the origin. Grid nodes include both edges. Sampling clamps geographic coordinates
-at the edge and uses smoothstep bilinear interpolation, including for density
-and neighbouring normal samples. Clamping does not extend the playable world:
+at the edge and interpolates broad fields with smoothstep bilinear weights.
+It then resolves saved nearby channel segments into narrowed floors and
+shoulders, including for density and neighbouring normal samples. Each segment
+joins adjacent map nodes and is narrower than half a cell; sampling inspects a
+fixed four-by-four neighbourhood, never reruns drainage. Cross-section widths
+blend continuously with climate: dry-country shoulders are steeper than cold
+or temperate valley sides. Clamping does not extend the playable world:
 `TerrainRecipe` retains finite occupancy and the provisional bedrock boundary.
 The overview uses a scaled mesh in Engine presentation coordinates, independent
 of the rebased local terrain frame; DOM code supplies labels and controls only.
@@ -103,9 +124,10 @@ of the rebased local terrain frame; DOM code supplies labels and controls only.
 Local density samples map elevation, then adds continuous world-coordinate noise
 bounded by `WorldMap.LocalReliefLimit` and the map's detail field. Regional fields
 select surface materials and vegetation eligibility. Map samples remain
-unchanged by local noise or player edits. Later erosion should refine the map
-before local terrain is realized; drainage and route preservation must become
-explicit constraints rather than increasing detail amplitude. The authored
+unchanged by local noise or player edits. Channel floors and fully protected
+areas suppress local noise. Eroded shoulders expose rock through the existing
+material policy. These constraints preserve the map's intended routes without
+claiming a globally navigable route network or hydraulic realism. The authored
 landscape studies are separate loaded comparison spaces, not hidden overrides
 of geographic sampling.
 

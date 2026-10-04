@@ -3,12 +3,14 @@ using CraftSurvive.Game.Modules.Terrain;
 namespace CraftSurvive.Game.Modules.WorldGen;
 
 internal readonly record struct MapSample(double Elevation, double Temperature, double Moisture,
-    double Rock, double Detail, double Passage)
+    double Rock, double Detail, double Passage, double Protection = 0, double Drainage = 0, double Erosion = 0)
 {
     internal static MapSample Lerp(MapSample a, MapSample b, double t) => new(
         a.Elevation + (b.Elevation - a.Elevation) * t, a.Temperature + (b.Temperature - a.Temperature) * t,
         a.Moisture + (b.Moisture - a.Moisture) * t, a.Rock + (b.Rock - a.Rock) * t,
-        a.Detail + (b.Detail - a.Detail) * t, a.Passage + (b.Passage - a.Passage) * t);
+        a.Detail + (b.Detail - a.Detail) * t, a.Passage + (b.Passage - a.Passage) * t,
+        a.Protection + (b.Protection - a.Protection) * t, a.Drainage + (b.Drainage - a.Drainage) * t,
+        a.Erosion + (b.Erosion - a.Erosion) * t);
 }
 
 internal readonly record struct MapSite(string Name, double X, double Z, MapSample Geography);
@@ -29,21 +31,26 @@ internal sealed class WorldMap
     private const double PassSiteTemperature = 0.55;
     private const double RidgeSiteRockWeight = 0.3;
     private readonly MapSample[] nodes;
+    private readonly DrainageNode[] drainage;
 
-    internal WorldMap(TerrainConfiguration configuration, ReadOnlySpan<MapSample> samples)
+    internal WorldMap(TerrainConfiguration configuration, ReadOnlySpan<MapSample> samples, ReadOnlySpan<DrainageNode> routes)
     {
         Configuration = configuration.Validate();
         Segments = Math.Min(MaximumSegments, configuration.Size / MinimumNodeSpacing);
         if (samples.Length != (Segments + 1) * (Segments + 1)) throw new ArgumentException("Map node count does not match extent.");
         nodes = samples.ToArray();
+        drainage = routes.ToArray();
         foreach (MapSample n in nodes)
             if (!double.IsFinite(n.Elevation) || n.Elevation < GenerationConstants.MinimumTerrainHeight || n.Elevation > MaximumElevation
-                || !Unit(n.Temperature) || !Unit(n.Moisture) || !Unit(n.Rock) || !Unit(n.Detail) || !Unit(n.Passage))
+                || !Unit(n.Temperature) || !Unit(n.Moisture) || !Unit(n.Rock) || !Unit(n.Detail) || !Unit(n.Passage) || !Unit(n.Protection) || !Unit(n.Drainage) || !Unit(n.Erosion))
                 throw new ArgumentException("Map contains an invalid geographic sample.");
+        WorldMapDrainage.Validate(nodes, drainage, Side);
         Fingerprint = ComputeFingerprint();
-        Sites = [FindSite("Dry basin", s => Arid(s) && !Frozen(s), s => s.Moisture + Math.Abs(s.Temperature - DrySiteTemperature)),
+        Sites = [FindChannelSite("Dry canyon", s => Arid(s) && !Frozen(s),
+                FindSite("Dry basin", s => Arid(s) && !Frozen(s), s => s.Moisture + Math.Abs(s.Temperature - DrySiteTemperature))),
             FindSite("Upland pass", s => !Arid(s) && !Frozen(s), s => 1 - s.Passage + Math.Abs(s.Temperature - PassSiteTemperature)),
-            FindSite("Frozen ridge", Frozen, s => s.Temperature + (1 - s.Rock) * RidgeSiteRockWeight)];
+            FindChannelSite("Frozen valley", Frozen,
+                FindSite("Frozen ridge", Frozen, s => s.Temperature + (1 - s.Rock) * RidgeSiteRockWeight))];
     }
 
     internal TerrainConfiguration Configuration { get; }
@@ -54,6 +61,7 @@ internal sealed class WorldMap
     internal ulong Fingerprint { get; }
     internal IReadOnlyList<MapSite> Sites { get; }
     internal ReadOnlySpan<MapSample> Nodes => nodes;
+    internal ReadOnlySpan<DrainageNode> Drainage => drainage;
     internal double Coordinate(int index) => -Radius + index * Spacing;
     internal bool Contains(double x, double z) => double.IsFinite(x) && double.IsFinite(z) && Math.Abs(x) <= Radius && Math.Abs(z) <= Radius;
 
@@ -65,8 +73,9 @@ internal sealed class WorldMap
         double gz = Math.Clamp((z + Radius) / Spacing, 0, Segments);
         int ix = Math.Min((int)gx, Segments - 1), iz = Math.Min((int)gz, Segments - 1);
         double tx = Smooth(gx - ix), tz = Smooth(gz - iz);
-        return MapSample.Lerp(MapSample.Lerp(nodes[iz * Side + ix], nodes[iz * Side + ix + 1], tx),
+        MapSample broad = MapSample.Lerp(MapSample.Lerp(nodes[iz * Side + ix], nodes[iz * Side + ix + 1], tx),
             MapSample.Lerp(nodes[(iz + 1) * Side + ix], nodes[(iz + 1) * Side + ix + 1], tx), tz);
+        return WorldMapDrainage.Sample(this, broad, Math.Clamp(x, -Radius, Radius), Math.Clamp(z, -Radius, Radius), ix, iz);
     }
 
     internal static string Region(MapSample sample) => sample.Temperature < FrostTemperature ? "Frozen highlands"
@@ -85,7 +94,7 @@ internal sealed class WorldMap
         for (int z = EdgeMargin; z <= Segments - EdgeMargin; z++)
         for (int x = EdgeMargin; x <= Segments - EdgeMargin; x++)
         {
-            MapSample n = nodes[z * Side + x];
+            MapSample n = Sample(Coordinate(x), Coordinate(z));
             if (!eligible(n) || n.Elevation < GenerationConstants.WaterLevel + SiteWaterClearance) continue;
             double value = score(n);
             if (value >= best) continue;
@@ -95,19 +104,41 @@ internal sealed class WorldMap
         return best < double.MaxValue ? selected : new(name, 0, 0, Sample(0, 0));
     }
 
+    private MapSite FindChannelSite(string name, Func<MapSample, bool> eligible, MapSite fallback)
+    {
+        const double SiteWaterClearance = 2;
+        double best = 0;
+        MapSite selected = fallback;
+        for (int i = 0; i < drainage.Length; i++)
+        {
+            int receiver = drainage[i].Receiver;
+            if (receiver < 0 || drainage[i].Catchment < WorldMapDrainage.MinimumCatchment) continue;
+            double x = (Coordinate(i % Side) + Coordinate(receiver % Side)) / 2;
+            double z = (Coordinate(i / Side) + Coordinate(receiver / Side)) / 2;
+            MapSample n = Sample(x, z);
+            double depth = (nodes[i].Elevation + nodes[receiver].Elevation - drainage[i].Bed - drainage[receiver].Bed) / 2;
+            if (!eligible(n) || n.Elevation < GenerationConstants.WaterLevel + SiteWaterClearance || depth <= best) continue;
+            best = depth;
+            selected = new(name, x, z, n);
+        }
+        return selected;
+    }
+
     private ulong ComputeFingerprint()
     {
         ulong hash = FingerprintBasis;
         void Mix(ulong v) => hash = unchecked((hash ^ v) * FingerprintPrime);
         Mix(Configuration.Seed); Mix(Configuration.GeneratorVersion); Mix((ulong)Configuration.Size);
         foreach (MapSample n in nodes)
-            foreach (double value in (ReadOnlySpan<double>)[n.Elevation, n.Temperature, n.Moisture, n.Rock, n.Detail, n.Passage])
+            foreach (double value in (ReadOnlySpan<double>)[n.Elevation, n.Temperature, n.Moisture, n.Rock, n.Detail, n.Passage, n.Protection, n.Drainage, n.Erosion])
                 Mix(BitConverter.DoubleToUInt64Bits(value));
+        foreach (DrainageNode n in drainage)
+        { Mix(unchecked((ulong)n.Receiver)); Mix((ulong)n.Catchment); Mix(BitConverter.DoubleToUInt64Bits(n.Bed)); }
         return hash;
     }
 }
 
-/// <summary>One bounded new-world pass. Erosion is deliberately not simulated here.</summary>
+/// <summary>Bounded base geography followed by one map-resolution drainage/erosion pass.</summary>
 internal static class WorldMapGenerator
 {
     private const int NoiseDomain = 4096;
@@ -143,7 +174,7 @@ internal static class WorldMapGenerator
         configuration.Validate();
         int segments = Math.Min(WorldMap.MaximumSegments, configuration.Size / WorldMap.MinimumNodeSpacing);
         MapSample[] nodes = new MapSample[(segments + 1) * (segments + 1)];
-        ulong seed = configuration.Contract.NoiseSeed;
+        ulong seed = configuration.Contract.GeographyNoiseSeed;
         double ridgeOffset = (TerrainRecipe.ValueNoise(seed, NoiseDomain, 0, RegionScale) - NoiseMidpoint) * RidgeOffsetSpan;
         double passZ = (TerrainRecipe.ValueNoise(seed ^ RidgeSalt, 0, NoiseDomain, RegionScale) - NoiseMidpoint) * PassOffsetSpan;
         for (int z = 0; z <= segments; z++)
@@ -167,6 +198,7 @@ internal static class WorldMapGenerator
             double detail = (BaseDetail + rock * RockDetail) * (1 - passage * PassDetailReduction) * (1 - centre * CentreDetailReduction);
             nodes[z * (segments + 1) + x] = new(height, temperature, moisture, rock, detail, passage * ridge);
         }
-        return new(configuration, nodes);
+        DrainageNode[] routes = WorldMapDrainage.Refine(nodes, segments);
+        return new(configuration, nodes, routes);
     }
 }
