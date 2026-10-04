@@ -82,10 +82,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   Grass and dirt share the sage material, with no directional top/side override.
   Construction, vegetation and water still use the provisional `terrain-atlas.*`, validated
   against `BlockRegistry` by `TerrainAtlasLayout`. Normal maps and animated tiles are not
-  authored. `triplanarSharpness` controls the axis projections of one map; it does not
-  blend distinct ground materials. Cross-material blending needs a supported Engine
-  layer/weight mechanism; see Den for its owning work. The provisional asset arrangement
-  is not a constraint on replacement art.
+  authored. Streamed ground and loaded landscape studies share four Engine terrain
+  layers: grass/dirt → sage, stone → ochre, sand → dune, snow/gravel → frost.
+  Physical slots stay distinct for gameplay, collision, picking and edits.
+  `blending.json` sets transition reach (1–4 cells), weight contrast (at least 1),
+  a texture-scale multiplier and a projection-sharpness multiplier independently.
+  The Engine derives weights from nearby solid physical samples, including aliases;
+  product geography and slope decide the samples. The base layer's triplanar sharpness
+  applies to the whole blend; each map retains its own tile width. This is an opaque
+  four-texture blend, not a general arbitrary-weight or unlimited-layer material.
+  Dungeons keep their separate, unblended ground bindings. The provisional asset
+  arrangement is not a constraint on replacement art.
 - The C# runtime draws no shadow maps; the product has no shadow control.
 - **Day and night are a sky blend and two lights.** `DayNightSky` crossfades two authored panoramas
   and sets one directional light (sun, then moon) and one ambient light from `WorldClock`; the

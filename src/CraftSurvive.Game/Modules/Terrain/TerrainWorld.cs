@@ -118,6 +118,7 @@ internal sealed class TerrainWorld : IDisposable
                 VoxelSurfaceMode.DualContouring));
             TerrainSurfaces.Apply(engine, session);
             VoxelMaterialRules.Apply(engine, session);
+            presentation.ConfigureGround(session);
             ui.Open(ProductUiPublisher.StreamName, ProductUiPublisher.StreamContract, WorldFacts);
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);

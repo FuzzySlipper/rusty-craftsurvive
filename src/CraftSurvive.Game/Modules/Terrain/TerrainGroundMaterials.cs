@@ -16,9 +16,12 @@ internal sealed class TerrainGroundMaterials : IDisposable
     private readonly List<RenderResource> textures = [];
     private readonly Dictionary<string, Material> materials = [];
     private AuthoredCatalog? catalog;
+    private Material? blended;
+    internal TerrainBlendSettings Settings { get; }
 
     internal TerrainGroundMaterials(IEngineContext engine, ProductContent content, double voxelSize = TerrainConstants.VoxelSize)
     {
+        Settings = TerrainBlendSettings.Parse(content.ReadText(TerrainBlendSettings.ContentPath));
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         List<AuthoredCatalogEntryInput> entries = [];
         List<AuthoredCatalogDependencyInput> dependencies = [];
@@ -34,7 +37,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
             string material = "material/ground/" + name;
             string hash = item.GetProperty("sha256").GetString()!;
             // Engine repeat scales are tile widths in voxel cells, not repeats per cell.
-            float scale = item.GetProperty("metresPerTile").GetSingle() / (float)voxelSize;
+            float scale = item.GetProperty("metresPerTile").GetSingle() * Settings.TextureScale / (float)voxelSize;
             entries.Add(new(texture, Version, true, hash, true, path, true, name));
             entries.Add(new(material, Version, false, string.Empty, false, string.Empty, true, name));
             dependencies.Add(new(material, texture, AssetVersionRequirementKind.Exact, Version, true, hash));
@@ -48,7 +51,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
                 texture, AssetVersionRequirementKind.Exact, Version, true, hash,
                 string.Empty, AssetVersionRequirementKind.Any, 0, false, string.Empty, string.Empty,
                 scale, scale, Zero, Zero, AuthoredVoxelAlphaModeKind.Opaque, Zero));
-            maps.Add((name, material, path, item.GetProperty("triplanarSharpness").GetSingle()));
+            maps.Add((name, material, path, item.GetProperty("triplanarSharpness").GetSingle() * Settings.ProjectionSharpnessScale));
         }
 
         try
@@ -64,6 +67,8 @@ internal sealed class TerrainGroundMaterials : IDisposable
                 materials.Add(map.Name, engine.Graphics.CreateAuthoredMaterial(
                     new AuthoredMaterialAppearanceRequest(catalog, map.Material, texture) { TriplanarSharpness = map.Sharpness }));
             }
+            blended = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(
+                materials[TerrainLayers.Names[0]], TerrainLayers.Names.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
         }
         catch
         {
@@ -72,17 +77,16 @@ internal sealed class TerrainGroundMaterials : IDisposable
         }
     }
 
-    internal Material? For(BlockId block) => block switch
-    {
-        BlockId.Grass or BlockId.Dirt => materials["sage-ground"],
-        BlockId.Stone => materials["ochre-rock"],
-        BlockId.Sand => materials["dune-sand"],
-        BlockId.Snow or BlockId.Gravel => materials["frost-stone"],
-        _ => null,
-    };
+    internal Material? For(BlockId block, bool blend = true) => TerrainLayers.Layer(block) is int layer && layer >= 0
+        ? blend ? blended : materials[TerrainLayers.Names[layer]] : null;
+
+    internal void Configure(IEngineContext engine, SpatialSession session) =>
+        TerrainLayers.Configure(engine, session, Settings.TransitionCells);
 
     public void Dispose()
     {
+        blended?.Dispose();
+        blended = null;
         foreach (Material material in materials.Values) material.Dispose();
         materials.Clear();
         foreach (RenderResource texture in textures) texture.Dispose();

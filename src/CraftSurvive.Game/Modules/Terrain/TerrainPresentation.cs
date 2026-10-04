@@ -29,6 +29,8 @@ internal sealed class TerrainPresentation : IDisposable
     /// </summary>
     internal RenderResourceReference AtlasSprite => Atlas.AtlasReference;
 
+    internal void ConfigureGround(SpatialSession session) => ground!.Configure(engine, session);
+
     internal void Project(SpatialSession session)
     {
         projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
@@ -44,7 +46,7 @@ internal sealed class TerrainPresentation : IDisposable
     internal VoxelScenePresentation ProjectAnother(SpatialSession session) =>
         engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             session,
-            MaterialBindings(),
+            MaterialBindings(blend: false),
             FaceMaterialBindings()));
 
     /// <summary>Re-meshes the projection after the scene or the world origin changed.</summary>
@@ -72,9 +74,9 @@ internal sealed class TerrainPresentation : IDisposable
     /// One binding per registered block. The registry is the block floor and the atlas catalog is
     /// its material closure, so a block exists in the world only once both agree.
     /// </summary>
-    private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings() =>
+    private ReadOnlyMemory<VoxelSceneMaterialBinding> MaterialBindings(bool blend = true) =>
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
-            ground?.For(block.Id) ?? Atlas.BaseMaterial(block.Id))).ToArray();
+            ground?.For(block.Id, blend) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings() =>
         BlockRegistry.BoundBlocks

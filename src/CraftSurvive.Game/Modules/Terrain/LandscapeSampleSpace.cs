@@ -39,6 +39,7 @@ internal sealed class LandscapeSampleSpace : IDisposable
             TerrainSurfaces.Apply(engine, Session);
             VoxelMaterialRules.Apply(engine, Session);
             ground = new TerrainGroundMaterials(engine, content, VoxelSize);
+            ground.Configure(engine, Session);
         }
         catch { Session.Dispose(); throw; }
         double chunkMetres = TerrainConstants.ChunkEdgeLength * VoxelSize;
