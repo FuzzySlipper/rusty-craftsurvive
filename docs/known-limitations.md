@@ -210,6 +210,23 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - Developer tools in the panel (renderer metrics, the live-debug panel) work only on a host
   started with `--live-debug`.
 
+## Sound
+
+- **Every sound is generated.** `scripts/generate-sounds.mjs` synthesises the effects and four
+  ambience loops (square waves, filtered noise, envelopes; seeded, so the files are reproducible)
+  into `content/game/audio/`; rerun it after changing a sound. There is no music.
+- **One owner plays them.** Gameplay owners raise a `SoundCue` where they decide something
+  happened (`SoundCues`); `SoundModule` alone plays them through the Engine's `Audio` service and
+  keeps the wind, night, cave and water beds looping, faded to the player's surroundings
+  (`SoundCatalog.Level`). Only a blast is placed in the world; every other cue plays at the
+  listener. The player's body sounds come from `PlayerFootfalls`. A refused clip or emission is
+  counted in `craft.audio.readout` and play goes on; `craft.audio.cue <name>` plays one cue.
+- **Sound plays where the runtime runs.** The Engine plays audio on the runtime process's own
+  output device, not in the browser page: a LAN viewer of a streamed host hears nothing, and a
+  host with no device runs silent. Hearing the game needs it run on the listener's machine.
+- There are no volume settings in the UI, and creatures make no sound of their own beyond their
+  swings.
+
 ## Lane, process and Engine gaps
 
 - CI's managed lanes do not launch the runtime; the `product` job serves it, checks it keeps

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
@@ -27,6 +28,8 @@ internal sealed class PlayerController : IDisposable
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
     private readonly ProductUiPublisher ui;
+    private readonly SoundCues sounds;
+    private readonly PlayerFootfalls footfalls = new();
     private readonly PlayerInputState input = new();
     private readonly PlayerInputDiagnostics diagnostics = new();
     private readonly PlayerWaterProbe water;
@@ -74,6 +77,12 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Whether the last controller step left the player's head under water.</summary>
     private bool headSubmerged;
 
+    /// <summary>How deep in water the last controller step left the body, from none to whole.</summary>
+    private float immersion;
+
+    /// <summary>The hits the player had taken when last heard, so each new one is heard once.</summary>
+    private long hitsHeard;
+
     /// <summary>The separate space the player is in, and where they left the open world; null in the open world.</summary>
     private SeparateSpace? away;
 
@@ -86,9 +95,10 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Where the view pointed after the latest update's look; zero before the first update.</summary>
     private Vector3 aimForward;
 
-    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui)
+    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, SoundCues sounds)
     {
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
+        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         ArgumentNullException.ThrowIfNull(frame);
@@ -185,6 +195,13 @@ internal sealed class PlayerController : IDisposable
             Stamina.Refill(Sheet.Derived.MaximumStamina);
         }
 
+        // Whatever hurt the player last update - a creature, hunger, drowning - is heard now.
+        if (Vitals.HitsTaken > hitsHeard)
+        {
+            sounds.Raise(SoundCue.Hurt);
+        }
+
+        hitsHeard = Vitals.HitsTaken;
         lastSimulationStep = update.Facts.SimulationStep;
         lastAdmittedStepCount = update.Facts.AdmittedStepCount;
         cameraSampleTimeSeconds = step.Step * step.FixedDeltaSeconds;
@@ -429,6 +446,8 @@ internal sealed class PlayerController : IDisposable
         Vitals.Reset();
         Progress.Reset();
         Stamina.Refill(Sheet.Derived.MaximumStamina);
+        footfalls.Reset();
+        hitsHeard = Vitals.HitsTaken;
         look = StartingLook;
         MoveHome();
     }
@@ -483,8 +502,10 @@ internal sealed class PlayerController : IDisposable
 
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
+            Hear(receipt);
             climbHeld = receipt.Movement.ClimbAttached;
             headSubmerged = receipt.Movement.HeadSubmerged;
+            immersion = receipt.Movement.Immersion;
             jumpPending = false;
             impulsePending = false;
             letGoPending = false;
@@ -500,6 +521,38 @@ internal sealed class PlayerController : IDisposable
             controllerStepAccumulator -= PlayerConstants.ControllerStepSeconds;
         }
     }
+
+    /// <summary>Raises what the body did in one controller step that can be heard, from before the step and its receipt.</summary>
+    private void Hear(CharacterStepReceipt receipt)
+    {
+        BodySound heard = footfalls.Hear(new BodyStep(
+            motion.Grounded,
+            receipt.Motion.Grounded,
+            -motion.ControlledVelocity.Y,
+            receipt.Motion.ControlledVelocity.Y,
+            new Vector2(receipt.Displacement.X, receipt.Displacement.Z).Length(),
+            immersion,
+            receipt.Movement.Immersion,
+            climbHeld,
+            receipt.Movement.ClimbAttached));
+        foreach ((BodySound sound, SoundCue cue) in BodyCues)
+        {
+            if (heard.HasFlag(sound))
+            {
+                sounds.Raise(cue);
+            }
+        }
+    }
+
+    private static readonly (BodySound Sound, SoundCue Cue)[] BodyCues =
+    [
+        (BodySound.Footstep, SoundCue.Footstep),
+        (BodySound.Jump, SoundCue.Jump),
+        (BodySound.Land, SoundCue.Land),
+        (BodySound.HardLanding, SoundCue.HardLanding),
+        (BodySound.Splash, SoundCue.Splash),
+        (BodySound.Grip, SoundCue.Grip),
+    ];
 
     /// <summary>
     /// Stands the player at the first nearby place their body fits, at rest. With nowhere clear

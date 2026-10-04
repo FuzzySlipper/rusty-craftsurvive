@@ -37,6 +37,9 @@
     <!-- The climbing rule reads blocks through a lookup, so it is checked over a made-up wall. -->
     <Compile Include="$(ProductModules)Player/PlayerClimb.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerStamina.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Player/PlayerFootfalls.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Audio/SoundCues.cs" LinkBase="Product/Audio" />
+    <Compile Include="$(ProductModules)Audio/SoundCatalog.cs" LinkBase="Product/Audio" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />

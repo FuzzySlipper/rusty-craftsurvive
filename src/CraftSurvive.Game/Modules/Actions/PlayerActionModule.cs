@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Inventory;
@@ -36,14 +37,16 @@ internal sealed class PlayerActionModule
     private readonly WorldConditionsModule conditions;
     private readonly DungeonModule dungeons;
     private readonly ProductUiPublisher ui;
+    private readonly SoundCues sounds;
     private long applied;
     private long refused;
     private string last = "none";
     private bool published;
 
     internal PlayerActionModule(PlayerController player, BlastModule blast, BuildModule build, InventoryModule inventory,
-        SurvivalModule survival, WorldConditionsModule conditions, DungeonModule dungeons, ProductUiPublisher ui)
+        SurvivalModule survival, WorldConditionsModule conditions, DungeonModule dungeons, ProductUiPublisher ui, SoundCues sounds)
     {
+        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
         this.dungeons = dungeons ?? throw new ArgumentNullException(nameof(dungeons));
         this.survival = survival ?? throw new ArgumentNullException(nameof(survival));
         this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
@@ -103,7 +106,7 @@ internal sealed class PlayerActionModule
         if (action.Kind == PlayerActionKind.Craft)
         {
             long refusedBefore = inventory.Refused;
-            Settle(name, inventory.Craft(action.Name), inventory.Refused > refusedBefore);
+            Settle(name, inventory.Craft(action.Name), inventory.Refused > refusedBefore, SoundCue.Craft);
             return;
         }
 
@@ -118,7 +121,7 @@ internal sealed class PlayerActionModule
         {
             long refusedBefore = dungeons.Refused;
             string outcome = action.Kind == PlayerActionKind.Enter ? dungeons.Enter() : dungeons.Leave();
-            Settle(name, outcome, dungeons.Refused > refusedBefore);
+            Settle(name, outcome, dungeons.Refused > refusedBefore, SoundCue.Portal);
             return;
         }
 
@@ -142,10 +145,11 @@ internal sealed class PlayerActionModule
             return;
         }
 
+        long builtBefore = Built;
         if (action.Kind == PlayerActionKind.Undo)
         {
             build.Undo();
-            Accept($"{name}: {build.LastOutcome}");
+            Accept($"{name}: {build.LastOutcome}", Built > builtBefore ? SoundCue.Place : SoundCue.Refused);
             return;
         }
 
@@ -190,11 +194,14 @@ internal sealed class PlayerActionModule
                 break;
         }
 
-        Accept($"{name} at {at.X},{at.Y},{at.Z}: {build.LastOutcome}");
+        Accept($"{name} at {at.X},{at.Y},{at.Z}: {build.LastOutcome}", Built > builtBefore ? SoundCue.Place : SoundCue.Refused);
     }
 
-    /// <summary>Counts an owner's answer as applied or refused.</summary>
-    private void Settle(string name, string outcome, bool wasRefused)
+    /// <summary>Everything building has done so far, so an action can tell whether it built anything.</summary>
+    private long Built => build.Stamps + build.EntitiesPlaced + build.Undone;
+
+    /// <summary>Counts an owner's answer as applied or refused; an applied one is heard as <paramref name="heard"/>, if anything.</summary>
+    private void Settle(string name, string outcome, bool wasRefused, SoundCue? heard = null)
     {
         if (wasRefused)
         {
@@ -202,19 +209,24 @@ internal sealed class PlayerActionModule
         }
         else
         {
-            Accept($"{name}: {outcome}");
+            Accept($"{name}: {outcome}", heard);
         }
     }
 
-    private void Accept(string outcome)
+    private void Accept(string outcome, SoundCue? heard = null)
     {
         applied++;
         last = outcome;
+        if (heard is SoundCue cue)
+        {
+            sounds.Raise(cue);
+        }
     }
 
     private void Refuse(string outcome)
     {
         refused++;
         last = outcome;
+        sounds.Raise(SoundCue.Refused);
     }
 }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
@@ -610,6 +611,58 @@ Check.That(hanging.Current > moving.Current && hanging.Current < startingStamina
     "hanging still must spend stamina, more slowly than climbing");
 Check.That(PlayerStamina.ClimbReachMetres(startingStamina * 2) > reach, "a bigger bar must reach higher");
 
+// Footfalls: one per stride walked on the ground, none in water; a jump leaves the ground rising;
+// a landing is heard after a real fall, hard after a long one; a splash on going in; a grip on taking hold.
+PlayerFootfalls feet = new();
+BodyStep walking = new(true, true, 0f, 0f, 0.1f, 0f, 0f, false, false);
+int strides = 0;
+for (int i = 0; i < 100; i++)
+{
+    strides += feet.Hear(walking).HasFlag(BodySound.Footstep) ? 1 : 0;
+}
+
+Check.That(strides == (int)(10f / PlayerFootfalls.StrideMetres), $"ten metres walked must be heard as whole strides, heard {strides}");
+Check.That(feet.Hear(walking with { Immersion = 1f, ImmersionBefore = 1f, PlanarMetres = 10f }) == BodySound.None, "wading deep must not be heard as footfalls");
+Check.That(feet.Hear(walking with { Grounded = false, RiseSpeed = 5f }).HasFlag(BodySound.Jump)
+    && feet.Hear(walking with { RiseSpeed = 5f }).HasFlag(BodySound.Jump)
+    && !feet.Hear(walking with { RiseSpeed = 4.8f, FallSpeedBefore = -5f }).HasFlag(BodySound.Jump)
+    && !feet.Hear(walking with { Grounded = false, RiseSpeed = 0f }).HasFlag(BodySound.Jump),
+    "starting to rise from the ground is a jump, heard once; stepping off an edge is not");
+BodyStep landing = walking with { GroundedBefore = false, PlanarMetres = 0f };
+Check.That(feet.Hear(landing with { FallSpeedBefore = 1f }) == BodySound.None
+    && feet.Hear(landing with { FallSpeedBefore = 5f }) == BodySound.Land
+    && feet.Hear(landing with { FallSpeedBefore = 12f }) == BodySound.HardLanding,
+    "a step down is silent, a fall lands, and a long fall lands hard");
+Check.That(feet.Hear(walking with { PlanarMetres = 0f, Immersion = 0.5f }) == BodySound.Splash
+    && feet.Hear(walking with { PlanarMetres = 0f, ImmersionBefore = 0.5f, Immersion = 0.6f }) == BodySound.None,
+    "going into water splashes once, not again while in it");
+Check.That(feet.Hear(walking with { PlanarMetres = 0f, Held = true }) == BodySound.Grip
+    && feet.Hear(walking with { PlanarMetres = 0f, HeldBefore = true, Held = true }) == BodySound.None,
+    "taking hold of a face is heard once");
+
+// Ambience: wind by day, the night chorus after dark, the cave underground, and under water the
+// water's rumble with the rest muffled.
+Surroundings noon = new(false, false, 1d);
+Surroundings midnight = new(false, false, 0d);
+Surroundings below = new(true, false, 1d);
+Check.That(SoundCatalog.Level(AmbienceBed.Wind, noon) > SoundCatalog.Level(AmbienceBed.Wind, midnight)
+    && SoundCatalog.Level(AmbienceBed.Night, noon) == 0f && SoundCatalog.Level(AmbienceBed.Night, midnight) > 0f,
+    "wind must blow harder by day and the night chorus sing only after dark");
+Check.That(SoundCatalog.Level(AmbienceBed.Cave, below) > 0f && SoundCatalog.Level(AmbienceBed.Wind, below) == 0f
+    && SoundCatalog.Level(AmbienceBed.Cave, noon) == 0f,
+    "underground is the cave's drone and no wind");
+Check.That(SoundCatalog.Level(AmbienceBed.Water, noon with { Submerged = true }) > 0f
+    && SoundCatalog.Level(AmbienceBed.Wind, noon with { Submerged = true }) < SoundCatalog.Level(AmbienceBed.Wind, noon)
+    && SoundCatalog.Level(AmbienceBed.Water, noon) == 0f,
+    "under water the water rumbles and the wind is muffled");
+Check.That(Enum.GetValues<SoundCue>().All(cue => SoundCatalog.Cues.TryGetValue(cue, out CueSound? sound) && sound.Clips.Length > 0)
+    && Enum.GetValues<AmbienceBed>().All(SoundCatalog.Beds.ContainsKey),
+    "every cue and bed must have a sound");
+string audioDirectory = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "content", "game");
+Check.That(SoundCatalog.Cues.Values.SelectMany(sound => sound.Clips).Concat(SoundCatalog.Beds.Values)
+        .All(clip => File.Exists(Path.Combine(audioDirectory, SoundCatalog.ContentPath(clip)))),
+    "every clip the catalog names must have been generated (node scripts/generate-sounds.mjs)");
+
 Check.That(new[] { BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Cobblestone, BlockId.Brick, BlockId.Log, BlockId.Planks, BlockId.Bedrock }
         .All(id => BlockRegistry.Get(id).Climbable)
     && new[] { BlockId.Air, BlockId.Sand, BlockId.Gravel, BlockId.Leaves, BlockId.Water, BlockId.Glass, BlockId.Lamp, BlockId.Snow }
@@ -698,6 +751,6 @@ Check.That(restedHalfFed.Regained > 0, $"a half-fed player regains health early 
 Check.That(restedHungry.Regained < restedFed.Regained && restedHungry.Lost == 0,
     $"a hungry player regains only what food pays for, regained {restedHungry.Regained}");
 
-Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule, the world's clock and survival passed.");
+Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule, footfalls, ambience, the world's clock and survival passed.");
 
 return Check.Finish("RpgCore");

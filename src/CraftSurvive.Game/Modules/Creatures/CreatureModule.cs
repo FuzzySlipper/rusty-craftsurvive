@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
@@ -68,9 +69,11 @@ internal sealed class CreatureModule : IProductModule
     internal const double NightSightFactor = 1.5;
 
     private readonly Func<bool> isNight;
+    private readonly SoundCues sounds;
 
-    internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, WorldFrame frame, Func<bool> isNight)
+    internal CreatureModule(IEngineContext engine, TerrainWorld terrain, PlayerController player, WorldFrame frame, Func<bool> isNight, SoundCues sounds)
     {
+        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
         this.isNight = isNight ?? throw new ArgumentNullException(nameof(isNight));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
@@ -188,6 +191,8 @@ internal sealed class CreatureModule : IProductModule
         AttackOutcome outcome = CombatRules.Resolve(roll, strike.Attack, player.Sheet.Defence);
         if (!outcome.Hit)
         {
+            // A blow that lands is heard as the player's hurt; one that misses is the swing going by.
+            sounds.Raise(SoundCue.Swing);
             lastEvent = string.Create(CultureInfo.InvariantCulture,
                 $"creature {strike.CreatureId} missed the player: roll {outcome.Roll} total {outcome.Total} vs evasion {outcome.Defence}");
             return;
@@ -242,10 +247,12 @@ internal sealed class CreatureModule : IProductModule
         (CombatantState struck, AttackOutcome outcome) = EncounterResolutionRules.Strike(roll, player.Sheet.Unarmed, target.Combat, step);
         if (!outcome.Hit)
         {
+            sounds.Raise(SoundCue.Swing);
             return string.Create(CultureInfo.InvariantCulture, $"missed {target.Id}: roll {outcome.Roll} vs defence {outcome.Defence}");
         }
 
         target.Combat = struck;
+        sounds.Raise(struck.IsDown ? SoundCue.Defeat : SoundCue.Strike);
         if (!struck.IsDown)
         {
             return string.Create(CultureInfo.InvariantCulture,

@@ -1,6 +1,7 @@
 using Rusty.Engine;
 using Rusty.Engine.Debugging;
 using CraftSurvive.Game.Modules.Actions;
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Discovery;
@@ -57,6 +58,10 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
     /// <summary>The light placed lamps give, from a pool of Engine lights.</summary>
     private readonly LampLights lamps;
 
+    /// <summary>The cues gameplay raises each update, and the one owner that plays them and the ambience.</summary>
+    private readonly SoundCues cues = new();
+    private readonly SoundModule sounds;
+
     /// <summary>The player-facing UI's action claims, turned into blast and build requests.</summary>
     private readonly PlayerActionModule actions;
 
@@ -76,24 +81,27 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         store = new ProductStore(context.Engine);
         ui = new ProductUiPublisher(context.Engine);
         terrain = new TerrainWorld(context.Engine, context.Content, TerrainConfiguration.Default, frame, store, ui);
-        player = new PlayerController(context.Engine, terrain, frame, store, ui);
+        player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
         sky = new DayNightSky(context.Engine);
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
-        creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight);
+        creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
         creatureDebug = new CreatureDebugModule(creatures);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
-        blast = new BlastModule(context.Engine, terrain, frame, entities);
+        blast = new BlastModule(context.Engine, terrain, frame, entities, cues);
         build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
         lamps = new LampLights(context.Engine, entities, player, frame);
-        inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui);
+        inventory = new InventoryModule(context.Engine, store, terrain.SaveIdentity, player, discovery, survival, ui, cues);
         dungeons = new DungeonModule(context.Engine, terrain, player, conditions, sky, ui);
-        actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui);
+        actions = new PlayerActionModule(player, blast, build, inventory, survival, conditions, dungeons, ui, cues);
+        sounds = new SoundModule(context.Engine, cues,
+            () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)));
 
-        // The entity store runs last, so it saves what a charge swept or a build placed this update.
-        gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, entityStore, lamps];
+        // The entity store runs after the edits, so it saves what a charge swept or a build placed this
+        // update; sound runs last, so it plays everything raised this update.
+        gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, entityStore, lamps, sounds];
         entityDebug.RegisterStore("craft", player.EntityStore);
         entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
@@ -115,6 +123,7 @@ public sealed class CraftSurviveProduct : IEngineProduct, IDebugCommandModuleSou
         RequireRegistration(registrar.Register(new SurvivalDebugModule(survival)));
         RequireRegistration(registrar.Register(new InventoryDebugModule(inventory)));
         RequireRegistration(registrar.Register(new DungeonDebugModule(dungeons)));
+        RequireRegistration(registrar.Register(new SoundDebugModule(sounds)));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(player)));
     }
 

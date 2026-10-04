@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
@@ -26,6 +27,7 @@ internal sealed class InventoryModule : IProductModule
     private readonly DiscoveryModule discovery;
     private readonly SurvivalModule survival;
     private readonly ProductUiPublisher ui;
+    private readonly SoundCues sounds;
     private readonly ulong seed;
     private readonly ProductSaveSlot<CarriedItems> slot;
     private readonly EntityId owner = new(ProductIds.PlayerEntity);
@@ -40,9 +42,10 @@ internal sealed class InventoryModule : IProductModule
     private InventoryUiFacts? published;
 
     internal InventoryModule(IEngineContext engine, ProductStore saves, SaveIdentity identity, PlayerController player,
-        DiscoveryModule discovery, SurvivalModule survival, ProductUiPublisher ui)
+        DiscoveryModule discovery, SurvivalModule survival, ProductUiPublisher ui, SoundCues sounds)
     {
         ArgumentNullException.ThrowIfNull(engine);
+        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.discovery = discovery ?? throw new ArgumentNullException(nameof(discovery));
         this.survival = survival ?? throw new ArgumentNullException(nameof(survival));
@@ -73,6 +76,7 @@ internal sealed class InventoryModule : IProductModule
             if (ItemCatalog.TryFind(drop.ItemId, out CatalogItem item))
             {
                 Take([new ItemCount(item, drop.Quantity)], $"picked up {drop.Quantity} {item.Id}");
+                sounds.Raise(SoundCue.Pickup);
             }
         }
 
@@ -81,6 +85,7 @@ internal sealed class InventoryModule : IProductModule
             ItemCount[] cache = SupplyCache.For(seed, site);
             caches++;
             Take(cache, $"found a cache at the {site.Kind}: {Describe(cache)}");
+            sounds.Raise(SoundCue.Discovery);
         }
 
         if (store.Revision != savedRevision)

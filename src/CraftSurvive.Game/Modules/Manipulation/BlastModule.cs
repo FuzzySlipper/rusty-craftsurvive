@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -25,6 +26,7 @@ internal sealed class BlastModule : IProductModule
     private readonly WorldFrame frame;
     private readonly BlockEntityIndex entities;
     private readonly RenderResourceReference puff;
+    private readonly SoundCues sounds;
     private BlastCharge? pending;
     private long fired;
     private long cleared;
@@ -35,8 +37,9 @@ internal sealed class BlastModule : IProductModule
     private string lastOutcome = "none";
     private string lastDustFailure = "none";
 
-    internal BlastModule(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, BlockEntityIndex entities)
+    internal BlastModule(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, BlockEntityIndex entities, SoundCues sounds)
     {
+        this.sounds = sounds ?? throw new ArgumentNullException(nameof(sounds));
         ArgumentNullException.ThrowIfNull(engine);
         ArgumentNullException.ThrowIfNull(terrain);
         ArgumentNullException.ThrowIfNull(frame);
@@ -79,6 +82,7 @@ internal sealed class BlastModule : IProductModule
         }
 
         EmitDust(charge);
+        sounds.RaiseAt(SoundCue.Blast, DustCentre(charge.Centre));
         long started = Stopwatch.GetTimestamp();
 
         // A cell that turns out to be empty already is delivered, not refused: only a result that
