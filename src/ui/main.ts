@@ -8,8 +8,9 @@ import { mountOverlay } from './overlay.js';
 import { mountScreens } from './screens.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
-  + '(and lets go); J attacks; F clears and G places terrain; I opens the pack, M the journal of places, Esc closes them. '
-  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places.';
+  + '(and lets go); J attacks; F clears and G places terrain (B changes the brush); 1-9 or the wheel select a hotbar slot and R uses it; '
+  + 'I opens the pack, M the journal of places, Esc closes them. '
+  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, LB and RB step the hotbar, D-pad up uses.';
 
 /**
  * The DOM companion. It shows what the product publishes through the projection and claims the

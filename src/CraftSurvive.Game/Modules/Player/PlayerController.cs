@@ -121,6 +121,9 @@ internal sealed class PlayerController : IDisposable
     /// <summary>A press-only attack request for this update, for the systems that act on it.</summary>
     internal bool AttackRequested => lastInputFrame.AttackRequested;
 
+    /// <summary>This update's hotbar requests: a slot picked by number (-1 for none), steps along it, and a use of what it holds.</summary>
+    internal (int Pick, int Steps, bool Use) HotbarRequests => (lastInputFrame.HotbarPick, lastInputFrame.HotbarSteps, lastInputFrame.UseRequested);
+
     internal EntityStore EntityStore => entityWorld;
 
     /// <summary>The player's health and defeat; creatures strike through it.</summary>

@@ -79,6 +79,9 @@ internal static class PlayerConstants
     internal const float MaximumPitchRadians = (MathF.PI / 2f) - LookPitchEpsilonRadians;
     internal const ulong UninitializedCollisionWorldHash = 0UL;
     internal const ushort PlaceMaterial = 1;
+    /// <summary>Wheel travel, in the page's scroll units, that steps the hotbar one slot: about one notch.</summary>
+    internal const float WheelStep = 50f;
+
     internal const int DefaultBrushRadius = 0;
     internal const int MinimumBrushRadius = 0;
     internal const int MediumBrushRadius = 1;

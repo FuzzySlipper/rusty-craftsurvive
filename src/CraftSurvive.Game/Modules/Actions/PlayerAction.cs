@@ -21,6 +21,7 @@ internal enum PlayerActionKind
     Enter,
     Leave,
     Move,
+    Select,
 }
 
 /// <summary>
@@ -48,7 +49,7 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
     /// <summary>A charge's radius.</summary>
     internal int Radius => Size1;
 
-    /// <summary>A move's slots, and a use's slot (-1 when it names none).</summary>
+    /// <summary>A move's slots, a selection's slot, and a use's slot (-1 when it names none).</summary>
     internal int FromSlot => Size1;
     internal int ToSlot => Size2;
     internal int Slot => Size1 - 1;
@@ -80,6 +81,7 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "undo" => new(PlayerActionKind.Undo),
             "craft" => new(PlayerActionKind.Craft, Name: Named(root, "recipe")),
             "use" => new(PlayerActionKind.Use, root.TryGetProperty("slot", out _) ? Size(root, "slot", 0, InventorySlots.Count - 1) + 1 : 0, Name: Named(root, "item")),
+            "select" => new(PlayerActionKind.Select, Size(root, "slot", 0, InventorySlots.HotbarSlots - 1)),
             "move" => new(PlayerActionKind.Move, Size(root, "from", 0, InventorySlots.Count - 1), Size(root, "to", 0, InventorySlots.Count - 1),
                 Count: root.TryGetProperty("count", out _) ? Size(root, "count", 0, MaximumMoveCount) : 0),
             "rest" => new(PlayerActionKind.Rest),

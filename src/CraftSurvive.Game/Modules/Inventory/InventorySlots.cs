@@ -50,6 +50,8 @@ internal static class InventorySlots
 
     internal static bool IsSlot(int slot) => slot is >= 0 and < Count;
 
+    internal static bool IsHotbar(int slot) => slot is >= 0 and < HotbarSlots;
+
     private static int Room => (int)ItemCatalog.StackMaximum;
 
     /// <summary>

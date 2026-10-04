@@ -36,6 +36,7 @@ internal static class ActionChecks
         Check.Equal(-1, Parse("""{"action":"use","item":"meat"}""").Slot, "a use that names no slot takes from any");
         Check.Equal(new PlayerAction(PlayerActionKind.Move, 3, 20, Count: 5), Parse("""{"action":"move","from":3,"to":20,"count":5}"""), "a move names its slots and count");
         Check.Equal(0, Parse("""{"action":"move","from":3,"to":20}""").Count, "a move that names no count takes the whole stack");
+        Check.Equal(new PlayerAction(PlayerActionKind.Select, 4), Parse("""{"action":"select","slot":4}"""), "a selection names its hotbar slot");
 
         string[] refused =
         [
@@ -48,6 +49,8 @@ internal static class ActionChecks
             $$"""{"action":"move","from":0,"to":{{InventorySlots.Count}}}""",
             """{"action":"move","from":0,"to":1,"count":100}""",
             """{"action":"move","from":-1,"to":1}""",
+            $$"""{"action":"select","slot":{{InventorySlots.HotbarSlots}}}""",
+            """{"action":"select"}""",
             """{"action":"detonate"}""",
             """{"action":"blast"}""",
             """{"action":"blast","radius":0}""",

@@ -64,10 +64,20 @@ internal sealed class PlayerActionModule
 
     internal string Readout() => $"actions applied={applied} refused={refused} last={last}";
 
-    /// <summary>Applies every action the UI claimed in this update, in the order it claimed them.</summary>
+    /// <summary>
+    /// Applies the player's hotbar keys - a slot picked or stepped to, and the use of what it holds -
+    /// then every action the UI claimed in this update, in the order it claimed them.
+    /// </summary>
     internal void Update(ProductUpdate update)
     {
-        bool claimed = false;
+        (int pick, int steps, bool use) = player.HotbarRequests;
+        inventory.Select(pick, steps);
+        bool claimed = use;
+        if (use)
+        {
+            UseSelected();
+        }
+
         foreach (ProductInputEvent input in update.Input)
         {
             if (input.ValueKind != InputValueKind.ProductPayload || !input.PayloadContract.Span.SequenceEqual(ContractUtf8))
@@ -119,6 +129,13 @@ internal sealed class PlayerActionModule
         {
             long refusedBefore = inventory.Refused;
             Settle(name, inventory.Use(action.Name, action.Slot), inventory.Refused > refusedBefore);
+            return;
+        }
+
+        if (action.Kind == PlayerActionKind.Select)
+        {
+            inventory.Select(action.FromSlot, 0);
+            Accept($"{name}: slot {inventory.Selected}");
             return;
         }
 
@@ -192,14 +209,7 @@ internal sealed class PlayerActionModule
                 build.Door(at.X, at.Y, at.Z, DoorClosed);
                 break;
             case PlayerActionKind.Light:
-                // A light burns a torch, but only once one is actually placed.
-                long placedBefore = build.EntitiesPlaced;
-                build.Light(at.X, at.Y, at.Z, LightLit);
-                if (build.EntitiesPlaced > placedBefore)
-                {
-                    inventory.Spend(ItemCatalog.Torch);
-                }
-
+                PlaceLight(at);
                 break;
             case PlayerActionKind.Container:
                 build.Container(at.X, at.Y, at.Z, ContainerEmpty);
@@ -215,6 +225,60 @@ internal sealed class PlayerActionModule
         }
 
         Accept($"{name} at {at.X},{at.Y},{at.Z}: {build.LastOutcome}", Cue.Refused);
+    }
+
+    /// <summary>A light burns a torch - from the slot asked for, when it holds one - but only once one is actually placed.</summary>
+    private void PlaceLight(VoxelAddress at, int fromSlot = -1)
+    {
+        long placedBefore = build.EntitiesPlaced;
+        build.Light(at.X, at.Y, at.Z, LightLit);
+        if (build.EntitiesPlaced > placedBefore)
+        {
+            inventory.Spend(ItemCatalog.Torch, fromSlot);
+        }
+    }
+
+    /// <summary>
+    /// Uses what the selected hotbar slot holds: food is eaten and a bandage applied from that slot,
+    /// and a torch is placed as a light where the player aims. Materials are for crafting, not using.
+    /// </summary>
+    private void UseSelected()
+    {
+        if (inventory.SelectedContents is not SlotContents held)
+        {
+            Refuse("use: the selected slot is empty");
+            return;
+        }
+
+        switch (held.Item.Use)
+        {
+            case ItemUse.Food or ItemUse.Healing:
+                long refusedBefore = inventory.Refused;
+                Settle("use", inventory.Use(held.Item.Id, held.Slot), inventory.Refused > refusedBefore);
+                return;
+            case ItemUse.Light:
+                TerrainPick aim = player.Aim();
+                if (aim.Outcome != TerrainPickOutcome.Picked)
+                {
+                    Refuse("use: nothing within reach to place the torch on");
+                    return;
+                }
+
+                long builtBefore = Built;
+                PlaceLight(aim.Adjacent, held.Slot);
+                if (Built > builtBefore)
+                {
+                    Accept($"use: placed a torch at {aim.Adjacent.X},{aim.Adjacent.Y},{aim.Adjacent.Z}");
+                    cues.RaiseAt(Cue.Place, frame.ToLocal(aim.Adjacent.X + CellCentre, aim.Adjacent.Y + CellCentre, aim.Adjacent.Z + CellCentre));
+                    return;
+                }
+
+                Refuse($"use: {build.LastOutcome}");
+                return;
+            default:
+                Refuse($"use: {held.Item.Name.ToLowerInvariant()} is for crafting, not using");
+                return;
+        }
     }
 
     /// <summary>Everything building has done so far, so an action can tell whether it built anything.</summary>

@@ -100,7 +100,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   thing lives in one slot. A pickup tops up its kind, then takes the first empty slot, hotbar first;
   spending takes from the pack before the hotbar; a move (dragged in the UI) goes into an empty
   slot, merges onto its kind, or swaps a whole stack. What does not fit is left behind and counted.
-  Nothing selects a hotbar slot or uses it from the HUD yet. Building floors and walls is free; a
+  One hotbar slot is selected (`InventoryModule.Selected`, not saved: a session starts at the
+  first): 1-9 pick it, the wheel (`PlayerConstants.WheelStep` per step) and the controller's bumpers
+  step it, wrapping, and a click selects it while the pointer is free. R, or the D-pad's up, uses
+  what it holds: food is eaten and a bandage applied from that slot, a torch is placed as a light
+  where the player aims, and a material is refused. The terrain brush's size moved from 1-3 to B,
+  which cycles it. Building floors and walls is free; a
   light burns a torch. There are no tools, stations, equipment or containers that hold items; the
   pack screen's equipment slots are placeholders that refuse anything dropped on them.
 

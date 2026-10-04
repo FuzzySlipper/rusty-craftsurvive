@@ -71,6 +71,9 @@ internal readonly record struct InventoryUiFacts(string Carried, string Items, s
     internal double HotbarSlots { get; init; }
 
     internal double PackSlots { get; init; }
+
+    /// <summary>The selected hotbar slot.</summary>
+    internal double Selected { get; init; }
 }
 
 /// <summary>

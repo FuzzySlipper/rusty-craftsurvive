@@ -3,7 +3,7 @@ import { ACTION_CONTRACT, ACTION_INTENT } from './actions.js';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text, type Values } from './hud.js';
 import { drawMap, mark, places, standing } from './map.js';
-import { EQUIPMENT, hotbarSlots, packSlots, SLOT_PIXELS, SlotDrag, slotItems } from './slots.js';
+import { EQUIPMENT, hotbarSlots, packSlots, selectedSlot, SLOT_PIXELS, SlotDrag, slotItems } from './slots.js';
 
 /** The keys that open each screen; Escape closes whichever is open. */
 const PACK_KEY = 'KeyI';
@@ -29,8 +29,9 @@ const JOURNAL_STEP_METRES = 5;
 /** The pack's slots in a row, as the hotbar has them. */
 const ROW_SLOTS = 9;
 
-/** How long the screen's own refusal shows, in milliseconds. */
+/** How long the screen's own refusal shows, and the selected item's name after a change, in milliseconds. */
 const REFUSAL_MS = 2400;
+const SELECTED_NAME_MS = 1800;
 
 /** The compass, clockwise from north; north is -Z in the world, east +X. */
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
@@ -82,10 +83,12 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
   const drag = new SlotDrag(root, {
     move: (from, to, count) => claim(count > 0 ? { action: 'move', from, to, count } : { action: 'move', from, to }),
     use: (item) => claim({ action: 'use', item: item.id, slot: item.slot }),
+    select: (slot) => claim({ action: 'select', slot }),
     refuse: (why) => {
       refusal.textContent = why;
       refusal.style.display = 'block';
       window.clearTimeout(refusalTimer);
+    window.clearTimeout(selectedNameTimer);
       refusalTimer = window.setTimeout(() => { refusal.style.display = 'none'; }, REFUSAL_MS);
     },
   });
@@ -108,6 +111,11 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
     + 'background:rgb(11 12 16 / 75%);border:2px solid #000;pointer-events:auto;');
   hotbar.setAttribute('data-rusty-ui-interactive', '');
   isolateEvents(hotbar);
+  const selectedName = element('div', `position:fixed;left:50%;bottom:4.3rem;transform:translateX(-50%);z-index:3;pointer-events:none;
+    color:${INK};font:700 .85rem/1 ui-monospace,monospace;letter-spacing:.05em;text-shadow:1px 1px 0 #000,-1px 1px 0 #000,1px -1px 0 #000,-1px -1px 0 #000;
+    opacity:0;transition:opacity .4s;`);
+  let selectedNameTimer = 0;
+  let shownSelection = '';
 
   const screen = element('section', `position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;display:none;
     width:min(46rem,calc(100vw - 2rem));max-height:calc(100vh - 2rem);overflow:auto;padding:.8rem 1rem;pointer-events:auto;
@@ -121,7 +129,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
   heading.append(title, close);
   const body = element('div', '');
   screen.append(heading, body);
-  root.append(corner, hotbar, screen, refusal);
+  root.append(corner, hotbar, selectedName, screen, refusal);
 
   let open: 'pack' | 'journal' | null = null;
   let latest: Values | null = null;
@@ -130,7 +138,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
   /** What the open screen shows, so it is rebuilt only when that changes and not on every update. */
   const screenSignature = (values: Values | null): string => {
     if (values === null) return 'waiting';
-    if (open === 'pack') return ['packItems', 'recipeBook', 'packLoad', 'lastInventory'].map((key) => String(values[key])).join('/');
+    if (open === 'pack') return ['packItems', 'recipeBook', 'packLoad', 'lastInventory', 'hotbarSelected'].map((key) => String(values[key])).join('/');
     const step = (key: string): number => Math.round((number(values, key) ?? 0) / JOURNAL_STEP_METRES);
     return `${text(values, 'journalPlaces')}/${step('playerX')}/${step('playerZ')}`;
   };
@@ -139,11 +147,27 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
     if (latest !== null) {
       // The hotbar shows on the HUD except while the pack, which has its own row of it, is open.
       hotbar.style.display = open === 'pack' ? 'none' : 'flex';
-      const hotbarNow = String(latest['packItems']);
+      const hotbarNow = `${String(latest['packItems'])}/${selectedSlot(latest)}`;
       if (hotbarNow !== drawn.hotbar) {
         drawn.hotbar = hotbarNow;
         const held = slotItems(latest);
-        hotbar.replaceChildren(...Array.from({ length: hotbarSlots(latest) }, (_, slot) => drag.slot(slot, held.get(slot))));
+        const chosen = selectedSlot(latest);
+        hotbar.replaceChildren(...Array.from({ length: hotbarSlots(latest) }, (_, slot) => drag.slot(slot, held.get(slot), true, slot === chosen)));
+        // The selected item's name shows above the hotbar for a moment when the selection, or what it holds, changes.
+        const item = held.get(chosen);
+        const selection = `${chosen}/${item?.id ?? ''}`;
+        if (selection !== shownSelection) {
+          const first = shownSelection === '';
+          shownSelection = selection;
+          if (!first && item !== undefined) {
+            selectedName.textContent = item.name;
+            selectedName.style.opacity = '1';
+            window.clearTimeout(selectedNameTimer);
+            selectedNameTimer = window.setTimeout(() => { selectedName.style.opacity = '0'; }, SELECTED_NAME_MS);
+          } else if (item === undefined) {
+            selectedName.style.opacity = '0';
+          }
+        }
       }
       const me = standing(latest);
       const minimapNow = `${text(latest, 'journalPlaces')}/${Math.round(me.x / MAP_STEP_METRES)}/${Math.round(me.z / MAP_STEP_METRES)}/${Math.round(me.yaw / MAP_STEP_DEGREES)}`;
@@ -197,7 +221,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
     pack.append(element('span', 'opacity:.75;', 'Pack'),
       grid(ROW_SLOTS, Array.from({ length: packSlots(values) }, (_, index) => drag.slot(first + index, held.get(first + index)))),
       element('span', 'opacity:.75;margin-top:.3rem;', 'Hotbar'),
-      grid(ROW_SLOTS, Array.from({ length: first }, (_, slot) => drag.slot(slot, held.get(slot)))));
+      grid(ROW_SLOTS, Array.from({ length: first }, (_, slot) => drag.slot(slot, held.get(slot), true, slot === selectedSlot(values)))));
     top.append(worn, pack);
 
     const book = element('div', 'display:grid;gap:.3rem;');
@@ -220,7 +244,8 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
       book.append(row);
     }
 
-    const hint = element('p', 'margin:0;opacity:.7;', 'Drag a stack to move it; Shift or right-drag for half. Double-click food to eat it, a bandage to apply it.');
+    const hint = element('p', 'margin:0;opacity:.7;', 'Drag a stack to move it; Shift or right-drag for half. Double-click food to eat it, a bandage to apply it. '
+      + 'Click a hotbar slot, press 1-9 or scroll to select it; R uses what it holds.');
     const last = text(values, 'lastInventory');
     view.append(meter, top, hint, book);
     if (last !== null && last !== '' && last !== 'none') view.append(element('p', 'margin:0;opacity:.8;', last));
@@ -283,5 +308,6 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
     hotbar.remove();
     screen.remove();
     refusal.remove();
+    selectedName.remove();
   };
 }

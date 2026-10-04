@@ -42,6 +42,9 @@ internal sealed class InventoryModule : IProductModule
     private string last = "none";
     private InventoryUiFacts? published;
 
+    /// <summary>The hotbar slot the player has selected, whose item the use action uses.</summary>
+    private int selected;
+
     internal InventoryModule(IEngineContext engine, ProductStore saves, SaveIdentity identity, PlayerController player,
         DiscoveryModule discovery, SurvivalModule survival, ProductUiPublisher ui, Cues cues)
     {
@@ -110,6 +113,7 @@ internal sealed class InventoryModule : IProductModule
         store = new InventoryStore();
         Register();
         crafted = refused = leftBehind = caches = 0;
+        selected = 0;
         last = "none";
         Save();
         Publish();
@@ -128,6 +132,27 @@ internal sealed class InventoryModule : IProductModule
 
     /// <summary>How many of an item the player carries, across every slot.</summary>
     internal int Count(CatalogItem item) => Held().Where(contents => contents.Item == item).Sum(contents => contents.Count);
+
+    /// <summary>The selected hotbar slot.</summary>
+    internal int Selected => selected;
+
+    /// <summary>What the selected hotbar slot holds, or null when it is empty.</summary>
+    internal SlotContents? SelectedContents => Held().FirstOrDefault(contents => contents.Slot == selected) is { Count: > 0 } found ? found : null;
+
+    /// <summary>
+    /// Selects a hotbar slot: the one picked (when one is), then some steps along the hotbar,
+    /// wrapping at either end, as the wheel or the bumpers step it.
+    /// </summary>
+    internal void Select(int pick, int steps)
+    {
+        int now = InventorySlots.IsHotbar(pick) ? pick : selected;
+        now = ((now + steps) % InventorySlots.HotbarSlots + InventorySlots.HotbarSlots) % InventorySlots.HotbarSlots;
+        if (now != selected)
+        {
+            selected = now;
+            Publish();
+        }
+    }
 
     /// <summary>What each occupied slot holds, in slot order.</summary>
     internal IReadOnlyList<SlotContents> Held() => [.. store.View(owner).Stacks
@@ -373,6 +398,7 @@ internal sealed class InventoryModule : IProductModule
         {
             HotbarSlots = InventorySlots.HotbarSlots,
             PackSlots = InventorySlots.PackSlots,
+            Selected = selected,
         };
         if (published != facts)
         {

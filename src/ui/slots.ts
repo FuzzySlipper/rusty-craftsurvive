@@ -12,6 +12,7 @@ export const SLOT_PIXELS = 44;
 const SLOT_FACE = '#1b1e26';
 const SLOT_EDGE = '#000';
 const SLOT_LIGHT = '#3a3f4c';
+const SELECTED_EDGE = '#f2ead8';
 
 /** The colour a slot's item is marked with, by what it is for. */
 const USE_COLOURS: Readonly<Record<string, string>> = {
@@ -33,11 +34,14 @@ export const slotItems = (values: Values): Map<number, SlotItem> => new Map((tex
 
 export const hotbarSlots = (values: Values): number => number(values, 'hotbarSlots') ?? 0;
 export const packSlots = (values: Values): number => number(values, 'packSlots') ?? 0;
+export const selectedSlot = (values: Values): number => number(values, 'hotbarSelected') ?? 0;
 
 /** What a drag asks the product for: a move between slots, or a use of what one holds. */
 export interface SlotRequests {
   move(from: number, to: number, count: number): void;
   use(item: SlotItem): void;
+  /** A click, not a drag, on a hotbar slot: select it. */
+  select(slot: number): void;
   /** Something the UI itself refuses, such as a drop on an equipment slot that does not exist yet. */
   refuse(why: string): void;
 }
@@ -50,7 +54,7 @@ export interface SlotRequests {
  * so it carries on while the slots under it are redrawn.
  */
 export class SlotDrag {
-  private dragging: { from: SlotItem; count: number; startX: number; startY: number; moved: boolean } | null = null;
+  private dragging: { from: SlotItem | null; slot: number; count: number; startX: number; startY: number; moved: boolean } | null = null;
   private readonly ghost: HTMLElement;
 
   constructor(private readonly root: Element, private readonly requests: SlotRequests) {
@@ -66,10 +70,20 @@ export class SlotDrag {
     this.ghost.remove();
   }
 
-  /** One slot, numbered as the product numbers it, holding what the product says it holds. */
-  slot(index: number, item: SlotItem | undefined): HTMLElement {
-    const cell = this.frame();
+  /**
+   * One slot, numbered as the product numbers it, holding what the product says it holds. A hotbar
+   * slot can be clicked to select it, and the selected one is drawn with a light edge.
+   */
+  slot(index: number, item: SlotItem | undefined, hotbar = false, selected = false): HTMLElement {
+    const cell = this.frame(selected);
     cell.dataset['slot'] = String(index);
+    if (hotbar && item === undefined) {
+      cell.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        this.dragging = { from: null, slot: index, count: 0, startX: event.clientX, startY: event.clientY, moved: false };
+      });
+    }
+    if (hotbar) cell.dataset['hotbar'] = '';
     if (item === undefined) return cell;
     cell.append(...face(item));
     cell.title = `${item.name} ×${item.count} - ${item.use}${item.use === 'food' ? ' (double-click to eat)' : item.use === 'healing' ? ' (double-click to apply)' : ''}`;
@@ -79,7 +93,7 @@ export class SlotDrag {
       if (event.button !== 0 && event.button !== 2) return;
       event.preventDefault();
       const half = event.shiftKey || event.button === 2;
-      this.dragging = { from: item, count: half ? Math.ceil(item.count / 2) : 0, startX: event.clientX, startY: event.clientY, moved: false };
+      this.dragging = { from: item, slot: index, count: half ? Math.ceil(item.count / 2) : 0, startX: event.clientX, startY: event.clientY, moved: false };
     });
     cell.addEventListener('dblclick', () => {
       if (item.use === 'food' || item.use === 'healing') this.requests.use(item);
@@ -89,7 +103,7 @@ export class SlotDrag {
 
   /** A placeholder equipment slot: it shows where equipment will go and refuses anything dropped on it. */
   equipment(name: string): HTMLElement {
-    const cell = this.frame();
+    const cell = this.frame(false);
     cell.dataset['equipment'] = name;
     cell.title = `${name}: equipment is not in the game yet`;
     cell.style.opacity = '.55';
@@ -97,14 +111,14 @@ export class SlotDrag {
     return cell;
   }
 
-  private frame(): HTMLElement {
+  private frame(selected: boolean): HTMLElement {
     return element('div', `position:relative;width:${SLOT_PIXELS}px;height:${SLOT_PIXELS}px;box-sizing:border-box;background:${SLOT_FACE};`
-      + `border:2px solid ${SLOT_EDGE};box-shadow:inset 2px 2px 0 ${SLOT_LIGHT};user-select:none;touch-action:none;`);
+      + `border:2px solid ${selected ? SELECTED_EDGE : SLOT_EDGE};box-shadow:inset 2px 2px 0 ${SLOT_LIGHT};user-select:none;touch-action:none;`);
   }
 
   private readonly onMove = (event: PointerEvent): void => {
     const drag = this.dragging;
-    if (drag === null) return;
+    if (drag === null || drag.from === null) return;
     if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_START_PIXELS) return;
     if (!drag.moved) {
       drag.moved = true;
@@ -120,7 +134,14 @@ export class SlotDrag {
     const drag = this.dragging;
     this.dragging = null;
     this.ghost.style.display = 'none';
-    if (drag === null || !drag.moved) return;
+    if (drag === null) return;
+    if (!drag.moved) {
+      // A click rather than a drag: on a hotbar slot, it selects that slot.
+      const clicked = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-slot]');
+      if (clicked?.dataset['hotbar'] !== undefined && Number(clicked.dataset['slot']) === drag.slot) this.requests.select(drag.slot);
+      return;
+    }
+    if (drag.from === null) return;
     const under = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-slot],[data-equipment]');
     if (under === null || under === undefined) return;
     if (under.dataset['equipment'] !== undefined) {

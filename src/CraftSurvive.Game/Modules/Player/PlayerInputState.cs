@@ -32,6 +32,16 @@ internal sealed class PlayerInputState
     /// <summary>A press of the climb action, waiting for the next frame: take hold of a face, or let go of one.</summary>
     private bool climbPending;
 
+    /// <summary>The hotbar slot a number key picked this frame, or -1; and the steps the wheel or bumpers took.</summary>
+    private int hotbarPick = -1;
+    private int hotbarSteps;
+
+    /// <summary>Wheel travel not yet a whole step, so a touchpad's many small scrolls make steps at a mouse's rate.</summary>
+    private float wheelTravel;
+
+    /// <summary>A press of the use action, for whatever the selected hotbar slot holds.</summary>
+    private bool usePending;
+
     internal PlayerInputFrame Consume(ReadOnlySpan<ProductInputEvent> events, float simulationDeltaSeconds)
     {
         foreach (ProductInputEvent input in events)
@@ -43,6 +53,23 @@ internal sealed class PlayerInputState
                 pendingEdit = null;
                 attackPending = false;
                 climbPending = false;
+                hotbarPick = -1;
+                hotbarSteps = 0;
+                wheelTravel = 0f;
+                usePending = false;
+                continue;
+            }
+
+            if (input.Kind == InputEventKind.Wheel)
+            {
+                wheelTravel += input.Y;
+                while (MathF.Abs(wheelTravel) >= PlayerConstants.WheelStep)
+                {
+                    int step = wheelTravel > 0f ? 1 : -1;
+                    hotbarSteps += step;
+                    wheelTravel -= step * PlayerConstants.WheelStep;
+                }
+
                 continue;
             }
 
@@ -97,11 +124,17 @@ internal sealed class PlayerInputState
             pendingEdit,
             attackPending,
             brushRadius,
-            climbPending);
+            climbPending,
+            hotbarPick,
+            hotbarSteps,
+            usePending);
         pendingLookDelta = Vector2.Zero;
         pendingEdit = null;
         attackPending = false;
         climbPending = false;
+        hotbarPick = -1;
+        hotbarSteps = 0;
+        usePending = false;
         return frame;
     }
 
@@ -162,14 +195,14 @@ internal sealed class PlayerInputState
             case KeyboardControl.KeyG:
                 pendingEdit = TerrainEditKind.Set;
                 break;
-            case KeyboardControl.Digit1:
-                brushRadius = PlayerConstants.MinimumBrushRadius;
+            case KeyboardControl.KeyB:
+                brushRadius = brushRadius >= PlayerConstants.MaximumBrushRadius ? PlayerConstants.MinimumBrushRadius : brushRadius + 1;
                 break;
-            case KeyboardControl.Digit2:
-                brushRadius = PlayerConstants.MediumBrushRadius;
+            case KeyboardControl.KeyR:
+                usePending = true;
                 break;
-            case KeyboardControl.Digit3:
-                brushRadius = PlayerConstants.MaximumBrushRadius;
+            case >= KeyboardControl.Digit1 and <= KeyboardControl.Digit9:
+                hotbarPick = (int)(key - KeyboardControl.Digit1);
                 break;
         }
     }
@@ -243,9 +276,20 @@ internal sealed class PlayerInputState
             return;
         }
 
-        if (button == ControllerButton.Button3)
+        switch (button)
         {
-            climbPending = true;
+            case ControllerButton.Button3:
+                climbPending = true;
+                break;
+            case ControllerButton.Button4:
+                hotbarSteps--;
+                break;
+            case ControllerButton.Button5:
+                hotbarSteps++;
+                break;
+            case ControllerButton.Button12:
+                usePending = true;
+                break;
         }
 
         pendingEdit = button switch
@@ -283,4 +327,7 @@ internal readonly record struct PlayerInputFrame(
     TerrainEditKind? Edit,
     bool AttackRequested,
     int BrushRadius,
-    bool ClimbRequested);
+    bool ClimbRequested,
+    int HotbarPick,
+    int HotbarSteps,
+    bool UseRequested);
