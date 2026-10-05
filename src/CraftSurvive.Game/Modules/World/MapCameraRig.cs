@@ -75,6 +75,9 @@ internal sealed class MapCameraRig : IDisposable
     private static string Describe(ProductInputEvent input) => FormattableString.Invariant(
         $"{input.PointerButton}:{input.Edge}@{input.X:F4},{input.Y:F4}:{input.Device}:{input.Channel}");
 
+    /// <summary>The world ray under a viewport point (normalized, bottom-left), for picking with a free cursor.</summary>
+    internal CameraRay Ray(Vector2 point, double aspect) => CameraQueries.Ray(Descriptor(), aspect, point);
+
     internal void Activate()
     {
         engine.CameraView.SetActiveCamera(camera);

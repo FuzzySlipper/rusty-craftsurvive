@@ -37,6 +37,10 @@ internal sealed class WorldMapVoxelView : IDisposable
     private const float MarkerScalePerDistance = 0.012f;
     private const float PartyScalePerDistance = 0.006f;
     private const float MinimumMarkerScale = 0.04f;
+    /// <summary>Click picking marches the camera ray in quarter cells and refines the crossing this many times.</summary>
+    private const float PickStepUnits = 0.25f;
+    private const int PickRefinements = 12;
+    private const double FallbackAspect = 16.0 / 9.0;
     private const float CloseDistance = 6;
     // Each environment has a few tones chosen by noise, so close views read as mottled ground.
     private const int Tones = 3;
@@ -130,7 +134,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     internal bool Loaded => coarse.Settled && detail.Settled;
     internal string Readout => FormattableString.Invariant(
-        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
+        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};")
         + rig.Readout;
 
     internal void Activate() => rig.Activate();
@@ -153,6 +157,9 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     /// <summary>The keyboard waypoint, in world metres X/Z.</summary>
     internal Vector2 Waypoint => waypoint;
+    /// <summary>Where the last free-cursor click landed, or null when it missed the map.</summary>
+    private Vector2? lastPick;
+    internal string PickReadout => lastPick is Vector2 p ? FormattableString.Invariant($"{p.X:F0},{p.Y:F0}") : "none";
 
     /// <summary>Move the party token; the camera and the detail patch follow it.</summary>
     internal void MoveParty(Vector2 world)
@@ -187,8 +194,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     }
 
     /// <summary>
-    /// Move the waypoint with held W/A/S/D relative to the camera's heading. Returns true when T asks
-    /// for a route to it.
+    /// Move the waypoint with held W/A/S/D relative to the camera's heading, or put it where a
+    /// free-cursor click lands on the relief. Returns true when T or a click asks for a route to it.
     /// </summary>
     internal bool SteerWaypoint(ReadOnlySpan<ProductInputEvent> events)
     {
@@ -196,6 +203,17 @@ internal sealed class WorldMapVoxelView : IDisposable
         foreach (ProductInputEvent input in events)
         {
             if (input.Kind == InputEventKind.Clear) { waypointForward = waypointBack = waypointLeft = waypointRight = false; continue; }
+            if (input is { Kind: InputEventKind.PointerButton, PointerButton: PointerButton.Primary, Edge: InputEdge.Pressed, HasPosition: true })
+            {
+                lastPick = Pick(new(input.X, input.Y));
+                if (lastPick is Vector2 picked)
+                {
+                    waypoint = picked;
+                    factsVersion++;
+                    plan = true;
+                }
+                continue;
+            }
             if (input.Kind != InputEventKind.Key || input.Edge == InputEdge.None) continue;
             bool held = input.Edge == InputEdge.Pressed;
             switch (input.Keyboard)
@@ -219,6 +237,41 @@ internal sealed class WorldMapVoxelView : IDisposable
             factsVersion++;
         }
         return plan;
+    }
+
+    /// <summary>
+    /// Where a viewport point (normalized, bottom-left) lands on the drawn relief: march the camera ray
+    /// in steps finer than a coarse cell until it passes below the surface, then refine by bisection.
+    /// Null when the ray leaves the map without meeting it.
+    /// </summary>
+    internal Vector2? Pick(Vector2 point)
+    {
+        CameraSurfaceReadout surface = engine.CameraView.ReadSurface();
+        double aspect = surface.Reported && surface.CssHeight > 0 ? surface.CssWidth / surface.CssHeight : FallbackAspect;
+        CameraRay ray = rig.Ray(point, aspect);
+        Vector3 direction = Vector3.Normalize(ray.Direction);
+        float reach = rig.Distance * 2 + cells * 2;
+        bool Below(float t)
+        {
+            Vector3 at = ray.Origin + direction * t;
+            return at.Y <= Surface(at.X * CellMetres, at.Z * CellMetres).Y;
+        }
+        float previous = 0;
+        for (float t = PickStepUnits; t <= reach; t += PickStepUnits)
+        {
+            if (!Below(t)) { previous = t; continue; }
+            float low = previous, high = t;
+            for (int i = 0; i < PickRefinements; i++)
+            {
+                float middle = (low + high) / 2;
+                if (Below(middle)) high = middle; else low = middle;
+            }
+            Vector3 hit = ray.Origin + direction * high;
+            Vector2 world = new((float)(hit.X * CellMetres), (float)(hit.Z * CellMetres));
+            float limit = (float)map.Radius;
+            return Math.Abs(world.X) <= limit && Math.Abs(world.Y) <= limit ? world : null;
+        }
+        return null;
     }
 
     private AppearanceFact Marker(ulong id, Vector3 ground, float scalePerDistance, Appearance appearance)

@@ -48,7 +48,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const disposeLoading = mountLoading(gameUi, context.projection);
   const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
 
-  const disposeWorld = mountWorld(root, gameUi, context.intents, context.projection);
+  const disposeWorld = mountWorld(root, gameUi, context.ui, context.intents, context.projection);
 
   return Object.freeze({
     dispose: () => {

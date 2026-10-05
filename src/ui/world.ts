@@ -1,4 +1,4 @@
-import type { RustyApplicationUiIntentsPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
+import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplicationUiProjectionView } from '@rusty-engine/product-ui';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text } from './hud.js';
 
@@ -7,15 +7,22 @@ const CONTRACT = 'craftsurvive.world.action.v1';
 const PANEL = 'pointer-events:auto;background:rgb(20 24 27 / 94%);color:#eee7d5;padding:1rem;border:1px solid #84775c;border-radius:.4rem;';
 
 /** Controls and descriptions only. The geographic overview is an Engine mesh behind this UI. */
-export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApplicationUiIntentsPort | undefined,
+export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicationUiPort, intents: RustyApplicationUiIntentsPort | undefined,
   projection: RustyApplicationUiProjectionView | undefined): () => void {
+  // The map is a free-cursor screen: clicks on it carry the cursor position to the product.
+  let freedCursor = false;
+  const freeCursor = (free: boolean): void => {
+    if (free === freedCursor) return;
+    freedCursor = free;
+    ui.setCursorMode(free ? 'unlocked' : 'pointer-lock');
+  };
   const claim = (data: Readonly<Record<string, string | number>>): void => {
     intents?.claim(INTENT, { kind: 'product-payload', contract: CONTRACT, data });
   };
   const open = button('World');
   open.style.cssText = 'position:fixed;top:.75rem;left:50%;pointer-events:auto;z-index:8;';
   open.disabled = intents === undefined;
-  open.addEventListener('click', () => { document.exitPointerLock(); claim({ action: 'open' }); });
+  open.addEventListener('click', () => { freeCursor(true); claim({ action: 'open' }); });
   const screen = element('section', 'position:fixed;inset:0;pointer-events:none;z-index:9;font:15px/1.45 system-ui,sans-serif;');
   screen.setAttribute('aria-label', 'World map');
   screen.hidden = true;
@@ -32,7 +39,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
   destinations.setAttribute('aria-label', 'Travel to a place');
   const sites = element('div');
   destinations.append(element('h3', 'margin:0 0 .5rem;', 'Travel to a place'),
-    element('p', 'font-size:.85rem;opacity:.75;', 'North is toward the far edge. Choose a place to plan a route, or move the blue waypoint with W/A/S/D and press T.'), sites);
+    element('p', 'font-size:.85rem;opacity:.75;', 'North is toward the far edge. Click the map or choose a place to plan a route; W/A/S/D and T move and route to the blue waypoint.'), sites);
   // Travel controls: the product owns the journey; these buttons only claim its actions.
   const journey = element('section', PANEL + 'position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);width:26rem;');
   journey.setAttribute('aria-label', 'Journey');
@@ -74,7 +81,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
     if (values === null) return;
     const visible = number(values, 'worldMapOpen') === 1;
     screen.hidden = !visible; open.hidden = visible; gameUi.hidden = visible;
-    if (visible && document.pointerLockElement !== null) document.exitPointerLock();
+    freeCursor(visible);
     identity.textContent = `Seed ${text(values, 'worldSeed') ?? ''} · ${((number(values, 'worldSize') ?? 0) / 1000).toFixed(1)} km across`;
     status.textContent = text(values, 'worldMessage') ?? ''; status.hidden = status.textContent.length === 0;
     style.textContent = number(values, 'worldMapFaceted') === 1 ? 'Smooth relief' : 'Faceted relief';
@@ -98,5 +105,5 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
     }
   };
   render(); const unsubscribe = projection?.subscribe(render);
-  return () => { unsubscribe?.(); open.remove(); screen.remove(); gameUi.hidden = false; };
+  return () => { unsubscribe?.(); freeCursor(false); open.remove(); screen.remove(); gameUi.hidden = false; };
 }
