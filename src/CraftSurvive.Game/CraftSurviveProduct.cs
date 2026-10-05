@@ -193,6 +193,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             // then all product work, including streaming and saves, waits for a watcher.
             if (update.Facts.AdmittedStepCount == 0) return ProductUpdateResult.None;
         }
+        if (AdmitPreparedWorld()) return ProductUpdateResult.None;
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (mapOpen) return ProductUpdateResult.None;
         ProductStep step = ProductStep.From(update.Facts);

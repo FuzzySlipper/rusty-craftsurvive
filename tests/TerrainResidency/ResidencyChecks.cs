@@ -36,9 +36,27 @@ internal static class ResidencyChecks
             Check.That(plan.Requested.All(plan.Retained.Contains), $"a plan at x={x} requests a chunk it would not retain");
         }
 
+        // Every column keeps the chunks holding its lowest and highest generated ground, found
+        // by scanning the surface directly rather than trusting the band the policy reads.
+        foreach (long cx in new long[] { -3, 0, 2 })
+        foreach (long cz in new long[] { -2, 0, 3 })
+        {
+            (long bandMinimum, long bandMaximum) = recipe.ChunkColumnBand(cx, cz);
+            for (long x = cx * TerrainConstants.ChunkEdgeLength; x < (cx + 1) * TerrainConstants.ChunkEdgeLength; x++)
+            for (long z = cz * TerrainConstants.ChunkEdgeLength; z < (cz + 1) * TerrainConstants.ChunkEdgeLength; z++)
+            {
+                long surfaceChunk = GridMath.FloorDivide(recipe.SurfaceAt(x, z), TerrainConstants.ChunkEdgeLength);
+                Check.That(surfaceChunk > bandMinimum && surfaceChunk <= bandMaximum,
+                    "a column's surface band must hold its ground with a chunk of footing beneath");
+            }
+        }
+
+        // An edit above every generated band is still requested: edited chunks are always candidates.
+        long editY = (recipe.ChunkColumnBand(0, 0).Maximum + 1) * TerrainConstants.ChunkEdgeLength;
+        edited = new VoxelAddress(1, editY + 4, 1).Chunk;
         var beforeEdit = policy.PlanFor(center, state);
         Check.That(!beforeEdit.Requested.Contains(edited), "test column must begin empty");
-        VoxelAddress voxel = new(1, 20, 1);
+        VoxelAddress voxel = new(1, editY + 4, 1);
         var receipt = state.Apply(new TerrainEditAccepted([new(voxel, TerrainConstants.StoneMaterial)]));
         policy.RefreshAfterOverlayChange(state, receipt);
         var afterEdit = policy.PlanFor(center, state);
@@ -46,7 +64,11 @@ internal static class ResidencyChecks
         Check.That(afterEdit.Chunk(edited).Materials.Span[4 * TerrainConstants.ChunkEdgeLength + 1 + TerrainConstants.ChunkPlaneLength] == TerrainConstants.StoneMaterial,
             "prepared payload did not contain the edit");
         Check.That(ReferenceEquals(beforeEdit.Chunk(unchanged), afterEdit.Chunk(unchanged)), "edit regenerated untouched chunk");
-        Check.That(beforeEdit.Chunk(edited).SolidVoxelCount == 0, "edit mutated an earlier plan payload");
+        // The earlier plan either never held the edited chunk or holds its unedited payload.
+        bool earlierUntouched;
+        try { earlierUntouched = beforeEdit.Chunk(edited).SolidVoxelCount == 0; }
+        catch (KeyNotFoundException) { earlierUntouched = true; }
+        Check.That(earlierUntouched, "edit mutated an earlier plan payload");
         CheckAgainstFullScan(center);
         receipt = state.Apply(new TerrainEditAccepted([new(voxel, TerrainConstants.EmptyMaterial)]));
         policy.RefreshAfterOverlayChange(state, receipt);
@@ -57,7 +79,7 @@ internal static class ResidencyChecks
         state.Restore(new TerrainOverlaySnapshot(configuration.Seed, []));
         Check.That(!policy.PlanFor(center, state).Requested.Contains(edited), "restore reused stale payload");
         CheckAgainstFullScan(new(-2, 1, -1));
-        var ridge = recipe.Map.Sites[2];
+        var ridge = recipe.Map.Sites.MaxBy(site => site.Geography.Elevation);
         TerrainChunkAddress ridgeSurface = new VoxelAddress((long)ridge.X, recipe.SurfaceAt((long)ridge.X, (long)ridge.Z), (long)ridge.Z).Chunk;
         var ridgePlan = policy.PlanFor(ridgeSurface, state);
         Check.That(ridgePlan.Requested[0] == ridgeSurface, "a highland arrival admits the player's supporting surface before buried chunks");
@@ -72,11 +94,16 @@ internal static class ResidencyChecks
             var populated = new List<TerrainChunkAddress>();
             // Scanned to the policy's retained radius, so the full scan covers every
             // neighbourhood the plan can retain.
+            // Each column is scanned across its surface band, the player's storey and any edited
+            // chunk; the band itself is checked against direct surface scans above.
             for (long x = location.X - TerrainConstants.RetainedChunkRadius; x <= location.X + TerrainConstants.RetainedChunkRadius; x++)
             for (long z = location.Z - TerrainConstants.RetainedChunkRadius; z <= location.Z + TerrainConstants.RetainedChunkRadius; z++)
-            for (long y = -1; y <= 1; y++)
+            for (long y = recipe.MinimumMaterialY / TerrainConstants.ChunkEdgeLength - 1; y <= recipe.MaximumMaterialY / TerrainConstants.ChunkEdgeLength; y++)
             {
                 TerrainChunkAddress address = new(x, y, z);
+                (long bandMinimum, long bandMaximum) = recipe.ChunkColumnBand(x, z);
+                if ((y < bandMinimum || y > bandMaximum) && Math.Abs(y - location.Y) > TerrainConstants.PlayerStoreyChunks
+                    && !snapshot.TouchesChunk(address)) continue;
                 var generated = chunkGenerator.Generate(address, snapshot);
                 var planned = policy.PlanFor(location, state).Chunk(address);
                 Check.That(generated.Materials.Span.SequenceEqual(planned.Materials.Span), "planned material payload differs from fresh generation");

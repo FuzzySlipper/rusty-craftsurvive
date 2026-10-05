@@ -151,6 +151,21 @@ internal sealed class TerrainOverlaySnapshot
 
     internal TerrainOverlayEntry[] Entries => entries.ToArray();
 
+    /// <summary>Every chunk an edit falls in, once each, in address order.</summary>
+    internal IEnumerable<TerrainChunkAddress> TouchedChunks()
+    {
+        bool any = false;
+        TerrainChunkAddress previous = default;
+        foreach (TerrainOverlayEntry entry in entries)
+        {
+            TerrainChunkAddress chunk = entry.Address.Chunk;
+            if (any && chunk.Equals(previous)) continue;
+            any = true;
+            previous = chunk;
+            yield return chunk;
+        }
+    }
+
     /// <summary>
     /// Whether any edit falls inside this chunk. The cache may only serve a chunk that
     /// carries no player edits: a cached payload is the generator's output, so serving

@@ -38,9 +38,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// step is not a hillside and gating on it left two kinds unplaced in the real world;
     /// version 11 ramps each end of a crossing down to its bank, because a deck laid at the
     /// higher bank left the lower one unclimbable; version 12 seeds the height field through the
-    /// contract, so a version bump redraws the ground as well as what stands on it.
+    /// contract, so a version bump redraws the ground as well as what stands on it; version 20
+    /// replaces the templated map with simulated geography (stream-power erosion, terrain-driven
+    /// climate and biomes) and rivers that carry water through local terrain.
     /// </summary>
-    internal const uint CurrentVersion = 19;
+    internal const uint CurrentVersion = 20;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

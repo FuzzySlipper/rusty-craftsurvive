@@ -4,7 +4,7 @@ using CraftSurvive.Game.Tests;
 // built from, checked without an Engine context. Each area reports every failure it finds.
 Check.Section("player input", PlayerInputChecks.Run);
 Check.Section("world map", WorldMapChecks.Run);
-Check.Section("drainage", DrainageChecks.Run);
+Check.Section("erosion and rivers", ErosionChecks.Run);
 Check.Section("regional terrain", RegionalTerrainChecks.Run);
 Check.Section("generator identity", GeneratorChecks.Run);
 Check.Section("overlay", OverlayChecks.Run);

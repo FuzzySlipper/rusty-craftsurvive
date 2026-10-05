@@ -11,12 +11,15 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// </summary>
 internal sealed class TerrainRecipe : ITerrainColumns
 {
-    private const double ErodedRockThreshold = 0.65;
-    private const double MinimumErosionExposure = 0.08;
+    private const double ExposedRockThreshold = 0.6;
     private readonly TerrainConfiguration configuration;
     private readonly ITerrainDraws draws;
     private readonly long radius;
     private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
+    private readonly Dictionary<(long X, long Z), (long Minimum, long Maximum)> columnBands = [];
+    /// <summary>Chunks kept below a column's lowest surface, so its surface always has solid footing to mesh against.</summary>
+    private const long BandFootingChunks = 1;
+    private const int ColumnBandCacheLimit = 4096;
     private readonly PoiPlacement pois;
     private readonly CrossingPlacement crossings;
 
@@ -51,7 +54,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal long MinimumMaterialY => MinimumMaterialYValue;
 
-    internal long MaximumMaterialY => (long)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit) + GenerationConstants.TerrainHeadroom;
+    internal long MaximumMaterialY => (long)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit)
+        + Math.Max(GenerationConstants.TerrainHeadroom, GenerationConstants.WorldWallRise);
 
     internal ushort MaterialAt(VoxelAddress address) => MaterialAt(address, ColumnAt(address.X, address.Z));
 
@@ -60,8 +64,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
     internal TerrainColumn ColumnAt(long x, long z)
     {
         if (x < -radius || x > radius || z < -radius || z > radius) return default;
-        long surface = TerrainSurface(x, z);
-        return new TerrainColumn(surface, CardinalSlope(x, z, surface));
+        (long surface, long waterTop, MapSample geography) = Ground(x, z);
+        return new TerrainColumn(surface, CardinalSlope(x, z, surface), waterTop, geography);
     }
 
     /// <summary>
@@ -97,19 +101,19 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return TerrainConstants.EmptyMaterial;
         }
 
-        if (IsWorldFloor(address.Y) || IsWorldWall(address.X, address.Z, address.Y))
+        if (IsWorldFloor(address.Y) || IsWorldWall(address.X, address.Z, address.Y, column))
         {
             return (ushort)BlockId.Bedrock;
         }
 
         ushort material = NaturalMaterialAt(address, column);
 
-        // Water fills open air at or below the world's water level, so it pools in
-        // basins and along coasts. It deliberately does not flood enclosed space
-        // below the ground - a cave under the sea stays a cave - because it only
-        // fills where the column's own surface is below the water line.
+        // Water fills open air up to the column's water top: the sea along coasts and in
+        // basins, and a river's surface inside its channel. It deliberately does not flood
+        // enclosed space below the ground - a cave under the sea stays a cave - because it
+        // only fills where the column's own surface is below the water line.
         if (material == TerrainConstants.EmptyMaterial
-            && address.Y <= GenerationConstants.WaterLevel
+            && address.Y <= column.WaterTop
             && address.Y > column.Surface)
         {
             return (ushort)BlockId.Water;
@@ -117,7 +121,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         // Features only fill air, so they never displace terrain: a canopy that
         // meets a slope loses to the slope rather than leaving a floating leaf.
-        if (material == TerrainConstants.EmptyMaterial && !WorldMap.Arid(Map.Sample(address.X, address.Z)) && !WorldMap.Frozen(Map.Sample(address.X, address.Z)))
+        if (material == TerrainConstants.EmptyMaterial && !WorldMap.Arid(column.Geography) && !WorldMap.Frozen(column.Geography))
         {
             material = FeatureMaterialAt(address.X, address.Y, address.Z);
         }
@@ -130,16 +134,17 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     /// <summary>
     /// The world's border wall. It stands at this world's own extent edge on all four sides up
-    /// to a stated height, so the finite world has an authored edge rather than a void the
-    /// player can walk into.
+    /// to a stated height above the column's ground (or water), so the finite world has an
+    /// authored edge rather than a void the player can walk into.
     /// </summary>
-    private bool IsWorldWall(long x, long z, long y)
-    {
-        if (y > GenerationConstants.WorldWallTop || y < MinimumMaterialYValue)
-        {
-            return false;
-        }
+    private bool IsWorldWall(long x, long z, long y, TerrainColumn column) =>
+        y >= MinimumMaterialYValue && y <= WallTop(column) && IsWallColumn(x, z);
 
+    private static long WallTop(TerrainColumn column) =>
+        Math.Max(column.Surface, column.WaterTop) + GenerationConstants.WorldWallRise;
+
+    private bool IsWallColumn(long x, long z)
+    {
         long limit = radius;
         long inner = limit - GenerationConstants.WorldWallThickness;
         bool onEdge = x <= -inner || x >= inner || z <= -inner || z >= inner;
@@ -156,10 +161,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         long slope = column.Slope;
-        MapSample geography = Map.Sample(address.X, address.Z);
-        // Incised shoulders expose stone; the quiet channel floor keeps regional soil/snow.
-        if (geography.Erosion >= MinimumErosionExposure && geography.Rock >= ErodedRockThreshold)
+        MapSample geography = column.Geography;
+        // Steep and resistant ground is bare stone; submerged ground is a sand bed.
+        if (geography.Rock >= ExposedRockThreshold)
             return TerrainConstants.StoneMaterial;
+        if (top <= column.WaterTop && top - address.Y <= GenerationConstants.SubsoilDepthMaximum)
+            return (ushort)BlockId.Sand;
         if (slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
             if (WorldMap.Frozen(geography)) return (ushort)BlockId.Snow;
@@ -225,13 +232,55 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return null;
     }
 
-    private long TerrainSurface(long x, long z) => TerrainHeight(x, z);
+    private long TerrainSurface(long x, long z) => Ground(x, z).Surface;
+
+    /// <summary>The rounded surface, its water top, and the geography both came from.</summary>
+    private (long Surface, long WaterTop, MapSample Geography) Ground(long x, long z)
+    {
+        MapSample geography = Map.Sample(x, z);
+        long surface = (long)Math.Round(ContinuousHeight(geography, x, z), MidpointRounding.AwayFromZero);
+        long waterTop = geography.InRiver
+            ? Math.Max(GenerationConstants.WaterLevel, (long)Math.Floor(geography.RiverSurface))
+            : GenerationConstants.WaterLevel;
+        return (surface, waterTop, geography);
+    }
 
     /// <summary>The generated surface height at a column, for callers that must reason about the world.</summary>
     internal long SurfaceAt(long x, long z) => TerrainSurface(x, z);
 
+    /// <summary>The highest water voxel over a column: the sea's level, or a river's surface in its channel.</summary>
+    internal long WaterTopAt(long x, long z) => Ground(x, z).WaterTop;
+
     /// <summary>The half-extent of the finite world this recipe generates.</summary>
     internal long Radius => radius;
+
+    /// <summary>
+    /// The vertical chunk range that can hold this chunk column's generated surface: from one
+    /// chunk below its lowest ground to its highest ground, water or wall plus feature headroom.
+    /// Chunks outside it are either empty air or buried solid rock with no surface to show.
+    /// </summary>
+    internal (long Minimum, long Maximum) ChunkColumnBand(long chunkX, long chunkZ)
+    {
+        if (columnBands.TryGetValue((chunkX, chunkZ), out (long, long) cached)) return cached;
+        long edge = TerrainConstants.ChunkEdgeLength;
+        long lowest = long.MaxValue, highest = long.MinValue;
+        for (long x = chunkX * edge; x < chunkX * edge + edge; x++)
+        for (long z = chunkZ * edge; z < chunkZ * edge + edge; z++)
+        {
+            if (x < -radius || x > radius || z < -radius || z > radius) continue;
+            (long surface, long waterTop, _) = Ground(x, z);
+            lowest = Math.Min(lowest, surface);
+            long top = Math.Max(surface, waterTop);
+            highest = Math.Max(highest, IsWallColumn(x, z) ? top + GenerationConstants.WorldWallRise : top);
+        }
+        (long, long) band = lowest == long.MaxValue
+            ? (1, 0)
+            : (GridMath.FloorDivide(lowest, edge) - BandFootingChunks,
+                GridMath.FloorDivide(highest + GenerationConstants.TerrainHeadroom, edge));
+        if (columnBands.Count >= ColumnBandCacheLimit) columnBands.Clear();
+        columnBands[(chunkX, chunkZ)] = band;
+        return band;
+    }
 
     /// <summary>
     /// Whether a chunk holds any non-empty voxel, answered from the generation contract
@@ -259,13 +308,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return true;
         }
 
-        bool waterReaches = yMinimum <= GenerationConstants.WaterLevel;
-        if (yMinimum <= GenerationConstants.WorldWallTop
-            && TouchesWorldEdge(address.X * edge, (address.X * edge) + edge - 1, address.Z * edge, (address.Z * edge) + edge - 1))
-        {
-            return true;
-        }
-
         long xStart = address.X * edge;
         long zStart = address.Z * edge;
         for (long x = xStart; x < xStart + edge; x++)
@@ -277,13 +319,18 @@ internal sealed class TerrainRecipe : ITerrainColumns
                     continue;
                 }
 
-                long surface = TerrainSurface(x, z);
+                (long surface, long waterTop, _) = Ground(x, z);
                 if (surface >= yMinimum)
                 {
                     return true;
                 }
 
-                if (waterReaches && surface < GenerationConstants.WaterLevel)
+                if (surface < waterTop && yMinimum <= waterTop)
+                {
+                    return true;
+                }
+
+                if (IsWallColumn(x, z) && yMinimum <= Math.Max(surface, waterTop) + GenerationConstants.WorldWallRise)
                 {
                     return true;
                 }
@@ -480,30 +527,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
-    private bool TouchesWorldEdge(long xMinimum, long xMaximum, long zMinimum, long zMaximum)
-    {
-        long limit = radius;
-        long inner = limit - GenerationConstants.WorldWallThickness;
-        bool xEdge = xMinimum <= -inner || xMaximum >= inner;
-        bool zEdge = zMinimum <= -inner || zMaximum >= inner;
-        bool inside = xMaximum >= -limit && xMinimum <= limit && zMaximum >= -limit && zMinimum <= limit;
-        return (xEdge || zEdge) && inside;
-    }
-
-    /// <summary>
-    /// The height field. Stable geographic noise lets map refinement preserve the underlying
-    /// landforms; the full recipe version still invalidates saves and generated chunks.
-    /// </summary>
-    private long TerrainHeight(long x, long z) =>
-        (long)Math.Round(ContinuousHeightAt(x, z), MidpointRounding.AwayFromZero);
-
     /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
-    internal double ContinuousHeightAt(long x, long z)
-    {
-        MapSample geography = Map.Sample(x, z);
-        return Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
+    internal double ContinuousHeightAt(long x, long z) => ContinuousHeight(Map.Sample(x, z), x, z);
+
+    private double ContinuousHeight(MapSample geography, long x, long z) =>
+        Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
             GenerationConstants.MinimumTerrainHeight);
-    }
 
     private long CardinalSlope(long x, long z, long top)
     {
@@ -534,10 +563,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private static double Lerp(double left, double right, double amount) => left + ((right - left) * amount);
 
-    private static double HashUnit(ulong value) => (value >> GenerationConstants.HashFractionShift)
+    internal static double HashUnit(ulong value) => (value >> GenerationConstants.HashFractionShift)
         / (double)GenerationConstants.HashFractionMaximum;
 
-    private static ulong CoordinateHash(ulong seed, long x, long z)
+    internal static ulong CoordinateHash(ulong seed, long x, long z)
     {
         unchecked
         {
@@ -626,21 +655,22 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return null;
         }
 
-        long ground = TerrainSurface(trunkX, trunkZ);
-        if (ground <= GenerationConstants.WaterLevel)
+        TerrainColumn column = ColumnAt(trunkX, trunkZ);
+        long ground = column.Surface;
+        int oneIn = MapBiomes.TreeOneIn(WorldMap.Biome(column.Geography));
+        if (ground <= column.WaterTop || oneIn == 0)
         {
-            // A submerged column is not soil, so no tree stands in the water.
+            // A submerged column is not soil, and some country grows no trees at all.
             return null;
         }
 
-        if (NaturalMaterialAt(new VoxelAddress(trunkX, ground, trunkZ), ColumnAt(trunkX, trunkZ))
+        if (NaturalMaterialAt(new VoxelAddress(trunkX, ground, trunkZ), column)
             != TerrainConstants.GrassMaterial)
         {
             return null;
         }
 
-        if (!Contract.DrawUnit(draws, "tree.present", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            GenerationConstants.FeatureCellOneIn))
+        if (!Contract.DrawUnit(draws, "tree.present", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ), oneIn))
         {
             return null;
         }

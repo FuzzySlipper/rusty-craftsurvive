@@ -84,42 +84,65 @@ implemented prototype mechanism is not a requirement to preserve its old genre.
 ## World map contract
 
 `WorldCatalog` owns the selected world. New-game generation produces an immutable
-`WorldMap` before `TerrainWorld` starts; restore reads its saved samples instead
-of rerunning generation. The bounded grid has at most 64 segments per axis,
-with fewer nodes for tiny test extents. It stores elevation in metres plus unit
-fields for temperature, moisture, exposed rock, permitted local detail, candidate
-ridge passages, protection, drainage and incision. Seed, extent and generator
-version identify the recipe. Base geography establishes a bent ridge, a basin,
-a lowered pass and continuous climate relationships. Stable geographic seed
-mixing lets later refinement preserve those landforms; the full recipe version
-still invalidates development saves and generated caches.
+`WorldMap` before `TerrainWorld` starts; restore reads its saved fields instead of
+rerunning generation. A world created from the map view is simulated off the update
+thread as pure product computation and admitted on a later update; the first world
+of a fresh store is generated during startup. Seed, extent and generator version
+identify the recipe. Stable geographic seed mixing lets later refinement preserve
+landforms; the full recipe version still invalidates development saves and caches.
 
-`WorldMapDrainage` builds a downhill receiver forest and accumulates catchments
-at map resolution. Every edge node is an outlet; interior local minima remain
-closed basins. Equal-height nodes descend by stable index, so flat regions also
-terminate. This models static landforms, not flowing water. It does not fill or
-breach every depression. One sorted traversal and two ordered passes bound the
-work independently of the voxel world size.
+`MapGrid` resolves geography at a fixed 32 m node spacing, so a larger world holds
+more geography instead of a stretched copy. Only extents beyond 512 segments per axis
+coarsen the spacing; tiny test extents keep at least 8 segments. `MapSimulation` is
+the one-time modelled stage:
 
-The map stores each receiver, catchment size and channel bed alongside its
-geographic fields. Downstream-first incision never puts an upstream bed below
-its receiver or cuts through a protected downstream pass. The centre reserve,
-important ridge crests and ridge pass constrain incision and local relief.
-Named constants in `WorldMapDrainage` control catchment thresholds, depth,
-climate transitions and cross-section widths.
+1. `MapRelief` places land, sea and rock from seeded, domain-warped noise in metre
+   space: continents, ridged mountain belts gated by a regional activity field,
+   rolling uplands, and variable rock hardness. Each border is either open sea or a
+   mountain rim; at least one is sea. The arrival area is biased toward calm land.
+2. `MapErosion` evolves the landscape under uplift with detachment-limited stream
+   power (Braun and Willett's implicit solver), rainfall-weighted discharge, rock
+   erodibility and linear creep. `MapFlow` fills closed depressions with a jittered
+   epsilon gradient (Priority-Flood+ε) before every routing, so all water reaches
+   base level and filled basins stand in for lake sedimentation. Most evolution runs on
+   a lattice of twice the spacing; a short refinement at full resolution then
+   organises the finer valleys.
+3. Heights are scaled so the 99.5th land percentile reaches `MapSimulation.PeakElevation`;
+   rarer summits are compressed smoothly below `WorldMap.MaximumElevation`.
+   Talus relaxation then limits map-scale slopes to an angle of repose.
+4. `MapClimate` derives temperature from a seeded latitude axis and altitude, and
+   moisture from a seeded prevailing wind that recharges over the sea and rains out
+   as air climbs relief, leaving rain shadows. Rain is spread over a few hundred
+   metres and ranked, so every world has wet and dry country. River corridors are
+   moister.
+
+The saved record holds five single-precision fields per node: elevation, temperature,
+moisture, rock hardness and discharge. Generation routes the rounded heights exactly
+as a restore will, so saved discharge always matches rebuilt drainage. Rivers, exposed
+rock, the local-detail allowance, the arrival reserve and sites are derived
+deterministically from those fields when a `WorldMap` is constructed.
+
+`MapRivers` traces reaches between confluences wherever rain-weighted catchment
+reaches one square kilometre, smooths them, and adds a seeded meander and a slower
+valley-floor wander. Both fade toward reach ends so confluences and mouths stay
+joined. The water surface interpolates filled node heights and never rises
+downstream. Width and depth grow with catchment. A spatial bucket index keeps
+local river queries bounded.
+
+`MapBiomes` classifies samples into sea, ice field, tundra, boreal forest, cold
+steppe, temperate forest, grassland, shrubland, desert, rainforest and alpine
+heights. Sites are one representative interior place per environment present.
 
 Coordinates use world X/Z metres, north toward -Z, with the square centred on
 the origin. Grid nodes include both edges. Sampling clamps geographic coordinates
-at the edge and interpolates broad fields with smoothstep bilinear weights.
-It then resolves saved nearby channel segments into narrowed floors and
-shoulders, including for density and neighbouring normal samples. Each segment
-joins adjacent map nodes and is narrower than half a cell; sampling inspects a
-fixed four-by-four neighbourhood, never reruns drainage. Cross-section widths
-blend continuously with climate: dry-country shoulders are steeper than cold
-or temperate valley sides. Clamping does not extend the playable world:
-`TerrainRecipe` retains finite occupancy and the provisional bedrock boundary.
-The overview uses a scaled mesh in Engine presentation coordinates, independent
-of the rebased local terrain frame; DOM code supplies labels and controls only.
+at the edge and interpolates node fields with a uniform cubic B-spline. It then
+resolves the nearest river: a parabolic channel below its water surface, low soil
+banks, and a quieter zone where local relief fades out. The same sample serves
+density and neighbouring normal samples. Clamping does not extend the playable world:
+`TerrainRecipe` retains finite occupancy and the bedrock boundary, whose wall rises a
+fixed height above the ground it stands on. The overview uses a scaled, vertically
+exaggerated mesh of biome colours and river nodes in Engine presentation coordinates,
+independent of the rebased local terrain frame; DOM code supplies labels and controls only.
 
 Local density samples map elevation, then adds continuous world-coordinate noise
 bounded by `WorldMap.LocalReliefLimit` and the map's detail field.
@@ -131,10 +154,11 @@ warp break grid alignment. A broader activity field leaves quieter patches,
 while rock exposure permits more fine relief. The density grid remains one metre;
 changing its resolution is separate from tuning those banks.
 
-Regional fields also select surface materials and vegetation eligibility. Map samples remain
-unchanged by local noise or player edits. Channel floors and fully protected
-areas suppress local noise. Eroded shoulders expose rock through the existing
-material policy. These constraints preserve the map's intended routes without
+Regional fields also select surface materials and tree density per biome, and
+`TerrainColumn` carries one map sample per column so voxels never resample geography.
+Map samples remain unchanged by local noise or player edits. River channels, banks and
+the arrival reserve suppress local noise. Steep and resistant ground exposes stone,
+submerged ground is a sand bed, and river channels hold water up to their surface. These constraints preserve the map's intended routes without
 claiming a globally navigable route network or hydraulic realism. The authored
 landscape studies are separate loaded comparison spaces, not hidden overrides
 of geographic sampling.
@@ -150,6 +174,8 @@ The root replaces per-world owners on a new-game intent while retaining the
 Engine product session, one persistence store and one UI stream. It releases
 old appearance, spatial, camera and light handles before installing replacements;
 debug adapters follow the active owners. Only nearby voxel chunks are generated
-and admitted to the existing bounded residency window. The map is an inspection
+and admitted to the bounded residency window. Each chunk column contributes only the band
+around its own generated surface, plus the player's storey and edited chunks, so buried
+mountain rock never crowds visible ground out of the window. The map is an inspection
 view that suspends local updates; its region visit controls are not a travel
 simulation or a commitment to unrestricted fast travel.

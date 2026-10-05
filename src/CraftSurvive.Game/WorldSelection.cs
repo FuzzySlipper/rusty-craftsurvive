@@ -18,6 +18,7 @@ public sealed partial class CraftSurviveProduct
     private static readonly byte[] WorldActionContractUtf8 = Encoding.UTF8.GetBytes(WorldActionContract);
     private const double ArrivalClearance = 4;
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384];
+    private const int MetresPerKilometre = 1024;
 
     private bool HandleWorldActions(ProductUpdate update)
     {
@@ -47,7 +48,10 @@ public sealed partial class CraftSurviveProduct
                             throw new FormatException("Use a whole-number seed between 0 and 18446744073709551615.");
                         if (!root.TryGetProperty("size", out JsonElement sizeElement) || sizeElement.ValueKind != JsonValueKind.Number || !sizeElement.TryGetInt32(out int size) || !NewWorldSizes.Contains(size))
                             throw new FormatException("Choose one of the offered world sizes.");
-                        NewWorld(seed, size);
+                        if (worlds.Preparing) throw new FormatException("A world is already being generated.");
+                        worlds.BeginPrepare(seed, size);
+                        worldMessage = FormattableString.Invariant(
+                            $"Generating a {size / MetresPerKilometre} km world: raising ranges, running rivers and settling climate...");
                         break;
                     case "visit":
                         if (!mapOpen || !root.TryGetProperty("site", out JsonElement siteElement) || siteElement.ValueKind != JsonValueKind.Number || !siteElement.TryGetInt32(out int site)
@@ -92,9 +96,26 @@ public sealed partial class CraftSurviveProduct
         PublishAppearanceSnapshot();
     }
 
-    private void NewWorld(ulong seed, int size)
+    /// <summary>Admit a finished world simulation from the update thread; true when the world changed hands this update.</summary>
+    private bool AdmitPreparedWorld()
     {
-        WorldMapSave prepared = worlds.Prepare(seed, size);
+        WorldMapSave? prepared;
+        try { prepared = worlds.TakePrepared(); }
+        catch (Exception failure) when (failure is ArgumentException or InvalidOperationException)
+        {
+            worldMessage = "The world could not be generated: " + failure.Message;
+            PublishWorld();
+            return false;
+        }
+        if (prepared is null) return false;
+        try { NewWorld(prepared); }
+        catch (FormatException refused) { worldMessage = refused.Message; }
+        PublishWorld();
+        return true;
+    }
+
+    private void NewWorld(WorldMapSave prepared)
+    {
         // The one atomic map record selects the new gameplay namespace. Old slots retain
         // their captured keys and can flush safely even after this selection commits.
         if (!worlds.Commit(prepared)) throw new FormatException("The world changed elsewhere; restart before creating another.");

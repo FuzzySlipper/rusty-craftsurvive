@@ -121,7 +121,7 @@ internal static class GenerationChecks
             // The map separates basins from the quiet starting area. Test water at a
             // generated basin rather than requiring every small spawn window to contain it.
             TerrainRecipe mapped = config.CreateRecipe(new TestDraws(config.Seed));
-            int lowest = Enumerable.Range(0, mapped.Map.Nodes.Length).MinBy(i => mapped.Map.Nodes[i].Elevation);
+            int lowest = Enumerable.Range(0, mapped.Map.Grid.Count).MinBy(i => mapped.Map.Fields.Elevation[i]);
             long basinX = (long)mapped.Map.Coordinate(lowest % mapped.Map.Side);
             long basinZ = (long)mapped.Map.Coordinate(lowest / mapped.Map.Side);
             TerrainChunk basinChunk = generator.Generate(new VoxelAddress(basinX, GenerationConstants.WaterLevel, basinZ).Chunk, overlay.Snapshot());

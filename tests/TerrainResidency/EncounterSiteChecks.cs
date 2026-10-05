@@ -26,9 +26,9 @@ internal static class EncounterSiteChecks
             {
                 for (long z = -encounterRecipe.Radius + scanStep; z < encounterRecipe.Radius && !(foundWater && foundLand); z += scanStep)
                 {
-                    long surface = encounterRecipe.SurfaceAt(x, z);
-                    if (!foundWater && surface < facts.WaterLevel) { waterX = x; waterZ = z; foundWater = true; }
-                    if (!foundLand && surface > facts.WaterLevel) { landX = x; landZ = z; foundLand = true; }
+                    long surface = encounterRecipe.SurfaceAt(x, z), waterTop = encounterRecipe.WaterTopAt(x, z);
+                    if (!foundWater && surface < waterTop) { waterX = x; waterZ = z; foundWater = true; }
+                    if (!foundLand && surface > waterTop) { landX = x; landZ = z; foundLand = true; }
                 }
             }
 
@@ -55,7 +55,8 @@ internal static class EncounterSiteChecks
                 {
                     long candidateX = waterX + offsetX;
                     long candidateZ = waterZ + offsetZ;
-                    if (facts.IsInside(candidateX, candidateZ) && encounterRecipe.SurfaceAt(candidateX, candidateZ) >= facts.WaterLevel)
+                    if (facts.IsInside(candidateX, candidateZ)
+                        && encounterRecipe.SurfaceAt(candidateX, candidateZ) >= encounterRecipe.WaterTopAt(candidateX, candidateZ))
                     {
                         shoreWithinReach = true;
                     }
@@ -68,11 +69,19 @@ internal static class EncounterSiteChecks
             Check.That(swimmer.Allowed == waterSite.ShoreIsReachable,
                 "a swimmer may only be placed in water it can leave");
 
+            // A river above the sea is water too: its own water line refuses a walker.
+            RiverPoint river = encounterRecipe.Map.Rivers.Reaches.SelectMany(r => r.Skip(r.Length / 3).Take(r.Length / 3))
+                .Where(p => p.Surface > GenerationConstants.WaterLevel + 2).MaxBy(p => p.HalfWidth);
+            Check.That(facts.TryDescribe(RegionKind.Wilderness, 1, (long)river.X, (long)river.Z, out EncounterSite riverSite)
+                && riverSite.WaterLevel > GenerationConstants.WaterLevel && riverSite.SurfaceY < riverSite.WaterLevel
+                && !SpawnRules.Evaluate(riverSite.ToSpawnSite(), CreatureTraits.Walker).Allowed,
+                "a walker is refused in an inland river above the sea");
+
             Check.That(!facts.TryDescribe(RegionKind.Wilderness, 1, TerrainConstants.DefaultSize, 0, out _),
                 "a column outside the finite world must be refused");
             Console.WriteLine(
                 $"Encounters on generated terrain: land at ({landX}, {landZ}) surface {landSite.SurfaceY}, water at ({waterX}, {waterZ}) surface {waterSite.SurfaceY}, " +
-                $"water level {facts.WaterLevel}, shore reachable {waterSite.ShoreIsReachable}; walkers refused in water, swimmers allowed only with a shore");
+                $"water level {waterSite.WaterLevel}, river water level {riverSite.WaterLevel}, shore reachable {waterSite.ShoreIsReachable}; walkers refused in water, swimmers allowed only with a shore");
         }
     }
 }

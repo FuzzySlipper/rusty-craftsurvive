@@ -85,6 +85,7 @@ internal sealed class CrossingPlacement
         long offset = contract.DrawLong(draws, alongX ? "crossing.row" : "crossing.column", key, 0, cell - 1);
         long bank = 0;
         long waterStart = -1;
+        long waterTop = GenerationConstants.WaterLevel;
         for (long step = 0; step < cell; step++)
         {
             long x = alongX ? originX + step : originX + offset;
@@ -98,8 +99,10 @@ internal sealed class CrossingPlacement
                 continue;
             }
 
-            long surface = columns.ColumnAt(x, z).Surface;
-            if (surface >= GenerationConstants.WaterLevel)
+            TerrainColumn column = columns.ColumnAt(x, z);
+            long surface = column.Surface;
+            // The water line is each column's own: the sea, or a river standing above it.
+            if (surface >= column.WaterTop)
             {
                 bank++;
 
@@ -113,7 +116,7 @@ internal sealed class CrossingPlacement
                     long length = lastWater - waterStart;
                     if (length <= PoiConstants.CrossingMaximumSpan)
                     {
-                        return Build(cellX, cellZ, originX, originZ, offset, alongX, waterStart, lastWater, surface);
+                        return Build(cellX, cellZ, originX, originZ, offset, alongX, waterStart, lastWater, surface, waterTop);
                     }
 
                     waterStart = -1;
@@ -127,7 +130,10 @@ internal sealed class CrossingPlacement
             if (waterStart < 0 && bank >= PoiConstants.CrossingMinimumBank)
             {
                 waterStart = step;
+                waterTop = column.WaterTop;
             }
+
+            waterTop = Math.Max(waterTop, column.WaterTop);
 
             bank = 0;
             if (waterStart >= 0 && step - waterStart >= PoiConstants.CrossingMaximumSpan)
@@ -140,7 +146,7 @@ internal sealed class CrossingPlacement
     }
 
     private CrossingSite Build(long cellX, long cellZ, long originX, long originZ, long offset,
-        bool alongX, long first, long last, long farBankSurface)
+        bool alongX, long first, long last, long farBankSurface, long waterTop)
     {
         long nearX = alongX ? originX + first - 1 : originX + offset;
         long nearZ = alongX ? originZ + offset : originZ + first - 1;
@@ -149,7 +155,7 @@ internal sealed class CrossingPlacement
         long fromZ = alongX ? originZ + offset : originZ + first;
         long toX = alongX ? originX + last : originX + offset;
         long toZ = alongX ? originZ + offset : originZ + last;
-        long deck = Math.Max(GenerationConstants.WaterLevel + 1, Math.Max(nearBankSurface, farBankSurface));
+        long deck = Math.Max(waterTop + 1, Math.Max(nearBankSurface, farBankSurface));
         return new CrossingSite(cellX, cellZ, fromX, fromZ, toX, toZ, deck, alongX);
     }
 

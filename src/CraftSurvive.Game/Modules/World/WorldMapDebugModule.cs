@@ -15,6 +15,6 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
     {
         WorldCatalog c = catalog();
         var map = c.Current.Map;
-        return FormattableString.Invariant($"seed={map.Configuration.Seed};size={map.Configuration.Size};generation={c.Current.Generation};nodes={map.Nodes.Length};fingerprint={map.Fingerprint:x16};generatedMs={c.GenerationMilliseconds:F2};storedBytes={c.StoredBytes};restore={c.RestoreOutcome};sites=[{string.Join(';', map.Sites)}];terrain=[{terrain().GenerationReadout()}]");
+        return FormattableString.Invariant($"seed={map.Configuration.Seed};size={map.Configuration.Size};generation={c.Current.Generation};nodes={map.Grid.Count};spacing={map.Spacing:F1};rivers={map.Rivers.Reaches.Count};fingerprint={map.Fingerprint:x16};generatedMs={c.GenerationMilliseconds:F2};storedBytes={c.StoredBytes};restore={c.RestoreOutcome};sites=[{string.Join(';', map.Sites)}];terrain=[{terrain().GenerationReadout()}]");
     }
 }

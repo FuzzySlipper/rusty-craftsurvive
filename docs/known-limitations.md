@@ -14,23 +14,29 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   through Engine triplanar projection. Three authored landscape studies are reachable
   through Menu → Landscape study → Visit landscape; they are small material/topography
   experiments loaded as separate spaces.
-- **The world map is a geography foundation.** `WorldMapGenerator` produces a bounded
-  coarse grid of elevation, climate, rock and local-detail fields. Local terrain
-  samples it continuously; representative regions are reachable from **World**.
-  The map is an inspection view that pauses local gameplay. Region visits are
-  provisional and do not implement travel, weather, logistics or route costs.
-  Drainage uses a deterministic downhill forest with bounded incision, preserving
-  closed basins; it is not hydraulic weathering or flowing water. Channel floors,
-  the starting reserve and important passes constrain local relief, but there is
-  no guaranteed route network or final biome catalogue. `RegionalTerrain` supplies
-  three climate-blended local shape families with independent structural/fine detail;
-  they remain bounded height-field relief, not geological simulation.
-  Reaches follow adjacent coarse nodes; finer meandering and spill/breach
-  policy remain outside this foundation. Height variation and map
-  resolution are bounded by `WorldMap`. The provisional bedrock perimeter rises
-  above the map and local-detail height limit; it is not final geographic edge art.
-  Far terrain has no overview LOD in the
-  first-person view. See [the sampling contract](csharp-migration-map.md#world-map-contract).
+- **The world map is simulated geography, not yet a travel layer.** `MapSimulation`
+  generates relief, stream-power erosion, terrain-driven climate and biomes once per new
+  world; local terrain samples it continuously and representative environments are reachable
+  from **World**. The map is an inspection view that pauses local gameplay; site visits do
+  not implement travel, weather, logistics or route costs, and there is no guaranteed route
+  network between destinations.
+  - Erosion is detachment-limited with creep, talus relaxation and filled basins. It does
+    not transport or deposit sediment explicitly, so there are no alluvial fans or deltas.
+    Filled basins drain rather than holding lakes; the only standing inland water is
+    at sea level.
+  - River courses follow 8-direction drainage on the 32 m lattice. Smoothing and meanders
+    break up the lattice, but long reaches across filled plains can still read as straight.
+    Voxel river water steps a metre at a time on steep reaches; it does not flow.
+  - Climate is rank-normalised, so every world contains dry and wet country; latitude spans
+    the whole map whatever its size. Local terrain still uses three blended relief families
+    and three surface treatments (soil, sand, snow), so several biomes share a look;
+    biome-specific ground, vegetation and art remain to be done.
+  - New worlds take a few seconds to simulate (about 1 s at 10 km in an optimised build, several more at 16 km or in a debug build).
+    Creation from the map view runs off the update thread; the first world of a fresh store
+    is generated during startup.
+  - The bedrock perimeter rises a fixed height above local ground; it is not final
+    geographic edge art. Far terrain has no overview LOD in the first-person view.
+  - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in

@@ -176,6 +176,8 @@ internal ref struct SaveWriter(Span<byte> destination)
 
     internal void Double(double value) => BinaryPrimitives.WriteDoubleLittleEndian(Take(sizeof(double)), value);
 
+    internal void Single(float value) => BinaryPrimitives.WriteSingleLittleEndian(Take(sizeof(float)), value);
+
     private Span<byte> Take(int length)
     {
         Span<byte> field = remaining[..length];
@@ -198,6 +200,8 @@ internal ref struct SaveReader(ReadOnlySpan<byte> source)
     internal byte Byte() => Take(sizeof(byte))[0];
 
     internal double Double() => BinaryPrimitives.ReadDoubleLittleEndian(Take(sizeof(double)));
+
+    internal float Single() => BinaryPrimitives.ReadSingleLittleEndian(Take(sizeof(float)));
 
     private ReadOnlySpan<byte> Take(int length)
     {

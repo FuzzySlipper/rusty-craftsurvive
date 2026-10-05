@@ -31,8 +31,9 @@ internal static class RegionalTerrain
     private const ulong BearingSalt = 0x682FD1ACUL;
     private const int BearingDomain = 4096;
     private const double FullTurn = 2 * Math.PI;
-    private const double ColdStart = 0.20, ColdEnd = 0.40;
-    private const double DryStart = 0.25, DryEnd = 0.45;
+    // Family blends straddle the map biome thresholds (tundra below 0.28, desert below 0.22).
+    private const double ColdStart = 0.2, ColdEnd = 0.34;
+    private const double DryStart = 0.16, DryEnd = 0.3;
     private const double DetailGain = 2;
     private const double QuietMinimum = 0.12;
     private const double FineQuietMinimum = 0.2;

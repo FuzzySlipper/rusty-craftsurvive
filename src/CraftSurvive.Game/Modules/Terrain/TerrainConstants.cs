@@ -28,7 +28,13 @@ internal static class TerrainConstants
     /// steady-state cost. Chosen by measurement, recorded with its pair and machine in Den (#8895).
     /// </summary>
     internal const int MaximumResidencyOperationsPerTick = 4;
-    internal const int MaximumResidentChunks = 64;
+    /// <summary>
+    /// Residency keeps each column's surface band rather than its full height, so the cap is
+    /// sized for steep ground: about three banded chunks per column across the retained ring.
+    /// </summary>
+    internal const int MaximumResidentChunks = 160;
+    /// <summary>Chunks above and below the player kept in every column, so digging and climbing stay loaded.</summary>
+    internal const int PlayerStoreyChunks = 1;
 
     // Material slots are block ids: see Content/BlockRegistry.cs for the floor and
     // BlockId for the stable numbering. These names stay because generation and

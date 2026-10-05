@@ -39,9 +39,11 @@ WorldMapSave mapSave = new(3, WorldMapGenerator.Generate(new TerrainConfiguratio
 
 SavedForm[] forms =
 [
-    SavedForm.For(SaveManifest.WorldMap, new WorldMapCodec(), mapSave, 12 * sizeof(double),
+    SavedForm.For(SaveManifest.WorldMap, new WorldMapCodec(), mapSave, MapFields.FieldCount * sizeof(float),
         (left, right) => left.Generation == right.Generation && left.Map.Fingerprint == right.Map.Fingerprint
-            && left.Map.Nodes.SequenceEqual(right.Map.Nodes), null),
+            && left.Map.Fields.Elevation.SequenceEqual(right.Map.Fields.Elevation)
+            && left.Map.Fields.Discharge.SequenceEqual(right.Map.Fields.Discharge)
+            && left.Map.Rivers.Reaches.Count == right.Map.Rivers.Reaches.Count, null),
     SavedForm.For(SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity), overlay, TerrainOverlayCodec.RecordBytes,
         (left, right) => left.Entries.SequenceEqual(right.Entries), seed => new TerrainOverlayCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.DiscoveryJournal, new DiscoveryCodec(identity), journal, DiscoveryCodec.RecordBytes,

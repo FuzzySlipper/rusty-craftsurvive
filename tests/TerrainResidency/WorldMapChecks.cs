@@ -11,14 +11,16 @@ internal static class WorldMapChecks
         foreach (ulong seed in new ulong[] { TerrainConstants.DefaultSeed, 0, 1, 12345, ulong.MaxValue })
         {
             WorldMap candidate = WorldMapGenerator.Generate(new(seed, 8192));
-            Check.That(candidate.Sites.Select(s => WorldMap.Region(s.Geography)).Distinct().Count() == 3,
-                "representative sites retain distinct regional meanings across seeds");
+            Check.That(candidate.Sites.Select(s => WorldMap.Region(s.Geography)).Distinct().Count() >= 4,
+                "every seed's map holds several distinct environments, each with a representative site");
         }
         foreach (int size in new[] { 32, 4096, 16384, TerrainConstants.MaximumSize })
         {
             TerrainConfiguration config = new(12345, size);
             WorldMap map = WorldMapGenerator.Generate(config);
-            Check.That(map.Nodes.Length <= WorldMap.MaximumNodes, "coarse map memory is bounded independently of voxel extent");
+            Check.That(map.Grid.Count <= MapGrid.MaximumNodes, "map memory is bounded independently of voxel extent");
+            Check.That(size < MapGrid.TargetSpacing * MapGrid.MinimumSegments || size > MapGrid.TargetSpacing * MapGrid.MaximumSegments
+                || Math.Abs(map.Spacing - MapGrid.TargetSpacing) < 1, "geography is resolved at a fixed metre spacing, not stretched with extent");
             Check.That(map.Fingerprint == WorldMapGenerator.Generate(config).Fingerprint, "map generation is seeded and repeatable");
             Check.That(map.Fingerprint != WorldMapGenerator.Generate(config with { Seed = config.Seed + 1 }).Fingerprint, "seed changes the map");
             Check.That(map.Sample(-map.Radius - 1, 0) == map.Sample(-map.Radius, 0), "outside geographic sampling clamps to the finite edge");
@@ -32,11 +34,14 @@ internal static class WorldMapChecks
                     "local density relief stays anchored to map geography");
             }
             long edge = config.Size / 2;
-            long guardHeight = (long)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit) + 1;
-            Check.That(recipe.MaterialAt(new(edge, guardHeight, 0)) == (ushort)BlockId.Bedrock
-                && recipe.MaterialAt(new(0, guardHeight, -edge)) == (ushort)BlockId.Bedrock,
-                "the authored border rises above the map and local-detail elevation limit");
-            Check.That(recipe.MaterialAt(new(edge + 1, guardHeight, 0)) == TerrainConstants.EmptyMaterial,
+            foreach ((long wx, long wz) in new[] { (edge, 0L), (0L, -edge) })
+            {
+                long guard = Math.Max(recipe.SurfaceAt(wx, wz), GenerationConstants.WaterLevel) + GenerationConstants.WorldWallRise;
+                Check.That(recipe.MaterialAt(new(wx, guard, wz)) == (ushort)BlockId.Bedrock,
+                    "the authored border rises its stated height above the ground it stands on");
+                Check.That(guard <= recipe.MaximumMaterialY, "the border wall fits the terrain's vertical bounds");
+            }
+            Check.That(recipe.MaterialAt(new(edge + 1, GenerationConstants.WaterLevel, 0)) == TerrainConstants.EmptyMaterial,
                 "the boundary does not generate an infinite outer region");
             for (int i = 1; i < map.Segments; i++)
             {
@@ -45,10 +50,10 @@ internal static class WorldMapChecks
                     "geography is continuous across coarse cell boundaries");
             }
             if (size < 4096) continue;
-            Check.That(map.Nodes.ToArray().Max(n => n.Elevation) - map.Nodes.ToArray().Min(n => n.Elevation) > 20,
-                "map has meaningful regional relief before local noise");
-            Check.That(map.Sites.Select(s => WorldMap.Region(s.Geography)).Distinct().Count() == 3,
-                "representative sites cover separated climate/geology families");
+            Check.That(map.Fields.Elevation.Max() - map.Fields.Elevation.Min() > 150,
+                "map has mountain-scale relief before local noise");
+            Check.That(map.Sites.Select(s => WorldMap.Region(s.Geography)).Distinct().Count() == map.Sites.Count,
+                "each representative site stands for a different environment");
             TerrainChunkGenerator forward = new(recipe), backward = new(config.CreateRecipe(new TestDraws(config.Seed), map));
             TerrainOverlaySnapshot overlay = new(config.Seed, []);
             TerrainChunkAddress[] addresses = map.Sites.Select(s => new VoxelAddress((long)s.X, (long)s.Geography.Elevation, (long)s.Z).Chunk).ToArray();

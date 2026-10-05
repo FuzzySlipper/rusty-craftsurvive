@@ -35,7 +35,7 @@ internal sealed class TerrainResidencyPolicy
         // A restore or an edit not reported through RefreshAfterOverlayChange
         // invalidates the payloads. Ordinary boundary crossings reuse overlap.
         if (overlayChanged) cachedChunks.Clear();
-        HashSet<TerrainChunkAddress> candidates = CandidateChunks(center, TerrainConstants.RetainedChunkRadius).ToHashSet();
+        HashSet<TerrainChunkAddress> candidates = CandidateChunks(center, TerrainConstants.RetainedChunkRadius, snapshot).ToHashSet();
         foreach (TerrainChunkAddress address in cachedChunks.Keys.Where(address => !candidates.Contains(address)).ToArray())
             cachedChunks.Remove(address);
         // No payloads are produced here. Content is decided by the recipe's predicate, which
@@ -76,6 +76,10 @@ internal sealed class TerrainResidencyPolicy
 
         cachedOverlay = snapshot;
         cachedOverlayRevision = overlay.Revision;
+        // An edit can occupy a chunk outside every surface band, which makes it a new candidate.
+        HashSet<TerrainChunkAddress> candidates = CandidateChunks(cachedPlan.Center, TerrainConstants.RetainedChunkRadius, snapshot).ToHashSet();
+        cachedCandidates = candidates.ToArray();
+        cachedWindow = candidates;
         cachedPlan = BuildPlan(cachedPlan.Center, cachedOverlay);
     }
 
@@ -141,7 +145,12 @@ internal sealed class TerrainResidencyPolicy
             });
     }
 
-    private IEnumerable<TerrainChunkAddress> CandidateChunks(TerrainChunkAddress center, int radius)
+    /// <summary>
+    /// Candidates are each column's band around its own generated surface, the player's own
+    /// storey everywhere in the ring, and every edited chunk in the ring. Mountains are hundreds
+    /// of metres tall; buried rock with no surface must not crowd visible ground out of the cap.
+    /// </summary>
+    private IEnumerable<TerrainChunkAddress> CandidateChunks(TerrainChunkAddress center, int radius, TerrainOverlaySnapshot snapshot)
     {
         long minimumY = WorldGen.GridMath.FloorDivide(recipe.MinimumMaterialY, TerrainConstants.ChunkEdgeLength);
         long maximumY = WorldGen.GridMath.FloorDivide(recipe.MaximumMaterialY, TerrainConstants.ChunkEdgeLength);
@@ -149,10 +158,24 @@ internal sealed class TerrainResidencyPolicy
         {
             for (long z = center.Z - radius; z <= center.Z + radius; z++)
             {
-                for (long y = minimumY; y <= maximumY; y++)
+                (long bandMinimum, long bandMaximum) = recipe.ChunkColumnBand(x, z);
+                long lower = Math.Max(minimumY, Math.Min(bandMinimum, center.Y - TerrainConstants.PlayerStoreyChunks));
+                long upper = Math.Min(maximumY, Math.Max(bandMaximum, center.Y + TerrainConstants.PlayerStoreyChunks));
+                for (long y = lower; y <= upper; y++)
                 {
-                    yield return new TerrainChunkAddress(x, y, z);
+                    if (y >= bandMinimum && y <= bandMaximum || Math.Abs(y - center.Y) <= TerrainConstants.PlayerStoreyChunks)
+                    {
+                        yield return new TerrainChunkAddress(x, y, z);
+                    }
                 }
+            }
+        }
+
+        foreach (TerrainChunkAddress edited in snapshot.TouchedChunks())
+        {
+            if (IsWithinHorizontalRadius(edited, center, radius))
+            {
+                yield return edited;
             }
         }
     }

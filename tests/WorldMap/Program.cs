@@ -20,7 +20,7 @@ try
         WorldMap initial = catalog.Current.Map;
         var draws = new EngineTerrainDraws(engine.Random);
         ulong live = TerrainGenerationFingerprint.Compute(initial.Configuration.CreateRecipe(draws, initial), TerrainGenerationFingerprint.Startup);
-        Console.WriteLine($"Engine generator {initial.Configuration.GeneratorVersion}: {live:x16}; map {initial.Fingerprint:x16}; nodes={initial.Nodes.Length}; bytes={catalog.StoredBytes}; generateMs={catalog.GenerationMilliseconds:F3}");
+        Console.WriteLine($"Engine generator {initial.Configuration.GeneratorVersion}: {live:x16}; map {initial.Fingerprint:x16}; nodes={initial.Grid.Count}; bytes={catalog.StoredBytes}; generateMs={catalog.GenerationMilliseconds:F3}");
 
         SaveIdentity identity = new(initial.Configuration.GeneratorVersion, initial.Configuration.Seed);
         ProductSaveSlot<TerrainOverlaySnapshot> oldSlot = new(engine, store, SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity));
@@ -34,6 +34,19 @@ try
         ProductSaveSlot<TerrainOverlaySnapshot> newSlot = new(engine, store, SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity));
         Check.That(newSlot.Restore().Outcome == SaveRestoreOutcome.Absent, "same-seed new world does not inherit retiring-world edits");
 
+        // A world created from the map view is simulated off the update thread and admitted later.
+        Check.That(!catalog.Preparing && catalog.TakePrepared() is null, "nothing is prepared before a request");
+        catalog.BeginPrepare(777, 4096);
+        Check.Throws<InvalidOperationException>(() => catalog.BeginPrepare(778, 4096), "only one world is prepared at a time");
+        WorldMapSave? background = null;
+        for (int poll = 0; poll < 600 && background is null; poll++)
+        {
+            background = catalog.TakePrepared();
+            if (background is null) Thread.Sleep(50);
+        }
+        Check.That(background is not null && !catalog.Preparing, "a background preparation completes and is taken once");
+        Check.That(background!.Map.Fingerprint == catalog.Prepare(777, 4096).Map.Fingerprint
+            && background.Generation == catalog.Current.Generation + 1, "background and in-update preparation produce the same world");
         next = catalog.Prepare(12345, 4096);
         Check.That(catalog.Commit(next), "a new seed and extent are committed together with samples");
         expectedFingerprint = next.Map.Fingerprint;

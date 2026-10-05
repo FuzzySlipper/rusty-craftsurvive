@@ -11,7 +11,6 @@ internal static class GenerationConstants
     // Surface features are decided per anchor cell, never per chunk: a tree that
     // overhangs a boundary must be the same tree whichever chunk asks first.
     internal const int FeatureCellSize = 8;
-    internal const int FeatureCellOneIn = 24;
     internal const int TreeMinimumHeight = 3;
     internal const int TreeHeightRange = 3;
     internal const int TreeCanopyRadius = 2;
@@ -25,12 +24,13 @@ internal static class GenerationConstants
     /// The finite world's authored edges. The floor is bedrock rather than an
     /// invisible plane, and the wall is the same material as the world's own rock so
     /// the border reads as terrain instead of as a bug. Nothing can be placed or
-    /// blasted through either: bedrock refuses both by its block properties.
+    /// blasted through either: bedrock refuses both by its block properties. The wall
+    /// follows the ground it stands on, rising a fixed height above it, so a mountain
+    /// border and a sea border are both closed without a wall hundreds of metres tall.
     /// </summary>
     internal const int WorldFloorThickness = 1;
     internal const int WorldWallThickness = 2;
-    private const int WorldWallClearance = 6;
-    internal const int WorldWallTop = (int)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit) + WorldWallClearance;
+    internal const int WorldWallRise = 24;
     /// <summary>
     /// How far below the local ground a structure may cut. The character has no climb reach
     /// and steps one block, so a deeper hole is one a player can walk into and not walk out

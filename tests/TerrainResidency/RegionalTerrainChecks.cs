@@ -51,7 +51,8 @@ internal static class RegionalTerrainChecks
             TerrainConfiguration configuration = new(seed, 8192);
             WorldMap map = WorldMapGenerator.Generate(configuration);
             WorldMap previous = WorldMapGenerator.Generate(configuration with { GeneratorVersion = 18 });
-            Check.That(map.Nodes.SequenceEqual(previous.Nodes) && map.Drainage.SequenceEqual(previous.Drainage), "regional detail preserves all saved map and erosion fields across the recipe revision");
+            Check.That(map.Fields.Elevation.SequenceEqual(previous.Fields.Elevation) && map.Fields.Discharge.SequenceEqual(previous.Fields.Discharge),
+                "regional detail preserves all saved map and erosion fields across the recipe revision");
             TerrainRecipe recipe = configuration.CreateRecipe(new TestDraws(seed), map);
             Stopwatch watch = Stopwatch.StartNew();
             double checksum = 0;
@@ -62,7 +63,8 @@ internal static class RegionalTerrainChecks
                 MapSample sample = map.Sample(x, z);
                 double height = recipe.ContinuousHeightAt(x, z);
                 checksum += height;
-                Check.That(Math.Abs(height - sample.Elevation) <= WorldMap.LocalReliefLimit, "generated local patch stays anchored to erosion map");
+                Check.That(Math.Abs(height - sample.Elevation) <= WorldMap.LocalReliefLimit
+                    || sample.Elevation + WorldMap.LocalReliefLimit < GenerationConstants.MinimumTerrainHeight, "generated local patch stays anchored to erosion map");
                 if (sample.Detail == 0 || sample.Protection == 1)
                     Check.That(height == sample.Elevation, "actual protected and drained terrain is unchanged");
             }

@@ -21,6 +21,8 @@ internal static class GeneratorChecks
         {
             Dictionary<(uint Version, ulong Seed), ulong> golden = new()
             {
+                [(20, TerrainConstants.DefaultSeed)] = 0x5b80fee723f058b0UL,
+                [(20, 12345UL)] = 0x3f158bee0cb43999UL,
                 [(19, TerrainConstants.DefaultSeed)] = 0xe808453fe4c8386cUL,
                 [(19, 12345UL)] = 0xf439dc53c78a57d1UL,
                 [(18, TerrainConstants.DefaultSeed)] = 0x8780952811978cd6UL,
@@ -103,14 +105,17 @@ internal static class GeneratorChecks
             ushort bedrock = (ushort)BlockId.Bedrock;
             Check.That(small.MaterialAt(new VoxelAddress(edge, GenerationConstants.WaterLevel, 0)) == bedrock,
                 "a small world's wall must stand at its own edge");
-            Check.That(small.MaterialAt(new VoxelAddress(edge - GenerationConstants.WorldWallThickness - 1, GenerationConstants.WorldWallTop, 0)) != bedrock
-                || small.SurfaceAt(edge - GenerationConstants.WorldWallThickness - 1, 0) >= GenerationConstants.WorldWallTop,
+            long wallTop = Math.Max(small.SurfaceAt(edge, 0), GenerationConstants.WaterLevel) + GenerationConstants.WorldWallRise;
+            Check.That(small.MaterialAt(new VoxelAddress(edge, wallTop, 0)) == bedrock
+                && small.MaterialAt(new VoxelAddress(edge, wallTop + 1, 0)) != bedrock,
+                "a small world's wall rises its stated height above its own ground");
+            long inside = edge - GenerationConstants.WorldWallThickness - 1;
+            Check.That(small.MaterialAt(new VoxelAddress(inside, wallTop, 0)) != bedrock || small.SurfaceAt(inside, 0) >= wallTop,
                 "a small world's wall must not extend inward past its thickness");
-            Check.That(small.ChunkHasContent(new VoxelAddress(edge, GenerationConstants.WorldWallTop, 0).Chunk),
+            Check.That(small.ChunkHasContent(new VoxelAddress(edge, wallTop, 0).Chunk),
                 "the content predicate must see a small world's wall");
             TerrainRecipe large = TerrainConfiguration.Default.CreateRecipe(new TestDraws(TerrainConstants.DefaultSeed));
-            Check.That(large.MaterialAt(new VoxelAddress(edge, GenerationConstants.WorldWallTop + 1, 0)) != bedrock
-                || large.SurfaceAt(edge, 0) > GenerationConstants.WorldWallTop,
+            Check.That(large.MaterialAt(new VoxelAddress(edge, large.SurfaceAt(edge, 0) + 1, 0)) != bedrock,
                 "the default world must have no wall where a small world's edge would be");
             Console.WriteLine($"A {SmallSize}-voxel world has its border at its own edge.");
         }

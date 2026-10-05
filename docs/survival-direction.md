@@ -87,17 +87,22 @@ but no square-kilometre target defines the design. Neither infinite generation
 nor continuous first-person traversal of the entire world map is required.
 
 Generation separates a discrete world-map step at new-game creation from local
-voxel terrain, with RimWorld as a reference for that separation of scales. The
-map establishes broad geography and regional relationships; local terrain
-realizes a place in detail. The prototype uses a bounded square map, described
+voxel terrain. RimWorld's world and colony maps, Mount & Blade's world and battle
+maps, and Daggerfall's huge map with its procedural walking spaces are references
+for that separation of scales. The map is a large overworld with diverse
+environments; first-person terrain is always a zoomed-in portion of it, and no
+part of the map needs to exist at walking detail until it is visited. Because a
+world is played for many hours, a slow, modelled map generation behind a one-time
+loading step is acceptable. The prototype uses a bounded square map, described
 in [the product map](csharp-migration-map.md#world-map-contract). This does not
 settle the final topology, generation algorithm, travel mode, or promise that
 every map location will support entry into a first-person scene.
 
 Generation should separate **geographic structure from local surface detail**.
 The map stage establishes coherent landforms and relationships: ridgelines,
-basins, drainage, passes, and regional climate and geology. Erosion and drainage
-simulation are candidate tools for that stage, not committed algorithms.
+basins, drainage, passes, and regional climate and geology. The map stage is
+modelled rather than templated: erosion and drainage simulation shape its landforms,
+and climate follows from the terrain it produces.
 Local terrain samples that geography as its anchor, then adds smaller rock
 formations, gullies, and surface relief before producing the voxel density field.
 Detail uses continuous world coordinates so chunk boundaries do not become
@@ -108,9 +113,8 @@ each bank may itself use fBm. Their amplitude, frequency, shape, and geographic
 masks matter more than simply increasing octave count or voxel resolution.
 A sheltered valley floor should not receive the same relief as exposed rock.
 Local variation must preserve the map's important connections and landmarks,
-including drainage and navigable passes. The prototype bounds local relief,
-preserves closed drainage basins, and
-suppresses noise on incised channel floors and protected passes. A complete
+including drainage and navigable passes. Local relief is bounded and fades out
+along river channels and their banks. A complete
 travel-route network and guaranteed connectivity between destinations remain
 separate design work. Authored terrain studies remain
 comparisons for the smaller-scale treatment.

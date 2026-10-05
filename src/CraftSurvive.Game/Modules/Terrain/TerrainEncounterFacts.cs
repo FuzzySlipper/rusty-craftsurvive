@@ -27,8 +27,6 @@ internal sealed class TerrainEncounterFacts
     internal TerrainEncounterFacts(TerrainRecipe recipe) =>
         this.recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
 
-    internal long WaterLevel => GenerationConstants.WaterLevel;
-
     /// <summary>Whether the column is inside the finite world.</summary>
     internal bool IsInside(long x, long z) =>
         x >= -recipe.Radius && x <= recipe.Radius && z >= -recipe.Radius && z <= recipe.Radius;
@@ -45,7 +43,7 @@ internal sealed class TerrainEncounterFacts
             {
                 long candidateX = x + offsetX;
                 long candidateZ = z + offsetZ;
-                if (IsInside(candidateX, candidateZ) && recipe.SurfaceAt(candidateX, candidateZ) >= WaterLevel)
+                if (IsInside(candidateX, candidateZ) && recipe.SurfaceAt(candidateX, candidateZ) >= recipe.WaterTopAt(candidateX, candidateZ))
                 {
                     return true;
                 }
@@ -68,7 +66,8 @@ internal sealed class TerrainEncounterFacts
             region,
             regionId,
             SurfaceY: recipe.SurfaceAt(x, z),
-            WaterLevel,
+            // Rivers stand above the sea, so the water line is the column's own.
+            recipe.WaterTopAt(x, z),
             HasGround: true,
             ShoreIsReachable: IsShoreReachable(x, z));
         return true;
