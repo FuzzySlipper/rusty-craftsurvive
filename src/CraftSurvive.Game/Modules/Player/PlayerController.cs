@@ -430,6 +430,16 @@ internal sealed class PlayerController : IDisposable
         return entityWorld.Get(playerEntity, RuntimeComponent);
     }
 
+    /// <summary>
+    /// Saves the continuation now rather than at its next due step: map travel settles the
+    /// party's position through it whenever the journey stops.
+    /// </summary>
+    internal void SaveContinuationNow()
+    {
+        EnsureStarted();
+        continuation.Save(Continuation(), CurrentStep);
+    }
+
     /// <summary>Visits an authored terrain study through the ordinary relocation path.</summary>
     internal bool VisitLandscape(string name)
     {

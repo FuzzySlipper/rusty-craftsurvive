@@ -57,12 +57,12 @@ public sealed partial class CraftSurviveProduct
                 break;
             case "pause":
                 party.Pause();
-                conditions.Pass(0, save: true);
+                SettleParty();
                 break;
             case "halt":
                 party.Stop();
                 facetedMap?.ShowRoute(null);
-                conditions.Pass(0, save: true);
+                SettleParty();
                 break;
         }
         worldMessage = party.Last;
@@ -83,6 +83,7 @@ public sealed partial class CraftSurviveProduct
         {
             worldMessage = party.Last;
             facetedMap?.ShowRoute(null);
+            SettleParty();
         }
         if (stopped || unpublishedTravelHours >= TravelPublishHours)
         {
@@ -95,12 +96,29 @@ public sealed partial class CraftSurviveProduct
     private void ExploreAtParty()
     {
         if (party is null || player.InSeparateSpace) return;
+        bool arrived = party.State == TravelState.Arrived;
         party.Pause();
+        if (SettleParty() && arrived && party.Route is not null) worldMessage = $"Exploring {party.Route.Destination}";
+    }
+
+    /// <summary>
+    /// Whenever the journey stops, the player stands where the token stands and the continuation is
+    /// saved at once: the existing player continuation is the one record of where the party is, so
+    /// a restart restores it and reopening the map puts the token back there. The clock is saved too.
+    /// </summary>
+    private bool SettleParty()
+    {
+        conditions.Pass(0, save: true);
+        if (party is null || player.InSeparateSpace) return false;
         Vector3 feet = player.WorldFeetPosition;
-        if (Vector2.Distance(party.Position, new(feet.X, feet.Z)) <= PartyRelocateMetres) return;
-        if (player.Teleport(party.Position.X, terrain.GroundAt(party.Position.X, party.Position.Y) + ArrivalClearance, party.Position.Y) is null)
-            worldMessage = "No clear ground at the party's position; exploring from your last place instead.";
-        else if (party.State == TravelState.Arrived && party.Route is not null) worldMessage = $"Exploring {party.Route.Destination}";
+        if (Vector2.Distance(party.Position, new(feet.X, feet.Z)) > PartyRelocateMetres
+            && player.Teleport(party.Position.X, terrain.GroundAt(party.Position.X, party.Position.Y) + ArrivalClearance, party.Position.Y) is null)
+        {
+            worldMessage = "No clear ground at the party's position; the expedition waits at its last camp.";
+            return false;
+        }
+        player.SaveContinuationNow();
+        return true;
     }
 
     private string TravelStatus()

@@ -61,7 +61,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     W/A/S/D and planned with T; click-to-travel waits for rusty-engine #9466. "Explore here"
     drops into first person at the token. There are no rations, fatigue, camping, events, map
     knowledge or sled yet (slices 3–7). The detail patch does not follow a moving token (slice
-    2). Progress made while the map stays open is lost if the session ends before exploring.
+    2). Whenever the journey pauses, halts or arrives, the player is placed at the token and the
+    player continuation saved, so the party's position survives a restart; an unfinished route
+    itself is not saved, and progress since the last stop is lost if the session ends mid-journey.
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
