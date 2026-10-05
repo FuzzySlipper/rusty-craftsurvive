@@ -752,6 +752,26 @@ Check.That(restedHalfFed.Regained > 0, $"a half-fed player regains health early 
 Check.That(restedHungry.Regained < restedFed.Regained && restedHungry.Lost == 0,
     $"a hungry player regains only what food pays for, regained {restedHungry.Regained}");
 
+// Carried food is eaten as hunger comes through a long sleep or march (#9469 R9469-2): rations held
+// prevent starving, and only an empty pack lets it hurt.
+int packed = 3;
+SurvivalState EatPacked(SurvivalState s)
+{
+    if (s.Satiety > 60 || packed == 0) return s;
+    packed--;
+    return SurvivalRules.Eat(s, 40);
+}
+double longNight = WorldClock.DaySeconds;
+SurvivalStep campFed = SurvivalRules.Rest(SurvivalState.Fresh with { Satiety = 0 }, 30, 30, Difficulty.Normal, longNight, EatPacked);
+Check.That(campFed.Lost == 0 && packed < 3, $"a starving camp with rations eats them and does not starve, lost {campFed.Lost}, rations left {packed}");
+SurvivalStep campEmpty = SurvivalRules.Rest(SurvivalState.Fresh with { Satiety = 0 }, 30, 30, Difficulty.Normal, longNight, _ => _);
+Check.That(campEmpty.Lost > 0, $"a starving camp with an empty pack starves, lost {campEmpty.Lost}");
+packed = 1;
+const double MarchSeconds = 900; // one ration's worth of food and a few minutes more
+SurvivalStep marchShort = SurvivalRules.March(SurvivalState.Fresh with { Satiety = 0 }, 30, 30, Difficulty.Normal, MarchSeconds, EatPacked);
+Check.That(packed == 0 && marchShort.Lost > 0 && marchShort.Lost < SurvivalRules.March(SurvivalState.Fresh with { Satiety = 0 }, 30, 30, Difficulty.Normal, MarchSeconds).Lost,
+    $"a march eats the last ration and only then goes hungry, lost {marchShort.Lost}");
+
 Console.WriteLine("RPG rules: damage, armour, attacks, progression, loot determinism, spawn placement, encounter policy, creature behaviour, end-to-end resolution, the encounter director, player defeat, creature membership, step time, vitals, the world frame, spawn spread, the climbing rule, footfalls, ambience, the world's clock and survival passed.");
 
 return Check.Finish("RpgCore");

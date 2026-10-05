@@ -86,8 +86,7 @@ public sealed partial class CraftSurviveProduct
             hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction));
         bool stopped = party.State != TravelState.Travelling;
         conditions.Pass(spent / PlayHoursPerSecond, save: stopped);
-        survival.Journey(spent / PlayHoursPerSecond);
-        EatOnTheRoad();
+        survival.Journey(spent / PlayHoursPerSecond, Meal);
         facetedMap?.MoveParty(party.Position);
         unpublishedTravelHours += spent;
         if (stopped)
@@ -103,12 +102,9 @@ public sealed partial class CraftSurviveProduct
         }
     }
 
-    /// <summary>The expedition eats from its packs whenever a ration would not be wasted.</summary>
-    private void EatOnTheRoad()
-    {
-        if (survival.State.Satiety > EatRationBelowSatiety || !inventory.Spend(ItemCatalog.Ration)) return;
-        survival.Eat(ItemCatalog.Ration.Value);
-    }
+    /// <summary>The expedition eats a ration from its packs whenever one would not be wasted, marching or camped.</summary>
+    private SurvivalState Meal(SurvivalState state) =>
+        state.Satiety <= EatRationBelowSatiety && inventory.Spend(ItemCatalog.Ration) ? SurvivalRules.Eat(state, ItemCatalog.Ration.Value) : state;
 
     /// <summary>
     /// Make camp where the token stands: at night the expedition sleeps until morning, fully rested
@@ -123,7 +119,7 @@ public sealed partial class CraftSurviveProduct
         bool night = conditions.IsNight;
         long refused = survival.RestsRefused;
         double began = conditions.Time.DayFraction;
-        string outcome = night ? survival.Rest() : survival.RestFor(DayCampHours / PlayHoursPerSecond);
+        string outcome = night ? survival.Rest(Meal) : survival.RestFor(DayCampHours / PlayHoursPerSecond, Meal);
         if (survival.RestsRefused != refused)
         {
             worldMessage = "Cannot camp: " + outcome;
@@ -131,7 +127,6 @@ public sealed partial class CraftSurviveProduct
         }
         double slept = WorldClock.SecondsUntil(began, conditions.Time.DayFraction) * PlayHoursPerSecond;
         party.Rest(slept);
-        EatOnTheRoad();
         SaveJourney();
         worldMessage = $"{party.Last} ({outcome})";
     }

@@ -115,7 +115,8 @@ internal sealed class SurvivalModule : IProductModule
     /// Sleeps until morning: only at night, only when no awake hostile creature is near, and never
     /// while defeated. The night passes at once; health comes back while there is food to pay for it.
     /// </summary>
-    internal string Rest()
+    /// <param name="meal">Food eaten from what is carried as hunger comes during the night, if any.</param>
+    internal string Rest(Func<SurvivalState, SurvivalState>? meal = null)
     {
         if (player.Vitals.IsDown)
         {
@@ -134,68 +135,57 @@ internal sealed class SurvivalModule : IProductModule
         }
 
         double seconds = Sky.WorldClock.SecondsUntil(conditions.Time.DayFraction, Sky.WorldClock.WakingFraction);
-        return Sleep(seconds);
+        return Sleep(seconds, meal);
     }
 
     /// <summary>A rest of a set length at any hour (a daytime halt on a journey), with the same safety rule as sleeping.</summary>
-    internal string RestFor(double seconds)
+    internal string RestFor(double seconds, Func<SurvivalState, SurvivalState>? meal = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds);
         if (player.Vitals.IsDown) return RefuseRest("rest refused: the player is down");
         double nearest = nearestHostileMetres();
         if (nearest < SurvivalRules.RestSafetyMetres)
             return RefuseRest(string.Create(CultureInfo.InvariantCulture, $"rest refused: a hostile creature is {nearest:F0} m away"));
-        return Sleep(seconds);
+        return Sleep(seconds, meal);
     }
 
     /// <summary>
-    /// Time spent marching on the map: the ordinary rules applied over those seconds, a slice at a
-    /// time and never sprinting or submerged, so the journey costs food and an empty stomach hurts.
+    /// Time spent marching on the map: the ordinary rules applied over those seconds, so the journey
+    /// costs food, carried food is eaten as hunger comes, and an empty stomach hurts.
     /// </summary>
-    internal void Journey(double seconds)
+    internal void Journey(double seconds, Func<SurvivalState, SurvivalState>? meal = null)
     {
         if (seconds <= 0) return;
-        for (double spent = 0d; spent < seconds; spent += SurvivalRules.RestSliceSeconds)
-        {
-            int health = player.Vitals.State.Health;
-            SurvivalStep next = SurvivalRules.Advance(state, new SurvivalFacts(health, player.Vitals.MaximumHealth, HeadSubmerged: false, Sprinting: false, Hurt: false),
-                conditions.Difficulty, Math.Min(SurvivalRules.RestSliceSeconds, seconds - spent));
-            state = next.State;
-            if (next.Regained > 0)
-            {
-                player.Vitals.Heal(next.Regained);
-                regained += next.Regained;
-            }
-            if (next.Lost > 0)
-            {
-                player.Vitals.TakeHit(next.Lost, 0);
-                lost += next.Lost;
-                lastHarm = next.Cause;
-            }
-        }
-        lastHealth = player.Vitals.State.Health;
+        Apply(SurvivalRules.March(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds, meal));
         Publish();
     }
 
-    private string Sleep(double seconds)
+    private string Sleep(double seconds, Func<SurvivalState, SurvivalState>? meal)
     {
-        SurvivalStep rested = SurvivalRules.Rest(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds);
-        state = rested.State;
-        player.Vitals.Heal(rested.Regained);
-        regained += rested.Regained;
-        if (rested.Lost > 0)
-        {
-            player.Vitals.TakeHit(rested.Lost, 0);
-            lost += rested.Lost;
-            lastHarm = rested.Cause;
-        }
-
+        SurvivalStep rested = SurvivalRules.Rest(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds, meal);
+        Apply(rested);
         conditions.Pass(seconds);
-        lastHealth = player.Vitals.State.Health;
         slot.Save(state);
         Publish();
         return string.Create(CultureInfo.InvariantCulture,
             $"slept {seconds / Sky.WorldClock.DaySeconds * 24d:F1} hours: regained {rested.Regained}, food now {state.Satiety:F0}%");
+    }
+
+    private void Apply(SurvivalStep step)
+    {
+        state = step.State;
+        if (step.Regained > 0)
+        {
+            player.Vitals.Heal(step.Regained);
+            regained += step.Regained;
+        }
+        if (step.Lost > 0)
+        {
+            player.Vitals.TakeHit(step.Lost, 0);
+            lost += step.Lost;
+            lastHarm = step.Cause;
+        }
+        lastHealth = player.Vitals.State.Health;
     }
 
     private string RefuseRest(string reason)

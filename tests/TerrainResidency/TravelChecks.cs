@@ -62,6 +62,7 @@ internal static class TravelChecks
             double march = PartyTravel.ExhaustedAt / PartyTravel.FatiguePerHour;
             tired.Advance(march, _ => false);
             Check.That(tired.Exhausted && Math.Abs(tired.Fatigue - PartyTravel.ExhaustedAt) < 1e-6, "about ten hours of marching exhausts the expedition");
+            Check.That(tired.EventRisk > new PartyTravel(route.Points[0]).EventRisk, "an exhausted expedition meets more trouble than a fresh one");
             double before = tired.RemainingHours;
             tired.Advance(1, _ => false);
             double exhaustedProgress = before - tired.RemainingHours;

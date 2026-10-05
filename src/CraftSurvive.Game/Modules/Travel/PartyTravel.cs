@@ -22,6 +22,8 @@ internal sealed class PartyTravel
     internal const double ExhaustedMultiplier = 1.5;
     /// <summary>A rest short of a night's camp recovers this much fatigue per hour.</summary>
     internal const double RecoveryPerHour = 0.1;
+    /// <summary>An exhausted expedition meets trouble this many times as often: it is careless and slow to react.</summary>
+    internal const double ExhaustedEventRisk = 1.5;
     /// <summary>A camp this long or longer is a full night's sleep and restores the expedition completely.</summary>
     internal const double FullRestHours = 6;
 
@@ -38,6 +40,9 @@ internal sealed class PartyTravel
     /// <summary>0 fresh, 1 exhausted, up to <see cref="MaximumFatigue"/>; marching raises it and camping restores it.</summary>
     internal double Fatigue { get; private set; }
     internal bool Exhausted => Fatigue >= ExhaustedAt;
+
+    /// <summary>How much more often travel events find this expedition than a fresh one, per travel hour.</summary>
+    internal double EventRisk => Exhausted ? ExhaustedEventRisk : 1;
 
     /// <summary>A camp: a full night's sleep restores the expedition completely; a shorter rest restores part.</summary>
     internal void Rest(double hours)

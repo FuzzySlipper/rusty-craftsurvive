@@ -131,10 +131,24 @@ internal static class SurvivalRules
     /// a slice at a time, so a rest regains health while there is food and costs the food it uses,
     /// and never drowns anyone.
     /// </summary>
-    internal static SurvivalStep Rest(SurvivalState state, int health, int maximumHealth, Difficulty difficulty, double seconds)
+    /// <param name="meal">Eats from what is carried, if anything, after each slice: food on hand is eaten as hunger
+    /// comes, so it is the food missing, not the food held, that hurts.</param>
+    internal static SurvivalStep Rest(SurvivalState state, int health, int maximumHealth, Difficulty difficulty, double seconds,
+        Func<SurvivalState, SurvivalState>? meal = null) =>
+        Slices(state with { SinceHurtSeconds = CalmSecondsBeforeRegaining, Breath = MaximumBreathSeconds }, health, maximumHealth, difficulty, seconds, meal);
+
+    /// <summary>
+    /// A march on the map: the ordinary rules over those seconds, a slice at a time, never sprinting or
+    /// submerged, eating as hunger comes when there is food to eat.
+    /// </summary>
+    internal static SurvivalStep March(SurvivalState state, int health, int maximumHealth, Difficulty difficulty, double seconds,
+        Func<SurvivalState, SurvivalState>? meal = null) =>
+        Slices(state, health, maximumHealth, difficulty, seconds, meal);
+
+    private static SurvivalStep Slices(SurvivalState resting, int health, int maximumHealth, Difficulty difficulty, double seconds,
+        Func<SurvivalState, SurvivalState>? meal)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(seconds);
-        SurvivalState resting = state with { SinceHurtSeconds = CalmSecondsBeforeRegaining, Breath = MaximumBreathSeconds };
         int regained = 0;
         int lost = 0;
         SurvivalHarm cause = SurvivalHarm.None;
@@ -143,7 +157,7 @@ internal static class SurvivalRules
             int now = health + regained - lost;
             SurvivalStep slice = Advance(resting, new SurvivalFacts(now, maximumHealth, HeadSubmerged: false, Sprinting: false, Hurt: false),
                 difficulty, Math.Min(RestSliceSeconds, seconds - slept));
-            resting = slice.State;
+            resting = meal?.Invoke(slice.State) ?? slice.State;
             regained += slice.Regained;
             lost += slice.Lost;
             cause = slice.Cause == SurvivalHarm.None ? cause : slice.Cause;
