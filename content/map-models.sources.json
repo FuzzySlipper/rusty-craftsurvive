@@ -1,0 +1,71 @@
+{
+  "purpose": "World-map clutter meshes (#9437); generated 2026-10-05 with owner-authorised Tripo credits",
+  "models": [
+    {
+      "model": "content/game/models/map/pine.static-mesh.json",
+      "workbenchJob": "c7338ba3b792decc9cb0632e",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-c7338ba3b792decc9cb0632e/generate-model.glb",
+      "tripoTask": "572d7014-c8c5-4f92-8833-e0aca018cfaf",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
+      "prompt": "A single low-poly stylized pine tree for a strategy game world map: faceted flat-shaded conical evergreen with a short brown trunk, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
+      "normalized": "content/map-models/pine.glb"
+    },
+    {
+      "model": "content/game/models/map/broadleaf.static-mesh.json",
+      "workbenchJob": "43301e7bca63885bb6dc14b6",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-43301e7bca63885bb6dc14b6/generate-model.glb",
+      "tripoTask": "713bf695-2ca2-4c12-8e75-16096ca3b9b8",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
+      "prompt": "A single low-poly stylized broadleaf deciduous tree for a strategy game world map: faceted flat-shaded rounded green canopy, short brown trunk, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
+      "normalized": "content/map-models/broadleaf.glb"
+    },
+    {
+      "model": "content/game/models/map/palm.static-mesh.json",
+      "workbenchJob": "8e33c38cac139dc1d91bb19b",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-8e33c38cac139dc1d91bb19b/generate-model.glb",
+      "tripoTask": "a6167cf9-2b92-45d5-b34f-26926ce326b7",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
+      "prompt": "A single low-poly stylized jungle palm tree for a strategy game world map: faceted flat-shaded, curved trunk, broad green fronds, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
+      "normalized": "content/map-models/palm.glb"
+    },
+    {
+      "model": "content/game/models/map/rock.static-mesh.json",
+      "workbenchJob": "487764bc1044c6c684d6f3fc",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-487764bc1044c6c684d6f3fc/generate-model.glb",
+      "tripoTask": "0950d814-42a3-466a-9ab0-7947a6c004d4",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
+      "prompt": "A low-poly stylized grey rock outcrop for a strategy game world map: three faceted angular boulders clustered together, flat-shaded, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
+      "normalized": "content/map-models/rock.glb"
+    },
+    {
+      "model": "content/game/models/map/cactus.static-mesh.json",
+      "workbenchJob": "fd766487c00eb93c039cbc34",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-fd766487c00eb93c039cbc34/generate-model.glb",
+      "tripoTask": "76f77d68-3cbb-447b-a34d-72aa9d050562",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
+      "prompt": "A single low-poly stylized desert cactus with two arms for a strategy game world map: faceted flat-shaded green, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
+      "normalized": "content/map-models/cactus.glb"
+    },
+    {
+      "model": "content/game/models/map/deadtree.static-mesh.json",
+      "workbenchJob": "ee769f89f5980a6474619dc5",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-ee769f89f5980a6474619dc5/generate-model.glb",
+      "tripoTask": "ed91242e-39bd-4904-8b25-02e197105fe8",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
+      "prompt": "A single low-poly stylized bare leafless tundra tree for a strategy game world map: faceted flat-shaded twisted grey-brown trunk and branches, no leaves, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
+      "normalized": "content/map-models/deadtree.glb"
+    }
+  ]
+}

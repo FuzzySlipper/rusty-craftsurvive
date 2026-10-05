@@ -21,6 +21,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     private const int DetailRadiusCells = 32;
     /// <summary>Coarse voxels the coarse ground sinks under the detail patch, hiding it there.</summary>
     private const double PatchSink = 1.5;
+    /// <summary>Metres over which regional relief fades out toward the patch edge, so it meets the coarse map flush.</summary>
+    private const double EdgeFadeMetres = 160;
     private const int OriginY = -20000;
     private const int ChunksPerUpdate = 24;
     private const double ExposedRock = 0.6;
@@ -49,9 +51,13 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly MapVoxelLayer coarse;
     private readonly MapVoxelLayer detail;
     private readonly MapCameraRig rig;
+    private readonly MapClutter clutter;
+    /// <summary>Clutter is shown only from this camera distance inward, where it reads at all.</summary>
+    private const float ClutterDistance = 160;
     private readonly Vector3 partyPosition;
     private long startedAt;
     private float publishedDistance = float.NaN;
+    private readonly Vector2 detailMinimum, detailMaximum;
     private double loadMilliseconds;
 
     internal WorldMapVoxelView(IEngineContext engine, WorldMap map, Vector3 partyWorldFeet)
@@ -78,12 +84,15 @@ internal sealed class WorldMapVoxelView : IDisposable
             int windowZ = Math.Clamp(partyCellZ - DetailRadiusCells, 0, Math.Max(0, cells - 2 * DetailRadiusCells));
             int windowCells = Math.Min(2 * DetailRadiusCells, cells);
 
+            double halfMetres = half * CellMetres;
+            detailMinimum = new((float)(windowX * CellMetres - halfMetres), (float)(windowZ * CellMetres - halfMetres));
+            detailMaximum = detailMinimum + new Vector2((float)(windowCells * CellMetres));
             coarse = Layer(1, CellMetres, -half, -half, cells, cells,
                 (x, z) => x >= windowX && z >= windowZ && x < windowX + windowCells && z < windowZ + windowCells ? PatchSink : 0, false);
             detail = Layer(1d / DetailPerCell, DetailMetres, (windowX - half) * DetailPerCell, (windowZ - half) * DetailPerCell,
                 windowCells * DetailPerCell, windowCells * DetailPerCell, (_, _) => 0, true);
-
-            partyPosition = Position(partyWorldFeet.X, map.Sample(partyWorldFeet.X, partyWorldFeet.Z).Elevation, partyWorldFeet.Z);
+            partyPosition = Surface(partyWorldFeet.X, partyWorldFeet.Z);
+            clutter = new MapClutter(engine, map, detailMinimum, detailMaximum, Surface);
             rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
         }
         catch
@@ -97,7 +106,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     internal Vector3 PartyWorld { get; }
     internal bool Loaded => coarse.Loaded && detail.Loaded;
     internal string Readout => FormattableString.Invariant(
-        $"cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};coarseChunks={coarse.LoadedChunks}/{coarse.TotalChunks};detailChunks={detail.LoadedChunks}/{detail.TotalChunks};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
+        $"cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.LoadedChunks}/{coarse.TotalChunks};detailChunks={detail.LoadedChunks}/{detail.TotalChunks};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
         + rig.Readout;
 
     internal void Activate() => rig.Activate();
@@ -108,9 +117,10 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     /// <summary>Site markers and the party token, placed on the faceted relief.</summary>
     internal AppearanceFact[] Facts => [
+        .. clutter.Facts(rig.Distance <= ClutterDistance),
         Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
         .. map.Sites.Select((site, i) => Marker(ProductIds.WorldMapSiteBase + (ulong)i,
-            Position(site.X, site.Geography.Elevation, site.Z), MarkerScalePerDistance, marker))];
+            Surface(site.X, site.Z), MarkerScalePerDistance, marker))];
 
     /// <summary>Whether the camera has zoomed since the markers were last published.</summary>
     internal bool MarkersStale => rig.Distance != publishedDistance;
@@ -134,6 +144,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     public void Dispose()
     {
+        clutter?.Dispose();
         detail?.Dispose();
         coarse?.Dispose();
         rig?.Dispose();
@@ -149,7 +160,6 @@ internal sealed class WorldMapVoxelView : IDisposable
     private MapVoxelLayer Layer(double voxelSize, double cellMetres, long originX, long originZ, int width, int depth,
         Func<int, int, double> sinkCells, bool localRelief)
     {
-        ulong reliefSeed = map.Configuration.Contract.GeographyNoiseSeed;
         double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
         double origin = OriginY / voxelSize;
         double[] surface = new double[width * depth];
@@ -160,8 +170,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             double worldX = (originX + x + 0.5) * cellMetres, worldZ = (originZ + z + 0.5) * cellMetres;
             MapSample sample = map.Sample(worldX, worldZ);
             // The detail patch carries the same regional relief walking terrain adds to the map.
-            double ground = localRelief ? sample.Elevation + RegionalTerrain.Relief(reliefSeed, sample, worldX, worldZ) : sample.Elevation;
-            double top = Math.Max(sample.InRiver ? Math.Max(ground, sample.RiverSurface) : ground, GenerationConstants.WaterLevel);
+            double top = Top(sample, worldX, worldZ, localRelief);
             int i = z * width + x;
             surface[i] = origin + top / metresPerVoxel - sinkCells(x, z) / voxelSize;
             material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
@@ -170,6 +179,32 @@ internal sealed class WorldMapVoxelView : IDisposable
                 : Slot(WorldMap.Biome(sample), Tone(worldX, worldZ));
         }
         return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, materials);
+    }
+
+    /// <summary>
+    /// The drawn top at a point: ground (with regional relief where the detail patch carries it),
+    /// raised to a river's surface or the sea. Markers and the party stand on exactly this.
+    /// </summary>
+    private double Top(MapSample sample, double worldX, double worldZ, bool localRelief)
+    {
+        double ground = localRelief
+            ? sample.Elevation + EdgeFade(worldX, worldZ) * RegionalTerrain.Relief(map.Configuration.Contract.GeographyNoiseSeed, sample, worldX, worldZ)
+            : sample.Elevation;
+        return Math.Max(sample.InRiver ? Math.Max(ground, sample.RiverSurface) : ground, GenerationConstants.WaterLevel);
+    }
+
+    /// <summary>1 inside the patch, easing to 0 at its edge.</summary>
+    private double EdgeFade(double worldX, double worldZ)
+    {
+        double inset = Math.Min(Math.Min(worldX - detailMinimum.X, detailMaximum.X - worldX), Math.Min(worldZ - detailMinimum.Y, detailMaximum.Y - worldZ));
+        return WorldMap.Smooth(Math.Clamp(inset / EdgeFadeMetres, 0, 1));
+    }
+
+    /// <summary>A point on the faceted surface as drawn: the detail patch where it covers, else the coarse map.</summary>
+    private Vector3 Surface(double worldX, double worldZ)
+    {
+        bool detailed = worldX >= detailMinimum.X && worldZ >= detailMinimum.Y && worldX < detailMaximum.X && worldZ < detailMaximum.Y;
+        return Position(worldX, Top(map.Sample(worldX, worldZ), worldX, worldZ, detailed), worldZ);
     }
 
     private Vector3 Position(double worldX, double elevation, double worldZ)

@@ -25,6 +25,9 @@ internal static class ProductIds
     internal const ulong WorldMapObject = 0x4_0000UL;
     internal const ulong WorldMapPartyObject = 0x4_0001UL;
     internal const ulong WorldMapSiteBase = 0x4_0010UL;
+    /// <summary>Map clutter instances (trees, rocks) on the faceted map's detail patch; up to 0xF000 of them.</summary>
+    internal const ulong WorldMapClutterBase = 0x4_1000UL;
+    internal const int WorldMapClutterLimit = 0xF000;
 
     /// <summary>Retained light ids: the sky's sun (or moon) and its ambient fill.</summary>
     internal const ulong SunLight = 1UL;

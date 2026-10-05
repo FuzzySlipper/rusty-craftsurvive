@@ -42,11 +42,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     regional relief about 2 km across around the party, where the coarse ground is sunk out of
     sight. A camera locked to the party zooms (wheel, or Z/X) and orbits (right-drag, Q/E;
     R/F tilt); there is no free pan. Colours are flat per environment with a few noise-chosen
-    tones, so biome edges and tones step at the cell size. Rivers are painted onto cells, not
-    carved. There is no vegetation, and the patch boundary is visible at mid zoom. The view
-    is rebuilt, not moved, when the party has moved (about 1,100 chunks, around 3 s). Wheel
-    and right-drag delivery could not be exercised by the playtest service; keyboard orbit and
-    zoom were verified live.
+    tones, so biome edges and tones step at the cell size; no textures are used yet. Rivers are
+    painted onto cells, not carved. Trees, cacti and rocks on the patch are generated low-poly
+    static meshes (vertex-coloured, provenance in `content/map-models.sources.json`) scattered
+    by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief
+    fades out toward the patch edge so it meets the coarse map flush, but the change in
+    surface detail still shows at mid zoom. The view is rebuilt, not moved, when the party has
+    moved (about 1,100 chunks and 1,800 instances, around 3 s). Wheel and right-drag delivery
+    could not be exercised by the playtest service; keyboard orbit and zoom were verified live.
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
