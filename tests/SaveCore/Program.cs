@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
@@ -35,6 +36,8 @@ WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
 SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 };
 CarriedItems carried = new([new SlotContents(0, ItemCatalog.Torch, 4), new SlotContents(3, ItemCatalog.Meat, 3), new SlotContents(20, ItemCatalog.Oil, 1)]);
 
+HomeMarker homeMarker = new(-1234.5, 2048.25);
+
 WorldMapSave mapSave = new(3, WorldMapGenerator.Generate(new TerrainConfiguration(Seed, 4096)));
 
 SavedForm[] forms =
@@ -58,7 +61,21 @@ SavedForm[] forms =
         (left, right) => left == right, seed => new SurvivalCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.PlayerInventory, new InventoryCodec(identity), carried, InventoryCodec.RecordBytes,
         (left, right) => left.Slots.SequenceEqual(right.Slots), seed => new InventoryCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.TravelHome, new HomeMarkerCodec(identity), homeMarker, HomeMarkerCodec.RecordBytes,
+        (left, right) => left == right, seed => new HomeMarkerCodec(identity with { Seed = seed })),
 ];
+
+// --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------
+IReadOnlyList<KnownPlace> known = KnownPlaces.List(homeMarker,
+[
+    .. journal.Entries,
+    new DiscoveryEntry(7, 7, PoiKind.DungeonEntrance, 1792, 1792, DiscoveryStage.Seen, 50, 60),
+]);
+Check.That(known.Count == 4 && known[0].Key == KnownPlaces.HomeKey && known[0].Kind == KnownPlaceKind.Home
+    && known[0].Position == new System.Numerics.Vector2(-1234.5f, 2048.25f), "home is the first known place, where its marker stands");
+Check.That(known[1].Kind == KnownPlaceKind.Entrance && known[2].Kind == KnownPlaceKind.Visited && known[2].Name == "Cave mouth"
+    && known[3].Kind == KnownPlaceKind.Seen, "journal places follow, newest first, an entrance marked whatever its stage");
+Check.That(known.Select(place => place.Key).Distinct().Count() == known.Count, "every known place has its own key");
 
 // --- the manifest names every saved key, once ------------------------------------------------------
 Check.That(SaveManifest.All.Count == forms.Length, $"the manifest lists {SaveManifest.All.Count} keys but {forms.Length} codecs write one");

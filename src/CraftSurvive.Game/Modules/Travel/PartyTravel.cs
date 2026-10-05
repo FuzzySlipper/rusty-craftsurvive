@@ -28,6 +28,7 @@ internal sealed class PartyTravel
     internal const double FullRestHours = 6;
 
     private int leg;
+    private double slowHours, slowMultiplier = 1;
     private double legProgress;
 
     internal PartyTravel(Vector2 position) => Position = position;
@@ -40,6 +41,18 @@ internal sealed class PartyTravel
     /// <summary>0 fresh, 1 exhausted, up to <see cref="MaximumFatigue"/>; marching raises it and camping restores it.</summary>
     internal double Fatigue { get; private set; }
     internal bool Exhausted => Fatigue >= ExhaustedAt;
+
+    /// <summary>Hours lost without progress (a detour, slipping away) still tire the expedition.</summary>
+    internal void Tire(double hours) => Fatigue = Math.Min(MaximumFatigue, Fatigue + Math.Max(0, hours) * FatiguePerHour);
+
+    /// <summary>Weather slows travel: the next <paramref name="hours"/> of travel cost this many times more.</summary>
+    internal void Slow(double hours, double multiplier)
+    {
+        slowHours = Math.Max(slowHours, hours);
+        slowMultiplier = multiplier;
+    }
+
+    internal double SlowHours => slowHours;
 
     /// <summary>How much more often travel events find this expedition than a fresh one, per travel hour.</summary>
     internal double EventRisk => Exhausted ? ExhaustedEventRisk : 1;
@@ -115,7 +128,8 @@ internal sealed class PartyTravel
         double spent = 0;
         while (spent < hours && leg < Route.LegHours.Length)
         {
-            double multiplier = (nightAfter(spent) ? TravelCostModel.NightMultiplier : 1) * (Exhausted ? ExhaustedMultiplier : 1);
+            double multiplier = (nightAfter(spent) ? TravelCostModel.NightMultiplier : 1) * (Exhausted ? ExhaustedMultiplier : 1)
+                * (slowHours > 0 ? slowMultiplier : 1);
             double before = spent;
             double legHours = Math.Max(Route.LegHours[leg] * multiplier, 1e-9);
             double available = hours - spent;
@@ -135,6 +149,7 @@ internal sealed class PartyTravel
                 ? Vector2.Lerp(Route.Points[leg], Route.Points[leg + 1], (float)legProgress)
                 : Route.Points[^1];
             Fatigue = Math.Min(MaximumFatigue, Fatigue + (spent - before) * FatiguePerHour);
+            slowHours = Math.Max(0, slowHours - (spent - before));
         }
         if (leg >= Route.LegHours.Length)
         {

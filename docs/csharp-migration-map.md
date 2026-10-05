@@ -177,9 +177,14 @@ each map cell; `TravelRouter` runs A* over the lattice; `PartyTravel` holds the 
 and progress. The root's map update advances a travelling party and passes the hours it spends
 to `WorldConditionsModule` and `SurvivalModule.Journey` (eating a ration from the pack when one
 fits), saving only when the journey stops or camps. `PartyTravel` also owns fatigue, which slows an
-exhausted party until `Camp` rests it. The faceted view draws the token,
-the route ribbon and a keyboard waypoint. Closing the map explores at the token by teleporting
-the player there. See Den `design/overland-travel-mode`.
+exhausted party until `Camp` rests it. `TravelEventDirector` rolls travel events from the party's
+`EventRisk` and where it stands; `MapEvents` presents a waiting event and applies the answer the UI
+claims (an encounter calls `CreatureModule.Ambush`, a discovery `DiscoveryModule.RevealNearest`).
+Known places (`Modules/Places`) are home, owned by `HomeMarkerStore` under its own save key, and the
+discovery journal; both map views draw them and the UI lists them as destinations. The faceted view
+draws the token, the route ribbon and the waypoint, and turns a free-cursor click into a waypoint
+through `CameraQueries.Ray`. Closing the map explores at the token by teleporting the player there.
+See Den `design/overland-travel-mode`.
 
 The root replaces per-world owners on a new-game intent while retaining the
 Engine product session, one persistence store and one UI stream. It releases

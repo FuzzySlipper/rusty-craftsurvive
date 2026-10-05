@@ -59,6 +59,7 @@ public sealed partial class CraftSurviveProduct
         switch (action)
         {
             case "go":
+                if (pendingEvent is not null) throw new FormatException("Answer the event first.");
                 if (!party.Begin()) throw new FormatException("Plan a route first.");
                 break;
             case "pause":
@@ -84,12 +85,15 @@ public sealed partial class CraftSurviveProduct
         WorldTime start = conditions.Time;
         double spent = party.Advance(elapsedSeconds * PartyTravel.HoursPerSecond,
             hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction));
-        bool stopped = party.State != TravelState.Travelling;
-        conditions.Pass(spent / PlayHoursPerSecond, save: stopped);
+        bool arrived = party.State != TravelState.Travelling;
+        conditions.Pass(spent / PlayHoursPerSecond, save: arrived);
         survival.Journey(spent / PlayHoursPerSecond, Meal);
         facetedMap?.MoveParty(party.Position);
         unpublishedTravelHours += spent;
-        if (stopped)
+        // An event settles the party itself and keeps the route for after the choice.
+        RollTravelEvent(spent);
+        bool stopped = party.State != TravelState.Travelling;
+        if (arrived)
         {
             worldMessage = party.Last;
             facetedMap?.ShowRoute(null);
@@ -111,7 +115,7 @@ public sealed partial class CraftSurviveProduct
     /// after a long enough night; by day it halts a couple of hours and recovers part of its fatigue. Camping is never
     /// required; it is how fatigue and the slow night march are avoided.
     /// </summary>
-    private void Camp()
+    private void Camp(double dayHours = DayCampHours)
     {
         if (party is null) throw new FormatException("Open the map to make camp.");
         party.Pause();
@@ -119,7 +123,7 @@ public sealed partial class CraftSurviveProduct
         bool night = conditions.IsNight;
         long refused = survival.RestsRefused;
         double began = conditions.Time.DayFraction;
-        string outcome = night ? survival.Rest(Meal) : survival.RestFor(DayCampHours / PlayHoursPerSecond, Meal);
+        string outcome = night ? survival.Rest(Meal) : survival.RestFor(dayHours / PlayHoursPerSecond, Meal);
         if (survival.RestsRefused != refused)
         {
             worldMessage = "Cannot camp: " + outcome;

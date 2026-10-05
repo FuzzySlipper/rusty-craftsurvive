@@ -124,6 +124,7 @@ internal static class ProductUiProjection
             values.AddText("worldTravel", geography.Travel);
             values.AddText("worldTravelPhase", geography.TravelPhase);
             values.AddText("worldTravelSupplies", geography.Supplies);
+            values.AddText("worldTravelEvent", geography.Event);
         }
 
         return values.Build();

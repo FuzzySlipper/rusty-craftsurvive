@@ -85,6 +85,59 @@ internal static class TravelChecks
             Check.That(crossing.Hours is > 12 and < 72, "crossing a 10 km world takes roughly one to three days of travel");
         }
         int west = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + x).First(cost.Passable);
+        // Travel events (#9470): deterministic per seed, with a cooldown, likelier for a tired party
+        // and far from home, encounters likelier at night.
+        TravelEventFacts open = new(MapBiome.Grassland, Night: false, River: false, HomeKilometres: 0, Risk: 1);
+        (int Count, double MinimumGap, int Encounters) Simulate(TravelEventFacts facts, ulong seed)
+        {
+            TravelEventDirector director = new(seed);
+            int count = 0, encounters = 0;
+            double hour = 0, last = double.NegativeInfinity, minimumGap = double.PositiveInfinity;
+            const double Step = 0.25;
+            for (int i = 0; i < 40_000; i++)
+            {
+                hour += Step;
+                if (director.Roll(Step, facts) is not TravelEventKind kind) continue;
+                count++;
+                if (kind == TravelEventKind.Encounter) encounters++;
+                minimumGap = Math.Min(minimumGap, hour - last);
+                last = hour;
+            }
+            return (count, minimumGap, encounters);
+        }
+        var calm = Simulate(open, 7);
+        Check.That(calm == Simulate(open, 7), "travel events roll the same for the same seed");
+        Check.That(calm.MinimumGap >= TravelEventDirector.CooldownHours, $"no event follows another within the cooldown (closest {calm.MinimumGap:F2} h)");
+        double perHundred = calm.Count * 100d / 10_000;
+        Check.That(perHundred is > 3 and < 12, $"a fresh party near home meets a handful of events per hundred travel hours ({perHundred:F1})");
+        var tiredParty = Simulate(open with { Risk = PartyTravel.ExhaustedEventRisk }, 7);
+        Check.That(tiredParty.Count > calm.Count, $"exhaustion raises event risk ({tiredParty.Count} vs {calm.Count} events)");
+        Check.That(Simulate(open with { HomeKilometres = 8 }, 7).Count > calm.Count, "the country far from home is more dangerous");
+        var dark = Simulate(open with { Night = true }, 7);
+        Check.That(dark.Encounters * calm.Count > calm.Encounters * dark.Count, "encounters make up more of the night's events");
+        double[] alpine = TravelEventDirector.Weights(open with { Biome = MapBiome.Alpine, River = true });
+        double[] meadow = TravelEventDirector.Weights(open);
+        Check.That(alpine[(int)TravelEventKind.Hazard] > meadow[(int)TravelEventKind.Hazard] && alpine[(int)TravelEventKind.Weather] > meadow[(int)TravelEventKind.Weather],
+            "mountains and fords bring more hazards and weather");
+        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather(MapBiome.Alpine), TravelEvents.Hazard(MapBiome.Alpine, true) })
+            Check.That(shown.Choices.Count == 2 && shown.Choices.All(c => !c.Label.Contains(',') && !c.Label.Contains('|') && !c.Id.Contains(':'))
+                && !shown.Title.Contains('|') && !shown.Text.Contains('|'), $"{shown.Kind} offers two answers that publish cleanly");
+
+        // Weather slows the next hours of travel; time lost still tires.
+        PartyTravel slowed = new(Vector2.Zero), steady = new(Vector2.Zero);
+        TravelRoute? across = Crossing(cost, grid);
+        if (across is not null)
+        {
+            foreach (PartyTravel p in new[] { slowed, steady }) { p.Plan(cost, across.Points[^1], "far"); p.Relocate(across.Points[0]); p.Plan(cost, across.Points[^1], "far"); p.Begin(); }
+            slowed.Slow(TravelEvents.WeatherSlowHours, TravelEvents.WeatherSlowMultiplier);
+            slowed.Advance(TravelEvents.WeatherSlowHours, _ => false);
+            steady.Advance(TravelEvents.WeatherSlowHours, _ => false);
+            Check.That(slowed.RemainingHours > steady.RemainingHours, "pressing on through weather covers less ground");
+            double before = steady.Fatigue;
+            steady.Tire(2);
+            Check.That(steady.Fatigue > before, "hours lost to a detour still tire the party");
+        }
+
         TravelRoute? shore = TravelRouter.Plan(cost, new((float)grid.X(west), (float)grid.Z(west)), new((float)grid.X(sea), (float)grid.Z(sea)), "sea");
         Check.That(shore is not null && map.Sample(shore.Points[^1].X, shore.Points[^1].Y).Elevation >= GenerationConstants.WaterLevel - 0.5,
             "a destination at sea routes to the nearest shore and ends on land");

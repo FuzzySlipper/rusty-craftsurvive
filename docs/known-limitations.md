@@ -58,21 +58,38 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     a few hundred chunks behind a moving token and shows coarse ground at its leading edge until
     it catches up; it settles once the token slows or stops. Wheel and right-drag delivery
     could not be exercised by the playtest service; keyboard orbit and zoom were verified live.
-  - **Overland travel is a first slice (#9467).** On the faceted map the party token plans
-    A* routes over the 32 m lattice, priced by slope, environment, fords and the sea, and
-    travels them while the clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel
-    is three times slower. Destinations are the representative sites or a waypoint moved with
-    W/A/S/D and planned with T; click-to-travel waits for rusty-engine #9466. "Explore here"
-    drops into first person at the token. The journey costs food at the ordinary survival rate
-    and the expedition eats a ration from the pack whenever a whole one fits; without rations an
-    empty stomach hurts as it does on foot (#9469). About ten hours of marching exhausts the
-    expedition, which then moves half again slower until it camps. **Camp** sleeps until morning
-    at night (a full rest after six hours or more) or halts two hours by day, under the same
-    safety rule as resting on foot; it is never required. Fatigue is not saved. There are no
-    events, map knowledge or sled yet (slices 4–7). Whenever the journey pauses, halts, arrives or
-    camps, the player is placed at the token and the player continuation, survival and pack are
-    saved, so the party's position and supplies survive a restart; an unfinished route itself is
-    not saved, and progress since the last stop is lost if the session ends mid-journey.
+  - **Overland travel (#9467–#9471).** On the faceted map the party token plans A* routes over
+    the 32 m lattice, priced by slope, environment, fords and the sea, and travels them while the
+    clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel is three times slower.
+    - **Destinations:** click the faceted relief (the map screen frees the cursor; the click's
+      camera ray is marched to the drawn surface), choose a known place, or move the waypoint with
+      W/A/S/D and plan with T. The smooth overview does not take clicks.
+    - **Known places** replace the representative sites (#9471): home, then every place in the
+      discovery journal, each drawn on both map views (home green, reached orange, seen tan,
+      dungeon entrances violet). Home starts at the world's spawn and moves with **Set home here**
+      to the party's position; it is a travel marker only and does not move the respawn point.
+      Reaching a vantage point for the first time reveals the places within
+      `DiscoveryRules.VantageRevealMetres`. There is no fog of war.
+    - **Upkeep (#9469):** the journey costs food at the ordinary survival rate, and carried rations
+      are eaten as hunger comes, marching or camped; only an empty pack lets an empty stomach hurt.
+      About ten hours of marching exhausts the party, which then moves half again slower and meets
+      trouble half again as often until it camps. **Camp** sleeps until morning at night (a full
+      rest after six hours or more) or halts two hours by day, under the resting safety rule; it is
+      never required. Fatigue is not saved.
+    - **Events (#9470)** are rolled per travel hour (`TravelEventDirector`): weighted by environment,
+      night, fords and distance from home, raised by exhaustion, with a four-hour cooldown. One
+      stops the journey and the map screen offers two answers. An encounter is fought in first
+      person at the token, where hostile creatures close in once the ground is streamed, on ground
+      with a route to the player; in broken or wooded ground a pursuer can still lose its route and
+      wait, as any pursuer does. A discovery reveals the nearest unknown place within 1.5 km and
+      offers to divert there. Weather either shelters for three hours or slows the next four hours
+      of travel. A hazard costs three hours to go round, or a ration (or health) to push through.
+      Events are not saved: one waiting at a restart is gone.
+    - "Explore here" drops into first person at the token. Whenever the journey pauses, halts,
+      arrives, camps or meets an event, the player is placed at the token and the continuation,
+      survival and pack are saved, so position and supplies survive a restart; an unfinished route
+      is not saved, and progress since the last stop is lost if the session ends mid-journey.
+    - There is no sled or transport yet (slices 6–7).
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any

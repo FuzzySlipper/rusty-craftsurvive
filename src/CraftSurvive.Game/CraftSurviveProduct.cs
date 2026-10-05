@@ -10,6 +10,7 @@ using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
@@ -64,6 +65,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     /// <summary>What the player carries: drops and caches in, crafting and use out.</summary>
     private InventoryModule inventory = null!;
+    private HomeMarkerStore home = null!;
 
     /// <summary>Going into dungeons and coming out: each its own finite space, loaded whole.</summary>
     private DungeonModule dungeons = null!;
@@ -122,6 +124,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
+        home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         blast = new BlastModule(terrain, frame, entities, cues);
         build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
@@ -157,6 +160,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         {
             terrain.Start();
             player.Start();
+            home.Start();
             foreach (IProductModule module in gameplay)
             {
                 module.Start();
@@ -188,6 +192,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
+        RequireRegistration(registrar.Register(new TravelDebugModule(() => worldBuilt ? TravelReadout() : "no world", kind => worldBuilt ? ForceTravelEvent(kind) : "no world")));
         RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style))));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));

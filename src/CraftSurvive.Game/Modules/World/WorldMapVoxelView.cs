@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
@@ -57,7 +58,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly WorldMap map;
     private readonly int cells;
     private readonly Dictionary<uint, Material> materials = [];
-    private readonly Appearance marker;
+    private readonly Dictionary<KnownPlaceKind, Appearance> placeMarkers = [];
+    private KnownPlace[] places = [];
     private readonly Appearance party;
     private readonly MapVoxelLayer coarse;
     private readonly MapVoxelLayer detail;
@@ -105,7 +107,8 @@ internal sealed class WorldMapVoxelView : IDisposable
                 coarseGround = new TerrainGroundMaterials(engine, content, CellMetres, textures);
                 detailGround = new TerrainGroundMaterials(engine, content, DetailMetres, textures);
             }
-            marker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, new Color(1, 0.38f, 0.1f, 1)));
+            foreach (KnownPlaceKind kind in Enum.GetValues<KnownPlaceKind>())
+                placeMarkers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind)));
             party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor));
             routeMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, RouteColor));
             waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor));
@@ -149,8 +152,16 @@ internal sealed class WorldMapVoxelView : IDisposable
         Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
         Marker(ProductIds.WorldMapWaypointObject, Surface(waypoint.X, waypoint.Y), PartyScalePerDistance, waypointMarker),
         .. routeMarkers.Select((point, i) => Marker(ProductIds.WorldMapRouteBase + (ulong)i, point, RouteMarkerScalePerDistance, routeMarker)),
-        .. map.Sites.Select((site, i) => Marker(ProductIds.WorldMapSiteBase + (ulong)i,
-            Surface(site.X, site.Z), MarkerScalePerDistance, marker))];
+        .. places.Take(ProductIds.WorldMapPlaceLimit).Select((place, i) => Marker(ProductIds.WorldMapPlaceBase + (ulong)i,
+            Surface(place.Position.X, place.Position.Y), place.Kind == KnownPlaceKind.Home ? PartyScalePerDistance : MarkerScalePerDistance, placeMarkers[place.Kind]))];
+
+    /// <summary>Show the known places (#9471); the list replaces the previous one.</summary>
+    internal void ShowPlaces(IReadOnlyList<KnownPlace> known)
+    {
+        if (known.SequenceEqual(places)) return;
+        places = [.. known];
+        factsVersion++;
+    }
 
     /// <summary>Whether zoom, the party, its route or the waypoint changed since the facts were last published.</summary>
     internal bool MarkersStale => rig.Distance != publishedDistance || factsVersion != publishedVersion;
@@ -371,7 +382,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         party?.Dispose();
         routeMarker?.Dispose();
         waypointMarker?.Dispose();
-        marker?.Dispose();
+        foreach (Appearance placeMarker in placeMarkers.Values) placeMarker.Dispose();
         foreach (Material material in materials.Values) material.Dispose();
     }
 

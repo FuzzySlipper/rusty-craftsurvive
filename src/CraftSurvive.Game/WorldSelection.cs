@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Manipulation;
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.Terrain;
@@ -47,11 +48,19 @@ public sealed partial class CraftSurviveProduct
                         CloseMap();
                         break;
                     case "travel":
-                        if (!mapOpen || !root.TryGetProperty("site", out JsonElement travelSite) || travelSite.ValueKind != JsonValueKind.Number
-                            || !travelSite.TryGetInt32(out int travelIndex) || travelIndex < 0 || travelIndex >= worlds.Current.Map.Sites.Count)
-                            throw new FormatException("Choose a place on this map.");
-                        MapSite place = worlds.Current.Map.Sites[travelIndex];
-                        PlanTravel(new((float)place.X, (float)place.Z), place.Name);
+                        if (!mapOpen || !root.TryGetProperty("place", out JsonElement placeKey) || placeKey.ValueKind != JsonValueKind.String
+                            || KnownPlacesNow().FirstOrDefault(known => known.Key == placeKey.GetString()) is not { Key: not null } place)
+                            throw new FormatException("Choose a known place.");
+                        PlanTravel(place.Position, place.Name);
+                        break;
+                    case "event":
+                        if (!mapOpen || !root.TryGetProperty("choice", out JsonElement choice) || choice.ValueKind != JsonValueKind.String)
+                            throw new FormatException("Choose an answer to the event.");
+                        ResolveTravelEvent(choice.GetString()!);
+                        break;
+                    case "home":
+                        if (!mapOpen) throw new FormatException("Open the world map to set home.");
+                        SetHomeAtParty();
                         break;
                     case "waypoint":
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
@@ -103,6 +112,7 @@ public sealed partial class CraftSurviveProduct
     private void OpenMap()
     {
         overview ??= new(engine, worlds.Current.Map);
+        overview.ShowPlaces(KnownPlacesNow());
         player.ClearInput();
         sky.Submerged(false);
         sky.Underground(false, WorldConditionsState.Fresh.Time);
@@ -180,6 +190,8 @@ public sealed partial class CraftSurviveProduct
         facetedMapShown = false;
         travelCost = null;
         party = null;
+        travelEvents = null;
+        pendingEvent = null;
         foreach (IProductModule module in gameplay.Reverse()) module.Dispose();
         sky.Dispose(); player.Dispose(); terrain.Dispose();
         frame = new(); cues = new Cues(); entities = new BlockEntityIndex();
@@ -203,6 +215,7 @@ public sealed partial class CraftSurviveProduct
             facetedMap ??= new(engine, context.Content, worlds.Current.Map, partyFeet, mapStyle);
             facetedMap.MoveParty(party?.Position ?? new(partyFeet.X, partyFeet.Z));
             facetedMap.ShowRoute(party?.Route?.Points);
+            facetedMap.ShowPlaces(KnownPlacesNow());
             facetedMap.Activate();
             if (!facetedMap.Loaded) worldMessage = BuildingFacetedMessage;
         }
@@ -249,13 +262,17 @@ public sealed partial class CraftSurviveProduct
         if (!worlds.HasWorld)
         {
             TerrainConfiguration first = TerrainConfiguration.Default;
-            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle", ""));
+            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle", "", ""));
             return;
         }
         WorldMap map = worlds.Current.Map;
-        string sites = string.Join(';', map.Sites.Select((site, index) => FormattableString.Invariant(
-            $"{index}|{site.Name}|{WorldMap.Region(site.Geography)}|{site.X:F0}|{site.Z:F0}|{site.Geography.Elevation:F0}")));
+        IReadOnlyList<KnownPlace> known = KnownPlacesNow();
+        facetedMap?.ShowPlaces(known);
+        overview?.ShowPlaces(known);
+        Vector2 from = party?.Position ?? new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z);
+        string sites = string.Join(';', known.Select(place => FormattableString.Invariant(
+            $"{place.Key}|{place.Name}|{PlaceDetail(place, map)}|{place.Position.X:F0}|{place.Position.Y:F0}|{Vector2.Distance(from, place.Position) / 1000:F1}|{place.Kind.ToString().ToLowerInvariant()}")));
         ui.PublishMap(new(mapOpen, map.Configuration.Seed.ToString(CultureInfo.InvariantCulture), map.Configuration.Size,
-            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase, TravelSupplies()));
+            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase, TravelSupplies(), TravelEventFacts()));
     }
 }

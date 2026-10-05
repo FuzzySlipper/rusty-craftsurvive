@@ -24,6 +24,12 @@ internal sealed class CreatureModule : IProductModule
 {
     /// <summary>Region the starting encounters are placed in.</summary>
     private const long StartingRegionId = 1;
+    /// <summary>Each travel ambush is its own wilderness region, numbered from here.</summary>
+    private const long AmbushRegionBase = 1000;
+    /// <summary>An ambush gives up on creatures it cannot place within about ten seconds.</summary>
+    private const long AmbushPatienceSteps = 600;
+    private long ambushes, ambushSince;
+    private int ambushWaiting, ambushPlaced;
 
     /// <summary>How many creatures a fresh session starts with.</summary>
     internal const int InitialCreatureCount = 3;
@@ -142,6 +148,7 @@ internal sealed class CreatureModule : IProductModule
             creature.Awake = terrain.IsResident(GroundCell(creature.Position));
         }
 
+        CloseAmbush();
         HashSet<int> seeing = Sense(playerWorld);
         Route(player.WorldFeetPosition);
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
@@ -168,6 +175,7 @@ internal sealed class CreatureModule : IProductModule
 
     public void Restart()
     {
+        ambushWaiting = 0;
         roster.Clear();
         director.Clear();
         presentation.Clear();
@@ -364,18 +372,68 @@ internal sealed class CreatureModule : IProductModule
 
     private void Spawn()
     {
+        int placed = Place(InitialCreatureCount, StartingRegionId, CreatureKinds.ForSpawn,
+            CreatureSpawnPlan.MinimumDistanceMetres, CreatureSpawnPlan.MaximumDistanceMetres);
+        presentation.Sync(roster);
+        lastEvent = $"started with {placed} creature(s), {spawnRefusals} site(s) refused by the rules";
+    }
+
+    /// <summary>
+    /// A travel encounter (#9470): hostile creatures close in around the player, under the same
+    /// encounter rules as the starting ones, in a wilderness region of their own. The player has
+    /// just arrived, so the ambush waits until the ground around them is streamed, and takes only
+    /// ground with a route to the player; it gives up after <see cref="AmbushPatienceSteps"/>.
+    /// </summary>
+    internal void Ambush(int count)
+    {
+        ambushes++;
+        ambushWaiting = count;
+        ambushSince = step;
+        lastEvent = $"ambush: {count} hostile creature(s) waiting for the ground to stream";
+    }
+
+    /// <summary>Place what an ambush still owes, on streamed ground with a route to the player.</summary>
+    private void CloseAmbush()
+    {
+        if (ambushWaiting <= 0) return;
+        Vector3 feet = player.WorldFeetPosition;
+        if (!terrain.IsResident(GroundCell(new Vector2(feet.X, feet.Z)))) return;
+        try
+        {
+            navigation.EnsurePublished(feet);
+            int placed = Place(ambushWaiting, AmbushRegionBase + ambushes, _ => CreatureKinds.Hostile,
+                CreatureSpawnPlan.AmbushMinimumDistanceMetres, CreatureSpawnPlan.AmbushMaximumDistanceMetres,
+                column => terrain.IsResident(GroundCell(column))
+                    && navigation.NextWaypoint(Feet(column), feet, out _) is not null);
+            ambushWaiting -= placed;
+            ambushPlaced += placed;
+        }
+        catch (EngineCallException failure)
+        {
+            lastFailure = $"ambush navigation: {failure.Message}";
+        }
+        if (ambushWaiting > 0 && step - ambushSince < AmbushPatienceSteps) return;
+        lastEvent = $"ambush: {ambushPlaced} hostile creature(s) close in{(ambushWaiting > 0 ? $", {ambushWaiting} found no way to the player" : "")}";
+        ambushWaiting = 0;
+        ambushPlaced = 0;
+    }
+
+    private int Place(int count, long regionId, Func<int, CreatureKind> kindFor, int minimumMetres, int maximumMetres,
+        Func<Vector2, bool>? usable = null)
+    {
         TerrainEncounterFacts facts = new(terrain.Recipe);
         Vector3 origin = player.WorldPosition;
         List<(long X, long Z)> placed = [];
-        foreach ((long x, long z) in CreatureSpawnPlan.Candidates((long)Math.Floor(origin.X), (long)Math.Floor(origin.Z)))
+        foreach ((long x, long z) in CreatureSpawnPlan.Candidates((long)Math.Floor(origin.X), (long)Math.Floor(origin.Z), minimumMetres, maximumMetres))
         {
-            if (placed.Count >= InitialCreatureCount)
+            if (placed.Count >= count)
             {
                 break;
             }
 
             if (!CreatureSpawnPlan.FarEnoughFrom(placed, (x, z))
-                || !facts.TryDescribe(RegionKind.Wilderness, StartingRegionId, x, z, out EncounterSite site))
+                || usable?.Invoke(new Vector2(x + CellCentre, z + CellCentre)) == false
+                || !facts.TryDescribe(RegionKind.Wilderness, regionId, x, z, out EncounterSite site))
             {
                 continue;
             }
@@ -390,11 +448,10 @@ internal sealed class CreatureModule : IProductModule
 
             nextId++;
             placed.Add((x, z));
-            roster.Add(new Creature(id, CreatureKinds.ForSpawn(id), new Vector2(x + CellCentre, z + CellCentre)));
+            roster.Add(new Creature(id, kindFor(id), new Vector2(x + CellCentre, z + CellCentre)));
         }
 
-        presentation.Sync(roster);
-        lastEvent = $"started with {roster.Count} creature(s), {spawnRefusals} site(s) refused by the rules";
+        return placed.Count;
     }
 
     /// <summary>

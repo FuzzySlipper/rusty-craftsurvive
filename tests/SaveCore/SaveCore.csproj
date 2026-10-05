@@ -27,6 +27,8 @@
     <Compile Include="$(ProductModules)Discovery/DiscoveryRules.cs" LinkBase="Product/Discovery" />
     <Compile Include="$(ProductModules)Discovery/DiscoveryState.cs" LinkBase="Product/Discovery" />
     <Compile Include="$(ProductModules)Discovery/DiscoveryCodec.cs" LinkBase="Product/Discovery" />
+    <Compile Include="$(ProductModules)Places/HomeMarker.cs" LinkBase="Product/Places" />
+    <Compile Include="$(ProductModules)Places/KnownPlaces.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)Manipulation/BlockEntityIndex.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlockEntityCodec.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Player/PlayerContinuation.cs" LinkBase="Product/Player" />

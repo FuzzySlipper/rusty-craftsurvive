@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 
@@ -24,7 +25,8 @@ internal sealed class WorldMapPresentation : IDisposable
     private readonly MeshResource mesh;
     private readonly Appearance appearance;
     private readonly Camera camera;
-    private readonly Appearance marker;
+    private readonly Dictionary<KnownPlaceKind, Appearance> markers = [];
+    private KnownPlace[] places = [];
     private readonly WorldMap map;
 
     internal WorldMapPresentation(IEngineContext engine, WorldMap map)
@@ -66,15 +68,20 @@ internal sealed class WorldMapPresentation : IDisposable
         mesh = engine.Graphics.CreateMeshResource(new(positions, normals, uvs, colors, indices.ToArray(),
             new MeshGroup[] { new(MaterialSlot, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(MaterialSlot, material) }));
         appearance = engine.Graphics.CreateMeshAppearance(mesh);
-        marker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, new Color(1, 0.38f, 0.1f, 1)));
+        foreach (KnownPlaceKind kind in Enum.GetValues<KnownPlaceKind>())
+            markers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind)));
         camera = engine.CameraView.CreateCamera(new(new CameraPose(new(0, MapY + EyeHeight, EyeBack), Pitch, 0), CameraBasisMode.Derived, default,
             new(CameraProjectionKind.Perspective, FieldOfView, 0, Near, Far), CameraViewports.Full));
     }
 
     internal AppearanceFact[] Facts => [new(ProductIds.WorldMapObject, false, 0,
         new(Vector3.Zero, Quaternion.Identity, Vector3.One), appearance, true, RenderLayer.Scene),
-        .. map.Sites.Select((site, i) => new AppearanceFact(ProductIds.WorldMapSiteBase + (ulong)i, false, 0,
-            new(Point(site.X, site.Geography.Elevation, site.Z) + Vector3.UnitY, Quaternion.Identity, Vector3.One), marker, true, RenderLayer.Scene))];
+        .. places.Take(ProductIds.WorldMapPlaceLimit).Select((place, i) => new AppearanceFact(ProductIds.WorldMapPlaceBase + (ulong)i, false, 0,
+            new(Point(place.Position.X, Math.Max(map.Sample(place.Position.X, place.Position.Y).Elevation, GenerationConstants.WaterLevel), place.Position.Y) + Vector3.UnitY,
+                Quaternion.Identity, Vector3.One), markers[place.Kind], true, RenderLayer.Scene))];
+
+    /// <summary>Show the known places (#9471); the list replaces the previous one.</summary>
+    internal void ShowPlaces(IReadOnlyList<KnownPlace> known) => places = [.. known];
 
     internal void Activate() => engine.CameraView.SetActiveCamera(camera);
 
@@ -99,6 +106,7 @@ internal sealed class WorldMapPresentation : IDisposable
 
     public void Dispose()
     {
-        camera.Dispose(); marker.Dispose(); appearance.Dispose(); mesh.Dispose(); material.Dispose();
+        camera.Dispose();
+        foreach (Appearance placeMarker in markers.Values) placeMarker.Dispose(); appearance.Dispose(); mesh.Dispose(); material.Dispose();
     }
 }

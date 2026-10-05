@@ -4,6 +4,8 @@ import { number, projectionValues, text } from './hud.js';
 
 const INTENT = 'craftsurvive.world';
 const CONTRACT = 'craftsurvive.world.action.v1';
+/** Matches the product's map markers: home, reached, seen from afar, dungeon entrance. */
+const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2' };
 const PANEL = 'pointer-events:auto;background:rgb(20 24 27 / 94%);color:#eee7d5;padding:1rem;border:1px solid #84775c;border-radius:.4rem;';
 
 /** Controls and descriptions only. The geographic overview is an Engine mesh behind this UI. */
@@ -36,9 +38,9 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   style.addEventListener('click', () => claim({ action: 'style' }));
   heading.append(identity, style, close);
   const destinations = element('nav', PANEL + 'position:absolute;left:1rem;bottom:1rem;width:19rem;max-height:42vh;overflow:auto;');
-  destinations.setAttribute('aria-label', 'Travel to a place');
+  destinations.setAttribute('aria-label', 'Known places');
   const sites = element('div');
-  destinations.append(element('h3', 'margin:0 0 .5rem;', 'Travel to a place'),
+  destinations.append(element('h3', 'margin:0 0 .5rem;', 'Known places'),
     element('p', 'font-size:.85rem;opacity:.75;', 'North is toward the far edge. Click the map or choose a place to plan a route; W/A/S/D and T move and route to the blue waypoint.'), sites);
   // Travel controls: the product owns the journey; these buttons only claim its actions.
   const journey = element('section', PANEL + 'position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);width:26rem;');
@@ -47,12 +49,22 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const journeySupplies = element('p', 'margin:0 0 .5rem;font-size:.85rem;opacity:.85;');
   const travelButtons: Record<string, HTMLButtonElement> = {};
   const journeyRow = element('div', 'display:flex;gap:.4rem;flex-wrap:wrap;');
-  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['camp', 'Camp'], ['waypoint', 'Route to waypoint']] as const) {
+  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['camp', 'Camp'], ['waypoint', 'Route to waypoint'], ['home', 'Set home here']] as const) {
     const control = button(label);
     control.addEventListener('click', () => claim({ action }));
     travelButtons[action] = control; journeyRow.append(control);
   }
   journey.append(journeyStatus, journeySupplies, journeyRow);
+  // A travel event stops the journey; the product offers its answers and decides the outcome.
+  const travelEvent = element('section', PANEL + 'position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);width:26rem;border-color:#c9a45c;');
+  travelEvent.setAttribute('role', 'alertdialog');
+  travelEvent.setAttribute('aria-label', 'Travel event');
+  travelEvent.hidden = true;
+  const eventTitle = element('h3', 'margin:0 0 .4rem;');
+  const eventText = element('p', 'margin:0 0 .7rem;');
+  const eventChoices = element('div', 'display:flex;gap:.4rem;flex-wrap:wrap;');
+  travelEvent.append(eventTitle, eventText, eventChoices);
+  let renderedEvent = '';
   const form = element('form', PANEL + 'position:absolute;right:1rem;bottom:1rem;width:18rem;');
   form.append(element('h3', 'margin:0 0 .5rem;', 'Begin a new world'));
   const seedLabel = element('label', 'display:block;', 'World seed');
@@ -71,10 +83,10 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   form.addEventListener('submit', event => { event.preventDefault(); claim({ action: 'create', seed: seed.value, size: Number(size.value) }); });
   const status = element('p', PANEL + 'position:absolute;top:5rem;left:50%;transform:translateX(-50%);max-width:40rem;');
   status.setAttribute('role', 'status');
-  for (const panel of [heading, destinations, form, status, journey]) {
+  for (const panel of [heading, destinations, form, status, journey, travelEvent]) {
     panel.setAttribute('data-rusty-ui-interactive', ''); isolateEvents(panel);
   }
-  screen.append(heading, destinations, form, status, journey); host.append(open, screen);
+  screen.append(heading, destinations, form, status, journey, travelEvent); host.append(open, screen);
   let renderedSites = '';
   const render = (): void => {
     const values = projectionValues(projection?.current() ?? null);
@@ -89,19 +101,36 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
     const phase = text(values, 'worldTravelPhase') ?? 'idle';
     journeyStatus.textContent = text(values, 'worldTravel') ?? '';
     journeySupplies.textContent = text(values, 'worldTravelSupplies') ?? '';
+    const eventSource = text(values, 'worldTravelEvent') ?? '';
+    travelEvent.hidden = eventSource === '';
+    if (eventSource !== renderedEvent) {
+      renderedEvent = eventSource;
+      const [kind = '', title = '', body = '', choices = ''] = eventSource.split('|');
+      travelEvent.dataset.event = kind;
+      eventTitle.textContent = title; eventText.textContent = body;
+      eventChoices.replaceChildren(...choices.split(',').filter(Boolean).map(entry => {
+        const split = entry.indexOf(':');
+        const answer = button(entry.slice(split + 1));
+        answer.dataset.choice = entry.slice(0, split);
+        answer.addEventListener('click', () => claim({ action: 'event', choice: entry.slice(0, split) }));
+        return answer;
+      }));
+    }
     journey.hidden = style.hidden;
     const go = travelButtons['go'], pause = travelButtons['pause'], halt = travelButtons['halt'];
-    if (go) { go.disabled = !(phase === 'planned' || phase === 'paused'); go.textContent = phase === 'paused' ? 'Resume' : 'Set out'; }
+    if (go) { go.disabled = eventSource !== '' || !(phase === 'planned' || phase === 'paused'); go.textContent = phase === 'paused' ? 'Resume' : 'Set out'; }
     if (pause) pause.disabled = phase !== 'travelling';
     if (halt) halt.disabled = phase === 'idle' || phase === 'arrived';
     const source = text(values, 'worldSites') ?? '';
     if (source === renderedSites) return;
     renderedSites = source; sites.replaceChildren();
     for (const entry of source.split(';').filter(Boolean)) {
-      const [id = '', name = '', region = '', x = '', z = '', elevation = ''] = entry.split('|');
+      const [key = '', name = '', detail = '', x = '', z = '', kilometres = '', kind = ''] = entry.split('|');
       const visit = button(name); visit.style.cssText = 'display:block;width:100%;text-align:left;margin-top:.7rem;padding:.5rem;';
-      visit.addEventListener('click', () => claim({ action: 'travel', site: Number(id) }));
-      sites.append(visit, element('small', 'display:block;opacity:.8;', `${region} · ${elevation} m · (${x}, ${z})`));
+      visit.dataset.place = kind;
+      visit.prepend(element('span', `display:inline-block;width:.7rem;height:.7rem;border-radius:50%;margin-right:.45rem;background:${PLACE_COLOURS[kind] ?? '#c99a6b'};`));
+      visit.addEventListener('click', () => claim({ action: 'travel', place: key }));
+      sites.append(visit, element('small', 'display:block;opacity:.8;', `${detail} · ${kilometres} km away · (${x}, ${z})`));
     }
   };
   render(); const unsubscribe = projection?.subscribe(render);

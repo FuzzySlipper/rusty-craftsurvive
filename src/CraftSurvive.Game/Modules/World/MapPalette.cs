@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 
@@ -6,6 +7,15 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>Flat overview colours for map environments, shared by every map presentation.</summary>
 internal static class MapPalette
 {
+    /// <summary>Known-place markers: home is green, places reached orange, places only seen a duller tan, dungeon entrances violet.</summary>
+    internal static Color Place(KnownPlaceKind kind) => kind switch
+    {
+        KnownPlaceKind.Home => new(0.35f, 0.9f, 0.45f, 1),
+        KnownPlaceKind.Visited => new(1, 0.38f, 0.1f, 1),
+        KnownPlaceKind.Entrance => new(0.62f, 0.32f, 0.95f, 1),
+        _ => new(0.78f, 0.6f, 0.42f, 1),
+    };
+
     private const float RockBlend = 0.45f;
     internal static readonly Color Stone = new(0.5f, 0.48f, 0.46f, 1);
     internal static readonly Color River = new(0.22f, 0.42f, 0.72f, 1);

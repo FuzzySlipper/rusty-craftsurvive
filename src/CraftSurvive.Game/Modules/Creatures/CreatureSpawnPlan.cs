@@ -24,10 +24,17 @@ internal static class CreatureSpawnPlan
     /// Candidate columns, nearest ring first. Each ring's headings are offset by half a step from
     /// the previous ring's, so successive rings do not repeat the same bearings.
     /// </summary>
-    internal static IEnumerable<(long X, long Z)> Candidates(long originX, long originZ)
+    internal static IEnumerable<(long X, long Z)> Candidates(long originX, long originZ) =>
+        Candidates(originX, originZ, MinimumDistanceMetres, MaximumDistanceMetres);
+
+    /// <summary>A travel ambush closes in: inside a hostile creature's sight and the ground already streamed around the player.</summary>
+    internal const int AmbushMinimumDistanceMetres = 20;
+    internal const int AmbushMaximumDistanceMetres = 32;
+
+    internal static IEnumerable<(long X, long Z)> Candidates(long originX, long originZ, int minimumMetres, int maximumMetres)
     {
         int ringIndex = 0;
-        for (int ring = MinimumDistanceMetres; ring <= MaximumDistanceMetres; ring += RingStepMetres, ringIndex++)
+        for (int ring = minimumMetres; ring <= maximumMetres; ring += RingStepMetres, ringIndex++)
         {
             double offset = (ringIndex % 2) * 0.5;
             for (int heading = 0; heading < Headings; heading++)

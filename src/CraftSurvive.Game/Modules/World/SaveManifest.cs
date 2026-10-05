@@ -50,6 +50,10 @@ internal static class SaveManifest
     internal static SaveKey PlayerInventory { get; } =
         new("player/inventory", "player/inventory.backup", "InventoryModule", 0x5652_4E49, 2);
 
+    /// <summary>Where the expedition calls home on the map.</summary>
+    internal static SaveKey TravelHome { get; } =
+        new("travel/home", "travel/home.backup", "HomeMarkerStore", 0x454D_4F48, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome];
 }

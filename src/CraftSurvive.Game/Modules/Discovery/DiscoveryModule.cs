@@ -50,6 +50,8 @@ internal sealed class DiscoveryModule : IProductModule
     private long nextNoticeStep;
     private bool noticedOnce;
     private double publishedNearest;
+    /// <summary>The journal tick of the latest look, for places learned between looks.</summary>
+    private long currentTick;
     private bool started;
     private bool disposed;
 
@@ -110,6 +112,8 @@ internal sealed class DiscoveryModule : IProductModule
 
         nextNoticeStep = time.Step + DiscoveryConstants.NoticeIntervalTicks;
         long tick = tickBase + time.Step;
+        currentTick = tick;
+        List<PoiSite> vantages = [];
 
         Vector3 position = player.WorldPosition;
         long columnX = (long)Math.Floor(position.X);
@@ -149,10 +153,14 @@ internal sealed class DiscoveryModule : IProductModule
                 // somewhere and farming somewhere already known.
                 firstVisits++;
                 firstReached.Enqueue(site);
+                if (site.Kind == PoiKind.VantagePoint) vantages.Add(site);
             }
 
             changed |= rose;
         }
+
+        // The view from a vantage point reveals the places around it, seen from afar (#9471).
+        foreach (PoiSite vantage in vantages) changed |= RevealAround(new(vantage.X, vantage.Z), DiscoveryRules.VantageRevealMetres) > 0;
 
         // The journal refuses rather than throwing, but these two reach the Engine - a store
         // write and a projection publish - and a deterministic failure here would drop every
@@ -220,15 +228,47 @@ internal sealed class DiscoveryModule : IProductModule
     private static string Describe(DiscoveryEntry entry) =>
         $"{PlaceName(entry.Kind)}, {(entry.Stage == DiscoveryStage.Visited ? "visited" : "seen")}";
 
-    private static string PlaceName(PoiKind kind) => kind switch
+    private static string PlaceName(PoiKind kind) => DiscoveryRules.PlaceName(kind);
+
+    /// <summary>Every place in the journal, for the map's known places.</summary>
+    internal IReadOnlyList<DiscoveryEntry> Entries => journal.Snapshot().Entries;
+
+    /// <summary>
+    /// Learn of the nearest place not yet known within a radius, as seen, the way a travel event's
+    /// discovery reveals one (#9470). Saves and publishes; returns the place, if any was found.
+    /// </summary>
+    internal PoiSite? RevealNearest(Vector2 at, double radius)
     {
-        PoiKind.StandingStones => "Standing stones",
-        PoiKind.Ruin => "Ruin",
-        PoiKind.CaveMouth => "Cave mouth",
-        PoiKind.DungeonEntrance => "Dungeon entrance",
-        PoiKind.VantagePoint => "Vantage point",
-        _ => "A place",
-    };
+        List<PoiSite> around = [];
+        terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(at.X), (long)Math.Floor(at.Y), (long)Math.Ceiling(radius), around);
+        PoiSite? nearest = around
+            .Where(site => journal.Find(site.CellX, site.CellZ) is null && Vector2.Distance(at, new(site.X, site.Z)) <= radius)
+            .OrderBy(site => Vector2.DistanceSquared(at, new(site.X, site.Z)))
+            .Select(site => (PoiSite?)site).FirstOrDefault();
+        if (nearest is PoiSite found && journal.Notice(found, DiscoveryStage.Seen, ++currentTick)) Persist();
+        return nearest;
+    }
+
+    /// <summary>Learn of every place within a radius as seen; returns how many were new.</summary>
+    private int RevealAround(Vector2 at, double radius)
+    {
+        List<PoiSite> around = [];
+        terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(at.X), (long)Math.Floor(at.Y), (long)Math.Ceiling(radius), around);
+        return around.Count(site => Vector2.Distance(at, new(site.X, site.Z)) <= radius && journal.Notice(site, DiscoveryStage.Seen, currentTick));
+    }
+
+    private void Persist()
+    {
+        try
+        {
+            Save();
+            Publish(publishedNearest);
+        }
+        catch (EngineCallException failure)
+        {
+            lastFailure = failure.Message;
+        }
+    }
 
     /// <summary>Takes the oldest place reached for the first time and not yet taken, if any.</summary>
     internal bool TryTakeFirstVisit(out PoiSite site) => firstReached.TryDequeue(out site);
@@ -399,6 +439,7 @@ internal sealed class DiscoveryModule : IProductModule
 
         lastFailure = slot.LastFailure;
         tickBase = journal.ResumeTick;
+        currentTick = tickBase;
     }
 
     public void Dispose()

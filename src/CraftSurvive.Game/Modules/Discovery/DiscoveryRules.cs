@@ -37,6 +37,21 @@ internal static class DiscoveryRules
     /// <summary>Within this distance the player has arrived, not just looked.</summary>
     internal const double VisitRadiusMetres = 24.0;
 
+    /// <summary>Standing at a vantage point for the first time reveals the places this far around it.</summary>
+    internal const double VantageRevealMetres = 1200.0;
+
+    /// <summary>What a player calls a place they have found.</summary>
+    internal static string PlaceName(PoiKind kind) => kind switch
+    {
+        PoiKind.StandingStones => "Standing stones",
+        PoiKind.Ruin => "Ruin",
+        PoiKind.CaveMouth => "Cave mouth",
+        PoiKind.DungeonEntrance => "Dungeon entrance",
+        PoiKind.VantagePoint => "Vantage point",
+        _ => "A place",
+    };
+
+
     /// <summary>
     /// How finely the ground is sampled along a sightline. Four metres is finer than the
     /// terrain's own detail scale, so a ridge that could hide a landmark is not stepped over.
