@@ -57,13 +57,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     with a bounded number of chunk operations per update. At full travel speed the patch can lag
     a few hundred chunks behind a moving token and shows coarse ground at its leading edge until
     it catches up; it settles once the token slows or stops. Wheel and right-drag delivery
-    could not be exercised by the playtest service; keyboard orbit and zoom were verified live.
+    could not be exercised by the playtest service (requested as crew-services #9493); keyboard orbit and zoom were verified live.
   - **Overland travel (#9467–#9471).** On the faceted map the party token plans A* routes over
     the 32 m lattice, priced by slope, environment, fords and the sea, and travels them while the
     clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel is three times slower.
     - **Destinations:** click the faceted relief (the map screen frees the cursor; the click's
       camera ray is marched to the drawn surface), choose a known place, or move the waypoint with
-      W/A/S/D and plan with T. The smooth overview does not take clicks.
+      W/A/S/D and plan with T. The smooth overview does not take clicks. A plan previews its
+      distance, daylight hours, the rations it should eat beyond the food in hand (a floor: night
+      lengthens it) and the danger at its far end; **Set out** confirms it.
     - **Known places** replace the representative sites (#9471): home, then every place in the
       discovery journal, each drawn on both map views (home green, reached orange, seen tan,
       dungeon entrances violet). Home starts at the world's spawn and moves with **Set home here**

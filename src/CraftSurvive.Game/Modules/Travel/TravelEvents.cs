@@ -49,7 +49,7 @@ internal sealed class TravelEventDirector(ulong seed)
         Rolled++;
         double[] weights = Weights(facts);
         double total = weights.Sum();
-        double danger = Math.Min(MaximumDanger, 1 + facts.HomeKilometres * DangerPerKilometre);
+        double danger = Danger(facts.HomeKilometres);
         // Weights average one in ordinary country, so the total scales the base chance.
         double rate = ChancePerHour * facts.Risk * danger * total / weights.Length;
         if (Draw() >= 1 - Math.Exp(-rate * hours)) return null;
@@ -62,6 +62,13 @@ internal sealed class TravelEventDirector(ulong seed)
         }
         return TravelEventKind.Hazard;
     }
+
+    /// <summary>How dangerous the country is this far from home: 1 at home, rising to <see cref="MaximumDanger"/>.</summary>
+    internal static double Danger(double homeKilometres) => Math.Min(MaximumDanger, 1 + Math.Max(0, homeKilometres) * DangerPerKilometre);
+
+    /// <summary>How the route preview names a danger level.</summary>
+    internal static string DangerName(double danger) => danger < ModerateDanger ? "low" : danger < HighDanger ? "moderate" : "high";
+    private const double ModerateDanger = 1.3, HighDanger = 1.7;
 
     /// <summary>How likely each kind is here, indexed by <see cref="TravelEventKind"/>.</summary>
     internal static double[] Weights(TravelEventFacts facts)

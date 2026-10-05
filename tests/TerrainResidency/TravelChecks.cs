@@ -123,6 +123,11 @@ internal static class TravelChecks
             Check.That(shown.Choices.Count == 2 && shown.Choices.All(c => !c.Label.Contains(',') && !c.Label.Contains('|') && !c.Id.Contains(':'))
                 && !shown.Title.Contains('|') && !shown.Text.Contains('|'), $"{shown.Kind} offers two answers that publish cleanly");
 
+        Check.That(TravelEventDirector.DangerName(TravelEventDirector.Danger(0)) == "low"
+            && TravelEventDirector.DangerName(TravelEventDirector.Danger(5)) == "moderate"
+            && TravelEventDirector.DangerName(TravelEventDirector.Danger(20)) == "high"
+            && TravelEventDirector.Danger(100) == TravelEventDirector.MaximumDanger, "the route preview names danger by distance from home, up to a ceiling");
+
         // Weather slows the next hours of travel; time lost still tires.
         PartyTravel slowed = new(Vector2.Zero), steady = new(Vector2.Zero);
         TravelRoute? across = Crossing(cost, grid);

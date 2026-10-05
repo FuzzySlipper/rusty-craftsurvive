@@ -48,9 +48,25 @@ public sealed partial class CraftSurviveProduct
         if (player.InSeparateSpace) throw new FormatException("Leave this place before planning overland travel.");
         if (!facetedMapShown) ShowFacetedMap(true);
         party ??= new PartyTravel(destination);
-        party.Plan(TravelCost, destination, name);
+        bool planned = party.Plan(TravelCost, destination, name);
         facetedMap?.ShowRoute(party.Route?.Points);
-        worldMessage = party.Last;
+        worldMessage = planned && party.Route is TravelRoute route ? RoutePreview(route) : party.Last;
+    }
+
+    /// <summary>
+    /// The plan as the player confirms it (#9472): distance and daylight hours, the rations the
+    /// march should eat beyond the food in hand, and how dangerous the country at the far end is.
+    /// Night travel lengthens the journey, so the rations are a floor.
+    /// </summary>
+    private string RoutePreview(TravelRoute route)
+    {
+        double hungerPerHour = SurvivalRules.Tuning(conditions.Difficulty).HungerPerSecond / PlayHoursPerSecond;
+        double beyondInHand = route.Hours * hungerPerHour - Math.Max(0, survival.State.Satiety - EatRationBelowSatiety);
+        int rations = (int)Math.Ceiling(Math.Max(0, beyondInHand) / ItemCatalog.Ration.Value);
+        double homeKilometres = Vector2.Distance(route.Points[^1], new((float)home.Home.X, (float)home.Home.Z)) / 1000;
+        string danger = TravelEventDirector.DangerName(TravelEventDirector.Danger(homeKilometres));
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration)}); danger {danger}. Set out to confirm.");
     }
 
     private void TravelAction(string action)
