@@ -51,8 +51,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     static meshes (vertex-coloured, provenance in `content/map-models.sources.json`) scattered
     by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief
     fades out toward the patch edge so it meets the coarse map flush, but the change in
-    surface detail still shows at mid zoom. The view is rebuilt, not moved, when the party has
-    moved (about 1,100 chunks and 1,800 instances, around 3 s). Wheel and right-drag delivery
+    surface detail still shows at mid zoom. The patch follows the party in whole 128 m chunks
+    (#9468): each shift streams the entering and leaving strips, re-streams the strips whose
+    edge fade changed, re-sinks the coarse cells it uncovers or covers and re-scatters clutter,
+    with a bounded number of chunk operations per update. At full travel speed the patch can lag
+    a few hundred chunks behind a moving token and shows coarse ground at its leading edge until
+    it catches up; it settles once the token slows or stops. Wheel and right-drag delivery
     could not be exercised by the playtest service; keyboard orbit and zoom were verified live.
   - **Overland travel is a first slice (#9467).** On the faceted map the party token plans
     A* routes over the 32 m lattice, priced by slope, environment, fords and the sea, and
@@ -60,8 +64,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     is three times slower. Destinations are the representative sites or a waypoint moved with
     W/A/S/D and planned with T; click-to-travel waits for rusty-engine #9466. "Explore here"
     drops into first person at the token. There are no rations, fatigue, camping, events, map
-    knowledge or sled yet (slices 3–7). The detail patch does not follow a moving token (slice
-    2). Whenever the journey pauses, halts or arrives, the player is placed at the token and the
+    knowledge or sled yet (slices 3–7). Whenever the journey pauses, halts or arrives, the player is placed at the token and the
     player continuation saved, so the party's position survives a restart; an unfinished route
     itself is not saved, and progress since the last stop is lost if the session ends mid-journey.
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).

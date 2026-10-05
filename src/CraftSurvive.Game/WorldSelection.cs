@@ -21,8 +21,7 @@ public sealed partial class CraftSurviveProduct
     private const double ArrivalClearance = 4;
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384];
     private const int MetresPerKilometre = 1024;
-    /// <summary>How far the party may have moved before the faceted map is rebuilt around it.</summary>
-    private const float FacetedRebuildMetres = 256;
+    private const string BuildingFacetedMessage = "Building the faceted relief...";
     private const string FirstWorldMessage = "Generating your first world: raising ranges, running rivers and settling climate...";
 
     private bool HandleWorldActions(ProductUpdate update)
@@ -199,14 +198,13 @@ public sealed partial class CraftSurviveProduct
         facetedMapShown = faceted;
         if (faceted)
         {
-            // The view is built around the party; a party that has since moved gets a fresh one.
+            // Built once per world and style; its detail patch then follows the party.
             Vector3 partyFeet = player.WorldFeetPosition;
-            if (facetedMap is not null && Vector3.Distance(facetedMap.PartyWorld, partyFeet) > FacetedRebuildMetres)
-                DisposeFacetedMap();
             facetedMap ??= new(engine, context.Content, worlds.Current.Map, partyFeet, mapStyle);
-            if (party is not null) { facetedMap.MoveParty(party.Position); facetedMap.ShowRoute(party.Route?.Points); }
+            facetedMap.MoveParty(party?.Position ?? new(partyFeet.X, partyFeet.Z));
+            facetedMap.ShowRoute(party?.Route?.Points);
             facetedMap.Activate();
-            worldMessage = facetedMap.Loaded ? "" : "Building the faceted relief...";
+            if (!facetedMap.Loaded) worldMessage = BuildingFacetedMessage;
         }
         else
         {
@@ -238,10 +236,11 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Feed the faceted relief a bounded batch per update while the map is open.</summary>
     private void AdvanceFacetedMap()
     {
-        if (facetedMap is null || facetedMap.Loaded) return;
+        if (facetedMap is null) return;
+        bool wasLoaded = facetedMap.Loaded;
         facetedMap.Advance();
-        if (!facetedMap.Loaded) return;
-        if (facetedMapShown) worldMessage = "";
+        if (wasLoaded || !facetedMap.Loaded) return;
+        if (facetedMapShown && worldMessage == BuildingFacetedMessage) worldMessage = "";
         PublishWorld();
     }
 

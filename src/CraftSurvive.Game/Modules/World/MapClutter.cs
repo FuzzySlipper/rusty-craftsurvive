@@ -25,11 +25,12 @@ internal sealed class MapClutter : IDisposable
     private static readonly Color Untinted = new(1, 1, 1, 1);
 
     private readonly Dictionary<Model, Appearance> appearances = [];
-    private readonly AppearanceFact[] shown, hidden;
+    private readonly WorldMap map;
+    private AppearanceFact[] shown = [], hidden = [];
 
-    /// <param name="surface">The drawn surface in presentation space at a world X/Z, in metres.</param>
-    internal MapClutter(IEngineContext engine, WorldMap map, Vector2 minimum, Vector2 maximum, Func<double, double, Vector3> surface)
+    internal MapClutter(IEngineContext engine, WorldMap map)
     {
+        this.map = map;
         try
         {
             foreach (Model model in Enum.GetValues<Model>())
@@ -40,6 +41,15 @@ internal sealed class MapClutter : IDisposable
             Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Scatter over a world rectangle. Placement is decided per grid cell from world coordinates,
+    /// so a moved rectangle keeps every instance it still covers exactly where it was.
+    /// </summary>
+    /// <param name="surface">The drawn surface in presentation space at a world X/Z, in metres.</param>
+    internal void Scatter(Vector2 minimum, Vector2 maximum, Func<double, double, Vector3> surface)
+    {
         ulong seed = map.Configuration.Contract.GeographyNoiseSeed ^ ScatterSalt;
         List<AppearanceFact> facts = [];
         long x0 = (long)Math.Floor(minimum.X / SpacingMetres), x1 = (long)Math.Floor(maximum.X / SpacingMetres);

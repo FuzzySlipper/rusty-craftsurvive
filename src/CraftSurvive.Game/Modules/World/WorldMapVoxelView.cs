@@ -9,20 +9,27 @@ namespace CraftSurvive.Game.Modules.World;
 /// Prototype faceted map view (#9436, #9437): the generated map voxelized as dual-contoured
 /// terrain, sampling the same <see cref="WorldMap"/> walking terrain does. A coarse layer covers
 /// the whole map; a finer patch around the party carries close-range detail, and the coarse
-/// ground beneath that patch is lowered so the two never fight. A camera rig locked to the
-/// party zooms and orbits. Presentation units are one coarse cell (<see cref="CellMetres"/>).
+/// ground beneath that patch is lowered so the two never fight. The patch follows the party in
+/// whole-chunk steps (#9468): only the strips that enter, leave or change their edge fade are
+/// streamed, within a per-update budget. A camera rig locked to the party zooms and orbits.
+/// Presentation units are one coarse cell (<see cref="CellMetres"/>).
 /// </summary>
 internal sealed class WorldMapVoxelView : IDisposable
 {
     internal const double CellMetres = 32;
     private const int DetailPerCell = 4;
     private const double DetailMetres = CellMetres / DetailPerCell;
-    /// <summary>Coarse cells on each side of the party covered by the detail patch.</summary>
-    private const int DetailRadiusCells = 32;
+    /// <summary>Detail chunks on each side of the party's chunk covered by the patch (one chunk is 128 m).</summary>
+    private const int DetailRadiusChunks = 8;
+    private const int EdgeLength = MapVoxelLayer.EdgeLength;
+    private const double DetailChunkMetres = EdgeLength * DetailMetres;
     /// <summary>Coarse voxels the coarse ground sinks under the detail patch, hiding it there.</summary>
     private const double PatchSink = 1.5;
-    /// <summary>Metres over which regional relief fades out toward the patch edge, so it meets the coarse map flush.</summary>
-    private const double EdgeFadeMetres = 160;
+    /// <summary>
+    /// Metres over which regional relief fades out toward the patch edge, so it meets the coarse map
+    /// flush. One chunk wide, so a one-chunk shift re-streams only the strips beside each edge.
+    /// </summary>
+    private const double EdgeFadeMetres = DetailChunkMetres;
     private const int OriginY = -20000;
     private const int ChunksPerUpdate = 24;
     private const double ExposedRock = 0.6;
@@ -69,7 +76,10 @@ internal sealed class WorldMapVoxelView : IDisposable
     private static readonly Color WaypointColor = new(0.35f, 0.85f, 1f, 1);
     private long startedAt;
     private float publishedDistance = float.NaN;
-    private readonly Vector2 detailMinimum, detailMaximum;
+    private Vector2 detailMinimum, detailMaximum;
+    private long windowChunkX = long.MinValue, windowChunkZ = long.MinValue;
+    private readonly long firstDetailChunk, lastDetailChunk;
+    private int windowShifts;
     private double loadMilliseconds;
 
     internal WorldMapVoxelView(IEngineContext engine, ProductContent content, WorldMap map, Vector3 partyWorldFeet, MapSurfaceStyle style)
@@ -77,7 +87,6 @@ internal sealed class WorldMapVoxelView : IDisposable
         this.engine = engine;
         this.map = map;
         Style = style;
-        PartyWorld = partyWorldFeet;
         cells = Math.Max(1, (int)Math.Round(map.Configuration.Size / CellMetres));
         try
         {
@@ -98,23 +107,16 @@ internal sealed class WorldMapVoxelView : IDisposable
             waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor));
             waypoint = new(partyWorldFeet.X, partyWorldFeet.Z);
 
-            // The detail window, in coarse cells, centred on the party and kept inside the map.
-            int half = cells / 2;
-            int partyCellX = (int)Math.Floor(partyWorldFeet.X / CellMetres) + half;
-            int partyCellZ = (int)Math.Floor(partyWorldFeet.Z / CellMetres) + half;
-            int windowX = Math.Clamp(partyCellX - DetailRadiusCells, 0, Math.Max(0, cells - 2 * DetailRadiusCells));
-            int windowZ = Math.Clamp(partyCellZ - DetailRadiusCells, 0, Math.Max(0, cells - 2 * DetailRadiusCells));
-            int windowCells = Math.Min(2 * DetailRadiusCells, cells);
-
-            double halfMetres = half * CellMetres;
-            detailMinimum = new((float)(windowX * CellMetres - halfMetres), (float)(windowZ * CellMetres - halfMetres));
-            detailMaximum = detailMinimum + new Vector2((float)(windowCells * CellMetres));
-            coarse = Layer(1, CellMetres, -half, -half, cells, cells,
-                (x, z) => x >= windowX && z >= windowZ && x < windowX + windowCells && z < windowZ + windowCells ? PatchSink : 0, false, coarseGround);
-            detail = Layer(1d / DetailPerCell, DetailMetres, (windowX - half) * DetailPerCell, (windowZ - half) * DetailPerCell,
-                windowCells * DetailPerCell, windowCells * DetailPerCell, (_, _) => 0, true, detailGround);
+            firstDetailChunk = (long)Math.Floor(-map.Radius / DetailChunkMetres);
+            lastDetailChunk = (long)Math.Floor((map.Radius - 1) / DetailChunkMetres);
+            coarse = Layer(1, CellMetres, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround);
+            detail = Layer(1d / DetailPerCell, DetailMetres, (_, _) => 0, true, detailGround);
+            clutter = new MapClutter(engine, map);
+            // The window comes first: the coarse ground samples it to sink beneath the patch.
+            Follow(new(partyWorldFeet.X, partyWorldFeet.Z));
+            long firstCoarse = GridMath.FloorDivide(-cells / 2, EdgeLength), lastCoarse = GridMath.FloorDivide(cells - cells / 2 - 1, EdgeLength);
+            coarse.Want(from cz in Range(firstCoarse, lastCoarse) from cx in Range(firstCoarse, lastCoarse) select (cx, cz));
             partyPosition = Surface(partyWorldFeet.X, partyWorldFeet.Z);
-            clutter = new MapClutter(engine, map, detailMinimum, detailMaximum, Surface);
             rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
         }
         catch
@@ -126,11 +128,9 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     internal MapSurfaceStyle Style { get; }
 
-    /// <summary>The party position, in world metres, this view was built around.</summary>
-    internal Vector3 PartyWorld { get; }
-    internal bool Loaded => coarse.Loaded && detail.Loaded;
+    internal bool Loaded => coarse.Settled && detail.Settled;
     internal string Readout => FormattableString.Invariant(
-        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.LoadedChunks}/{coarse.TotalChunks};detailChunks={detail.LoadedChunks}/{detail.TotalChunks};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
+        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
         + rig.Readout;
 
     internal void Activate() => rig.Activate();
@@ -154,9 +154,10 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// <summary>The keyboard waypoint, in world metres X/Z.</summary>
     internal Vector2 Waypoint => waypoint;
 
-    /// <summary>Move the party token; the camera follows it.</summary>
+    /// <summary>Move the party token; the camera and the detail patch follow it.</summary>
     internal void MoveParty(Vector2 world)
     {
+        Follow(world);
         partyPosition = Surface(world.X, world.Y);
         rig.FocusOn(partyPosition);
         factsVersion++;
@@ -228,15 +229,83 @@ internal sealed class WorldMapVoxelView : IDisposable
         return new(id, false, 0, new(ground + Vector3.UnitY * scale, Quaternion.Identity, Vector3.One * scale), appearance, true, RenderLayer.Scene);
     }
 
-    /// <summary>Admit a bounded batch: the whole map first, then the detail around the party.</summary>
+    /// <summary>Apply a bounded batch each update: the whole map first, then the patch around the party.</summary>
     internal void Advance()
     {
-        if (Loaded) return;
+        bool wasLoaded = Loaded;
         if (startedAt == 0) startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (!coarse.Loaded) coarse.Advance(ChunksPerUpdate);
-        else detail.Advance(ChunksPerUpdate);
-        if (Loaded) loadMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
+        int budget = ChunksPerUpdate;
+        if (coarse.PendingChunks > 0 || !coarse.Settled)
+        {
+            coarse.Advance(budget);
+            // Until the whole map is up, it has the budget; afterwards both share it.
+            if (!coarse.Settled && loadMilliseconds == 0) return;
+            budget /= 2;
+        }
+        detail.Advance(budget);
+        if (!wasLoaded && Loaded && loadMilliseconds == 0)
+            loadMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
     }
+
+    /// <summary>
+    /// Keep the detail window centred on the party, in whole detail chunks and inside the map. A
+    /// shift streams the strips entering and leaving, re-streams the strips beside each edge whose
+    /// fade changed, re-sinks the coarse cells whose cover changed, and re-scatters the clutter.
+    /// </summary>
+    private void Follow(Vector2 world)
+    {
+        long span = 2 * DetailRadiusChunks;
+        long maximumStart = Math.Max(firstDetailChunk, lastDetailChunk - span + 1);
+        long x0 = Math.Clamp((long)Math.Floor(world.X / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
+        long z0 = Math.Clamp((long)Math.Floor(world.Y / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
+        if (x0 == windowChunkX && z0 == windowChunkZ) return;
+        bool first = windowChunkX == long.MinValue;
+        (Vector2 oldMinimum, Vector2 oldMaximum) = (detailMinimum, detailMaximum);
+        long oldX0 = windowChunkX, oldZ0 = windowChunkZ;
+        windowChunkX = x0;
+        windowChunkZ = z0;
+        long x1 = Math.Min(lastDetailChunk, x0 + span - 1), z1 = Math.Min(lastDetailChunk, z0 + span - 1);
+        detailMinimum = new((float)Math.Max(-map.Radius, x0 * DetailChunkMetres), (float)Math.Max(-map.Radius, z0 * DetailChunkMetres));
+        detailMaximum = new((float)Math.Min(map.Radius, (x1 + 1) * DetailChunkMetres), (float)Math.Min(map.Radius, (z1 + 1) * DetailChunkMetres));
+
+        detail.Want(from cz in Range(z0, z1) from cx in Range(x0, x1) select (cx, cz));
+        if (!first)
+        {
+            windowShifts++;
+            // Columns beside either window's edges carry a fade that has changed.
+            detail.Invalidate(Ring(x0, z0, x1, z1).Concat(Ring(oldX0, oldZ0, Math.Min(lastDetailChunk, oldX0 + span - 1), Math.Min(lastDetailChunk, oldZ0 + span - 1))));
+            coarse.Invalidate(CoarseChanged(oldMinimum, oldMaximum));
+        }
+        clutter.Scatter(detailMinimum, detailMaximum, Surface);
+        factsVersion++;
+    }
+
+    /// <summary>Coarse chunk columns holding a cell whose cover by the patch changed.</summary>
+    private IEnumerable<(long X, long Z)> CoarseChanged(Vector2 oldMinimum, Vector2 oldMaximum)
+    {
+        HashSet<(long, long)> changed = [];
+        long ax = (long)Math.Floor(Math.Min(oldMinimum.X, detailMinimum.X) / CellMetres), bx = (long)Math.Floor(Math.Max(oldMaximum.X, detailMaximum.X) / CellMetres);
+        long az = (long)Math.Floor(Math.Min(oldMinimum.Y, detailMinimum.Y) / CellMetres), bz = (long)Math.Floor(Math.Max(oldMaximum.Y, detailMaximum.Y) / CellMetres);
+        for (long z = az; z <= bz; z++)
+        for (long x = ax; x <= bx; x++)
+        {
+            double cx = (x + 0.5) * CellMetres, cz = (z + 0.5) * CellMetres;
+            bool before = cx >= oldMinimum.X && cz >= oldMinimum.Y && cx < oldMaximum.X && cz < oldMaximum.Y;
+            if (before != InDetail(cx, cz)) changed.Add((GridMath.FloorDivide(x, EdgeLength), GridMath.FloorDivide(z, EdgeLength)));
+        }
+        return changed;
+    }
+
+    private static IEnumerable<(long X, long Z)> Ring(long x0, long z0, long x1, long z1) =>
+        from cz in Range(z0, z1) from cx in Range(x0, x1) where cx == x0 || cx == x1 || cz == z0 || cz == z1 select (cx, cz);
+
+    private static IEnumerable<long> Range(long first, long last)
+    {
+        for (long i = first; i <= last; i++) yield return i;
+    }
+
+    private bool InDetail(double worldX, double worldZ) =>
+        worldX >= detailMinimum.X && worldZ >= detailMinimum.Y && worldX < detailMaximum.X && worldZ < detailMaximum.Y;
 
     public void Dispose()
     {
@@ -254,31 +323,31 @@ internal sealed class WorldMapVoxelView : IDisposable
     }
 
     /// <summary>
-    /// One layer: each column samples the map at its centre, with exaggerated relief.
-    /// <paramref name="sinkCells"/> lowers a column by that many coarse voxels.
+    /// One streamed layer: each voxel column samples the map at its centre, with exaggerated relief,
+    /// lowered by <paramref name="sink"/> coarse voxels at a world point. Columns beyond the map are empty.
     /// </summary>
-    private MapVoxelLayer Layer(double voxelSize, double cellMetres, long originX, long originZ, int width, int depth,
-        Func<int, int, double> sinkCells, bool localRelief, TerrainGroundMaterials? ground)
+    private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground)
     {
         double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
         double origin = OriginY / voxelSize;
-        double[] surface = new double[width * depth];
-        uint[] material = new uint[width * depth];
-        for (int z = 0; z < depth; z++)
-        for (int x = 0; x < width; x++)
+        void Sample(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
         {
-            double worldX = (originX + x + 0.5) * cellMetres, worldZ = (originZ + z + 0.5) * cellMetres;
-            MapSample sample = map.Sample(worldX, worldZ);
-            // The detail patch carries the same regional relief walking terrain adds to the map.
-            double top = Top(sample, worldX, worldZ, localRelief);
-            int i = z * width + x;
-            surface[i] = origin + top / metresPerVoxel - sinkCells(x, z) / voxelSize;
-            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
-                : RiverCovers(worldX, worldZ, cellMetres) ? RiverSlot
-                : sample.Rock >= ExposedRock ? RockSlot
-                : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
+            for (int z = 0; z < EdgeLength; z++)
+            for (int x = 0; x < EdgeLength; x++)
+            {
+                int i = z * EdgeLength + x;
+                double worldX = (chunkX * EdgeLength + x + 0.5) * cellMetres, worldZ = (chunkZ * EdgeLength + z + 0.5) * cellMetres;
+                if (Math.Abs(worldX) > map.Radius || Math.Abs(worldZ) > map.Radius) { surface[i] = double.NaN; continue; }
+                MapSample sample = map.Sample(worldX, worldZ);
+                // The detail patch carries the same regional relief walking terrain adds to the map.
+                surface[i] = origin + Top(sample, worldX, worldZ, localRelief) / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
+                material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
+                    : RiverCovers(worldX, worldZ, cellMetres) ? RiverSlot
+                    : sample.Rock >= ExposedRock ? RockSlot
+                    : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
+            }
         }
-        if (ground is null) return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, materials);
+        if (ground is null) return new MapVoxelLayer(engine, voxelSize, Sample, materials);
         // Textured: environments on a layer share the blended material; the rest keep their own.
         Dictionary<uint, Material> bindings = new(materials);
         List<(uint Slot, uint Layer)> layered = [];
@@ -294,7 +363,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         }
         if (Style.RockLayer is int rockLayer) { bindings[RockSlot] = ground.Layered; layered.Add((RockSlot, (uint)rockLayer)); }
         else if (Style.PlainRock is string plain) bindings[RockSlot] = ground.Plain(plain);
-        return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, bindings,
+        return new MapVoxelLayer(engine, voxelSize, Sample, bindings,
             ([.. layered.Select(entry => entry.Slot)], [.. layered.Select(entry => entry.Layer)], ground.Settings.TransitionCells));
     }
 
@@ -318,11 +387,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     }
 
     /// <summary>A point on the faceted surface as drawn: the detail patch where it covers, else the coarse map.</summary>
-    private Vector3 Surface(double worldX, double worldZ)
-    {
-        bool detailed = worldX >= detailMinimum.X && worldZ >= detailMinimum.Y && worldX < detailMaximum.X && worldZ < detailMaximum.Y;
-        return Position(worldX, Top(map.Sample(worldX, worldZ), worldX, worldZ, detailed), worldZ);
-    }
+    private Vector3 Surface(double worldX, double worldZ) =>
+        Position(worldX, Top(map.Sample(worldX, worldZ), worldX, worldZ, InDetail(worldX, worldZ)), worldZ);
 
     private Vector3 Position(double worldX, double elevation, double worldZ)
     {
