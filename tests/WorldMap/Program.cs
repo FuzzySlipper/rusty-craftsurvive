@@ -15,6 +15,19 @@ try
     host.Call(engine =>
     {
         using ProductStore store = new(engine);
+        // Before any world exists the product's UI stream still carries the generating map, and
+        // diagnostics that need a world owner answer with the named pending state.
+        using (ProductUiPublisher ui = new(engine))
+        {
+            ui.OpenStream();
+            ui.PublishMap(new(true, "1", 4096, "", "Generating your first world", 0, false));
+            Check.That(ui.Published == 1, "a world-less publisher sends the generating map projection");
+        }
+        object probe = new();
+        Check.Throws<WorldPendingException>(() => WorldOwners.Require<object>(false, probe), "an owner is refused before its world is built");
+        Check.Throws<WorldPendingException>(() => WorldOwners.Require<object>(true, null), "a missing owner is refused");
+        Check.That(WorldOwners.Require<object>(true, probe) == probe, "a built owner is returned");
+
         Stopwatch construction = Stopwatch.StartNew();
         WorldCatalog catalog = new(engine, store);
         double constructionMs = construction.Elapsed.TotalMilliseconds;

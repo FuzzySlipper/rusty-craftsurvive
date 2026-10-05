@@ -13,14 +13,17 @@ namespace CraftSurvive.Game.Modules.World;
 /// </summary>
 internal static class ProductUiProjection
 {
-    internal static UiValue Create(VoxelSceneReadout scene, int overlayEntries, PlayerUiFacts? player,
+    internal static UiValue Create(WorldUiFacts? sceneFacts, PlayerUiFacts? player,
         DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null)
     {
         NumericObjectBuilder values = new();
-        values.Add("revision", scene.SourceRevision);
-        values.Add("residentChunks", scene.ResidentChunkCount);
-        values.Add("solidVoxels", scene.SolidVoxelCount);
-        values.Add("overlayEntries", overlayEntries);
+        if (sceneFacts is WorldUiFacts scene)
+        {
+            values.Add("revision", scene.Scene.SourceRevision);
+            values.Add("residentChunks", scene.Scene.ResidentChunkCount);
+            values.Add("solidVoxels", scene.Scene.SolidVoxelCount);
+            values.Add("overlayEntries", scene.OverlayEntries);
+        }
         if (player is PlayerUiFacts facts)
         {
             values.Add("playerX", facts.EyeX);

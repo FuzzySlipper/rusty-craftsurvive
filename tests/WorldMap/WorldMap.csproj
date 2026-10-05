@@ -22,6 +22,9 @@
     <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/WorldMapSave.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/WorldCatalog.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldOwners.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductUiPublisher.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductUiProjection.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
   </ItemGroup>
 </Project>

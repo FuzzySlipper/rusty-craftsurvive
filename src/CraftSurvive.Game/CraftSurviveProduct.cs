@@ -101,11 +101,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         ui = new ProductUiPublisher(context.Engine);
         worlds = new WorldCatalog(engine, store);
         if (worlds.HasWorld) CreateWorld();
-        creatureDebug = new CreatureDebugModule(() => creatures);
+        creatureDebug = new CreatureDebugModule(() => Owner(creatures));
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
-        productDebug = new CraftDebugModule(() => player, () => creatures, () => terrain, context.Debugging);
+        productDebug = new CraftDebugModule(() => Owner(player), () => Owner(creatures), () => Owner(terrain), context.Debugging);
     }
 
     private void CreateWorld()
@@ -185,20 +185,20 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
-        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => terrain, () => facetedMap)));
+        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap)));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
-        RequireRegistration(registrar.Register(new DiscoveryDebugModule(() => discovery)));
-        RequireRegistration(registrar.Register(new BlastDebugModule(() => blast)));
-        RequireRegistration(registrar.Register(new BuildDebugModule(() => build, () => entityStore)));
+        RequireRegistration(registrar.Register(new DiscoveryDebugModule(() => Owner(discovery))));
+        RequireRegistration(registrar.Register(new BlastDebugModule(() => Owner(blast))));
+        RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore))));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
-        RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => conditions)));
-        RequireRegistration(registrar.Register(new SurvivalDebugModule(() => survival)));
-        RequireRegistration(registrar.Register(new InventoryDebugModule(() => inventory)));
-        RequireRegistration(registrar.Register(new DungeonDebugModule(() => dungeons)));
-        RequireRegistration(registrar.Register(new FeedbackDebugModule(() => feedback)));
-        RequireRegistration(registrar.Register(CraftPlaytest.Create(() => player)));
+        RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
+        RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
+        RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
+        RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));
+        RequireRegistration(registrar.Register(new FeedbackDebugModule(() => Owner(feedback))));
+        RequireRegistration(registrar.Register(CraftPlaytest.Create(() => Owner(player))));
     }
 
     public void Start()
@@ -206,6 +206,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireState(ProductLifecycleState.Created, nameof(Start));
         try
         {
+            ui.OpenStream();
             if (worldBuilt) StartWorld();
             else worldMessage = FirstWorldMessage;
             lifecycle = ProductLifecycleState.Running;
@@ -350,6 +351,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 $"{operation} requires {expected} but CraftSurvive is {lifecycle}.");
         }
     }
+
+    /// <summary>A world owner for diagnostics, or a named pending answer before the first world exists.</summary>
+    private T Owner<T>(T? owner) where T : class => WorldOwners.Require(worldBuilt, owner);
 
     private static void RequireRegistration(DebugCommandRegistrationResult registration)
     {

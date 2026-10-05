@@ -120,7 +120,16 @@ internal sealed class ProductUiPublisher : IDisposable
     private ulong sequence;
     private WorldMapUiFacts? map;
 
+    /// <summary>How many projections this publisher has sent.</summary>
+    internal ulong Published => sequence;
+
     internal ProductUiPublisher(IEngineContext engine) => this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
+
+    /// <summary>
+    /// Open the product's stream. The product does this at start, before any world exists, so a
+    /// fresh store's generating map is published; the terrain later attaches its scene facts.
+    /// </summary>
+    internal void OpenStream() => stream ??= engine.Ui.OpenStream(new UiStreamRequest(StreamName, StreamContract));
 
     internal void Open(string name, string contract, Func<WorldUiFacts> worldFacts)
     {
@@ -179,14 +188,15 @@ internal sealed class ProductUiPublisher : IDisposable
 
     internal void Publish()
     {
-        if (stream is null || world is null)
+        if (stream is null)
         {
             return;
         }
 
-        WorldUiFacts facts = world();
+        // Without a world there is no scene; the map and its generating message still publish.
+        WorldUiFacts? facts = world?.Invoke();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts.Scene, facts.OverlayEntries, player, discovery, actions, conditions, survival, inventory, dungeon, map)));
+            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map)));
     }
 
     public void Dispose()
