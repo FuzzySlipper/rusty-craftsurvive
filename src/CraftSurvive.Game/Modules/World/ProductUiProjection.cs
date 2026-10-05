@@ -123,6 +123,7 @@ internal static class ProductUiProjection
             values.Add("worldMapFaceted", geography.Faceted ? 1 : 0);
             values.AddText("worldTravel", geography.Travel);
             values.AddText("worldTravelPhase", geography.TravelPhase);
+            values.AddText("worldTravelSupplies", geography.Supplies);
         }
 
         return values.Build();

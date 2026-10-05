@@ -58,7 +58,7 @@ public sealed partial class CraftSurviveProduct
                         if (!facetedMapShown || facetedMap is null) ShowFacetedMap(true);
                         PlanTravel(facetedMap!.Waypoint, "the waypoint");
                         break;
-                    case "go" or "pause" or "halt":
+                    case "go" or "pause" or "halt" or "camp":
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
                         TravelAction(action.GetString()!);
                         break;
@@ -249,13 +249,13 @@ public sealed partial class CraftSurviveProduct
         if (!worlds.HasWorld)
         {
             TerrainConfiguration first = TerrainConfiguration.Default;
-            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle"));
+            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle", ""));
             return;
         }
         WorldMap map = worlds.Current.Map;
         string sites = string.Join(';', map.Sites.Select((site, index) => FormattableString.Invariant(
             $"{index}|{site.Name}|{WorldMap.Region(site.Geography)}|{site.X:F0}|{site.Z:F0}|{site.Geography.Elevation:F0}")));
         ui.PublishMap(new(mapOpen, map.Configuration.Seed.ToString(CultureInfo.InvariantCulture), map.Configuration.Size,
-            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase));
+            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase, TravelSupplies()));
     }
 }

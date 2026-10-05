@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Travel;
 using CraftSurvive.Game.Modules.WorldGen;
 
@@ -17,6 +19,10 @@ public sealed partial class CraftSurviveProduct
     private const double PlayHoursPerSecond = 24d / WorldClock.DaySeconds;
     /// <summary>Travel status republishes each time this many game hours have passed, not every update.</summary>
     private const double TravelPublishHours = 0.1;
+    /// <summary>A daytime camp halts the expedition this many game hours.</summary>
+    private const double DayCampHours = 2;
+    /// <summary>The expedition eats a ration once a whole one fits in the stomach.</summary>
+    private static readonly double EatRationBelowSatiety = SurvivalRules.MaximumSatiety - ItemCatalog.Ration.Value;
 
     private TravelCostModel? travelCost;
     private PartyTravel? party;
@@ -64,6 +70,9 @@ public sealed partial class CraftSurviveProduct
                 facetedMap?.ShowRoute(null);
                 SettleParty();
                 break;
+            case "camp":
+                Camp();
+                return;
         }
         worldMessage = party.Last;
     }
@@ -77,6 +86,8 @@ public sealed partial class CraftSurviveProduct
             hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction));
         bool stopped = party.State != TravelState.Travelling;
         conditions.Pass(spent / PlayHoursPerSecond, save: stopped);
+        survival.Journey(spent / PlayHoursPerSecond);
+        EatOnTheRoad();
         facetedMap?.MoveParty(party.Position);
         unpublishedTravelHours += spent;
         if (stopped)
@@ -90,6 +101,39 @@ public sealed partial class CraftSurviveProduct
             unpublishedTravelHours = 0;
             PublishWorld();
         }
+    }
+
+    /// <summary>The expedition eats from its packs whenever a ration would not be wasted.</summary>
+    private void EatOnTheRoad()
+    {
+        if (survival.State.Satiety > EatRationBelowSatiety || !inventory.Spend(ItemCatalog.Ration)) return;
+        survival.Eat(ItemCatalog.Ration.Value);
+    }
+
+    /// <summary>
+    /// Make camp where the token stands: at night the expedition sleeps until morning, fully rested
+    /// after a long enough night; by day it halts a couple of hours and recovers part of its fatigue. Camping is never
+    /// required; it is how fatigue and the slow night march are avoided.
+    /// </summary>
+    private void Camp()
+    {
+        if (party is null) throw new FormatException("Open the map to make camp.");
+        party.Pause();
+        if (!SettleParty()) return;
+        bool night = conditions.IsNight;
+        long refused = survival.RestsRefused;
+        double began = conditions.Time.DayFraction;
+        string outcome = night ? survival.Rest() : survival.RestFor(DayCampHours / PlayHoursPerSecond);
+        if (survival.RestsRefused != refused)
+        {
+            worldMessage = "Cannot camp: " + outcome;
+            return;
+        }
+        double slept = WorldClock.SecondsUntil(began, conditions.Time.DayFraction) * PlayHoursPerSecond;
+        party.Rest(slept);
+        EatOnTheRoad();
+        SaveJourney();
+        worldMessage = $"{party.Last} ({outcome})";
     }
 
     /// <summary>Leaving the map explores where the token stands.</summary>
@@ -118,7 +162,15 @@ public sealed partial class CraftSurviveProduct
             return false;
         }
         player.SaveContinuationNow();
+        SaveJourney();
         return true;
+    }
+
+    /// <summary>Map travel changes food and packs outside gameplay updates, so their saves follow the journey's.</summary>
+    private void SaveJourney()
+    {
+        survival.SaveNow();
+        inventory.SaveNow();
     }
 
     private string TravelStatus()
@@ -137,6 +189,16 @@ public sealed partial class CraftSurviveProduct
         bool night = WorldClock.IsNight(time.DayFraction);
         return string.Create(CultureInfo.InvariantCulture,
             $"{clock} · {phase} {route.Destination} · {party.RemainingHours:F1} h of daylight travel left{(night ? " · night: very slow, consider camping" : "")}");
+    }
+
+    /// <summary>What the expedition carries and how worn it is, for the journey panel.</summary>
+    private string TravelSupplies()
+    {
+        int rations = inventory.Count(ItemCatalog.Ration);
+        double fatigue = party?.Fatigue ?? 0;
+        string worn = party?.Exhausted == true ? "exhausted: slow until camp" : fatigue >= PartyTravel.ExhaustedAt / 2 ? "tiring" : "fresh";
+        return string.Create(CultureInfo.InvariantCulture,
+            $"rations {rations} · food {survival.State.Satiety:F0}% · {worn} ({fatigue * 100:F0}% fatigue)");
     }
 
     private string TravelPhase => party?.State switch

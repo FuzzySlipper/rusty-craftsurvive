@@ -37,11 +37,11 @@ internal static class TravelChecks
             PartyTravel day = new(route.Points[0]), night = new(route.Points[0]);
             day.Plan(cost, route.Points[^1], to.Name); night.Plan(cost, route.Points[^1], to.Name);
             day.Begin(); night.Begin();
-            double daySpent = day.Advance(route.Hours + 1e-6, _ => false);
+            double daySpent = Rested(day, route.Hours + 1e-6, night: false);
             Check.That(day.State == TravelState.Arrived && Math.Abs(daySpent - day.Route!.Hours) < 1e-6, "daylight travel arrives after the route's hours");
-            night.Advance(route.Hours, _ => true);
+            Rested(night, route.Hours, night: true);
             Check.That(night.State == TravelState.Travelling && night.RemainingHours > route.Hours * 0.6, "night travel covers about a third of the ground");
-            night.Advance(route.Hours * 3, _ => true);
+            Rested(night, route.Hours * 3, night: true);
             Check.That(night.State == TravelState.Arrived && night.Position == route.Points[^1], "night travel still arrives, three times slower");
 
             PartyTravel paused = new(route.Points[0]);
@@ -53,19 +53,62 @@ internal static class TravelChecks
             Check.That(paused.Advance(1, _ => false) == 0 && paused.Position == midway, "a paused party does not move");
             paused.Stop();
             Check.That(paused.State == TravelState.Idle && paused.Route is null && paused.Position == midway, "halting keeps the party where it stood");
+
+            // Fatigue (#9469): a long march exhausts the expedition and slows it; camping restores it.
+            PartyTravel tired = new(route.Points[0]), fresh = new(route.Points[0]);
+            TravelRoute far = Crossing(cost, grid) ?? route;
+            tired.Plan(cost, far.Points[^1], "far"); fresh.Plan(cost, far.Points[^1], "far");
+            tired.Begin(); fresh.Begin();
+            double march = PartyTravel.ExhaustedAt / PartyTravel.FatiguePerHour;
+            tired.Advance(march, _ => false);
+            Check.That(tired.Exhausted && Math.Abs(tired.Fatigue - PartyTravel.ExhaustedAt) < 1e-6, "about ten hours of marching exhausts the expedition");
+            double before = tired.RemainingHours;
+            tired.Advance(1, _ => false);
+            double exhaustedProgress = before - tired.RemainingHours;
+            Check.That(Math.Abs(exhaustedProgress - 1 / PartyTravel.ExhaustedMultiplier) < 1e-3, "an exhausted expedition moves slower");
+            tired.Rest(4);
+            Check.That(tired.State == TravelState.Paused && tired.Fatigue < PartyTravel.ExhaustedAt, "a daytime camp halts and recovers part of the fatigue");
+            tired.Rest(0.5);
+            Check.That(tired.Fatigue > 0, "half an hour before dawn is not a night's sleep");
+            tired.Rest(PartyTravel.FullRestHours);
+            Check.That(tired.Fatigue == 0, "a night's camp restores the expedition fully");
+            fresh.Advance(PartyTravel.MaximumFatigue / PartyTravel.FatiguePerHour * 4, _ => false);
+            Check.That(fresh.Fatigue <= PartyTravel.MaximumFatigue, "fatigue is bounded");
         }
 
         // A full-world crossing lands near the owner's two-day starting point (Den design/overland-travel-mode).
-        int west = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + x).First(cost.Passable);
-        int east = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + grid.Segments - x).First(cost.Passable);
-        TravelRoute? crossing = TravelRouter.Plan(cost, new((float)grid.X(west), (float)grid.Z(west)), new((float)grid.X(east), (float)grid.Z(east)), "far side");
+        TravelRoute? crossing = Crossing(cost, grid);
         if (crossing is not null)
         {
             Console.WriteLine($"crossing: {crossing.Metres / 1000:F1} km in {crossing.Hours:F1} h of daylight travel");
             Check.That(crossing.Hours is > 12 and < 72, "crossing a 10 km world takes roughly one to three days of travel");
         }
+        int west = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + x).First(cost.Passable);
         TravelRoute? shore = TravelRouter.Plan(cost, new((float)grid.X(west), (float)grid.Z(west)), new((float)grid.X(sea), (float)grid.Z(sea)), "sea");
         Check.That(shore is not null && map.Sample(shore.Points[^1].X, shore.Points[^1].Y).Elevation >= GenerationConstants.WaterLevel - 0.5,
             "a destination at sea routes to the nearest shore and ends on land");
+    }
+
+    /// <summary>West to east across the middle of the world.</summary>
+    private static TravelRoute? Crossing(TravelCostModel cost, MapGrid grid)
+    {
+        int west = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + x).First(cost.Passable);
+        int east = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + grid.Segments - x).First(cost.Passable);
+        return TravelRouter.Plan(cost, new((float)grid.X(west), (float)grid.Z(west)), new((float)grid.X(east), (float)grid.Z(east)), "far side");
+    }
+
+    /// <summary>Travel in marches short enough never to tire, camping overnight between them, so pace is the terrain's and the night's alone.</summary>
+    private static double Rested(PartyTravel party, double hours, bool night)
+    {
+        const double March = 5;
+        double spent = 0;
+        while (spent < hours && party.State == TravelState.Travelling)
+        {
+            spent += party.Advance(Math.Min(March, hours - spent), _ => night);
+            if (party.State != TravelState.Travelling) break;
+            party.Rest(PartyTravel.FullRestHours);
+            party.Begin();
+        }
+        return spent;
     }
 }

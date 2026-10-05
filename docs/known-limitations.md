@@ -63,10 +63,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     travels them while the clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel
     is three times slower. Destinations are the representative sites or a waypoint moved with
     W/A/S/D and planned with T; click-to-travel waits for rusty-engine #9466. "Explore here"
-    drops into first person at the token. There are no rations, fatigue, camping, events, map
-    knowledge or sled yet (slices 3–7). Whenever the journey pauses, halts or arrives, the player is placed at the token and the
-    player continuation saved, so the party's position survives a restart; an unfinished route
-    itself is not saved, and progress since the last stop is lost if the session ends mid-journey.
+    drops into first person at the token. The journey costs food at the ordinary survival rate
+    and the expedition eats a ration from the pack whenever a whole one fits; without rations an
+    empty stomach hurts as it does on foot (#9469). About ten hours of marching exhausts the
+    expedition, which then moves half again slower until it camps. **Camp** sleeps until morning
+    at night (a full rest after six hours or more) or halts two hours by day, under the same
+    safety rule as resting on foot; it is never required. Fatigue is not saved. There are no
+    events, map knowledge or sled yet (slices 4–7). Whenever the journey pauses, halts, arrives or
+    camps, the player is placed at the token and the player continuation, survival and pack are
+    saved, so the party's position and supplies survive a restart; an unfinished route itself is
+    not saved, and progress since the last stop is lost if the session ends mid-journey.
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any

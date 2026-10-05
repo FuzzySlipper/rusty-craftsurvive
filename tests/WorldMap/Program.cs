@@ -20,7 +20,7 @@ try
         using (ProductUiPublisher ui = new(engine))
         {
             ui.OpenStream();
-            ui.PublishMap(new(true, "1", 4096, "", "Generating your first world", 0, false, "", "idle"));
+            ui.PublishMap(new(true, "1", 4096, "", "Generating your first world", 0, false, "", "idle", ""));
             Check.That(ui.Published == 1, "a world-less publisher sends the generating map projection");
         }
         object probe = new();

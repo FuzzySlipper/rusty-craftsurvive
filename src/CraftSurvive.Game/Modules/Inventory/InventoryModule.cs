@@ -119,7 +119,10 @@ internal sealed class InventoryModule : IProductModule
         Publish();
     }
 
-    public void Dispose()
+    public void Dispose() => SaveNow();
+
+    /// <summary>Saves the carried items at once if they changed, for a caller that changed them outside an update (map travel).</summary>
+    internal void SaveNow()
     {
         if (store.Revision != savedRevision)
         {

@@ -37,14 +37,15 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
   const journey = element('section', PANEL + 'position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);width:26rem;');
   journey.setAttribute('aria-label', 'Journey');
   const journeyStatus = element('p', 'margin:0 0 .5rem;font-size:.9rem;');
+  const journeySupplies = element('p', 'margin:0 0 .5rem;font-size:.85rem;opacity:.85;');
   const travelButtons: Record<string, HTMLButtonElement> = {};
   const journeyRow = element('div', 'display:flex;gap:.4rem;flex-wrap:wrap;');
-  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['waypoint', 'Route to waypoint']] as const) {
+  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['camp', 'Camp'], ['waypoint', 'Route to waypoint']] as const) {
     const control = button(label);
     control.addEventListener('click', () => claim({ action }));
     travelButtons[action] = control; journeyRow.append(control);
   }
-  journey.append(journeyStatus, journeyRow);
+  journey.append(journeyStatus, journeySupplies, journeyRow);
   const form = element('form', PANEL + 'position:absolute;right:1rem;bottom:1rem;width:18rem;');
   form.append(element('h3', 'margin:0 0 .5rem;', 'Begin a new world'));
   const seedLabel = element('label', 'display:block;', 'World seed');
@@ -80,6 +81,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
     style.hidden = (text(values, 'worldSites') ?? '') === '';
     const phase = text(values, 'worldTravelPhase') ?? 'idle';
     journeyStatus.textContent = text(values, 'worldTravel') ?? '';
+    journeySupplies.textContent = text(values, 'worldTravelSupplies') ?? '';
     journey.hidden = style.hidden;
     const go = travelButtons['go'], pause = travelButtons['pause'], halt = travelButtons['halt'];
     if (go) { go.disabled = !(phase === 'planned' || phase === 'paused'); go.textContent = phase === 'paused' ? 'Resume' : 'Set out'; }

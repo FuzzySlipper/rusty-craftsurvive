@@ -103,7 +103,10 @@ internal sealed class SurvivalModule : IProductModule
         Publish();
     }
 
-    public void Dispose() => slot.Save(state);
+    public void Dispose() => SaveNow();
+
+    /// <summary>Saves the tracks at once, for a caller that advanced them outside an update (map travel).</summary>
+    internal void SaveNow() => slot.Save(state);
 
     /// <summary>How many rests have been refused, so a caller can tell a refusal from its answer.</summary>
     internal long RestsRefused { get; private set; }
@@ -131,6 +134,51 @@ internal sealed class SurvivalModule : IProductModule
         }
 
         double seconds = Sky.WorldClock.SecondsUntil(conditions.Time.DayFraction, Sky.WorldClock.WakingFraction);
+        return Sleep(seconds);
+    }
+
+    /// <summary>A rest of a set length at any hour (a daytime halt on a journey), with the same safety rule as sleeping.</summary>
+    internal string RestFor(double seconds)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seconds);
+        if (player.Vitals.IsDown) return RefuseRest("rest refused: the player is down");
+        double nearest = nearestHostileMetres();
+        if (nearest < SurvivalRules.RestSafetyMetres)
+            return RefuseRest(string.Create(CultureInfo.InvariantCulture, $"rest refused: a hostile creature is {nearest:F0} m away"));
+        return Sleep(seconds);
+    }
+
+    /// <summary>
+    /// Time spent marching on the map: the ordinary rules applied over those seconds, a slice at a
+    /// time and never sprinting or submerged, so the journey costs food and an empty stomach hurts.
+    /// </summary>
+    internal void Journey(double seconds)
+    {
+        if (seconds <= 0) return;
+        for (double spent = 0d; spent < seconds; spent += SurvivalRules.RestSliceSeconds)
+        {
+            int health = player.Vitals.State.Health;
+            SurvivalStep next = SurvivalRules.Advance(state, new SurvivalFacts(health, player.Vitals.MaximumHealth, HeadSubmerged: false, Sprinting: false, Hurt: false),
+                conditions.Difficulty, Math.Min(SurvivalRules.RestSliceSeconds, seconds - spent));
+            state = next.State;
+            if (next.Regained > 0)
+            {
+                player.Vitals.Heal(next.Regained);
+                regained += next.Regained;
+            }
+            if (next.Lost > 0)
+            {
+                player.Vitals.TakeHit(next.Lost, 0);
+                lost += next.Lost;
+                lastHarm = next.Cause;
+            }
+        }
+        lastHealth = player.Vitals.State.Health;
+        Publish();
+    }
+
+    private string Sleep(double seconds)
+    {
         SurvivalStep rested = SurvivalRules.Rest(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds);
         state = rested.State;
         player.Vitals.Heal(rested.Regained);
