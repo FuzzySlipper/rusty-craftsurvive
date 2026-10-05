@@ -28,6 +28,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private readonly ProductCreateContext context;
     private readonly WorldCatalog worlds;
     private WorldMapPresentation? overview;
+
+    /// <summary>The prototype faceted map view (#9436), built on first request and kept for this world.</summary>
+    private WorldMapVoxelView? facetedMap;
+    private bool facetedMapShown;
     private bool mapOpen;
 
     /// <summary>
@@ -181,7 +185,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
-        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => terrain)));
+        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => terrain, () => facetedMap)));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
@@ -233,7 +237,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
         if (AdmitPreparedWorld() || !worldBuilt) return ProductUpdateResult.None;
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
-        if (mapOpen) return ProductUpdateResult.None;
+        if (mapOpen)
+        {
+            AdvanceFacetedMap();
+            return ProductUpdateResult.None;
+        }
         ProductStep step = ProductStep.From(update.Facts);
 
         // The player moves first on this update's input, then the UI's requests are aimed from
@@ -314,6 +322,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
 
         overview?.Dispose();
+        facetedMap?.Dispose();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         if (worldBuilt)
         {
@@ -358,7 +367,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(mapOpen && overview is not null ? overview.Facts : [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]);
+        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]
+            : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
     }

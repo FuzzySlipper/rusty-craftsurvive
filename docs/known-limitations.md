@@ -37,6 +37,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     only the map view's generating message; there is no progress estimate.
   - The bedrock perimeter rises a fixed height above local ground; it is not final
     geographic edge art. Far terrain has no overview LOD in the first-person view.
+  - The map view's **Faceted relief** toggle is a prototype (#9436). It voxelizes the map as
+    dual-contoured terrain at one voxel per 32 m with flat biome colours, in its own session
+    with its own camera. Rivers are painted onto cells rather than carved, biome edges step
+    at the cell size, and faceting is subtle at full-map zoom. There is no zoom or pan, and
+    the session stays loaded for the world once built (about 840 chunks, around 2 s, at 10 km).
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any

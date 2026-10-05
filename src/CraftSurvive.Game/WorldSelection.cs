@@ -43,6 +43,10 @@ public sealed partial class CraftSurviveProduct
                     case "close":
                         CloseMap();
                         break;
+                    case "style":
+                        if (!mapOpen) throw new FormatException("Open the world map to change its view.");
+                        ShowFacetedMap(!facetedMapShown);
+                        break;
                     case "create":
                         if (!mapOpen) throw new FormatException("Open the world map to start a new world.");
                         if (!root.TryGetProperty("seed", out JsonElement seedElement) || seedElement.ValueKind != JsonValueKind.String
@@ -84,7 +88,8 @@ public sealed partial class CraftSurviveProduct
         sky.Submerged(false);
         sky.Underground(false, WorldConditionsState.Fresh.Time);
         mapOpen = true;
-        overview.Activate();
+        if (facetedMapShown && facetedMap is not null) facetedMap.Activate();
+        else overview.Activate();
         PublishAppearanceSnapshot();
     }
 
@@ -150,6 +155,9 @@ public sealed partial class CraftSurviveProduct
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         overview?.Dispose();
         overview = null;
+        facetedMap?.Dispose();
+        facetedMap = null;
+        facetedMapShown = false;
         foreach (IProductModule module in gameplay.Reverse()) module.Dispose();
         sky.Dispose(); player.Dispose(); terrain.Dispose();
         frame = new(); cues = new Cues(); entities = new BlockEntityIndex();
@@ -162,18 +170,46 @@ public sealed partial class CraftSurviveProduct
         OpenMap();
     }
 
+    /// <summary>Switch the open map between the smooth mesh and the prototype faceted relief.</summary>
+    private void ShowFacetedMap(bool faceted)
+    {
+        facetedMapShown = faceted;
+        if (faceted)
+        {
+            facetedMap ??= new(engine, worlds.Current.Map);
+            facetedMap.Activate();
+            worldMessage = facetedMap.Loaded ? "" : "Building the faceted relief...";
+        }
+        else
+        {
+            overview!.Activate();
+            worldMessage = "";
+        }
+        PublishAppearanceSnapshot();
+    }
+
+    /// <summary>Feed the faceted relief a bounded batch per update while the map is open.</summary>
+    private void AdvanceFacetedMap()
+    {
+        if (facetedMap is null || facetedMap.Loaded) return;
+        facetedMap.Advance();
+        if (!facetedMap.Loaded) return;
+        if (facetedMapShown) worldMessage = "";
+        PublishWorld();
+    }
+
     private void PublishWorld()
     {
         if (!worlds.HasWorld)
         {
             TerrainConfiguration first = TerrainConfiguration.Default;
-            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0));
+            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false));
             return;
         }
         WorldMap map = worlds.Current.Map;
         string sites = string.Join(';', map.Sites.Select((site, index) => FormattableString.Invariant(
             $"{index}|{site.Name}|{WorldMap.Region(site.Geography)}|{site.X:F0}|{site.Z:F0}|{site.Geography.Elevation:F0}")));
         ui.PublishMap(new(mapOpen, map.Configuration.Seed.ToString(CultureInfo.InvariantCulture), map.Configuration.Size,
-            sites, worldMessage, worlds.Current.Generation));
+            sites, worldMessage, worlds.Current.Generation, facetedMapShown));
     }
 }

@@ -11,7 +11,17 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
     { this.catalog = catalog; this.terrain = terrain; }
 
     [DebugCommand("craft.world.map", Description = "Reads active generated map identity, size, generation cost, persistence and representative sites.")]
-    public string ReadMap()
+    public string ReadMap() => Read();
+
+    private readonly Func<WorldMapVoxelView?>? faceted;
+
+    internal WorldMapDebugModule(Func<WorldCatalog> catalog, Func<TerrainWorld> terrain, Func<WorldMapVoxelView?> faceted)
+        : this(catalog, terrain) => this.faceted = faceted;
+
+    [DebugCommand("craft.world.faceted", Description = "Reads the prototype faceted map view's load progress and cost, if it has been built.")]
+    public string ReadFaceted() => faceted?.Invoke()?.Readout ?? "faceted=none";
+
+    private string Read()
     {
         WorldCatalog c = catalog();
         if (!c.HasWorld) return FormattableString.Invariant($"world=generating;preparing={c.Preparing};restore={c.RestoreOutcome}");

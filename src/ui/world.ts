@@ -24,7 +24,10 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
   const identity = element('span', 'flex:1;opacity:.8;');
   const close = button('Return to exploration');
   close.addEventListener('click', () => claim({ action: 'close' }));
-  heading.append(identity, close);
+  // Prototype comparison (#9436): the product switches between its smooth and faceted relief.
+  const style = button('Faceted relief');
+  style.addEventListener('click', () => claim({ action: 'style' }));
+  heading.append(identity, style, close);
   const destinations = element('nav', PANEL + 'position:absolute;left:1rem;bottom:1rem;width:19rem;max-height:42vh;overflow:auto;');
   destinations.setAttribute('aria-label', 'Explore a region');
   const sites = element('div');
@@ -61,6 +64,8 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
     if (visible && document.pointerLockElement !== null) document.exitPointerLock();
     identity.textContent = `Seed ${text(values, 'worldSeed') ?? ''} · ${((number(values, 'worldSize') ?? 0) / 1000).toFixed(1)} km across`;
     status.textContent = text(values, 'worldMessage') ?? ''; status.hidden = status.textContent.length === 0;
+    style.textContent = number(values, 'worldMapFaceted') === 1 ? 'Smooth relief' : 'Faceted relief';
+    style.hidden = (text(values, 'worldSites') ?? '') === '';
     const source = text(values, 'worldSites') ?? '';
     if (source === renderedSites) return;
     renderedSites = source; sites.replaceChildren();

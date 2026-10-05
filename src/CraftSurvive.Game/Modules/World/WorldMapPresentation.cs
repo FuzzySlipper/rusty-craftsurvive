@@ -7,18 +7,17 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>A coarse geographic mesh and its overview camera, entirely realized by Engine services.</summary>
 internal sealed class WorldMapPresentation : IDisposable
 {
-    private const float MapWidth = 100;
+    internal const float MapWidth = 100;
     /// <summary>Relief is drawn taller than true scale so a 300 m range reads on a 10 km sheet.</summary>
-    private const float VerticalExaggeration = 3;
+    internal const float VerticalExaggeration = 3;
     private const int MaximumMeshSegments = 256;
-    private static readonly Color RiverColor = new(0.22f, 0.42f, 0.72f, 1);
     private const float MapY = -10000;
-    private const float EyeHeight = 112;
-    private const float EyeBack = 65;
-    private const float Pitch = -60;
-    private const double FieldOfView = 55;
-    private const double Near = 0.1;
-    private const double Far = 300;
+    internal const float EyeHeight = 112;
+    internal const float EyeBack = 65;
+    internal const float Pitch = -60;
+    internal const double FieldOfView = 55;
+    internal const double Near = 0.1;
+    internal const double Far = 300;
     private const uint MaterialSlot = 0;
     private readonly IEngineContext engine;
     private readonly Material material;
@@ -46,7 +45,7 @@ internal sealed class WorldMapPresentation : IDisposable
             MapSample sample = map.Node(node);
             positions[i] = Point(map.Coordinate(x * stride), sample.Elevation, map.Coordinate(z * stride));
             uvs[i] = new(x / (float)segments, z / (float)segments);
-            colors[i] = RiverIn(map, x * stride, z * stride, stride) ? RiverColor : Tint(sample);
+            colors[i] = RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample);
         }
         for (int z = 0; z < side; z++)
         for (int x = 0; x < side; x++)
@@ -96,29 +95,6 @@ internal sealed class WorldMapPresentation : IDisposable
                 && MapRivers.CatchmentSquareKilometres(map.Grid, map.Fields.Discharge[node]) >= MapRivers.SourceCatchment) return true;
         }
         return false;
-    }
-
-    private static Color Tint(MapSample s)
-    {
-        Color baseColor = WorldMap.Biome(s) switch
-        {
-            MapBiome.Sea => new(0.16f, 0.31f, 0.45f, 1),
-            MapBiome.IceField => new(0.92f, 0.94f, 0.96f, 1),
-            MapBiome.Tundra => new(0.66f, 0.68f, 0.62f, 1),
-            MapBiome.BorealForest => new(0.24f, 0.37f, 0.31f, 1),
-            MapBiome.ColdSteppe => new(0.55f, 0.55f, 0.43f, 1),
-            MapBiome.TemperateForest => new(0.2f, 0.41f, 0.19f, 1),
-            MapBiome.Grassland => new(0.43f, 0.55f, 0.27f, 1),
-            MapBiome.Shrubland => new(0.67f, 0.62f, 0.35f, 1),
-            MapBiome.Desert => new(0.84f, 0.71f, 0.47f, 1),
-            MapBiome.Rainforest => new(0.12f, 0.35f, 0.18f, 1),
-            _ => new(0.52f, 0.5f, 0.48f, 1),
-        };
-        const float RockBlend = 0.45f;
-        Color stone = new(0.5f, 0.48f, 0.46f, 1);
-        float r = (float)s.Rock * RockBlend;
-        return new(baseColor.R + (stone.R - baseColor.R) * r, baseColor.G + (stone.G - baseColor.G) * r,
-            baseColor.B + (stone.B - baseColor.B) * r, 1);
     }
 
     public void Dispose()

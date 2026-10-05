@@ -117,6 +117,7 @@ internal static class ProductUiProjection
             values.AddText("worldSites", geography.Sites);
             values.AddText("worldMessage", geography.Message);
             values.Add("worldGeneration", geography.Generation);
+            values.Add("worldMapFaceted", geography.Faceted ? 1 : 0);
         }
 
         return values.Build();
