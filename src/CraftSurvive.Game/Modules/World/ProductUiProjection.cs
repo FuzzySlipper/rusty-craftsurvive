@@ -121,6 +121,8 @@ internal static class ProductUiProjection
             values.AddText("worldMessage", geography.Message);
             values.Add("worldGeneration", geography.Generation);
             values.Add("worldMapFaceted", geography.Faceted ? 1 : 0);
+            values.AddText("worldTravel", geography.Travel);
+            values.AddText("worldTravelPhase", geography.TravelPhase);
         }
 
         return values.Build();

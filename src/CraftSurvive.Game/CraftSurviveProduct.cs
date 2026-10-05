@@ -244,6 +244,13 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (mapOpen)
         {
             ApplyRequestedMapStyle();
+            if (facetedMapShown && facetedMap is not null && facetedMap.SteerWaypoint(update.Input))
+            {
+                try { PlanTravel(facetedMap.Waypoint, "the waypoint"); }
+                catch (FormatException refused) { worldMessage = refused.Message; }
+                PublishWorld();
+            }
+            AdvanceTravel(ProductStep.From(update.Facts).ElapsedSeconds);
             if (facetedMapShown && facetedMap is not null && (facetedMap.Steer(update.Input) | facetedMap.MarkersStale)) PublishAppearanceSnapshot();
             AdvanceFacetedMap();
             return ProductUpdateResult.None;

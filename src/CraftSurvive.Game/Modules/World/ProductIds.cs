@@ -24,6 +24,10 @@ internal static class ProductIds
 
     internal const ulong WorldMapObject = 0x4_0000UL;
     internal const ulong WorldMapPartyObject = 0x4_0001UL;
+    internal const ulong WorldMapWaypointObject = 0x4_0002UL;
+    /// <summary>Route ribbon markers on the faceted map; up to 0xF00 of them.</summary>
+    internal const ulong WorldMapRouteBase = 0x4_0100UL;
+    internal const int WorldMapRouteLimit = 0xF00;
     internal const ulong WorldMapSiteBase = 0x4_0010UL;
     /// <summary>Map clutter instances (trees, rocks) on the faceted map's detail patch; up to 0xF000 of them.</summary>
     internal const ulong WorldMapClutterBase = 0x4_1000UL;

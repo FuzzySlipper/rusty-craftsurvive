@@ -76,12 +76,18 @@ internal sealed class WorldConditionsModule : IProductModule
     public void Dispose() => slot.Save(state);
 
     /// <summary>Lets some seconds of play pass at once, as a rest does.</summary>
-    internal void Pass(double seconds)
+    internal void Pass(double seconds) => Pass(seconds, save: true);
+
+    /// <summary>
+    /// Lets seconds of play pass; map travel advances the clock every update and saves only when
+    /// the journey stops.
+    /// </summary>
+    internal void Pass(double seconds, bool save)
     {
         WorldTime time = WorldClock.Advance(state.Time, seconds);
         state = state with { Day = time.Day, DayFraction = time.DayFraction };
         Show(force: true);
-        slot.Save(state);
+        if (save) slot.Save(state);
     }
 
     /// <summary>Sets the hour of the current day, for a live check of night and day.</summary>

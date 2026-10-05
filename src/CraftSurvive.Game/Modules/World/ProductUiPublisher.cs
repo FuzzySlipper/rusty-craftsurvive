@@ -91,7 +91,8 @@ internal readonly record struct ConditionsUiFacts(string Time, double Daylight, 
 /// <summary>The world's facts for the UI projection, read when it is published.</summary>
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);
 
-internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted);
+internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted,
+    string Travel, string TravelPhase);
 
 /// <summary>
 /// The product's one UI stream. Owners push their facts - the player its pose and vitals, discovery

@@ -17,6 +17,7 @@
     <Compile Include="$(ProductModules)Content/BuildPalette.cs" LinkBase="Product/Content" />
     <!-- The world generator is pure: link it whole. -->
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
+    <Compile Include="$(ProductModules)Travel/*.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainGenerationFingerprint.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product/Terrain" />

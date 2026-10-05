@@ -172,6 +172,13 @@ retiring owners can flush without writing into the new world. The source stamp,
 map fingerprint and recipe output identity invalidate generated chunk caches.
 A generator-version change discards incompatible development saves.
 
+Overland travel (`Modules/Travel`) is product-owned and engine-free. `TravelCostModel` prices
+each map cell; `TravelRouter` runs A* over the lattice; `PartyTravel` holds the token, its route
+and progress. The root's map update advances a travelling party and passes the hours it spends
+to `WorldConditionsModule`, saving only when the journey stops. The faceted view draws the token,
+the route ribbon and a keyboard waypoint. Closing the map explores at the token by teleporting
+the player there. See Den `design/overland-travel-mode`.
+
 The root replaces per-world owners on a new-game intent while retaining the
 Engine product session, one persistence store and one UI stream. It releases
 old appearance, spatial, camera and light handles before installing replacements;

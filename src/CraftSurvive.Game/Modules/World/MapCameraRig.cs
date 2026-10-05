@@ -49,7 +49,25 @@ internal sealed class MapCameraRig : IDisposable
         camera = engine.CameraView.CreateCamera(Descriptor());
     }
 
-    internal Vector3 Focus { get; set; }
+    internal Vector3 Focus { get; private set; }
+
+    /// <summary>Follow the party: move the focus and publish the pose.</summary>
+    internal void FocusOn(Vector3 focus)
+    {
+        Focus = focus;
+        Publish();
+    }
+
+    /// <summary>The camera's heading on the ground plane (X/Z), from the same look integration as its pose.</summary>
+    internal Vector2 Heading
+    {
+        get
+        {
+            Vector3 forward = Look.IntegrateClamped(new LookRequest(new LookState(yaw, 0), Vector2.Zero, PlayerBody.Look)).Forward;
+            Vector2 flat = new(forward.X, forward.Z);
+            return flat.LengthSquared() > 0 ? Vector2.Normalize(flat) : new(0, -1);
+        }
+    }
     internal float Distance => distance;
     internal string Readout => FormattableString.Invariant(
         $"distance={distance:F1};yawDegrees={yaw * 180 / MathF.PI:F0};pitchDegrees={pitch * 180 / MathF.PI:F0};orbiting={orbiting};lastPointer={lastPointer}");

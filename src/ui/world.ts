@@ -22,17 +22,29 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
   const heading = element('header', PANEL + 'position:absolute;top:1rem;left:1rem;right:1rem;display:flex;gap:1rem;align-items:center;');
   heading.append(element('strong', '', 'The wider world'));
   const identity = element('span', 'flex:1;opacity:.8;');
-  const close = button('Return to exploration');
+  const close = button('Explore here');
   close.addEventListener('click', () => claim({ action: 'close' }));
   // Prototype comparison (#9436): the product switches between its smooth and faceted relief.
   const style = button('Faceted relief');
   style.addEventListener('click', () => claim({ action: 'style' }));
   heading.append(identity, style, close);
   const destinations = element('nav', PANEL + 'position:absolute;left:1rem;bottom:1rem;width:19rem;max-height:42vh;overflow:auto;');
-  destinations.setAttribute('aria-label', 'Explore a region');
+  destinations.setAttribute('aria-label', 'Travel to a place');
   const sites = element('div');
-  destinations.append(element('h3', 'margin:0 0 .5rem;', 'Explore a region'),
-    element('p', 'font-size:.85rem;opacity:.75;', 'North is toward the far edge. Markers show these starting sites. Visits are for exploring the generated world.'), sites);
+  destinations.append(element('h3', 'margin:0 0 .5rem;', 'Travel to a place'),
+    element('p', 'font-size:.85rem;opacity:.75;', 'North is toward the far edge. Choose a place to plan a route, or move the blue waypoint with W/A/S/D and press T.'), sites);
+  // Travel controls: the product owns the journey; these buttons only claim its actions.
+  const journey = element('section', PANEL + 'position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);width:26rem;');
+  journey.setAttribute('aria-label', 'Journey');
+  const journeyStatus = element('p', 'margin:0 0 .5rem;font-size:.9rem;');
+  const travelButtons: Record<string, HTMLButtonElement> = {};
+  const journeyRow = element('div', 'display:flex;gap:.4rem;flex-wrap:wrap;');
+  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['waypoint', 'Route to waypoint']] as const) {
+    const control = button(label);
+    control.addEventListener('click', () => claim({ action }));
+    travelButtons[action] = control; journeyRow.append(control);
+  }
+  journey.append(journeyStatus, journeyRow);
   const form = element('form', PANEL + 'position:absolute;right:1rem;bottom:1rem;width:18rem;');
   form.append(element('h3', 'margin:0 0 .5rem;', 'Begin a new world'));
   const seedLabel = element('label', 'display:block;', 'World seed');
@@ -51,10 +63,10 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
   form.addEventListener('submit', event => { event.preventDefault(); claim({ action: 'create', seed: seed.value, size: Number(size.value) }); });
   const status = element('p', PANEL + 'position:absolute;top:5rem;left:50%;transform:translateX(-50%);max-width:40rem;');
   status.setAttribute('role', 'status');
-  for (const panel of [heading, destinations, form, status]) {
+  for (const panel of [heading, destinations, form, status, journey]) {
     panel.setAttribute('data-rusty-ui-interactive', ''); isolateEvents(panel);
   }
-  screen.append(heading, destinations, form, status); host.append(open, screen);
+  screen.append(heading, destinations, form, status, journey); host.append(open, screen);
   let renderedSites = '';
   const render = (): void => {
     const values = projectionValues(projection?.current() ?? null);
@@ -66,13 +78,20 @@ export function mountWorld(host: Element, gameUi: HTMLElement, intents: RustyApp
     status.textContent = text(values, 'worldMessage') ?? ''; status.hidden = status.textContent.length === 0;
     style.textContent = number(values, 'worldMapFaceted') === 1 ? 'Smooth relief' : 'Faceted relief';
     style.hidden = (text(values, 'worldSites') ?? '') === '';
+    const phase = text(values, 'worldTravelPhase') ?? 'idle';
+    journeyStatus.textContent = text(values, 'worldTravel') ?? '';
+    journey.hidden = style.hidden;
+    const go = travelButtons['go'], pause = travelButtons['pause'], halt = travelButtons['halt'];
+    if (go) { go.disabled = !(phase === 'planned' || phase === 'paused'); go.textContent = phase === 'paused' ? 'Resume' : 'Set out'; }
+    if (pause) pause.disabled = phase !== 'travelling';
+    if (halt) halt.disabled = phase === 'idle' || phase === 'arrived';
     const source = text(values, 'worldSites') ?? '';
     if (source === renderedSites) return;
     renderedSites = source; sites.replaceChildren();
     for (const entry of source.split(';').filter(Boolean)) {
       const [id = '', name = '', region = '', x = '', z = '', elevation = ''] = entry.split('|');
       const visit = button(name); visit.style.cssText = 'display:block;width:100%;text-align:left;margin-top:.7rem;padding:.5rem;';
-      visit.addEventListener('click', () => claim({ action: 'visit', site: Number(id) }));
+      visit.addEventListener('click', () => claim({ action: 'travel', site: Number(id) }));
       sites.append(visit, element('small', 'display:block;opacity:.8;', `${region} · ${elevation} m · (${x}, ${z})`));
     }
   };

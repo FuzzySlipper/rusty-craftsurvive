@@ -55,7 +55,18 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly TerrainGroundMaterials? coarseGround, detailGround;
     /// <summary>Clutter is shown only from this camera distance inward, where it reads at all.</summary>
     private const float ClutterDistance = 160;
-    private readonly Vector3 partyPosition;
+    private Vector3 partyPosition;
+    private Vector2 waypoint;
+    private Vector3[] routeMarkers = [];
+    private readonly Appearance routeMarker, waypointMarker;
+    private int factsVersion, publishedVersion = -1;
+    private bool waypointForward, waypointBack, waypointLeft, waypointRight;
+    // The waypoint moves at a fixed fraction of the camera distance per update, so it suits any zoom.
+    private const float WaypointSpeedPerDistance = 0.012f;
+    private const double RouteMarkerSpacingMetres = 48;
+    private const float RouteMarkerScalePerDistance = 0.004f;
+    private static readonly Color RouteColor = new(0.98f, 0.86f, 0.3f, 1);
+    private static readonly Color WaypointColor = new(0.35f, 0.85f, 1f, 1);
     private long startedAt;
     private float publishedDistance = float.NaN;
     private readonly Vector2 detailMinimum, detailMaximum;
@@ -83,6 +94,9 @@ internal sealed class WorldMapVoxelView : IDisposable
             }
             marker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, new Color(1, 0.38f, 0.1f, 1)));
             party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor));
+            routeMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, RouteColor));
+            waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor));
+            waypoint = new(partyWorldFeet.X, partyWorldFeet.Z);
 
             // The detail window, in coarse cells, centred on the party and kept inside the map.
             int half = cells / 2;
@@ -129,15 +143,87 @@ internal sealed class WorldMapVoxelView : IDisposable
     internal AppearanceFact[] Facts => [
         .. clutter.Facts(rig.Distance <= ClutterDistance),
         Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
+        Marker(ProductIds.WorldMapWaypointObject, Surface(waypoint.X, waypoint.Y), PartyScalePerDistance, waypointMarker),
+        .. routeMarkers.Select((point, i) => Marker(ProductIds.WorldMapRouteBase + (ulong)i, point, RouteMarkerScalePerDistance, routeMarker)),
         .. map.Sites.Select((site, i) => Marker(ProductIds.WorldMapSiteBase + (ulong)i,
             Surface(site.X, site.Z), MarkerScalePerDistance, marker))];
 
-    /// <summary>Whether the camera has zoomed since the markers were last published.</summary>
-    internal bool MarkersStale => rig.Distance != publishedDistance;
+    /// <summary>Whether zoom, the party, its route or the waypoint changed since the facts were last published.</summary>
+    internal bool MarkersStale => rig.Distance != publishedDistance || factsVersion != publishedVersion;
+
+    /// <summary>The keyboard waypoint, in world metres X/Z.</summary>
+    internal Vector2 Waypoint => waypoint;
+
+    /// <summary>Move the party token; the camera follows it.</summary>
+    internal void MoveParty(Vector2 world)
+    {
+        partyPosition = Surface(world.X, world.Y);
+        rig.FocusOn(partyPosition);
+        factsVersion++;
+    }
+
+    /// <summary>Show a planned route as a ribbon of markers on the drawn surface, or clear it.</summary>
+    internal void ShowRoute(IReadOnlyList<Vector2>? points)
+    {
+        List<Vector3> markers = [];
+        if (points is not null)
+        {
+            double carried = 0;
+            for (int i = 1; i < points.Count && markers.Count < ProductIds.WorldMapRouteLimit; i++)
+            {
+                Vector2 a = points[i - 1], b = points[i];
+                double length = Vector2.Distance(a, b);
+                for (double along = RouteMarkerSpacingMetres - carried; along < length; along += RouteMarkerSpacingMetres)
+                {
+                    Vector2 p = Vector2.Lerp(a, b, (float)(along / length));
+                    markers.Add(Surface(p.X, p.Y));
+                }
+                carried = (carried + length) % RouteMarkerSpacingMetres;
+            }
+        }
+        routeMarkers = [.. markers];
+        factsVersion++;
+    }
+
+    /// <summary>
+    /// Move the waypoint with held W/A/S/D relative to the camera's heading. Returns true when T asks
+    /// for a route to it.
+    /// </summary>
+    internal bool SteerWaypoint(ReadOnlySpan<ProductInputEvent> events)
+    {
+        bool plan = false;
+        foreach (ProductInputEvent input in events)
+        {
+            if (input.Kind == InputEventKind.Clear) { waypointForward = waypointBack = waypointLeft = waypointRight = false; continue; }
+            if (input.Kind != InputEventKind.Key || input.Edge == InputEdge.None) continue;
+            bool held = input.Edge == InputEdge.Pressed;
+            switch (input.Keyboard)
+            {
+                case KeyboardControl.KeyW: waypointForward = held; break;
+                case KeyboardControl.KeyS: waypointBack = held; break;
+                case KeyboardControl.KeyA: waypointLeft = held; break;
+                case KeyboardControl.KeyD: waypointRight = held; break;
+                case KeyboardControl.KeyT when held: plan = true; break;
+            }
+        }
+        float forward = (waypointForward ? 1 : 0) - (waypointBack ? 1 : 0), right = (waypointRight ? 1 : 0) - (waypointLeft ? 1 : 0);
+        if (forward != 0 || right != 0)
+        {
+            // Camera-relative: ahead is the camera's ground heading, right is a quarter turn clockwise from it.
+            Vector2 ahead = rig.Heading, side = new(-ahead.Y, ahead.X);
+            float step = (float)(rig.Distance * WaypointSpeedPerDistance * CellMetres);
+            Vector2 moved = waypoint + (ahead * forward + side * right) * step;
+            float limit = (float)map.Radius;
+            waypoint = Vector2.Clamp(moved, new(-limit), new(limit));
+            factsVersion++;
+        }
+        return plan;
+    }
 
     private AppearanceFact Marker(ulong id, Vector3 ground, float scalePerDistance, Appearance appearance)
     {
         publishedDistance = rig.Distance;
+        publishedVersion = factsVersion;
         float scale = Math.Max(MinimumMarkerScale, rig.Distance * scalePerDistance);
         return new(id, false, 0, new(ground + Vector3.UnitY * scale, Quaternion.Identity, Vector3.One * scale), appearance, true, RenderLayer.Scene);
     }
@@ -161,6 +247,8 @@ internal sealed class WorldMapVoxelView : IDisposable
         coarseGround?.Dispose();
         rig?.Dispose();
         party?.Dispose();
+        routeMarker?.Dispose();
+        waypointMarker?.Dispose();
         marker?.Dispose();
         foreach (Material material in materials.Values) material.Dispose();
     }

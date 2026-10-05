@@ -54,6 +54,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     surface detail still shows at mid zoom. The view is rebuilt, not moved, when the party has
     moved (about 1,100 chunks and 1,800 instances, around 3 s). Wheel and right-drag delivery
     could not be exercised by the playtest service; keyboard orbit and zoom were verified live.
+  - **Overland travel is a first slice (#9467).** On the faceted map the party token plans
+    A* routes over the 32 m lattice, priced by slope, environment, fords and the sea, and
+    travels them while the clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel
+    is three times slower. Destinations are the representative sites or a waypoint moved with
+    W/A/S/D and planned with T; click-to-travel waits for rusty-engine #9466. "Explore here"
+    drops into first person at the token. There are no rations, fatigue, camping, events, map
+    knowledge or sled yet (slices 3–7). The detail patch does not follow a moving token (slice
+    2). Progress made while the map stays open is lost if the session ends before exploring.
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
