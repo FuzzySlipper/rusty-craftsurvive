@@ -15,8 +15,22 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
 
     private readonly Func<WorldMapVoxelView?>? faceted;
 
-    internal WorldMapDebugModule(Func<WorldCatalog> catalog, Func<TerrainWorld> terrain, Func<WorldMapVoxelView?> faceted)
-        : this(catalog, terrain) => this.faceted = faceted;
+    private readonly Action<string>? requestStyle;
+
+    internal WorldMapDebugModule(Func<WorldCatalog> catalog, Func<TerrainWorld> terrain, Func<WorldMapVoxelView?> faceted,
+        Action<string> requestStyle)
+        : this(catalog, terrain)
+    {
+        this.faceted = faceted;
+        this.requestStyle = requestStyle;
+    }
+
+    [DebugCommand("craft.world.mapstyle", Description = "Experiment (#9464): rebuilds the faceted map with ground style flat, ground or painted on the next update.")]
+    public string SetMapStyle(string style)
+    {
+        requestStyle?.Invoke(style);
+        return "requested=" + style;
+    }
 
     [DebugCommand("craft.world.faceted", Description = "Reads the prototype faceted map view's load progress and cost, if it has been built.")]
     public string ReadFaceted() => faceted?.Invoke()?.Readout ?? "faceted=none";

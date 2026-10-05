@@ -28,8 +28,11 @@ internal sealed class MapVoxelLayer : IDisposable
     private long workTicks;
 
     /// <param name="surface">Absolute surface height per column, in voxels; row-major, <paramref name="width"/> wide.</param>
+    /// <param name="terrainLayers">Slots drawn by a terrain-layer material, each with its layer index, blended
+    /// across <c>TransitionCells</c>; null draws every slot with its own material.</param>
     internal MapVoxelLayer(IEngineContext engine, double voxelSize, long originX, long originZ, int width, int depth,
-        double[] surface, uint[] material, IReadOnlyDictionary<uint, Material> materials)
+        double[] surface, uint[] material, IReadOnlyDictionary<uint, Material> materials,
+        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null)
     {
         this.engine = engine;
         this.originX = originX;
@@ -50,6 +53,8 @@ internal sealed class MapVoxelLayer : IDisposable
                 slots.Select(slot => new VoxelMaterialCollision(slot, false)).ToArray()));
             engine.Voxel.ConfigureMaterialOcclusion(new VoxelMaterialOcclusionRequest(Session,
                 slots.Select(slot => new VoxelMaterialOcclusion(slot, true)).ToArray()));
+            if (terrainLayers is { } layered)
+                engine.Voxel.ConfigureTerrainLayers(new VoxelTerrainLayerRequest(Session, layered.Slots, layered.TransitionCells, layered.Layers));
         }
         catch { Session.Dispose(); throw; }
 

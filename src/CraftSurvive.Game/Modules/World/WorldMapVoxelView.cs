@@ -52,6 +52,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly MapVoxelLayer detail;
     private readonly MapCameraRig rig;
     private readonly MapClutter clutter;
+    private readonly TerrainGroundMaterials? coarseGround, detailGround;
     /// <summary>Clutter is shown only from this camera distance inward, where it reads at all.</summary>
     private const float ClutterDistance = 160;
     private readonly Vector3 partyPosition;
@@ -60,10 +61,11 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly Vector2 detailMinimum, detailMaximum;
     private double loadMilliseconds;
 
-    internal WorldMapVoxelView(IEngineContext engine, WorldMap map, Vector3 partyWorldFeet)
+    internal WorldMapVoxelView(IEngineContext engine, ProductContent content, WorldMap map, Vector3 partyWorldFeet, MapSurfaceStyle style)
     {
         this.engine = engine;
         this.map = map;
+        Style = style;
         PartyWorld = partyWorldFeet;
         cells = Math.Max(1, (int)Math.Round(map.Configuration.Size / CellMetres));
         try
@@ -73,6 +75,12 @@ internal sealed class WorldMapVoxelView : IDisposable
             foreach (MapBiome biome in Enum.GetValues<MapBiome>())
             for (int tone = 0; tone < Tones; tone++)
                 materials[Slot(biome, tone)] = Flat(Shade(MapPalette.For(biome), 1 + (tone - Tones / 2) * ToneStep));
+            if (style.Textures is GroundTextureSet textures)
+            {
+                // Tiles span the same ground at both resolutions: the scale is in each layer's cells.
+                coarseGround = new TerrainGroundMaterials(engine, content, CellMetres, textures);
+                detailGround = new TerrainGroundMaterials(engine, content, DetailMetres, textures);
+            }
             marker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, new Color(1, 0.38f, 0.1f, 1)));
             party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor));
 
@@ -88,9 +96,9 @@ internal sealed class WorldMapVoxelView : IDisposable
             detailMinimum = new((float)(windowX * CellMetres - halfMetres), (float)(windowZ * CellMetres - halfMetres));
             detailMaximum = detailMinimum + new Vector2((float)(windowCells * CellMetres));
             coarse = Layer(1, CellMetres, -half, -half, cells, cells,
-                (x, z) => x >= windowX && z >= windowZ && x < windowX + windowCells && z < windowZ + windowCells ? PatchSink : 0, false);
+                (x, z) => x >= windowX && z >= windowZ && x < windowX + windowCells && z < windowZ + windowCells ? PatchSink : 0, false, coarseGround);
             detail = Layer(1d / DetailPerCell, DetailMetres, (windowX - half) * DetailPerCell, (windowZ - half) * DetailPerCell,
-                windowCells * DetailPerCell, windowCells * DetailPerCell, (_, _) => 0, true);
+                windowCells * DetailPerCell, windowCells * DetailPerCell, (_, _) => 0, true, detailGround);
             partyPosition = Surface(partyWorldFeet.X, partyWorldFeet.Z);
             clutter = new MapClutter(engine, map, detailMinimum, detailMaximum, Surface);
             rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
@@ -102,11 +110,13 @@ internal sealed class WorldMapVoxelView : IDisposable
         }
     }
 
+    internal MapSurfaceStyle Style { get; }
+
     /// <summary>The party position, in world metres, this view was built around.</summary>
     internal Vector3 PartyWorld { get; }
     internal bool Loaded => coarse.Loaded && detail.Loaded;
     internal string Readout => FormattableString.Invariant(
-        $"cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.LoadedChunks}/{coarse.TotalChunks};detailChunks={detail.LoadedChunks}/{detail.TotalChunks};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
+        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.LoadedChunks}/{coarse.TotalChunks};detailChunks={detail.LoadedChunks}/{detail.TotalChunks};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
         + rig.Readout;
 
     internal void Activate() => rig.Activate();
@@ -147,6 +157,8 @@ internal sealed class WorldMapVoxelView : IDisposable
         clutter?.Dispose();
         detail?.Dispose();
         coarse?.Dispose();
+        detailGround?.Dispose();
+        coarseGround?.Dispose();
         rig?.Dispose();
         party?.Dispose();
         marker?.Dispose();
@@ -158,7 +170,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// <paramref name="sinkCells"/> lowers a column by that many coarse voxels.
     /// </summary>
     private MapVoxelLayer Layer(double voxelSize, double cellMetres, long originX, long originZ, int width, int depth,
-        Func<int, int, double> sinkCells, bool localRelief)
+        Func<int, int, double> sinkCells, bool localRelief, TerrainGroundMaterials? ground)
     {
         double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
         double origin = OriginY / voxelSize;
@@ -176,9 +188,26 @@ internal sealed class WorldMapVoxelView : IDisposable
             material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
                 : RiverCovers(worldX, worldZ, cellMetres) ? RiverSlot
                 : sample.Rock >= ExposedRock ? RockSlot
-                : Slot(WorldMap.Biome(sample), Tone(worldX, worldZ));
+                : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
         }
-        return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, materials);
+        if (ground is null) return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, materials);
+        // Textured: environments on a layer share the blended material; the rest keep their own.
+        Dictionary<uint, Material> bindings = new(materials);
+        List<(uint Slot, uint Layer)> layered = [];
+        foreach (MapBiome biome in Enum.GetValues<MapBiome>())
+        {
+            if (biome == MapBiome.Sea) continue;
+            // Textures carry their own variation, so a textured layer uses one tone per environment
+            // (an Engine terrain layer set takes at most 16 slots).
+            int layer = Style.Layer(biome);
+            uint slot = Slot(biome);
+            if (layer >= 0) { bindings[slot] = ground.Layered; layered.Add((slot, (uint)layer)); }
+            else if (Style.PlainRock is string rock) bindings[slot] = ground.Plain(rock);
+        }
+        if (Style.RockLayer is int rockLayer) { bindings[RockSlot] = ground.Layered; layered.Add((RockSlot, (uint)rockLayer)); }
+        else if (Style.PlainRock is string plain) bindings[RockSlot] = ground.Plain(plain);
+        return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, bindings,
+            ([.. layered.Select(entry => entry.Slot)], [.. layered.Select(entry => entry.Layer)], ground.Settings.TransitionCells));
     }
 
     /// <summary>

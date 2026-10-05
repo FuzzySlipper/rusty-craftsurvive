@@ -32,6 +32,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The prototype faceted map view (#9436), built on first request and kept for this world.</summary>
     private WorldMapVoxelView? facetedMap;
     private bool facetedMapShown;
+    /// <summary>The faceted map's ground style (#9464), and one requested for the next update.</summary>
+    private MapSurfaceStyle mapStyle = MapSurfaceStyle.Painted;
+    private MapSurfaceStyle? requestedMapStyle;
     private bool mapOpen;
 
     /// <summary>
@@ -185,7 +188,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
-        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap)));
+        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style))));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
@@ -240,6 +243,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (mapOpen)
         {
+            ApplyRequestedMapStyle();
             if (facetedMapShown && facetedMap is not null && (facetedMap.Steer(update.Input) | facetedMap.MarkersStale)) PublishAppearanceSnapshot();
             AdvanceFacetedMap();
             return ProductUpdateResult.None;

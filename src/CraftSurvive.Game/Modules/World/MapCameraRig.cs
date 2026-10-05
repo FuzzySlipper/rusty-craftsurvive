@@ -34,6 +34,8 @@ internal sealed class MapCameraRig : IDisposable
     private float distance;
     private bool orbiting;
     private float heldYaw, heldPitch, heldZoom;
+    // Diagnostic for travel design (#9438): what a map click carries.
+    private string lastPointer = "none";
     private ulong samples;
 
     internal MapCameraRig(IEngineContext engine, Vector3 focus, float minimumDistance, float maximumDistance, float mapWidth)
@@ -50,7 +52,10 @@ internal sealed class MapCameraRig : IDisposable
     internal Vector3 Focus { get; set; }
     internal float Distance => distance;
     internal string Readout => FormattableString.Invariant(
-        $"distance={distance:F1};yawDegrees={yaw * 180 / MathF.PI:F0};pitchDegrees={pitch * 180 / MathF.PI:F0};orbiting={orbiting}");
+        $"distance={distance:F1};yawDegrees={yaw * 180 / MathF.PI:F0};pitchDegrees={pitch * 180 / MathF.PI:F0};orbiting={orbiting};lastPointer={lastPointer}");
+
+    private static string Describe(ProductInputEvent input) => FormattableString.Invariant(
+        $"{input.PointerButton}:{input.Edge}@{input.X:F4},{input.Y:F4}:{input.Device}:{input.Channel}");
 
     internal void Activate()
     {
@@ -88,6 +93,10 @@ internal sealed class MapCameraRig : IDisposable
                     break;
                 case InputEventKind.PointerButton when input.PointerButton == PointerButton.Secondary:
                     orbiting = input.Edge == InputEdge.Pressed;
+                    lastPointer = Describe(input);
+                    break;
+                case InputEventKind.PointerButton:
+                    lastPointer = Describe(input);
                     break;
                 case InputEventKind.PointerDelta when orbiting:
                     Turn(-input.X * OrbitRadiansPerPointerUnit, -input.Y * OrbitRadiansPerPointerUnit);

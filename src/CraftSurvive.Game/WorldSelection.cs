@@ -182,11 +182,8 @@ public sealed partial class CraftSurviveProduct
             // The view is built around the party; a party that has since moved gets a fresh one.
             Vector3 partyFeet = player.WorldFeetPosition;
             if (facetedMap is not null && Vector3.Distance(facetedMap.PartyWorld, partyFeet) > FacetedRebuildMetres)
-            {
-                facetedMap.Dispose();
-                facetedMap = null;
-            }
-            facetedMap ??= new(engine, worlds.Current.Map, partyFeet);
+                DisposeFacetedMap();
+            facetedMap ??= new(engine, context.Content, worlds.Current.Map, partyFeet, mapStyle);
             facetedMap.Activate();
             worldMessage = facetedMap.Loaded ? "" : "Building the faceted relief...";
         }
@@ -196,6 +193,25 @@ public sealed partial class CraftSurviveProduct
             worldMessage = "";
         }
         PublishAppearanceSnapshot();
+    }
+
+    /// <summary>Rebuild the faceted map in a newly requested ground style, from an update.</summary>
+    private void ApplyRequestedMapStyle()
+    {
+        if (requestedMapStyle is not MapSurfaceStyle style) return;
+        requestedMapStyle = null;
+        mapStyle = style;
+        DisposeFacetedMap();
+        if (facetedMapShown) ShowFacetedMap(true);
+    }
+
+    /// <summary>Retire the faceted map: its markers and clutter leave the published snapshot before their appearances go.</summary>
+    private void DisposeFacetedMap()
+    {
+        if (facetedMap is null) return;
+        engine.Graphics.PublishSnapshot(overview is not null && mapOpen ? overview.Facts : ReadOnlySpan<AppearanceFact>.Empty);
+        facetedMap.Dispose();
+        facetedMap = null;
     }
 
     /// <summary>Feed the faceted relief a bounded batch per update while the map is open.</summary>

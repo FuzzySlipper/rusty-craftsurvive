@@ -41,8 +41,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     map as dual-contoured terrain: one voxel per 32 m for the whole map, and an 8 m patch with
     regional relief about 2 km across around the party, where the coarse ground is sunk out of
     sight. A camera locked to the party zooms (wheel, or Z/X) and orbits (right-drag, Q/E;
-    R/F tilt); there is no free pan. Colours are flat per environment with a few noise-chosen
-    tones, so biome edges and tones step at the cell size; no textures are used yet. Rivers are
+    R/F tilt); there is no free pan. The ground uses generated painterly map textures (meadow,
+    forest floor, sand, snow, rock; provenance in `content/map-painted-textures.sources.json`)
+    on four Engine terrain layers that blend across cell edges; rock and water are drawn
+    unblended. `craft.world.mapstyle flat|ground|painted` switches styles for comparison (#9464);
+    there is no player-facing style choice. A layer set takes at most 16 slots, so textured
+    styles use one material per environment. Rivers are
     painted onto cells, not carved. Trees, cacti and rocks on the patch are generated low-poly
     static meshes (vertex-coloured, provenance in `content/map-models.sources.json`) scattered
     by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief

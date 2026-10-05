@@ -1,0 +1,42 @@
+[
+  {
+    "id": "meadow",
+    "width": 1024,
+    "height": 1024,
+    "sha256": "588436719e45e5a179a3800a50ca9c481a8ab7a4eb97c6a1941c02283a9ecc50",
+    "metresPerTile": 96,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "forest-floor",
+    "width": 1024,
+    "height": 1024,
+    "sha256": "1226d7126eb6617f7289123fdc019fd3f67a7d8dbb0153fab02e121d094b844d",
+    "metresPerTile": 96,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "sand",
+    "width": 1024,
+    "height": 1024,
+    "sha256": "c548b731ddf1bd974db1e6b61c9304e293421ff9c0df996ad747ebbe7a3c33c3",
+    "metresPerTile": 96,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "snow",
+    "width": 1024,
+    "height": 1024,
+    "sha256": "29104023fe104c0a0b25fc19bf69db82d2e24d1deb4d1aebcddfe13074655f65",
+    "metresPerTile": 96,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "rock",
+    "width": 1024,
+    "height": 1024,
+    "sha256": "572ca405dc84dd2d193bd804b2964c036d0ded079af027c6c277f5b4c1649ed2",
+    "metresPerTile": 96,
+    "triplanarSharpness": 4
+  }
+]

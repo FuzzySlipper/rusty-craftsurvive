@@ -4,11 +4,18 @@ using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
+/// <summary>
+/// A set of repeating ground maps: a content folder holding materials.json and blending.json,
+/// the four names that become terrain layers (base first), and a namespace for their ids.
+/// </summary>
+internal sealed record GroundTextureSet(string Root, IReadOnlyList<string> LayerNames, string Namespace)
+{
+    internal static GroundTextureSet Walking { get; } = new("textures/terrain-studies/", TerrainLayers.Names, "ground");
+}
+
 /// <summary>Authored repeating terrain maps. Engine owns texture sampling and triplanar blending.</summary>
 internal sealed class TerrainGroundMaterials : IDisposable
 {
-    private const string Root = "textures/terrain-studies/";
-    private const string Manifest = Root + "materials.json";
     private const uint Version = 1;
     private const float Roughness = 0.95f;
     private const float Unit = 1f;
@@ -19,10 +26,13 @@ internal sealed class TerrainGroundMaterials : IDisposable
     private Material? blended;
     internal TerrainBlendSettings Settings { get; }
 
-    internal TerrainGroundMaterials(IEngineContext engine, ProductContent content, double voxelSize = TerrainConstants.VoxelSize)
+    internal TerrainGroundMaterials(IEngineContext engine, ProductContent content, double voxelSize = TerrainConstants.VoxelSize,
+        GroundTextureSet? set = null)
     {
-        Settings = TerrainBlendSettings.Parse(content.ReadText(TerrainBlendSettings.ContentPath));
-        using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
+        set ??= GroundTextureSet.Walking;
+        string root = set.Root;
+        Settings = TerrainBlendSettings.Parse(content.ReadText(root + "blending.json"));
+        using JsonDocument manifest = JsonDocument.Parse(content.ReadText(root + "materials.json"));
         List<AuthoredCatalogEntryInput> entries = [];
         List<AuthoredCatalogDependencyInput> dependencies = [];
         List<AuthoredMaterialInput> definitions = [];
@@ -32,9 +42,10 @@ internal sealed class TerrainGroundMaterials : IDisposable
         foreach (JsonElement item in manifest.RootElement.EnumerateArray())
         {
             string name = item.GetProperty("id").GetString()!;
-            string path = Root + name + ".png";
-            string texture = "texture/ground/" + name;
-            string material = "material/ground/" + name;
+            // A set may reuse another set's image through an explicit content path.
+            string path = item.TryGetProperty("path", out JsonElement explicitPath) ? explicitPath.GetString()! : root + name + ".png";
+            string texture = $"texture/{set.Namespace}/" + name;
+            string material = $"material/{set.Namespace}/" + name;
             string hash = item.GetProperty("sha256").GetString()!;
             // Engine repeat scales are tile widths in voxel cells, not repeats per cell.
             float scale = item.GetProperty("metresPerTile").GetSingle() * Settings.TextureScale / (float)voxelSize;
@@ -68,7 +79,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
                     new AuthoredMaterialAppearanceRequest(catalog, map.Material, texture) { TriplanarSharpness = map.Sharpness }));
             }
             blended = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(
-                materials[TerrainLayers.Names[0]], TerrainLayers.Names.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
+                materials[set.LayerNames[0]], set.LayerNames.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
         }
         catch
         {
@@ -76,6 +87,12 @@ internal sealed class TerrainGroundMaterials : IDisposable
             throw;
         }
     }
+
+    /// <summary>The terrain-layer material blending this set's four layers.</summary>
+    internal Material Layered => blended ?? throw new ObjectDisposedException(nameof(TerrainGroundMaterials));
+
+    /// <summary>One map of the set on its own, unblended.</summary>
+    internal Material Plain(string name) => materials[name];
 
     internal Material? For(BlockId block, bool blend = true) => TerrainLayers.Layer(block) is int layer && layer >= 0
         ? blend ? blended : materials[TerrainLayers.Names[layer]] : null;
