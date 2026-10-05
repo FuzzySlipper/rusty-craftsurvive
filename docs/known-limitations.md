@@ -32,8 +32,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     and three surface treatments (soil, sand, snow), so several biomes share a look;
     biome-specific ground, vegetation and art remain to be done.
   - New worlds take a few seconds to simulate (about 1 s at 10 km in an optimised build, several more at 16 km or in a debug build).
-    Creation from the map view runs off the update thread; the first world of a fresh store
-    is generated during startup.
+    Generation always runs off the update thread, including the first world of a fresh
+    store, so startup never waits on it. Until that first world is admitted, the page shows
+    only the map view's generating message; there is no progress estimate.
   - The bedrock perimeter rises a fixed height above local ground; it is not final
     geographic edge art. Far terrain has no overview LOD in the first-person view.
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).

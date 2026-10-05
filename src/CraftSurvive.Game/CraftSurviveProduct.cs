@@ -29,6 +29,13 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private readonly WorldCatalog worlds;
     private WorldMapPresentation? overview;
     private bool mapOpen;
+
+    /// <summary>
+    /// Whether the world's owners exist. A fresh store boots before its first world has been
+    /// simulated; until an update admits that world, no terrain, player or gameplay state exists.
+    /// </summary>
+    private bool worldBuilt;
+    private bool worldStoresRegistered;
     private string worldMessage = "";
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
 
@@ -89,10 +96,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         store = new ProductStore(context.Engine);
         ui = new ProductUiPublisher(context.Engine);
         worlds = new WorldCatalog(engine, store);
-        CreateWorld();
+        if (worlds.HasWorld) CreateWorld();
         creatureDebug = new CreatureDebugModule(() => creatures);
-        entityDebug.RegisterStore("craft", player.EntityStore);
-        entityDebug.RegisterStore("creatures", creatures.EntityStore);
         entityDebug.RegisterProjection(PlayerController.RuntimeComponent,
             static (in PlayerRuntimeComponent state) => FormattableString.Invariant(
                 $"position={state.X:F3},{state.Y:F3},{state.Z:F3};yaw={state.YawDegrees:F2};pitch={state.PitchDegrees:F2};grounded={state.Grounded};crouched={state.Crouched}"));
@@ -124,6 +129,54 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
         gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, entityStore, lamps, feedback];
+        worldBuilt = true;
+        if (worldStoresRegistered)
+        {
+            entityDebug.ReplaceStore("craft", player.EntityStore);
+            entityDebug.ReplaceStore("creatures", creatures.EntityStore);
+        }
+        else
+        {
+            entityDebug.RegisterStore("craft", player.EntityStore);
+            entityDebug.RegisterStore("creatures", creatures.EntityStore);
+            worldStoresRegistered = true;
+        }
+    }
+
+    /// <summary>Start the world's owners and present it; disposes them all if any start fails.</summary>
+    private void StartWorld()
+    {
+        try
+        {
+            terrain.Start();
+            player.Start();
+            foreach (IProductModule module in gameplay)
+            {
+                module.Start();
+            }
+
+            PublishAppearanceSnapshot();
+        }
+        catch
+        {
+            DisposeWorld();
+            throw;
+        }
+    }
+
+    private void DisposeWorld()
+    {
+        if (!worldBuilt) return;
+        worldBuilt = false;
+        engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+        foreach (IProductModule module in gameplay.Reverse())
+        {
+            module.Dispose();
+        }
+
+        sky.Dispose();
+        player.Dispose();
+        terrain.Dispose();
     }
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
@@ -149,14 +202,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireState(ProductLifecycleState.Created, nameof(Start));
         try
         {
-            terrain.Start();
-            player.Start();
-            foreach (IProductModule module in gameplay)
-            {
-                module.Start();
-            }
-
-            PublishAppearanceSnapshot();
+            if (worldBuilt) StartWorld();
+            else worldMessage = FirstWorldMessage;
             lifecycle = ProductLifecycleState.Running;
             PublishWorld();
             // Opt into observation updates so a watching page can resume a held world.
@@ -164,15 +211,6 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
         catch
         {
-            sky.Dispose();
-            engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
-            foreach (IProductModule module in gameplay)
-            {
-                module.Dispose();
-            }
-
-            player.Dispose();
-            terrain.Dispose();
             ui.Dispose();
             store.Dispose();
             throw;
@@ -187,13 +225,13 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             engine.GameplayTime.SetRate(watching ? 1 : 0);
         if (!watching)
         {
-            player.ClearInput();
+            if (worldBuilt) player.ClearInput();
             // The hold takes effect on the next observation. Finish any steps the Engine
             // already admitted so product rules and Engine presentation share that time;
             // then all product work, including streaming and saves, waits for a watcher.
             if (update.Facts.AdmittedStepCount == 0) return ProductUpdateResult.None;
         }
-        if (AdmitPreparedWorld()) return ProductUpdateResult.None;
+        if (AdmitPreparedWorld() || !worldBuilt) return ProductUpdateResult.None;
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (mapOpen) return ProductUpdateResult.None;
         ProductStep step = ProductStep.From(update.Facts);
@@ -232,6 +270,13 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             throw new InvalidOperationException($"{nameof(Restart)} requires a running or paused product.");
         }
 
+        if (!worldBuilt)
+        {
+            lifecycle = ProductLifecycleState.Running;
+            engine.GameplayTime.RunRealtime();
+            return;
+        }
+
         terrain.Restart();
         player.Restart();
         actions.Restart();
@@ -252,7 +297,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             throw new ObjectDisposedException(nameof(CraftSurviveProduct));
         }
 
-        sky.Dispose();
+        if (worldBuilt) sky.Dispose();
         lifecycle = ProductLifecycleState.Shutdown;
     }
 
@@ -270,13 +315,18 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         overview?.Dispose();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
-        foreach (IProductModule module in gameplay.Reverse())
+        if (worldBuilt)
         {
-            module.Dispose();
+            foreach (IProductModule module in gameplay.Reverse())
+            {
+                module.Dispose();
+            }
+
+            player.Dispose();
+            terrain.Dispose();
+            worldBuilt = false;
         }
 
-        player.Dispose();
-        terrain.Dispose();
         ui.Dispose();
         store.Dispose();
         lifecycle = ProductLifecycleState.Disposed;
@@ -302,6 +352,12 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()
     {
+        if (!worldBuilt)
+        {
+            engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+            return;
+        }
+
         engine.Graphics.PublishSnapshot(mapOpen && overview is not null ? overview.Facts : [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

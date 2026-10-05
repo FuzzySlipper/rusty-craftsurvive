@@ -5,6 +5,7 @@ using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.World;
+using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Dungeons;
@@ -19,6 +20,7 @@ public sealed partial class CraftSurviveProduct
     private const double ArrivalClearance = 4;
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384];
     private const int MetresPerKilometre = 1024;
+    private const string FirstWorldMessage = "Generating your first world: raising ranges, running rivers and settling climate...";
 
     private bool HandleWorldActions(ProductUpdate update)
     {
@@ -108,10 +110,34 @@ public sealed partial class CraftSurviveProduct
             return false;
         }
         if (prepared is null) return false;
+        if (!worldBuilt)
+        {
+            AdmitFirstWorld(prepared);
+            return true;
+        }
         try { NewWorld(prepared); }
         catch (FormatException refused) { worldMessage = refused.Message; }
         PublishWorld();
         return true;
+    }
+
+    /// <summary>
+    /// The first world of a fresh store: commit it, build its owners and start play at the
+    /// arrival area, exactly as a restored world starts.
+    /// </summary>
+    private void AdmitFirstWorld(WorldMapSave prepared)
+    {
+        if (!worlds.Commit(prepared))
+        {
+            worldMessage = "The first world could not be saved; restart to try again.";
+            PublishWorld();
+            return;
+        }
+        CreateWorld();
+        StartWorld();
+        mapOpen = false;
+        worldMessage = "";
+        PublishWorld();
     }
 
     private void NewWorld(WorldMapSave prepared)
@@ -138,6 +164,12 @@ public sealed partial class CraftSurviveProduct
 
     private void PublishWorld()
     {
+        if (!worlds.HasWorld)
+        {
+            TerrainConfiguration first = TerrainConfiguration.Default;
+            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0));
+            return;
+        }
         WorldMap map = worlds.Current.Map;
         string sites = string.Join(';', map.Sites.Select((site, index) => FormattableString.Invariant(
             $"{index}|{site.Name}|{WorldMap.Region(site.Geography)}|{site.X:F0}|{site.Z:F0}|{site.Geography.Elevation:F0}")));

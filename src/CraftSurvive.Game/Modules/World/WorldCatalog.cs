@@ -5,7 +5,12 @@ using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.World;
 
-/// <summary>One owner for the active world choice. Its atomic saved record selects both map and gameplay-key namespace.</summary>
+/// <summary>
+/// One owner for the active world choice. Its atomic saved record selects both map and
+/// gameplay-key namespace. A store with no usable world never generates one during
+/// construction: it starts the default world's simulation off-thread, so product startup
+/// never waits on generation, and the world exists once an update commits it.
+/// </summary>
 internal sealed class WorldCatalog
 {
     private readonly ProductStore store;
@@ -17,17 +22,31 @@ internal sealed class WorldCatalog
         this.store = store;
         slot = new(engine, store, SaveManifest.WorldMap, new WorldMapCodec());
         SaveRestoreDecision<WorldMapSave> restore = slot.Restore();
-        Current = restore.State ?? Generate(TerrainConfiguration.Default, 1);
-        if (restore.State is null && !slot.Save(Current)) throw new InvalidOperationException(slot.LastFailure);
-        store.WorldGeneration = Current.Generation;
+        if (restore.State is WorldMapSave restored)
+        {
+            current = restored;
+            store.WorldGeneration = restored.Generation;
+        }
+        else
+        {
+            TerrainConfiguration first = TerrainConfiguration.Default;
+            BeginPrepare(first.Seed, first.Size);
+        }
     }
 
-    internal WorldMapSave Current { get; private set; }
+    private WorldMapSave? current;
+
+    /// <summary>Whether a world has been restored or committed; until then only its preparation exists.</summary>
+    internal bool HasWorld => current is not null;
+
+    internal WorldMapSave Current => current ?? throw new InvalidOperationException("The first world is still being generated.");
     internal double GenerationMilliseconds { get; private set; }
     internal string RestoreOutcome => slot.RestoreOutcome;
     internal int StoredBytes => slot.Probe().Bytes;
 
-    internal WorldMapSave Prepare(ulong seed, int size) => Generate(new(seed, size), checked(Current.Generation + 1));
+    internal WorldMapSave Prepare(ulong seed, int size) => Generate(new(seed, size), NextGeneration);
+
+    private long NextGeneration => checked((current?.Generation ?? 0) + 1);
 
     /// <summary>Whether a new world's map is still being simulated off the update thread.</summary>
     internal bool Preparing => pending is not null;
@@ -52,13 +71,13 @@ internal sealed class WorldCatalog
         pending = null;
         WorldMap map = finished.GetAwaiter().GetResult();
         GenerationMilliseconds = Stopwatch.GetElapsedTime(pendingStart).TotalMilliseconds;
-        return new(checked(Current.Generation + 1), map);
+        return new(NextGeneration, map);
     }
 
     internal bool Commit(WorldMapSave prepared)
     {
         if (!slot.Save(prepared)) return false;
-        Current = prepared;
+        current = prepared;
         store.WorldGeneration = prepared.Generation;
         return true;
     }

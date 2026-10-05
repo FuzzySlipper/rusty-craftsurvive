@@ -85,9 +85,11 @@ implemented prototype mechanism is not a requirement to preserve its old genre.
 
 `WorldCatalog` owns the selected world. New-game generation produces an immutable
 `WorldMap` before `TerrainWorld` starts; restore reads its saved fields instead of
-rerunning generation. A world created from the map view is simulated off the update
-thread as pure product computation and admitted on a later update; the first world
-of a fresh store is generated during startup. Seed, extent and generator version
+rerunning generation. Generation never runs on the update thread: a world created
+from the map view, and the first world of a fresh or retired store, is simulated
+off-thread as pure product computation and admitted on a later update. Startup never
+waits on it; until the first world is committed, the product shows the map view's
+generating state and holds no terrain, player or gameplay owners. Seed, extent and generator version
 identify the recipe. Stable geographic seed mixing lets later refinement preserve
 landforms; the full recipe version still invalidates development saves and caches.
 

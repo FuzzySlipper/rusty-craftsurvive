@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -14,9 +15,24 @@ try
     host.Call(engine =>
     {
         using ProductStore store = new(engine);
+        Stopwatch construction = Stopwatch.StartNew();
         WorldCatalog catalog = new(engine, store);
-        Check.That(catalog.RestoreOutcome == "absent", "a new game creates its map before local terrain");
+        double constructionMs = construction.Elapsed.TotalMilliseconds;
+        // A fresh store never generates during construction: startup must not wait on the simulation.
+        Check.That(catalog.RestoreOutcome == "absent" && !catalog.HasWorld && catalog.Preparing,
+            "a fresh store starts its first world in the background instead of generating it at startup");
+        Check.Throws<InvalidOperationException>(() => _ = catalog.Current, "no world is readable before it is committed");
+        WorldMapSave? first = null;
+        for (int poll = 0; poll < 600 && first is null; poll++)
+        {
+            first = catalog.TakePrepared();
+            if (first is null) Thread.Sleep(50);
+        }
+        Check.That(first is not null && first.Generation == 1 && first.Map.Configuration == TerrainConfiguration.Default,
+            "the first world is the default configuration in the first generation namespace");
+        Check.That(catalog.Commit(first!) && catalog.HasWorld, "an update commits the first world");
         Check.That(catalog.StoredBytes > 0, "map samples are written through Engine persistence");
+        Console.WriteLine($"catalog construction on an empty store: {constructionMs:F1} ms");
         WorldMap initial = catalog.Current.Map;
         var draws = new EngineTerrainDraws(engine.Random);
         ulong live = TerrainGenerationFingerprint.Compute(initial.Configuration.CreateRecipe(draws, initial), TerrainGenerationFingerprint.Startup);

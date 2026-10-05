@@ -14,6 +14,7 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
     public string ReadMap()
     {
         WorldCatalog c = catalog();
+        if (!c.HasWorld) return FormattableString.Invariant($"world=generating;preparing={c.Preparing};restore={c.RestoreOutcome}");
         var map = c.Current.Map;
         return FormattableString.Invariant($"seed={map.Configuration.Seed};size={map.Configuration.Size};generation={c.Current.Generation};nodes={map.Grid.Count};spacing={map.Spacing:F1};rivers={map.Rivers.Reaches.Count};fingerprint={map.Fingerprint:x16};generatedMs={c.GenerationMilliseconds:F2};storedBytes={c.StoredBytes};restore={c.RestoreOutcome};sites=[{string.Join(';', map.Sites)}];terrain=[{terrain().GenerationReadout()}]");
     }
