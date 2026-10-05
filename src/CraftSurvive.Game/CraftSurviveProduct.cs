@@ -187,10 +187,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             engine.GameplayTime.SetRate(watching ? 1 : 0);
         if (!watching)
         {
-            // Nobody watching pauses all product work, including streaming and saves. The
-            // Engine holds admitted time, so cooldowns cannot jump forward on reattachment.
             player.ClearInput();
-            return ProductUpdateResult.None;
+            // The hold takes effect on the next observation. Finish any steps the Engine
+            // already admitted so product rules and Engine presentation share that time;
+            // then all product work, including streaming and saves, waits for a watcher.
+            if (update.Facts.AdmittedStepCount == 0) return ProductUpdateResult.None;
         }
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (mapOpen) return ProductUpdateResult.None;
