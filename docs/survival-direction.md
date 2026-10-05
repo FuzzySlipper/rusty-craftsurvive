@@ -125,11 +125,16 @@ different climates next to one another within a short walk.
 
 ### Overland travel and local exploration
 
-A separate overland travel mode is under consideration, with Mount & Blade as
-a reference for moving through a world at a larger scale. It could present the
-world map as a coarse terrain mesh, while local exploration, home building, and
-dungeon dives use detailed first-person spaces. How and where the player moves
-between these scales remains open.
+A separate overland travel mode is the intended way to cross the world, with
+Mount & Blade's campaign map as the reference. The expedition is one token on a
+terrain map that is neither abstract nor realistic: the player clicks a
+destination, the token travels there, and events can arise on the way. The camera
+is dynamic but stays locked to the party, orbiting and zooming around it rather
+than flying freely. Long-distance travel then carries a sense of expedition
+without shrinking the world to something walkable on foot, while local
+exploration, home building, and dungeon dives use detailed first-person spaces.
+Travel speed, time and supply costs, events, and how the player enters and leaves
+first-person terrain remain open.
 
 In this concept, substantial survival simulation concentrates on the journey:
 route, weather, supplies, time, and carrying capacity. The aim is meaningful

@@ -21,6 +21,15 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
     [DebugCommand("craft.world.faceted", Description = "Reads the prototype faceted map view's load progress and cost, if it has been built.")]
     public string ReadFaceted() => faceted?.Invoke()?.Readout ?? "faceted=none";
 
+    [DebugCommand("craft.world.mapcamera", Description = "Assisted: sets the faceted map camera's distance (coarse cells), yaw and pitch in degrees, as wheel and orbit input would.")]
+    public string SetMapCamera(double distance, double yawDegrees, double pitchDegrees)
+    {
+        WorldMapVoxelView? view = faceted?.Invoke();
+        if (view is null) return "faceted=none";
+        view.SetCamera((float)distance, (float)yawDegrees, (float)pitchDegrees);
+        return view.Readout;
+    }
+
     private string Read()
     {
         WorldCatalog c = catalog();

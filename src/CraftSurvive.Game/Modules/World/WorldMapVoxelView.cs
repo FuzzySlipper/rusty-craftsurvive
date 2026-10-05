@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -7,209 +6,194 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// Prototype faceted map view (#9436): the generated map voxelized as coarse dual-contoured
-/// terrain in its own spatial session, one voxel per <see cref="CellMetres"/> of map. It samples
-/// the same <see cref="WorldMap"/> walking terrain does, so the two agree by construction. Rivers
-/// narrower than a voxel are painted onto the surface rather than carved. It stands apart from
-/// the mesh overview with its own camera, so the two can be compared by switching cameras.
+/// Prototype faceted map view (#9436, #9437): the generated map voxelized as dual-contoured
+/// terrain, sampling the same <see cref="WorldMap"/> walking terrain does. A coarse layer covers
+/// the whole map; a finer patch around the party carries close-range detail, and the coarse
+/// ground beneath that patch is lowered so the two never fight. A camera rig locked to the
+/// party zooms and orbits. Presentation units are one coarse cell (<see cref="CellMetres"/>).
 /// </summary>
 internal sealed class WorldMapVoxelView : IDisposable
 {
     internal const double CellMetres = 32;
-    private const double VoxelSize = 1;
+    private const int DetailPerCell = 4;
+    private const double DetailMetres = CellMetres / DetailPerCell;
+    /// <summary>Coarse cells on each side of the party covered by the detail patch.</summary>
+    private const int DetailRadiusCells = 32;
+    /// <summary>Coarse voxels the coarse ground sinks under the detail patch, hiding it there.</summary>
+    private const double PatchSink = 1.5;
     private const int OriginY = -20000;
     private const int ChunksPerUpdate = 24;
-    private const float MinimumDensity = 0.001f;
     private const double ExposedRock = 0.6;
-    private const float GroundCreaseDegrees = 40f;
-    private const float GroundRoughness = 0f;
-    private const float MaterialRoughness = 1f;
-    private const float MarkerScale = 3;
-    private const float MarkerLift = 2;
-    private const int EdgeLength = TerrainConstants.ChunkEdgeLength;
+    // Markers keep a steady apparent size: their scale follows the camera's distance.
+    private const float MarkerScalePerDistance = 0.012f;
+    private const float PartyScalePerDistance = 0.006f;
+    private const float MinimumMarkerScale = 0.04f;
+    private const float CloseDistance = 6;
+    // Each environment has a few tones chosen by noise, so close views read as mottled ground.
+    private const int Tones = 3;
+    private const float ToneStep = 0.07f;
+    private const double ToneWavelength = 90;
+    private const ulong ToneSalt = 0x5851F42D4C957F2DUL;
+    private const float FramingDistance = 1.25f;
     private const uint RiverSlot = 1;
     private const uint RockSlot = 2;
     private const uint FirstBiomeSlot = 3;
+    private static readonly Color PartyColor = new(0.95f, 0.95f, 0.85f, 1);
 
     private readonly IEngineContext engine;
     private readonly WorldMap map;
     private readonly int cells;
-    private readonly double[] surface;
-    private readonly uint[] columnMaterial;
-    private readonly Queue<(long X, long Y, long Z)> pending = new();
     private readonly Dictionary<uint, Material> materials = [];
     private readonly Appearance marker;
-    private readonly Camera camera;
-    private readonly int totalChunks;
-    private VoxelScenePresentation? projection;
-    private long workTicks;
+    private readonly Appearance party;
+    private readonly MapVoxelLayer coarse;
+    private readonly MapVoxelLayer detail;
+    private readonly MapCameraRig rig;
+    private readonly Vector3 partyPosition;
     private long startedAt;
+    private float publishedDistance = float.NaN;
     private double loadMilliseconds;
 
-    internal WorldMapVoxelView(IEngineContext engine, WorldMap map)
+    internal WorldMapVoxelView(IEngineContext engine, WorldMap map, Vector3 partyWorldFeet)
     {
         this.engine = engine;
         this.map = map;
+        PartyWorld = partyWorldFeet;
         cells = Math.Max(1, (int)Math.Round(map.Configuration.Size / CellMetres));
-        Session = engine.Spatial.CreateSession(new SpatialSessionConfig(VoxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.DualContouring));
         try
         {
-            uint[] slots = [RiverSlot, RockSlot, .. Enum.GetValues<MapBiome>().Select(Slot)];
-            engine.Voxel.ConfigureMaterialSurfaces(new VoxelMaterialSurfaceRequest(Session, VoxelSurfaceMode.DualContouring,
-                slots.Select(slot => new VoxelMaterialSurface(slot, VoxelSurfaceMode.DualContouring,
-                    new SurfaceCharacter(VertexPlacement.Sharp, GroundCreaseDegrees, GroundRoughness))).ToArray()));
-            engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(Session,
-                slots.Select(slot => new VoxelMaterialCollision(slot, false)).ToArray()));
-            engine.Voxel.ConfigureMaterialOcclusion(new VoxelMaterialOcclusionRequest(Session,
-                slots.Select(slot => new VoxelMaterialOcclusion(slot, true)).ToArray()));
             materials[RiverSlot] = Flat(MapPalette.River);
             materials[RockSlot] = Flat(MapPalette.Stone);
-            foreach (MapBiome biome in Enum.GetValues<MapBiome>()) materials[Slot(biome)] = Flat(MapPalette.For(biome));
+            foreach (MapBiome biome in Enum.GetValues<MapBiome>())
+            for (int tone = 0; tone < Tones; tone++)
+                materials[Slot(biome, tone)] = Flat(Shade(MapPalette.For(biome), 1 + (tone - Tones / 2) * ToneStep));
             marker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, new Color(1, 0.38f, 0.1f, 1)));
+            party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor));
+
+            // The detail window, in coarse cells, centred on the party and kept inside the map.
+            int half = cells / 2;
+            int partyCellX = (int)Math.Floor(partyWorldFeet.X / CellMetres) + half;
+            int partyCellZ = (int)Math.Floor(partyWorldFeet.Z / CellMetres) + half;
+            int windowX = Math.Clamp(partyCellX - DetailRadiusCells, 0, Math.Max(0, cells - 2 * DetailRadiusCells));
+            int windowZ = Math.Clamp(partyCellZ - DetailRadiusCells, 0, Math.Max(0, cells - 2 * DetailRadiusCells));
+            int windowCells = Math.Min(2 * DetailRadiusCells, cells);
+
+            coarse = Layer(1, CellMetres, -half, -half, cells, cells,
+                (x, z) => x >= windowX && z >= windowZ && x < windowX + windowCells && z < windowZ + windowCells ? PatchSink : 0, false);
+            detail = Layer(1d / DetailPerCell, DetailMetres, (windowX - half) * DetailPerCell, (windowZ - half) * DetailPerCell,
+                windowCells * DetailPerCell, windowCells * DetailPerCell, (_, _) => 0, true);
+
+            partyPosition = Position(partyWorldFeet.X, map.Sample(partyWorldFeet.X, partyWorldFeet.Z).Elevation, partyWorldFeet.Z);
+            rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
         }
         catch
         {
-            foreach (Material material in materials.Values) material.Dispose();
-            Session.Dispose();
+            Dispose();
             throw;
         }
-
-        // One sample per cell: a column's top (the sea's surface where the ground is below it)
-        // and what it is made of. Elevation is exaggerated like the mesh overview.
-        surface = new double[cells * cells];
-        columnMaterial = new uint[cells * cells];
-        double metresPerVoxel = CellMetres / WorldMapPresentation.VerticalExaggeration;
-        for (int z = 0; z < cells; z++)
-        for (int x = 0; x < cells; x++)
-        {
-            (double worldX, double worldZ) = CellCentre(x, z);
-            MapSample sample = map.Sample(worldX, worldZ);
-            double top = Math.Max(sample.Elevation, GenerationConstants.WaterLevel);
-            surface[z * cells + x] = OriginY + top / metresPerVoxel;
-            columnMaterial[z * cells + x] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
-                : RiverCovers(worldX, worldZ) ? RiverSlot
-                : sample.Rock >= ExposedRock ? RockSlot
-                : Slot(WorldMap.Biome(sample));
-        }
-
-        // Only chunks a surface passes through, plus one beneath for footing.
-        long half = cells / 2;
-        for (long cz = Floor(-half); cz <= Floor(cells - 1 - half); cz++)
-        for (long cx = Floor(-half); cx <= Floor(cells - 1 - half); cx++)
-        {
-            double low = double.MaxValue, high = double.MinValue;
-            for (long vz = cz * EdgeLength; vz < (cz + 1) * EdgeLength; vz++)
-            for (long vx = cx * EdgeLength; vx < (cx + 1) * EdgeLength; vx++)
-            {
-                if (!TryColumn(vx, vz, out int column)) continue;
-                low = Math.Min(low, surface[column]);
-                high = Math.Max(high, surface[column]);
-            }
-            if (low == double.MaxValue) continue;
-            for (long cy = Floor((long)Math.Floor(low)) - 1; cy <= Floor((long)Math.Ceiling(high)); cy++) pending.Enqueue((cx, cy, cz));
-        }
-        totalChunks = pending.Count;
-        double width = cells * VoxelSize, scale = width / WorldMapPresentation.MapWidth;
-        double eye = OriginY + GenerationConstants.WaterLevel / metresPerVoxel;
-        camera = engine.CameraView.CreateCamera(new(new CameraPose(
-                new(0, (float)(eye + WorldMapPresentation.EyeHeight * scale), (float)(WorldMapPresentation.EyeBack * scale)), WorldMapPresentation.Pitch, 0),
-            CameraBasisMode.Derived, default,
-            new(CameraProjectionKind.Perspective, WorldMapPresentation.FieldOfView, 0, WorldMapPresentation.Near * scale, WorldMapPresentation.Far * scale),
-            CameraViewports.Full));
     }
 
-    internal SpatialSession Session { get; }
-    internal bool Loaded => projection is not null;
+    /// <summary>The party position, in world metres, this view was built around.</summary>
+    internal Vector3 PartyWorld { get; }
+    internal bool Loaded => coarse.Loaded && detail.Loaded;
     internal string Readout => FormattableString.Invariant(
-        $"cells={cells};cellMetres={CellMetres};chunks={totalChunks - pending.Count}/{totalChunks};loaded={Loaded};workMs={Stopwatch.GetElapsedTime(0, workTicks).TotalMilliseconds:F0};wallMs={loadMilliseconds:F0}");
+        $"cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};coarseChunks={coarse.LoadedChunks}/{coarse.TotalChunks};detailChunks={detail.LoadedChunks}/{detail.TotalChunks};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};")
+        + rig.Readout;
 
-    internal void Activate() => engine.CameraView.SetActiveCamera(camera);
+    internal void Activate() => rig.Activate();
 
-    /// <summary>Site markers placed on the faceted relief.</summary>
-    internal AppearanceFact[] Facts => [.. map.Sites.Select((site, i) => new AppearanceFact(ProductIds.WorldMapSiteBase + (ulong)i, false, 0,
-        new(Position(site.X, site.Geography.Elevation, site.Z) + Vector3.UnitY * MarkerLift, Quaternion.Identity, Vector3.One * MarkerScale),
-        marker, true, RenderLayer.Scene))];
+    internal bool Steer(ReadOnlySpan<ProductInputEvent> events) => rig.Steer(events);
 
-    /// <summary>Admit a bounded batch of chunks; project the scene once the last has landed.</summary>
+    internal void SetCamera(float distance, float yawDegrees, float pitchDegrees) => rig.Set(distance, yawDegrees, pitchDegrees);
+
+    /// <summary>Site markers and the party token, placed on the faceted relief.</summary>
+    internal AppearanceFact[] Facts => [
+        Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
+        .. map.Sites.Select((site, i) => Marker(ProductIds.WorldMapSiteBase + (ulong)i,
+            Position(site.X, site.Geography.Elevation, site.Z), MarkerScalePerDistance, marker))];
+
+    /// <summary>Whether the camera has zoomed since the markers were last published.</summary>
+    internal bool MarkersStale => rig.Distance != publishedDistance;
+
+    private AppearanceFact Marker(ulong id, Vector3 ground, float scalePerDistance, Appearance appearance)
+    {
+        publishedDistance = rig.Distance;
+        float scale = Math.Max(MinimumMarkerScale, rig.Distance * scalePerDistance);
+        return new(id, false, 0, new(ground + Vector3.UnitY * scale, Quaternion.Identity, Vector3.One * scale), appearance, true, RenderLayer.Scene);
+    }
+
+    /// <summary>Admit a bounded batch: the whole map first, then the detail around the party.</summary>
     internal void Advance()
     {
         if (Loaded) return;
-        long started = Stopwatch.GetTimestamp();
-        if (startedAt == 0) startedAt = started;
-        List<VoxelResidencyOperation> operations = [];
-        List<uint> chunkMaterials = [];
-        List<float> densities = [];
-        while (operations.Count < ChunksPerUpdate && pending.TryDequeue(out (long X, long Y, long Z) address))
-        {
-            uint offset = (uint)chunkMaterials.Count;
-            // X-fastest, the Engine's dense payload order; density is signed distance in voxels.
-            for (int z = 0; z < EdgeLength; z++)
-            for (int y = 0; y < EdgeLength; y++)
-            for (int x = 0; x < EdgeLength; x++)
-            {
-                long vx = address.X * EdgeLength + x, vy = address.Y * EdgeLength + y, vz = address.Z * EdgeLength + z;
-                if (!TryColumn(vx, vz, out int column))
-                {
-                    chunkMaterials.Add(TerrainConstants.EmptyMaterial);
-                    densities.Add(1);
-                    continue;
-                }
-                float distance = (float)(vy + 0.5 - surface[column]);
-                bool solid = distance < 0;
-                chunkMaterials.Add(solid ? columnMaterial[column] : TerrainConstants.EmptyMaterial);
-                densities.Add(solid ? Math.Min(distance, -MinimumDensity) : Math.Max(distance, MinimumDensity));
-            }
-            operations.Add(new(VoxelResidencyOperationKind.Admit, new(address.X, address.Y, address.Z),
-                offset, TerrainConstants.ChunkVolume, offset, TerrainConstants.ChunkVolume));
-        }
-        if (operations.Count > 0)
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session,
-                operations.ToArray(), chunkMaterials.ToArray(), densities.ToArray()));
-        if (pending.Count == 0)
-        {
-            projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new(Session,
-                materials.Select(pair => new VoxelSceneMaterialBinding(pair.Key, pair.Value)).ToArray(),
-                ReadOnlyMemory<VoxelSceneFaceMaterialBinding>.Empty));
-            loadMilliseconds = Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
-        }
-        workTicks += Stopwatch.GetTimestamp() - started;
+        if (startedAt == 0) startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (!coarse.Loaded) coarse.Advance(ChunksPerUpdate);
+        else detail.Advance(ChunksPerUpdate);
+        if (Loaded) loadMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
     }
 
     public void Dispose()
     {
-        projection?.Dispose();
-        projection = null;
-        camera.Dispose();
-        marker.Dispose();
+        detail?.Dispose();
+        coarse?.Dispose();
+        rig?.Dispose();
+        party?.Dispose();
+        marker?.Dispose();
         foreach (Material material in materials.Values) material.Dispose();
-        Session.Dispose();
+    }
+
+    /// <summary>
+    /// One layer: each column samples the map at its centre, with exaggerated relief.
+    /// <paramref name="sinkCells"/> lowers a column by that many coarse voxels.
+    /// </summary>
+    private MapVoxelLayer Layer(double voxelSize, double cellMetres, long originX, long originZ, int width, int depth,
+        Func<int, int, double> sinkCells, bool localRelief)
+    {
+        ulong reliefSeed = map.Configuration.Contract.GeographyNoiseSeed;
+        double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
+        double origin = OriginY / voxelSize;
+        double[] surface = new double[width * depth];
+        uint[] material = new uint[width * depth];
+        for (int z = 0; z < depth; z++)
+        for (int x = 0; x < width; x++)
+        {
+            double worldX = (originX + x + 0.5) * cellMetres, worldZ = (originZ + z + 0.5) * cellMetres;
+            MapSample sample = map.Sample(worldX, worldZ);
+            // The detail patch carries the same regional relief walking terrain adds to the map.
+            double ground = localRelief ? sample.Elevation + RegionalTerrain.Relief(reliefSeed, sample, worldX, worldZ) : sample.Elevation;
+            double top = Math.Max(sample.InRiver ? Math.Max(ground, sample.RiverSurface) : ground, GenerationConstants.WaterLevel);
+            int i = z * width + x;
+            surface[i] = origin + top / metresPerVoxel - sinkCells(x, z) / voxelSize;
+            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
+                : RiverCovers(worldX, worldZ, cellMetres) ? RiverSlot
+                : sample.Rock >= ExposedRock ? RockSlot
+                : Slot(WorldMap.Biome(sample), Tone(worldX, worldZ));
+        }
+        return new MapVoxelLayer(engine, voxelSize, originX, originZ, width, depth, surface, material, materials);
     }
 
     private Vector3 Position(double worldX, double elevation, double worldZ)
     {
-        double metresPerVoxel = CellMetres / WorldMapPresentation.VerticalExaggeration;
-        return new((float)(worldX / CellMetres), (float)(OriginY + Math.Max(elevation, GenerationConstants.WaterLevel) / metresPerVoxel),
+        double metresPerUnit = CellMetres / WorldMapPresentation.VerticalExaggeration;
+        return new((float)(worldX / CellMetres), (float)(OriginY + Math.Max(elevation, GenerationConstants.WaterLevel) / metresPerUnit),
             (float)(worldZ / CellMetres));
     }
 
-    private (double X, double Z) CellCentre(int x, int z) =>
-        (-map.Radius + (x + 0.5) * CellMetres, -map.Radius + (z + 0.5) * CellMetres);
-
-    /// <summary>The column index for a voxel position, with the map centred on voxel zero.</summary>
-    private bool TryColumn(long vx, long vz, out int column)
-    {
-        long x = vx + cells / 2, z = vz + cells / 2;
-        column = (int)(z * cells + x);
-        return x >= 0 && z >= 0 && x < cells && z < cells;
-    }
-
     /// <summary>A river is painted on a cell when its channel reaches within half a cell of the centre.</summary>
-    private bool RiverCovers(double x, double z) =>
-        map.Rivers.Nearest(x, z) is RiverInfluence river && river.Distance < river.HalfWidth + CellMetres / 2;
+    private bool RiverCovers(double x, double z, double cellMetres) =>
+        map.Rivers.Nearest(x, z) is RiverInfluence river && river.Distance < river.HalfWidth + cellMetres / 2;
 
     private Material Flat(Color color) =>
-        engine.Graphics.CreateMaterial(new MaterialRequest(color, default, MaterialRoughness, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
+        engine.Graphics.CreateMaterial(new MaterialRequest(color, default, 1f, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
 
-    private static uint Slot(MapBiome biome) => FirstBiomeSlot + (uint)biome;
-    private static long Floor(long voxel) => GridMath.FloorDivide(voxel, EdgeLength);
+    private static uint Slot(MapBiome biome, int tone = Tones / 2) => FirstBiomeSlot + (uint)((int)biome * Tones + tone);
+
+    private int Tone(double x, double z)
+    {
+        double noise = MapNoise.Fbm(map.Configuration.Contract.GeographyNoiseSeed ^ ToneSalt, x / ToneWavelength, z / ToneWavelength, 2, 0.5);
+        return Math.Clamp((int)Math.Floor((noise * 1.6 + 1) / 2 * Tones), 0, Tones - 1);
+    }
+
+    private static Color Shade(Color color, float factor) =>
+        new(Math.Min(1, color.R * factor), Math.Min(1, color.G * factor), Math.Min(1, color.B * factor), 1);
 }

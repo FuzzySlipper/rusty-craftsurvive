@@ -239,6 +239,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (mapOpen)
         {
+            if (facetedMapShown && facetedMap is not null && (facetedMap.Steer(update.Input) | facetedMap.MarkersStale)) PublishAppearanceSnapshot();
             AdvanceFacetedMap();
             return ProductUpdateResult.None;
         }

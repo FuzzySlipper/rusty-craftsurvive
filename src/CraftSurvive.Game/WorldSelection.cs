@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -20,6 +21,8 @@ public sealed partial class CraftSurviveProduct
     private const double ArrivalClearance = 4;
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384];
     private const int MetresPerKilometre = 1024;
+    /// <summary>How far the party may have moved before the faceted map is rebuilt around it.</summary>
+    private const float FacetedRebuildMetres = 256;
     private const string FirstWorldMessage = "Generating your first world: raising ranges, running rivers and settling climate...";
 
     private bool HandleWorldActions(ProductUpdate update)
@@ -88,7 +91,7 @@ public sealed partial class CraftSurviveProduct
         sky.Submerged(false);
         sky.Underground(false, WorldConditionsState.Fresh.Time);
         mapOpen = true;
-        if (facetedMapShown && facetedMap is not null) facetedMap.Activate();
+        if (facetedMapShown) ShowFacetedMap(true);
         else overview.Activate();
         PublishAppearanceSnapshot();
     }
@@ -176,7 +179,14 @@ public sealed partial class CraftSurviveProduct
         facetedMapShown = faceted;
         if (faceted)
         {
-            facetedMap ??= new(engine, worlds.Current.Map);
+            // The view is built around the party; a party that has since moved gets a fresh one.
+            Vector3 partyFeet = player.WorldFeetPosition;
+            if (facetedMap is not null && Vector3.Distance(facetedMap.PartyWorld, partyFeet) > FacetedRebuildMetres)
+            {
+                facetedMap.Dispose();
+                facetedMap = null;
+            }
+            facetedMap ??= new(engine, worlds.Current.Map, partyFeet);
             facetedMap.Activate();
             worldMessage = facetedMap.Loaded ? "" : "Building the faceted relief...";
         }
