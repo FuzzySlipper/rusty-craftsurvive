@@ -195,6 +195,14 @@ if (args is ["sculpted", string sculptedCount])
     return 0;
 }
 
+if (args is ["jumpprobe", string probeRise, string probeCeiling])
+{
+    // jumpprobe <rise> <ceiling>: the jump-edge probe at a chosen ledge rise and ceiling clearance.
+    var probed = JumpLedgeProbe.Run(float.Parse(probeRise, System.Globalization.CultureInfo.InvariantCulture), float.Parse(probeCeiling, System.Globalization.CultureInfo.InvariantCulture));
+    Console.WriteLine($"rise {probeRise} ceiling {probeCeiling}: open {probed.Open}; low {probed.LowCeiling}");
+    return 0;
+}
+
 if (args is ["accept", string acceptApproach, string acceptSeeds, ..])
 {
     // accept <a|b|c> <seeds> [cubes|dc|faceted|mc]: entrances entered as the game does, candidates
@@ -390,6 +398,12 @@ Console.WriteLine($"carve-and-stamp: {walkable}/{seeds} walkable ({rate:P0}); {f
 Console.WriteLine($"mix: {string.Join(", ", mixes.OrderBy(pair => pair.Key).Select(pair => $"{pair.Key} {pair.Value}"))}");
 Console.WriteLine($"first-candidate failures: {(firstFailures.Count == 0 ? "none" : string.Join("; ", firstFailures.OrderByDescending(pair => pair.Value).Select(pair => $"{pair.Key} x{pair.Value}")))}");
 Check.That(rate >= 0.95, $"at least 95% of seeds must yield a walkable dungeon, {rate:P0} did");
+
+// Jump edges (#9123): a ledge the player jumps up is a route from open floor, and refused for headroom under a low ceiling.
+(string openLedge, string lowLedge) = JumpLedgeProbe.Run(JumpProbeRise, JumpProbeCeiling);
+Console.WriteLine($"jump ledge: open {openLedge}, under a low ceiling {lowLedge}");
+Check.That(openLedge.StartsWith("admitted:JumpTraversable", StringComparison.Ordinal), $"a ledge within the player's jump is crossed as a jump, got {openLedge}");
+Check.That(lowLedge.StartsWith("JumpHeadroomBlocked", StringComparison.Ordinal), $"a ledge under a low ceiling is refused for headroom, got {lowLedge}");
 
 // Every authored module, on its own with every socket opened, connects each socket to every other.
 foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arrival, .. DungeonModules.CaveRoute, .. DungeonModules.BuildingRooms, DungeonModules.Breach, DungeonModules.Vault])
@@ -789,3 +803,7 @@ internal static class Cutaway
         stream.Write(crc);
     }
 }
+
+// A smoothed rise (about 1.28 m between supports) past the player's 1.05 m step and inside its jump, and a
+// ceiling 3 m over the take-off: clear of a step's lift (1.75 + 1.05 m), short of a rise to the jump's peak.
+partial class Program { const float JumpProbeRise = 1.6f; const float JumpProbeCeiling = 3f; }

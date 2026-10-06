@@ -249,7 +249,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   fixed order (`DungeonCandidates`, a pure function of its seed). Each one is generated until the
   product's own walk over its voxel data passes, loaded behind the loading screen, then checked by
   `DungeonRoutes`: collision navigation for the player's own character configuration (drops as far
-  as `DungeonWalk.MaximumDrop`, steps as high as the player can jump) must walk every route the flow promises, or the next candidate is
+  as `DungeonWalk.MaximumDrop`, the player's own step, and ledges its jump clears) must walk every route the flow promises, or the next candidate is
   loaded. An entrance with no walkable dungeon in `DungeonCandidates.MaximumCandidates` is given up
   and the player stays outside. The bank enters entrances the same way headless through
   `EngineTestHost`. A and C are accepted on their first candidate; about a quarter of B's need a
@@ -262,11 +262,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   contouring, or cubes beside marched rock), all textured with the world's block materials, and
   collision and navigation follow the drawn surface. The rock is stone throughout; its strata and
   the cave-rock texture are the separate-mesh look's. Rock floors and ceilings sit on cell faces
-  and only walls take the sculpted field. Reconstructed one-block steps still come out a few
-  centimetres over a block, so the route check accepts a step up to what the player can jump
-  (`NavigationProfile.JumpableStepMetres`, the jump's peak less a margin) while the player's own
-  controller keeps its step height: such a step is a jump in play, and navigation has no jump
-  edges to say so or to check the arc's headroom (Engine #9123). Roughness, which jostles every
+  and only walls take the sculpted field. Reconstructed one-block steps can come out a few
+  centimetres over the player's 1.05 m step; the route check crosses them with the Engine's ledge
+  jumps (#9123), which model the player's own jump and refuse one without headroom
+  (`JumpHeadroomBlocked`) or a clear arc (`JumpArcBlocked`). Gap jumps over open columns are not
+  part of a promised route (`NavigationProfile.JumpGapCells` 0). Roughness, which jostles every
   vertex, refuses more candidates: it is off in `dc` and small in `faceted`. `ruined` weathers
   brick only - sharp-featured, slightly rough, its sideways-open blocks worn back by density - since
   a sharp-featured floor or stair block has chamfered edges the body cannot step; planks,
@@ -280,7 +280,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Climbs are not routes.** A module's climb lanes (`ModuleCanvas.Climb`) are held open by
   sculpting like a standing body, so the face beside them stays on its cell boundary where
   `PlayerClimb`'s rail runs; any other sculpted face may bulge and stop a climb partway. The route
-  check knows only walking (steps up to a jump's height, drops), so a climb or a drop deeper than
+  check knows walking, ledge jumps and drops, so a climb or a drop deeper than
   `DungeonWalk.MaximumDrop` is never part of a promised route: a route that needs one is refused.
   `craft.dungeon.approach v` loads `VerticalSampler`, a hand-placed sketch of a bridged chasm with a
   route crossing beneath the bridge, and `s` its shaft sketch: a ledge winding five storeys down an

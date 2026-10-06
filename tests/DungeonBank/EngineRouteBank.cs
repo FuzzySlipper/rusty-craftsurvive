@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Player;
+using CraftSurvive.Game.Modules.Terrain;
 using Rusty.Engine;
 using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine.Testing;
@@ -394,5 +395,80 @@ internal static class FineGridProbe
         }
 
         return (fine, values is null ? null : new RockDensity(fine.SizeX, fine.SizeY, fine.SizeZ, values));
+    }
+}
+
+/// <summary>
+/// The Engine's jump edges as the route check uses them (#9123), in sculpted rock, where they matter:
+/// metre cubes never make a ledge between the player's step (1.05 m) and its jump (about 1.5 m), but
+/// smoothed rock does. A rise crossed from open floor and from under a ceiling that clears a step's
+/// lift but not a rise to the jump's peak. Returns each edge's outcome and the supports' rise.
+/// </summary>
+internal static class JumpLedgeProbe
+{
+    private const int Width = 16;
+    private const int Height = 12;
+    private const int Depth = 6;
+    private const float FloorHeight = 3f;
+    private const int LedgeColumn = 8;
+    private const int Row = 2;
+    private const float Open = float.PositiveInfinity;
+
+    internal static (string Open, string LowCeiling) Run(float ledgeRise, float ceilingClearance)
+    {
+        using EngineTestHost host = EngineTestHost.Create(new EngineTestHostOptions
+        {
+            Content = new Dictionary<string, ReadOnlyMemory<byte>>
+            {
+                [DungeonCollision.RockTextureContentPath] = File.ReadAllBytes(EngineRouteBank.RockTexturePath()),
+            },
+        });
+        return (Edge(host, ledgeRise, Open), Edge(host, ledgeRise, FloorHeight + ceilingClearance));
+    }
+
+    private static string Edge(EngineTestHost host, float ledgeRise, float takeOffCeiling)
+    {
+        float[] values = new float[Width * Height * Depth];
+        for (int z = 0; z < Depth; z++)
+        for (int y = 0; y < Height; y++)
+        for (int x = 0; x < Width; x++)
+        {
+            // Negative inside rock: below the floor (raised past the ledge), or above the take-off's ceiling.
+            float floor = x < LedgeColumn ? FloorHeight : FloorHeight + ledgeRise;
+            float ceiling = x < LedgeColumn ? takeOffCeiling : Open;
+            float centre = y + 0.5f;
+            values[(((z * Height) + y) * Width) + x] = Math.Min(centre - floor, ceiling - centre);
+        }
+
+        RockDensity rock = new(Width, Height, Depth, values);
+        DungeonVolume empty = new(1, 1, 1, BlockId.Air);
+        string outcome = "none";
+        host.Call(engine =>
+        {
+            using SpatialSession session = DungeonCollision.CreateSession(engine);
+            Material material = DungeonCollision.CreateRockMaterial(engine);
+            MeshResource mesh = DungeonCollision.MeshRock(engine, rock, material, out _);
+            DungeonCollision.AdmitRock(engine, session, mesh);
+            CollisionNavigationConfig config = NavigationProfile.Player(engine.Spatial, empty).Config with { MaximumCells = Width * Depth };
+            engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
+                session, DungeonCollision.Origin, DungeonCollision.Origin + new Vector3(Width, Height, Depth), config));
+            // The lowest support is the floor; a column under the ceiling also has one on the rock's top.
+            PlanarNavCell Support(int x)
+            {
+                CollisionNavigationColumnResult column = engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x, Row));
+                CollisionNavigationSample? lowest = null;
+                foreach (CollisionNavigationSample sample in column.Samples.Span)
+                    if (sample.Outcome == CollisionNavigationSampleOutcome.Support && (lowest is not CollisionNavigationSample best || sample.SurfaceY < best.SurfaceY)) lowest = sample;
+                return lowest?.Cell ?? throw new InvalidOperationException($"column {x} has no support");
+            }
+            CollisionNavigationEdgeReadout readout = engine.Spatial.ExplainCollisionNavigationEdge(
+                new CollisionNavigationEdgeRequest(session, Support(LedgeColumn - 1), Support(LedgeColumn)));
+            outcome = string.Create(CultureInfo.InvariantCulture,
+                $"{(readout.Admitted ? "admitted:" : "")}{readout.Outcome} rise={readout.ToY - readout.FromY:F2}");
+            session.Dispose();
+            mesh.Dispose();
+            material.Dispose();
+        });
+        return outcome;
     }
 }

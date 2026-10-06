@@ -21,22 +21,15 @@ internal sealed record NavigationProfile(string Name, CollisionNavigationConfig 
     private const ulong GridId = 2UL;
 
     /// <summary>
-    /// How far below the top of the player's jump a ledge the route check accepts must stay: room for
-    /// a jump that is not perfectly timed.
+    /// Gap jumps across open columns are not part of a promised route: the dungeon flow promises
+    /// walks, steps and ledge jumps, and a route that needs a leap over a pit is refused.
     /// </summary>
-    internal const float JumpMarginMetres = 0.25f;
-
-    /// <summary>
-    /// The highest step the route check accepts: a ledge the player jumps up, short of the jump's
-    /// peak by <see cref="JumpMarginMetres"/>. Navigation has no jump edges yet (rusty-engine #9123),
-    /// so a jump stands in as a tall step; the player's own controller keeps its step height.
-    /// </summary>
-    internal static float JumpableStepMetres =>
-        (PlayerConstants.JumpSpeed * PlayerConstants.JumpSpeed / (2f * PlayerConstants.Gravity)) - JumpMarginMetres;
+    internal const uint JumpGapCells = 0;
 
     /// <summary>
     /// The player's own body, as the character controller has it, over a dungeon's volume: it walks
-    /// off the drops the generator's walk allows and climbs what the player can step or jump up.
+    /// off the drops the generator's walk allows, steps what its controller steps, and jumps up a
+    /// ledge its own jump clears, with the jump's headroom and arc checked by the Engine (#9123).
     /// </summary>
     internal static NavigationProfile Player(ISpatialService spatial, DungeonVolume volume)
     {
@@ -48,7 +41,9 @@ internal sealed record NavigationProfile(string Name, CollisionNavigationConfig 
             CellSize = TerrainConstants.VoxelSize,
             ChunkSize = (uint)TerrainConstants.ChunkEdgeLength,
             MaximumCells = checked((uint)(volume.SizeX * volume.SizeZ)),
-            Character = body with { Surface = body.Surface with { MaximumStepHeight = Math.Max(body.Surface.MaximumStepHeight, JumpableStepMetres) } },
+            Character = body,
+            JumpLedges = true,
+            JumpGapCells = JumpGapCells,
             MaximumDrop = DungeonWalk.MaximumDrop * TerrainConstants.VoxelSize,
             VerticalSearchCells = (uint)DungeonWalk.MaximumDrop,
             SnapAbove = SculptedFloorSnapMetres,
@@ -57,7 +52,7 @@ internal sealed record NavigationProfile(string Name, CollisionNavigationConfig 
     }
 
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
-        $"{Name}(r={Config.Character.Shape.Radius:0.##} h={Config.Character.Shape.StandingHeight:0.##} slope={Angles.ToDegrees(Config.Character.Surface.MaximumSlopeRadians):0} step={Config.Character.Surface.MaximumStepHeight:0.##} drop={Config.MaximumDrop:0.##} snap={Config.SnapBelow:0.##}{(Config.DiagonalNeighbors ? " diagonal" : string.Empty)})");
+        $"{Name}(r={Config.Character.Shape.Radius:0.##} h={Config.Character.Shape.StandingHeight:0.##} slope={Angles.ToDegrees(Config.Character.Surface.MaximumSlopeRadians):0} step={Config.Character.Surface.MaximumStepHeight:0.##}{(Config.JumpLedges ? " ledge-jumps" : string.Empty)} drop={Config.MaximumDrop:0.##} snap={Config.SnapBelow:0.##}{(Config.DiagonalNeighbors ? " diagonal" : string.Empty)})");
 }
 
 /// <summary>One route the flow promises, and the Engine's answer to it.</summary>
