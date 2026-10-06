@@ -31,6 +31,8 @@ internal sealed class CreatureModule : IProductModule
     private long ambushes, ambushSince;
     private readonly RoutingTimes routing = new();
     private readonly HashSet<Vector2> ambushRefused = [];
+    /// <summary>The columns a pending ambush has filled so far, across updates.</summary>
+    private readonly List<(long X, long Z)> ambushColumns = [];
     private int ambushWaiting, ambushPlaced;
 
     /// <summary>How many creatures a fresh session starts with.</summary>
@@ -471,6 +473,7 @@ internal sealed class CreatureModule : IProductModule
         ambushWaiting = count;
         ambushSince = step;
         ambushRefused.Clear();
+        ambushColumns.Clear();
         lastEvent = $"ambush: {count} hostile creature(s) waiting for the ground to stream";
     }
 
@@ -494,7 +497,7 @@ internal sealed class CreatureModule : IProductModule
                     bool routed = navigation.Step(Feet(column), feet, AmbushVisitedCells).Outcome == NavigationPathOutcome.Reached;
                     if (!routed) ambushRefused.Add(column);
                     return routed;
-                });
+                }, ambushColumns);
             ambushWaiting -= placed;
             ambushPlaced += placed;
         }
@@ -508,40 +511,36 @@ internal sealed class CreatureModule : IProductModule
         ambushPlaced = 0;
     }
 
+    /// <param name="placed">Columns this placement has already filled, kept across updates by a pending
+    /// ambush (#9531): none is filled again, and new creatures keep their separation from all of them.</param>
     private int Place(int count, long regionId, Func<int, CreatureKind> kindFor, int minimumMetres, int maximumMetres,
-        Func<Vector2, bool>? usable = null)
+        Func<Vector2, bool>? usable = null, List<(long X, long Z)>? placed = null)
     {
         TerrainEncounterFacts facts = new(terrain.Recipe);
         Vector3 origin = player.WorldPosition;
-        List<(long X, long Z)> placed = [];
-        foreach ((long x, long z) in CreatureSpawnPlan.Candidates((long)Math.Floor(origin.X), (long)Math.Floor(origin.Z), minimumMetres, maximumMetres))
-        {
-            if (placed.Count >= count)
+        List<(long X, long Z)> chosen = CreatureSpawnPlan.Choose(
+            CreatureSpawnPlan.Candidates((long)Math.Floor(origin.X), (long)Math.Floor(origin.Z), minimumMetres, maximumMetres),
+            placed ?? [], count, column =>
             {
-                break;
-            }
+                if (usable?.Invoke(new Vector2(column.X + CellCentre, column.Z + CellCentre)) == false
+                    || !facts.TryDescribe(RegionKind.Wilderness, regionId, column.X, column.Z, out EncounterSite site))
+                {
+                    return false;
+                }
 
-            if (!CreatureSpawnPlan.FarEnoughFrom(placed, (x, z))
-                || usable?.Invoke(new Vector2(x + CellCentre, z + CellCentre)) == false
-                || !facts.TryDescribe(RegionKind.Wilderness, regionId, x, z, out EncounterSite site))
-            {
-                continue;
-            }
+                int id = nextId;
+                if (!director.TryActivate(new EncounterCandidate(id, site, CreatureTraits.Walker, TimeWindow: 0), step, out EncounterDecision refusal))
+                {
+                    spawnRefusals++;
+                    lastEvent = $"refused ({column.X}, {column.Z}): {refusal.Reason}";
+                    return false;
+                }
 
-            int id = nextId;
-            if (!director.TryActivate(new EncounterCandidate(id, site, CreatureTraits.Walker, TimeWindow: 0), step, out EncounterDecision refusal))
-            {
-                spawnRefusals++;
-                lastEvent = $"refused ({x}, {z}): {refusal.Reason}";
-                continue;
-            }
-
-            nextId++;
-            placed.Add((x, z));
-            roster.Add(new Creature(id, kindFor(id), new Vector2(x + CellCentre, z + CellCentre)));
-        }
-
-        return placed.Count;
+                nextId++;
+                roster.Add(new Creature(id, kindFor(id), new Vector2(column.X + CellCentre, column.Z + CellCentre)));
+                return true;
+            });
+        return chosen.Count;
     }
 
     /// <summary>

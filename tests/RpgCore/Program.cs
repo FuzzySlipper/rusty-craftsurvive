@@ -520,6 +520,24 @@ Check.That(frame.ToLocal(2010.5, 7, -2990) == new Vector3(10.5f, 7, 10), "world-
 Check.That(frame.ToWorld(new Vector3(10.5f, 7, 10)) == new Vector3(2010.5f, 7, -2990), "local-to-world must add it back");
 Check.That(moved == new Vector3(-2000, 0, 3000), $"the rebase must announce the local translation, announced {moved}");
 
+// A placement spread over updates (a pending ambush, #9531) never fills a column twice and keeps its spacing:
+// the first update fills one column, then runs out of checks; the second starts over the same candidates.
+{
+    var ring = CreatureSpawnPlan.Candidates(0, 0, CreatureSpawnPlan.AmbushMinimumDistanceMetres, CreatureSpawnPlan.AmbushMaximumDistanceMetres).ToList();
+    List<(long X, long Z)> ambushPlaced = [];
+    List<(long X, long Z)> offered = [];
+    int budget = 2;
+    var firstUpdate = CreatureSpawnPlan.Choose(ring, ambushPlaced, 3, column => { offered.Add(column); return budget-- == 2; });
+    budget = 10;
+    var secondUpdate = CreatureSpawnPlan.Choose(ring, ambushPlaced, 2, column => { offered.Add(column); return true; });
+    Check.That(firstUpdate.Count == 1 && secondUpdate.Count == 2, $"the ambush fills one column on the first update and the rest on the second, got {firstUpdate.Count}+{secondUpdate.Count}");
+    Check.That(!secondUpdate.Contains(firstUpdate[0]) && offered.Count(column => column == firstUpdate[0]) == 1,
+        "a column filled on an earlier update is neither offered nor filled again");
+    Check.That(ambushPlaced.Distinct().Count() == 3 && ambushPlaced.SelectMany(a => ambushPlaced.Where(b => b != a),
+        (a, b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Z - b.Z) * (a.Z - b.Z))).All(d => d >= CreatureSpawnPlan.MinimumSeparationMetres),
+        "every creature of the ambush keeps its spacing from the others, across updates");
+}
+
 // Spawns spread over the ring instead of bunching in one corner.
 List<(long X, long Z)> placedSpawns = [];
 foreach ((long X, long Z) candidate in CreatureSpawnPlan.Candidates(0, 0))

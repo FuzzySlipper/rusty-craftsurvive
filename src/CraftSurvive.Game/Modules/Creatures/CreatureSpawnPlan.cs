@@ -47,6 +47,29 @@ internal static class CreatureSpawnPlan
         }
     }
 
+    /// <summary>
+    /// Choose up to <paramref name="count"/> more columns from the candidates, in order, each far
+    /// enough from everything in <paramref name="placed"/> - which may already hold earlier choices
+    /// of the same placement, made on earlier updates - and accepted by <paramref name="accept"/>.
+    /// Each chosen column is added to <paramref name="placed"/> and returned; a column already placed
+    /// is never offered to <paramref name="accept"/> again.
+    /// </summary>
+    internal static List<(long X, long Z)> Choose(IEnumerable<(long X, long Z)> candidates, List<(long X, long Z)> placed, int count,
+        Func<(long X, long Z), bool> accept)
+    {
+        ArgumentNullException.ThrowIfNull(placed);
+        List<(long X, long Z)> chosen = [];
+        foreach ((long X, long Z) candidate in candidates)
+        {
+            if (chosen.Count >= count) break;
+            if (!FarEnoughFrom(placed, candidate) || !accept(candidate)) continue;
+            placed.Add(candidate);
+            chosen.Add(candidate);
+        }
+
+        return chosen;
+    }
+
     internal static bool FarEnoughFrom(IEnumerable<(long X, long Z)> placed, (long X, long Z) candidate)
     {
         ArgumentNullException.ThrowIfNull(placed);
