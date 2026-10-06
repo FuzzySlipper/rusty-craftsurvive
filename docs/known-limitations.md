@@ -96,7 +96,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       is not saved, and progress since the last stop is lost if the session ends mid-journey.
     - **The sled (#9473)** holds `Sled.Capacity` (400) items beyond the pack's 120 and is saved
       under its own key. It travels with the party only when the map is opened beside it (within
-      `Sled.ReachMetres`) or the party stops beside it. A hitched sled routes on its own costs
+      `Sled.ReachMetres`) or the party stops beside it; every map opening decides this afresh. A
+      journey left paused or planned while the player walked off starts again from where the player
+      stands, planned for however the party now travels. A hitched sled routes on its own costs
       (`SledTravel.Terrain`: glides on ice and tundra, drags on rock, sand and forest), slows the
       march by up to half again when full, and feeds the party once the pack has no rations. "Explore
       here" leaves it at the token, where it stands in first person (a generated low-poly mesh; see

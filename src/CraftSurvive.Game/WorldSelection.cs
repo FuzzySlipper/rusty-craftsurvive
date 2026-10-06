@@ -118,14 +118,14 @@ public sealed partial class CraftSurviveProduct
     private void OpenMap()
     {
         overview ??= new(engine, worlds.Current.Map);
-        overview.ShowPlaces(KnownPlacesNow());
         player.ClearInput();
         sky.Submerged(false);
         sky.Underground(false, WorldConditionsState.Fresh.Time);
         mapOpen = true;
+        // The party and the sled's hitch are settled first, so both views draw the places as they now stand.
+        SyncPartyToPlayer();
         if (facetedMapShown) ShowFacetedMap(true);
         else overview.Activate();
-        SyncPartyToPlayer();
         PublishAppearanceSnapshot();
     }
 

@@ -31,15 +31,24 @@ public sealed partial class CraftSurviveProduct
     private TravelCostModel TravelCost => travelCost ??= new TravelCostModel(worlds.Current.Map);
 
 
-    /// <summary>When the map opens, an idle party stands where the player stands.</summary>
+    /// <summary>
+    /// When the map opens, the party stands where the player stands. A journey left paused or planned
+    /// keeps its destination and is planned again from there, for however the party now travels.
+    /// </summary>
     private void SyncPartyToPlayer()
     {
         Vector3 feet = player.WorldFeetPosition;
         Vector2 here = new(feet.X, feet.Z);
+        TravelRoute? resumed = null;
         if (party is null) party = new PartyTravel(here);
-        else if (party.State is TravelState.Idle or TravelState.Arrived && Vector2.Distance(party.Position, here) > PartyRelocateMetres)
+        else if (party.State != TravelState.Travelling && Vector2.Distance(party.Position, here) > PartyRelocateMetres)
+        {
+            resumed = party.State is TravelState.Planned or TravelState.Paused ? party.Route : null;
             party.Relocate(here);
+        }
         HitchSledIfNear();
+        if (resumed is not null && party.Plan(PartyCost, resumed.Points[^1], resumed.Destination) && party.Route is TravelRoute route)
+            worldMessage = RoutePreview(route);
         facetedMap?.MoveParty(party.Position);
         facetedMap?.ShowRoute(party.Route?.Points);
     }

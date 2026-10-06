@@ -80,6 +80,9 @@ internal sealed class WorldMapPresentation : IDisposable
             new(Point(place.Position.X, Math.Max(map.Sample(place.Position.X, place.Position.Y).Elevation, GenerationConstants.WaterLevel), place.Position.Y) + Vector3.UnitY,
                 Quaternion.Identity, Vector3.One), markers[place.Kind], true, RenderLayer.Scene))];
 
+    /// <summary>Whether a sled marker is drawn (the sled left behind), for the travel readout.</summary>
+    internal bool ShowsSled => places.Any(place => place.Kind == KnownPlaceKind.Sled);
+
     /// <summary>Show the known places (#9471); the list replaces the previous one.</summary>
     internal void ShowPlaces(IReadOnlyList<KnownPlace> known) => places = [.. known];
 

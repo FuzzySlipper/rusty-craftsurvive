@@ -32,12 +32,32 @@ public sealed partial class CraftSurviveProduct
 
     private Vector2 PlayerGround => new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z);
 
-    /// <summary>On opening the map, the sled joins the party only if the player stands beside it.</summary>
+    /// <summary>
+    /// On opening the map, the sled joins the party only if the player stands beside it, whatever the
+    /// journey's state: a paused route reopened away from the sled leaves it behind. A route already
+    /// planned is planned again for how the party now travels, and the map's places follow at once.
+    /// </summary>
     private void HitchSledIfNear()
     {
-        if (party is { State: TravelState.Travelling or TravelState.Paused }) return;
-        sledWithParty = sled.Sled.Within(PlayerGround);
+        if (party is null || party.State == TravelState.Travelling) return;
+        bool hitched = sled.Sled.Within(PlayerGround);
+        bool changed = hitched != sledWithParty;
+        sledWithParty = hitched;
         ApplySledLoad();
+        if (changed && party is { State: TravelState.Planned or TravelState.Paused, Route: TravelRoute route })
+        {
+            party.Plan(PartyCost, route.Points[^1], route.Destination);
+            worldMessage = party.Route is TravelRoute replanned ? RoutePreview(replanned) : party.Last;
+        }
+        RefreshPlaces();
+    }
+
+    /// <summary>Both map views show the places as they stand now, the sled among them only when left behind.</summary>
+    private void RefreshPlaces()
+    {
+        IReadOnlyList<KnownPlace> known = KnownPlacesNow();
+        overview?.ShowPlaces(known);
+        facetedMap?.ShowPlaces(known);
     }
 
     private void ApplySledLoad()
@@ -54,7 +74,7 @@ public sealed partial class CraftSurviveProduct
         {
             sledWithParty = true;
             ApplySledLoad();
-            facetedMap?.ShowPlaces(KnownPlacesNow());
+            RefreshPlaces();
         }
         if (!sledWithParty) return;
         sled.Sled.MoveTo(party.Position);

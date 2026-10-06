@@ -155,6 +155,9 @@ internal sealed class WorldMapVoxelView : IDisposable
         .. places.Take(ProductIds.WorldMapPlaceLimit).Select((place, i) => Marker(ProductIds.WorldMapPlaceBase + (ulong)i,
             Surface(place.Position.X, place.Position.Y), place.Kind == KnownPlaceKind.Home ? PartyScalePerDistance : MarkerScalePerDistance, placeMarkers[place.Kind]))];
 
+    /// <summary>Whether a sled marker is drawn (the sled left behind), for the travel readout.</summary>
+    internal bool ShowsSled => places.Any(place => place.Kind == KnownPlaceKind.Sled);
+
     /// <summary>Show the known places (#9471); the list replaces the previous one.</summary>
     internal void ShowPlaces(IReadOnlyList<KnownPlace> known)
     {
