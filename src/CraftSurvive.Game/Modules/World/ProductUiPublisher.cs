@@ -95,7 +95,7 @@ internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int Overla
 internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, string Cargo, double DistanceMetres);
 
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted,
-    string Travel, string TravelPhase, string Supplies, string Event);
+    string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);
 
 /// <summary>
 /// The product's one UI stream. Owners push their facts - the player its pose and vitals, discovery

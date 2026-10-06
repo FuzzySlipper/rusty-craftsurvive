@@ -8,6 +8,65 @@ namespace CraftSurvive.Game.Tests;
 /// <summary>Overland travel rules: cell costs, routes, journey time and night travel (#9467).</summary>
 internal static class TravelChecks
 {
+    /// <summary>A cross-continent route must plan within this, on a slow shared runner too (#9552).</summary>
+    private const double CrossContinentPlanBudgetMs = 1000;
+    private const float CrossContinentReach = 170_000;
+    private const int RefineWaitMs = 60_000;
+    /// <summary>A refined leg spans a diagonal region cell, or reaches from one to the kilometre node it joins.</summary>
+    private const float RefinedLegCells = 2.5f;
+
+    /// <summary>
+    /// Travel across a continent (#9552): a route from one side to the other plans quickly over the
+    /// kilometre lattice, previews in days, refines its head over region ground, and a travelling
+    /// party re-refines as it reaches the end of that head without losing its place.
+    /// </summary>
+    internal static void Continental()
+    {
+        WorldMap continent = WorldMapGenerator.Generate(new TerrainConfiguration(12345, MapScale.DefaultContinentalSize));
+        MapRegions regions = MapRegions.For(continent);
+        regions.Tile((0, 0));
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+        TravelCostModel cost = new(continent);
+        double costMs = clock.Elapsed.TotalMilliseconds;
+        clock.Restart();
+        TravelRoute? across = TravelRouter.Plan(cost, new(-CrossContinentReach, -CrossContinentReach), new(CrossContinentReach, CrossContinentReach), "far shore");
+        double planMs = clock.Elapsed.TotalMilliseconds;
+        Console.WriteLine($"continent travel: costMs={costMs:F0} planMs={planMs:F0} km={(across?.Metres ?? 0) / 1000:F0} days={TravelCalendar.Days(across?.Hours ?? 0):F0} daylightHoursPerDay={TravelCalendar.DaylightHoursPerDay:F1}");
+        Check.That(across is not null && across.Metres > CrossContinentReach * 2, "a route crosses the continent");
+        Check.That(planMs < CrossContinentPlanBudgetMs, $"a cross-continent route plans within its budget ({planMs:F0} ms)");
+        Check.That(across is not null && TravelCalendar.Describe(across.Metres, across.Hours).Contains("days", StringComparison.Ordinal)
+            && TravelCalendar.Days(across.Hours) >= 30, "a crossing previews in days, and takes at least a month");
+
+        // From the arrival tile the head follows 32 m ground: legs of a region cell, the last joining the kilometre node.
+        TravelRoute? near = TravelRouter.Plan(cost, new(0, 0), new(40_000, 25_000), "east");
+        Check.That(near is { RefinedLegs: > 0 } && near.Points.Take(near.RefinedLegs).Zip(near.Points.Skip(1).Take(near.RefinedLegs))
+            .All(p => Vector2.Distance(p.First, p.Second) <= MapGrid.TargetSpacing * RefinedLegCells),
+            $"a route's head is refined over the region tile the party stands in ({near?.RefinedLegs ?? 0} legs)");
+        Check.That(near is not null && near.Points.Zip(near.Points.Skip(1)).All(p => float.IsFinite(p.First.X) && Vector2.Distance(p.First, p.Second) <= continent.Spacing * 1.5f + 1),
+            "the refined head and the kilometre route join without a gap");
+
+        // A travelling party re-refines past the head and keeps its position.
+        PartyTravel party = new(new(0, 0));
+        Check.That(party.Plan(cost, new(40_000, 25_000), "east") && party.Begin(), "a party sets out across the continent");
+        int refinements = 0;
+        clock.Restart();
+        while (party.State == TravelState.Travelling && refinements < 2 && clock.ElapsedMilliseconds < RefineWaitMs)
+        {
+            Vector2 before = party.Position;
+            party.Advance(0.5, _ => false);
+            regions.PrefetchAhead(party.Position, party.Route?.Points);
+            // Real travel gives the tiles ahead time to build; here the party waits for them.
+            while (regions.Pending > 0 && clock.ElapsedMilliseconds < RefineWaitMs) Thread.Sleep(20);
+            if (party.Refine(cost))
+            {
+                refinements++;
+                Check.That(party.Position == before || Vector2.Distance(party.Route!.Points[0], party.Position) < 1, "refinement starts where the party stands");
+            }
+            Thread.Sleep(1);
+        }
+        Check.That(refinements >= 1, $"the party refines its route again as it travels ({refinements})");
+    }
+
     internal static void Run()
     {
         WorldMap map = WorldMapGenerator.Generate(new TerrainConfiguration(TerrainConstants.DefaultSeed, TerrainConstants.DefaultSize));

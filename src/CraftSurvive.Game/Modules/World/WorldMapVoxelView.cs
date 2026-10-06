@@ -14,6 +14,9 @@ namespace CraftSurvive.Game.Modules.World;
 /// whole-chunk steps (#9468): only the strips that enter, leave or change their edge fade are
 /// streamed, within a per-update budget. A camera rig locked to the party zooms and orbits.
 /// Presentation units are one coarse cell (<see cref="CellMetres"/>).
+/// A continent (#9552) draws in three tiers: the whole continent at a kilometre, a window of region
+/// tiles at 32 m around the party, and the 8 m patch. Each finer tier admits only ground whose region
+/// tiles are built, so the map never waits on one, and the tier beneath sinks where a finer one covers.
 /// </summary>
 internal sealed class WorldMapVoxelView : IDisposable
 {
@@ -40,6 +43,23 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// </summary>
     private const double DetailLayerCoarseBeyond = 24;
     private const double CoarseLayerCoarseBeyond = 160;
+    /// <summary>A continent's whole-world tier: one voxel a kilometre.</summary>
+    internal const double ContinentCellMetres = 1000;
+    private const double ContinentVoxel = ContinentCellMetres / CellMetres;
+    private const double ContinentChunkMetres = EdgeLength * ContinentCellMetres;
+    private const double ContinentLayerCoarseBeyond = 2000;
+    /// <summary>Region chunks on each side of the party's covered by a continent's 32 m window (one chunk is 512 m): about 8 km across.</summary>
+    private const int RegionRadiusChunks = 8;
+    private const double RegionChunkMetres = EdgeLength * CellMetres;
+    /// <summary>Region chunks over which the window's ground eases onto the continent's, so the tiers meet flush.</summary>
+    private const int RegionFadeChunks = 2;
+    private const double RegionFadeMetres = RegionFadeChunks * RegionChunkMetres;
+    /// <summary>A continental river paints the kilometre cells its channel passes within half a diagonal of, so its cells join.</summary>
+    private const double ContinentRiverReach = 0.71;
+    /// <summary>A river paints a finer tier's cells its channel passes within half a cell of.</summary>
+    private const double RiverReach = 0.5;
+    /// <summary>Picking marches in steps that grow with the camera distance, so a continent-wide view stays quick.</summary>
+    private const float PickStepPerDistance = 0.002f;
     private const double ExposedRock = 0.6;
     // Markers keep a steady apparent size: their scale follows the camera's distance.
     private const float MarkerScalePerDistance = 0.012f;
@@ -70,9 +90,17 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly Appearance party;
     private readonly MapVoxelLayer coarse;
     private readonly MapVoxelLayer detail;
+    /// <summary>A continent's region tiles and its whole-world tier; null on a regional map.</summary>
+    private readonly MapRegions? regions;
+    private readonly MapVoxelLayer? continent;
+    private readonly HashSet<(long X, long Z)> regionCovered = [];
+    private readonly long firstRegionChunk, lastRegionChunk;
+    private Vector2 followed;
+    private Vector2 regionMinimum, regionMaximum;
+    private bool detailPending;
     private readonly MapCameraRig rig;
     private readonly MapClutter clutter;
-    private readonly TerrainGroundMaterials? coarseGround, detailGround;
+    private readonly TerrainGroundMaterials? coarseGround, detailGround, continentGround;
     /// <summary>Clutter is shown only from this camera distance inward, where it reads at all.</summary>
     private const float ClutterDistance = 160;
     private Vector3 partyPosition;
@@ -113,6 +141,7 @@ internal sealed class WorldMapVoxelView : IDisposable
                 // Tiles span the same ground at both resolutions: the scale is in each layer's cells.
                 coarseGround = new TerrainGroundMaterials(engine, content, CellMetres, textures);
                 detailGround = new TerrainGroundMaterials(engine, content, DetailMetres, textures);
+                if (map.Scale.Continental) continentGround = new TerrainGroundMaterials(engine, content, ContinentCellMetres, textures);
             }
             foreach (KnownPlaceKind kind in Enum.GetValues<KnownPlaceKind>())
                 placeMarkers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind)));
@@ -123,13 +152,29 @@ internal sealed class WorldMapVoxelView : IDisposable
 
             firstDetailChunk = (long)Math.Floor(-map.Radius / DetailChunkMetres);
             lastDetailChunk = (long)Math.Floor((map.Radius - 1) / DetailChunkMetres);
-            coarse = Layer(1, CellMetres, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround, CoarseLayerCoarseBeyond);
-            detail = Layer(1d / DetailPerCell, DetailMetres, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond);
-            clutter = new MapClutter(engine, map);
-            // The window comes first: the coarse ground samples it to sink beneath the patch.
+            firstRegionChunk = (long)Math.Floor(-map.Radius / RegionChunkMetres);
+            lastRegionChunk = (long)Math.Floor((map.Radius - 1) / RegionChunkMetres);
+            regions = map.Scale.Continental ? MapRegions.For(map) : null;
+            Func<double, double, MapSample> fine = regions is null ? map.Sample : RegionGround;
+            Func<double, double, RiverInfluence?> fineRivers = regions is null ? map.Rivers.Nearest : regions.RiverNear;
+            if (regions is not null)
+                continent = Layer(ContinentVoxel, ContinentCellMetres, map.Sample, map.Rivers.Nearest, ContinentRiverReach, (x, z) => UnderRegion(x, z) ? PatchSink * ContinentVoxel : 0,
+                    false, continentGround, ContinentLayerCoarseBeyond);
+            coarse = Layer(1, CellMetres, fine, fineRivers, RiverReach, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround, CoarseLayerCoarseBeyond);
+            detail = Layer(1d / DetailPerCell, DetailMetres, fine, fineRivers, RiverReach, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond);
+            clutter = new MapClutter(engine, map, fine);
+            // The windows come first: the ground beneath samples them to sink under each finer tier.
             Follow(new(partyWorldFeet.X, partyWorldFeet.Z));
-            long firstCoarse = GridMath.FloorDivide(-cells / 2, EdgeLength), lastCoarse = GridMath.FloorDivide(cells - cells / 2 - 1, EdgeLength);
-            coarse.Want(from cz in Range(firstCoarse, lastCoarse) from cx in Range(firstCoarse, lastCoarse) select (cx, cz));
+            if (continent is not null)
+            {
+                long firstContinent = (long)Math.Floor(-map.Radius / ContinentChunkMetres), lastContinent = (long)Math.Floor((map.Radius - 1) / ContinentChunkMetres);
+                continent.Want(from cz in Range(firstContinent, lastContinent) from cx in Range(firstContinent, lastContinent) select (cx, cz));
+            }
+            else
+            {
+                long firstCoarse = GridMath.FloorDivide(-cells / 2, EdgeLength), lastCoarse = GridMath.FloorDivide(cells - cells / 2 - 1, EdgeLength);
+                coarse.Want(from cz in Range(firstCoarse, lastCoarse) from cx in Range(firstCoarse, lastCoarse) select (cx, cz));
+            }
             partyPosition = Surface(partyWorldFeet.X, partyWorldFeet.Z);
             rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
         }
@@ -142,16 +187,17 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     internal MapSurfaceStyle Style { get; }
 
-    internal bool Loaded => coarse.Settled && detail.Settled;
+    internal bool Loaded => (continent?.Settled ?? true) && coarse.Settled && detail.Settled && !detailPending;
     internal string Readout => FormattableString.Invariant(
-        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};lod={LevelOfDetailReadout()};")
+        $"style={Style.Name};tiers={(continent is null ? 2 : 3)};continentChunks={continent?.ResidentChunks ?? 0}+{continent?.PendingChunks ?? 0}pending;regionColumns={regionCovered.Count};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};lod={LevelOfDetailReadout()};")
         + rig.Readout;
 
     private string LevelOfDetailReadout()
     {
         (ulong coarseChunks, ulong coarseCoarse) = coarse.LevelOfDetail();
         (ulong detailChunks, ulong detailCoarse) = detail.LevelOfDetail();
-        return FormattableString.Invariant($"map {coarseCoarse}/{coarseChunks} detail {detailCoarse}/{detailChunks} coarse");
+        (ulong continentChunks, ulong continentCoarse) = continent?.LevelOfDetail() ?? (0, 0);
+        return FormattableString.Invariant($"continent {continentCoarse}/{continentChunks} map {coarseCoarse}/{coarseChunks} detail {detailCoarse}/{detailChunks} coarse");
     }
 
     internal void Activate() => rig.Activate();
@@ -204,17 +250,21 @@ internal sealed class WorldMapVoxelView : IDisposable
         List<Vector3> markers = [];
         if (points is not null)
         {
+            // A long route spreads its markers out rather than stopping short of its end.
+            double routeMetres = 0;
+            for (int i = 1; i < points.Count; i++) routeMetres += Vector2.Distance(points[i - 1], points[i]);
+            double spacing = Math.Max(RouteMarkerSpacingMetres, routeMetres / ProductIds.WorldMapRouteLimit);
             double carried = 0;
             for (int i = 1; i < points.Count && markers.Count < ProductIds.WorldMapRouteLimit; i++)
             {
                 Vector2 a = points[i - 1], b = points[i];
                 double length = Vector2.Distance(a, b);
-                for (double along = RouteMarkerSpacingMetres - carried; along < length; along += RouteMarkerSpacingMetres)
+                for (double along = spacing - carried; along < length; along += spacing)
                 {
                     Vector2 p = Vector2.Lerp(a, b, (float)(along / length));
                     markers.Add(Surface(p.X, p.Y));
                 }
-                carried = (carried + length) % RouteMarkerSpacingMetres;
+                carried = (carried + length) % spacing;
             }
         }
         routeMarkers = [.. markers];
@@ -284,8 +334,8 @@ internal sealed class WorldMapVoxelView : IDisposable
             Vector3 at = ray.Origin + direction * t;
             return at.Y <= Surface(at.X * CellMetres, at.Z * CellMetres).Y;
         }
-        float previous = 0;
-        for (float t = PickStepUnits; t <= reach; t += PickStepUnits)
+        float previous = 0, step = Math.Max(PickStepUnits, rig.Distance * PickStepPerDistance);
+        for (float t = step; t <= reach; t += step)
         {
             if (!Below(t)) { previous = t; continue; }
             float low = previous, high = t;
@@ -316,6 +366,18 @@ internal sealed class WorldMapVoxelView : IDisposable
         bool wasLoaded = Loaded;
         if (startedAt == 0) startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         int budget = ChunksPerUpdate;
+        if (regions is not null)
+        {
+            // Region tiles finish off-thread: admit what they now cover, and the patch once it can be drawn.
+            if (detailPending) Follow(followed);
+            else CoverRegion();
+            if (continent!.PendingChunks > 0 || !continent.Settled)
+            {
+                continent.Advance(budget);
+                if (!continent.Settled && loadMilliseconds == 0) return;
+                budget /= 2;
+            }
+        }
         if (coarse.PendingChunks > 0 || !coarse.Settled)
         {
             coarse.Advance(budget);
@@ -335,11 +397,26 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// </summary>
     private void Follow(Vector2 world)
     {
+        followed = world;
+        CoverRegion();
         long span = 2 * DetailRadiusChunks;
         long maximumStart = Math.Max(firstDetailChunk, lastDetailChunk - span + 1);
         long x0 = Math.Clamp((long)Math.Floor(world.X / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
         long z0 = Math.Clamp((long)Math.Floor(world.Y / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
-        if (x0 == windowChunkX && z0 == windowChunkZ) return;
+        if (x0 == windowChunkX && z0 == windowChunkZ) { detailPending = false; return; }
+        if (regions is not null)
+        {
+            // The patch moves only once every tile it covers is built; until then the last one stays.
+            double minX = x0 * DetailChunkMetres, minZ = z0 * DetailChunkMetres;
+            double maxX = (x0 + span) * DetailChunkMetres, maxZ = (z0 + span) * DetailChunkMetres;
+            if (!regions.Ready(minX, minZ, maxX, maxZ))
+            {
+                regions.Prefetch(minX, minZ, maxX, maxZ);
+                detailPending = true;
+                return;
+            }
+        }
+        detailPending = false;
         bool first = windowChunkX == long.MinValue;
         (Vector2 oldMinimum, Vector2 oldMaximum) = (detailMinimum, detailMaximum);
         long oldX0 = windowChunkX, oldZ0 = windowChunkZ;
@@ -385,6 +462,78 @@ internal sealed class WorldMapVoxelView : IDisposable
         for (long i = first; i <= last; i++) yield return i;
     }
 
+    /// <summary>
+    /// A continent's 32 m window around the party: every region chunk column whose tiles are built is
+    /// admitted, the rest are queued, and the continent tier is re-sunk where the cover changed.
+    /// </summary>
+    private void CoverRegion()
+    {
+        if (regions is null) return;
+        long span = 2 * RegionRadiusChunks;
+        long maximumStart = Math.Max(firstRegionChunk, lastRegionChunk - span + 1);
+        long x0 = Math.Clamp((long)Math.Floor(followed.X / RegionChunkMetres) - RegionRadiusChunks, firstRegionChunk, maximumStart);
+        long z0 = Math.Clamp((long)Math.Floor(followed.Y / RegionChunkMetres) - RegionRadiusChunks, firstRegionChunk, maximumStart);
+        long x1 = Math.Min(lastRegionChunk, x0 + span - 1), z1 = Math.Min(lastRegionChunk, z0 + span - 1);
+        Vector2 minimum = new((float)(x0 * RegionChunkMetres), (float)(z0 * RegionChunkMetres)), maximum = new((float)((x1 + 1) * RegionChunkMetres), (float)((z1 + 1) * RegionChunkMetres));
+        if (minimum != regionMinimum || maximum != regionMaximum)
+        {
+            // The window moved: the bands beside both its old and new edges carry a changed fade.
+            (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
+            (regionMinimum, regionMaximum) = (minimum, maximum);
+            coarse.Invalidate(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum)));
+        }
+        regions.Prefetch(x0 * RegionChunkMetres, z0 * RegionChunkMetres, (x1 + 1) * RegionChunkMetres, (z1 + 1) * RegionChunkMetres);
+        HashSet<(long X, long Z)> covered = [];
+        for (long cz = z0; cz <= z1; cz++)
+        for (long cx = x0; cx <= x1; cx++)
+            if (regions.Ready(cx * RegionChunkMetres, cz * RegionChunkMetres, (cx + 1) * RegionChunkMetres, (cz + 1) * RegionChunkMetres))
+                covered.Add((cx, cz));
+        if (covered.SetEquals(regionCovered)) return;
+        HashSet<(long X, long Z)> changed = [.. covered];
+        changed.SymmetricExceptWith(regionCovered);
+        regionCovered.Clear();
+        regionCovered.UnionWith(covered);
+        coarse.Want(covered);
+        continent!.Invalidate(changed.Select(column => (
+            (long)Math.Floor(column.X * RegionChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * RegionChunkMetres / ContinentChunkMetres))));
+        factsVersion++;
+    }
+
+    /// <summary>Region chunk columns within the fade band inside a window's edges.</summary>
+    private static IEnumerable<(long X, long Z)> FadeBand(Vector2 minimum, Vector2 maximum)
+    {
+        long x0 = (long)Math.Floor(minimum.X / RegionChunkMetres), x1 = (long)Math.Floor(maximum.X / RegionChunkMetres) - 1;
+        long z0 = (long)Math.Floor(minimum.Y / RegionChunkMetres), z1 = (long)Math.Floor(maximum.Y / RegionChunkMetres) - 1;
+        return from cz in Range(z0, z1) from cx in Range(x0, x1)
+               where cx < x0 + RegionFadeChunks || cx > x1 - RegionFadeChunks || cz < z0 + RegionFadeChunks || cz > z1 - RegionFadeChunks
+               select (cx, cz);
+    }
+
+    /// <summary>
+    /// A continent's region ground as the map draws it: the region tiles' geography, easing onto the
+    /// continent's own surface across the window's outer band, so the tiers meet without a wall.
+    /// </summary>
+    private MapSample RegionGround(double worldX, double worldZ)
+    {
+        MapSample region = regions!.Sample(worldX, worldZ);
+        double inset = Math.Min(Math.Min(worldX - regionMinimum.X, regionMaximum.X - worldX), Math.Min(worldZ - regionMinimum.Y, regionMaximum.Y - worldZ));
+        double fade = WorldMap.Smooth(Math.Clamp(inset / RegionFadeMetres, 0, 1));
+        if (fade >= 1) return region;
+        double broad = map.Sample(worldX, worldZ).Elevation;
+        return region with { Elevation = broad + fade * (region.Elevation - broad) };
+    }
+
+    /// <summary>
+    /// Where the continent tier sinks: beneath region ground past the window's fade band. Its ground
+    /// slopes down to the sunk depth between kilometre cells, and inside the band that slope stays
+    /// under region ground, which there eases onto the continent's own surface.
+    /// </summary>
+    private bool UnderRegion(double worldX, double worldZ) =>
+        InRegion(worldX, worldZ) && Math.Min(Math.Min(worldX - regionMinimum.X, regionMaximum.X - worldX), Math.Min(worldZ - regionMinimum.Y, regionMaximum.Y - worldZ)) >= RegionFadeMetres;
+
+    private bool InRegion(double worldX, double worldZ) =>
+        regions is null || regionCovered.Contains(((long)Math.Floor(worldX / RegionChunkMetres), (long)Math.Floor(worldZ / RegionChunkMetres)));
+
     private bool InDetail(double worldX, double worldZ) =>
         worldX >= detailMinimum.X && worldZ >= detailMinimum.Y && worldX < detailMaximum.X && worldZ < detailMaximum.Y;
 
@@ -393,6 +542,8 @@ internal sealed class WorldMapVoxelView : IDisposable
         clutter?.Dispose();
         detail?.Dispose();
         coarse?.Dispose();
+        continent?.Dispose();
+        continentGround?.Dispose();
         detailGround?.Dispose();
         coarseGround?.Dispose();
         rig?.Dispose();
@@ -407,7 +558,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// One streamed layer: each voxel column samples the map at its centre, with exaggerated relief,
     /// lowered by <paramref name="sink"/> coarse voxels at a world point. Columns beyond the map are empty.
     /// </summary>
-    private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground, double coarseBeyond)
+    private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, MapSample> geography, Func<double, double, RiverInfluence?> rivers, double riverReach,
+        Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground, double coarseBeyond)
     {
         double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
         double origin = OriginY / voxelSize;
@@ -419,11 +571,11 @@ internal sealed class WorldMapVoxelView : IDisposable
                 int i = z * EdgeLength + x;
                 double worldX = (chunkX * EdgeLength + x + 0.5) * cellMetres, worldZ = (chunkZ * EdgeLength + z + 0.5) * cellMetres;
                 if (Math.Abs(worldX) > map.Radius || Math.Abs(worldZ) > map.Radius) { surface[i] = double.NaN; continue; }
-                MapSample sample = map.Sample(worldX, worldZ);
+                MapSample sample = geography(worldX, worldZ);
                 // The detail patch carries the same regional relief walking terrain adds to the map.
                 surface[i] = origin + Top(sample, worldX, worldZ, localRelief) / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
                 material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
-                    : RiverCovers(worldX, worldZ, cellMetres) ? RiverSlot
+                    : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + cellMetres * riverReach ? RiverSlot
                     : sample.Rock >= ExposedRock ? RockSlot
                     : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
             }
@@ -468,8 +620,13 @@ internal sealed class WorldMapVoxelView : IDisposable
     }
 
     /// <summary>A point on the faceted surface as drawn: the detail patch where it covers, else the coarse map.</summary>
-    private Vector3 Surface(double worldX, double worldZ) =>
-        Position(worldX, Top(map.Sample(worldX, worldZ), worldX, worldZ, InDetail(worldX, worldZ)), worldZ);
+    private Vector3 Surface(double worldX, double worldZ)
+    {
+        bool inDetail = InDetail(worldX, worldZ);
+        // On a continent, region ground is read only where its tier is drawn, so it is always built.
+        MapSample sample = regions is not null && (inDetail || InRegion(worldX, worldZ)) ? RegionGround(worldX, worldZ) : map.Sample(worldX, worldZ);
+        return Position(worldX, Top(sample, worldX, worldZ, inDetail), worldZ);
+    }
 
     private Vector3 Position(double worldX, double elevation, double worldZ)
     {
@@ -477,10 +634,6 @@ internal sealed class WorldMapVoxelView : IDisposable
         return new((float)(worldX / CellMetres), (float)(OriginY + Math.Max(elevation, GenerationConstants.WaterLevel) / metresPerUnit),
             (float)(worldZ / CellMetres));
     }
-
-    /// <summary>A river is painted on a cell when its channel reaches within half a cell of the centre.</summary>
-    private bool RiverCovers(double x, double z, double cellMetres) =>
-        map.Rivers.Nearest(x, z) is RiverInfluence river && river.Distance < river.HalfWidth + cellMetres / 2;
 
     private Material Flat(Color color) =>
         engine.Graphics.CreateMaterial(new MaterialRequest(color, default, 1f, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));

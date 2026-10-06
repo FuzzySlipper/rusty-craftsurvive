@@ -39,8 +39,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - Play at ±190 km behaves as at the centre (#9551): walking, collision, edits, saves and
       dungeons. The generation fingerprint and cache identity probe only the arrival tile, plus
       the continent's map fingerprint.
-    - The faceted map and travel are refused on a continent until the map's tiers (#9552);
-      the smooth overview shows it.
+    - The faceted map draws a continent in three tiers (#9552):
+      - the whole continent at 1 km;
+      - an 8 km window of region tiles at 32 m around the party, easing onto the continent at its edge;
+      - the 8 m patch.
+    - Region-window rivers end at the window's edge. The continent tier paints only the
+      continent's own great rivers, as kilometre cells.
+    - A route plans over the 1 km lattice; a cross-continent route plans in tens of milliseconds.
+      Only the head of the route, up to 6 km within the party's tile, follows 32 m ground,
+      re-refined as the party reaches its end. The rest crosses the kilometre lattice, so its
+      hours are estimates at that scale.
+    - Travel runs at ×1, ×2 or ×4. Any travel event still stops it.
   - Erosion is detachment-limited with creep, talus relaxation and filled basins. It does
     not transport or deposit sediment explicitly, so there are no alluvial fans or deltas.
     Filled basins drain rather than holding lakes; the only standing inland water is

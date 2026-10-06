@@ -24,6 +24,9 @@ public sealed partial class CraftSurviveProduct
     /// <summary>The expedition eats a ration once a whole one fits in the stomach.</summary>
     private static readonly double EatRationBelowSatiety = SurvivalRules.MaximumSatiety - ItemCatalog.Ration.Value;
 
+    /// <summary>The travel speeds offered (#9552): game time passes this many times faster while the party moves.</summary>
+    private static readonly int[] TravelSpeeds = [1, 2, 4];
+    private int travelSpeed = 1;
     private TravelCostModel? travelCost;
     private PartyTravel? party;
     private double unpublishedTravelHours;
@@ -57,7 +60,6 @@ public sealed partial class CraftSurviveProduct
     private void PlanTravel(Vector2 destination, string name)
     {
         if (player.InSeparateSpace) throw new FormatException("Leave this place before planning overland travel.");
-        if (worlds.Current.Map.Scale.Continental) throw new FormatException(ContinentMapMessage);
         if (!facetedMapShown) ShowFacetedMap(true);
         party ??= new PartyTravel(destination);
         ApplySledLoad();
@@ -80,6 +82,14 @@ public sealed partial class CraftSurviveProduct
         string danger = TravelEventDirector.DangerName(TravelEventDirector.Danger(homeKilometres));
         return string.Create(CultureInfo.InvariantCulture,
             $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration) + (sledWithParty ? sled.Sled.Count(ItemCatalog.Ration) : 0)}); danger {danger}; {(sledWithParty ? "hauling the sled" : "the sled stays behind")}. Set out to confirm.");
+    }
+
+    /// <summary>Choose how fast the journey runs; events still stop it whatever the speed.</summary>
+    private void SetTravelSpeed(int speed)
+    {
+        if (!TravelSpeeds.Contains(speed)) throw new FormatException("Choose one of the offered travel speeds.");
+        travelSpeed = speed;
+        worldMessage = FormattableString.Invariant($"Travelling at ×{speed}.");
     }
 
     private void TravelAction(string action)
@@ -112,14 +122,19 @@ public sealed partial class CraftSurviveProduct
     {
         if (party is not { State: TravelState.Travelling }) return;
         WorldTime start = conditions.Time;
-        double spent = party.Advance(elapsedSeconds * PartyTravel.HoursPerSecond,
+        double spent = party.Advance(elapsedSeconds * PartyTravel.HoursPerSecond * travelSpeed,
             hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction));
         bool arrived = party.State != TravelState.Travelling;
         conditions.Pass(spent / PlayHoursPerSecond, save: arrived);
         survival.Journey(spent / PlayHoursPerSecond, Meal);
         facetedMap?.MoveParty(party.Position);
-        // On a continent, the country ahead is refined before the party could stop in it (#9550).
-        if (worlds.Current.Map.Scale.Continental) MapRegions.For(worlds.Current.Map).PrefetchAhead(party.Position, party.Route?.Points);
+        // On a continent, the country ahead is refined before the party could stop in it (#9550), and
+        // the route's head follows region ground as the party reaches it (#9552).
+        if (worlds.Current.Map.Scale.Continental)
+        {
+            MapRegions.For(worlds.Current.Map).PrefetchAhead(party.Position, party.Route?.Points);
+            if (party.Refine(PartyCost)) facetedMap?.ShowRoute(party.Route?.Points);
+        }
         unpublishedTravelHours += spent;
         // An event settles the party itself and keeps the route for after the choice.
         RollTravelEvent(spent);
@@ -220,7 +235,7 @@ public sealed partial class CraftSurviveProduct
         };
         bool night = WorldClock.IsNight(time.DayFraction);
         return string.Create(CultureInfo.InvariantCulture,
-            $"{clock} · {phase} {route.Destination} · {party.RemainingHours:F1} h of daylight travel left{(night ? " · night: very slow, consider camping" : "")}");
+            $"{clock} · {phase} {route.Destination} · {TravelCalendar.Remaining(party.RemainingHours)} left{(night ? " · night: very slow, consider camping" : "")}");
     }
 
     /// <summary>What the expedition carries and how worn it is, for the journey panel.</summary>

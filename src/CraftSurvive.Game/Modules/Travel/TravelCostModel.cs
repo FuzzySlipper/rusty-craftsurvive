@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Travel;
@@ -22,13 +23,17 @@ internal sealed class TravelCostModel
 
     private readonly WorldMap map;
     private readonly double[] multiplier;
+    private readonly Func<MapBiome, double>? transport;
+    private readonly ConditionalWeakTable<WorldMap, TravelCostModel> regionCosts = [];
 
     /// <param name="transport">A further multiplier per environment for how the party travels (a hitched
     /// sled, #9473); null for a party on foot.</param>
     internal TravelCostModel(WorldMap map, Func<MapBiome, double>? transport = null)
     {
         Transported = transport is not null;
+        this.transport = transport;
         this.map = map;
+        Regions = map.Scale.Continental ? MapRegions.For(map) : null;
         MapGrid grid = map.Grid;
         multiplier = new double[grid.Count];
         for (int i = 0; i < grid.Count; i++)
@@ -45,6 +50,12 @@ internal sealed class TravelCostModel
     }
 
     internal WorldMap Map => map;
+
+    /// <summary>A continent's region tiles, over which a route's head is refined (#9552); null on a regional map.</summary>
+    internal MapRegions? Regions { get; }
+
+    /// <summary>The same costs, for the same party, over one region tile's 32 m lattice; built once per tile.</summary>
+    internal TravelCostModel RegionCost(WorldMap tile) => regionCosts.GetValue(tile, map => new TravelCostModel(map, transport));
     internal bool Transported { get; }
 
     /// <summary>The cost multiplier of a lattice node; infinity where the expedition cannot go.</summary>

@@ -23,6 +23,11 @@ internal sealed class MapCameraRig : IDisposable
     private const double FieldOfView = 55;
     private const float NearFraction = 0.004f;
     private const float FarMargin = 2.5f;
+    /// <summary>
+    /// The horizon drawn beyond the focus grows with the camera distance, up to the whole map: a close
+    /// view of a continent keeps a depth range like a regional map's rather than a continent's.
+    /// </summary>
+    private const float HorizonPerDistance = 100;
     private const double SampleSeconds = 1d / 60d;
     private const double DelaySeconds = 1d / 60d;
     /// <summary>Held-key rates per update: radians of orbit or tilt, and a zoom factor exponent.</summary>
@@ -183,7 +188,7 @@ internal sealed class MapCameraRig : IDisposable
         Vector3 forward = Look.IntegrateClamped(new LookRequest(look, Vector2.Zero, PlayerBody.Look)).Forward;
         Vector3 eye = Focus - forward * distance;
         return new(new CameraPose(eye, pitch * 180 / MathF.PI, yaw * 180 / MathF.PI), CameraBasisMode.Derived, default,
-            new(CameraProjectionKind.Perspective, FieldOfView, 0, Math.Max(distance * NearFraction, 0.001f), distance * 2 + mapWidth * FarMargin),
+            new(CameraProjectionKind.Perspective, FieldOfView, 0, Math.Max(distance * NearFraction, 0.001f), distance * 2 + Math.Min(mapWidth, distance * HorizonPerDistance) * FarMargin),
             CameraViewports.Full);
     }
 }

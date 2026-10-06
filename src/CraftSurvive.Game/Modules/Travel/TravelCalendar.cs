@@ -1,0 +1,30 @@
+using CraftSurvive.Game.Modules.Sky;
+
+namespace CraftSurvive.Game.Modules.Travel;
+
+/// <summary>
+/// Journey lengths in the terms an expedition plans by (#9552): a continent is crossed in days and
+/// weeks, not hours. A day of travel is the daylight of one world day; the nights are camped.
+/// </summary>
+internal static class TravelCalendar
+{
+    private const int DaySamples = 1440;
+    private const double HoursPerDay = 24;
+
+    /// <summary>Daylight hours in one world day, from the world clock's own night rule.</summary>
+    internal static double DaylightHoursPerDay { get; } =
+        Enumerable.Range(0, DaySamples).Count(i => !WorldClock.IsNight((i + 0.5) / DaySamples)) * HoursPerDay / DaySamples;
+
+    /// <summary>Days of travel for this many daylight hours, camping the nights.</summary>
+    internal static double Days(double daylightHours) => daylightHours / DaylightHoursPerDay;
+
+    /// <summary>What remains of a journey: daylight hours while within a day, days beyond.</summary>
+    internal static string Remaining(double daylightHours) => daylightHours < DaylightHoursPerDay
+        ? FormattableString.Invariant($"{daylightHours:F1} h of daylight travel")
+        : FormattableString.Invariant($"about {Days(daylightHours):F0} days of travel");
+
+    /// <summary>A route's length and duration: hours while it fits in a day's daylight, days beyond.</summary>
+    internal static string Describe(double metres, double daylightHours) => daylightHours < DaylightHoursPerDay
+        ? FormattableString.Invariant($"{metres / 1000:F1} km, about {daylightHours:F1} h of daylight travel")
+        : FormattableString.Invariant($"{metres / 1000:F0} km, about {Days(daylightHours):F0} days of travel ({daylightHours:F0} h by daylight)");
+}

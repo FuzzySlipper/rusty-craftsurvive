@@ -25,11 +25,15 @@ internal sealed class MapRegions
     /// drainage near the band is not shaped by the tile's own border.
     /// </summary>
     internal const int TileExtent = 12_288;
-    private const int CacheLimit = 12;
+    /// <summary>
+    /// Tiles kept built (about 12 MB each): the map's region window and the walker need up to nine,
+    /// the route ahead a few more, so prefetching never evicts a tile still in use.
+    /// </summary>
+    private const int CacheLimit = 20;
     /// <summary>Around a party or walker, the tiles within this reach are built ahead of need.</summary>
     internal const double PrefetchRadius = 2048;
     /// <summary>Along a route, tiles are built this far ahead of the party: under the cache, so prefetching never evicts the tiles in use.</summary>
-    internal const double RouteAheadMetres = 24_000;
+    internal const double RouteAheadMetres = 12_000;
     private const double RouteProbeMetres = 2048;
     private static readonly ConditionalWeakTable<WorldMap, MapRegions> Owned = [];
 
@@ -76,6 +80,28 @@ internal sealed class MapRegions
         ((int)Math.Floor(x / TileSpacing + 0.5), (int)Math.Floor(z / TileSpacing + 0.5));
 
     internal static (double X, double Z) Centre((int X, int Z) tile) => (tile.X * TileSpacing, tile.Z * TileSpacing);
+
+    /// <summary>Whether every tile whose blend reaches a world rectangle is built, so sampling it never waits.</summary>
+    internal bool Ready(double minX, double minZ, double maxX, double maxZ)
+    {
+        (int X, int Z) low = TileAt(minX - BlendHalfWidth, minZ - BlendHalfWidth), high = TileAt(maxX + BlendHalfWidth, maxZ + BlendHalfWidth);
+        for (int tz = low.Z; tz <= high.Z; tz++)
+        for (int tx = low.X; tx <= high.X; tx++)
+            if (!IsReady((tx, tz))) return false;
+        return true;
+    }
+
+    /// <summary>Queue the tiles a world rectangle needs, off the calling thread.</summary>
+    internal void Prefetch(double minX, double minZ, double maxX, double maxZ)
+    {
+        (int X, int Z) low = TileAt(minX - BlendHalfWidth, minZ - BlendHalfWidth), high = TileAt(maxX + BlendHalfWidth, maxZ + BlendHalfWidth);
+        for (int tz = low.Z; tz <= high.Z; tz++)
+        for (int tx = low.X; tx <= high.X; tx++)
+            Request((tx, tz));
+    }
+
+    /// <summary>The drainage network's river nearest a world point, as region sampling draws it.</summary>
+    internal RiverInfluence? RiverNear(double x, double z) => Tile(TileAt(x, z)).Rivers.Nearest(x, z);
 
     /// <summary>Whether a tile is built, without building it.</summary>
     internal bool IsReady((int X, int Z) tile) => tiles.TryGetValue(tile, out Lazy<RegionTile>? lazy) && lazy.IsValueCreated;

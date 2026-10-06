@@ -28,6 +28,8 @@ internal sealed class PartyTravel
     internal const double FullRestHours = 6;
 
     private int leg;
+    /// <summary>The leg at which head refinement was last tried, so an unrefinable head is not retried every update.</summary>
+    private int refineTriedAt = -1;
     private double slowHours, slowMultiplier = 1;
     private double legProgress;
 
@@ -86,8 +88,39 @@ internal sealed class PartyTravel
         leg = 0;
         legProgress = 0;
         State = TravelState.Planned;
-        Last = FormattableString.Invariant($"Route to {name}: {route.Metres / 1000:F1} km, about {route.Hours:F1} h of daylight travel.");
+        refineTriedAt = -1;
+        Last = $"Route to {name}: {TravelCalendar.Describe(route.Metres, route.Hours)}.";
         return true;
+    }
+
+    /// <summary>
+    /// On a continent, re-plan the route's head over region ground once the party reaches the end of
+    /// the part already refined (#9552). Progress is kept: the new route starts where the party stands.
+    /// Returns true when the route changed.
+    /// </summary>
+    internal bool Refine(TravelCostModel cost)
+    {
+        if (cost.Regions is null || Route is null || State != TravelState.Travelling || leg < Route.RefinedLegs - 1 || leg == refineTriedAt) return false;
+        if (TravelRouter.RefineHead(cost, Remaining(Route)) is not TravelRoute refined)
+        {
+            // A tile still building is retried on the next leg; the route is followed meanwhile.
+            refineTriedAt = leg;
+            return false;
+        }
+        Route = refined;
+        leg = 0;
+        legProgress = 0;
+        refineTriedAt = -1;
+        return true;
+    }
+
+    /// <summary>The rest of a route from where the party stands.</summary>
+    private TravelRoute Remaining(TravelRoute route)
+    {
+        Vector2[] points = [Position, .. route.Points.Skip(leg + 1)];
+        double[] hours = [.. route.LegHours.Skip(leg)];
+        if (hours.Length > 0) hours[0] *= 1 - legProgress;
+        return new(route.Destination, points, hours);
     }
 
     internal bool Begin()

@@ -20,7 +20,7 @@ try
         using (ProductUiPublisher ui = new(engine))
         {
             ui.OpenStream();
-            ui.PublishMap(new(true, "1", 4096, "", "Generating your first world", 0, false, "", "idle", "", ""));
+            ui.PublishMap(new(true, "1", 4096, "", "Generating your first world", 0, false, "", "idle", "", "", 1));
             Check.That(ui.Published == 1, "a world-less publisher sends the generating map projection");
         }
         object probe = new();
@@ -183,11 +183,12 @@ partial class Program
         Check.That(disagreed == 0, "both tiles draw the same rivers where they meet");
 
         // A party's route is refined ahead of it, off the calling thread.
-        System.Numerics.Vector2[] route = [new(0, 0), new(12_000, 0), new(20_000, 6_000)];
+        // Within the lookahead (MapRegions.RouteAheadMetres), so the whole route is refined ahead.
+        System.Numerics.Vector2[] route = [new(0, 0), new(6_000, 0), new(10_000, 4_000)];
         regions.PrefetchAhead(route[0], route);
         clock.Restart();
         while (regions.Pending > 0 && clock.ElapsedMilliseconds < PrefetchWaitMs) Thread.Sleep(50);
-        Check.That(regions.Pending == 0 && regions.IsReady(MapRegions.TileAt(20_000, 6_000)), $"tiles along a route are built ahead of the party ({clock.ElapsedMilliseconds} ms)");
+        Check.That(regions.Pending == 0 && regions.IsReady(MapRegions.TileAt(10_000, 4_000)), $"tiles along a route are built ahead of the party ({clock.ElapsedMilliseconds} ms)");
     }
 
     /// <summary>Points 5 km inside each corner of the 390 km continent, all land for <see cref="ContinentSeed"/>: where #9551 audits precision.</summary>

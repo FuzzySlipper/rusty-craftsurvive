@@ -111,7 +111,12 @@ touch deterministically through `MapRivers.Shape`, so a reach is identical in ev
 tiles hold those rivers as base level. `MapRegions.For(map)` is the continent's one regenerable
 cache. World preparation builds the arrival tile. A travelling party prefetches the tiles along
 its route, and terrain streaming prefetches those around the walker. On a continent,
-`TerrainRecipe.Geography` samples the tiles instead of the map (#9551).
+`TerrainRecipe.Geography` samples the tiles instead of the map (#9551). `WorldMapVoxelView` draws a continent in three tiers (#9552): a 1 km continent
+layer, a 32 m region window, and the 8 m patch. A finer tier admits only ground whose tiles are
+built, and the tier beneath sinks under it. `TravelRouter` plans over the continent lattice and
+`RefineHead` re-plans the first 6 km over the party's region tile with `TravelCostModel.RegionCost`.
+`PartyTravel.Refine` repeats this as the party travels. `TravelCalendar` turns daylight hours into
+days for previews.
 
 `MapSimulation` is
 the one-time modelled stage:

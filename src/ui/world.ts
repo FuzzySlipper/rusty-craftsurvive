@@ -59,7 +59,17 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
     control.addEventListener('click', () => claim({ action }));
     travelButtons[action] = control; journeyRow.append(control);
   }
-  journey.append(journeyStatus, journeySupplies, journeyRow);
+  // Speed (#9552): the product runs the journey faster; any event still stops it.
+  const speedRow = element('div', 'display:flex;gap:.4rem;margin-top:.4rem;align-items:center;font-size:.85rem;');
+  speedRow.append(element('span', 'opacity:.8;', 'Speed'));
+  const speedButtons: HTMLButtonElement[] = [];
+  for (const speed of [1, 2, 4] as const) {
+    const control = button(`×${speed}`);
+    control.dataset.speed = String(speed);
+    control.addEventListener('click', () => claim({ action: 'speed', speed }));
+    speedButtons.push(control); speedRow.append(control);
+  }
+  journey.append(journeyStatus, journeySupplies, journeyRow, speedRow);
   // A travel event stops the journey; the product offers its answers and decides the outcome.
   const travelEvent = element('section', PANEL + 'position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);width:26rem;border-color:#c9a45c;');
   travelEvent.setAttribute('role', 'alertdialog');
@@ -126,6 +136,11 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
     if (go) { go.disabled = eventSource !== '' || !(phase === 'planned' || phase === 'paused'); go.textContent = phase === 'paused' ? 'Resume' : 'Set out'; }
     if (pause) pause.disabled = phase !== 'travelling';
     if (halt) halt.disabled = phase === 'idle' || phase === 'arrived';
+    const speed = number(values, 'worldTravelSpeed') ?? 1;
+    for (const control of speedButtons) {
+      const chosen = Number(control.dataset.speed) === speed;
+      control.setAttribute('aria-pressed', String(chosen)); control.style.fontWeight = chosen ? '700' : '';
+    }
     const source = text(values, 'worldSites') ?? '';
     if (source === renderedSites) return;
     renderedSites = source; sites.replaceChildren();

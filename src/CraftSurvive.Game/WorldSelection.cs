@@ -21,7 +21,6 @@ public sealed partial class CraftSurviveProduct
     private static readonly byte[] WorldActionContractUtf8 = Encoding.UTF8.GetBytes(WorldActionContract);
     private const double ArrivalClearance = 4;
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384, MapScale.DefaultContinentalSize];
-    private const string ContinentMapMessage = "A continent shows its smooth relief for now; the faceted map and travel across it come with the map's level-of-detail tiers (#9552).";
     private const int MetresPerKilometre = 1024;
     private const string BuildingFacetedMessage = "Building the faceted relief...";
     private const string FirstWorldMessage = "Generating your first world: raising ranges, running rivers and settling climate...";
@@ -73,6 +72,11 @@ public sealed partial class CraftSurviveProduct
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
                         if (!facetedMapShown || facetedMap is null) ShowFacetedMap(true);
                         PlanTravel(facetedMap!.Waypoint, "the waypoint");
+                        break;
+                    case "speed":
+                        if (!root.TryGetProperty("speed", out JsonElement speedElement) || speedElement.ValueKind != JsonValueKind.Number || !speedElement.TryGetInt32(out int speed))
+                            throw new FormatException("Choose one of the offered travel speeds.");
+                        SetTravelSpeed(speed);
                         break;
                     case "go" or "pause" or "halt" or "camp":
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
@@ -219,12 +223,6 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Switch the open map between the smooth mesh and the prototype faceted relief.</summary>
     private void ShowFacetedMap(bool faceted)
     {
-        // The faceted view's fixed 32 m cells do not span a continent; its tiers are #9552.
-        if (faceted && worlds.Current.Map.Scale.Continental)
-        {
-            worldMessage = ContinentMapMessage;
-            faceted = false;
-        }
         facetedMapShown = faceted;
         if (faceted)
         {
@@ -240,7 +238,7 @@ public sealed partial class CraftSurviveProduct
         else
         {
             overview!.Activate();
-            if (!worlds.Current.Map.Scale.Continental) worldMessage = "";
+            worldMessage = "";
         }
         PublishAppearanceSnapshot();
     }
@@ -280,7 +278,7 @@ public sealed partial class CraftSurviveProduct
         if (!worlds.HasWorld)
         {
             TerrainConfiguration first = TerrainConfiguration.Default;
-            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle", "", ""));
+            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle", "", "", travelSpeed));
             return;
         }
         WorldMap map = worlds.Current.Map;
@@ -291,6 +289,6 @@ public sealed partial class CraftSurviveProduct
         string sites = string.Join(';', known.Select(place => FormattableString.Invariant(
             $"{place.Key}|{place.Name}|{PlaceDetail(place, map)}|{place.Position.X:F0}|{place.Position.Y:F0}|{Vector2.Distance(from, place.Position) / 1000:F1}|{place.Kind.ToString().ToLowerInvariant()}")));
         ui.PublishMap(new(mapOpen, map.Configuration.Seed.ToString(CultureInfo.InvariantCulture), map.Configuration.Size,
-            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase, TravelSupplies(), TravelEventFacts()));
+            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase, TravelSupplies(), TravelEventFacts(), travelSpeed));
     }
 }

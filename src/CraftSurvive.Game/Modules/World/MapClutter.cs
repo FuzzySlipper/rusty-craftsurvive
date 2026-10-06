@@ -26,11 +26,14 @@ internal sealed class MapClutter : IDisposable
 
     private readonly Dictionary<Model, Appearance> appearances = [];
     private readonly WorldMap map;
+    private readonly Func<double, double, MapSample> geography;
     private AppearanceFact[] shown = [], hidden = [];
 
-    internal MapClutter(IEngineContext engine, WorldMap map)
+    /// <param name="geography">Where clutter reads the ground: a continent's region tiles, else the map.</param>
+    internal MapClutter(IEngineContext engine, WorldMap map, Func<double, double, MapSample>? geography = null)
     {
         this.map = map;
+        this.geography = geography ?? map.Sample;
         try
         {
             foreach (Model model in Enum.GetValues<Model>())
@@ -60,7 +63,7 @@ internal sealed class MapClutter : IDisposable
             double x = (gx + 0.5 + (MapNoise.Unit(seed, gx, gz) - 0.5) * JitterFraction) * SpacingMetres;
             double z = (gz + 0.5 + (MapNoise.Unit(seed ^ 1, gx, gz) - 0.5) * JitterFraction) * SpacingMetres;
             if (x < minimum.X || z < minimum.Y || x >= maximum.X || z >= maximum.Y) continue;
-            MapSample sample = map.Sample(x, z);
+            MapSample sample = geography(x, z);
             if (sample.InRiver || sample.Elevation < GenerationConstants.WaterLevel || sample.Protection > 0.5) continue;
             if (Choose(sample, MapNoise.Unit(seed ^ 2, gx, gz), MapNoise.Unit(seed ^ 3, gx, gz)) is not Model model) continue;
             float size = (model == Model.Rock ? RockHeight : TreeHeight) * (1 + SizeVariation * (2 * (float)MapNoise.Unit(seed ^ 4, gx, gz) - 1));
