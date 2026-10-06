@@ -20,7 +20,8 @@ public sealed partial class CraftSurviveProduct
     private const string WorldActionContract = "craftsurvive.world.action.v1";
     private static readonly byte[] WorldActionContractUtf8 = Encoding.UTF8.GetBytes(WorldActionContract);
     private const double ArrivalClearance = 4;
-    private static readonly int[] NewWorldSizes = [4096, 8192, 16384];
+    private static readonly int[] NewWorldSizes = [4096, 8192, 16384, MapScale.DefaultContinentalSize];
+    private const string ContinentMapMessage = "A continent shows its smooth relief for now; the faceted map and travel across it come with the map's level-of-detail tiers (#9552).";
     private const int MetresPerKilometre = 1024;
     private const string BuildingFacetedMessage = "Building the faceted relief...";
     private const string FirstWorldMessage = "Generating your first world: raising ranges, running rivers and settling climate...";
@@ -90,8 +91,9 @@ public sealed partial class CraftSurviveProduct
                             throw new FormatException("Choose one of the offered world sizes.");
                         if (worlds.Preparing) throw new FormatException("A world is already being generated.");
                         worlds.BeginPrepare(seed, size);
-                        worldMessage = FormattableString.Invariant(
-                            $"Generating a {size / MetresPerKilometre} km world: raising ranges, running rivers and settling climate...");
+                        worldMessage = MapScale.IsContinental(size)
+                            ? FormattableString.Invariant($"Generating a {size / 1000} km continent: raising ranges, running rivers and settling climate (this takes a little while)...")
+                            : FormattableString.Invariant($"Generating a {size / MetresPerKilometre} km world: raising ranges, running rivers and settling climate...");
                         break;
                     case "visit":
                         if (!mapOpen || !root.TryGetProperty("site", out JsonElement siteElement) || siteElement.ValueKind != JsonValueKind.Number || !siteElement.TryGetInt32(out int site)
@@ -217,6 +219,12 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Switch the open map between the smooth mesh and the prototype faceted relief.</summary>
     private void ShowFacetedMap(bool faceted)
     {
+        // The faceted view's fixed 32 m cells do not span a continent; its tiers are #9552.
+        if (faceted && worlds.Current.Map.Scale.Continental)
+        {
+            worldMessage = ContinentMapMessage;
+            faceted = false;
+        }
         facetedMapShown = faceted;
         if (faceted)
         {
@@ -232,7 +240,7 @@ public sealed partial class CraftSurviveProduct
         else
         {
             overview!.Activate();
-            worldMessage = "";
+            if (!worlds.Current.Map.Scale.Continental) worldMessage = "";
         }
         PublishAppearanceSnapshot();
     }

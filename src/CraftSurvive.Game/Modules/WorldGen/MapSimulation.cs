@@ -20,7 +20,8 @@ internal sealed record MapFields(MapGrid Grid, float[] Elevation, float[] Temper
 /// </summary>
 internal static class MapSimulation
 {
-    internal const double PeakElevation = 240;
+    /// <summary>A regional world's target peak; a continent's comes from its <see cref="MapScale"/>.</summary>
+    internal const double RegionalPeakElevation = 240;
     private const double PeakQuantile = 0.995;
     /// <summary>Metres kept free below the map ceiling, so filling and rounding never cross it.</summary>
     private const double CeilingHeadroom = 8;
@@ -43,7 +44,9 @@ internal static class MapSimulation
         ulong seed = configuration.Contract.GeographyNoiseSeed;
         MapGrid grid = MapGrid.For(configuration.Size);
         MapGrid coarse = grid.Coarsened();
-        MapClimate climate = new(seed);
+        MapScale mapScale = MapScale.For(configuration.Size);
+        double peakElevation = mapScale.PeakElevation;
+        MapClimate climate = new(seed, mapScale);
         MapRelief relief = MapRelief.Build(coarse, seed);
         MapErosion.Evolve(relief, h => climate.Rainfall(coarse, h, relief.Sea), CoarseSteps, CoarseClimateInterval);
         if (coarse != grid)
@@ -57,13 +60,13 @@ internal static class MapSimulation
         double[] land = Enumerable.Range(0, grid.Count).Where(i => !relief.Sea[i]).Select(i => h[i]).ToArray();
         double top = land.Length > 0 ? Math.Max(MapRelief.Quantile(land, PeakQuantile), 1e-6) : 1;
         double shore = GenerationConstants.WaterLevel + CoastLift;
-        double scale = (PeakElevation - shore) / top;
+        double scale = (peakElevation - shore) / top;
         double deepest = Math.Min(-1e-6, Enumerable.Range(0, grid.Count).Where(i => relief.Sea[i]).Select(i => h[i]).DefaultIfEmpty(-1).Min());
         for (int i = 0; i < grid.Count; i++)
         {
             h[i] = relief.Sea[i]
                 ? Math.Max(GenerationConstants.MinimumTerrainHeight, GenerationConstants.WaterLevel - 1 - SeaFloorDrop * h[i] / deepest)
-                : Summit(shore + Math.Max(0, h[i]) * scale);
+                : Summit(shore + Math.Max(0, h[i]) * scale, peakElevation, mapScale.MaximumElevation);
         }
         MapErosion.Relax(grid, h, relief.Sea, TalusSlope, TalusIterations);
 
@@ -75,7 +78,7 @@ internal static class MapSimulation
         double[] routed = elevation.Select(v => (double)v).ToArray();
         MapFlow flow = MapFlow.Route(grid, routed, MapFlow.Outlets(grid, routed), rain, MapFlow.FillGradient);
         double[] temperature = new double[grid.Count];
-        for (int i = 0; i < grid.Count; i++) temperature[i] = climate.Temperature(grid.X(i), grid.Z(i), grid.Radius, h[i], PeakElevation);
+        for (int i = 0; i < grid.Count; i++) temperature[i] = climate.Temperature(grid.X(i), grid.Z(i), grid.Radius, h[i], peakElevation);
         double[] moisture = MapClimate.Moisture(rain, relief.Sea, temperature);
         for (int i = 0; i < grid.Count; i++)
             if (!relief.Sea[i]) moisture[i] = Math.Min(1, moisture[i] + RiparianMoisture * WorldMap.Smooth(Math.Clamp(flow.Discharge[i] / RiparianDischarge, 0, 1)));
@@ -84,10 +87,10 @@ internal static class MapSimulation
     }
 
     /// <summary>The rare summits above the target peak are compressed smoothly toward the ceiling, never flattened.</summary>
-    private static double Summit(double metres)
+    private static double Summit(double metres, double peak, double ceiling)
     {
-        double room = WorldMap.MaximumElevation - CeilingHeadroom - PeakElevation;
-        return metres <= PeakElevation ? metres : PeakElevation + room * Math.Tanh((metres - PeakElevation) / room);
+        double room = ceiling - CeilingHeadroom - peak;
+        return metres <= peak ? metres : peak + room * Math.Tanh((metres - peak) / room);
     }
 
     private static float[] Round(double[] values) => values.Select(v => (float)v).ToArray();

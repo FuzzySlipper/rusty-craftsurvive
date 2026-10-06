@@ -1,5 +1,11 @@
 using CraftSurvive.Game.Tests;
 
+if (args.Length > 0 && args[0] == "continent")
+{
+    ContinentDump.Run(args);
+    return 0;
+}
+
 if (args is ["editbench"])
 {
     EditBench.Run();

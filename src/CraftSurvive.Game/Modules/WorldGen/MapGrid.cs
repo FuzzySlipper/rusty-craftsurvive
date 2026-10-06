@@ -36,7 +36,7 @@ internal readonly record struct MapGrid(int Segments, double Spacing, double Rad
 
     internal static MapGrid For(int size)
     {
-        int segments = Math.Clamp((int)Math.Round(size / TargetSpacing), MinimumSegments, MaximumSegments);
+        int segments = Math.Clamp((int)Math.Round(size / MapScale.For(size).TargetSpacing), MinimumSegments, MaximumSegments);
         return new(segments, size / (double)segments, size / 2d);
     }
 

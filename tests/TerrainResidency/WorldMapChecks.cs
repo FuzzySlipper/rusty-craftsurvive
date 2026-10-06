@@ -14,13 +14,14 @@ internal static class WorldMapChecks
             Check.That(candidate.Sites.Select(s => WorldMap.Region(s.Geography)).Distinct().Count() >= 4,
                 "every seed's map holds several distinct environments, each with a representative site");
         }
-        foreach (int size in new[] { 32, 4096, 16384, TerrainConstants.MaximumSize })
+        foreach (int size in new[] { 32, 4096, 16384, MapScale.RegionalMaximumSize, MapScale.DefaultContinentalSize, MapScale.ContinentalMaximumSize })
         {
             TerrainConfiguration config = new(12345, size);
             WorldMap map = WorldMapGenerator.Generate(config);
+            double target = MapScale.For(size).TargetSpacing;
             Check.That(map.Grid.Count <= MapGrid.MaximumNodes, "map memory is bounded independently of voxel extent");
-            Check.That(size < MapGrid.TargetSpacing * MapGrid.MinimumSegments || size > MapGrid.TargetSpacing * MapGrid.MaximumSegments
-                || Math.Abs(map.Spacing - MapGrid.TargetSpacing) < 1, "geography is resolved at a fixed metre spacing, not stretched with extent");
+            Check.That(size < target * MapGrid.MinimumSegments || size > target * MapGrid.MaximumSegments
+                || Math.Abs(map.Spacing - target) < target / 64, $"geography is resolved at its scale's fixed metre spacing, not stretched with extent ({size} m: {map.Spacing:F1} m)");
             Check.That(map.Fingerprint == WorldMapGenerator.Generate(config).Fingerprint, "map generation is seeded and repeatable");
             Check.That(map.Fingerprint != WorldMapGenerator.Generate(config with { Seed = config.Seed + 1 }).Fingerprint, "seed changes the map");
             Check.That(map.Sample(-map.Radius - 1, 0) == map.Sample(-map.Radius, 0), "outside geographic sampling clamps to the finite edge");

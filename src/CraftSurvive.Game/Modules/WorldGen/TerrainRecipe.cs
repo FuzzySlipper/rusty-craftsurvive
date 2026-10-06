@@ -60,7 +60,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal long MinimumMaterialY => MinimumMaterialYValue;
 
-    internal long MaximumMaterialY => (long)(WorldMap.MaximumElevation + WorldMap.LocalReliefLimit)
+    internal long MaximumMaterialY => (long)(MapScale.For(configuration.Size).MaximumElevation + WorldMap.LocalReliefLimit)
         + Math.Max(GenerationConstants.TerrainHeadroom, GenerationConstants.WorldWallRise);
 
     internal ushort MaterialAt(VoxelAddress address) => MaterialAt(address, ColumnAt(address.X, address.Z));

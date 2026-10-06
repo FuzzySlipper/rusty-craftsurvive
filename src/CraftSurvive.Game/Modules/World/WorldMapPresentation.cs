@@ -102,7 +102,7 @@ internal sealed class WorldMapPresentation : IDisposable
             int nx = Math.Clamp(x + dx, 0, map.Segments), nz = Math.Clamp(z + dz, 0, map.Segments);
             int node = nz * map.Side + nx;
             if (map.Fields.Elevation[node] >= GenerationConstants.WaterLevel
-                && MapRivers.CatchmentSquareKilometres(map.Grid, map.Fields.Discharge[node]) >= MapRivers.SourceCatchment) return true;
+                && MapRivers.CatchmentSquareKilometres(map.Grid, map.Fields.Discharge[node]) >= map.Scale.SourceCatchment) return true;
         }
         return false;
     }

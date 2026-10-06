@@ -34,8 +34,12 @@ internal sealed class MapClimate
     private const ulong TemperatureSalt = 0xBF58476D1CE4E5B9UL;
     private const ulong RainSalt = 0x7FB5D329728EA185UL;
 
-    internal MapClimate(ulong seed)
+    internal MapClimate(ulong seed) : this(seed, MapScale.Regional) { }
+
+    /// <param name="scale">A continent's lengths stretch the climate's wavelengths and the march's per-kilometre rates (#9549).</param>
+    internal MapClimate(ulong seed, MapScale scale)
     {
+        lengths = scale.Lengths;
         LatitudeAngle = MapNoise.Unit(seed ^ AxisSalt, 0, 0) * 2 * Math.PI;
         WindAngle = MapNoise.Unit(seed ^ WindSalt, 0, 0) * 2 * Math.PI;
         Seed = seed;
@@ -44,6 +48,8 @@ internal sealed class MapClimate
     internal double LatitudeAngle { get; }
     internal double WindAngle { get; }
     private ulong Seed { get; }
+    private readonly double lengths = 1;
+    private double ClimateLength => ClimateWavelength * lengths;
 
     /// <summary>Relative precipitation, mean near 1 over land; erosion weights discharge by it.</summary>
     internal double[] Rainfall(MapGrid grid, double[] height, bool[] sea)
@@ -66,12 +72,12 @@ internal sealed class MapClimate
                 double hn = Bilinear(grid, height, gx, gz) / relief;
                 if (sea[node])
                 {
-                    q += (1 - q) * Math.Min(1, SeaRecharge * ds / 1000);
+                    q += (1 - q) * Math.Min(1, SeaRecharge * ds / (1000 * lengths));
                 }
                 else
                 {
                     double climb = double.IsNaN(previous) ? 0 : Math.Max(0, hn - previous);
-                    double p = Math.Min(q, q * (PlainRainPerKilometre * ds / 1000 + OrographicRain * climb));
+                    double p = Math.Min(q, q * (PlainRainPerKilometre * ds / (1000 * lengths) + OrographicRain * climb));
                     q -= p * (1 - Recycling);
                     rain[node] += p / (ds / 1000);
                 }
@@ -80,14 +86,14 @@ internal sealed class MapClimate
             }
         }
         for (int i = 0; i < grid.Count; i++) if (visits[i] > 0) rain[i] /= visits[i];
-        Blur(grid, rain, Math.Max(1, (int)Math.Round(RainSpread / grid.Spacing)), RainBlurPasses);
+        Blur(grid, rain, Math.Max(1, (int)Math.Round(RainSpread * lengths / grid.Spacing)), RainBlurPasses);
         double landMean = 0;
         int land = 0;
         for (int i = 0; i < grid.Count; i++) if (!sea[i]) { landMean += rain[i]; land++; }
         landMean = land > 0 ? landMean / land : 1;
         for (int i = 0; i < grid.Count; i++)
         {
-            double variation = 1 + RainNoise * MapNoise.Fbm(Seed ^ RainSalt, grid.X(i) / ClimateWavelength, grid.Z(i) / ClimateWavelength, 3, 0.5);
+            double variation = 1 + RainNoise * MapNoise.Fbm(Seed ^ RainSalt, grid.X(i) / ClimateLength, grid.Z(i) / ClimateLength, 3, 0.5);
             rain[i] = Math.Clamp(rain[i] / Math.Max(landMean, 1e-9) * variation, MinimumRain, MaximumRain);
         }
         return rain;
@@ -98,7 +104,7 @@ internal sealed class MapClimate
     {
         double t = Math.Clamp((x * Math.Cos(LatitudeAngle) + z * Math.Sin(LatitudeAngle)) / radius, -1, 1);
         double latitude = WarmEnd + (ColdEnd - WarmEnd) * (t + 1) / 2;
-        double noise = TemperatureNoise * MapNoise.Fbm(Seed ^ TemperatureSalt, x / ClimateWavelength, z / ClimateWavelength, 3, 0.5);
+        double noise = TemperatureNoise * MapNoise.Fbm(Seed ^ TemperatureSalt, x / ClimateLength, z / ClimateLength, 3, 0.5);
         return Math.Clamp(latitude + noise - AltitudeLapse * Math.Max(0, elevation) / peak, 0, 1);
     }
 

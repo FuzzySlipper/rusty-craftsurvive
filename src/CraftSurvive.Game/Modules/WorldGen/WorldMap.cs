@@ -22,6 +22,7 @@ internal readonly record struct MapSite(string Name, double X, double Z, MapSamp
 /// </summary>
 internal sealed class WorldMap
 {
+    /// <summary>A regional world's elevation ceiling; a continent's is its <see cref="Scale"/>'s.</summary>
     internal const double MaximumElevation = 320;
     internal const double LocalReliefLimit = 12;
     private const ulong FingerprintBasis = 0xCBF29CE484222325;
@@ -53,10 +54,14 @@ internal sealed class WorldMap
     private readonly double[] elevation, temperature, moisture, rock, detail, protection;
     private readonly MapFields fields;
 
+    /// <summary>How the world's size sets its simulation: regional, or continental (#9549).</summary>
+    internal MapScale Scale { get; }
+
     internal WorldMap(TerrainConfiguration configuration, MapFields fields)
     {
         Configuration = configuration.Validate();
         Grid = MapGrid.For(configuration.Size);
+        Scale = MapScale.For(configuration.Size);
         if (fields.Grid != Grid) throw new ArgumentException("Map lattice does not match its extent.");
         this.fields = fields;
         int count = Grid.Count;
@@ -64,7 +69,7 @@ internal sealed class WorldMap
             if (field.Length != count) throw new ArgumentException("Map field count does not match its extent.");
         for (int i = 0; i < count; i++)
         {
-            if (!float.IsFinite(fields.Elevation[i]) || fields.Elevation[i] < GenerationConstants.MinimumTerrainHeight || fields.Elevation[i] > MaximumElevation
+            if (!float.IsFinite(fields.Elevation[i]) || fields.Elevation[i] < GenerationConstants.MinimumTerrainHeight || fields.Elevation[i] > Scale.MaximumElevation
                 || !Unit(fields.Temperature[i]) || !Unit(fields.Moisture[i]) || !Unit(fields.Hardness[i])
                 || !float.IsFinite(fields.Discharge[i]) || fields.Discharge[i] < 0)
                 throw new ArgumentException("Map contains an invalid geographic sample.");

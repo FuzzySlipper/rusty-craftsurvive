@@ -13,7 +13,8 @@ internal static class TerrainConstants
     /// The largest extent the product accepts; raising it is a declared generator
     /// contract change rather than an implicit requirement for infinite generation.
     /// </summary>
-    internal const int MaximumSize = 65_536;
+    /// <summary>The largest world: a continent (#9549); regional worlds stop at 65,536.</summary>
+    internal const int MaximumSize = 450_000;
 
     internal const int ChunkEdgeLength = 16;
     internal const int ChunkPlaneLength = ChunkEdgeLength * ChunkEdgeLength;

@@ -20,6 +20,18 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   from **World**. The map is an inspection view that pauses local gameplay; site visits do
   not implement travel, weather, logistics or route costs, and there is no guaranteed route
   network between destinations.
+  - **Continents are experimental (#9549).** A 390 km world (320–450 km;
+    "390 km continent" on the new-world form) runs the same pipeline on a kilometre lattice
+    with every tuned length scaled by `MapScale.Lengths`, peaks near 1,800 m under a 2,400 m
+    ceiling, and rivers only above a regional catchment.
+    - Generation takes about 13 s in Debug and saves about 3 MB.
+    - It reads as one continent in a square, with sea on the sides the seed opens and a
+      mountain rim elsewhere; there are no separate landmasses or archipelagos.
+    - Walking terrain samples the kilometre lattice directly, so local detail is noise over
+      broad landforms until region tiles (#9550) refine it.
+    - Precision far from the centre (±200 km) is unchecked (#9551).
+    - The faceted map and travel are refused on a continent until the map's tiers (#9552);
+      the smooth overview shows it.
   - Erosion is detachment-limited with creep, talus relaxation and filled basins. It does
     not transport or deposit sediment explicitly, so there are no alluvial fans or deltas.
     Filled basins drain rather than holding lakes; the only standing inland water is

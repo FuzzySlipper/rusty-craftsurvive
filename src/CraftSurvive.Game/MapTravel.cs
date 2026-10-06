@@ -57,6 +57,7 @@ public sealed partial class CraftSurviveProduct
     private void PlanTravel(Vector2 destination, string name)
     {
         if (player.InSeparateSpace) throw new FormatException("Leave this place before planning overland travel.");
+        if (worlds.Current.Map.Scale.Continental) throw new FormatException(ContinentMapMessage);
         if (!facetedMapShown) ShowFacetedMap(true);
         party ??= new PartyTravel(destination);
         ApplySledLoad();

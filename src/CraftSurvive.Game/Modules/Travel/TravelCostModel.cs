@@ -39,7 +39,7 @@ internal sealed class TravelCostModel
             if (slope > ImpassableSlope) { multiplier[i] = double.PositiveInfinity; continue; }
             MapBiome biome = WorldMap.Biome(map.Node(i));
             double cost = (1 + SlopePenalty * WorldMap.Smooth(slope / ImpassableSlope)) * Environment(biome) * (transport?.Invoke(biome) ?? 1);
-            if (MapRivers.CatchmentSquareKilometres(grid, map.Fields.Discharge[i]) >= MapRivers.SourceCatchment) cost *= FordMultiplier;
+            if (MapRivers.CatchmentSquareKilometres(grid, map.Fields.Discharge[i]) >= map.Scale.SourceCatchment) cost *= FordMultiplier;
             multiplier[i] = cost;
         }
     }

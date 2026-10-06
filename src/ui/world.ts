@@ -79,7 +79,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const sizeLabel = element('label', 'display:block;', 'World width');
   const size = element('select', 'margin:.3rem 0 .7rem;width:100%;');
   size.name = 'size';
-  for (const [value, label] of [[4096, '4 km'], [8192, '8 km'], [16384, '16 km']] as const) {
+  for (const [value, label] of [[4096, '4 km'], [8192, '8 km'], [16384, '16 km'], [390000, '390 km continent (experimental)']] as const) {
     const option = element('option', '', label); option.value = String(value); size.append(option);
   }
   size.value = '8192'; sizeLabel.append(size);

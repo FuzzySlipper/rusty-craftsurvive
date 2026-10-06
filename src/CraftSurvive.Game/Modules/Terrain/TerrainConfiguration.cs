@@ -21,10 +21,10 @@ internal readonly record struct TerrainConfiguration(ulong Seed, int Size, uint 
 
     internal TerrainConfiguration Validate()
     {
-        if (Size < TerrainConstants.MinimumSize || Size > TerrainConstants.MaximumSize)
+        if (Size < TerrainConstants.MinimumSize || Size > TerrainConstants.MaximumSize || !WorldGen.MapScale.IsValidSize(Size))
         {
             throw new ArgumentOutOfRangeException(nameof(Size), Size,
-                $"Terrain size must be within {TerrainConstants.MinimumSize}..={TerrainConstants.MaximumSize}.");
+                $"Terrain size must be a regional {TerrainConstants.MinimumSize}..={WorldGen.MapScale.RegionalMaximumSize} or a continental {WorldGen.MapScale.ContinentalMinimumSize}..={WorldGen.MapScale.ContinentalMaximumSize}.");
         }
 
         if ((Size & 1) != 0)

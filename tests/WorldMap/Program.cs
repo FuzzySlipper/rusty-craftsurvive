@@ -97,6 +97,39 @@ try
         Check.That(restored.Current.Map.Configuration.Seed == 12345 && restored.Current.Map.Configuration.Size == 4096,
             "host restart restores selected seed and extent rather than defaults");
     });
+
+    // A continent (#9549): generated, saved and restored through the same catalog, with its own golden.
+    ulong continentFingerprint = 0;
+    using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
+    host.Call(engine =>
+    {
+        using ProductStore store = new(engine);
+        WorldCatalog catalog = new(engine, store);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        WorldMapSave continent = catalog.Prepare(ContinentSeed, MapScale.DefaultContinentalSize);
+        double generateMs = clock.Elapsed.TotalMilliseconds;
+        Check.That(catalog.Commit(continent), "a continent commits like any world");
+        continentFingerprint = continent.Map.Fingerprint;
+        Console.WriteLine($"continent {continent.Map.Configuration.Size / 1000} km: map {continentFingerprint:x16}; nodes={continent.Map.Grid.Count}; spacing={continent.Map.Spacing:F0} m; bytes={catalog.StoredBytes}; generateMs={generateMs:F0}");
+        Check.That(continentFingerprint == ContinentGolden, $"the default continent's geography matches its golden ({continentFingerprint:x16})");
+        Check.That(continent.Map.Scale.Continental && continent.Map.Spacing == 1000, "a continent is simulated on a kilometre lattice");
+    });
+    using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
+    host.Call(engine =>
+    {
+        using ProductStore store = new(engine);
+        WorldCatalog restored = new(engine, store);
+        Check.That(restored.RestoreOutcome == "restored" && restored.GenerationMilliseconds == 0
+            && restored.Current.Map.Fingerprint == continentFingerprint && restored.Current.Map.Configuration.Size == MapScale.DefaultContinentalSize,
+            "a fresh host restores the continent from its save without generating it again");
+    });
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 return Check.Finish("WorldMap");
+
+partial class Program
+{
+    private const ulong ContinentSeed = 12345;
+    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> (#9549); a deliberate generation change updates it.</summary>
+    private const ulong ContinentGolden = 0x0dfdf4949b85623fUL;
+}

@@ -95,7 +95,11 @@ landforms; the full recipe version still invalidates development saves and cache
 
 `MapGrid` resolves geography at a fixed 32 m node spacing, so a larger world holds
 more geography instead of a stretched copy. Only extents beyond 512 segments per axis
-coarsen the spacing; tiny test extents keep at least 8 segments. `MapSimulation` is
+coarsen the spacing; tiny test extents keep at least 8 segments. `MapScale` sets how size
+drives the simulation: a regional world (up to 65,536 m) keeps the tuning exactly, and a
+continent (320–450 km) uses a 1 km lattice, scales every tuned length by its size over
+10,240 m, and takes its own peak, ceiling and river-source catchment (#9549, Den
+`design/continental-scale`). `WorldMap.Scale` and `TerrainRecipe.MaximumMaterialY` follow it. `MapSimulation` is
 the one-time modelled stage:
 
 1. `MapRelief` places land, sea and rock from seeded, domain-warped noise in metre

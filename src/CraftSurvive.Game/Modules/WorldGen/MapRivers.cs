@@ -94,7 +94,7 @@ internal sealed class MapRivers
         bool[] river = new bool[grid.Count];
         int[] donors = new int[grid.Count];
         for (int i = 0; i < grid.Count; i++)
-            river[i] = elevation[i] >= GenerationConstants.WaterLevel && CatchmentSquareKilometres(grid, discharge[i]) >= SourceCatchment;
+            river[i] = elevation[i] >= GenerationConstants.WaterLevel && CatchmentSquareKilometres(grid, discharge[i]) >= MapScale.For(grid).SourceCatchment;
         for (int i = 0; i < grid.Count; i++)
             if (river[i] && flow.Receiver[i] != MapFlow.Base) donors[flow.Receiver[i]]++;
 

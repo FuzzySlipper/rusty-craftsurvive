@@ -90,6 +90,14 @@ internal sealed class MapRelief
 
     internal static MapRelief Build(MapGrid grid, ulong seed)
     {
+        // Lengths were tuned on regional worlds; a continent scales them all (#9549).
+        double l = MapScale.For(grid).Lengths;
+        double WarpWavelength = MapRelief.WarpWavelength * l, WarpDistance = MapRelief.WarpDistance * l;
+        double ContinentWavelength = MapRelief.ContinentWavelength * l, BeltWavelength = MapRelief.BeltWavelength * l;
+        double ActivityWavelength = MapRelief.ActivityWavelength * l, HardnessWavelength = MapRelief.HardnessWavelength * l;
+        double TextureWavelength = MapRelief.TextureWavelength * l, UplandWavelength = MapRelief.UplandWavelength * l;
+        double CentreReserveRadius = MapRelief.CentreReserveRadius * l;
+        double MaximumSeaReach = MapRelief.MaximumSeaReach * l, MaximumRangeReach = MapRelief.MaximumRangeReach * l;
         MapRelief relief = new(grid);
         relief.ChooseBorders(seed);
         double seaReach = Math.Min(MaximumSeaReach, grid.Radius * 2 * SeaReachFraction);
@@ -156,7 +164,7 @@ internal sealed class MapRelief
         }
         double[] inland = DistanceFromOutlets(grid, relief.Outlet);
         for (int i = 0; i < grid.Count; i++)
-            if (!relief.Sea[i]) relief.Height[i] += InlandRise * inland[i] / 1000;
+            if (!relief.Sea[i]) relief.Height[i] += InlandRise * inland[i] / (1000 * l);
         return relief;
     }
 
@@ -167,6 +175,7 @@ internal sealed class MapRelief
     /// </summary>
     internal static MapRelief Refine(MapRelief coarse, MapGrid fine, ulong seed)
     {
+        double TextureWavelength = MapRelief.TextureWavelength * MapScale.For(fine).Lengths;
         MapRelief relief = new(fine);
         Array.Copy(coarse.SeaSides, relief.SeaSides, relief.SeaSides.Length);
         MapGrid from = coarse.Grid;
