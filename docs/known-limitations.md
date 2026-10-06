@@ -56,8 +56,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     edge fade changed, re-sinks the coarse cells it uncovers or covers and re-scatters clutter,
     with a bounded number of chunk operations per update. At full travel speed the patch can lag
     a few hundred chunks behind a moving token and shows coarse ground at its leading edge until
-    it catches up; it settles once the token slows or stops. Wheel and right-drag delivery
-    could not be exercised by the playtest service (requested as crew-services #9493); keyboard orbit and zoom were verified live.
+    it catches up; it settles once the token slows or stops. Wheel zoom and right-drag orbit
+    are verified live with the playtest service's wheel and button down/up steps (crew-services
+    #9493). With the free cursor the Engine reports motion as cursor positions, so the orbit follows
+    those; it takes the wheel only while the canvas has focus, so the map's own buttons hand focus
+    back to it.
   - **Overland travel (#9467–#9471).** On the faceted map the party token plans A* routes over
     the 32 m lattice, priced by slope, environment, fords and the sea, and travels them while the
     clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel is three times slower.

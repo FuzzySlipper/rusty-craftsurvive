@@ -22,6 +22,9 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   };
   const claim = (data: Readonly<Record<string, string | number>>): void => {
     intents?.claim(INTENT, { kind: 'product-payload', contract: CONTRACT, data });
+    // Hand focus back to the canvas: with the free cursor the Engine takes wheel zoom only while
+    // the canvas has focus, and a map button would otherwise keep it.
+    if (freedCursor) ui.focusGameplay();
   };
   const open = button('World');
   open.style.cssText = 'position:fixed;top:.75rem;left:50%;pointer-events:auto;z-index:8;';
