@@ -39,6 +39,24 @@ internal sealed class Creature
 
     /// <summary>What the last route query answered, for readouts.</summary>
     internal string RouteOutcome { get; set; } = "none";
+
+    /// <summary>After a failed route, the step before which the creature does not ask again (#9531).</summary>
+    internal long BackoffUntil { get; set; }
+
+    /// <summary>The current back-off length; zero once a route is found.</summary>
+    internal long BackoffSteps { get; set; }
+
+    /// <summary>The path being followed, as world X/Z cell centres, and how far along it the creature is.</summary>
+    internal Vector2[]? Path { get; set; }
+    internal int PathIndex { get; set; }
+
+    /// <summary>Where the player stood when the path was asked for, and the navigation publication it was asked of.</summary>
+    internal Vector2 PathGoal { get; set; }
+    internal long PathRevision { get; set; }
+
+    /// <summary>How many steps the creature has not closed on its waypoint, and how far it was last step.</summary>
+    internal int StuckSteps { get; set; }
+    internal float WaypointDistance { get; set; } = float.MaxValue;
 }
 
 /// <summary>

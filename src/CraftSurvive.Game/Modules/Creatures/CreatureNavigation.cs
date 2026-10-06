@@ -39,6 +39,14 @@ internal sealed class CreatureNavigation
     private const uint MaximumVisitedCells = 4_096U;
 
     /// <summary>
+    /// How far a creature's feet may lie off the navigation's support and still stand on it. A creature
+    /// stands on the generator's column height, while dual-contoured ground is reconstructed up to
+    /// half a voxel either side of it; the Engine's default snap (about 0.1 m) misses that, and the
+    /// creature reads as standing nowhere (StartNotWalkable).
+    /// </summary>
+    private const double FeetSnapMetres = 0.6;
+
+    /// <summary>
     /// Half the width of the published box. The box - this square by <see cref="DepthBelow"/>,
     /// <see cref="HeightAbove"/> and <see cref="VerticalSlackMetres"/> - must stay within
     /// <see cref="MaximumCells"/>, or the Engine's grid does not cover it.
@@ -111,6 +119,8 @@ internal sealed class CreatureNavigation
             },
             MaximumDrop = stepMetres,
             VerticalSearchCells = MaximumStepCells,
+            SnapAbove = FeetSnapMetres,
+            SnapBelow = FeetSnapMetres,
         };
     }
 
@@ -150,27 +160,48 @@ internal sealed class CreatureNavigation
     }
 
     /// <summary>One bounded step of the route from a creature's feet to the player's, in world coordinates.</summary>
-    internal NavigationStepResult Step(Vector3 creatureFeetWorld, Vector3 playerFeetWorld) =>
-        engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(
+    internal NavigationStepResult Step(Vector3 creatureFeetWorld, Vector3 playerFeetWorld, uint maximumVisitedCells = MaximumVisitedCells)
+    {
+        long started = Stopwatch.GetTimestamp();
+        NavigationStepResult result = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(
             terrain.Session,
             frame.ToLocal(creatureFeetWorld),
             frame.ToLocal(playerFeetWorld),
             MaximumStepMetres,
-            MaximumVisitedCells));
-
-    /// <summary>The next waypoint toward the player in world X and Z, or null when the Engine found no route.</summary>
-    internal Vector2? NextWaypoint(Vector3 creatureFeetWorld, Vector3 playerFeetWorld, out NavigationPathOutcome outcome)
-    {
-        NavigationStepResult step = Step(creatureFeetWorld, playerFeetWorld);
-        outcome = step.Outcome;
-        if (step.Outcome != NavigationPathOutcome.Reached)
-        {
-            return null;
-        }
-
-        Vector3 waypoint = frame.ToWorld(step.NextWaypoint);
-        return new Vector2(waypoint.X, waypoint.Z);
+            maximumVisitedCells));
+        double milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        Queries++;
+        queryMilliseconds += milliseconds;
+        worstQueryMilliseconds = Math.Max(worstQueryMilliseconds, milliseconds);
+        if (result.Outcome != NavigationPathOutcome.Reached) NoPathQueries++;
+        return result;
     }
+
+    /// <summary>How many times navigation has been published: a path asked of an earlier one is stale.</summary>
+    internal long Publishes => publishes;
+
+    /// <summary>A path's cells as world X/Z centres, for a mover to walk.</summary>
+    internal Vector2[] CellCentres(ReadOnlySpan<PlanarNavCell> path)
+    {
+        const double cell = TerrainConstants.VoxelSize;
+        Vector2[] centres = new Vector2[path.Length];
+        for (int i = 0; i < path.Length; i++)
+        {
+            Vector3 world = frame.ToWorld(new Vector3((float)((path[i].X + 0.5) * cell), 0f, (float)((path[i].Z + 0.5) * cell)));
+            centres[i] = new Vector2(world.X, world.Z);
+        }
+        return centres;
+    }
+
+    /// <summary>How many navigation queries have run, for the routing readout.</summary>
+    internal long Queries { get; private set; }
+    internal long NoPathQueries { get; private set; }
+    private double queryMilliseconds, worstQueryMilliseconds;
+
+    internal string QueryReadout() => string.Create(CultureInfo.InvariantCulture,
+        $"queries={Queries} failed={NoPathQueries} queryMeanMs={(Queries == 0 ? 0 : queryMilliseconds / Queries):F2} queryWorstMs={worstQueryMilliseconds:F2}");
+
+    internal void ResetQueries() { Queries = NoPathQueries = 0; queryMilliseconds = worstQueryMilliseconds = 0; }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"navigation publishes={publishes} walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} lastMs={lastPublishMilliseconds:F2} worstMs={worstPublishMilliseconds:F2} meanMs={(publishes == 0 ? 0 : totalPublishMilliseconds / publishes):F2}");

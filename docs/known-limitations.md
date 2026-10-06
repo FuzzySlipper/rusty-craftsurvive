@@ -191,7 +191,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `RepublishDistanceMetres`, a rebase, or an edit. The Engine re-derives only the columns new to
   the box or near changed collision, as long as the box's vertical range is unchanged, so the
   range holds while the player's feet stay within `VerticalSlackMetres`; leaving that band, or
-  the first publication, rebuilds the whole box, which is a visible hitch. A pursuer outside
+  the first publication, rebuilds the whole box, which is a visible hitch. A pursuer keeps the whole path one query returns
+  and walks it cell by cell, asking again only when the path runs out away from the player, the
+  player has moved a few cells from where it led, navigation was published again, or it is stuck;
+  a failed query backs it off (doubling up to about eight seconds). Creatures stand on the
+  generator's column height, so navigation snaps feet to the reconstructed ground within 0.6 m. An
+  ambush tests at most three candidate columns per update with a small search. A pursuer outside
   the box, or with no route, waits; creature movement is planar and follows the ground, so the
   grid's step height is what keeps pursuers out of pits.
 

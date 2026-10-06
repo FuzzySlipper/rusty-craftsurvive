@@ -29,6 +29,8 @@ internal sealed class CreatureModule : IProductModule
     /// <summary>An ambush gives up on creatures it cannot place within about ten seconds.</summary>
     private const long AmbushPatienceSteps = 600;
     private long ambushes, ambushSince;
+    private readonly RoutingTimes routing = new();
+    private readonly HashSet<Vector2> ambushRefused = [];
     private int ambushWaiting, ambushPlaced;
 
     /// <summary>How many creatures a fresh session starts with.</summary>
@@ -48,11 +50,25 @@ internal sealed class CreatureModule : IProductModule
 
     private const double FullEvidence = 1.0;
 
-    /// <summary>How many steps a pursuer follows one waypoint before asking for the route again.</summary>
-    private const long WaypointRefreshSteps = 15;
-
-    /// <summary>How close a pursuer comes to its waypoint before asking for the next one.</summary>
+    /// <summary>How close a pursuer comes to a path cell's centre before heading for the next.</summary>
     private const float WaypointArrivalMetres = 0.5f;
+
+    /// <summary>A path is asked for again once the player is this far from where it led (a few cells).</summary>
+    private const float ReplanMetres = 3f;
+
+    /// <summary>A pursuer that has not closed on its waypoint for this many steps is stuck and asks again.</summary>
+    private const int StuckSteps = 30;
+
+    /// <summary>Closing by less than this per step is not progress.</summary>
+    private const float ProgressMetres = 0.01f;
+
+    /// <summary>After a failed route a pursuer waits this many steps, doubling with each failure up to the cap.</summary>
+    private const long FirstBackoffSteps = 30;
+    private const long MaximumBackoffSteps = 480;
+
+    /// <summary>An ambush tests at most this many candidate columns per update, each with this search budget.</summary>
+    private const int AmbushChecksPerUpdate = 3;
+    private const uint AmbushVisitedCells = 512;
 
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
@@ -148,9 +164,13 @@ internal sealed class CreatureModule : IProductModule
             creature.Awake = terrain.IsResident(GroundCell(creature.Position));
         }
 
+        long routingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        long queriesBefore = navigation.Queries;
         CloseAmbush();
         HashSet<int> seeing = Sense(playerWorld);
         Route(player.WorldFeetPosition);
+        routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, navigation.Queries - queriesBefore,
+            roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
@@ -306,6 +326,14 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>Publishes navigation around the player now and reports the publication.</summary>
+    /// <summary>What routing has cost per update since the last reset: time (ambush, sensing and routing), navigation queries, pursuers.</summary>
+    internal string RoutingReadout(bool reset)
+    {
+        string readout = routing.Readout() + " " + navigation.QueryReadout() + $" backingOff={roster.All.Count(creature => creature.Awake && step < creature.BackoffUntil)}";
+        if (reset) { routing.Reset(); navigation.ResetQueries(); }
+        return readout;
+    }
+
     internal string PublishNavigation()
     {
         try
@@ -319,9 +347,12 @@ internal sealed class CreatureModule : IProductModule
     }
 
     /// <summary>
-    /// Gives each awake pursuer its next waypoint along the Engine's navigation. Navigation is
-    /// published only while someone pursues; a waypoint is kept until it is reached or has aged.
-    /// Only a routed waypoint moves a pursuer: any other answer leaves it waiting where it is.
+    /// Gives each awake pursuer its next waypoint along the Engine's navigation (#9531). Navigation is
+    /// published only while someone pursues. A pursuer keeps the whole path one query returns and
+    /// walks it cell by cell, asking again only when the path is used up, the player has moved
+    /// <see cref="ReplanMetres"/> from where it led, navigation was published again, or the pursuer
+    /// is stuck. A failed query backs off, doubling to <see cref="MaximumBackoffSteps"/>, so a pursuer
+    /// with no route waits instead of asking every update. Only a routed waypoint moves a pursuer.
     /// </summary>
     private void Route(Vector3 playerFeet)
     {
@@ -340,16 +371,41 @@ internal sealed class CreatureModule : IProductModule
         try
         {
             navigation.EnsurePublished(playerFeet);
+            Vector2 playerGround = new(playerFeet.X, playerFeet.Z);
             foreach (Creature creature in pursuers)
             {
-                bool arrived = creature.Waypoint is Vector2 waypoint
-                    && Vector2.Distance(waypoint, creature.Position) <= WaypointArrivalMetres;
-                if (creature.Waypoint is null || arrived || step - creature.WaypointStep >= WaypointRefreshSteps)
+                if (step < creature.BackoffUntil)
                 {
-                    creature.Waypoint = navigation.NextWaypoint(Feet(creature.Position), playerFeet, out NavigationPathOutcome outcome);
-                    creature.WaypointStep = step;
-                    creature.RouteOutcome = outcome.ToString();
+                    creature.Waypoint = null;
+                    continue;
                 }
+
+                // A path used up beside the player needs no new one: the pursuer closes in directly.
+                bool usedUp = creature.Path is Vector2[] walked && creature.PathIndex >= walked.Length
+                    && Vector2.Distance(creature.Position, playerGround) > ReplanMetres;
+                bool stale = creature.Path is null || usedUp
+                    || Vector2.Distance(creature.PathGoal, playerGround) > ReplanMetres
+                    || creature.PathRevision != navigation.Publishes
+                    || creature.StuckSteps >= StuckSteps;
+                if (stale && !Replan(creature, playerFeet, playerGround))
+                {
+                    continue;
+                }
+
+                Vector2[] cells = creature.Path!;
+                while (creature.PathIndex < cells.Length && Vector2.Distance(cells[creature.PathIndex], creature.Position) <= WaypointArrivalMetres)
+                {
+                    creature.PathIndex++;
+                }
+
+                // Past the last cell the pursuer closes on the player directly.
+                bool following = creature.PathIndex < cells.Length;
+                Vector2 next = following ? cells[creature.PathIndex] : playerGround;
+                float distance = Vector2.Distance(next, creature.Position);
+                // Only a pursuer following its path can be stuck; one closing on the player stops at striking range.
+                creature.StuckSteps = following && creature.Waypoint == next && distance > creature.WaypointDistance - ProgressMetres ? creature.StuckSteps + 1 : 0;
+                creature.WaypointDistance = distance;
+                creature.Waypoint = next;
             }
         }
         catch (EngineCallException failure)
@@ -360,6 +416,31 @@ internal sealed class CreatureModule : IProductModule
                 creature.Waypoint = null;
             }
         }
+    }
+
+    /// <summary>Ask for a fresh path; a failure backs the pursuer off. Returns whether it has a path.</summary>
+    private bool Replan(Creature creature, Vector3 playerFeet, Vector2 playerGround)
+    {
+        NavigationStepResult result = navigation.Step(Feet(creature.Position), playerFeet);
+        creature.RouteOutcome = result.Outcome.ToString();
+        creature.WaypointStep = step;
+        creature.StuckSteps = 0;
+        creature.WaypointDistance = float.MaxValue;
+        if (result.Outcome != NavigationPathOutcome.Reached)
+        {
+            creature.Path = null;
+            creature.Waypoint = null;
+            creature.BackoffSteps = creature.BackoffSteps == 0 ? FirstBackoffSteps : Math.Min(MaximumBackoffSteps, creature.BackoffSteps * 2);
+            creature.BackoffUntil = step + creature.BackoffSteps;
+            return false;
+        }
+
+        creature.Path = navigation.CellCentres(result.Path.Span);
+        creature.PathIndex = 0;
+        creature.PathGoal = playerGround;
+        creature.PathRevision = navigation.Publishes;
+        creature.BackoffSteps = 0;
+        return true;
     }
 
     private Vector3 Feet(Vector2 position) => new(position.X, GroundAt(position), position.Y);
@@ -389,6 +470,7 @@ internal sealed class CreatureModule : IProductModule
         ambushes++;
         ambushWaiting = count;
         ambushSince = step;
+        ambushRefused.Clear();
         lastEvent = $"ambush: {count} hostile creature(s) waiting for the ground to stream";
     }
 
@@ -401,10 +483,18 @@ internal sealed class CreatureModule : IProductModule
         try
         {
             navigation.EnsurePublished(feet);
+            // A few columns per update, each with a small search; a column refused once is not tried again.
+            int checks = 0;
             int placed = Place(ambushWaiting, AmbushRegionBase + ambushes, _ => CreatureKinds.Hostile,
                 CreatureSpawnPlan.AmbushMinimumDistanceMetres, CreatureSpawnPlan.AmbushMaximumDistanceMetres,
-                column => terrain.IsResident(GroundCell(column))
-                    && navigation.NextWaypoint(Feet(column), feet, out _) is not null);
+                column =>
+                {
+                    if (ambushRefused.Contains(column) || !terrain.IsResident(GroundCell(column)) || checks >= AmbushChecksPerUpdate) return false;
+                    checks++;
+                    bool routed = navigation.Step(Feet(column), feet, AmbushVisitedCells).Outcome == NavigationPathOutcome.Reached;
+                    if (!routed) ambushRefused.Add(column);
+                    return routed;
+                });
             ambushWaiting -= placed;
             ambushPlaced += placed;
         }
