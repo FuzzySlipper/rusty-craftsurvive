@@ -39,6 +39,9 @@ internal sealed class MapRegions
     private readonly MapScale tileScale;
     private readonly ConcurrentDictionary<(int X, int Z), Lazy<RegionTile>> tiles = new();
     private readonly ConcurrentDictionary<(int X, int Z), byte> requested = new();
+    private int built;
+    private double lastBuildMilliseconds, slowestBuildMilliseconds;
+    private readonly Lock statsLock = new();
     private readonly LinkedList<(int X, int Z)> recent = [];
     private readonly Lock recentLock = new();
 
@@ -80,8 +83,7 @@ internal sealed class MapRegions
     /// <summary>A tile, built on the calling thread if no one has built it yet; concurrent callers share one build.</summary>
     internal RegionTile Tile((int X, int Z) tile)
     {
-        Lazy<RegionTile> lazy = tiles.GetOrAdd(tile, key => new(() => RegionTile.Build(continent, Drainage, tileConfiguration, tileScale, Centre(key)),
-            LazyThreadSafetyMode.ExecutionAndPublication));
+        Lazy<RegionTile> lazy = tiles.GetOrAdd(tile, key => new(() => Build(key), LazyThreadSafetyMode.ExecutionAndPublication));
         Touch(tile);
         return lazy.Value;
     }
@@ -117,6 +119,29 @@ internal sealed class MapRegions
             }
             last = route[k];
         }
+    }
+
+    private RegionTile Build((int X, int Z) key)
+    {
+        MapDrainage network = Drainage;
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
+        RegionTile tile = RegionTile.Build(continent, network, tileConfiguration, tileScale, Centre(key));
+        double ms = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+        lock (statsLock)
+        {
+            built++;
+            lastBuildMilliseconds = ms;
+            slowestBuildMilliseconds = Math.Max(slowestBuildMilliseconds, ms);
+        }
+        return tile;
+    }
+
+    /// <summary>Region tile facts for diagnostics: how many are built, cached and pending, and what a build costs.</summary>
+    internal string Readout()
+    {
+        lock (statsLock)
+            return FormattableString.Invariant(
+                $"regions built={built} cached={tiles.Count(pair => pair.Value.IsValueCreated)} pending={Pending} lastBuildMs={lastBuildMilliseconds:F0} slowestBuildMs={slowestBuildMilliseconds:F0} drainage={(drainage.IsValueCreated ? "ready" : "pending")}");
     }
 
     /// <summary>Tiles queued but not yet built.</summary>

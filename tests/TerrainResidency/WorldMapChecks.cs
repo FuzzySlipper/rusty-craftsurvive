@@ -31,7 +31,8 @@ internal static class WorldMapChecks
             {
                 Check.That(map.Contains(site.X, site.Z), "selected site lies inside the finite map");
                 double actual = recipe.ContinuousHeightAt((long)site.X, (long)site.Z);
-                Check.That(Math.Abs(actual - map.Sample(site.X, site.Z).Elevation) <= WorldMap.LocalReliefLimit,
+                // A continent's walking terrain is anchored to its region tiles, a regional world's to its map (#9551).
+                Check.That(Math.Abs(actual - recipe.Geography(site.X, site.Z).Elevation) <= WorldMap.LocalReliefLimit,
                     "local density relief stays anchored to map geography");
             }
             long edge = config.Size / 2;

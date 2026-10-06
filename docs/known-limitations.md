@@ -26,16 +26,19 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     ceiling, and rivers only above a regional catchment.
     - Generation takes about 13 s in Debug and saves about 3 MB. Making a new continent also
       builds its drainage network and arrival region tile (#9550), adding roughly 8 s in Release.
-      A restored continent rebuilds both in the background.
+      A restored continent rebuilds both off-thread before play resumes (about 15–30 s in the
+      Debug lane). A walker restored or teleported far from the arrival tile waits for the
+      tiles there, about 1–4 s each in Debug.
     - It reads as one continent in a square, with sea on the sides the seed opens and a
       mountain rim elsewhere; there are no separate landmasses or archipelagos.
-    - Region tiles (#9550) refine the continent to 32 m with a drainage network that owns every
-      walking-scale river. Walking terrain still samples the kilometre lattice directly until it
-      moves onto the tiles (#9551).
+    - Walking terrain samples region tiles (#9550, #9551). They refine the continent to 32 m
+      over a drainage network that owns every walking-scale river.
     - Region relief is noise-driven hills and spurs graded by a short local erosion. It carries no
       lakes, and drainage routes over one 250 m network, so streams below about a square
       kilometre appear only as gullies in the terrain.
-    - Precision far from the centre (±200 km) is unchecked (#9551).
+    - Play at ±190 km behaves as at the centre (#9551): walking, collision, edits, saves and
+      dungeons. The generation fingerprint and cache identity probe only the arrival tile, plus
+      the continent's map fingerprint.
     - The faceted map and travel are refused on a continent until the map's tiers (#9552);
       the smooth overview shows it.
   - Erosion is detachment-limited with creep, talus relaxation and filled basins. It does

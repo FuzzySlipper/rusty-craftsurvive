@@ -16,10 +16,22 @@ internal static class RegionProbe
     internal static void Run(string[] args)
     {
         ulong seed = args.Length > 1 ? ulong.Parse(args[1]) : 12345;
-        double px = args.Length > 2 && args[2] != "rugged" ? double.Parse(args[2]) : 0, pz = args.Length > 3 ? double.Parse(args[3]) : 0;
+        double px = args.Length > 2 && args[2] is not ("rugged" or "far") ? double.Parse(args[2]) : 0, pz = args.Length > 3 ? double.Parse(args[3]) : 0;
         string output = args.Length > 4 ? args[4] : "regions.bin";
         WorldMap continent = WorldMapGenerator.Generate(new TerrainConfiguration(seed, MapScale.DefaultContinentalSize));
         MapRegions regions = new(continent);
+        if (args.Length > 2 && args[2] == "far")
+        {
+            // The land farthest from the origin in each quadrant: where a precision audit walks (#9551).
+            foreach ((int sx, int sz) in (ReadOnlySpan<(int, int)>)[(1, 1), (1, -1), (-1, 1), (-1, -1)])
+            {
+                int best = Enumerable.Range(0, continent.Grid.Count)
+                    .Where(i => continent.Grid.X(i) * sx > 0 && continent.Grid.Z(i) * sz > 0 && continent.Node(i).Elevation > GenerationConstants.WaterLevel + 5)
+                    .MaxBy(i => Math.Min(Math.Abs(continent.Grid.X(i)), Math.Abs(continent.Grid.Z(i))));
+                Console.WriteLine(FormattableString.Invariant($"far ({sx},{sz}): ({continent.Grid.X(best):F0}, {continent.Grid.Z(best):F0}) elevation={continent.Node(best).Elevation:F0} {WorldMap.Region(continent.Node(best))}"));
+            }
+            return;
+        }
         Stopwatch network = Stopwatch.StartNew();
         MapDrainage drainage = regions.Drainage;
         Console.WriteLine(FormattableString.Invariant($"drainage nodes={drainage.Grid.Count} reaches={drainage.ReachCount} buildMs={network.Elapsed.TotalMilliseconds:F0}"));

@@ -36,6 +36,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         Map = map ?? WorldMapGenerator.Generate(configuration);
         if (Map.Configuration != configuration) throw new ArgumentException("Terrain and map must share an identity.", nameof(map));
         radius = configuration.Size / 2;
+        regions = Map.Scale.Continental ? MapRegions.For(Map) : null;
         pois = new PoiPlacement(configuration.Contract, draws, this, radius);
         crossings = new CrossingPlacement(configuration.Contract, draws, this, radius);
     }
@@ -55,6 +56,14 @@ internal sealed class TerrainRecipe : ITerrainColumns
     internal TerrainConfiguration Configuration => configuration;
 
     internal WorldMap Map { get; }
+
+    /// <summary>A continent's region tiles, which walking terrain samples instead of the kilometre lattice (#9551).</summary>
+    internal MapRegions? Regions => regions;
+
+    private readonly MapRegions? regions;
+
+    /// <summary>Geography at a world point: a continent's region tiles, or a regional world's one map.</summary>
+    internal MapSample Geography(double x, double z) => regions?.Sample(x, z) ?? Map.Sample(x, z);
 
     private const long MinimumMaterialYValue = -GenerationConstants.TerrainDepth;
 
@@ -243,7 +252,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>The rounded surface, its water top, and the geography both came from.</summary>
     private (long Surface, long WaterTop, MapSample Geography) Ground(long x, long z)
     {
-        MapSample geography = Map.Sample(x, z);
+        MapSample geography = Geography(x, z);
         long surface = (long)Math.Round(ContinuousHeight(geography, x, z), MidpointRounding.AwayFromZero);
         long waterTop = geography.InRiver
             ? Math.Max(GenerationConstants.WaterLevel, (long)Math.Floor(geography.RiverSurface))
@@ -543,7 +552,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
     /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
-    internal double ContinuousHeightAt(long x, long z) => ContinuousHeight(Map.Sample(x, z), x, z);
+    internal double ContinuousHeightAt(long x, long z) => ContinuousHeight(Geography(x, z), x, z);
 
     private double ContinuousHeight(MapSample geography, long x, long z) =>
         Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),

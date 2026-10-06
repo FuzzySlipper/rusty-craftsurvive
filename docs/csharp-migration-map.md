@@ -109,8 +109,9 @@ plus `RegionRelief` noise in world coordinates, eroded briefly and wrapped in an
 the relief octaves it resolves, and keeps only the node paths. Tiles shape the reaches they
 touch deterministically through `MapRivers.Shape`, so a reach is identical in every tile, and
 tiles hold those rivers as base level. `MapRegions.For(map)` is the continent's one regenerable
-cache. World preparation builds the arrival tile, and a travelling party prefetches the tiles
-along its route.
+cache. World preparation builds the arrival tile. A travelling party prefetches the tiles along
+its route, and terrain streaming prefetches those around the walker. On a continent,
+`TerrainRecipe.Geography` samples the tiles instead of the map (#9551).
 
 `MapSimulation` is
 the one-time modelled stage:

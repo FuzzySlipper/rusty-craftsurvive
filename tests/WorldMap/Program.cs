@@ -114,12 +114,20 @@ try
         Check.That(continentFingerprint == ContinentGolden, $"the default continent's geography matches its golden ({continentFingerprint:x16})");
         Check.That(continent.Map.Scale.Continental && continent.Map.Spacing == 1000, "a continent is simulated on a kilometre lattice");
         RegionChecks(continent.Map);
+        ContinentalTerrainChecks(continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
     host.Call(engine =>
     {
         using ProductStore store = new(engine);
         WorldCatalog restored = new(engine, store);
+        // A restored continent is admitted once its arrival tile is rebuilt off-thread (#9551).
+        Check.That(!restored.HasWorld && restored.Preparing, "a restored continent waits for its arrival tile without blocking load");
+        Stopwatch waited = Stopwatch.StartNew();
+        WorldMapSave? admitted = null;
+        while (admitted is null && waited.ElapsedMilliseconds < PrefetchWaitMs) { admitted = restored.TakePrepared(); Thread.Sleep(20); }
+        Check.That(admitted is not null && restored.Commit(admitted) && restored.HasWorld && MapRegions.For(restored.Current.Map).IsReady((0, 0)),
+            $"the restored continent is admitted with its arrival tile built ({waited.ElapsedMilliseconds} ms)");
         Check.That(restored.RestoreOutcome == "restored" && restored.GenerationMilliseconds == 0
             && restored.Current.Map.Fingerprint == continentFingerprint && restored.Current.Map.Configuration.Size == MapScale.DefaultContinentalSize,
             "a fresh host restores the continent from its save without generating it again");
@@ -130,8 +138,8 @@ return Check.Finish("WorldMap");
 
 partial class Program
 {
-    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 21 (#9550); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0x2c35edabfc202224UL;
+    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 22 (#9550); a deliberate generation change updates it.</summary>
+    private const ulong RegionTileGolden = 0xc67d68e833ec8b55UL;
     /// <summary>A tile builds in about a second in Release; this bound leaves room for a slow shared runner.</summary>
     private const double RegionTileBudgetMs = 5000;
     /// <summary>The steepest metre-to-metre rise across a seam may not exceed the steepest within a tile by more than this.</summary>
@@ -182,7 +190,40 @@ partial class Program
         Check.That(regions.Pending == 0 && regions.IsReady(MapRegions.TileAt(20_000, 6_000)), $"tiles along a route are built ahead of the party ({clock.ElapsedMilliseconds} ms)");
     }
 
+    /// <summary>Points 5 km inside each corner of the 390 km continent, all land for <see cref="ContinentSeed"/>: where #9551 audits precision.</summary>
+    private const double FarCorner = 190_000;
+    private const int SeamWalkMetres = 2000;
+
+    /// <summary>
+    /// Walking terrain on a continent (#9551): the recipe samples the region tiles, the far corners
+    /// generate the same well-formed ground as the origin, and the recipe's own surface meets at a seam.
+    /// </summary>
+    private static void ContinentalTerrainChecks(TerrainRecipe recipe)
+    {
+        Check.That(recipe.Regions == MapRegions.For(recipe.Map), "a continent's walking terrain samples its region tiles");
+        (double X, double Z)[] points = [(0, 0), (FarCorner, FarCorner), (FarCorner, -FarCorner), (-FarCorner, FarCorner), (-FarCorner, -FarCorner)];
+        foreach ((double x, double z) in points)
+        {
+            Stopwatch clock = Stopwatch.StartNew();
+            MapSample geography = recipe.Geography(x, z);
+            double ms = clock.Elapsed.TotalMilliseconds;
+            long surface = recipe.SurfaceAt((long)x, (long)z);
+            Console.WriteLine($"continent terrain at ({x / 1000:F0} km, {z / 1000:F0} km): surface={surface} {WorldMap.Region(geography)} firstSampleMs={ms:F0}");
+            Check.That(geography == recipe.Regions!.Sample(x, z) && surface >= recipe.MinimumMaterialY && surface <= recipe.MaximumMaterialY
+                && Math.Abs(surface - geography.Elevation) <= WorldMap.LocalReliefLimit + 1,
+                $"terrain at ({x:F0}, {z:F0}) is well-formed ground over its region tile");
+        }
+        long seamX = (long)(MapRegions.TileSpacing / 2), seam = 0, inside = 0;
+        for (long z = -SeamWalkMetres; z < SeamWalkMetres; z++)
+        {
+            seam = Math.Max(seam, Math.Abs(recipe.SurfaceAt(seamX + 1, z) - recipe.SurfaceAt(seamX, z)));
+            inside = Math.Max(inside, Math.Abs(recipe.SurfaceAt(1, z) - recipe.SurfaceAt(0, z)));
+        }
+        Console.WriteLine($"continent terrain seam: max voxel step {seam} across, {inside} inside");
+        Check.That(seam <= Math.Max(inside, 1) + 1, "walking terrain meets across a tile seam like anywhere else");
+    }
+
     private const ulong ContinentSeed = 12345;
-    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 21 (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0xa717b8fd71380b14UL;
+    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 22 (#9549); a deliberate generation change updates it.</summary>
+    private const ulong ContinentGolden = 0xcea166bfbf151dd5UL;
 }

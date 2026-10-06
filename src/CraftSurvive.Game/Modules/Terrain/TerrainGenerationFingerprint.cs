@@ -5,7 +5,7 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
 /// A fingerprint of what the generator produces over a fixed probe of the world: a lattice of
-/// surface heights spanning the whole extent, the site and crossing decisions of the anchor
+/// surface heights spanning the whole extent (on a continent, its arrival tile), the site and crossing decisions of the anchor
 /// cells around the origin, every voxel of a set of chunks that includes the origin, a
 /// structure and the border wall, and the structure catalogue - every kind of structure and
 /// crossing built on a synthetic site, in every variant and facing and at both ends of its
@@ -49,6 +49,15 @@ internal static class TerrainGenerationFingerprint
     internal static ulong CacheIdentity(ulong outputFingerprint, ulong sourceStamp) =>
         Mix(Mix(FnvOffsetBasis, outputFingerprint), sourceStamp);
 
+    /// <summary>
+    /// A continent's ground is refined tile by tile (#9551). Probing it edge to edge would build
+    /// thousands of tiles, so its probes stay inside the arrival tile, which world preparation
+    /// builds. The continent's map fingerprint, mixed in below, covers its whole geography.
+    /// </summary>
+    private const long ContinentProbeRadius = (long)(MapRegions.TileSpacing / 2 - MapRegions.BlendHalfWidth);
+
+    private static long ProbeRadius(TerrainRecipe recipe) => recipe.Regions is null ? recipe.Radius : ContinentProbeRadius;
+
     internal static ulong Compute(TerrainRecipe recipe, ProbeScale scale) =>
         Compute(recipe, scale, ShippedCatalogue.Value);
 
@@ -64,7 +73,7 @@ internal static class TerrainGenerationFingerprint
         hash = Mix(hash, (ulong)contract.Extent);
 
         // Heights over the whole world, edge to edge.
-        long radius = recipe.Radius;
+        long radius = ProbeRadius(recipe);
         int samples = scale.HeightSamplesPerSide;
         for (int i = 0; i < samples; i++)
         {
@@ -203,7 +212,7 @@ internal static class TerrainGenerationFingerprint
             yield return new VoxelAddress(site.X, site.Ground, site.Z).Chunk;
         }
 
-        long edge = recipe.Radius - 1;
+        long edge = ProbeRadius(recipe) - 1;
         yield return new VoxelAddress(edge, GenerationConstants.WaterLevel, 0).Chunk;
         yield return new VoxelAddress(0, GenerationConstants.WaterLevel, -edge).Chunk;
         if (!scale.OriginChunkBlock)

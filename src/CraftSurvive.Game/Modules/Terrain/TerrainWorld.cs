@@ -172,6 +172,8 @@ internal sealed class TerrainWorld : IDisposable
     internal void SynchronizeAround(VoxelAddress centerVoxel)
     {
         EnsureStarted();
+        // On a continent the region tiles around the walker are refined before the residency reaches them (#9551).
+        recipe.Regions?.Prefetch(centerVoxel.X, centerVoxel.Z, MapRegions.PrefetchRadius);
         if (streamer.Synchronize(Session, centerVoxel.Chunk))
         {
             presentation.Refresh();
@@ -266,7 +268,7 @@ internal sealed class TerrainWorld : IDisposable
             ? expected == GenerationFingerprint ? "match" : string.Create(CultureInfo.InvariantCulture, $"mismatch expected={expected:x16}")
             : "unrecorded";
         return string.Create(CultureInfo.InvariantCulture,
-            $"version={version} fingerprint={GenerationFingerprint:x16} golden={golden} source={TerrainGeneratorSource.Stamp:x16} cacheIdentity={CacheIdentity:x16} {streamer.Readout()}");
+            $"version={version} fingerprint={GenerationFingerprint:x16} golden={golden} source={TerrainGeneratorSource.Stamp:x16} cacheIdentity={CacheIdentity:x16} {streamer.Readout()}{(recipe.Regions is MapRegions regions ? " " + regions.Readout() : "")}");
     }
 
     /// <summary>Reads the live Engine-owned voxel scene for product diagnostics.</summary>

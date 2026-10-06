@@ -711,7 +711,13 @@ internal sealed class PlayerController : IDisposable
         continuation.Applied = "position, look, vitals and progress";
     }
 
-    /// <summary>Whether a standing body at this position is inside the world and clear of every collidable block.</summary>
+    /// <summary>
+    /// Smooth ground stands up to half a voxel off its cubic material: a column whose surface rounds
+    /// up holds a solid voxel just above where the feet rest on the dual-contoured surface.
+    /// </summary>
+    private const double SmoothGroundAllowance = 0.5;
+
+    /// <summary>Whether a standing body at this position is inside the world and clear of every collidable block below its feet's allowance.</summary>
     private bool Fits(PlayerWorldPosition position)
     {
         double radius = controllerConfig.Shape.Radius;
@@ -724,7 +730,7 @@ internal sealed class PlayerController : IDisposable
 
         for (long x = (long)Math.Floor(position.WorldX - radius); x <= (long)Math.Floor(position.WorldX + radius); x++)
         {
-            for (long y = (long)Math.Floor(position.WorldY - halfHeight); y <= (long)Math.Floor(position.WorldY + halfHeight); y++)
+            for (long y = (long)Math.Floor(position.WorldY - halfHeight + SmoothGroundAllowance); y <= (long)Math.Floor(position.WorldY + halfHeight); y++)
             {
                 for (long z = (long)Math.Floor(position.WorldZ - radius); z <= (long)Math.Floor(position.WorldZ + radius); z++)
                 {

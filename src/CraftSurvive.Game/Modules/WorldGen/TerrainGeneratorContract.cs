@@ -42,9 +42,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// replaces the templated map with simulated geography (stream-power erosion, terrain-driven
     /// climate and biomes) and rivers that carry water through local terrain; version 21 adds the
     /// continental scale (#9549): a world's size selects its <see cref="MapScale"/>, and a continent
-    /// is simulated on a kilometre lattice with scaled lengths, its own peak, ceiling and river sources.
+    /// is simulated on a kilometre lattice with scaled lengths, its own peak, ceiling and river sources;
+    /// version 22 walks a continent on its region tiles (#9550, #9551): 32 m refinements of the continent
+    /// over one continental drainage network, instead of the kilometre lattice.
     /// </summary>
-    internal const uint CurrentVersion = 21;
+    internal const uint CurrentVersion = 22;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

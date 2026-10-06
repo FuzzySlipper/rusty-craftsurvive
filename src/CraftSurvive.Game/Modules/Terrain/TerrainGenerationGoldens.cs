@@ -21,5 +21,6 @@ internal static class TerrainGenerationGoldens
         [17] = 0x89a5cc63c5e6f43cUL,
         [20] = 0xb981bc3d44a22541UL,
         [21] = 0x6f2f0647802a2f89UL,
+        [22] = 0xbfe37c3489364fe5UL,
     };
 }

@@ -22,12 +22,23 @@ internal sealed class WorldCatalog
         this.store = store;
         slot = new(engine, store, SaveManifest.WorldMap, new WorldMapCodec());
         SaveRestoreDecision<WorldMapSave> restore = slot.Restore();
-        if (restore.State is WorldMapSave restored)
+        restoredRecord = restore.State;
+        if (restore.State is WorldMapSave { Map.Scale.Continental: true } continent)
+        {
+            // A restored continent rebuilds its drainage and arrival tile off-thread before play
+            // resumes (#9551), as a new world's simulation does, so loading never waits on them.
+            awaitingRestore = continent;
+            pendingStart = Stopwatch.GetTimestamp();
+            pending = Task.Run(() =>
+            {
+                MapRegions.PrepareArrival(continent.Map);
+                return continent.Map;
+            });
+        }
+        else if (restore.State is WorldMapSave restored)
         {
             current = restored;
             store.WorldGeneration = restored.Generation;
-            // A restored continent rebuilds its drainage and arrival tiles behind the first updates (#9550).
-            if (restored.Map.Scale.Continental) Task.Run(() => MapRegions.PrepareArrival(restored.Map));
         }
         else
         {
@@ -37,6 +48,9 @@ internal sealed class WorldCatalog
     }
 
     private WorldMapSave? current;
+    private readonly WorldMapSave? restoredRecord;
+    /// <summary>A restored continent whose arrival tile is still being rebuilt; it is admitted as it was saved.</summary>
+    private WorldMapSave? awaitingRestore;
 
     /// <summary>Whether a world has been restored or committed; until then only its preparation exists.</summary>
     internal bool HasWorld => current is not null;
@@ -78,13 +92,19 @@ internal sealed class WorldCatalog
         if (pending is not { IsCompleted: true } finished) return null;
         pending = null;
         WorldMap map = finished.GetAwaiter().GetResult();
+        if (awaitingRestore is WorldMapSave restored)
+        {
+            awaitingRestore = null;
+            return restored;
+        }
         GenerationMilliseconds = Stopwatch.GetElapsedTime(pendingStart).TotalMilliseconds;
         return new(NextGeneration, map);
     }
 
     internal bool Commit(WorldMapSave prepared)
     {
-        if (!slot.Save(prepared)) return false;
+        // A restored world is already the saved record; admitting it writes nothing.
+        if (prepared != restoredRecord && !slot.Save(prepared)) return false;
         current = prepared;
         store.WorldGeneration = prepared.Generation;
         return true;
