@@ -1,5 +1,11 @@
 using CraftSurvive.Game.Tests;
 
+if (args is ["editbench"])
+{
+    EditBench.Run();
+    return 0;
+}
+
 // Terrain, generation, residency, edits and player input: the pure product policy the world is
 // built from, checked without an Engine context. Each area reports every failure it finds.
 Check.Section("player input", PlayerInputChecks.Run);

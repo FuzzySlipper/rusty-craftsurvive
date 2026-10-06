@@ -16,6 +16,17 @@ internal sealed class TerrainResidencyPolicy
     private TerrainOverlaySnapshot? cachedOverlay;
     private ulong cachedOverlayRevision;
 
+    /// <summary>Where the last post-edit refresh spent its time, in milliseconds (#9578).</summary>
+    internal readonly record struct RefreshTiming(double Snapshot, double Regenerate, double Candidates, double Plan)
+    {
+        public override string ToString() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"snapshot={Snapshot:F2} regenerate={Regenerate:F2} candidates={Candidates:F2} plan={Plan:F2}");
+    }
+
+    internal RefreshTiming LastRefresh { get; private set; }
+
+    private static double Ms(long from, long to) => System.Diagnostics.Stopwatch.GetElapsedTime(from, to).TotalMilliseconds;
+
     internal TerrainResidencyPolicy(TerrainRecipe recipe, TerrainChunkGenerator generator)
     {
         this.recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
@@ -63,24 +74,31 @@ internal sealed class TerrainResidencyPolicy
             return;
         }
 
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         TerrainOverlaySnapshot snapshot = overlay.Snapshot();
-        foreach (TerrainChunkAddress address in receipt.AppliedEdits.Select(edit => edit.Address.Chunk).Distinct())
+        long snapshotted = System.Diagnostics.Stopwatch.GetTimestamp();
+        // An edited chunk already produced is patched voxel by voxel rather than generated again.
+        foreach (IGrouping<TerrainChunkAddress, VoxelAddress> chunk in receipt.AppliedEdits.Select(edit => edit.Address).GroupBy(voxel => voxel.Chunk))
         {
-            if (!cachedChunks.ContainsKey(address))
+            if (!cachedChunks.TryGetValue(chunk.Key, out TerrainChunk? previous))
             {
                 continue;
             }
 
-            cachedChunks[address] = generator.Generate(address, snapshot);
+            cachedChunks[chunk.Key] = generator.Patch(previous, chunk, snapshot);
         }
 
+        long regenerated = System.Diagnostics.Stopwatch.GetTimestamp();
         cachedOverlay = snapshot;
         cachedOverlayRevision = overlay.Revision;
         // An edit can occupy a chunk outside every surface band, which makes it a new candidate.
         HashSet<TerrainChunkAddress> candidates = CandidateChunks(cachedPlan.Center, TerrainConstants.RetainedChunkRadius, snapshot).ToHashSet();
         cachedCandidates = candidates.ToArray();
         cachedWindow = candidates;
+        long candidated = System.Diagnostics.Stopwatch.GetTimestamp();
         cachedPlan = BuildPlan(cachedPlan.Center, cachedOverlay);
+        long planned = System.Diagnostics.Stopwatch.GetTimestamp();
+        LastRefresh = new(Ms(started, snapshotted), Ms(snapshotted, regenerated), Ms(regenerated, candidated), Ms(candidated, planned));
     }
 
     /// <summary>

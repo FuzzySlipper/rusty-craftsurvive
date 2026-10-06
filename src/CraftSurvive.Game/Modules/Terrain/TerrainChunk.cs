@@ -105,6 +105,31 @@ internal sealed class TerrainChunkGenerator
         return new TerrainChunk(address, materials, densities);
     }
 
+    /// <summary>
+    /// An edited chunk without generating it again (#9578): the previous payload with only the
+    /// edited voxels recomputed, each from its generated material, its column's height and the
+    /// overlay - exactly what <see cref="Generate"/> would produce for them.
+    /// </summary>
+    internal TerrainChunk Patch(TerrainChunk previous, IEnumerable<VoxelAddress> edited, TerrainOverlaySnapshot overlay)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(overlay);
+        ushort[] materials = previous.Materials.ToArray();
+        float[] densities = previous.Densities.ToArray();
+        VoxelAddress origin = previous.Address.Origin;
+        foreach (VoxelAddress voxel in edited)
+        {
+            if (voxel.Chunk != previous.Address) continue;
+            int index = ToIndex((int)(voxel.X - origin.X), (int)(voxel.Y - origin.Y), (int)(voxel.Z - origin.Z));
+            ushort generated = recipe.MaterialAt(voxel, recipe.ColumnAt(voxel.X, voxel.Z));
+            ushort material = overlay.TryGetMaterial(voxel, out ushort overridden) ? overridden : generated;
+            materials[index] = material;
+            densities[index] = TerrainDensity.At(voxel.Y, recipe.ContinuousHeightAt(voxel.X, voxel.Z), generated, material);
+        }
+
+        return new TerrainChunk(previous.Address, materials, densities);
+    }
+
     private static int ToIndex(int x, int y, int z) => (z * TerrainConstants.ChunkPlaneLength)
         + (y * TerrainConstants.ChunkEdgeLength) + x;
 }

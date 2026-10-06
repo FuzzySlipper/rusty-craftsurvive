@@ -17,6 +17,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly long radius;
     private readonly Dictionary<(long X, long Z), TreeShape?> featureCells = [];
     private readonly Dictionary<(long X, long Z), (long Minimum, long Maximum)> columnBands = [];
+    /// <summary>
+    /// Whether a chunk holds generated content, remembered: the answer is a pure function of the
+    /// recipe, and residency asks it of every candidate on every plan (#9578).
+    /// </summary>
+    private readonly Dictionary<TerrainChunkAddress, bool> chunkContent = [];
+    private const int ChunkContentCacheLimit = 65_536;
     /// <summary>Chunks kept below a column's lowest surface, so its surface always has solid footing to mesh against.</summary>
     private const long BandFootingChunks = 1;
     private const int ColumnBandCacheLimit = 4096;
@@ -297,6 +303,15 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// retaining an empty one, so anything not provably empty answers "content".
     /// </summary>
     internal bool ChunkHasContent(TerrainChunkAddress address)
+    {
+        if (chunkContent.TryGetValue(address, out bool known)) return known;
+        bool content = ScanChunkContent(address);
+        if (chunkContent.Count >= ChunkContentCacheLimit) chunkContent.Clear();
+        chunkContent[address] = content;
+        return content;
+    }
+
+    private bool ScanChunkContent(TerrainChunkAddress address)
     {
         long edge = TerrainConstants.ChunkEdgeLength;
         long yMinimum = address.Y * edge;

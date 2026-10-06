@@ -11,6 +11,35 @@ namespace CraftSurvive.Game.Tests;
 /// <summary>The residency plan against a full scan: overlap reuse, request priority, edits, restore and eviction.</summary>
 internal static class ResidencyChecks
 {
+    /// <summary>A patched chunk (#9578) is exactly the chunk generation would produce for the same overlay.</summary>
+    private static void PatchMatchesGeneration(TerrainConfiguration configuration, TerrainRecipe recipe, TerrainChunkAddress center)
+    {
+        TerrainOverlayState state = new(configuration.Seed);
+        TerrainResidencyPolicy policy = new(recipe, new TerrainChunkGenerator(recipe));
+        long surface = recipe.SurfaceAt(1, 1);
+        TerrainChunkAddress ground = new VoxelAddress(1, surface, 1).Chunk;
+        TerrainChunk before = policy.PlanFor(center, state).Chunk(ground);
+        List<TerrainVoxelEdit> crater = [];
+        for (long dx = -3; dx <= 3; dx++)
+        for (long dy = -3; dy <= 3; dy++)
+        for (long dz = -3; dz <= 3; dz++)
+            if (dx * dx + dy * dy + dz * dz <= 9) crater.Add(new(new VoxelAddress(1 + dx, surface + dy, 1 + dz), TerrainConstants.EmptyMaterial));
+        crater.Add(new(new VoxelAddress(2, recipe.SurfaceAt(2, 2) + 2, 2), TerrainConstants.StoneMaterial));
+        TerrainOverlayReceipt receipt = state.Apply(new TerrainEditAccepted(crater));
+        policy.RefreshAfterOverlayChange(state, receipt);
+        TerrainResidencyPlan plan = policy.PlanFor(center, state);
+        TerrainChunkGenerator fresh = new(recipe);
+        foreach (TerrainChunkAddress touched in receipt.AppliedEdits.Select(e => e.Address.Chunk).Distinct())
+        {
+            TerrainChunk patched = plan.Chunk(touched);
+            TerrainChunk generated = fresh.Generate(touched, state.Snapshot());
+            Check.That(patched.Materials.Span.SequenceEqual(generated.Materials.Span) && patched.Densities.Span.SequenceEqual(generated.Densities.Span),
+                $"patched chunk {touched} matches its generation");
+        }
+        Check.That(!ReferenceEquals(before, plan.Chunk(ground)) && before.SolidVoxelCount > plan.Chunk(ground).SolidVoxelCount,
+            "an edited chunk gets a new payload; the earlier one is left as it was");
+    }
+
     internal static void Run()
     {
         var configuration = TerrainConfiguration.Default;
@@ -19,6 +48,7 @@ internal static class ResidencyChecks
         var state = new TerrainOverlayState(configuration.Seed);
         var policy = new TerrainResidencyPolicy(recipe, chunkGenerator);
         TerrainChunkAddress center = new(0, 0, 0);
+        PatchMatchesGeneration(configuration, recipe, center);
         TerrainChunkAddress unchanged = new(0, 0, 0);
         TerrainChunkAddress edited = new(0, 1, 0);
         var first = policy.PlanFor(center, state);
@@ -70,6 +100,7 @@ internal static class ResidencyChecks
         catch (KeyNotFoundException) { earlierUntouched = true; }
         Check.That(earlierUntouched, "edit mutated an earlier plan payload");
         CheckAgainstFullScan(center);
+
         receipt = state.Apply(new TerrainEditAccepted([new(voxel, TerrainConstants.EmptyMaterial)]));
         policy.RefreshAfterOverlayChange(state, receipt);
         Check.That(!policy.PlanFor(center, state).Requested.Contains(edited), "cleared chunk remained requested");
