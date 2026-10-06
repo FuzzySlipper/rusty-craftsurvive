@@ -34,15 +34,18 @@ internal sealed class MapVoxelLayer : IDisposable
     private readonly HashSet<(long X, long Y, long Z)> resident = [];
     private readonly Dictionary<(long X, long Y, long Z), Operation> pending = [];
     private VoxelScenePresentation? projection;
+    private readonly double coarseBeyond;
     private long workTicks;
 
     /// <param name="terrainLayers">Slots drawn by a terrain-layer material, each with its layer index, blended
     /// across <c>TransitionCells</c>; null draws every slot with its own material.</param>
+    /// <param name="coarseBeyond">Chunks farther than this from the camera, in map units, are drawn from coarse meshes (#9563); zero draws all fine.</param>
     internal MapVoxelLayer(IEngineContext engine, double voxelSize, ColumnSampler sampler, IReadOnlyDictionary<uint, Material> materials,
-        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null)
+        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null, double coarseBeyond = 0)
     {
         this.engine = engine;
         this.sampler = sampler;
+        this.coarseBeyond = coarseBeyond;
         bindings = [.. materials.Select(pair => new VoxelSceneMaterialBinding(pair.Key, pair.Value))];
         Session = engine.Spatial.CreateSession(new SpatialSessionConfig(voxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.DualContouring));
         try
@@ -62,6 +65,14 @@ internal sealed class MapVoxelLayer : IDisposable
     }
 
     internal SpatialSession Session { get; }
+
+    /// <summary>Drawn chunks and how many are coarse now, for the map readout.</summary>
+    internal (ulong Chunks, ulong Coarse) LevelOfDetail()
+    {
+        if (projection is not VoxelScenePresentation current) return (0, 0);
+        VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(current, coarseBeyond));
+        return (readout.ChunkCount, readout.CoarseChunkCount);
+    }
     internal int ResidentChunks => resident.Count;
     internal int PendingChunks => pending.Count;
     /// <summary>Whether the scene is projected and nothing waits to be applied.</summary>
@@ -138,8 +149,11 @@ internal sealed class MapVoxelLayer : IDisposable
         }
         // The first projection waits for the first complete load, so it appears whole.
         if (projection is null && pending.Count == 0 && wanted.Count > 0)
+        {
             projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new(Session, bindings,
                 ReadOnlyMemory<VoxelSceneFaceMaterialBinding>.Empty));
+            if (coarseBeyond > 0) engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, coarseBeyond));
+        }
         workTicks += Stopwatch.GetTimestamp() - started;
     }
 

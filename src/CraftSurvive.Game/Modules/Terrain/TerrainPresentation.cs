@@ -31,12 +31,28 @@ internal sealed class TerrainPresentation : IDisposable
 
     internal void ConfigureGround(SpatialSession session) => ground!.Configure(engine, session);
 
+    /// <summary>
+    /// Ground farther than this from the camera is drawn from the Engine's coarse meshes (#9563):
+    /// at the first-person view distance this halves the triangles with no visible change (Engine
+    /// #9498's trial); collision, picking and navigation keep full resolution.
+    /// </summary>
+    internal const double CoarseBeyondMetres = 48;
+
     internal void Project(SpatialSession session)
     {
         projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             session,
             MaterialBindings(),
             FaceMaterialBindings()));
+        engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, CoarseBeyondMetres));
+    }
+
+    /// <summary>How many chunks are drawn and how many of them coarse, for the scene readout.</summary>
+    internal string LevelOfDetailReadout()
+    {
+        if (projection is not VoxelScenePresentation current) return "lod=none";
+        VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(current, CoarseBeyondMetres));
+        return FormattableString.Invariant($"lod coarseBeyond={CoarseBeyondMetres}m chunks={readout.ChunkCount} coarse={readout.CoarseChunkCount}");
     }
 
     /// <summary>

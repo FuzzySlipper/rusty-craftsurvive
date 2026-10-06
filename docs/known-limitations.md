@@ -107,6 +107,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       back to. On foot it does not move: being pulled about in first person is a later exploration
       (#9518).
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
+- **Distant voxel chunks are drawn from coarse meshes** (`SetLevelOfDetail`, #9563): first-person
+  ground and landscape studies beyond 48 m (`TerrainPresentation.CoarseBeyondMetres`), the map's
+  detail patch beyond 24 map units and the whole map beyond 160. At today's first-person residency
+  radius nothing is far enough to go coarse; it takes effect as the view distance grows. Collision,
+  picking and navigation keep full resolution. `craft.terrain.scene` and `craft.world.faceted` report
+  how many chunks are coarse.
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in

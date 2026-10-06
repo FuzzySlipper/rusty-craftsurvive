@@ -136,6 +136,7 @@ internal sealed class LandscapeSampleSpace : IDisposable
                 .Select(block => new VoxelSceneMaterialBinding(block.Slot, ground.For(block.Id)!)).ToArray();
             projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new(Session, bindings,
                 ReadOnlyMemory<VoxelSceneFaceMaterialBinding>.Empty));
+            engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, TerrainPresentation.CoarseBeyondMetres));
         }
         generationTicks += Stopwatch.GetTimestamp() - started;
     }

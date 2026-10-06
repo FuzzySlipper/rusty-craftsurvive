@@ -90,6 +90,9 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Draws a separate space's session with this world's block materials; the caller disposes the projection.</summary>
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate) => presentation.ProjectAnother(separate);
 
+    /// <summary>How much of the open world's ground is drawn coarse (#9563).</summary>
+    internal string LevelOfDetailReadout() => presentation.LevelOfDetailReadout();
+
     /// <summary>The atlas image every block material is built from.</summary>
     internal RenderResourceReference AtlasSprite => presentation.AtlasSprite;
 

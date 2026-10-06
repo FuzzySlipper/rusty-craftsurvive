@@ -33,6 +33,13 @@ internal sealed class WorldMapVoxelView : IDisposable
     private const double EdgeFadeMetres = DetailChunkMetres;
     private const int OriginY = -20000;
     private const int ChunksPerUpdate = 24;
+    /// <summary>
+    /// Beyond these camera distances, in map units (one coarse cell), each layer is drawn from coarse
+    /// meshes (#9563): the detail patch when the camera has pulled back past about 770 m, the whole
+    /// map only at the farthest zooms, where its 64 m coarse facets are below a pixel or two.
+    /// </summary>
+    private const double DetailLayerCoarseBeyond = 24;
+    private const double CoarseLayerCoarseBeyond = 160;
     private const double ExposedRock = 0.6;
     // Markers keep a steady apparent size: their scale follows the camera's distance.
     private const float MarkerScalePerDistance = 0.012f;
@@ -116,8 +123,8 @@ internal sealed class WorldMapVoxelView : IDisposable
 
             firstDetailChunk = (long)Math.Floor(-map.Radius / DetailChunkMetres);
             lastDetailChunk = (long)Math.Floor((map.Radius - 1) / DetailChunkMetres);
-            coarse = Layer(1, CellMetres, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround);
-            detail = Layer(1d / DetailPerCell, DetailMetres, (_, _) => 0, true, detailGround);
+            coarse = Layer(1, CellMetres, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround, CoarseLayerCoarseBeyond);
+            detail = Layer(1d / DetailPerCell, DetailMetres, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond);
             clutter = new MapClutter(engine, map);
             // The window comes first: the coarse ground samples it to sink beneath the patch.
             Follow(new(partyWorldFeet.X, partyWorldFeet.Z));
@@ -137,8 +144,15 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     internal bool Loaded => coarse.Settled && detail.Settled;
     internal string Readout => FormattableString.Invariant(
-        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};")
+        $"style={Style.Name};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};lod={LevelOfDetailReadout()};")
         + rig.Readout;
+
+    private string LevelOfDetailReadout()
+    {
+        (ulong coarseChunks, ulong coarseCoarse) = coarse.LevelOfDetail();
+        (ulong detailChunks, ulong detailCoarse) = detail.LevelOfDetail();
+        return FormattableString.Invariant($"map {coarseCoarse}/{coarseChunks} detail {detailCoarse}/{detailChunks} coarse");
+    }
 
     internal void Activate() => rig.Activate();
 
@@ -393,7 +407,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// One streamed layer: each voxel column samples the map at its centre, with exaggerated relief,
     /// lowered by <paramref name="sink"/> coarse voxels at a world point. Columns beyond the map are empty.
     /// </summary>
-    private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground)
+    private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground, double coarseBeyond)
     {
         double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
         double origin = OriginY / voxelSize;
@@ -414,7 +428,7 @@ internal sealed class WorldMapVoxelView : IDisposable
                     : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
             }
         }
-        if (ground is null) return new MapVoxelLayer(engine, voxelSize, Sample, materials);
+        if (ground is null) return new MapVoxelLayer(engine, voxelSize, Sample, materials, coarseBeyond: coarseBeyond);
         // Textured: environments on a layer share the blended material; the rest keep their own.
         Dictionary<uint, Material> bindings = new(materials);
         List<(uint Slot, uint Layer)> layered = [];
@@ -431,7 +445,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         if (Style.RockLayer is int rockLayer) { bindings[RockSlot] = ground.Layered; layered.Add((RockSlot, (uint)rockLayer)); }
         else if (Style.PlainRock is string plain) bindings[RockSlot] = ground.Plain(plain);
         return new MapVoxelLayer(engine, voxelSize, Sample, bindings,
-            ([.. layered.Select(entry => entry.Slot)], [.. layered.Select(entry => entry.Layer)], ground.Settings.TransitionCells));
+            ([.. layered.Select(entry => entry.Slot)], [.. layered.Select(entry => entry.Layer)], ground.Settings.TransitionCells), coarseBeyond);
     }
 
     /// <summary>
