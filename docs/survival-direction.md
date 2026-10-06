@@ -82,9 +82,14 @@ still be worthwhile play.
 
 ### World scale and generation
 
-The world is large and finite. Streaming and bounded residency are necessary,
-but no square-kilometre target defines the design. Neither infinite generation
-nor continuous first-person traversal of the entire world map is required.
+The world is large and finite: the intended scale is continental, in the
+neighbourhood of Daggerfall's 100,000–200,000 km², so that crossing it is months of
+off-road travel. The space itself is the challenge and has character; content is
+spread out on purpose, days apart, rather than filling an open world densely.
+Streaming and bounded residency are necessary. Neither infinite generation nor
+continuous first-person traversal of the entire world map is required, and finer
+scales may be synthesized ("faked") from coarser ones rather than modelled for the
+whole world, as long as world coordinates stay continuous.
 
 Generation separates a discrete world-map step at new-game creation from local
 voxel terrain. RimWorld's world and colony maps, Mount & Blade's world and battle
@@ -137,7 +142,12 @@ Owner decisions so far: a 10 km world takes about two in-game days to cross as a
 point; travelling at night is allowed but very slow, so camping is encouraged rather than
 required; the clock keeps its normal pace in first person while map travel fast-forwards it;
 the whole map's geography is visible, and places are what is discovered; the first transport
-is a sled. How travel scale relates to first-person walking scale is still to be worked out.
+is a sled. Map pace and the first-person clock already agree within about 1.5× per game
+hour; first-person walking should carry the expedition's costs (fatigue), and the sled is a
+soft leash on how far the player roams on foot. Map destinations are a coarser layer of
+significant sites than the walking-scale landmarks. Travel is slow and off-road, closer
+to Lewis and Clark than to a road journey, and hard logistics give the reason for
+multiple bases as forward outposts.
 
 In this concept, substantial survival simulation concentrates on the journey:
 route, weather, supplies, time, and carrying capacity. The aim is meaningful
