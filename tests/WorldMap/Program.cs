@@ -138,8 +138,8 @@ return Check.Finish("WorldMap");
 
 partial class Program
 {
-    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 22 (#9550); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0xc67d68e833ec8b55UL;
+    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 23 (#9550); a deliberate generation change updates it.</summary>
+    private const ulong RegionTileGolden = 0x6b61c5267a272bb9UL;
     /// <summary>A tile builds in about a second in Release; this bound leaves room for a slow shared runner.</summary>
     private const double RegionTileBudgetMs = 5000;
     /// <summary>The steepest metre-to-metre rise across a seam may not exceed the steepest within a tile by more than this.</summary>
@@ -225,6 +225,6 @@ partial class Program
     }
 
     private const ulong ContinentSeed = 12345;
-    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 22 (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0xcea166bfbf151dd5UL;
+    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 23 (#9549); a deliberate generation change updates it.</summary>
+    private const ulong ContinentGolden = 0xc6869d669a57a37aUL;
 }

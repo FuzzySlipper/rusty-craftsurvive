@@ -13,8 +13,11 @@ internal readonly record struct MapSample(double Elevation, double Temperature, 
     internal bool InRiver => !double.IsNegativeInfinity(RiverSurface);
 }
 
-/// <summary>A region tile's place in its continent (#9550): the world position of its centre and the continent's elevation scale.</summary>
-internal sealed record MapRegionFrame(double X, double Z, MapScale Scale);
+/// <summary>
+/// A region tile's place in its continent (#9550): the world position of its centre, the continent's
+/// elevation scale, and the tile's own lattice, which is finer for its extent than a world's would be.
+/// </summary>
+internal sealed record MapRegionFrame(double X, double Z, MapScale Scale, MapGrid Grid);
 
 internal readonly record struct MapSite(string Name, double X, double Z, MapSample Geography);
 
@@ -68,7 +71,7 @@ internal sealed class WorldMap
     {
         RegionFrame = region;
         Configuration = configuration.Validate();
-        Grid = MapGrid.For(configuration.Size);
+        Grid = region?.Grid ?? MapGrid.For(configuration.Size);
         Scale = region?.Scale ?? MapScale.For(configuration.Size);
         if (fields.Grid != Grid) throw new ArgumentException("Map lattice does not match its extent.");
         this.fields = fields;

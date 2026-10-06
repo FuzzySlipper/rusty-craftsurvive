@@ -101,8 +101,8 @@ continent (320–450 km) uses a 1 km lattice, scales every tuned length by its s
 10,240 m, and takes its own peak, ceiling and river-source catchment (#9549, Den
 `design/continental-scale`). `WorldMap.Scale` and `TerrainRecipe.MaximumMaterialY` follow it.
 
-A continent refines on demand through `MapRegions` (#9550). Its tiles own 8,192 m squares and
-are simulated over 12,288 m at 32 m. Each tile is the continent's `WorldMap.Broad` geography
+A continent refines on demand through `MapRegions` (#9550). Its tiles own 16,384 m squares and
+are simulated over 19,456 m at 32 m (a lattice of their own, past `MapGrid`'s 512-segment cap). Each tile is the continent's `WorldMap.Broad` geography
 plus `RegionRelief` noise in world coordinates, eroded briefly and wrapped in an ordinary
 `WorldMap` with a `MapRegionFrame`. Neighbouring tiles blend across a 1 km band.
 `MapDrainage` owns every walking-scale river. It routes the whole continent once at 250 m over

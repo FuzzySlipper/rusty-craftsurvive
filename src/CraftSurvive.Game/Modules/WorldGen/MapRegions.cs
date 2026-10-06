@@ -16,20 +16,23 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// </summary>
 internal sealed class MapRegions
 {
-    /// <summary>Distance between tile centres: each tile owns this square of the world.</summary>
-    internal const double TileSpacing = 8192;
+    /// <summary>Distance between tile centres: each tile owns this 16 km square of the world.</summary>
+    internal const double TileSpacing = 16_384;
     /// <summary>Half the width of the band across a tile edge where neighbouring tiles blend.</summary>
     internal const double BlendHalfWidth = 512;
     /// <summary>
     /// A tile's simulated extent: its owned square, the blend band and erosion context beyond it, so
     /// drainage near the band is not shaped by the tile's own border.
     /// </summary>
-    internal const int TileExtent = 12_288;
+    internal const int TileExtent = 19_456;
+    /// <summary>A tile's lattice: the map spacing over its whole extent.</summary>
+    internal static MapGrid TileGrid { get; } = new(TileSegments, TileExtent / (double)TileSegments, TileExtent / 2d);
+    private const int TileSegments = (int)(TileExtent / MapGrid.TargetSpacing);
     /// <summary>
-    /// Tiles kept built (about 12 MB each): the map's region window and the walker need up to nine,
+    /// Tiles kept built (about 30 MB each): the map's region window and the walker need up to four,
     /// the route ahead a few more, so prefetching never evicts a tile still in use.
     /// </summary>
-    private const int CacheLimit = 20;
+    private const int CacheLimit = 8;
     /// <summary>Around a party or walker, the tiles within this reach are built ahead of need.</summary>
     internal const double PrefetchRadius = 2048;
     /// <summary>Along a route, tiles are built this far ahead of the party: under the cache, so prefetching never evicts the tiles in use.</summary>
@@ -43,7 +46,9 @@ internal sealed class MapRegions
     private readonly MapScale tileScale;
     private readonly ConcurrentDictionary<(int X, int Z), Lazy<RegionTile>> tiles = new();
     private readonly ConcurrentDictionary<(int X, int Z), byte> requested = new();
-    private int built;
+    private int built, synchronousBuilds;
+    /// <summary>Set on a thread building tiles ahead of need, so a build anywhere else counts as one a consumer waited on.</summary>
+    [ThreadStatic] private static bool background;
     private double lastBuildMilliseconds, slowestBuildMilliseconds;
     private readonly Lock statsLock = new();
     private readonly LinkedList<(int X, int Z)> recent = [];
@@ -69,7 +74,12 @@ internal sealed class MapRegions
     {
         if (!map.Scale.Continental) return;
         MapRegions regions = For(map);
-        foreach ((int X, int Z) tile in TilesNear(0, 0, PrefetchRadius)) regions.Tile(tile);
+        background = true;
+        try
+        {
+            foreach ((int X, int Z) tile in TilesNear(0, 0, PrefetchRadius)) regions.Tile(tile);
+        }
+        finally { background = false; }
     }
 
     /// <summary>The continent's drainage network, built on first use (seconds; once per world).</summary>
@@ -156,6 +166,7 @@ internal sealed class MapRegions
         lock (statsLock)
         {
             built++;
+            if (!background) synchronousBuilds++;
             lastBuildMilliseconds = ms;
             slowestBuildMilliseconds = Math.Max(slowestBuildMilliseconds, ms);
         }
@@ -167,8 +178,11 @@ internal sealed class MapRegions
     {
         lock (statsLock)
             return FormattableString.Invariant(
-                $"regions built={built} cached={tiles.Count(pair => pair.Value.IsValueCreated)} pending={Pending} lastBuildMs={lastBuildMilliseconds:F0} slowestBuildMs={slowestBuildMilliseconds:F0} drainage={(drainage.IsValueCreated ? "ready" : "pending")}");
+                $"regions built={built} synchronous={synchronousBuilds} cached={tiles.Count(pair => pair.Value.IsValueCreated)} pending={Pending} lastBuildMs={lastBuildMilliseconds:F0} slowestBuildMs={slowestBuildMilliseconds:F0} drainage={(drainage.IsValueCreated ? "ready" : "pending")}");
     }
+
+    /// <summary>Tiles a consumer had to build on its own thread because no prefetch had built them yet.</summary>
+    internal int SynchronousBuilds { get { lock (statsLock) return synchronousBuilds; } }
 
     /// <summary>Tiles queued but not yet built.</summary>
     internal int Pending => requested.Count(pair => !IsReady(pair.Key));
@@ -176,7 +190,12 @@ internal sealed class MapRegions
     private void Request((int X, int Z) tile)
     {
         if (IsReady(tile) || !requested.TryAdd(tile, 0)) return;
-        ThreadPool.QueueUserWorkItem(static state => state.Regions.Tile(state.Tile), (Regions: this, Tile: tile), false);
+        ThreadPool.QueueUserWorkItem(static state =>
+        {
+            background = true;
+            try { state.Regions.Tile(state.Tile); }
+            finally { background = false; }
+        }, (Regions: this, Tile: tile), false);
     }
 
     internal static IEnumerable<(int X, int Z)> TilesNear(double x, double z, double radius)
@@ -326,7 +345,7 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
 
     internal static RegionTile Build(WorldMap continent, MapDrainage drainage, TerrainConfiguration configuration, MapScale scale, (double X, double Z) centre)
     {
-        MapGrid grid = MapGrid.For(configuration.Size);
+        MapGrid grid = MapRegions.TileGrid;
         int count = grid.Count;
         double reach = grid.Radius + RiverReachMetres;
         MapRivers rivers = drainage.Within(centre.X - reach, centre.Z - reach, centre.X + reach, centre.Z + reach);
@@ -369,6 +388,6 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
         MapFlow flow = MapFlow.Route(grid, routed, outlet, rain, MapFlow.FillGradient);
         MapFields fields = new(grid, elevation, temperature, moisture, hardness.Select(v => (float)v).ToArray(),
             flow.Discharge.Select(v => (float)v).ToArray());
-        return new(new WorldMap(configuration, fields, new MapRegionFrame(centre.X, centre.Z, scale)), rivers);
+        return new(new WorldMap(configuration, fields, new MapRegionFrame(centre.X, centre.Z, scale, grid)), rivers);
     }
 }

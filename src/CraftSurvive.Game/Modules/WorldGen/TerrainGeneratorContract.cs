@@ -44,9 +44,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// continental scale (#9549): a world's size selects its <see cref="MapScale"/>, and a continent
     /// is simulated on a kilometre lattice with scaled lengths, its own peak, ceiling and river sources;
     /// version 22 walks a continent on its region tiles (#9550, #9551): 32 m refinements of the continent
-    /// over one continental drainage network, instead of the kilometre lattice.
+    /// over one continental drainage network, instead of the kilometre lattice; version 23 gives each
+    /// region tile a 16 km square of its own (#9550 review).
     /// </summary>
-    internal const uint CurrentVersion = 22;
+    internal const uint CurrentVersion = 23;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

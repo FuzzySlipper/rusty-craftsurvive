@@ -11,7 +11,10 @@ internal static class TravelChecks
     /// <summary>A cross-continent route must plan within this, on a slow shared runner too (#9552).</summary>
     private const double CrossContinentPlanBudgetMs = 1000;
     private const float CrossContinentReach = 170_000;
-    private const int RefineWaitMs = 60_000;
+    private const int RefineWaitMs = 90_000;
+    private const float TravelProbeEast = 20_000, TravelProbeNorth = 8_000;
+    private const int FastestSpeed = 4;
+    private const double TickSeconds = 0.05;
     /// <summary>A refined leg spans a diagonal region cell, or reaches from one to the kilometre node it joins.</summary>
     private const float RefinedLegCells = 2.5f;
 
@@ -38,33 +41,35 @@ internal static class TravelChecks
             && TravelCalendar.Days(across.Hours) >= 30, "a crossing previews in days, and takes at least a month");
 
         // From the arrival tile the head follows 32 m ground: legs of a region cell, the last joining the kilometre node.
-        TravelRoute? near = TravelRouter.Plan(cost, new(0, 0), new(40_000, 25_000), "east");
+        TravelRoute? near = TravelRouter.Plan(cost, new(0, 0), new(TravelProbeEast, TravelProbeNorth), "east");
         Check.That(near is { RefinedLegs: > 0 } && near.Points.Take(near.RefinedLegs).Zip(near.Points.Skip(1).Take(near.RefinedLegs))
             .All(p => Vector2.Distance(p.First, p.Second) <= MapGrid.TargetSpacing * RefinedLegCells),
             $"a route's head is refined over the region tile the party stands in ({near?.RefinedLegs ?? 0} legs)");
         Check.That(near is not null && near.Points.Zip(near.Points.Skip(1)).All(p => float.IsFinite(p.First.X) && Vector2.Distance(p.First, p.Second) <= continent.Spacing * 1.5f + 1),
             "the refined head and the kilometre route join without a gap");
 
-        // A travelling party re-refines past the head and keeps its position.
+        // A travelling party at the fastest speed, paced in real time as the product's updates pace it,
+        // does what AdvanceTravel does each update: prefetch ahead, then refine. Nothing it reads
+        // may build a tile on its own thread, and its head is re-refined as it goes.
         PartyTravel party = new(new(0, 0));
-        Check.That(party.Plan(cost, new(40_000, 25_000), "east") && party.Begin(), "a party sets out across the continent");
-        int refinements = 0;
+        Check.That(party.Plan(cost, new(TravelProbeEast, TravelProbeNorth), "east") && party.Begin(), "a party sets out across the continent");
+        int refinements = 0, synchronousBefore = regions.SynchronousBuilds;
         clock.Restart();
-        while (party.State == TravelState.Travelling && refinements < 2 && clock.ElapsedMilliseconds < RefineWaitMs)
+        while (party.State == TravelState.Travelling && clock.ElapsedMilliseconds < RefineWaitMs)
         {
             Vector2 before = party.Position;
-            party.Advance(0.5, _ => false);
+            party.Advance(PartyTravel.HoursPerSecond * FastestSpeed * TickSeconds, _ => false);
             regions.PrefetchAhead(party.Position, party.Route?.Points);
-            // Real travel gives the tiles ahead time to build; here the party waits for them.
-            while (regions.Pending > 0 && clock.ElapsedMilliseconds < RefineWaitMs) Thread.Sleep(20);
             if (party.Refine(cost))
             {
                 refinements++;
-                Check.That(party.Position == before || Vector2.Distance(party.Route!.Points[0], party.Position) < 1, "refinement starts where the party stands");
+                Check.That(Vector2.Distance(party.Route!.Points[0], party.Position) < 1, "refinement starts where the party stands");
             }
-            Thread.Sleep(1);
+            Thread.Sleep((int)(TickSeconds * 1000));
         }
-        Check.That(refinements >= 1, $"the party refines its route again as it travels ({refinements})");
+        Console.WriteLine($"continental journey: state={party.State} refinements={refinements} synchronousBuilds={regions.SynchronousBuilds - synchronousBefore} ms={clock.ElapsedMilliseconds}");
+        Check.That(party.State == TravelState.Arrived && refinements >= 1, $"the party arrives, refining its route as it travels ({refinements})");
+        Check.That(regions.SynchronousBuilds == synchronousBefore, "ordinary travel never waits on a region tile: every tile it reads was built ahead");
     }
 
     internal static void Run()
