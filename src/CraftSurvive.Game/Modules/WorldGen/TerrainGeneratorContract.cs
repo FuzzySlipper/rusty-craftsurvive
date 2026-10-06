@@ -40,9 +40,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// higher bank left the lower one unclimbable; version 12 seeds the height field through the
     /// contract, so a version bump redraws the ground as well as what stands on it; version 20
     /// replaces the templated map with simulated geography (stream-power erosion, terrain-driven
-    /// climate and biomes) and rivers that carry water through local terrain.
+    /// climate and biomes) and rivers that carry water through local terrain; version 21 adds the
+    /// continental scale (#9549): a world's size selects its <see cref="MapScale"/>, and a continent
+    /// is simulated on a kilometre lattice with scaled lengths, its own peak, ceiling and river sources.
     /// </summary>
-    internal const uint CurrentVersion = 20;
+    internal const uint CurrentVersion = 21;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

@@ -130,6 +130,6 @@ return Check.Finish("WorldMap");
 partial class Program
 {
     private const ulong ContinentSeed = 12345;
-    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0x0dfdf4949b85623fUL;
+    /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 21 (#9549); a deliberate generation change updates it.</summary>
+    private const ulong ContinentGolden = 0xa717b8fd71380b14UL;
 }
