@@ -118,6 +118,8 @@ public sealed partial class CraftSurviveProduct
         conditions.Pass(spent / PlayHoursPerSecond, save: arrived);
         survival.Journey(spent / PlayHoursPerSecond, Meal);
         facetedMap?.MoveParty(party.Position);
+        // On a continent, the country ahead is refined before the party could stop in it (#9550).
+        if (worlds.Current.Map.Scale.Continental) MapRegions.For(worlds.Current.Map).PrefetchAhead(party.Position, party.Route?.Points);
         unpublishedTravelHours += spent;
         // An event settles the party itself and keeps the route for after the choice.
         RollTravelEvent(spent);

@@ -6,6 +6,12 @@ if (args.Length > 0 && args[0] == "continent")
     return 0;
 }
 
+if (args.Length > 0 && args[0] == "regions")
+{
+    RegionProbe.Run(args);
+    return 0;
+}
+
 if (args is ["editbench"])
 {
     EditBench.Run();

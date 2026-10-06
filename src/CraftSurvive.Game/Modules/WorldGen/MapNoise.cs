@@ -11,7 +11,7 @@ internal static class MapNoise
     private const double GradientTurn = 2 * Math.PI / GradientCount;
     private static readonly double[] GradientX = Enumerable.Range(0, GradientCount).Select(i => Math.Cos(i * GradientTurn)).ToArray();
     private static readonly double[] GradientZ = Enumerable.Range(0, GradientCount).Select(i => Math.Sin(i * GradientTurn)).ToArray();
-    private const double Lacunarity = 2.03;
+    internal const double Lacunarity = 2.03;
     private const ulong OctaveSalt = 0xD1B54A32D192ED03UL;
 
     internal static double Gradient(ulong seed, double x, double z)
@@ -26,12 +26,18 @@ internal static class MapNoise
     }
 
     /// <summary>Fractal sum normalised by its total weight.</summary>
-    internal static double Fbm(ulong seed, double x, double z, int octaves, double persistence)
+    internal static double Fbm(ulong seed, double x, double z, int octaves, double persistence) => Fbm(seed, x, z, octaves, persistence, octaves);
+
+    /// <summary>
+    /// The first <paramref name="terms"/> octaves of a fractal sum, normalised by the whole sum's weight: what a
+    /// coarser lattice resolves of the same field a finer one carries in full.
+    /// </summary>
+    internal static double Fbm(ulong seed, double x, double z, int octaves, double persistence, int terms)
     {
         double sum = 0, weight = 1, total = 0, frequency = 1;
         for (int i = 0; i < octaves; i++)
         {
-            sum += weight * Gradient(seed + (ulong)i * OctaveSalt, x * frequency, z * frequency);
+            if (i < terms) sum += weight * Gradient(seed + (ulong)i * OctaveSalt, x * frequency, z * frequency);
             total += weight;
             weight *= persistence;
             frequency *= Lacunarity;

@@ -24,11 +24,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     "390 km continent" on the new-world form) runs the same pipeline on a kilometre lattice
     with every tuned length scaled by `MapScale.Lengths`, peaks near 1,800 m under a 2,400 m
     ceiling, and rivers only above a regional catchment.
-    - Generation takes about 13 s in Debug and saves about 3 MB.
+    - Generation takes about 13 s in Debug and saves about 3 MB. Making a new continent also
+      builds its drainage network and arrival region tile (#9550), adding roughly 8 s in Release.
+      A restored continent rebuilds both in the background.
     - It reads as one continent in a square, with sea on the sides the seed opens and a
       mountain rim elsewhere; there are no separate landmasses or archipelagos.
-    - Walking terrain samples the kilometre lattice directly, so local detail is noise over
-      broad landforms until region tiles (#9550) refine it.
+    - Region tiles (#9550) refine the continent to 32 m with a drainage network that owns every
+      walking-scale river. Walking terrain still samples the kilometre lattice directly until it
+      moves onto the tiles (#9551).
+    - Region relief is noise-driven hills and spurs graded by a short local erosion. It carries no
+      lakes, and drainage routes over one 250 m network, so streams below about a square
+      kilometre appear only as gullies in the terrain.
     - Precision far from the centre (±200 km) is unchecked (#9551).
     - The faceted map and travel are refused on a continent until the map's tiers (#9552);
       the smooth overview shows it.

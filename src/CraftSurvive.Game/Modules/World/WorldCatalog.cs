@@ -26,6 +26,8 @@ internal sealed class WorldCatalog
         {
             current = restored;
             store.WorldGeneration = restored.Generation;
+            // A restored continent rebuilds its drainage and arrival tiles behind the first updates (#9550).
+            if (restored.Map.Scale.Continental) Task.Run(() => MapRegions.PrepareArrival(restored.Map));
         }
         else
         {
@@ -61,7 +63,13 @@ internal sealed class WorldCatalog
         if (pending is not null) throw new InvalidOperationException("A world is already being prepared.");
         TerrainConfiguration configuration = new TerrainConfiguration(seed, size).Validate();
         pendingStart = Stopwatch.GetTimestamp();
-        pending = Task.Run(() => WorldMapGenerator.Generate(configuration));
+        pending = Task.Run(() =>
+        {
+            WorldMap map = WorldMapGenerator.Generate(configuration);
+            // A continent's drainage and arrival tiles are part of making the world (#9550).
+            MapRegions.PrepareArrival(map);
+            return map;
+        });
     }
 
     /// <summary>The prepared world once its simulation finishes, or null while it runs. A failure is rethrown once.</summary>

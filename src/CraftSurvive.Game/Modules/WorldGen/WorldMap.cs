@@ -13,6 +13,9 @@ internal readonly record struct MapSample(double Elevation, double Temperature, 
     internal bool InRiver => !double.IsNegativeInfinity(RiverSurface);
 }
 
+/// <summary>A region tile's place in its continent (#9550): the world position of its centre and the continent's elevation scale.</summary>
+internal sealed record MapRegionFrame(double X, double Z, MapScale Scale);
+
 internal readonly record struct MapSite(string Name, double X, double Z, MapSample Geography);
 
 /// <summary>
@@ -51,17 +54,22 @@ internal sealed class WorldMap
     private const double SiteWaterClearance = 2;
     private const int MaximumSites = 8;
 
-    private readonly double[] elevation, temperature, moisture, rock, detail, protection;
+    private readonly double[] elevation, temperature, moisture, rock, detail, protection, hardness;
     private readonly MapFields fields;
 
     /// <summary>How the world's size sets its simulation: regional, or continental (#9549).</summary>
     internal MapScale Scale { get; }
 
-    internal WorldMap(TerrainConfiguration configuration, MapFields fields)
+    internal WorldMap(TerrainConfiguration configuration, MapFields fields) : this(configuration, fields, null) { }
+
+    /// <param name="region">For a region tile (#9550): where the tile stands in its continent. A tile keeps the
+    /// world's arrival reserve where the world has it, draws no rivers of its own, and finds no representative sites.</param>
+    internal WorldMap(TerrainConfiguration configuration, MapFields fields, MapRegionFrame? region)
     {
+        RegionFrame = region;
         Configuration = configuration.Validate();
         Grid = MapGrid.For(configuration.Size);
-        Scale = MapScale.For(configuration.Size);
+        Scale = region?.Scale ?? MapScale.For(configuration.Size);
         if (fields.Grid != Grid) throw new ArgumentException("Map lattice does not match its extent.");
         this.fields = fields;
         int count = Grid.Count;
@@ -77,6 +85,7 @@ internal sealed class WorldMap
         elevation = fields.Elevation.Select(v => (double)v).ToArray();
         temperature = fields.Temperature.Select(v => (double)v).ToArray();
         moisture = fields.Moisture.Select(v => (double)v).ToArray();
+        hardness = fields.Hardness.Select(v => (double)v).ToArray();
         rock = new double[count];
         detail = new double[count];
         protection = new double[count];
@@ -88,20 +97,29 @@ internal sealed class WorldMap
             rock[i] = elevation[i] < GenerationConstants.WaterLevel ? 0 : Math.Clamp(Math.Max(bare, outcrop), 0, 1);
             double floodPlain = Ease(FloodPlainStart, FloodPlainFull, MapRivers.CatchmentSquareKilometres(Grid, fields.Discharge[i]));
             detail[i] = (MinimumDetail + (1 - MinimumDetail) * Ease(PlainSlope, RuggedSlope, slope)) * (1 - floodPlain);
-            double centre = Math.Sqrt(Grid.X(i) * Grid.X(i) + Grid.Z(i) * Grid.Z(i));
+            double worldX = Grid.X(i) + (region?.X ?? 0), worldZ = Grid.Z(i) + (region?.Z ?? 0);
+            double centre = Math.Sqrt(worldX * worldX + worldZ * worldZ);
             protection[i] = 1 - Ease(ReserveRadius, ReserveRadius + ReserveFade, centre);
         }
 
-        bool[] outlet = MapFlow.Outlets(Grid, elevation);
-        if (!outlet.Any(o => o)) throw new ArgumentException("Map has nowhere to drain.");
-        double[] filled = (double[])elevation.Clone();
-        double[] ones = new double[count];
-        Array.Fill(ones, 1);
-        MapFlow flow = MapFlow.Route(Grid, filled, outlet, ones, MapFlow.FillGradient);
-        Rivers = MapRivers.Extract(Grid, flow, filled.Select(v => (float)v).ToArray(), fields.Discharge, configuration.Contract.GeographyNoiseSeed);
+        if (region is null)
+        {
+            bool[] outlet = MapFlow.Outlets(Grid, elevation);
+            if (!outlet.Any(o => o)) throw new ArgumentException("Map has nowhere to drain.");
+            double[] filled = (double[])elevation.Clone();
+            double[] ones = new double[count];
+            Array.Fill(ones, 1);
+            MapFlow flow = MapFlow.Route(Grid, filled, outlet, ones, MapFlow.FillGradient);
+            Rivers = MapRivers.Extract(Grid, flow, filled.Select(v => (float)v).ToArray(), fields.Discharge, configuration.Contract.GeographyNoiseSeed);
+        }
+        // A region tile's rivers are its continent's drainage, which the regions draw over every tile alike.
+        else Rivers = MapRivers.Empty;
         Fingerprint = ComputeFingerprint();
-        Sites = FindSites();
+        Sites = region is null ? FindSites() : [];
     }
+
+    /// <summary>Where a region tile stands in its continent; null for a whole world's map.</summary>
+    internal MapRegionFrame? RegionFrame { get; }
 
     internal TerrainConfiguration Configuration { get; }
     internal MapGrid Grid { get; }
@@ -124,6 +142,13 @@ internal sealed class WorldMap
     /// with river channels and banks resolved in metres.
     /// </summary>
     internal MapSample Sample(double x, double z)
+    {
+        MapSample broad = Broad(x, z);
+        return Rivers.Nearest(Math.Clamp(x, -Radius, Radius), Math.Clamp(z, -Radius, Radius)) is RiverInfluence river ? Channel(broad, river) : broad;
+    }
+
+    /// <summary>The smooth geography at a point without river channels: what a region tile refines (#9550).</summary>
+    internal MapSample Broad(double x, double z)
     {
         if (!double.IsFinite(x) || !double.IsFinite(z)) throw new ArgumentOutOfRangeException(nameof(x));
         x = Math.Clamp(x, -Radius, Radius);
@@ -148,12 +173,14 @@ internal sealed class WorldMap
             h += w * elevation[i]; t += w * temperature[i]; m += w * moisture[i];
             r += w * rock[i]; d += w * detail[i]; p += w * protection[i];
         }
-        MapSample broad = new(h, t, m, r, d, p);
-        return Rivers.Nearest(x, z) is RiverInfluence river ? Channel(broad, river) : broad;
+        return new(h, t, m, r, d, p);
     }
 
+    /// <summary>Rock resistance at a point (bilinear), for a region tile's erosion.</summary>
+    internal double HardnessAt(double x, double z) => Grid.Bilinear(hardness, x, z);
+
     /// <summary>A parabolic channel below the water surface, low soil banks, and quiet ground beyond.</summary>
-    private static MapSample Channel(MapSample broad, RiverInfluence river)
+    internal static MapSample Channel(MapSample broad, RiverInfluence river)
     {
         double quiet = Ease(river.HalfWidth, MapRivers.QuietDistance(river.HalfWidth), river.Distance);
         if (river.InChannel)

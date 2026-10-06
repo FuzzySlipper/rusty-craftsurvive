@@ -88,6 +88,20 @@ internal sealed class MapRelief
     /// <summary>West, east, north, south: whether that border is sea rather than a mountain rim.</summary>
     internal bool[] SeaSides { get; } = new bool[4];
 
+    /// <summary>
+    /// A relief from given heights in metres, for a region tile's local erosion (#9550): no uplift, the
+    /// given rock resistance, and the given sea and base-level nodes.
+    /// </summary>
+    internal static MapRelief FromHeights(MapGrid grid, double[] height, double[] hardness, bool[] sea, bool[] outlet)
+    {
+        MapRelief relief = new(grid);
+        Array.Copy(height, relief.Height, height.Length);
+        Array.Copy(hardness, relief.Hardness, hardness.Length);
+        Array.Copy(sea, relief.Sea, sea.Length);
+        Array.Copy(outlet, relief.Outlet, outlet.Length);
+        return relief;
+    }
+
     internal static MapRelief Build(MapGrid grid, ulong seed)
     {
         // Lengths were tuned on regional worlds; a continent scales them all (#9549).

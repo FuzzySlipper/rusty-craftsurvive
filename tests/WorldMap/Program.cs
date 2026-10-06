@@ -113,6 +113,7 @@ try
         Console.WriteLine($"continent {continent.Map.Configuration.Size / 1000} km: map {continentFingerprint:x16}; nodes={continent.Map.Grid.Count}; spacing={continent.Map.Spacing:F0} m; bytes={catalog.StoredBytes}; generateMs={generateMs:F0}");
         Check.That(continentFingerprint == ContinentGolden, $"the default continent's geography matches its golden ({continentFingerprint:x16})");
         Check.That(continent.Map.Scale.Continental && continent.Map.Spacing == 1000, "a continent is simulated on a kilometre lattice");
+        RegionChecks(continent.Map);
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
     host.Call(engine =>
@@ -129,6 +130,58 @@ return Check.Finish("WorldMap");
 
 partial class Program
 {
+    /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 21 (#9550); a deliberate generation change updates it.</summary>
+    private const ulong RegionTileGolden = 0x2c35edabfc202224UL;
+    /// <summary>A tile builds in about a second in Release; this bound leaves room for a slow shared runner.</summary>
+    private const double RegionTileBudgetMs = 5000;
+    /// <summary>The steepest metre-to-metre rise across a seam may not exceed the steepest within a tile by more than this.</summary>
+    private const double SeamStepAllowance = 1.25;
+    private const double SeamProbeMetres = 3000;
+    private const int PrefetchWaitMs = 60_000;
+
+    /// <summary>Region tiles (#9550): deterministic, seamless in height and rivers, quick, and built ahead of a party.</summary>
+    private static void RegionChecks(WorldMap continent)
+    {
+        MapRegions regions = MapRegions.For(continent);
+        Stopwatch clock = Stopwatch.StartNew();
+        MapDrainage drainage = regions.Drainage;
+        double drainageMs = clock.Elapsed.TotalMilliseconds;
+        clock.Restart();
+        RegionTile origin = regions.Tile((0, 0));
+        double tileMs = clock.Elapsed.TotalMilliseconds;
+        RegionTile east = regions.Tile((1, 0));
+        Console.WriteLine($"regions: drainage reaches={drainage.ReachCount} buildMs={drainageMs:F0}; tile (0,0) {origin.Map.Fingerprint:x16} buildMs={tileMs:F0} rivers={origin.Rivers.Reaches.Count}");
+        Check.That(drainage.ReachCount > 0 && origin.Rivers.Reaches.Count > 0, "the continent's drainage network reaches the arrival tile");
+        Check.That(tileMs < RegionTileBudgetMs, $"a region tile builds within its budget ({tileMs:F0} ms)");
+        Check.That(new MapRegions(continent).Tile((0, 0)).Map.Fingerprint == origin.Map.Fingerprint, "a region tile rebuilds identically");
+        MapRegions.PrepareArrival(continent);
+        Check.That(MapRegions.For(continent) == regions && regions.IsReady((0, 0)), "world preparation leaves the arrival tile built in the continent's one region cache");
+        Check.That(origin.Map.Fingerprint == RegionTileGolden, $"the arrival tile matches its golden ({origin.Map.Fingerprint:x16})");
+
+        double seamX = MapRegions.TileSpacing / 2, seam = 0, inside = 0;
+        int agreed = 0, disagreed = 0;
+        for (double z = -SeamProbeMetres; z < SeamProbeMetres; z += 1)
+        {
+            seam = Math.Max(seam, Math.Abs(regions.Sample(seamX + 1, z).Elevation - regions.Sample(seamX, z).Elevation));
+            inside = Math.Max(inside, Math.Abs(regions.Sample(1, z).Elevation - regions.Sample(0, z).Elevation));
+            RiverInfluence? a = origin.Rivers.Nearest(seamX, z), b = east.Rivers.Nearest(seamX, z);
+            if (a is null && b is null) continue;
+            if (a == b) agreed++; else disagreed++;
+        }
+        for (double x = seamX - MapRegions.BlendHalfWidth; x <= seamX + MapRegions.BlendHalfWidth; x += 1)
+            seam = Math.Max(seam, Math.Abs(regions.Sample(x + 1, 0).Elevation - regions.Sample(x, 0).Elevation));
+        Console.WriteLine($"regions: seam max step {seam:F2} m/m, inside {inside:F2} m/m; seam river samples agreed={agreed} disagreed={disagreed}");
+        Check.That(seam <= Math.Max(inside, 1) * SeamStepAllowance, "neighbouring tiles meet without a step");
+        Check.That(disagreed == 0, "both tiles draw the same rivers where they meet");
+
+        // A party's route is refined ahead of it, off the calling thread.
+        System.Numerics.Vector2[] route = [new(0, 0), new(12_000, 0), new(20_000, 6_000)];
+        regions.PrefetchAhead(route[0], route);
+        clock.Restart();
+        while (regions.Pending > 0 && clock.ElapsedMilliseconds < PrefetchWaitMs) Thread.Sleep(50);
+        Check.That(regions.Pending == 0 && regions.IsReady(MapRegions.TileAt(20_000, 6_000)), $"tiles along a route are built ahead of the party ({clock.ElapsedMilliseconds} ms)");
+    }
+
     private const ulong ContinentSeed = 12345;
     /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 21 (#9549); a deliberate generation change updates it.</summary>
     private const ulong ContinentGolden = 0xa717b8fd71380b14UL;

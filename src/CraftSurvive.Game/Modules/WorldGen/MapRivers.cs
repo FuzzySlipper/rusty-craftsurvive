@@ -89,16 +89,32 @@ internal sealed class MapRivers
 
     internal static double CatchmentSquareKilometres(MapGrid grid, double discharge) => discharge * grid.Spacing * grid.Spacing / 1e6;
 
+    internal static MapRivers Empty { get; } = new([]);
+
     internal static MapRivers Extract(MapGrid grid, MapFlow flow, float[] elevation, float[] discharge, ulong seed)
+    {
+        List<int[]> paths = Trace(grid, flow, elevation, discharge, MapScale.For(grid).SourceCatchment);
+        return new([.. paths.Select((path, index) => Shape(grid, path, elevation, discharge, seed, index))]);
+    }
+
+    /// <summary>Rivers from already-shaped reaches, such as a region's share of a continent's drainage (#9550).</summary>
+    internal static MapRivers FromReaches(IEnumerable<RiverPoint[]> reaches) => new([.. reaches]);
+
+    /// <summary>
+    /// The node paths of every reach, between confluences, in a stable upstream-first order: a reach's
+    /// index in this list seeds its meander, so a reach shaped on its own matches the same reach shaped
+    /// with all the others.
+    /// </summary>
+    internal static List<int[]> Trace(MapGrid grid, MapFlow flow, float[] elevation, float[] discharge, double sourceCatchment)
     {
         bool[] river = new bool[grid.Count];
         int[] donors = new int[grid.Count];
         for (int i = 0; i < grid.Count; i++)
-            river[i] = elevation[i] >= GenerationConstants.WaterLevel && CatchmentSquareKilometres(grid, discharge[i]) >= MapScale.For(grid).SourceCatchment;
+            river[i] = elevation[i] >= GenerationConstants.WaterLevel && CatchmentSquareKilometres(grid, discharge[i]) >= sourceCatchment;
         for (int i = 0; i < grid.Count; i++)
             if (river[i] && flow.Receiver[i] != MapFlow.Base) donors[flow.Receiver[i]]++;
 
-        List<RiverPoint[]> reaches = [];
+        List<int[]> reaches = [];
         // Upstream-first order makes reach numbering stable for a given map.
         for (int n = grid.Count - 1; n >= 0; n--)
         {
@@ -113,12 +129,12 @@ internal sealed class MapRivers
                 j = flow.Receiver[j];
             }
             if (path.Count < 2) continue;
-            reaches.Add(Shape(grid, path, elevation, discharge, seed, reaches.Count));
+            reaches.Add([.. path]);
         }
-        return new([.. reaches]);
+        return reaches;
     }
 
-    private static RiverPoint[] Shape(MapGrid grid, List<int> path, float[] elevation, float[] discharge, ulong seed, int index)
+    internal static RiverPoint[] Shape(MapGrid grid, IReadOnlyList<int> path, float[] elevation, float[] discharge, ulong seed, int index)
     {
         List<RiverPoint> points = path.Select(i =>
         {
