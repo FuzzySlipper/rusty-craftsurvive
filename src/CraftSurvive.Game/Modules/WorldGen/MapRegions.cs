@@ -47,6 +47,7 @@ internal sealed class MapRegions
     private readonly ConcurrentDictionary<(int X, int Z), Lazy<RegionTile>> tiles = new();
     private readonly ConcurrentDictionary<(int X, int Z), byte> requested = new();
     private int built, synchronousBuilds;
+    private string synchronousTiles = "";
     /// <summary>Set on a thread building tiles ahead of need, so a build anywhere else counts as one a consumer waited on.</summary>
     [ThreadStatic] private static bool background;
     private double lastBuildMilliseconds, slowestBuildMilliseconds;
@@ -166,7 +167,11 @@ internal sealed class MapRegions
         lock (statsLock)
         {
             built++;
-            if (!background) synchronousBuilds++;
+            if (!background)
+            {
+                synchronousBuilds++;
+                synchronousTiles += FormattableString.Invariant($"{key.X},{key.Z}@{Environment.CurrentManagedThreadId} ");
+            }
             lastBuildMilliseconds = ms;
             slowestBuildMilliseconds = Math.Max(slowestBuildMilliseconds, ms);
         }
@@ -178,7 +183,7 @@ internal sealed class MapRegions
     {
         lock (statsLock)
             return FormattableString.Invariant(
-                $"regions built={built} synchronous={synchronousBuilds} cached={tiles.Count(pair => pair.Value.IsValueCreated)} pending={Pending} lastBuildMs={lastBuildMilliseconds:F0} slowestBuildMs={slowestBuildMilliseconds:F0} drainage={(drainage.IsValueCreated ? "ready" : "pending")}");
+                $"regions built={built} synchronous={synchronousBuilds}[{synchronousTiles.TrimEnd()}] cached={tiles.Count(pair => pair.Value.IsValueCreated)} pending={Pending} lastBuildMs={lastBuildMilliseconds:F0} slowestBuildMs={slowestBuildMilliseconds:F0} drainage={(drainage.IsValueCreated ? "ready" : "pending")}");
     }
 
     /// <summary>Tiles a consumer had to build on its own thread because no prefetch had built them yet.</summary>

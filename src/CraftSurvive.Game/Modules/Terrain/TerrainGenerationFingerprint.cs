@@ -54,7 +54,12 @@ internal static class TerrainGenerationFingerprint
     /// thousands of tiles, so its probes stay inside the arrival tile, which world preparation
     /// builds. The continent's map fingerprint, mixed in below, covers its whole geography.
     /// </summary>
-    private const long ContinentProbeRadius = (long)(MapRegions.TileSpacing / 2 - MapRegions.BlendHalfWidth);
+    private const long ContinentProbeRadius = (long)(MapRegions.TileSpacing / 2 - MapRegions.BlendHalfWidth) - ProbeReachMetres;
+    /// <summary>
+    /// How far beyond its own voxels generating a probed chunk reads the ground: the site cells around
+    /// it and the structures they may hold. The probes stay this far inside the arrival tile's blend.
+    /// </summary>
+    private const long ProbeReachMetres = 1024;
 
     private static long ProbeRadius(TerrainRecipe recipe) => recipe.Regions is null ? recipe.Radius : ContinentProbeRadius;
 

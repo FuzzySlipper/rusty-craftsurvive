@@ -140,8 +140,11 @@ partial class Program
 {
     /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 23 (#9550); a deliberate generation change updates it.</summary>
     private const ulong RegionTileGolden = 0x6b61c5267a272bb9UL;
-    /// <summary>A tile builds in about a second in Release; this bound leaves room for a slow shared runner.</summary>
-    private const double RegionTileBudgetMs = 5000;
+    /// <summary>
+    /// A tile builds in about 1.5 s in Release on an idle machine; this wall-clock bound leaves room for a
+    /// heavily shared runner (5.6 s was seen at a load average of 40) while still catching a regression.
+    /// </summary>
+    private const double RegionTileBudgetMs = 8000;
     /// <summary>The steepest metre-to-metre rise across a seam may not exceed the steepest within a tile by more than this.</summary>
     private const double SeamStepAllowance = 1.25;
     private const double SeamProbeMetres = 3000;
