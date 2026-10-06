@@ -54,6 +54,9 @@ internal sealed class PartyTravel
 
     internal double SlowHours => slowHours;
 
+    /// <summary>A multiplier on every leg for what the party hauls (a loaded sled, #9473); 1 on foot.</summary>
+    internal double LoadMultiplier { get; set; } = 1;
+
     /// <summary>How much more often travel events find this expedition than a fresh one, per travel hour.</summary>
     internal double EventRisk => Exhausted ? ExhaustedEventRisk : 1;
 
@@ -129,7 +132,7 @@ internal sealed class PartyTravel
         while (spent < hours && leg < Route.LegHours.Length)
         {
             double multiplier = (nightAfter(spent) ? TravelCostModel.NightMultiplier : 1) * (Exhausted ? ExhaustedMultiplier : 1)
-                * (slowHours > 0 ? slowMultiplier : 1);
+                * (slowHours > 0 ? slowMultiplier : 1) * LoadMultiplier;
             double before = spent;
             double legHours = Math.Max(Route.LegHours[leg] * multiplier, 1e-9);
             double available = hours - spent;

@@ -2,10 +2,12 @@ import type { RustyApplicationUiIntentsPort, RustyApplicationUiPort, RustyApplic
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text } from './hud.js';
 
-const INTENT = 'craftsurvive.world';
-const CONTRACT = 'craftsurvive.world.action.v1';
+export const WORLD_INTENT = 'craftsurvive.world';
+export const WORLD_CONTRACT = 'craftsurvive.world.action.v1';
+const INTENT = WORLD_INTENT;
+const CONTRACT = WORLD_CONTRACT;
 /** Matches the product's map markers: home, reached, seen from afar, dungeon entrance. */
-const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2' };
+const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2', sled: '#8c5c2e' };
 const PANEL = 'pointer-events:auto;background:rgb(20 24 27 / 94%);color:#eee7d5;padding:1rem;border:1px solid #84775c;border-radius:.4rem;';
 
 /** Controls and descriptions only. The geographic overview is an Engine mesh behind this UI. */

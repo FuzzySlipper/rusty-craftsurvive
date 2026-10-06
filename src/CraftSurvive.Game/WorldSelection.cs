@@ -53,6 +53,12 @@ public sealed partial class CraftSurviveProduct
                             throw new FormatException("Choose a known place.");
                         PlanTravel(place.Position, place.Name);
                         break;
+                    case "sled":
+                        if (!root.TryGetProperty("op", out JsonElement sledOp) || sledOp.ValueKind != JsonValueKind.String
+                            || !root.TryGetProperty("item", out JsonElement sledItem) || sledItem.ValueKind != JsonValueKind.String)
+                            throw new FormatException("Choose what to stow or take.");
+                        SledTransfer(sledOp.GetString()!, sledItem.GetString()!);
+                        break;
                     case "event":
                         if (!mapOpen || !root.TryGetProperty("choice", out JsonElement choice) || choice.ValueKind != JsonValueKind.String)
                             throw new FormatException("Choose an answer to the event.");
@@ -192,7 +198,11 @@ public sealed partial class CraftSurviveProduct
         party = null;
         travelEvents = null;
         pendingEvent = null;
+        sledTravelCost = null;
+        sledWithParty = false;
         foreach (IProductModule module in gameplay.Reverse()) module.Dispose();
+        sled.Save();
+        sled.Dispose();
         sky.Dispose(); player.Dispose(); terrain.Dispose();
         frame = new(); cues = new Cues(); entities = new BlockEntityIndex();
         CreateWorld();

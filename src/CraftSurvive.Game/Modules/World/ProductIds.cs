@@ -22,6 +22,9 @@ internal static class ProductIds
     /// <summary>A sculpted dungeon's rock mesh: one appearance object.</summary>
     internal const ulong DungeonRockObject = 0x3_0000UL;
 
+    /// <summary>The expedition's sled, standing where the party left it (#9473).</summary>
+    internal const ulong SledObject = 0x3_1000UL;
+
     internal const ulong WorldMapObject = 0x4_0000UL;
     internal const ulong WorldMapPartyObject = 0x4_0001UL;
     internal const ulong WorldMapWaypointObject = 0x4_0002UL;

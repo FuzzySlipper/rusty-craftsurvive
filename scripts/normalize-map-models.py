@@ -5,7 +5,10 @@ textures (map clutter is seen small), and exported to content/map-models; then
 scripts/bake-map-static-mesh.py turns each into the runtime static mesh.
 A preview render is written next to the output list for review.
 
-    blender -b --python scripts/normalize-map-models.py -- SOURCE.glb OUT.glb PREVIEW.png
+    blender -b --python scripts/normalize-map-models.py -- SOURCE.glb OUT.glb PREVIEW.png [--length]
+
+With --length the model is scaled to unit length along its longest horizontal side instead of
+unit height (a sled, #9473).
 """
 import math
 import sys
@@ -15,7 +18,8 @@ from mathutils import Vector
 
 TEXTURE_SIZE = 256
 argv = sys.argv[sys.argv.index("--") + 1:]
-source, output, preview = argv
+by_length = "--length" in argv
+source, output, preview = [a for a in argv if a != "--length"]
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=source)
@@ -34,7 +38,8 @@ high = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for
 height = high.z - low.z
 mesh.location -= Vector(((low.x + high.x) / 2, (low.y + high.y) / 2, low.z))
 bpy.ops.object.transform_apply(location=True)
-mesh.scale = (1 / height,) * 3
+extent = max(high.x - low.x, high.y - low.y) if by_length else height
+mesh.scale = (1 / extent,) * 3
 bpy.ops.object.transform_apply(scale=True)
 for image in bpy.data.images:
     if image.size[0] > TEXTURE_SIZE:

@@ -23,8 +23,11 @@ internal sealed class TravelCostModel
     private readonly WorldMap map;
     private readonly double[] multiplier;
 
-    internal TravelCostModel(WorldMap map)
+    /// <param name="transport">A further multiplier per environment for how the party travels (a hitched
+    /// sled, #9473); null for a party on foot.</param>
+    internal TravelCostModel(WorldMap map, Func<MapBiome, double>? transport = null)
     {
+        Transported = transport is not null;
         this.map = map;
         MapGrid grid = map.Grid;
         multiplier = new double[grid.Count];
@@ -34,13 +37,15 @@ internal sealed class TravelCostModel
             if (elevation < GenerationConstants.WaterLevel) { multiplier[i] = double.PositiveInfinity; continue; }
             double slope = Slope(i);
             if (slope > ImpassableSlope) { multiplier[i] = double.PositiveInfinity; continue; }
-            double cost = (1 + SlopePenalty * WorldMap.Smooth(slope / ImpassableSlope)) * Environment(WorldMap.Biome(map.Node(i)));
+            MapBiome biome = WorldMap.Biome(map.Node(i));
+            double cost = (1 + SlopePenalty * WorldMap.Smooth(slope / ImpassableSlope)) * Environment(biome) * (transport?.Invoke(biome) ?? 1);
             if (MapRivers.CatchmentSquareKilometres(grid, map.Fields.Discharge[i]) >= MapRivers.SourceCatchment) cost *= FordMultiplier;
             multiplier[i] = cost;
         }
     }
 
     internal WorldMap Map => map;
+    internal bool Transported { get; }
 
     /// <summary>The cost multiplier of a lattice node; infinity where the expedition cannot go.</summary>
     internal double Multiplier(int node) => multiplier[node];

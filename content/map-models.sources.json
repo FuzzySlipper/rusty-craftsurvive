@@ -66,6 +66,17 @@
       "prompt": "A single low-poly stylized bare leafless tundra tree for a strategy game world map: faceted flat-shaded twisted grey-brown trunk and branches, no leaves, no ground base, no background, centered, game asset",
       "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
       "normalized": "content/map-models/deadtree.glb"
+    },
+    {
+      "model": "content/game/models/sled.static-mesh.json",
+      "workbenchJob": "d45845c6bc68bbfb025e95ca",
+      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-d45845c6bc68bbfb025e95ca/generate-model.glb",
+      "tripoTask": "see workbench job",
+      "credits": 110.0,
+      "provider": "Tripo P2-20260801, triangle topology, 1500-face target",
+      "prompt": "A single low-poly stylized wooden cargo sled for an expedition survival game: two long curved wooden runners turned up at the front, a slatted wooden deck, a canvas-covered bundle of supplies lashed on with rope, a short tow rope at the front, faceted flat-shaded, no ground base, no background, centered, game asset",
+      "derivation": "scripts/normalize-map-models.py --length (base at origin, unit length, 256 px textures) then scripts/bake-map-static-mesh.py; first-person sled (#9473)",
+      "normalized": "content/map-models/sled.glb"
     }
   ]
 }

@@ -151,5 +151,5 @@ public sealed partial class CraftSurviveProduct
     }
 
     internal string TravelReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"state={party?.State.ToString() ?? "none"} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} slowHours={party?.SlowHours ?? 0:F1} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count}");
+        $"state={party?.State.ToString() ?? "none"} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} slowHours={party?.SlowHours ?? 0:F1} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} {sled.Readout}");
 }

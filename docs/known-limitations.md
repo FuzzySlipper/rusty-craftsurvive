@@ -91,7 +91,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       arrives, camps or meets an event, the player is placed at the token and the continuation,
       survival and pack are saved, so position and supplies survive a restart; an unfinished route
       is not saved, and progress since the last stop is lost if the session ends mid-journey.
-    - There is no sled or transport yet (slices 6–7).
+    - **The sled (#9473)** holds `Sled.Capacity` (400) items beyond the pack's 120 and is saved
+      under its own key. It travels with the party only when the map is opened beside it (within
+      `Sled.ReachMetres`) or the party stops beside it. A hitched sled routes on its own costs
+      (`SledTravel.Terrain`: glides on ice and tundra, drags on rock, sand and forest), slows the
+      march by up to half again when full, and feeds the party once the pack has no rations. "Explore
+      here" leaves it at the token, where it stands in first person (a generated low-poly mesh; see
+      `content/map-models.sources.json`). The pack screen stows a whole kind into it or takes a
+      whole kind out while the player stands beside it. A sled left behind is a known place to route
+      back to. On foot it does not move: being pulled about in first person is a later exploration
+      (#9518).
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any

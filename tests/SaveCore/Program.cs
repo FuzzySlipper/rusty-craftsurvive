@@ -37,6 +37,7 @@ SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 
 CarriedItems carried = new([new SlotContents(0, ItemCatalog.Torch, 4), new SlotContents(3, ItemCatalog.Meat, 3), new SlotContents(20, ItemCatalog.Oil, 1)]);
 
 HomeMarker homeMarker = new(-1234.5, 2048.25);
+SledSave sledSave = new(512.75, -96.5, [new ItemCount(ItemCatalog.Meat, 30), new ItemCount(ItemCatalog.Ration, 12), new ItemCount(ItemCatalog.Torch, 4)]);
 
 WorldMapSave mapSave = new(3, WorldMapGenerator.Generate(new TerrainConfiguration(Seed, 4096)));
 
@@ -63,6 +64,8 @@ SavedForm[] forms =
         (left, right) => left.Slots.SequenceEqual(right.Slots), seed => new InventoryCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.TravelHome, new HomeMarkerCodec(identity), homeMarker, HomeMarkerCodec.RecordBytes,
         (left, right) => left == right, seed => new HomeMarkerCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.TravelSled, new SledCodec(identity), sledSave, SledCodec.RecordBytes,
+        (left, right) => left.X == right.X && left.Z == right.Z && left.Cargo.SequenceEqual(right.Cargo), seed => new SledCodec(identity with { Seed = seed })),
 ];
 
 // --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------
@@ -76,6 +79,13 @@ Check.That(known.Count == 4 && known[0].Key == KnownPlaces.HomeKey && known[0].K
 Check.That(known[1].Kind == KnownPlaceKind.Entrance && known[2].Kind == KnownPlaceKind.Visited && known[2].Name == "Cave mouth"
     && known[3].Kind == KnownPlaceKind.Seen, "journal places follow, newest first, an entrance marked whatever its stage");
 Check.That(known.Select(place => place.Key).Distinct().Count() == known.Count, "every known place has its own key");
+IReadOnlyList<KnownPlace> withSled = KnownPlaces.List(homeMarker, journal.Entries, new System.Numerics.Vector2(40, 50));
+Check.That(withSled[1].Key == KnownPlaces.SledKey && withSled[1].Kind == KnownPlaceKind.Sled && withSled.Count == journal.Count + 2,
+    "a sled left behind is a known place, after home");
+bool overfull;
+try { new SledCodec(identity).Encode(sledSave with { Cargo = [new ItemCount(ItemCatalog.Ration, CraftSurvive.Game.Modules.Travel.Sled.Capacity + 1)] }); overfull = false; }
+catch (InvalidOperationException) { overfull = true; }
+Check.That(overfull, "a sled is never saved holding more than it carries");
 
 // --- the manifest names every saved key, once ------------------------------------------------------
 Check.That(SaveManifest.All.Count == forms.Length, $"the manifest lists {SaveManifest.All.Count} keys but {forms.Length} codecs write one");

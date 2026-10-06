@@ -125,6 +125,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
+        sled = new SledStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         blast = new BlastModule(terrain, frame, entities, cues);
         build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
@@ -161,6 +162,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             terrain.Start();
             player.Start();
             home.Start();
+            sled.Start();
             foreach (IProductModule module in gameplay)
             {
                 module.Start();
@@ -185,6 +187,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             module.Dispose();
         }
 
+        sled.Save();
+        sled.Dispose();
         sky.Dispose();
         player.Dispose();
         terrain.Dispose();
@@ -273,6 +277,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
 
         terrain.Update(step);
+        PublishSled();
         PublishAppearanceSnapshot();
         return ProductUpdateResult.None;
     }
@@ -388,7 +393,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts]
+        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts()]
             : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

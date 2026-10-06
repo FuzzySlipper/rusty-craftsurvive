@@ -10,7 +10,8 @@ namespace CraftSurvive.Game;
 /// </summary>
 public sealed partial class CraftSurviveProduct
 {
-    private IReadOnlyList<KnownPlace> KnownPlacesNow() => KnownPlaces.List(home.Home, discovery.Entries);
+    private IReadOnlyList<KnownPlace> KnownPlacesNow() => KnownPlaces.List(home.Home, discovery.Entries,
+        sledWithParty ? null : sled.Sled.Position);
 
     /// <summary>How the list describes a place: how it is known and the country it stands in.</summary>
     private static string PlaceDetail(KnownPlace place, WorldMap map)
@@ -20,6 +21,7 @@ public sealed partial class CraftSurviveProduct
             KnownPlaceKind.Home => "home",
             KnownPlaceKind.Entrance => "dungeon entrance",
             KnownPlaceKind.Visited => "visited",
+            KnownPlaceKind.Sled => "where the sled was left",
             _ => "seen from afar",
         };
         return $"{known} · {WorldMap.Region(map.Sample(place.Position.X, place.Position.Y))}";

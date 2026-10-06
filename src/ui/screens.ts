@@ -3,6 +3,7 @@ import { ACTION_CONTRACT, ACTION_INTENT } from './actions.js';
 import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text, type Values } from './hud.js';
 import { drawMap, mark, places, standing } from './map.js';
+import { WORLD_CONTRACT, WORLD_INTENT } from './world.js';
 import { EQUIPMENT, hotbarSlots, packSlots, selectedSlot, SLOT_PIXELS, SlotDrag, slotItems } from './slots.js';
 
 /** The keys that open each screen; Escape closes whichever is open. */
@@ -249,8 +250,46 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
       + 'Click a hotbar slot, press 1-9 or scroll to select it; R uses what it holds.');
     const last = text(values, 'lastInventory');
     view.append(meter, top, hint, book);
+    const sled = sledView(values, held);
+    if (sled !== null) view.append(sled);
     if (last !== null && last !== '' && last !== 'none') view.append(element('p', 'margin:0;opacity:.8;', last));
     return view;
+  };
+
+  // The sled (#9473), while the player stands beside it: what it holds, what the pack could stow.
+  // Each button claims the product's world intent; the product moves the items and publishes again.
+  const sledClaim = (op: 'stow' | 'take', item: string): void => {
+    intents?.claim(WORLD_INTENT, { kind: 'product-payload', contract: WORLD_CONTRACT, data: { action: 'sled', op, item } });
+  };
+  const sledView = (values: Values, held: ReturnType<typeof slotItems>): HTMLElement | null => {
+    if (number(values, 'sledNear') !== 1) return null;
+    const box = element('div', 'display:grid;gap:.3rem;');
+    box.dataset['sled'] = 'near';
+    box.append(element('h3', 'margin:0;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;',
+      `Sled ${number(values, 'sledLoad') ?? 0} / ${number(values, 'sledLimit') ?? 0}`));
+    const row = (label: string, count: number, op: 'stow' | 'take', id: string): HTMLElement => {
+      const line = element('div', 'display:flex;align-items:center;gap:.6rem;padding:.25rem .4rem;background:#0b0c10;border:2px solid #000;');
+      const act = button(op === 'stow' ? 'Stow all' : 'Take all');
+      act.dataset['sledOp'] = op; act.dataset['item'] = id;
+      act.disabled = intents === undefined;
+      act.addEventListener('click', () => sledClaim(op, id));
+      line.append(element('span', 'flex:1;', `${label} ×${count}`), act);
+      return line;
+    };
+    const cargo = (text(values, 'sledCargo') ?? '').split(';').filter(Boolean);
+    box.append(element('span', 'opacity:.75;', cargo.length > 0 ? 'On the sled' : 'The sled is empty'));
+    for (const entry of cargo) {
+      const [id = '', name = '', count = '0'] = entry.split('|');
+      box.append(row(name, Number(count), 'take', id));
+    }
+    const carried = new Map<string, { name: string; count: number }>();
+    for (const item of held.values()) {
+      const seen = carried.get(item.id);
+      carried.set(item.id, { name: item.name, count: (seen?.count ?? 0) + item.count });
+    }
+    if (carried.size > 0) box.append(element('span', 'opacity:.75;margin-top:.3rem;', 'From the pack'));
+    for (const [id, item] of carried) box.append(row(item.name, item.count, 'stow', id));
+    return box;
   };
 
   const journalView = (values: Values): HTMLElement => {

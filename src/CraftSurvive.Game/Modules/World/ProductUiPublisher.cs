@@ -91,6 +91,9 @@ internal readonly record struct ConditionsUiFacts(string Time, double Daylight, 
 /// <summary>The world's facts for the UI projection, read when it is published.</summary>
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);
 
+/// <summary>The sled for the pack screen (#9473): whether it is within reach, its load, and its cargo as <c>id|name|count;...</c>.</summary>
+internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, string Cargo, double DistanceMetres);
+
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted,
     string Travel, string TravelPhase, string Supplies, string Event);
 
@@ -120,6 +123,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private DungeonUiFacts? dungeon;
     private ulong sequence;
     private WorldMapUiFacts? map;
+    private SledUiFacts? sled;
 
     /// <summary>How many projections this publisher has sent.</summary>
     internal ulong Published => sequence;
@@ -140,10 +144,17 @@ internal sealed class ProductUiPublisher : IDisposable
 
     internal void ResetWorld()
     {
-        world = null; player = null; discovery = null; actions = null; conditions = null; survival = null; inventory = null; dungeon = null;
+        world = null; player = null; discovery = null; actions = null; conditions = null; survival = null; inventory = null; dungeon = null; sled = null;
     }
 
     internal void PublishMap(WorldMapUiFacts facts) { map = facts; Publish(); }
+
+    internal void PublishSled(SledUiFacts facts)
+    {
+        if (sled == facts) return;
+        sled = facts;
+        Publish();
+    }
 
     internal void PublishPlayer(PlayerUiFacts facts)
     {
@@ -197,7 +208,7 @@ internal sealed class ProductUiPublisher : IDisposable
         // Without a world there is no scene; the map and its generating message still publish.
         WorldUiFacts? facts = world?.Invoke();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map)));
+            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled)));
     }
 
     public void Dispose()

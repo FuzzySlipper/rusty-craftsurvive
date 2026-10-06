@@ -54,6 +54,10 @@ internal static class SaveManifest
     internal static SaveKey TravelHome { get; } =
         new("travel/home", "travel/home.backup", "HomeMarkerStore", 0x454D_4F48, 1);
 
+    /// <summary>Where the expedition's sled stands and what it holds.</summary>
+    internal static SaveKey TravelSled { get; } =
+        new("travel/sled", "travel/sled.backup", "SledStore", 0x4445_4C53, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled];
 }

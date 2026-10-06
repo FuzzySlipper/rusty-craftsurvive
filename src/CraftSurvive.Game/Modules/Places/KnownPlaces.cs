@@ -4,7 +4,7 @@ using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Places;
 
-internal enum KnownPlaceKind { Home, Visited, Seen, Entrance }
+internal enum KnownPlaceKind { Home, Visited, Seen, Entrance, Sled }
 
 /// <summary>A place the expedition knows and can travel to; <see cref="Key"/> is stable across publishes.</summary>
 internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKind Kind, Vector2 Position);
@@ -17,11 +17,14 @@ internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKi
 internal static class KnownPlaces
 {
     internal const string HomeKey = "home";
+    internal const string SledKey = "sled";
     private const string PlacePrefix = "poi:";
 
-    internal static IReadOnlyList<KnownPlace> List(HomeMarker home, IEnumerable<DiscoveryEntry> journal) =>
+    /// <param name="sled">Where the sled was left, when it is not with the party (#9473).</param>
+    internal static IReadOnlyList<KnownPlace> List(HomeMarker home, IEnumerable<DiscoveryEntry> journal, Vector2? sled = null) =>
     [
         new(HomeKey, "Home", KnownPlaceKind.Home, new((float)home.X, (float)home.Z)),
+        .. sled is Vector2 left ? [new KnownPlace(SledKey, "The sled", KnownPlaceKind.Sled, left)] : Array.Empty<KnownPlace>(),
         .. journal.OrderByDescending(entry => entry.LastTick).Select(entry => new KnownPlace(
             PlacePrefix + entry.SiteId, DiscoveryRules.PlaceName(entry.Kind), Kind(entry), new(entry.X, entry.Z))),
     ];

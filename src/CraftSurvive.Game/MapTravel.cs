@@ -30,6 +30,7 @@ public sealed partial class CraftSurviveProduct
 
     private TravelCostModel TravelCost => travelCost ??= new TravelCostModel(worlds.Current.Map);
 
+
     /// <summary>When the map opens, an idle party stands where the player stands.</summary>
     private void SyncPartyToPlayer()
     {
@@ -38,6 +39,7 @@ public sealed partial class CraftSurviveProduct
         if (party is null) party = new PartyTravel(here);
         else if (party.State is TravelState.Idle or TravelState.Arrived && Vector2.Distance(party.Position, here) > PartyRelocateMetres)
             party.Relocate(here);
+        HitchSledIfNear();
         facetedMap?.MoveParty(party.Position);
         facetedMap?.ShowRoute(party.Route?.Points);
     }
@@ -48,7 +50,8 @@ public sealed partial class CraftSurviveProduct
         if (player.InSeparateSpace) throw new FormatException("Leave this place before planning overland travel.");
         if (!facetedMapShown) ShowFacetedMap(true);
         party ??= new PartyTravel(destination);
-        bool planned = party.Plan(TravelCost, destination, name);
+        ApplySledLoad();
+        bool planned = party.Plan(PartyCost, destination, name);
         facetedMap?.ShowRoute(party.Route?.Points);
         worldMessage = planned && party.Route is TravelRoute route ? RoutePreview(route) : party.Last;
     }
@@ -66,7 +69,7 @@ public sealed partial class CraftSurviveProduct
         double homeKilometres = Vector2.Distance(route.Points[^1], new((float)home.Home.X, (float)home.Home.Z)) / 1000;
         string danger = TravelEventDirector.DangerName(TravelEventDirector.Danger(homeKilometres));
         return string.Create(CultureInfo.InvariantCulture,
-            $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration)}); danger {danger}. Set out to confirm.");
+            $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration) + (sledWithParty ? sled.Sled.Count(ItemCatalog.Ration) : 0)}); danger {danger}; {(sledWithParty ? "hauling the sled" : "the sled stays behind")}. Set out to confirm.");
     }
 
     private void TravelAction(string action)
@@ -124,7 +127,7 @@ public sealed partial class CraftSurviveProduct
 
     /// <summary>The expedition eats a ration from its packs whenever one would not be wasted, marching or camped.</summary>
     private SurvivalState Meal(SurvivalState state) =>
-        state.Satiety <= EatRationBelowSatiety && inventory.Spend(ItemCatalog.Ration) ? SurvivalRules.Eat(state, ItemCatalog.Ration.Value) : state;
+        state.Satiety <= EatRationBelowSatiety && (inventory.Spend(ItemCatalog.Ration) || TakeSledRation()) ? SurvivalRules.Eat(state, ItemCatalog.Ration.Value) : state;
 
     /// <summary>
     /// Make camp where the token stands: at night the expedition sleeps until morning, fully rested
@@ -177,6 +180,7 @@ public sealed partial class CraftSurviveProduct
             return false;
         }
         player.SaveContinuationNow();
+        SettleSled();
         SaveJourney();
         return true;
     }
@@ -186,6 +190,7 @@ public sealed partial class CraftSurviveProduct
     {
         survival.SaveNow();
         inventory.SaveNow();
+        if (sledWithParty) sled.Save();
     }
 
     private string TravelStatus()
@@ -213,7 +218,7 @@ public sealed partial class CraftSurviveProduct
         double fatigue = party?.Fatigue ?? 0;
         string worn = party?.Exhausted == true ? "exhausted: slow until camp" : fatigue >= PartyTravel.ExhaustedAt / 2 ? "tiring" : "fresh";
         return string.Create(CultureInfo.InvariantCulture,
-            $"rations {rations} · food {survival.State.Satiety:F0}% · {worn} ({fatigue * 100:F0}% fatigue)");
+            $"rations {rations} · food {survival.State.Satiety:F0}% · {worn} ({fatigue * 100:F0}% fatigue) · {SledSupplies()}");
     }
 
     private string TravelPhase => party?.State switch

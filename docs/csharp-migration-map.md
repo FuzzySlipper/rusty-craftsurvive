@@ -181,7 +181,10 @@ exhausted party until `Camp` rests it. `TravelEventDirector` rolls travel events
 `EventRisk` and where it stands; `MapEvents` presents a waiting event and applies the answer the UI
 claims (an encounter calls `CreatureModule.Ambush`, a discovery `DiscoveryModule.RevealNearest`).
 Known places (`Modules/Places`) are home, owned by `HomeMarkerStore` under its own save key, and the
-discovery journal; both map views draw them and the UI lists them as destinations. The faceted view
+discovery journal; both map views draw them and the UI lists them as destinations. The sled is
+engine-free `Travel/Sled` (cargo, reach) and `SledTravel` (terrain and load), owned in the running
+product by `Places/SledStore` (its save key and first-person appearance); `MapSled` hitches it,
+feeds the party from it, and moves items between it and the pack through the world intent. The faceted view
 draws the token, the route ribbon and the waypoint, and turns a free-cursor click into a waypoint
 through `CameraQueries.Ray`. Closing the map explores at the token by teleporting the player there.
 See Den `design/overland-travel-mode`.

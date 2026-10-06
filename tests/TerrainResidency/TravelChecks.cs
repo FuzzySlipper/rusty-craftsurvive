@@ -128,6 +128,19 @@ internal static class TravelChecks
             && TravelEventDirector.DangerName(TravelEventDirector.Danger(20)) == "high"
             && TravelEventDirector.Danger(100) == TravelEventDirector.MaximumDanger, "the route preview names danger by distance from home, up to a ceiling");
 
+        // The sled (#9473): finite cargo, glides on snow and drags on rock, slower when loaded.
+        Sled sled = new(Vector2.Zero);
+        Check.That(sled.Stow(CraftSurvive.Game.Modules.Inventory.ItemCatalog.Ration, Sled.Capacity + 50) == Sled.Capacity && sled.Free == 0
+            && sled.Stow(CraftSurvive.Game.Modules.Inventory.ItemCatalog.Meat, 1) == 0, "the sled holds only its capacity");
+        Check.That(sled.Take(CraftSurvive.Game.Modules.Inventory.ItemCatalog.Ration, 10) == 10 && sled.Load == Sled.Capacity - 10
+            && sled.Take(CraftSurvive.Game.Modules.Inventory.ItemCatalog.Meat, 1) == 0, "taking from the sled gives back only what it holds");
+        Check.That(sled.Within(new(Sled.ReachMetres - 1, 0)) && !sled.Within(new(Sled.ReachMetres + 1, 0)), "the sled is reached only from beside it");
+        Check.That(SledTravel.Terrain(MapBiome.IceField) < 1 && SledTravel.Terrain(MapBiome.Alpine) > 1
+            && SledTravel.LoadMultiplier(1) > SledTravel.LoadMultiplier(0) && SledTravel.LoadMultiplier(0) == 1, "runners glide on ice, drag on rock, and a load slows the march");
+        TravelCostModel hauling = new(map, SledTravel.Terrain);
+        int iceNode = Enumerable.Range(0, grid.Count).FirstOrDefault(i => cost.Passable(i) && WorldMap.Biome(map.Node(i)) == MapBiome.IceField, -1);
+        if (iceNode >= 0) Check.That(hauling.Multiplier(iceNode) < cost.Multiplier(iceNode), "a sled crosses ice field faster than a party on foot");
+
         // Weather slows the next hours of travel; time lost still tires.
         PartyTravel slowed = new(Vector2.Zero), steady = new(Vector2.Zero);
         TravelRoute? across = Crossing(cost, grid);

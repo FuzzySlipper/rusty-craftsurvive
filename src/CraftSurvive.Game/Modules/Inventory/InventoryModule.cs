@@ -278,6 +278,22 @@ internal sealed class InventoryModule : IProductModule
         return true;
     }
 
+    /// <summary>
+    /// Takes in as many of an item as fit the carry limit and the free slots, up to a count, as one
+    /// edit; returns how many came in (taking from the sled, #9473).
+    /// </summary>
+    internal int Receive(CatalogItem item, int count)
+    {
+        for (int fits = (int)Math.Min((ulong)Math.Max(0, count), ItemCatalog.CarryLimit - Math.Min(ItemCatalog.CarryLimit, Load())); fits > 0; fits--)
+        {
+            if (InventorySlots.PlanTake(Held(), [new ItemCount(item, fits)]) is not IReadOnlyList<SlotChange> given || Apply([], given) is not null) continue;
+            last = $"took {fits} {item.Id}";
+            Publish();
+            return fits;
+        }
+        return 0;
+    }
+
     /// <summary>Gives the player items, for a live check of crafting and use.</summary>
     internal string Grant(string itemId, int count)
     {

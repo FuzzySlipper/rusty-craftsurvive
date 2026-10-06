@@ -14,7 +14,7 @@ namespace CraftSurvive.Game.Modules.World;
 internal static class ProductUiProjection
 {
     internal static UiValue Create(WorldUiFacts? sceneFacts, PlayerUiFacts? player,
-        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null)
+        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null, SledUiFacts? sled = null)
     {
         NumericObjectBuilder values = new();
         if (sceneFacts is WorldUiFacts scene)
@@ -112,6 +112,14 @@ internal static class ProductUiProjection
             values.AddText("dungeonLast", below.Last);
         }
 
+        if (sled is SledUiFacts hauled)
+        {
+            values.Add("sledNear", hauled.Near ? 1 : 0);
+            values.Add("sledLoad", hauled.Load);
+            values.Add("sledLimit", hauled.Limit);
+            values.AddText("sledCargo", hauled.Cargo);
+            values.Add("sledDistance", hauled.DistanceMetres);
+        }
         if (map is WorldMapUiFacts geography)
         {
             values.Add("worldMapOpen", geography.Open ? 1 : 0);
