@@ -16,10 +16,27 @@ internal static class RegionProbe
     internal static void Run(string[] args)
     {
         ulong seed = args.Length > 1 ? ulong.Parse(args[1]) : 12345;
-        double px = args.Length > 2 && args[2] is not ("rugged" or "far") ? double.Parse(args[2]) : 0, pz = args.Length > 3 ? double.Parse(args[3]) : 0;
+        double px = args.Length > 2 && args[2] is not ("rugged" or "far" or "columns") ? double.Parse(args[2]) : 0, pz = args.Length > 3 ? double.Parse(args[3]) : 0;
         string output = args.Length > 4 ? args[4] : "regions.bin";
         WorldMap continent = WorldMapGenerator.Generate(new TerrainConfiguration(seed, MapScale.DefaultContinentalSize));
         MapRegions regions = new(continent);
+        if (args.Length > 2 && args[2] == "columns")
+        {
+            // Walking columns around a point: surface, water top and the geography under them (#9553 live finding).
+            TerrainRecipe recipe = continent.Configuration.CreateRecipe(new TestDraws(continent.Configuration.Seed), continent);
+            long cx = long.Parse(args[3]), cz = long.Parse(args[4]);
+            for (long z = cz - 24; z <= cz + 24; z += 6)
+            {
+                Console.WriteLine(string.Join(" ", Enumerable.Range(0, 9).Select(k =>
+                {
+                    TerrainColumn column = recipe.ColumnAt(cx - 24 + k * 6, z);
+                    return FormattableString.Invariant($"{column.Surface}/{column.WaterTop}{(column.Geography.InRiver ? "r" : "")}");
+                })));
+            }
+            MapSample here = recipe.Geography(cx, cz);
+            Console.WriteLine(FormattableString.Invariant($"at ({cx},{cz}): {here} river {recipe.Regions!.RiverNear(cx, cz)}"));
+            return;
+        }
         if (args.Length > 2 && args[2] == "far")
         {
             // The land farthest from the origin in each quadrant: where a precision audit walks (#9551).
