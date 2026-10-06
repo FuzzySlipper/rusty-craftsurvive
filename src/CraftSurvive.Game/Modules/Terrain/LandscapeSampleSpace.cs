@@ -15,7 +15,6 @@ internal sealed class LandscapeSampleSpace : IDisposable
     private const int TopMetres = 32;
     // A multiple of both texture tile widths, so vertical texture phase is preserved.
     private const int OriginY = -3072;
-    private const int ChunksPerUpdate = 4;
     private const double ReferenceSampleCentre = 0.5;
     private const double SurfaceOffset = 1;
     private const float MinimumDensity = 0.001f;
@@ -25,7 +24,15 @@ internal sealed class LandscapeSampleSpace : IDisposable
     private readonly TerrainGroundMaterials ground;
     private readonly Queue<TerrainChunkAddress> pending = new();
     private readonly int totalChunks;
-    private long generationTicks;
+    /// <summary>
+    /// Chunks admitted per update: one row of whole columns (#9557). A chunk's surface depends on its
+    /// neighbours, so a later call remeshes the resident neighbours of what it admits; slices that cut
+    /// across columns mesh most chunks several times. A row halves the total admission for a longer
+    /// single update (Engine #9497: about 30 ms for the 108-chunk studies).
+    /// </summary>
+    private readonly int chunksPerUpdate;
+    private long generationTicks, applyTicks, longestApplyTicks;
+    private int applyCalls;
     private VoxelScenePresentation? projection;
 
     internal LandscapeSampleSpace(IEngineContext engine, ProductContent content, LandscapeStudy study)
@@ -43,16 +50,28 @@ internal sealed class LandscapeSampleSpace : IDisposable
         }
         catch { Session.Dispose(); throw; }
         double chunkMetres = TerrainConstants.ChunkEdgeLength * VoxelSize;
+        int columnsPerRow = 0, chunksPerColumn = 0;
         for (long z = (long)((study.CentreZ - RadiusMetres) / chunkMetres); z < (study.CentreZ + RadiusMetres) / chunkMetres; z++)
-        for (long x = (long)((study.CentreX - RadiusMetres) / chunkMetres); x < (study.CentreX + RadiusMetres) / chunkMetres; x++)
-        for (long y = (long)Math.Floor((OriginY + BottomMetres) / chunkMetres); y < (OriginY + TopMetres) / chunkMetres; y++)
-            pending.Enqueue(new(x, y, z));
+        {
+            columnsPerRow = 0;
+            for (long x = (long)((study.CentreX - RadiusMetres) / chunkMetres); x < (study.CentreX + RadiusMetres) / chunkMetres; x++)
+            {
+                columnsPerRow++;
+                chunksPerColumn = 0;
+                for (long y = (long)Math.Floor((OriginY + BottomMetres) / chunkMetres); y < (OriginY + TopMetres) / chunkMetres; y++)
+                {
+                    pending.Enqueue(new(x, y, z));
+                    chunksPerColumn++;
+                }
+            }
+        }
         totalChunks = pending.Count;
+        chunksPerUpdate = Math.Max(1, columnsPerRow * chunksPerColumn);
     }
 
     internal SpatialSession Session { get; }
     internal bool Loaded => projection is not null;
-    internal string Readout => FormattableString.Invariant($"{study.Id} cell={VoxelSize}m chunks={totalChunks - pending.Count}/{totalChunks} samples={(long)totalChunks * TerrainConstants.ChunkVolume} admissionMs={Stopwatch.GetElapsedTime(0, generationTicks).TotalMilliseconds:F0}");
+    internal string Readout => FormattableString.Invariant($"{study.Id} cell={VoxelSize}m chunks={totalChunks - pending.Count}/{totalChunks} samples={(long)totalChunks * TerrainConstants.ChunkVolume} admissionMs={Stopwatch.GetElapsedTime(0, generationTicks).TotalMilliseconds:F0} perUpdate={chunksPerUpdate} applyCalls={applyCalls} applyMs={Stopwatch.GetElapsedTime(0, applyTicks).TotalMilliseconds:F0} longestApplyMs={Stopwatch.GetElapsedTime(0, longestApplyTicks).TotalMilliseconds:F0}");
 
     internal Vector3 Arrival
     {
@@ -71,7 +90,7 @@ internal sealed class LandscapeSampleSpace : IDisposable
         List<VoxelResidencyOperation> operations = [];
         List<uint> materials = [];
         List<float> densities = [];
-        while (operations.Count < ChunksPerUpdate && pending.TryDequeue(out TerrainChunkAddress address))
+        while (operations.Count < chunksPerUpdate && pending.TryDequeue(out TerrainChunkAddress address))
         {
             uint offset = (uint)materials.Count;
             VoxelAddress origin = address.Origin;
@@ -101,8 +120,15 @@ internal sealed class LandscapeSampleSpace : IDisposable
                 offset, TerrainConstants.ChunkVolume, offset, TerrainConstants.ChunkVolume));
         }
         if (operations.Count > 0)
+        {
+            long applying = Stopwatch.GetTimestamp();
             engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session,
                 operations.ToArray(), materials.ToArray(), densities.ToArray()));
+            long applied = Stopwatch.GetTimestamp() - applying;
+            applyTicks += applied;
+            longestApplyTicks = Math.Max(longestApplyTicks, applied);
+            applyCalls++;
+        }
         if (pending.Count == 0)
         {
             VoxelSceneMaterialBinding[] bindings = BlockRegistry.BoundBlocks

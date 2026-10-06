@@ -32,6 +32,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
         this.execution = execution;
     }
 
+    [DebugCommand("craft.player.landscape", Description = "Assisted: visits a landscape study (canyon, uplands or tundra) as the menu's Visit landscape does; the player readout reports its admission.")]
+    public string VisitLandscape(string name) => player.VisitLandscape(name) ? $"visiting {name}" : $"refused: no study {name} here";
+
     [DebugCommand("craft.player.teleport", Description = "Moves the live player where a standing body fits: the point asked for, else the ground of that column.")]
     public string Teleport(double x, double y, double z) =>
         player.Teleport(x, y, z) is PlayerRuntimeComponent state
