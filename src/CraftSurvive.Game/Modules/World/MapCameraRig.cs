@@ -6,7 +6,8 @@ namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
 /// The map's camera, locked to a focus (the party): the wheel zooms between close range and the
-/// whole map, and a secondary-button drag orbits; Q/E orbit, R/F tilt and Z/X zoom while held.
+/// whole map, and a secondary-button drag orbits (by pointer delta under lock, by cursor position
+/// with the free cursor the map screen uses); Q/E orbit, R/F tilt and Z/X zoom while held.
 /// There is no free flight. Forward vectors come from the Engine's look integration, so the camera
 /// always aims at the focus.
 /// </summary>
@@ -14,6 +15,8 @@ internal sealed class MapCameraRig : IDisposable
 {
     private const float ZoomPerWheelUnit = 0.0015f;
     private const float OrbitRadiansPerPointerUnit = 0.006f;
+    /// <summary>With a free cursor, dragging across the whole view turns the camera half a turn.</summary>
+    private const float OrbitRadiansPerViewport = MathF.PI;
     private const float MinimumPitchDegrees = -85;
     private const float MaximumPitchDegrees = -12;
     private const float InitialPitchDegrees = -60;
@@ -33,6 +36,8 @@ internal sealed class MapCameraRig : IDisposable
     private float pitch = InitialPitchDegrees * MathF.PI / 180;
     private float distance;
     private bool orbiting;
+    /// <summary>Where a free-cursor orbit drag last stood (normalized, bottom-left), or null.</summary>
+    private Vector2? orbitCursor;
     private float heldYaw, heldPitch, heldZoom;
     // Diagnostic for travel design (#9438): what a map click carries.
     private string lastPointer = "none";
@@ -94,6 +99,7 @@ internal sealed class MapCameraRig : IDisposable
             {
                 case InputEventKind.Clear:
                     orbiting = false;
+                    orbitCursor = null;
                     heldYaw = heldPitch = heldZoom = 0;
                     break;
                 case InputEventKind.Key when input.Edge != InputEdge.None:
@@ -114,7 +120,19 @@ internal sealed class MapCameraRig : IDisposable
                     break;
                 case InputEventKind.PointerButton when input.PointerButton == PointerButton.Secondary:
                     orbiting = input.Edge == InputEdge.Pressed;
+                    orbitCursor = orbiting && input.HasPosition ? new Vector2(input.X, input.Y) : null;
                     lastPointer = Describe(input);
+                    break;
+                // A free cursor (the map frees it) moves by position, not delta: orbit by the change.
+                case InputEventKind.PointerPosition when orbiting:
+                    Vector2 cursor = new(input.X, input.Y);
+                    if (orbitCursor is Vector2 from)
+                    {
+                        // Normalized Y grows upward, the opposite of a pointer delta's.
+                        Turn(-(cursor.X - from.X) * OrbitRadiansPerViewport, (cursor.Y - from.Y) * OrbitRadiansPerViewport);
+                        changed = true;
+                    }
+                    orbitCursor = cursor;
                     break;
                 case InputEventKind.PointerButton:
                     lastPointer = Describe(input);
