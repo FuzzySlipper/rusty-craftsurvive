@@ -17,6 +17,9 @@ internal static class MapPalette
         _ => new(0.78f, 0.6f, 0.42f, 1),
     };
 
+    /// <summary>Several places drawn as one marker at the current zoom (#9553).</summary>
+    internal static readonly Color PlaceCluster = new(0.95f, 0.82f, 0.55f, 1);
+
     private const float RockBlend = 0.45f;
     internal static readonly Color Stone = new(0.5f, 0.48f, 0.46f, 1);
     internal static readonly Color River = new(0.22f, 0.42f, 0.72f, 1);

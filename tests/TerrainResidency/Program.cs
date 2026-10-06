@@ -24,6 +24,7 @@ Check.Section("player input", PlayerInputChecks.Run);
 Check.Section("world map", WorldMapChecks.Run);
 Check.Section("erosion and rivers", ErosionChecks.Run);
 Check.Section("overland travel", TravelChecks.Run);
+Check.Section("walking and travel scale", TravelChecks.Walking);
 Check.Section("continental travel", TravelChecks.Continental);
 Check.Section("regional terrain", RegionalTerrainChecks.Run);
 Check.Section("generator identity", GeneratorChecks.Run);

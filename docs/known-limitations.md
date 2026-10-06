@@ -99,8 +99,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       W/A/S/D and plan with T. The smooth overview does not take clicks. A plan previews its
       distance, daylight hours, the rations it should eat beyond the food in hand (a floor: night
       lengthens it) and the danger at its far end; **Set out** confirms it.
-    - **Known places** replace the representative sites (#9471): home, then every place in the
-      discovery journal, each drawn on both map views (home green, reached orange, seen tan,
+    - **Known places** replace the representative sites (#9471): home, the sled, then the map
+      sites in the discovery journal (#9553): dungeon entrances, ruins and vantage points. Standing
+      stones and cave mouths are walking landmarks, kept to the journal and minimap. No great
+      landmarks are generated yet. Each place is drawn on both map views (home green, reached orange, seen tan,
       dungeon entrances violet). Home starts at the world's spawn and moves with **Set home here**
       to the party's position; it is a travel marker only and does not move the respawn point.
       Reaching a vantage point for the first time reveals the places within
@@ -111,6 +113,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       trouble half again as often until it camps. **Camp** sleeps until morning at night (a full
       rest after six hours or more) or halts two hours by day, under the resting safety rule; it is
       never required. Fatigue is not saved.
+    - **On foot (#9553):** first-person walking tires the expedition at the map's rate per
+      distance, weighted by the travel cost of the country underfoot. Any rest or camp restores it.
+      Beyond 1 km from the sled, and while exhausted, a HUD reminder suggests bringing the
+      expedition by map; nothing stops the walker. Route previews give both paces: by map, and on
+      foot at walking speed whatever the country.
+    - Places crowding within 5% of the camera distance draw as one cluster marker on the
+      faceted map (home and the sled never cluster). The smooth overview draws every place.
     - **Events (#9470)** are rolled per travel hour (`TravelEventDirector`): weighted by environment,
       night, fords and distance from home, raised by exhaustion, with a four-hour cooldown. One
       stops the journey and the map screen offers two answers. An encounter is fought in first

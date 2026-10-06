@@ -160,6 +160,9 @@ internal sealed class SurvivalModule : IProductModule
         Publish();
     }
 
+    /// <summary>Game hours of every rest or sleep as it happens, so the expedition's fatigue recovers whichever way it rested (#9553).</summary>
+    internal event Action<double>? Slept;
+
     private string Sleep(double seconds, Func<SurvivalState, SurvivalState>? meal)
     {
         SurvivalStep rested = SurvivalRules.Rest(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds, meal);
@@ -167,6 +170,7 @@ internal sealed class SurvivalModule : IProductModule
         conditions.Pass(seconds);
         slot.Save(state);
         Publish();
+        Slept?.Invoke(seconds / Sky.WorldClock.DaySeconds * 24d);
         return string.Create(CultureInfo.InvariantCulture,
             $"slept {seconds / Sky.WorldClock.DaySeconds * 24d:F1} hours: regained {rested.Regained}, food now {state.Satiety:F0}%");
     }

@@ -44,6 +44,16 @@ internal sealed class PartyTravel
     internal double Fatigue { get; private set; }
     internal bool Exhausted => Fatigue >= ExhaustedAt;
 
+    /// <summary>
+    /// First-person walking tires the expedition at the map's rate per distance (#9553): the hours the
+    /// map would take over these metres, at this country's cost, as if marched.
+    /// </summary>
+    internal void Walk(double metres, double multiplier)
+    {
+        if (metres <= 0 || !double.IsFinite(multiplier)) return;
+        Tire(metres * multiplier / TravelCostModel.MetresPerHour);
+    }
+
     /// <summary>Hours lost without progress (a detour, slipping away) still tire the expedition.</summary>
     internal void Tire(double hours) => Fatigue = Math.Min(MaximumFatigue, Fatigue + Math.Max(0, hours) * FatiguePerHour);
 

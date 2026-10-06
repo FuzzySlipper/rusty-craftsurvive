@@ -92,7 +92,7 @@ internal readonly record struct ConditionsUiFacts(string Time, double Daylight, 
 internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int OverlayEntries);
 
 /// <summary>The sled for the pack screen (#9473): whether it is within reach, its load, and its cargo as <c>id|name|count;...</c>.</summary>
-internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, string Cargo, double DistanceMetres);
+internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, string Cargo, double DistanceMetres, string ExpeditionPrompt = "");
 
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted,
     string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);

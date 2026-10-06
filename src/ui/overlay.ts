@@ -83,7 +83,9 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
     crosshair.append(element('div', `position:absolute;${css}background:#f2ead8;box-shadow:0 0 0 1px #000;`));
   }
 
-  const vitals = element('div', 'position:absolute;left:1rem;bottom:1rem;display:grid;grid-template-columns:auto auto auto;gap:.3rem .5rem;align-items:center;');
+  // The expedition reminder stacks above the vitals, however many vital rows are shown.
+  const corner = element('div', 'position:absolute;left:1rem;bottom:1rem;display:flex;flex-direction:column;align-items:flex-start;gap:.4rem;');
+  const vitals = element('div', 'display:grid;grid-template-columns:auto auto auto;gap:.3rem .5rem;align-items:center;');
   const rows = VITALS.map((vital) => {
     const label = element('span', 'opacity:.9;', vital.label);
     const bar = element('div', 'display:flex;gap:2px;padding:2px;background:#0b0c10cc;border:2px solid #000;');
@@ -99,11 +101,14 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
   });
 
   const prompt = element('div', 'position:absolute;left:50%;bottom:18%;transform:translateX(-50%);padding:.3rem .6rem;background:#0b0c10b3;border:2px solid #000;display:none;white-space:nowrap;');
+  // The expedition's standing reminders (#9553): a sled far behind, exhaustion. Shown while they hold.
+  const expedition = element('div', 'max-width:32rem;padding:.25rem .55rem;background:#0b0c10b3;border:2px solid #000;display:none;');
+  corner.append(expedition, vitals);
   const toasts = element('div', 'position:absolute;left:50%;top:1.2rem;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.3rem;');
   const flash = element('div', `position:absolute;inset:0;box-shadow:inset 0 0 12vmin 4vmin #b0141480;opacity:0;transition:opacity ${FLASH_MS}ms ease-out;`);
   const lowHealth = element('div', 'position:absolute;inset:0;box-shadow:inset 0 0 10vmin 2vmin #7a0c0c66;display:none;');
 
-  layer.append(lowHealth, flash, crosshair, vitals, prompt, toasts);
+  layer.append(lowHealth, flash, crosshair, corner, prompt, toasts);
   root.append(layer);
   if (projection === undefined) return () => layer.remove();
 
@@ -138,6 +143,10 @@ export function mountOverlay(root: Element, projection: RustyApplicationUiProjec
     const said = text(values, 'dungeonPrompt') ?? '';
     prompt.style.display = said === '' ? 'none' : 'block';
     prompt.textContent = said;
+
+    const reminder = text(values, 'expeditionPrompt') ?? '';
+    expedition.style.display = reminder === '' ? 'none' : 'block';
+    expedition.textContent = reminder;
 
     const hits = number(values, 'hitsTaken') ?? 0;
     const now = new Map(TOASTS.map((source) => [source.key, text(values, source.key) ?? '']));

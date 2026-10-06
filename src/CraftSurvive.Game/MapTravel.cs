@@ -117,6 +117,39 @@ public sealed partial class CraftSurviveProduct
         worldMessage = party.Last;
     }
 
+    /// <summary>A step longer than this between updates is a teleport, a rebase or a dungeon's door, not walking.</summary>
+    private const float WalkStepLimitMetres = 25;
+    /// <summary>Beyond this from the sled, first person prompts the player to bring the expedition by map (#9553).</summary>
+    private const float SledLeashMetres = 1000;
+    private Vector2? lastWalked;
+
+    /// <summary>
+    /// First person carries the journey's fatigue (#9553): ground walked tires the expedition at the
+    /// map's rate for the country under the player, so walking is no way around the expedition's costs.
+    /// </summary>
+    private void AccrueWalkingFatigue()
+    {
+        if (mapOpen || player.InSeparateSpace) { lastWalked = null; return; }
+        Vector2 here = new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z);
+        if (lastWalked is Vector2 before && Vector2.Distance(before, here) is float metres and > 0 and < WalkStepLimitMetres)
+        {
+            party ??= new PartyTravel(here);
+            party.Walk(metres, TravelCost.MultiplierAt(here));
+        }
+        lastWalked = here;
+    }
+
+    /// <summary>The first-person reminders of the expedition: a sled left far behind, and exhaustion.</summary>
+    private string ExpeditionPrompt()
+    {
+        List<string> parts = [];
+        float fromSled = Vector2.Distance(new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z), sled.Sled.Position);
+        if (!player.InSeparateSpace && fromSled > SledLeashMetres)
+            parts.Add(FormattableString.Invariant($"The sled is {fromSled / 1000:F1} km back: open the map to bring the expedition"));
+        if (party is { Exhausted: true }) parts.Add("Exhausted: camp or rest to recover");
+        return string.Join(" · ", parts);
+    }
+
     /// <summary>Advance a travelling party by this update's time; the world clock follows it.</summary>
     private void AdvanceTravel(double elapsedSeconds)
     {
@@ -168,15 +201,13 @@ public sealed partial class CraftSurviveProduct
         if (!SettleParty()) return;
         bool night = conditions.IsNight;
         long refused = survival.RestsRefused;
-        double began = conditions.Time.DayFraction;
+        // The rest itself restores the expedition, through the survival owner's Slept (#9553).
         string outcome = night ? survival.Rest(Meal) : survival.RestFor(dayHours / PlayHoursPerSecond, Meal);
         if (survival.RestsRefused != refused)
         {
             worldMessage = "Cannot camp: " + outcome;
             return;
         }
-        double slept = WorldClock.SecondsUntil(began, conditions.Time.DayFraction) * PlayHoursPerSecond;
-        party.Rest(slept);
         SaveJourney();
         worldMessage = $"{party.Last} ({outcome})";
     }

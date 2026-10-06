@@ -119,6 +119,7 @@ internal static class ProductUiProjection
             values.Add("sledLimit", hauled.Limit);
             values.AddText("sledCargo", hauled.Cargo);
             values.Add("sledDistance", hauled.DistanceMetres);
+            values.AddText("expeditionPrompt", hauled.ExpeditionPrompt);
         }
         if (map is WorldMapUiFacts geography)
         {

@@ -123,6 +123,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
+        survival.Slept += hours => party?.Rest(hours);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         sled = new SledStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
@@ -270,6 +271,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // where they now look; creatures, discovery and charges then read where the player is and
         // what they asked for this update.
         player.Update(update);
+        AccrueWalkingFatigue();
         actions.Update(update);
         foreach (IProductModule module in gameplay)
         {

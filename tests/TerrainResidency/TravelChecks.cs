@@ -72,6 +72,34 @@ internal static class TravelChecks
         Check.That(regions.SynchronousBuilds == synchronousBefore, "ordinary travel never waits on a region tile: every tile it reads was built ahead");
     }
 
+    /// <summary>
+    /// The two scales agree (#9553): first-person walking tires the expedition at the map's rate per
+    /// distance, ground the map will not route still tires a walker, and a preview gives both paces.
+    /// </summary>
+    internal static void Walking()
+    {
+        PartyTravel walker = new(Vector2.Zero);
+        walker.Walk(TravelCostModel.MetresPerHour, 1);
+        Check.That(Math.Abs(walker.Fatigue - PartyTravel.FatiguePerHour) < 1e-9, "walking an hour's map distance on open ground tires as an hour's march does");
+        walker.Walk(TravelCostModel.MetresPerHour, 2);
+        Check.That(Math.Abs(walker.Fatigue - 3 * PartyTravel.FatiguePerHour) < 1e-9, "rough country tires a walker as it slows a march");
+        walker.Rest(PartyTravel.FullRestHours);
+        Check.That(walker.Fatigue == 0, "a night's rest restores a walker as it does a march");
+
+        WorldMap map = WorldMapGenerator.Generate(new TerrainConfiguration(TerrainConstants.DefaultSeed, TerrainConstants.DefaultSize));
+        TravelCostModel cost = new(map);
+        int sea = Enumerable.Range(0, map.Grid.Count).First(i => !cost.Passable(i));
+        double atSea = cost.MultiplierAt(new((float)map.Grid.X(sea), (float)map.Grid.Z(sea)));
+        Check.That(double.IsFinite(atSea) && atSea > 1, "ground the map does not route across still tires a walker");
+        int land = Enumerable.Range(0, map.Grid.Count).First(cost.Passable);
+        Check.That(cost.MultiplierAt(new((float)map.Grid.X(land), (float)map.Grid.Z(land))) == cost.Multiplier(land), "the cost under a walker is the map's cost there");
+
+        string shortTrip = TravelCalendar.Describe(3_000, 6), longTrip = TravelCalendar.Describe(300_000, 700);
+        Console.WriteLine($"previews: {shortTrip} | {longTrip}");
+        Check.That(shortTrip.Contains("h by map", StringComparison.Ordinal) && shortTrip.Contains("h on foot", StringComparison.Ordinal)
+            && longTrip.Contains("days by map", StringComparison.Ordinal) && longTrip.Contains("days on foot", StringComparison.Ordinal), "a route previews both paces");
+    }
+
     internal static void Run()
     {
         WorldMap map = WorldMapGenerator.Generate(new TerrainConfiguration(TerrainConstants.DefaultSeed, TerrainConstants.DefaultSize));

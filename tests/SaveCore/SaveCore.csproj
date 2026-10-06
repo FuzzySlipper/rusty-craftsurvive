@@ -29,6 +29,7 @@
     <Compile Include="$(ProductModules)Discovery/DiscoveryCodec.cs" LinkBase="Product/Discovery" />
     <Compile Include="$(ProductModules)Places/HomeMarker.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)Places/KnownPlaces.cs" LinkBase="Product/Places" />
+    <Compile Include="$(ProductModules)Places/PlaceClusters.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)Places/SledCodec.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)Travel/Sled.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Manipulation/BlockEntityIndex.cs" LinkBase="Product/Manipulation" />

@@ -73,15 +73,31 @@ IReadOnlyList<KnownPlace> known = KnownPlaces.List(homeMarker,
 [
     .. journal.Entries,
     new DiscoveryEntry(7, 7, PoiKind.DungeonEntrance, 1792, 1792, DiscoveryStage.Seen, 50, 60),
+    new DiscoveryEntry(9, 9, PoiKind.VantagePoint, 2304, 2304, DiscoveryStage.Visited, 45, 55),
 ]);
 Check.That(known.Count == 4 && known[0].Key == KnownPlaces.HomeKey && known[0].Kind == KnownPlaceKind.Home
     && known[0].Position == new System.Numerics.Vector2(-1234.5f, 2048.25f), "home is the first known place, where its marker stands");
-Check.That(known[1].Kind == KnownPlaceKind.Entrance && known[2].Kind == KnownPlaceKind.Visited && known[2].Name == "Cave mouth"
-    && known[3].Kind == KnownPlaceKind.Seen, "journal places follow, newest first, an entrance marked whatever its stage");
+Check.That(known[1].Kind == KnownPlaceKind.Entrance && known[2].Kind == KnownPlaceKind.Visited && known[2].Name == "Vantage point"
+    && known[3].Kind == KnownPlaceKind.Seen && known[3].Name == "Ruin", "journal places follow, newest first, an entrance marked whatever its stage");
+// The map is the expedition's layer (#9553): a cave mouth found on foot stays a walking landmark.
+Check.That(known.All(place => place.Name != "Cave mouth") && !KnownPlaces.IsMapSite(PoiKind.CaveMouth) && !KnownPlaces.IsMapSite(PoiKind.StandingStones),
+    "walking landmarks stay off the map's places");
 Check.That(known.Select(place => place.Key).Distinct().Count() == known.Count, "every known place has its own key");
 IReadOnlyList<KnownPlace> withSled = KnownPlaces.List(homeMarker, journal.Entries, new System.Numerics.Vector2(40, 50));
-Check.That(withSled[1].Key == KnownPlaces.SledKey && withSled[1].Kind == KnownPlaceKind.Sled && withSled.Count == journal.Count + 2,
+Check.That(withSled[1].Key == KnownPlaces.SledKey && withSled[1].Kind == KnownPlaceKind.Sled && withSled.Count == journal.Entries.Count(entry => KnownPlaces.IsMapSite(entry.Kind)) + 2,
     "a sled left behind is a known place, after home");
+// Crowded places draw as one marker at a zoom (#9553): grouped by world cell, never home or the sled.
+KnownPlace[] crowd = [
+    new(KnownPlaces.HomeKey, "Home", KnownPlaceKind.Home, new(10, 10)),
+    new("poi:a", "Ruin", KnownPlaceKind.Seen, new(20, 20)),
+    new("poi:b", "Ruin", KnownPlaceKind.Seen, new(60, 40)),
+    new("poi:c", "Vantage point", KnownPlaceKind.Visited, new(900, 900)),
+];
+IReadOnlyList<PlaceCluster> wide = PlaceClusters.Group(crowd, 500), close = PlaceClusters.Group(crowd, 10);
+Check.That(wide.Count == 3 && wide.Count(cluster => cluster.Count == 2) == 1 && wide.Single(cluster => cluster.Count == 2).Position == new System.Numerics.Vector2(40, 30)
+    && wide.Any(cluster => cluster.Single && cluster.First.Kind == KnownPlaceKind.Home), "places crowded at a far zoom draw as one cluster at their centre; home stays itself");
+Check.That(close.Count == 4 && close.All(cluster => cluster.Single), "zooming in separates a cluster into its places");
+
 bool overfull;
 try { new SledCodec(identity).Encode(sledSave with { Cargo = [new ItemCount(ItemCatalog.Ration, CraftSurvive.Game.Modules.Travel.Sled.Capacity + 1)] }); overfull = false; }
 catch (InvalidOperationException) { overfull = true; }

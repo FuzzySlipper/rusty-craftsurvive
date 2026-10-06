@@ -122,7 +122,7 @@ public sealed partial class CraftSurviveProduct
         ui.PublishSled(new SledUiFacts(!player.InSeparateSpace && sled.Sled.Within(PlayerGround), sled.Sled.Load, Sled.Capacity,
             string.Join(';', ItemCatalog.All.Where(item => sled.Sled.Count(item) > 0)
                 .Select(item => string.Create(CultureInfo.InvariantCulture, $"{item.Id}|{item.Name}|{sled.Sled.Count(item)}"))),
-            Math.Round(distance)));
+            Math.Round(distance), ExpeditionPrompt()));
     }
 
     /// <summary>The sled in the first-person snapshot, when it stands near enough to be seen.</summary>

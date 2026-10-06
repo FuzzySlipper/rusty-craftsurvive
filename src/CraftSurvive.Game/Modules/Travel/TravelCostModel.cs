@@ -63,6 +63,26 @@ internal sealed class TravelCostModel
 
     internal bool Passable(int node) => double.IsFinite(multiplier[node]);
 
+    /// <summary>
+    /// What the country under a world point costs, for fatigue on foot (#9553): the region tile's finer
+    /// cost on a continent where it is built, else the map node's. Ground the map will not route across
+    /// (water, cliffs) still tires a walker, as a ford does.
+    /// </summary>
+    internal double MultiplierAt(System.Numerics.Vector2 world)
+    {
+        if (Regions is MapRegions regions && regions.IsReady(MapRegions.TileAt(world.X, world.Y)))
+        {
+            (int X, int Z) key = MapRegions.TileAt(world.X, world.Y);
+            (double cx, double cz) = MapRegions.Centre(key);
+            return RegionCost(regions.Tile(key).Map).MultiplierAt(world - new System.Numerics.Vector2((float)cx, (float)cz));
+        }
+        MapGrid grid = map.Grid;
+        int x = Math.Clamp((int)Math.Round((world.X + grid.Radius) / grid.Spacing), 0, grid.Segments);
+        int z = Math.Clamp((int)Math.Round((world.Y + grid.Radius) / grid.Spacing), 0, grid.Segments);
+        double cost = multiplier[z * grid.Side + x];
+        return double.IsFinite(cost) ? cost : FordMultiplier;
+    }
+
     /// <summary>Environment multipliers on open-ground pace.</summary>
     internal static double Environment(MapBiome biome) => biome switch
     {
