@@ -1,17 +1,16 @@
 # Terrain material sources
 
-These four source PNGs were generated with the built-in GPT image tool for the
-Paperback Sanctum terrain direction. Exact prompts are retained in
-[`prompts.json`](../game/textures/terrain-studies/prompts.json).
+These four source PNGs were generated for the content pass (#9666) with Z-Image and
+seamless tiling on den-m5 (asset-pipeline `tools/materials/tileable_gen.py --tiling seamless
+--size 1024`), from painterly top-down ground prompts. Exact prompts, seeds, source hashes and
+the stylise command for each map are retained in
+[`prompts.json`](../game/textures/terrain-studies/prompts.json). They replace the earlier GPT
+studies (see git history).
 
-`source/` contains the unmodified RGB outputs. Runtime copies in
+`source/` contains the unmodified generator outputs. Runtime copies in
 [`content/game/textures/terrain-studies`](../game/textures/terrain-studies/)
-are losslessly normalized to 8-bit RGBA PNG for Engine admission, with fully
-opaque alpha and unchanged RGB pixels. The import command is:
-
-```bash
-ffmpeg -i source.png -pix_fmt rgba runtime.png
-```
+are made by `scripts/stylise-texture.py --tile` (512 px, painterly grouping, a pull toward the
+palette ramps in `content/style/palette.json`), written as 8-bit RGBA PNG for Engine admission.
 
 `materials.json` records the runtime dimensions, SHA-256 and metres per repeat.
 Update its hash after replacing a runtime map. `TerrainGroundMaterials` admits
