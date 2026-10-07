@@ -1,0 +1,20 @@
+{
+  "purpose": "CraftSurvive content palette (#9664). Ramps run dark to light. Generated textures and meshes are pulled toward these by scripts/stylise-texture.py and scripts/stylise-mesh.py.",
+  "sources": "Earth, sandstone, stone, distance, snow, teal and cloth are clustered from docs/style-references/paperback-sanctum; meadow, foliage, sage, autumn, bark and water are authored to sit beside them (warm, slightly lifted greens in the manner of the visual direction's Valheim reference).",
+  "ramps": {
+    "meadow":    ["#2f4a22", "#4a6b2c", "#6c8a36", "#93a84a", "#c2c06a"],
+    "foliage":   ["#1f331d", "#2f4a27", "#476530", "#66843f", "#8fa257"],
+    "sage":      ["#3f4635", "#5b6449", "#7a8160", "#9ea183", "#c3c2a6"],
+    "autumn":    ["#5a2f17", "#8a4a20", "#b8742f", "#d7a04a", "#ead08a"],
+    "earth":     ["#2e2015", "#4d3427", "#6b4a32", "#8f6a47", "#b8936a"],
+    "sandstone": ["#6b412f", "#a77851", "#c7966c", "#e0b98a", "#f0dcbc"],
+    "stone":     ["#34302b", "#4f4b45", "#6f6a62", "#948d82", "#bdb5a8"],
+    "distance":  ["#4a535b", "#605059", "#817379", "#8f97a8", "#b9c0cc"],
+    "snow":      ["#6f7881", "#9aa3ae", "#c4cad1", "#e2e2dc", "#f6f1e6"],
+    "teal":      ["#2d4a48", "#3f6b66", "#5c8f86", "#85b2a3", "#b5d3c3"],
+    "cloth":     ["#4a1d16", "#7a2f22", "#a5463a", "#c46e5a", "#dfa28e"],
+    "bark":      ["#24170f", "#3b2819", "#5a3e28", "#7a5a3d", "#9c7d5c"],
+    "water":     ["#1f3a44", "#2c5560", "#3f7378", "#6a9a96", "#a8c8c0"],
+    "sky":       ["#4f7fb8", "#6f9bd0", "#9cbbe0", "#d8e2ea", "#f4e8d0"]
+  }
+}
