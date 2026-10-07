@@ -185,6 +185,14 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     private const float WaterFogDensity = 0.11f;
 
+    /// <summary>
+    /// The wind over the open world: grass, bushes and trees sway in it (their materials carry the
+    /// bend and flutter). A steady breeze from the west-south-west, a little over half of it gusting.
+    /// </summary>
+    private static readonly Vector2 WindDirection = new(1f, 0.35f);
+    private const float WindStrength = 1f;
+    private const float WindGust = 0.6f;
+
     /// <param name="observer">The eyes' position in the Engine's local frame: the sky's occlusion square follows them.</param>
     internal DayNightSky(IEngineContext engine, Func<Vector3> observer)
     {
@@ -195,6 +203,14 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, Exposure));
         engine.CameraView.SetBloom(new BloomRequest(BloomThreshold, BloomIntensity));
         engine.CameraView.SetColorGrading(new ColorGradingRequest(0f, 0f, GradingContrast, GradingSaturation));
+        engine.CameraView.SetWind(new(WindDirection, WindStrength, WindGust));
+    }
+
+    /// <summary>Sets the wind's strength (0 stills it), for tuning and for measuring its cost.</summary>
+    internal string SetWindStrength(float strength)
+    {
+        engine.CameraView.SetWind(new(WindDirection, strength, WindGust));
+        return FormattableString.Invariant($"wind strength={strength} gust={WindGust} direction={WindDirection.X},{WindDirection.Y}");
     }
 
     /// <summary>The daylight the lights were last set for.</summary>
@@ -292,6 +308,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetAtmosphere(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
+        engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
         engine.CameraView.ClearSkyBackground(new ClearSkyBackgroundRequest(0U));
         sun?.Dispose();
         skyShadow?.Dispose();

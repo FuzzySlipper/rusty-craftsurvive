@@ -17,6 +17,9 @@ public sealed class WorldConditionsDebugModule : IDebugCommandModule
     [DebugCommand("craft.world.hour", Description = "Sets the hour of the current day (0 to below 24), to check night and day live.")]
     public string Hour(double hour) => conditions.SetHour(hour);
 
+    [DebugCommand("craft.world.wind", Description = "Sets the wind's strength over the open world (0 stills grass and trees; 1 is the product's breeze).")]
+    public string Wind(float strength) => conditions.SetWindStrength(strength);
+
     [DebugCommand("craft.world.difficulty", Description = "Sets the difficulty: gentle, normal or harsh.")]
     public string SetDifficulty(string name) => conditions.SetDifficulty(name);
 }
