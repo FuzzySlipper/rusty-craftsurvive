@@ -12,7 +12,8 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// The overworld's trees, drawn as stylised low-poly meshes (#9665). The recipe decides where each
 /// tree stands, what it is and how it is turned and sized, and writes only an invisible trunk core
 /// into the voxels for bodies to collide with; this presents a mesh on every resident core near the
-/// player. A tree whose core is gone (blasted, dug) is no longer drawn.
+/// player. A tree is drawn only while it stands (TreeFelling): an edit that breaks its core or digs
+/// out its footing fells it, clearing the rest of the core in the same edit.
 /// </summary>
 internal sealed class TerrainTrees : IDisposable
 {
@@ -113,7 +114,7 @@ internal sealed class TerrainTrees : IDisposable
         foreach (TerrainTree tree in candidates)
         {
             VoxelAddress core = new(tree.X, tree.GroundY, tree.Z);
-            if (drawn.Count >= ProductIds.TreeObjectLimit || !resident(core) || materialAt(core) != (ushort)BlockId.TreeCore)
+            if (drawn.Count >= ProductIds.TreeObjectLimit || !resident(core) || !TreeFelling.Stands(tree, materialAt))
             {
                 continue;
             }

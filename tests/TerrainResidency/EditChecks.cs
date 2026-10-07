@@ -40,6 +40,48 @@ internal static class EditChecks
             Check.That(!index.Occupies(lamp), "an accepted already-empty cell also removes a stale entity");
         }
 
+        // A tree stands only while its whole trunk core stands on solid ground (#9665 review): an
+        // edit that breaks one core cell or digs out the footing fells the tree in the same
+        // transaction, so no invisible collidable cell and no floating tree is left behind.
+        {
+            TerrainConfiguration config = TerrainConfiguration.Default;
+            TerrainRecipe recipe = config.CreateRecipe(new TestDraws(config.Seed));
+            List<TerrainTree> trees = [];
+            recipe.TreesIn(-256, -256, 255, 255, trees);
+            TerrainTree tree = trees[0];
+            IReadOnlyList<TerrainVoxelEdit> Fell(TerrainOverlayState overlay, IReadOnlyList<TerrainVoxelEdit> edits) =>
+                TreeFelling.Dependents(edits, recipe, address =>
+                    overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address));
+            ushort MaterialAt(TerrainOverlayState overlay, VoxelAddress address) =>
+                overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);
+            int Collidable(TerrainOverlayState overlay) => TreeFelling.Core(tree).Count(cell =>
+                BlockRegistry.TryGetBySlot(MaterialAt(overlay, cell), out BlockDefinition block) && block.Collidable);
+            Check.That(TreeFelling.Stands(tree, address => recipe.MaterialAt(address)), "a generated tree stands on its own core");
+
+            TerrainOverlayState bottomOnly = new(config.Seed);
+            TerrainEditTransactionOutcome bottom = TerrainEditTransaction.Run(TerrainEditRequest.Clear(new VoxelAddress(tree.X, tree.GroundY, tree.Z), 0),
+                null, bottomOnly, _ => true, dependents: edits => Fell(bottomOnly, edits));
+            Check.That(bottom is TerrainEditRecorded { Receipt.AppliedEdits.Count: GenerationConstants.TreeCoreHeight }
+                && Collidable(bottomOnly) == 0 && !TreeFelling.Stands(tree, cell => MaterialAt(bottomOnly, cell)),
+                "clearing a tree's bottom core cell fells it: every core cell is cleared in the same edit and it is no longer drawn");
+
+            TerrainOverlayState supportOnly = new(config.Seed);
+            TerrainEditTransactionOutcome support = TerrainEditTransaction.Run(TerrainEditRequest.Clear(TreeFelling.Support(tree), 0),
+                null, supportOnly, _ => true, dependents: edits => Fell(supportOnly, edits));
+            Check.That(support is TerrainEditRecorded { Receipt.AppliedEdits.Count: GenerationConstants.TreeCoreHeight + 1 }
+                && Collidable(supportOnly) == 0 && !TreeFelling.Stands(tree, cell => MaterialAt(supportOnly, cell)),
+                "digging out a tree's footing fells it rather than leaving it floating");
+
+            TerrainOverlayState beside = new(config.Seed);
+            TerrainEditTransactionOutcome neighbour = TerrainEditTransaction.Run(
+                TerrainEditRequest.Clear(new VoxelAddress(tree.X + 1, tree.GroundY - 1, tree.Z), 0),
+                null, beside, _ => true, dependents: edits => Fell(beside, edits));
+            Check.That(neighbour is TerrainEditRecorded { Receipt.AppliedEdits.Count: 1 }
+                && Collidable(beside) == GenerationConstants.TreeCoreHeight && TreeFelling.Stands(tree, cell => MaterialAt(beside, cell)),
+                "an edit beside a tree leaves it standing");
+            Console.WriteLine($"Tree felling: a broken core cell or a dug footing clears all {GenerationConstants.TreeCoreHeight} core cells in one edit; a neighbouring edit leaves the tree.");
+        }
+
         // A decided cell set is applied exactly as given - that is the whole point of it - and it is
         // bounded, because the bound is the manipulation slice's promise about update latency.
         {

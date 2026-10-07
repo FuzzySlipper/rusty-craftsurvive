@@ -69,7 +69,7 @@ internal sealed class TerrainWorld : IDisposable
         presentation = new TerrainPresentation(engine, content);
         trees = new TerrainTrees(engine, content, frame);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
-            committed => Edited?.Invoke(committed));
+            committed => Edited?.Invoke(committed), requested => TreeFelling.Dependents(requested, recipe, MaterialAt));
     }
 
     /// <summary>Accepted final cell states, after the Engine and overlay agree on the edit.</summary>

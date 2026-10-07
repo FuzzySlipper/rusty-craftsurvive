@@ -594,6 +594,17 @@ internal sealed class TerrainRecipe : ITerrainColumns
             : TerrainConstants.EmptyMaterial;
     }
 
+    /// <summary>The tree whose trunk stands in this column, if any.</summary>
+    internal TerrainTree? TreeAtColumn(long x, long z)
+    {
+        long cell = GenerationConstants.FeatureCellSize;
+        long anchorX = GridMath.FloorDivide(x, cell);
+        long anchorZ = GridMath.FloorDivide(z, cell);
+        return TreeAt(anchorX, anchorZ) is TreeShape tree && x == (anchorX * cell) + tree.OffsetX && z == (anchorZ * cell) + tree.OffsetZ
+            ? new TerrainTree(x, TerrainSurface(x, z) + 1, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw)
+            : null;
+    }
+
     /// <summary>
     /// The trees whose trunks stand in a rectangle of columns (inclusive), for the tree
     /// presenter: where each stands, what it is and how it is turned and sized. The same

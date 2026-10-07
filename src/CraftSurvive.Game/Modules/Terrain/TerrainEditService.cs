@@ -48,7 +48,8 @@ internal sealed class TerrainEditService(
     TerrainResidencyStreamer streamer,
     TerrainPresentation presentation,
     Action publishUi,
-    Action<IReadOnlyList<TerrainVoxelEdit>> committed)
+    Action<IReadOnlyList<TerrainVoxelEdit>> committed,
+    Func<IReadOnlyList<TerrainVoxelEdit>, IReadOnlyList<TerrainVoxelEdit>>? dependents = null)
 {
     private TerrainEditTiming? lastTiming;
 
@@ -89,7 +90,7 @@ internal sealed class TerrainEditService(
                 VoxelEditStatus.NoChanges => false,
                 _ => throw new InvalidOperationException($"Engine returned unsupported voxel edit status '{applyReceipt.Status}'."),
             };
-        }, committed);
+        }, committed, dependents);
 
         switch (outcome)
         {

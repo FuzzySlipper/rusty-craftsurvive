@@ -21,13 +21,15 @@ internal sealed record TerrainEditRecorded(TerrainOverlayReceipt Receipt) : Terr
 internal static class TerrainEditTransaction
 {
     /// <param name="applyToEngine">Applies the admitted edits as one Engine transaction; returns whether anything changed.</param>
+    /// <param name="dependents">Cells the edit takes with it (a felled tree's whole trunk core), admitted in the same transaction.</param>
     internal static TerrainEditTransactionOutcome Run(TerrainEditRequest request, Func<VoxelAddress, bool>? playerOverlaps,
         TerrainOverlayState overlay, Func<TerrainEditAccepted, bool> applyToEngine,
-        Action<IReadOnlyList<TerrainVoxelEdit>>? committed = null)
+        Action<IReadOnlyList<TerrainVoxelEdit>>? committed = null,
+        Func<IReadOnlyList<TerrainVoxelEdit>, IReadOnlyList<TerrainVoxelEdit>>? dependents = null)
     {
         ArgumentNullException.ThrowIfNull(overlay);
         ArgumentNullException.ThrowIfNull(applyToEngine);
-        TerrainEditAdmissionResult admission = TerrainEditAdmission.Admit(request, playerOverlaps, overlay);
+        TerrainEditAdmissionResult admission = TerrainEditAdmission.Admit(request, playerOverlaps, overlay, dependents);
         if (admission is TerrainEditRejected rejected)
         {
             return new TerrainEditRefused(rejected);

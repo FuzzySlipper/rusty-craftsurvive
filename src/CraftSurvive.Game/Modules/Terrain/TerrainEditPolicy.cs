@@ -122,11 +122,23 @@ internal static class TerrainBrushPolicy
 /// </summary>
 internal static class TerrainEditAdmission
 {
+    /// <param name="dependents">
+    /// Cells the requested edits take with them, such as the rest of a felled tree's trunk core
+    /// (TreeFelling). They join the batch before any check, so the whole set is admitted, applied
+    /// and recorded together or not at all; a cell the request names itself keeps the request's state.
+    /// </param>
     internal static TerrainEditAdmissionResult Admit(TerrainEditRequest request,
-        Func<VoxelAddress, bool>? playerOverlaps = null, TerrainOverlayState? overlay = null)
+        Func<VoxelAddress, bool>? playerOverlaps = null, TerrainOverlayState? overlay = null,
+        Func<IReadOnlyList<TerrainVoxelEdit>, IReadOnlyList<TerrainVoxelEdit>>? dependents = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         TerrainVoxelEdit[] edits = TerrainBrushPolicy.Expand(request);
+        if (dependents is not null)
+        {
+            HashSet<VoxelAddress> named = [.. edits.Select(edit => edit.Address)];
+            edits = [.. edits, .. dependents(edits).Where(edit => named.Add(edit.Address))];
+        }
+
         foreach (TerrainVoxelEdit edit in edits)
         {
             if (!edit.Address.IsWithinWorldBounds)

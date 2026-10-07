@@ -29,6 +29,7 @@
     <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainEditTransaction.cs" LinkBase="Product/Terrain" />
+    <Compile Include="$(ProductModules)Terrain/TreeFelling.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Manipulation/BlastPolicy.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlastCharge.cs" LinkBase="Product/Manipulation" />
     <Compile Include="$(ProductModules)Manipulation/BlastDust.cs" LinkBase="Product/Manipulation" />
