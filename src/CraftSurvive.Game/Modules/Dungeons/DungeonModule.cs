@@ -48,6 +48,23 @@ internal sealed class DungeonModule : IProductModule
     private const float LightDecay = 2f;
     private static readonly Vector3 LightColour = new(1f, 0.7f, 0.4f);
 
+    /// <summary>
+    /// Every torch asks to cast and the Engine's shadow budget keeps the nearest; a torch lights
+    /// a room, so it gets more texels than a placed lamp, and a soft edge.
+    /// </summary>
+    private const uint LightShadowResolution = 512;
+    private const int LightShadowPriority = 1;
+
+    /// <summary>
+    /// The dungeon is lit from what is there (#9544): an irradiance probe volume over its whole
+    /// space, baked by the Engine from the torches' bounce over the sky's faint underground fill,
+    /// so a torch warms the walls around it and a chamber away from every torch falls toward the
+    /// fill. Two metres between probes suits rooms a few metres across and walls a voxel thick or more.
+    /// </summary>
+    private const float ProbeSpacingMetres = 2f;
+    private const uint ProbeBounces = 2;
+    private const float ProbeMarginMetres = 4f;
+
     private readonly IEngineContext engine;
     private readonly TerrainWorld terrain;
     private readonly PlayerController player;
@@ -146,6 +163,7 @@ internal sealed class DungeonModule : IProductModule
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival));
                     sky.Underground(true, conditions.Time);
                     Light(loading.Layout.Lights);
+                    IndirectLight(loading.Layout.Volume);
                     state = DungeonState.Inside;
                     entered++;
                     last = string.Create(CultureInfo.InvariantCulture,
@@ -520,6 +538,7 @@ internal sealed class DungeonModule : IProductModule
     private void Close(string outcome)
     {
         Light([]);
+        engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
         Retire();
         plan = null;
         walkable = null;
@@ -578,7 +597,8 @@ internal sealed class DungeonModule : IProductModule
                 0UL,
                 new LightDescriptor(LightKind.Point, LightColour, LightIntensity, on,
                     on ? DungeonSpace.InSession(lights[slot]) : Vector3.Zero,
-                    -Vector3.UnitY, true, LightRange, LightDecay, 0f, 0f, LightShadowIntent.Disabled));
+                    -Vector3.UnitY, true, LightRange, LightDecay, 0f, 0f, LightShadowIntent.Requested,
+                    LightShadowResolution, LightShadowPriority, true));
             if (pool[slot] is Light light)
             {
                 engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
@@ -588,6 +608,15 @@ internal sealed class DungeonModule : IProductModule
                 pool[slot] = engine.Graphics.CreateLight(request);
             }
         }
+    }
+
+    /// <summary>Asks for the probe volume over the dungeon's whole volume, in its session's frame.</summary>
+    private void IndirectLight(DungeonVolume volume)
+    {
+        Vector3 size = new(volume.SizeX, volume.SizeY, volume.SizeZ);
+        Vector3 centre = DungeonSpace.InSession(size / 2f);
+        Vector3 extent = (size / 2f) + new Vector3(ProbeMarginMetres);
+        engine.CameraView.SetIndirectLight(new IndirectLightRequest(centre, extent, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
     }
 
     private void Publish()

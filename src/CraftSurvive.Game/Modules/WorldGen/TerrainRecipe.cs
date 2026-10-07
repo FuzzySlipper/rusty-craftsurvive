@@ -11,7 +11,7 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// </summary>
 internal sealed class TerrainRecipe : ITerrainColumns
 {
-    private const double ExposedRockThreshold = 0.6;
+    internal const double ExposedRockThreshold = 0.6;
     private readonly TerrainConfiguration configuration;
     private readonly ITerrainDraws draws;
     private readonly long radius;

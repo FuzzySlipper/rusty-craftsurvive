@@ -19,21 +19,25 @@ internal static class TerrainConstants
     internal const int ChunkEdgeLength = 16;
     internal const int ChunkPlaneLength = ChunkEdgeLength * ChunkEdgeLength;
     internal const int ChunkVolume = ChunkPlaneLength * ChunkEdgeLength;
-    // The request window is the chunks the player can reach soon; the retained ring is one wider,
-    // so crossing a chunk boundary reuses chunks instead of regenerating them.
-    internal const int RequestedChunkRadius = 2;
-    internal const int RetainedChunkRadius = 3;
+    // The request window is the ground the player sees: the drawn world ends at its edge, under
+    // the distance fog (#9544). The retained ring is one wider, so crossing a chunk boundary
+    // reuses chunks instead of regenerating them. Beyond 48 m the Engine draws coarse meshes
+    // (TerrainPresentation.CoarseBeyondMetres), so the far rings cost half their triangles.
+    internal const int RequestedChunkRadius = 8;
+    internal const int RetainedChunkRadius = 9;
     /// <summary>
     /// How much residency work one update may do. More operations fill the window in fewer updates
-    /// but make the worst update several times longer; four keeps streaming updates near the
-    /// steady-state cost. Chosen by measurement, recorded with its pair and machine in Den (#8895).
+    /// but make the worst update several times longer. Four kept streaming updates near the
+    /// steady-state cost at a two-chunk window (#8895); the eight-chunk window admits twice as
+    /// many per update so a boundary crossing's strip of columns fills in under a second.
     /// </summary>
-    internal const int MaximumResidencyOperationsPerTick = 4;
+    internal const int MaximumResidencyOperationsPerTick = 8;
     /// <summary>
     /// Residency keeps each column's surface band rather than its full height, so the cap is
-    /// sized for steep ground: about three banded chunks per column across the retained ring.
+    /// sized for steep ground: about five banded chunks per column across the retained ring,
+    /// so the whole request window is always admitted (tests/TerrainResidency checks it).
     /// </summary>
-    internal const int MaximumResidentChunks = 160;
+    internal const int MaximumResidentChunks = 2_000;
     /// <summary>Chunks above and below the player kept in every column, so digging and climbing stay loaded.</summary>
     internal const int PlayerStoreyChunks = 1;
 

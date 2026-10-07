@@ -34,6 +34,9 @@ internal sealed class TerrainWorld : IDisposable
     private readonly TerrainPresentation presentation;
     private readonly TerrainEditService edits;
     private SpatialSession? session;
+
+    /// <summary>The horizon beyond the drawn chunks (#9548), drawn from the same height field.</summary>
+    private FarField? farField;
     private long currentStep;
     private bool started;
 
@@ -126,6 +129,7 @@ internal sealed class TerrainWorld : IDisposable
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
+            farField = new FarField(engine, content, recipe, frame);
             ui.Publish();
             started = true;
         }
@@ -161,6 +165,8 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         streamer.Clear();
+        farField?.Dispose();
+        farField = null;
         presentation.Dispose();
         chunkCache.Dispose();
         session?.Dispose();
@@ -179,7 +185,16 @@ internal sealed class TerrainWorld : IDisposable
             presentation.Refresh();
             ui.Publish();
         }
+
+        if (farField is FarField horizon)
+        {
+            horizon.Follow(centerVoxel.X, centerVoxel.Z);
+            horizon.Advance();
+        }
     }
+
+    /// <summary>How much of the horizon is drawn, for the scene readout.</summary>
+    internal string FarFieldReadout() => farField?.Readout() ?? "farField=none";
 
     /// <summary>
     /// The Engine's standing surface in resident terrain, including its reconstructed shape.

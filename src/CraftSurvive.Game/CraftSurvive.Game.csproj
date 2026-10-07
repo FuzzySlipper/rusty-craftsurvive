@@ -28,6 +28,15 @@
     <!-- The world is lit by the day/night sky's own sun and ambient lights (DayNightSky), not
          the Engine's neutral rig, so night can be dark. -->
     <RustyEngineProductDefaultWorldLights>disabled</RustyEngineProductDefaultWorldLights>
+    <!-- The sun's cascades, the sky's occlusion layer and the nearest lamps cast; the budget
+         (shadow layers a frame) lets the Engine choose which lamps, by priority then distance
+         (#9544). Ambient occlusion darkens where surfaces meet; it is screen-space here because
+         lamps and clutter are meshes the distance-field mode would not see. -->
+    <RustyEngineProductSceneShadows>enabled</RustyEngineProductSceneShadows>
+    <RustyEngineProductShadowBudget>24</RustyEngineProductShadowBudget>
+    <RustyEngineProductAmbientOcclusion>enabled</RustyEngineProductAmbientOcclusion>
+    <RustyEngineProductAmbientOcclusionStrength>1</RustyEngineProductAmbientOcclusionStrength>
+    <RustyEngineProductAmbientOcclusionRadius>0.75</RustyEngineProductAmbientOcclusionRadius>
     <RustyEngineProductLifecycleMode>realtime</RustyEngineProductLifecycleMode>
     <RustyEngineProductFixedStepHz>60</RustyEngineProductFixedStepHz>
     <RustyEngineProductFixedStepMaxCatchUpSteps>4</RustyEngineProductFixedStepMaxCatchUpSteps>

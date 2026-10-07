@@ -118,7 +118,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
         terrain.Edited += entities.ApplyTerrainEdits;
         player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
-        sky = new DayNightSky(context.Engine);
+        sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,

@@ -63,7 +63,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
     {
         VoxelSceneReadout scene = terrain.ReadScene();
         return string.Create(CultureInfo.InvariantCulture,
-            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};{terrain.LevelOfDetailReadout()}");
+            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()}");
     }
 
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]

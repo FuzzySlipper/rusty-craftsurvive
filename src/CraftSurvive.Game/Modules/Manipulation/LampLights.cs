@@ -23,6 +23,14 @@ internal sealed class LampLights : IProductModule
     private const float LampIntensity = 30f;
     private const float LampRange = 12f;
     private const float LampDecay = 2f;
+
+    /// <summary>
+    /// Every lit lamp asks to cast; the Engine's shadow budget (the project's
+    /// RustyEngineProductShadowBudget) picks the nearest that fit, so the product keeps no
+    /// nearest-N shadow policy of its own. A lamp a few metres from its walls needs few texels.
+    /// </summary>
+    private const uint LampShadowResolution = 256;
+    private const int LampShadowPriority = 0;
     private const float CellCentre = 0.5f;
     private static readonly Vector3 LampColour = new(1f, 0.72f, 0.38f);
 
@@ -80,7 +88,8 @@ internal sealed class LampLights : IProductModule
             LightDescriptor descriptor = new(
                 LightKind.Point, LampColour, LampIntensity, on,
                 on ? frame.ToLocal(Centre(lamps[slot])) : Vector3.Zero,
-                -Vector3.UnitY, true, LampRange, LampDecay, 0f, 0f, LightShadowIntent.Disabled);
+                -Vector3.UnitY, true, LampRange, LampDecay, 0f, 0f, LightShadowIntent.Requested,
+                LampShadowResolution, LampShadowPriority, false);
             LightRequest request = new(ProductIds.LampLightBase + (ulong)slot, false, 0UL, descriptor);
             if (pool[slot] is Light light)
             {

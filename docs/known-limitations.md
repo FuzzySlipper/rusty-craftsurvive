@@ -66,7 +66,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     store, so startup never waits on it. Until that first world is admitted, the page shows
     only the map view's generating message; there is no progress estimate.
   - The bedrock perimeter rises a fixed height above local ground; it is not final
-    geographic edge art. Far terrain has no overview LOD in the first-person view.
+    geographic edge art.
   - The map view's **Faceted relief** toggle is a prototype (#9436, #9437). It voxelizes the
     map as dual-contoured terrain: one voxel per 32 m for the whole map, and an 8 m patch with
     regional relief about 2 km across around the party, where the coarse ground is sunk out of
@@ -148,10 +148,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - See [the sampling contract](csharp-migration-map.md#world-map-contract).
 - **Distant voxel chunks are drawn from coarse meshes** (`SetLevelOfDetail`, #9563): first-person
   ground and landscape studies beyond 48 m (`TerrainPresentation.CoarseBeyondMetres`), the map's
-  detail patch beyond 24 map units and the whole map beyond 160. At today's first-person residency
-  radius nothing is far enough to go coarse; it takes effect as the view distance grows. Collision,
-  picking and navigation keep full resolution. `craft.terrain.scene` and `craft.world.faceted` report
-  how many chunks are coarse.
+  detail patch beyond 24 map units and the whole map beyond 160. Collision, picking and navigation
+  keep full resolution. `craft.terrain.scene` and `craft.world.faceted` report how many chunks are coarse.
+- **The horizon is a far field, not the world (#9548).** Beyond the drawn chunks the first-person view
+  shows `FarField`: the same height function sampled at `FarField.VoxelMetres` (8 m) and streamed as
+  dual-contoured chunk columns in a session of its own out to `FarField.RadiusChunks` chunk columns
+  (about 1.5 km), drawn with the walking ground's four layers and one flat water colour. It has no
+  collision, trees, structures or rivers narrower than a voxel, it is sunk `SinkMetres` under the near
+  ground and rises to its true height short of the drawn chunks' edge, and the fog hides the join; a
+  hole dug deeper than the sink shows it. It re-samples when the world origin moves and when the player
+  walks a chunk column; a new world samples the whole field in about a second on its first update.
+  Landscape studies and dungeons have no far field.
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in
@@ -214,11 +221,30 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   four-texture blend, not a general arbitrary-weight or unlimited-layer material.
   Dungeons keep their separate, unblended ground bindings. The provisional asset
   arrangement is not a constraint on replacement art.
-- The C# runtime draws no shadow maps; the product has no shadow control.
-- **Day and night are a sky blend and two lights.** `DayNightSky` crossfades two authored panoramas
-  and sets one directional light (sun, then moon) and one ambient light from `WorldClock`; the
-  Engine's neutral rig is disabled. Ambient light is unoccluded, so a cave is no darker than the
-  open ground beside it, and the sun and moon do not move across the panoramas.
+- **The look is the Engine's lighting under product tuning (#9544).** Scene shadows are enabled
+  in the project with a shadow budget (`RustyEngineProductShadowBudget`): the sun's cascades
+  reach `DayNightSky.SunShadowRangeMetres`, placed lamps and dungeon torches all request shadows
+  and the Engine keeps the nearest that fit, so a lamp far from the player casts none. Screen-space
+  ambient occlusion is on; the distance-field mode was not chosen because lamps and clutter are
+  meshes it would not see. Tone mapping is ACES filmic with bloom and a little grading, so every
+  intensity in `DayNightSky`, `LampLights` and `DungeonModule` is tuned under that operator.
+- **Day and night are a sky blend, three lights and the air.** `DayNightSky` crossfades two authored
+  panoramas, lights the world from them (the sky's light), and keeps a sun that becomes the moon, an
+  ambient light whose shadow is the open sky (its square follows the player in steps of
+  `SkyFollowStepMetres`, so a cave mouth darkens about where the player can see it), and a hemisphere
+  fill. Twilight keeps a warm glow from the sunset side for a while after the sun sets. The fog's
+  colour is each panorama's horizon, blended as the sky is, with height falloff and sun haze; the sun's
+  disc and shafts follow the clock, while the clouds painted in the day panorama do not move. The
+  panoramas are provisional art: the day sky's blocky painted clouds and the night sky's sparse stars
+  are the next thing to replace.
+- **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
+  irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
+  bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)
+  because the volume keeps the ambient row and replaces the hemisphere. The bake runs off-thread and
+  takes a few seconds for a large dungeon, during which the rooms show the fill only.
+- **A placed lamp is still a bare light in a bright block.** Its point light sits in the block's cell,
+  so the block itself reads as a white cube and the light pool has hard edges; flame, embers, smoke
+  and glow wait on the Engine's soft and additive particles (#9547).
 - **Under water the view closes into murk.** While the player's eyes are under water,
   `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same
   colour (exponential squared), in the open and underground alike. Water, glass and leaves are
