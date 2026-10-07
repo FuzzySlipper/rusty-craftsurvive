@@ -90,6 +90,18 @@ internal sealed class TerrainWorld : IDisposable
 
     internal SpatialSession Session => session ?? throw new InvalidOperationException("Terrain spatial session is unavailable.");
 
+    /// <summary>Darkens the overworld's surface vertices by the solid voxels around them (#9506 exploration).</summary>
+    internal VoxelSceneReadout ConfigureVertexOcclusion(float strength)
+    {
+        VoxelSceneReadout scene = engine.Voxel.ConfigureVertexOcclusion(new VoxelVertexOcclusionRequest(Session, strength));
+        if (presentation.Projected)
+        {
+            presentation.Refresh();
+        }
+
+        return scene;
+    }
+
     /// <summary>Draws a separate space's session with this world's block materials; the caller disposes the projection.</summary>
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate) => presentation.ProjectAnother(separate);
 

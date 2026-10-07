@@ -530,6 +530,19 @@ internal sealed class DungeonModule : IProductModule
         return last;
     }
 
+    /// <summary>Darkens the loaded dungeon's surface vertices by the solid voxels around them (#9506 exploration); null without a dungeon.</summary>
+    internal VoxelSceneReadout? ConfigureVertexOcclusion(float strength)
+    {
+        if (space is not DungeonSpace current)
+        {
+            return null;
+        }
+
+        VoxelSceneReadout scene = engine.Voxel.ConfigureVertexOcclusion(new VoxelVertexOcclusionRequest(current.Session, strength));
+        current.Refresh();
+        return scene;
+    }
+
     internal string Readout()
     {
         string loading = space is DungeonSpace current

@@ -1,3 +1,5 @@
+using Rusty.Engine;
+using System.Globalization;
 using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.Dungeons;
@@ -28,6 +30,14 @@ public sealed class DungeonDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.dungeon.blast", Description = "Carves a sphere of the given radius (metres) out of the loaded dungeon where the player aims, and reports the rebuild cost.")]
     public string Blast(float radius) => dungeons.Blast(radius);
+
+    [DebugCommand("craft.dungeon.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the loaded dungeon's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every chunk remeshes.")]
+    public string VertexOcclusion(float strength)
+    {
+        return dungeonsSource().ConfigureVertexOcclusion(strength) is VoxelSceneReadout scene
+            ? string.Create(CultureInfo.InvariantCulture, $"vertexOcclusion={strength:F2};chunks={scene.ResidentChunkCount}")
+            : "no dungeon is loaded";
+    }
 
     [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, or a layout cell x,y,z.")]
     public string Visit(string place) => dungeons.Visit(place);

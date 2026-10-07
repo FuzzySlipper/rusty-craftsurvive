@@ -73,6 +73,13 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()}");
     }
 
+    [DebugCommand("craft.terrain.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the overworld's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every resident chunk remeshes.")]
+    public string TerrainVertexOcclusion(float strength)
+    {
+        VoxelSceneReadout scene = terrain.ConfigureVertexOcclusion(strength);
+        return string.Create(CultureInfo.InvariantCulture, $"vertexOcclusion={strength:F2};chunks={scene.ResidentChunkCount}");
+    }
+
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]
     public string ReadGeneration() => terrain.GenerationReadout();
 
