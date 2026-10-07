@@ -177,4 +177,46 @@ Check.Section("independent blend controls", () =>
         && TerrainLayers.Layer(BlockId.Water) == -1 && TerrainLayers.Layer(BlockId.Planks) == -1,
         "aliases preserve four visuals while leaving water and construction outside the blend");
 });
+
+// Generated props (#9664): scripts/stylise-mesh.py writes a prop mesh, which PropMesh reads into an
+// Engine mesh resource with a material per role, and optionally the same geometry as an Engine
+// StaticMeshAsset. Both samples (the Tripo map pine at 200 triangles) must be accepted by the Engine.
+Check.Section("generated prop meshes load through the Engine", () =>
+{
+    const string PropPath = "models/sample-pine.prop-mesh.json";
+    const string StaticPath = "models/sample-pine.static-mesh.json";
+    string fixtures = Path.Combine(AppContext.BaseDirectory, "fixtures");
+    byte[] prop = File.ReadAllBytes(Path.Combine(fixtures, "sample-pine.prop-mesh.json"));
+    byte[] staticMesh = File.ReadAllBytes(Path.Combine(fixtures, "sample-pine.static-mesh.json"));
+    using EngineTestHost propHost = EngineTestHost.Create(new EngineTestHostOptions
+    {
+        Content = new Dictionary<string, ReadOnlyMemory<byte>> { [StaticPath] = staticMesh },
+    });
+    propHost.Call(engine =>
+    {
+        using Appearance asset = engine.Graphics.CreateStaticMeshFromContent(new(StaticPath, new Color(1, 1, 1, 1)));
+        Check.That(asset is not null, "the StaticMeshAsset export is admitted by CreateStaticMeshFromContent");
+
+        Color white = new(1, 1, 1, 1);
+        using Material bark = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), 0.9f, white, Vector3.Zero, 0, false));
+        using Material leaves = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), 0.8f, white, Vector3.Zero, 0, true) with { WindFlutter = 0.1f });
+        ProductContent content = new(new[] { new ProductContentFile(System.Text.Encoding.UTF8.GetBytes(PropPath), prop) });
+        List<string> roles = [];
+        MeshResourceCreateRequest request = PropMesh.Read(content, PropPath, role =>
+        {
+            roles.Add(role);
+            return role == "leaves" ? leaves : bark;
+        });
+        Check.That(roles.SequenceEqual(new[] { "bark", "leaves" }) && request.Groups.Length == 2,
+            "the prop mesh keeps its bark and leaves as two groups on their own materials");
+        Color[] colors = request.Colors.ToArray();
+        int barkVertices = (int)request.Groups.Span[0].Count;
+        Check.That(colors.Take(barkVertices).All(c => c.A == 0) && colors.Skip(barkVertices).All(c => c.A is >= 0 and <= 1)
+            && colors.Skip(barkVertices).Any(c => c.A > 0.5f),
+            "bark holds still and leaves carry wind weights in [0, 1]");
+        using MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+        using Appearance appearance = engine.Graphics.CreateMeshAppearance(mesh);
+        Check.That(appearance is not null, "the prop mesh becomes an Engine mesh appearance");
+    });
+});
 return Check.Finish("TerrainSurface");

@@ -18,7 +18,7 @@ internal sealed class TerrainTrees : IDisposable
 {
     internal const string ManifestPath = "models/trees/trees.json";
     private const string MeshFolder = "models/trees/";
-    private const string MeshSuffix = ".prop-mesh.json";
+    private const string LeavesRole = "leaves";
 
     /// <summary>Trees are drawn this far from the player: the walking residency's reach.</summary>
     private const long DrawMetres = 144;
@@ -158,47 +158,12 @@ internal sealed class TerrainTrees : IDisposable
         bark.Dispose();
     }
 
-    /// <summary>
-    /// One tree mesh from its prop-mesh file (scripts/stylise-mesh.py): flat-coloured triangles in
-    /// metres, Y up, the bark part on the bark material and the leaves on the fluttering one.
-    /// </summary>
+    /// <summary>One tree mesh: the bark part on the bark material and the leaves on the fluttering one.</summary>
     private Appearance Load(ProductContent content, string name)
     {
-        using JsonDocument document = JsonDocument.Parse(content.ReadText(MeshFolder + name + MeshSuffix));
-        List<Vector3> positions = [], normals = [];
-        List<Color> colors = [];
-        List<uint> indices = [];
-        List<MeshGroup> groups = [];
-        List<MeshMaterialBinding> bindings = [];
-        foreach (JsonElement part in document.RootElement.GetProperty("parts").EnumerateArray())
-        {
-            string role = part.GetProperty("role").GetString()!;
-            uint first = (uint)positions.Count;
-            uint start = (uint)indices.Count;
-            float[] p = Floats(part, "positions"), n = Floats(part, "normals"), c = Floats(part, "colors");
-            for (int i = 0; i < p.Length / 3; i++)
-            {
-                positions.Add(new(p[3 * i], p[(3 * i) + 1], p[(3 * i) + 2]));
-                normals.Add(new(n[3 * i], n[(3 * i) + 1], n[(3 * i) + 2]));
-                colors.Add(new(c[4 * i], c[(4 * i) + 1], c[(4 * i) + 2], c[(4 * i) + 3]));
-            }
-
-            foreach (JsonElement index in part.GetProperty("indices").EnumerateArray())
-            {
-                indices.Add(first + index.GetUInt32());
-            }
-
-            uint slot = (uint)bindings.Count;
-            groups.Add(new(slot, start, (uint)indices.Count - start));
-            bindings.Add(new(slot, role == "leaves" ? leaves : bark));
-        }
-
-        MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(),
-            new Vector2[positions.Count], colors.ToArray(), indices.ToArray(), groups.ToArray(), bindings.ToArray()));
+        MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, MeshFolder + name + PropMesh.Suffix,
+            role => role == LeavesRole ? leaves : bark));
         meshes.Add(mesh);
         return engine.Graphics.CreateMeshAppearance(mesh);
     }
-
-    private static float[] Floats(JsonElement part, string name) =>
-        [.. part.GetProperty(name).EnumerateArray().Select(value => value.GetSingle())];
 }

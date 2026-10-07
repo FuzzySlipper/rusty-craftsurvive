@@ -11,15 +11,24 @@ This makes a faceted game prop with economical colour:
    (hue in --leaf-hue, saturation above --leaf-saturation, judged before any saturation change)
    is "leaves", everything else "bark"; then each part's saturation is set (--saturation for leaves
    and solid parts, --bark-saturation for bark);
-   without it every triangle is "solid";
+   without it every triangle is "solid", and --role gives every triangle one role (a whole bush
+   as fluttering leaves);
 5. per part, pull colours toward palette ramps (content/style/palette.json) in Lab and group them
    into --colors colours (k-means, fixed seed), for flat faceted colour fields;
-6. per vertex wind weight in colour alpha: bark 0; leaves rise from --leaf-root-weight at the
-   trunk axis to 1 at the canopy's edge, so the Engine's flutter moves the outer leaves most.
+6. per vertex wind weight in colour alpha (the Engine's flutter scales by it): bark and solid 0;
+   leaves by --wind-weight: "height" (default) rises from --leaf-root-weight at the ground to 1 at
+   the part's highest point, so a rooted plant holds at its root and moves at its tips; "radial"
+   rises from the trunk axis to the canopy's edge, for crowns whose lowest leaves are outermost;
+7. normals by --shading: "flat" (default) gives each triangle's corners its face normal; "smooth"
+   keeps the model's interpolated corner normals. (The Engine's FlatShading material faces a part
+   whatever its normals; smooth normals matter for materials without it.)
 
-Output is the product prop-mesh JSON read by CraftSurvive (Y up, metres, unshared triangles with
-face normals and RGBA vertex colours):
+Output is the product prop-mesh JSON that CraftSurvive's PropMesh reads (Y up, metres, unshared
+triangles, RGBA vertex colours):
     {"name", "height", "bounds": {"min", "max"}, "parts": [{"role", "positions", "normals", "colors", "indices"}]}
+With --static-mesh PATH the same geometry is also written as an Engine StaticMeshAsset (asset id
+mesh/prop-NAME, one group and material slot per part, material ids material/prop-NAME-ROLE,
+visual-only collision) for Graphics.CreateStaticMeshFromContent.
 A preview PNG (front, three-quarter, top) is rendered next to it unless --no-preview.
 
     blender -b --python scripts/stylise-mesh.py -- SOURCE.glb OUT.prop-mesh.json --height 9 \
@@ -51,9 +60,14 @@ def arguments():
     parser.add_argument("--height", type=float, required=True, help="model height in metres")
     parser.add_argument("--faces", type=int, default=2500)
     parser.add_argument("--foliage", action="store_true", help="split leaves from bark by colour")
+    parser.add_argument("--role", choices=("solid", "leaves", "bark"), default=None,
+                        help="give every triangle this role instead (a whole small plant as leaves)")
     parser.add_argument("--leaf-hue", default="55-170", help="leaf hue range in degrees")
     parser.add_argument("--leaf-saturation", type=float, default=0.18)
-    parser.add_argument("--leaf-root-weight", type=float, default=0.35)
+    parser.add_argument("--leaf-root-weight", type=float, default=0.0)
+    parser.add_argument("--wind-weight", choices=("height", "radial"), default="height")
+    parser.add_argument("--shading", choices=("flat", "smooth"), default="flat")
+    parser.add_argument("--static-mesh", default=None, help="also write an Engine StaticMeshAsset JSON here")
     parser.add_argument("--pull-leaves", default="foliage")
     parser.add_argument("--pull-bark", default="bark")
     parser.add_argument("--pull-solid", default="")
@@ -175,6 +189,7 @@ def faces(model, args):
             images[index] = (image.size[0], image.size[1], list(image.pixels[:]))
     mesh = model.data
     mesh.calc_loop_triangles()
+    corner_normals = mesh.corner_normals
     uv = mesh.uv_layers.active.data if mesh.uv_layers.active else None
 
     def sample(slot, u, v):
@@ -198,11 +213,17 @@ def faces(model, args):
             rgb = list(material.diffuse_color[:3]) if material else [0.6, 0.6, 0.6]
         rgb = [min(1.0, c * args.brightness) for c in rgb]
         corners = [mesh.vertices[v].co.copy() for v in triangle.vertices]
-        result.append({"corners": corners, "normal": triangle.normal.copy(), "rgb": rgb})
+        if args.shading == "smooth":
+            normals = [corner_normals[loop].vector.copy() for loop in triangle.loops]
+        else:
+            normals = [triangle.normal.copy()] * 3
+        result.append({"corners": corners, "normals": normals, "rgb": rgb})
     return result
 
 
 def classify(face, args):
+    if args.role:
+        return args.role
     if not args.foliage:
         return "solid"
     low, high = (float(v) for v in args.leaf_hue.split("-"))
@@ -230,9 +251,9 @@ def build(model, args):
         amount = args.bark_saturation if role == "bark" and args.bark_saturation is not None else args.saturation
         colours = group(pull([saturate(f["rgb"], amount) for f in members], palette, args.pull_strength), args.colors)
         positions, normals, colors, indices = [], [], [], []
+        top = max((c.z for f in members for c in f["corners"]), default=1.0) or 1.0
         for face, rgb in zip(members, colours):
-            n = face["normal"]
-            for corner in face["corners"]:
+            for corner, n in zip(face["corners"], face["normals"]):
                 # Blender Z up to Engine Y up.
                 p = (corner.x, corner.z, -corner.y)
                 for axis in range(3):
@@ -240,8 +261,9 @@ def build(model, args):
                     high[axis] = max(high[axis], p[axis])
                 weight = 0.0
                 if role == "leaves":
-                    outward = math.hypot(corner.x, corner.y) / radius
-                    weight = args.leaf_root_weight + (1 - args.leaf_root_weight) * min(1.0, outward)
+                    rise = (math.hypot(corner.x, corner.y) / radius if args.wind_weight == "radial"
+                            else max(0.0, corner.z) / top)
+                    weight = args.leaf_root_weight + (1 - args.leaf_root_weight) * min(1.0, rise)
                 indices.append(len(positions) // 3)
                 positions.extend(round(c, DECIMALS) for c in p)
                 normals.extend(round(c, DECIMALS) for c in (n.x, n.z, -n.y))
@@ -250,6 +272,41 @@ def build(model, args):
     return {"name": Path(args.output).name.split(".")[0], "height": args.height,
             "bounds": {"min": [round(v, DECIMALS) for v in low], "max": [round(v, DECIMALS) for v in high]},
             "parts": parts}
+
+
+def static_mesh(asset):
+    """The prop as an Engine StaticMeshAsset: one group and material slot per part."""
+    positions, normals, colors, indices, groups, slots = [], [], [], [], [], []
+    for slot, part in enumerate(asset["parts"]):
+        first = len(positions) // 3
+        start = len(indices)
+        positions.extend(part["positions"])
+        normals.extend(part["normals"])
+        colors.extend(part["colors"])
+        indices.extend(first + i for i in part["indices"])
+        groups.append({"materialSlot": slot, "start": start, "count": len(indices) - start})
+        slots.append({"slot": slot, "material": f"material/prop-{asset['name']}-{part['role']}"})
+    return {
+        "asset": f"mesh/prop-{asset['name']}",
+        "payload": {
+            "layout": {
+                "vertexCount": len(positions) // 3,
+                "indexCount": len(indices),
+                "indexWidth": "u32",
+                "attributes": [
+                    {"name": "position", "components": 3, "kind": "f32"},
+                    {"name": "normal", "components": 3, "kind": "f32"},
+                    {"name": "color", "components": 4, "kind": "f32"},
+                ],
+            },
+            "groups": groups,
+            "bounds": asset["bounds"],
+            "source": {"kind": "inline", "positions": positions, "normals": normals, "colors": colors, "indices": indices},
+            "provenance": "staticAsset",
+        },
+        "materialSlots": slots,
+        "collision": {"kind": "visualOnly"},
+    }
 
 
 def preview(asset, path):
@@ -317,6 +374,8 @@ def main():
     asset = build(model, args)
     output = Path(args.output)
     output.write_text(json.dumps(asset, separators=(",", ":")))
+    if args.static_mesh:
+        Path(args.static_mesh).write_text(json.dumps(static_mesh(asset), separators=(",", ":")))
     counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in asset["parts"])
     print(f"stylise-mesh {output.name}: {counts} triangles; args: {' '.join(sys.argv[sys.argv.index('--') + 1:])}")
     if not args.no_preview:
