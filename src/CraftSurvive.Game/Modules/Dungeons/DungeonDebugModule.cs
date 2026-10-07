@@ -31,6 +31,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.blast", Description = "Carves a sphere of the given radius (metres) out of the loaded dungeon where the player aims, and reports the rebuild cost.")]
     public string Blast(float radius) => dungeons.Blast(radius);
 
+    [DebugCommand("craft.dungeon.chamber", Description = "Assisted (#9505 trial): carves a rounded chamber of this half width (metres) where the player aims, as an implicit field stamp (stamp true) or per-voxel region writes (stamp false), and reports the cost.")]
+    public string Chamber(float halfWidth, bool stamp) => dungeons.Chamber(halfWidth, stamp);
+
     [DebugCommand("craft.dungeon.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the loaded dungeon's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every chunk remeshes.")]
     public string VertexOcclusion(float strength)
     {

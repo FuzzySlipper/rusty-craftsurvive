@@ -511,6 +511,95 @@ internal sealed class DungeonModule : IProductModule
             $"blast {radius:0.#} m at {hit.Point.X:F1},{hit.Point.Y:F1},{hit.Point.Z:F1}: {receipt.Status}, {receipt.ChangedVoxels} voxels changed ({receipt.SolidityChanges} cleared), {receipt.RebuiltMeshChunks} chunks rebuilt, meshing {receipt.MeshMicroseconds / 1000d:F1} ms, edit {editMs:F1} ms, {elapsedMs:F1} ms with the redraw");
     }
 
+    /// <summary>The largest trial chamber, in metres of half width.</summary>
+    private const float MaximumChamberHalfWidthMetres = 8f;
+
+    /// <summary>A trial chamber is this much as tall as it is wide, its edges rounded by this much.</summary>
+    private const float ChamberHeightShare = 0.6f, ChamberRoundingMetres = 1.5f;
+
+    /// <summary>How far past its surface a region write lowers or raises densities, as the Engine's brushes do.</summary>
+    private const int ChamberMarginVoxels = 2;
+
+    /// <summary>
+    /// Engine #9505 trial: carves a rounded chamber into the loaded dungeon where the player aims,
+    /// either as an implicit field stamp (the Engine samples a rounded-box field over the chamber's
+    /// voxels) or as per-voxel region writes (the product reads the densities, computes the same
+    /// rounded box and writes them back), and reports what each cost.
+    /// </summary>
+    internal string Chamber(float halfWidth, bool stamp)
+    {
+        if (state != DungeonState.Inside || space is null)
+        {
+            return "chamber refused: not in a dungeon";
+        }
+
+        if (halfWidth <= ChamberRoundingMetres || halfWidth > MaximumChamberHalfWidthMetres)
+        {
+            return string.Create(CultureInfo.InvariantCulture,
+                $"chamber refused: the half width must be above {ChamberRoundingMetres:F1} m and at most {MaximumChamberHalfWidthMetres:F0} m");
+        }
+
+        Vector3 eye = player.WorldEyePosition;
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            space.Session, eye, player.AimForward, BlastReachMetres,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty, ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        if (!hit.Present)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"chamber refused: nothing within {BlastReachMetres:F0} m along the aim");
+        }
+
+        Vector3 half = new(halfWidth, halfWidth * ChamberHeightShare, halfWidth);
+        // The chamber opens off the wall the player aims at: its centre lies behind the hit.
+        Vector3 centre = hit.Point + Vector3.Normalize(player.AimForward) * halfWidth;
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        VoxelDensityReceipt receipt = stamp ? StampChamber(space.Session, centre, half) : WriteChamber(space.Session, centre, half);
+        double editMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        space.Refresh();
+        double elapsedMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"chamber {(stamp ? "stamp" : "region")} {halfWidth:0.#} m at {centre.X:F1},{centre.Y:F1},{centre.Z:F1}: {receipt.Status}, {receipt.ChangedVoxels} voxels changed ({receipt.SolidityChanges} cleared), {receipt.RebuiltMeshChunks} chunks rebuilt, meshing {receipt.MeshMicroseconds / 1000d:F1} ms, edit {editMs:F1} ms, {elapsedMs:F1} ms with the redraw");
+    }
+
+    private VoxelDensityReceipt StampChamber(SpatialSession session, Vector3 centre, Vector3 half)
+    {
+        using Rusty.Engine.Implicit.ImplicitRecipe recipe = new(engine.ImplicitSurfaces);
+        Vector3 rounding = new(ChamberRoundingMetres);
+        ImplicitNode chamber = recipe.Offset(recipe.Box(centre - half + rounding, centre + half - rounding), ChamberRoundingMetres);
+        return engine.Voxel.StampImplicit(new VoxelImplicitStampRequest(session, recipe.Field, chamber,
+            centre - half, centre + half, VoxelDensityOperation.Subtract, 0f, (uint)BlastBrushMaterial));
+    }
+
+    private VoxelDensityReceipt WriteChamber(SpatialSession session, Vector3 centre, Vector3 half)
+    {
+        float voxel = (float)TerrainConstants.VoxelSize;
+        Vector3 low = (centre - half) / voxel - new Vector3(ChamberMarginVoxels), high = (centre + half) / voxel + new Vector3(ChamberMarginVoxels);
+        Rusty.Engine.VoxelAddress min = new((long)MathF.Floor(low.X), (long)MathF.Floor(low.Y), (long)MathF.Floor(low.Z));
+        (uint X, uint Y, uint Z) size = ((uint)(MathF.Floor(high.X) - min.X + 1), (uint)(MathF.Floor(high.Y) - min.Y + 1), (uint)(MathF.Floor(high.Z) - min.Z + 1));
+        ReadOnlyMemory<VoxelDensitySample> before = engine.Voxel.ReadDensities(new VoxelDensityReadRequest(session, min, size.X, size.Y, size.Z));
+        float[] densities = new float[before.Length];
+        ReadOnlySpan<VoxelDensitySample> samples = before.Span;
+        int index = 0;
+        for (uint z = 0; z < size.Z; z++)
+        for (uint y = 0; y < size.Y; y++)
+        for (uint x = 0; x < size.X; x++)
+        {
+            Vector3 at = new((min.X + x + 0.5f) * voxel, (min.Y + y + 0.5f) * voxel, (min.Z + z + 0.5f) * voxel);
+            densities[index] = MathF.Max(samples[index].Density, -RoundedBoxDistance(at - centre, half) / voxel);
+            index++;
+        }
+
+        return engine.Voxel.ApplyDensityEdits(new VoxelDensityTransaction(session,
+            new[] { VoxelDensityEdit.Region(min, size, 0, (uint)densities.Length) }, densities, ReadOnlyMemory<uint>.Empty));
+    }
+
+    /// <summary>Signed distance from a point (relative to the centre) to a box of half extents rounded by the chamber rounding.</summary>
+    private static float RoundedBoxDistance(Vector3 point, Vector3 half)
+    {
+        Vector3 q = Vector3.Abs(point) - (half - new Vector3(ChamberRoundingMetres));
+        return Vector3.Max(q, Vector3.Zero).Length() + MathF.Min(MathF.Max(q.X, MathF.Max(q.Y, q.Z)), 0f) - ChamberRoundingMetres;
+    }
+
     /// <summary>Leaves the dungeon from its way out, back to the entrance.</summary>
     internal string Leave()
     {
