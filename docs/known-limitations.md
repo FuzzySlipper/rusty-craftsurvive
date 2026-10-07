@@ -259,6 +259,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   painting would shimmer without adding character. Judged in ordinary W-key movement at play
   distance (the motion sequences in the #9547 evidence); the grading in `DayNightSky` carries the
   contrast. The atlas art itself is provisional.
+- **Landmarks are stone distance fields on the one-metre grid.** Dungeon gates (a platform and two
+  crossing arches over the shaft), ruins (a broken round wall with leaning ribs), standing stones
+  (tapered steles, the tallest pierced) and cave-mouth arches are `PoiShapes` distance fields filled
+  with Stone, whose distance feeds the voxel densities, so dual contouring draws them as worn faceted
+  rock with terrain collision, navigation and blasts. Features thinner than about two metres do not
+  survive one-metre voxels, so the shapes stay chunky; parts sunk into a slope are simply buried.
+  Vantage points are still stepped cobble with a lamp, and there is no coloured (ceramic) accent:
+  the terrain blend's four layers are taken (rusty-engine #9676).
 - **Trees are meshes on an invisible trunk core, drawn near the player only.** The recipe plants
   each tree (kind by biome, drawn variant, size and turn) and writes only a short `TreeCore` column
   into the voxels, which bodies collide with and a blast can break; `TerrainTrees` draws a

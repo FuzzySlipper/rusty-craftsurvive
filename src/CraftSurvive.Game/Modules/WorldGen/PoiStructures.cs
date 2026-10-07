@@ -71,102 +71,26 @@ internal static class PoiStructures
     }
 
     /// <summary>
-    /// A ring of squared pillars, each a different height so the ring reads as built
-    /// rather than as a fence. Two blocks thick: at a metre per block a single voxel is
-    /// a post, and these are meant to be visible from across a valley.
+    /// A ring of tapered steles leaning a little outward, each a different height so the ring reads
+    /// as raised rather than as a fence, the tallest pierced by a round opening, and a low cairn at
+    /// the centre (PoiShapes). Stone, so it is reconstructed as worn faceted rock.
     /// </summary>
-    private static PoiVoxel StandingStones(PoiSite site, long x, long y, long z)
-    {
-        long dx = x - site.X;
-        long dz = z - site.Z;
-        if ((dx * dx) + (dz * dz) > (PoiConstants.StoneRingRadius + 2) * (PoiConstants.StoneRingRadius + 2))
-        {
-            return PoiVoxel.None;
-        }
+    private static PoiVoxel StandingStones(PoiSite site, long x, long y, long z) => Shaped(site, x, y, z);
 
-        int count = 5 + (int)(site.Variant % 4);
-        long tallest = site.Height;
-        for (int index = 0; index < count; index++)
-        {
-            (long pillarX, long pillarZ) = RingPoint(index, count);
-            if (dx != pillarX && dx != pillarX + 1)
-            {
-                continue;
-            }
+    /// <summary>
+    /// The broken curved wall of a round building, whole in places and gone in others, with ribs
+    /// leaning inward from it toward a roof that is no longer there (PoiShapes).
+    /// </summary>
+    private static PoiVoxel Ruin(PoiSite site, long x, long y, long z) => Shaped(site, x, y, z);
 
-            if (dz != pillarZ && dz != pillarZ + 1)
-            {
-                continue;
-            }
-
-            // Height falls away around the ring so the tallest stone is a landmark in
-            // its own right, and the ring never reads as a wall.
-            long height = tallest - (((index + site.Variant) % 3) * 2);
-            if (height < PoiConstants.StoneMinimumHeight - 3)
-            {
-                height = PoiConstants.StoneMinimumHeight - 3;
-            }
-
-            if (y > site.Ground && y <= site.Ground + height)
-            {
-                return PoiVoxel.Fill(BlockId.Stone);
-            }
-
-            return PoiVoxel.None;
-        }
-
-        // A low cairn at the centre marks the middle of the ring.
-        return x == site.X && z == site.Z && y > site.Ground && y <= site.Ground + 2
-            ? PoiVoxel.Fill(BlockId.Cobblestone)
+    /// <summary>A shaped site's stone: filled where the voxel centre is inside its distance field.</summary>
+    private static PoiVoxel Shaped(PoiSite site, long x, long y, long z) =>
+        PoiShapes.DistanceAt(site, x, y, z) is double distance && distance < 0
+            ? PoiVoxel.Fill(BlockId.Stone)
             : PoiVoxel.None;
-    }
 
     /// <summary>
-    /// The fallen walls of a square building: a ring of wall at the footprint edge, its
-    /// height tapering by quadrant so one corner stands and another is gone, a brick
-    /// pier at each standing corner, and a gravel floor inside. This is the shape that
-    /// says "someone built here" from a distance.
-    /// </summary>
-    private static PoiVoxel Ruin(PoiSite site, long x, long y, long z)
-    {
-        long dx = Math.Abs(x - site.X);
-        long dz = Math.Abs(z - site.Z);
-        long extent = PoiConstants.RuinHalfExtent;
-        if (dx > extent || dz > extent)
-        {
-            return PoiVoxel.None;
-        }
-
-        long below = y - site.Ground;
-        if (below < 0 || below > PoiConstants.RuinMinimumHeight + PoiConstants.RuinHeightRange)
-        {
-            return PoiVoxel.None;
-        }
-
-        bool onWall = dx == extent || dz == extent;
-        if (!onWall)
-        {
-            // The floor: one course of gravel, only where the ground is level enough
-            // that a floor reads as a floor rather than as a step.
-            return below == 1 && (dx + dz) % 3 != 0 ? PoiVoxel.Fill(BlockId.Gravel) : PoiVoxel.None;
-        }
-
-        long quadrant = (x >= site.X ? 1 : 0) + (z >= site.Z ? 2 : 0);
-        long taper = (quadrant + site.Variant) % 3;
-        long wallHeight = site.Height - taper;
-        if (below <= 0 || below > wallHeight)
-        {
-            return PoiVoxel.None;
-        }
-
-        // A pier two blocks wide at each standing corner, brick against cobble, so a
-        // ruin has structure rather than a uniform outline.
-        long cornerReach = extent - dx <= 1 && extent - dz <= 1 ? 1 : 0;
-        return PoiVoxel.Fill(cornerReach == 1 ? BlockId.Brick : BlockId.Cobblestone);
-    }
-
-    /// <summary>
-    /// A mouth cut into a slope: an arch of stone standing proud of the ground, with a
+    /// A mouth cut into a slope: a tall stone arch standing proud of the ground, with a
     /// recess carved behind it. The direction it opens is one of the four cardinals,
     /// chosen by the uphill direction measured from the ground (the site's aspect), not the variant, so neighbouring mouths do not all face the same way.
     /// </summary>
@@ -197,87 +121,31 @@ internal static class PoiStructures
             return PoiVoxel.Carve;
         }
 
-        if (below < 0 || below > PoiConstants.CaveArchHeight)
-        {
-            return PoiVoxel.None;
-        }
-
-        // The arch itself: a frame one block thick around the opening, in the plane of
-        // the mouth, plus jambs down to the ground beside it.
-        bool onFrameAcross = Math.Abs(across) == 2 || Math.Abs(across) == 1;
-        if (along >= -1 && along <= 0 && onFrameAcross && below <= openingHeight)
-        {
-            return PoiVoxel.Fill(BlockId.Cobblestone);
-        }
-
-        bool lintel = along >= -1 && along <= 0 && Math.Abs(across) <= 2
-            && below > openingHeight && below <= PoiConstants.CaveArchHeight;
-        if (lintel)
-        {
-            return PoiVoxel.Fill(BlockId.Stone);
-        }
-
-        // Buttresses at the mouth's outer corners, so it reads as built, not eroded.
-        bool buttress = along >= -1 && along <= 1 && Math.Abs(across) == extent && below <= PoiConstants.CaveArchHeight - 2;
-        return buttress ? PoiVoxel.Fill(BlockId.Cobblestone) : PoiVoxel.None;
+        // The arch: a tall ring of stone framing the opening, in the plane of the mouth (PoiShapes).
+        return Shaped(site, x, y, z);
     }
 
     /// <summary>
-    /// A framed descent: a squared stone rim around a hole, four corner posts with a
-    /// lintel, and a shaft cut down into the ground beneath. The shaft stops on the
+    /// A framed descent: a stone platform around a hole, two arches crossing over it, and a
+    /// shaft cut down into the ground beneath. The shaft stops on the
     /// world floor - carving refuses bedrock - so the structure can never open the
     /// world's underside. Nothing here travels; the entrance is a place, and the load
     /// transition into an interior belongs to the dimension slice.
     /// </summary>
     private static PoiVoxel DungeonEntrance(PoiSite site, long x, long y, long z)
     {
-        long extent = PoiConstants.EntranceHalfExtent;
-        long rim = 3;
         long dx = x - site.X;
         long dz = z - site.Z;
         long below = y - site.Ground;
-
-        if (Math.Abs(dx) <= rim && Math.Abs(dz) <= rim)
+        if (Math.Abs(dx) <= 1 && Math.Abs(dz) <= 1 && below < 0)
         {
-            bool inShaft = Math.Abs(dx) <= 1 && Math.Abs(dz) <= 1;
-            if (inShaft)
-            {
-                // The shaft. It stops one course short of the deepest cut, and that
-                // uncarved course is the floor: a fill could not make one, because
-                // filling never replaces solid ground.
-                return below > -PoiConstants.EntranceShaftDepth && below < 0
-                    ? PoiVoxel.Carve
-                    : PoiVoxel.None;
-            }
-
-            // The rim: a walkable course at ground level, chamfered at the corners so the
-            // frame reads as a square with cut corners.
-            bool corner = Math.Abs(dx) == rim && Math.Abs(dz) == rim;
-            if (!corner && below == 0)
-            {
-                return PoiVoxel.Fill(BlockId.Cobblestone);
-            }
+            // The shaft. It stops one course short of the deepest cut, and that uncarved course is
+            // the floor: a fill could not make one, because filling never replaces solid ground.
+            return below > -PoiConstants.EntranceShaftDepth ? PoiVoxel.Carve : PoiVoxel.None;
         }
 
-        if (Math.Abs(dx) > extent || Math.Abs(dz) > extent)
-        {
-            return PoiVoxel.None;
-        }
-
-        if (below < 0 || below > PoiConstants.EntranceFrameHeight)
-        {
-            return PoiVoxel.None;
-        }
-
-        // Four corner posts and the lintel spanning the two northern ones.
-        bool cornerPost = Math.Abs(dx) == extent && Math.Abs(dz) == extent;
-        if (cornerPost)
-        {
-            return PoiVoxel.Fill(BlockId.Brick);
-        }
-
-        bool lintelSpan = dz == -extent && Math.Abs(dx) <= extent && below > PoiConstants.EntranceFrameHeight - 1;
-        return lintelSpan ? PoiVoxel.Fill(BlockId.Brick) : PoiVoxel.None;
+        // The platform around the shaft and the two arches crossing over it (PoiShapes).
+        return Shaped(site, x, y, z);
     }
 
     /// <summary>
@@ -318,17 +186,7 @@ internal static class PoiStructures
         return PoiVoxel.Fill(below == steps ? BlockId.Brick : BlockId.Cobblestone);
     }
 
-    private static (long X, long Z) RingPoint(int index, int count)
-    {
-        // Even spacing on a squared ring: the ring is a square, so a point is placed on
-        // whichever side its angle falls, which keeps pillars on the footprint's edge.
-        double angle = (2.0 * Math.PI * index) / count;
-        double cos = Math.Cos(angle);
-        double sin = Math.Sin(angle);
-        double scale = PoiConstants.StoneRingRadius / Math.Max(Math.Abs(cos), Math.Abs(sin));
-        return ((long)Math.Round(cos * scale, MidpointRounding.AwayFromZero),
-            (long)Math.Round(sin * scale, MidpointRounding.AwayFromZero));
-    }
+    internal static (long X, long Z) CardinalOf(long index) => Cardinal(index);
 
     private static (long X, long Z) Cardinal(long index) => index switch
     {
