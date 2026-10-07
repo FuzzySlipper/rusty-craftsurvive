@@ -70,7 +70,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
     {
         VoxelSceneReadout scene = terrain.ReadScene();
         return string.Create(CultureInfo.InvariantCulture,
-            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()}");
+            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};multiLoopCells={scene.MultiLoopCells};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()}");
     }
 
     [DebugCommand("craft.terrain.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the overworld's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every resident chunk remeshes.")]

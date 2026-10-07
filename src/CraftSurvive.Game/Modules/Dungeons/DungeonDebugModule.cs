@@ -34,6 +34,11 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.chamber", Description = "Assisted (#9505 trial): carves a rounded chamber of this half width (metres) where the player aims, as an implicit field stamp (stamp true) or per-voxel region writes (stamp false), and reports the cost.")]
     public string Chamber(float halfWidth, bool stamp) => dungeons.Chamber(halfWidth, stamp);
 
+    [DebugCommand("craft.dungeon.topology", Description = "Assisted (#9507 exploration): reads the loaded dungeon's chunks and the dual-contouring cells its surface passes through more than once.")]
+    public string Topology() => dungeonsSource().ReadScene() is VoxelSceneReadout scene
+        ? string.Create(CultureInfo.InvariantCulture, $"chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};multiLoopCells={scene.MultiLoopCells}")
+        : "no dungeon is loaded";
+
     [DebugCommand("craft.dungeon.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the loaded dungeon's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every chunk remeshes.")]
     public string VertexOcclusion(float strength)
     {

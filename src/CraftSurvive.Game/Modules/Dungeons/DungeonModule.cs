@@ -619,6 +619,10 @@ internal sealed class DungeonModule : IProductModule
         return last;
     }
 
+    /// <summary>The loaded dungeon's voxel scene facts; null without a dungeon.</summary>
+    internal VoxelSceneReadout? ReadScene() =>
+        space is DungeonSpace current ? engine.Voxel.ReadScene(new VoxelSceneReadRequest(current.Session)) : null;
+
     /// <summary>Darkens the loaded dungeon's surface vertices by the solid voxels around them (#9506 exploration); null without a dungeon.</summary>
     internal VoxelSceneReadout? ConfigureVertexOcclusion(float strength)
     {
