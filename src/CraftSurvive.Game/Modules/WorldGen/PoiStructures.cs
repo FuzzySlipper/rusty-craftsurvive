@@ -149,41 +149,22 @@ internal static class PoiStructures
     }
 
     /// <summary>
-    /// A stepped look-out: four courses, each a square two blocks smaller than the last,
-    /// rising from the ground. Every course is one block high, so the whole thing can be
+    /// A stepped look-out: courses of rounded stone, each a square two blocks smaller than the
+    /// last, rising from the ground. Every course is one block high, so the whole thing can be
     /// walked up without climbing - which is the point, because traversal must not
     /// depend on an Engine capability that is still being built.
     /// </summary>
     private static PoiVoxel VantagePoint(PoiSite site, long x, long y, long z)
     {
-        long dx = Math.Abs(x - site.X);
-        long dz = Math.Abs(z - site.Z);
-        long below = y - site.Ground;
-        long steps = site.Height;
-        if (below <= 0 || below > steps)
-        {
-            return PoiVoxel.None;
-        }
-
-        long halfExtent = PoiConstants.VantageHalfExtent - (below - 1);
-        if (halfExtent < 0)
-        {
-            halfExtent = 0;
-        }
-
-        if (dx > halfExtent || dz > halfExtent)
-        {
-            return PoiVoxel.None;
-        }
-
-        // The top course is a lamp, so a look-out is findable after dark as well as in
+        // The top course carries a lamp, so a look-out is findable after dark as well as in
         // daylight - the one place in the world that generates light.
-        if (below == steps && dx == 0 && dz == 0)
+        if (y - site.Ground == site.Height && x == site.X && z == site.Z)
         {
             return PoiVoxel.Fill(BlockId.Lamp);
         }
 
-        return PoiVoxel.Fill(below == steps ? BlockId.Brick : BlockId.Cobblestone);
+        // The courses themselves are rounded stone (PoiShapes).
+        return Shaped(site, x, y, z);
     }
 
     internal static (long X, long Z) CardinalOf(long index) => Cardinal(index);

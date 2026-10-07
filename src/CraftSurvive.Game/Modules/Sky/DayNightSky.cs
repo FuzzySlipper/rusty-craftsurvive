@@ -129,11 +129,13 @@ internal sealed class DayNightSky : IDisposable
     private const float BloomIntensity = 0.3f;
 
     /// <summary>
-    /// A little more colour and contrast than the operator leaves: the painted ground reads as
-    /// ochre and sage rather than grey under the sky's blue light and the haze.
+    /// A warm, nearly neutral grade over the repainted content (#9669): the meadow, trees and sky
+    /// are already coloured, so the grade adds warmth and a little contrast rather than the
+    /// saturation the old grey ground needed (which turned the new greens lime).
     /// </summary>
-    private const float GradingSaturation = 0.18f;
-    private const float GradingContrast = 0.06f;
+    private const float GradingTemperature = 0.08f;
+    private const float GradingSaturation = 0.04f;
+    private const float GradingContrast = 0.08f;
 
     private readonly IEngineContext engine;
     private readonly Func<Vector3> observer;
@@ -202,8 +204,16 @@ internal sealed class DayNightSky : IDisposable
         night = Panorama(NightPanoramaContentPath);
         engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, Exposure));
         engine.CameraView.SetBloom(new BloomRequest(BloomThreshold, BloomIntensity));
-        engine.CameraView.SetColorGrading(new ColorGradingRequest(0f, 0f, GradingContrast, GradingSaturation));
+        engine.CameraView.SetColorGrading(new ColorGradingRequest(GradingTemperature, 0f, GradingContrast, GradingSaturation));
         engine.CameraView.SetWind(new(WindDirection, WindStrength, WindGust));
+    }
+
+    /// <summary>Sets the colour grade and exposure live, for tuning; the next world starts from the constants again.</summary>
+    internal string SetGrade(float temperature, float tint, float contrast, float saturation, float exposure)
+    {
+        engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, exposure));
+        engine.CameraView.SetColorGrading(new ColorGradingRequest(temperature, tint, contrast, saturation));
+        return FormattableString.Invariant($"grade temperature={temperature} tint={tint} contrast={contrast} saturation={saturation} exposure={exposure}");
     }
 
     /// <summary>Sets the wind's strength (0 stills it), for tuning and for measuring its cost.</summary>

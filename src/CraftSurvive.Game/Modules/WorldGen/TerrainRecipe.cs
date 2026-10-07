@@ -235,7 +235,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         {
             for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
             {
-                if (pois.SiteAt(anchorX, anchorZ) is PoiSite site && site.Kind != PoiKind.VantagePoint
+                if (pois.SiteAt(anchorX, anchorZ) is PoiSite site
                     && Math.Abs(x - site.X) <= PoiConstants.MaximumStructureReach + 1
                     && Math.Abs(z - site.Z) <= PoiConstants.MaximumStructureReach + 1)
                 {

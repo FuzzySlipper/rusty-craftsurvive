@@ -20,6 +20,10 @@ public sealed class WorldConditionsDebugModule : IDebugCommandModule
     [DebugCommand("craft.world.wind", Description = "Sets the wind's strength over the open world (0 stills grass and trees; 1 is the product's breeze).")]
     public string Wind(float strength) => conditions.SetWindStrength(strength);
 
+    [DebugCommand("craft.world.grade", Description = "Sets the colour grade (temperature, tint, contrast, saturation, each about -1 to 1) and the exposure live, for tuning.")]
+    public string Grade(float temperature, float tint, float contrast, float saturation, float exposure) =>
+        conditions.SetGrade(temperature, tint, contrast, saturation, exposure);
+
     [DebugCommand("craft.world.difficulty", Description = "Sets the difficulty: gentle, normal or harsh.")]
     public string SetDifficulty(string name) => conditions.SetDifficulty(name);
 }

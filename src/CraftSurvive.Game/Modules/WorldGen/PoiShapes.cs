@@ -32,6 +32,8 @@ internal static class PoiShapes
     private const double SteleBase = 0.95, SteleTop = 0.5, SteleLean = 0.08, PortholeRadius = 0.5, PortholeAt = 0.68;
     private const double CairnRadius = 0.9;
 
+    private const double LookoutRound = 0.3;
+
     // Cave mouth: a tall arch framing the opening, set in the plane of the mouth.
     private const double CaveArchRadius = 2.9, CaveArchRib = 1.15, CaveArchStretch = 1.5, CaveArchSetBack = 0.8;
 
@@ -45,6 +47,7 @@ internal static class PoiShapes
             PoiKind.Ruin => Ruin(site, p),
             PoiKind.StandingStones => Stones(site, p),
             PoiKind.CaveMouth => CaveArch(site, p),
+            PoiKind.VantagePoint => Lookout(site, p),
             _ => null,
         };
         // Nothing rises past the declared structure height, whatever a stele's lean or a rib's reach.
@@ -124,6 +127,23 @@ internal static class PoiShapes
         double ring = Math.Sqrt((across * across) + (y * y)) - CaveArchRadius;
         double arch = Math.Sqrt((ring * ring) + Math.Pow(along + CaveArchSetBack, 2)) - CaveArchRib;
         return Math.Max(arch, -p.Y - 0.5);
+    }
+
+    /// <summary>
+    /// A stepped look-out: one-metre courses of rounded stone, each a metre in from the one below,
+    /// so it is still walked up course by course without climbing.
+    /// </summary>
+    private static double Lookout(PoiSite site, Vector3d p)
+    {
+        double shape = double.MaxValue;
+        for (long course = 1; course <= site.Height; course++)
+        {
+            double half = Math.Max(PoiConstants.VantageHalfExtent - (course - 1), 0) + 0.5;
+            Vector3d centre = new(0, course - 0.5, 0);
+            shape = Math.Min(shape, RoundBox(p - centre, new Vector3d(half, 0.5, half), LookoutRound));
+        }
+
+        return shape;
     }
 
     /// <summary>A half ring standing on the ground in the plane spanned by `u` and up, its rib tapering upward.</summary>

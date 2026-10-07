@@ -72,6 +72,9 @@ internal sealed class WorldConditionsModule : IProductModule
 
     internal string SetWindStrength(float strength) => sky.SetWindStrength(strength);
 
+    internal string SetGrade(float temperature, float tint, float contrast, float saturation, float exposure) =>
+        sky.SetGrade(temperature, tint, contrast, saturation, exposure);
+
     /// <summary>A fresh play session keeps the world's time and difficulty; only the sky is shown again.</summary>
     public void Restart() => Show(force: true);
 
