@@ -96,7 +96,7 @@ internal sealed class DayNightSky : IDisposable
     /// Distance fog in the open: the horizon colour of each panorama in linear light (sampled from
     /// the images), blended as the sky is, so the far ground fades exactly into the sky behind it.
     /// </summary>
-    private static readonly Vector3 DayHorizon = new(0.479f, 0.662f, 0.760f);
+    private static readonly Vector3 DayHorizon = new(0.456f, 0.549f, 0.567f);
     private static readonly Vector3 NightHorizon = new(0.0103f, 0.0176f, 0.0467f);
 
     /// <summary>

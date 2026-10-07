@@ -26,13 +26,15 @@ remains the focused file audit rather than runtime texture validation.
 
 ## Sky panorama provenance
 
-`source/craftsurvive-sky-panorama-gpt.png` was generated for this repository
-with OpenAI's built-in image generation tool on 2026-08-14. The prompt
-requested a seamless 360-degree equirectangular daytime wilderness sky with
-broad painterly voxel-game clouds, a centered horizon, and no text, sun disk,
-buildings, characters, or nearby objects. `sky-panorama.png` is the RGBA8
-runtime copy; it retains the generated image's exact 1774 by 887 2:1
-dimensions and sRGB color space.
+`source/craftsurvive-sky-panorama-klein-s24.png` (sha256 `0ef25a3a918e7b4db31552295fc31b5a3e11e09c92d28131d18fa38d45cb36b3`) was
+generated on 2026-10-07 for the content pass (#9667) with FLUX.2 klein on den-nimo
+(asset-pipeline `legacy/tools/text-to-3d/layers/text2image/src/klein.py --raw-prompt
+--seed 24 --width 2048 --height 1024`; the exact prompt and the other candidates are in
+`asset-pipeline/outputs/craftsurvive-content-pass/sky/generate.sh`). It replaces the
+2026-08-14 GPT panorama, whose stepped voxel-era clouds no longer fit the world.
+`sky-panorama.png` is derived from it by `scripts/prepare-sky-panorama.py` (horizon remapped
+to the middle row, the wrap cross-faded seamless, the zenith calmed) as 2048 by 1024 RGBA8;
+the script prints the horizon colour `DayNightSky.DayHorizon` carries as the open fog colour.
 
 The panorama is retained as canonical content for future Engine-backed
 presentation work. It is presentation-only and does not define environment
