@@ -45,9 +45,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// is simulated on a kilometre lattice with scaled lengths, its own peak, ceiling and river sources;
     /// version 22 walks a continent on its region tiles (#9550, #9551): 32 m refinements of the continent
     /// over one continental drainage network, instead of the kilometre lattice; version 23 gives each
-    /// region tile a 16 km square of its own (#9550 review).
+    /// region tile a 16 km square of its own (#9550 review); version 24 plants trees as meshes on an
+    /// invisible trunk core, with a kind per biome and a drawn variant, size and turn (#9665).
     /// </summary>
-    internal const uint CurrentVersion = 23;
+    internal const uint CurrentVersion = 24;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

@@ -38,6 +38,10 @@ internal static class ProductIds
     internal const ulong WorldMapPlaceBase = 0x5_0000UL;
     internal const int WorldMapPlaceLimit = 0x2000;
 
+    /// <summary>The overworld's drawn trees (TerrainTrees, #9665); up to 0x4000 of them.</summary>
+    internal const ulong TreeObjectBase = 0x6_0000UL;
+    internal const int TreeObjectLimit = 0x4000;
+
     /// <summary>Retained light ids: the sky's sun (or moon), its occlusion layer (an ambient light) and its hemisphere fill.</summary>
     internal const ulong SunLight = 1UL;
 

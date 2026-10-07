@@ -684,7 +684,7 @@ Check.That(SoundCatalog.Cues.Values.SelectMany(sound => sound.Clips).Concat(Soun
 
 Check.That(new[] { BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Cobblestone, BlockId.Brick, BlockId.Log, BlockId.Planks, BlockId.Bedrock }
         .All(id => BlockRegistry.Get(id).Climbable)
-    && new[] { BlockId.Air, BlockId.Sand, BlockId.Gravel, BlockId.Leaves, BlockId.Water, BlockId.Glass, BlockId.Lamp, BlockId.Snow }
+    && new[] { BlockId.Air, BlockId.Sand, BlockId.Gravel, BlockId.TreeCore, BlockId.Water, BlockId.Glass, BlockId.Lamp, BlockId.Snow }
         .All(id => !BlockRegistry.Get(id).Climbable),
     "earth, rock, masonry and timber are climbable; loose, soft and see-through blocks are not");
 

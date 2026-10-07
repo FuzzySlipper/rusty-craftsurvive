@@ -11,9 +11,15 @@ internal static class GenerationConstants
     // Surface features are decided per anchor cell, never per chunk: a tree that
     // overhangs a boundary must be the same tree whichever chunk asks first.
     internal const int FeatureCellSize = 8;
-    internal const int TreeMinimumHeight = 3;
-    internal const int TreeHeightRange = 3;
-    internal const int TreeCanopyRadius = 2;
+    /// <summary>
+    /// A tree is drawn as a mesh (TerrainTrees); in the voxels it is only this many cells of
+    /// invisible trunk core above its ground, enough to stop a standing body and a creature.
+    /// </summary>
+    internal const int TreeCoreHeight = 3;
+    /// <summary>A tree's size about its kind's authored height, and the draw's resolution.</summary>
+    internal const double TreeScaleMinimum = 0.8;
+    internal const double TreeScaleMaximum = 1.25;
+    internal const long TreeDrawResolution = 1000;
     internal const int FeatureCacheLimit = 4096;
     /// <summary>
     /// The world's water level. It is part of the generation contract rather than a

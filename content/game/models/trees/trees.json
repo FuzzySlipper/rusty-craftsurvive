@@ -1,0 +1,9 @@
+{
+  "kinds": {
+    "oak": ["oak-1", "oak-2"],
+    "pine": ["pine-1", "pine-2"],
+    "birch": ["birch-1", "birch-2"],
+    "dead": ["dead-1", "dead-2"],
+    "palm": ["palm-1"]
+  }
+}

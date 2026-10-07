@@ -376,14 +376,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private bool ChunkFeaturesReach(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
     {
         long cell = GenerationConstants.FeatureCellSize;
-        long reach = GenerationConstants.TreeCanopyRadius;
-        long firstCellX = GridMath.FloorDivide(xStart - reach, cell);
-        long lastCellX = GridMath.FloorDivide(xEnd + reach, cell);
-        long firstCellZ = GridMath.FloorDivide(zStart - reach, cell);
-        long lastCellZ = GridMath.FloorDivide(zEnd + reach, cell);
-        for (long anchorX = firstCellX; anchorX <= lastCellX; anchorX++)
+        // A tree's voxels are its trunk core, inside its own anchor cell.
+        for (long anchorX = GridMath.FloorDivide(xStart, cell); anchorX <= GridMath.FloorDivide(xEnd, cell); anchorX++)
         {
-            for (long anchorZ = firstCellZ; anchorZ <= lastCellZ; anchorZ++)
+            for (long anchorZ = GridMath.FloorDivide(zStart, cell); anchorZ <= GridMath.FloorDivide(zEnd, cell); anchorZ++)
             {
                 if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
                 {
@@ -392,46 +388,18 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
                 long trunkX = (anchorX * cell) + tree.OffsetX;
                 long trunkZ = (anchorZ * cell) + tree.OffsetZ;
-                long crownY = TerrainSurface(trunkX, trunkZ) + 1 + tree.Height;
-                long baseY = crownY - tree.Height;
-
-                // The trunk: a column of log voxels.
+                long baseY = TerrainSurface(trunkX, trunkZ) + 1;
                 if (trunkX >= xStart && trunkX <= xEnd && trunkZ >= zStart && trunkZ <= zEnd
-                    && baseY <= yMaximum && crownY - 1 >= yMinimum)
+                    && baseY <= yMaximum && baseY + GenerationConstants.TreeCoreHeight - 1 >= yMinimum)
                 {
                     return true;
-                }
-
-                // The canopy: a sphere centred at the top of the trunk. Tested voxel by
-                // voxel over the overlap, because a bounding box would claim leaves in
-                // the corners the generator leaves empty.
-                long canopyXMinimum = Math.Max(xStart, trunkX - tree.CanopyRadius);
-                long canopyXMaximum = Math.Min(xEnd, trunkX + tree.CanopyRadius);
-                long canopyYMinimum = Math.Max(yMinimum, crownY - tree.CanopyRadius);
-                long canopyYMaximum = Math.Min(yMaximum, crownY + tree.CanopyRadius);
-                long canopyZMinimum = Math.Max(zStart, trunkZ - tree.CanopyRadius);
-                long canopyZMaximum = Math.Min(zEnd, trunkZ + tree.CanopyRadius);
-                for (long x = canopyXMinimum; x <= canopyXMaximum; x++)
-                {
-                    for (long y = canopyYMinimum; y <= canopyYMaximum; y++)
-                    {
-                        for (long z = canopyZMinimum; z <= canopyZMaximum; z++)
-                        {
-                            long dx = x - trunkX;
-                            long dy = y - crownY;
-                            long dz = z - trunkZ;
-                            if ((dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius)
-                            {
-                                return true;
-                            }
-                        }
-                    }
                 }
             }
         }
 
         return false;
     }
+
     /// <summary>
     /// Whether the structure pass changes whether any voxel in the chunk is empty - by
     /// building into air, or by cutting a way in.
@@ -605,37 +573,54 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>
-    /// The surface feature covering one air voxel, or empty. Every candidate anchor
-    /// cell within one cell of this voxel decides for itself whether it owns a tree,
-    /// using only its own coordinates and the world's contract, so two chunks that
-    /// share a tree agree about it without communicating and without an order.
+    /// The surface feature covering one air voxel, or empty. A tree's voxels are its trunk core,
+    /// a short column inside the anchor cell that owns it; the cell decides from its own
+    /// coordinates and the world's contract, so two chunks agree about it without communicating.
     /// </summary>
     private ushort FeatureMaterialAt(long x, long y, long z)
     {
         long cell = GenerationConstants.FeatureCellSize;
-        return FirstInNeighbourhood<ushort>(x, z, cell, (anchorX, anchorZ) =>
+        long anchorX = GridMath.FloorDivide(x, cell);
+        long anchorZ = GridMath.FloorDivide(z, cell);
+        if (TreeAt(anchorX, anchorZ) is not TreeShape tree
+            || x != (anchorX * cell) + tree.OffsetX || z != (anchorZ * cell) + tree.OffsetZ)
         {
-            if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
-            {
-                return (ushort?)null;
-            }
+            return TerrainConstants.EmptyMaterial;
+        }
 
-            long trunkX = (anchorX * cell) + tree.OffsetX;
-            long trunkZ = (anchorZ * cell) + tree.OffsetZ;
-            long baseY = TerrainSurface(trunkX, trunkZ) + 1;
-            long crownY = baseY + tree.Height;
-            if (x == trunkX && z == trunkZ && y >= baseY && y < crownY)
-            {
-                return (ushort)BlockId.Log;
-            }
+        long baseY = TerrainSurface(x, z) + 1;
+        return y >= baseY && y < baseY + GenerationConstants.TreeCoreHeight
+            ? (ushort)BlockId.TreeCore
+            : TerrainConstants.EmptyMaterial;
+    }
 
-            long dx = x - trunkX;
-            long dz = z - trunkZ;
-            long dy = y - crownY;
-            return (dx * dx) + (dy * dy) + (dz * dz) <= tree.CanopyRadius * tree.CanopyRadius
-                ? (ushort)BlockId.Leaves
-                : null;
-        }) ?? TerrainConstants.EmptyMaterial;
+    /// <summary>
+    /// The trees whose trunks stand in a rectangle of columns (inclusive), for the tree
+    /// presenter: where each stands, what it is and how it is turned and sized. The same
+    /// decisions as the voxels, so a drawn tree always stands on its trunk core.
+    /// </summary>
+    internal void TreesIn(long minimumX, long minimumZ, long maximumX, long maximumZ, List<TerrainTree> into)
+    {
+        long cell = GenerationConstants.FeatureCellSize;
+        for (long anchorX = GridMath.FloorDivide(minimumX, cell); anchorX <= GridMath.FloorDivide(maximumX, cell); anchorX++)
+        {
+            for (long anchorZ = GridMath.FloorDivide(minimumZ, cell); anchorZ <= GridMath.FloorDivide(maximumZ, cell); anchorZ++)
+            {
+                if (TreeAt(anchorX, anchorZ) is not TreeShape tree)
+                {
+                    continue;
+                }
+
+                long x = (anchorX * cell) + tree.OffsetX;
+                long z = (anchorZ * cell) + tree.OffsetZ;
+                if (x < minimumX || x > maximumX || z < minimumZ || z > maximumZ)
+                {
+                    continue;
+                }
+
+                into.Add(new TerrainTree(x, TerrainSurface(x, z) + 1, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw));
+            }
+        }
     }
 
     /// <summary>
@@ -699,13 +684,18 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return null;
         }
 
-        long height = Contract.DrawLong(draws, "tree.height", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            GenerationConstants.TreeMinimumHeight, GenerationConstants.TreeMinimumHeight + GenerationConstants.TreeHeightRange - 1);
-        long canopy = Contract.DrawLong(draws, "tree.canopy", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            GenerationConstants.TreeCanopyRadius - 1, GenerationConstants.TreeCanopyRadius);
-        return new TreeShape(offsetX, offsetZ, height, canopy);
+        string key = TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ);
+        TreeKind kind = TreeKinds.For(WorldMap.Biome(column.Geography), Unit("tree.kind", key));
+        double scale = GenerationConstants.TreeScaleMinimum
+            + ((GenerationConstants.TreeScaleMaximum - GenerationConstants.TreeScaleMinimum) * Unit("tree.scale", key));
+        return new TreeShape(offsetX, offsetZ, kind, Unit("tree.variant", key), scale, Unit("tree.yaw", key) * Math.Tau);
     }
 
-    private readonly record struct TreeShape(long OffsetX, long OffsetZ, long Height, long CanopyRadius);
+    /// <summary>A keyed draw in [0, 1).</summary>
+    private double Unit(string purpose, string key) =>
+        Contract.DrawLong(draws, purpose, key, 0, GenerationConstants.TreeDrawResolution - 1)
+        / (double)GenerationConstants.TreeDrawResolution;
+
+    private readonly record struct TreeShape(long OffsetX, long OffsetZ, TreeKind Kind, double Variant, double Scale, double Yaw);
 
 }

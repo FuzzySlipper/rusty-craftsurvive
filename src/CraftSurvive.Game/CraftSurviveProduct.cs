@@ -386,6 +386,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
     }
 
+    /// <summary>The overworld's trees, unless the player is in a separate space (a dungeon or a study).</summary>
+    private AppearanceFact[] TreeFacts() => player.InSeparateSpace ? [] : terrain.TreeFacts;
+
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()
     {
@@ -395,7 +398,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts()]
+        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. TreeFacts()]
             : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

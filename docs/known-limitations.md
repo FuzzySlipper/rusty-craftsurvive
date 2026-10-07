@@ -259,9 +259,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   painting would shimmer without adding character. Judged in ordinary W-key movement at play
   distance (the motion sequences in the #9547 evidence); the grading in `DayNightSky` carries the
   contrast. The atlas art itself is provisional.
+- **Trees are meshes on an invisible trunk core, drawn near the player only.** The recipe plants
+  each tree (kind by biome, drawn variant, size and turn) and writes only a short `TreeCore` column
+  into the voxels, which bodies collide with and a blast can break; `TerrainTrees` draws a
+  stylised low-poly mesh on every resident core within 144 m. The far field draws no trees, so the
+  forest ends where the walking residency does and the horizon is bare; there is no distant tree
+  representation yet. A canopy is not solid, and the collision is the core's whole cell, a little
+  wider than a slender trunk. The meshes are generated locally and stylised
+  (`content/trees.sources.json`).
 - **Under water the view closes into murk.** While the player's eyes are under water,
   `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same
-  colour (exponential squared), in the open and underground alike. Water, glass and leaves are
+  colour (exponential squared), in the open and underground alike. Water, glass and tree cores are
   declared non-occluding to every voxel session (`VoxelMaterialRules`), so the bed and banks under
   a river draw from above and below and the surface is seen from beneath.
 

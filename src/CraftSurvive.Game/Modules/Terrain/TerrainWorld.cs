@@ -27,6 +27,7 @@ internal sealed class TerrainWorld : IDisposable
     private readonly ProductContent content;
     private readonly ProductUiPublisher ui;
     private readonly WorldFrame frame;
+    private readonly TerrainTrees trees;
     private readonly TerrainRecipe recipe;
     private readonly TerrainChunkCache chunkCache;
     private readonly TerrainOverlayStore overlayStore;
@@ -66,6 +67,7 @@ internal sealed class TerrainWorld : IDisposable
         overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
         presentation = new TerrainPresentation(engine, content);
+        trees = new TerrainTrees(engine, content, frame);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
             committed => Edited?.Invoke(committed));
     }
@@ -184,6 +186,7 @@ internal sealed class TerrainWorld : IDisposable
         streamer.Clear();
         farField?.Dispose();
         farField = null;
+        trees.Dispose();
         presentation.Dispose();
         chunkCache.Dispose();
         session?.Dispose();
@@ -203,12 +206,18 @@ internal sealed class TerrainWorld : IDisposable
             ui.Publish();
         }
 
+        trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
         if (farField is FarField horizon)
         {
             horizon.Follow(centerVoxel.X, centerVoxel.Z);
             horizon.Advance();
         }
     }
+
+    /// <summary>The trees drawn around the player (#9665), for the appearance snapshot.</summary>
+    internal AppearanceFact[] TreeFacts => trees.Facts;
+
+    internal string TreesReadout() => trees.Readout();
 
     /// <summary>How much of the horizon is drawn, for the scene readout.</summary>
     internal string FarFieldReadout() => farField?.Readout() ?? "farField=none";
@@ -313,6 +322,7 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Moves what the world holds in local space after the player commits a rebase.</summary>
     private void OnRebased(Vector3 translation)
     {
+        trees.Invalidate();
         if (presentation.Projected)
         {
             presentation.Refresh();

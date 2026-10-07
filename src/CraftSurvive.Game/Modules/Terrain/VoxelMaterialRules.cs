@@ -5,7 +5,7 @@ namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
 /// What each block's material means to a voxel session, from the block registry: whether a body
-/// collides with it, and whether it hides the faces of its neighbours. Water, glass and leaves do
+/// collides with it, and whether it hides the faces of its neighbours. Water, glass and tree cores do
 /// not, so the bed under a river and the room behind a window are drawn. Every session the product
 /// creates - the open world and each dungeon - is configured the same way.
 /// </summary>

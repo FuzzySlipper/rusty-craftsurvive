@@ -8,7 +8,9 @@ This makes a faceted game prop with economical colour:
 3. colour each triangle from the base-colour texture (mean of its corners and centroid), or the
    material colour when untextured;
 4. split triangles into parts by role: with --foliage, a triangle whose colour is green enough
-   (hue in --leaf-hue, saturation above --leaf-saturation) is "leaves", everything else "bark";
+   (hue in --leaf-hue, saturation above --leaf-saturation, judged before any saturation change)
+   is "leaves", everything else "bark"; then each part's saturation is set (--saturation for leaves
+   and solid parts, --bark-saturation for bark);
    without it every triangle is "solid";
 5. per part, pull colours toward palette ramps (content/style/palette.json) in Lab and group them
    into --colors colours (k-means, fixed seed), for flat faceted colour fields;
@@ -57,7 +59,8 @@ def arguments():
     parser.add_argument("--pull-solid", default="")
     parser.add_argument("--pull-strength", type=float, default=0.6)
     parser.add_argument("--colors", type=int, default=6, help="colours per part (0 = keep)")
-    parser.add_argument("--saturation", type=float, default=1.0)
+    parser.add_argument("--saturation", type=float, default=1.0, help="leaf (or solid) saturation")
+    parser.add_argument("--bark-saturation", type=float, default=None, help="bark saturation (default: --saturation)")
     parser.add_argument("--brightness", type=float, default=1.0)
     parser.add_argument("--yaw", type=float, default=0.0, help="turn about the vertical axis, degrees")
     parser.add_argument("--no-preview", action="store_true")
@@ -114,6 +117,11 @@ def group(colours, k):
             if members:
                 centres[j] = [sum(m[i] for m in members) / len(members) for i in range(3)]
     return [centres[l] for l in labels]
+
+
+def saturate(rgb, amount):
+    grey = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
+    return [min(1.0, max(0.0, grey + (c - grey) * amount)) for c in rgb]
 
 
 def base_image(material):
@@ -189,8 +197,6 @@ def faces(model, args):
         else:
             rgb = list(material.diffuse_color[:3]) if material else [0.6, 0.6, 0.6]
         rgb = [min(1.0, c * args.brightness) for c in rgb]
-        grey = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]
-        rgb = [min(1.0, max(0.0, grey + (c - grey) * args.saturation)) for c in rgb]
         corners = [mesh.vertices[v].co.copy() for v in triangle.vertices]
         result.append({"corners": corners, "normal": triangle.normal.copy(), "rgb": rgb})
     return result
@@ -221,7 +227,8 @@ def build(model, args):
             continue
         names = [n for n in pulls[role].split(",") if n]
         palette = [c for n in names for c in ramps[n]]
-        colours = group(pull([f["rgb"] for f in members], palette, args.pull_strength), args.colors)
+        amount = args.bark_saturation if role == "bark" and args.bark_saturation is not None else args.saturation
+        colours = group(pull([saturate(f["rgb"], amount) for f in members], palette, args.pull_strength), args.colors)
         positions, normals, colors, indices = [], [], [], []
         for face, rgb in zip(members, colours):
             n = face["normal"]

@@ -9,7 +9,7 @@ namespace CraftSurvive.Game.Modules.Content;
 /// The world's material slot is the block's numeric id. Append only.
 ///
 /// A face is climbable when it offers holds: earth, rock, masonry and timber. Loose sand and
-/// gravel, snow, leaves, glass and lamps are not, so a player reads a climb from what a wall is
+/// gravel, snow, tree cores, glass and lamps are not, so a player reads a climb from what a wall is
 /// made of.
 /// </summary>
 internal static class BlockRegistry
@@ -63,12 +63,12 @@ internal static class BlockRegistry
             BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f,
             Climbable: true),
 
-        // Canopy: leaves are solid for collision and movement, do not occlude,
-        // and are cheap to blast, so a tree comes apart without opening a hole in
-        // the light or the skyline.
-        new(BlockId.Leaves, "leaves", "leaves", null, BlockTransparency.Cutout,
+        // A generated tree's trunk core: the tree is drawn as a mesh standing on it, so the core
+        // is solid to bodies but draws nothing (its atlas tile is fully transparent), hides no
+        // neighbour and passes light. Blasting it fells the tree.
+        new(BlockId.TreeCore, "tree-core", "tree-core", null, BlockTransparency.Cutout,
             Solid: true, Collidable: true, Occludes: false, Replaceable: false,
-            BlastResistance: 0.2f, LightEmission: 0f, LightAttenuation: 0.4f),
+            BlastResistance: 1.2f, LightEmission: 0f, LightAttenuation: 0f),
 
         // Water is a volume, not an obstacle: nothing collides with it and the
         // player's interaction with it is Engine swim mode over a product volume.

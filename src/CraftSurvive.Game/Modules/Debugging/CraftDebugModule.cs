@@ -70,7 +70,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
     {
         VoxelSceneReadout scene = terrain.ReadScene();
         return string.Create(CultureInfo.InvariantCulture,
-            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};multiLoopCells={scene.MultiLoopCells};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()}");
+            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};multiLoopCells={scene.MultiLoopCells};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()};{terrain.TreesReadout()}");
     }
 
     [DebugCommand("craft.terrain.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the overworld's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every resident chunk remeshes.")]
@@ -83,6 +83,24 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.terrain.scatter", Description = "Assisted (#9546): grows grass clumps and bushes on the overworld's grass at these densities per square metre (0 removes one).")]
     public string TerrainScatter(float grassPerSquareMetre, float bushesPerSquareMetre) =>
         terrain.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
+
+    [DebugCommand("craft.terrain.trees", Description = "Assisted (#9665): the nearest trees of a kind (oak, pine, birch, dead, palm) to a point, searching outward up to a radius in metres, for aimed captures.")]
+    public string FindTrees(string kind, double x, double z, double radiusMetres)
+    {
+        if (!Enum.TryParse(kind, ignoreCase: true, out WorldGen.TreeKind wanted)) return $"refused: no tree kind {kind}";
+        const double Ring = 64;
+        List<WorldGen.TerrainTree> found = [];
+        for (double reach = Ring; reach <= radiusMetres && found.Count == 0; reach += Ring)
+        {
+            List<WorldGen.TerrainTree> trees = [];
+            terrain.Recipe.TreesIn((long)(x - reach), (long)(z - reach), (long)(x + reach), (long)(z + reach), trees);
+            found = [.. trees.Where(tree => tree.Kind == wanted).OrderBy(tree => Math.Pow(tree.X - x, 2) + Math.Pow(tree.Z - z, 2)).Take(5)];
+        }
+
+        return found.Count == 0
+            ? FormattableString.Invariant($"no {wanted} within {radiusMetres} m of {x},{z}")
+            : string.Join(';', found.Select(tree => FormattableString.Invariant($"{tree.Kind} {tree.X},{tree.GroundY},{tree.Z} scale={tree.Scale:F2}")));
+    }
 
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]
     public string ReadGeneration() => terrain.GenerationReadout();

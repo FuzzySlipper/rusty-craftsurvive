@@ -66,7 +66,7 @@ internal static class GenerationChecks
                 for (int i = 0; i < chunk.Materials.Length; i++)
                 {
                     ushort material = chunk.Materials.Span[i];
-                    if (material == (ushort)BlockId.Log || material == (ushort)BlockId.Leaves)
+                    if (material == (ushort)BlockId.TreeCore)
                         featureVoxels++;
 
                     if (material == (ushort)BlockId.Water)
@@ -105,7 +105,7 @@ internal static class GenerationChecks
                             TerrainChunk scan = scanGenerator.Generate(new(chunkX, chunkY, chunkZ), scanOverlay.Snapshot());
                             foreach (ushort material in scan.Materials.Span)
                             {
-                                if (material == (ushort)BlockId.Log || material == (ushort)BlockId.Leaves)
+                                if (material == (ushort)BlockId.TreeCore)
                                 {
                                     scanFeatures++;
                                 }
@@ -115,6 +115,37 @@ internal static class GenerationChecks
                 }
 
                 Check.That(scanFeatures > 0, "the surface feature pass placed no feature voxel anywhere in the scanned region");
+            }
+
+            // Mesh trees (#9665): every tree the presenter is told about stands on exactly its
+            // trunk core - TreeCore cells from its ground up for the core's height, ground below,
+            // air above - and its kind is one its country grows.
+            {
+                TerrainConfiguration treeConfig = TerrainConfiguration.Default;
+                TerrainRecipe treeRecipe = treeConfig.CreateRecipe(new TestDraws(treeConfig.Seed));
+                List<TerrainTree> trees = [];
+                treeRecipe.TreesIn(-256, -256, 255, 255, trees);
+                Check.That(trees.Count > 0, "a 512 m square around the origin must hold trees");
+                Dictionary<TreeKind, int> kinds = [];
+                foreach (TerrainTree tree in trees)
+                {
+                    kinds[tree.Kind] = kinds.GetValueOrDefault(tree.Kind) + 1;
+                    Check.That(treeRecipe.MaterialAt(new(tree.X, tree.GroundY - 1, tree.Z)) == (ushort)BlockId.Grass,
+                        $"the tree at {tree.X},{tree.Z} must stand on grass");
+                    for (long y = 0; y < GenerationConstants.TreeCoreHeight; y++)
+                    {
+                        Check.That(treeRecipe.MaterialAt(new(tree.X, tree.GroundY + y, tree.Z)) == (ushort)BlockId.TreeCore,
+                            $"the tree at {tree.X},{tree.Z} must have its core {y} cells above its ground");
+                    }
+
+                    Check.That(treeRecipe.MaterialAt(new(tree.X, tree.GroundY + GenerationConstants.TreeCoreHeight, tree.Z)) == TerrainConstants.EmptyMaterial,
+                        $"nothing generated stands on the core of the tree at {tree.X},{tree.Z}");
+                    Check.That(tree.Scale >= GenerationConstants.TreeScaleMinimum && tree.Scale <= GenerationConstants.TreeScaleMaximum
+                        && tree.Variant is >= 0 and < 1 && tree.Yaw is >= 0 and < Math.Tau,
+                        $"the tree at {tree.X},{tree.Z} must draw its size, variant and turn in range");
+                }
+
+                Console.WriteLine($"Mesh trees stand on their cores: {trees.Count} in 512 m around the origin ({string.Join(", ", kinds.Select(pair => $"{pair.Key}={pair.Value}"))})");
             }
 
 

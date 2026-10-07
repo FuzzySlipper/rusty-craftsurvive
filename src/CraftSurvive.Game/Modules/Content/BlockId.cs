@@ -17,7 +17,8 @@ internal enum BlockId : ushort
     Brick = 7,
     Log = 8,
     Planks = 9,
-    Leaves = 10,
+    /// <summary>A generated tree's invisible trunk core: the tree itself is a mesh (TerrainTrees).</summary>
+    TreeCore = 10,
     Water = 11,
     Glass = 12,
     Lamp = 13,

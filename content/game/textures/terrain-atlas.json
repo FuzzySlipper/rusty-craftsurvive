@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:f29ff0b105f7a903330d6efd41a9ad8aceb7e952d474a907940cbbe73f7f2fa6",
+  "contentHash": "sha256:74809f1d3f816be11ec5e3f6c60cf3a74339d40b34a05468bd0dfb288e330f99",
   "extent": [
     256,
     256
@@ -115,14 +115,14 @@
       "authored": "scripts/generate-terrain-atlas.mjs"
     },
     {
-      "id": "leaves",
-      "block": "leaves",
+      "id": "tree-core",
+      "block": "tree-core",
       "face": "base",
       "contentMin": [
         128,
         128
       ],
-      "authored": "scripts/generate-terrain-atlas.mjs"
+      "authored": "transparent: a tree core draws nothing (#9665)"
     },
     {
       "id": "water",

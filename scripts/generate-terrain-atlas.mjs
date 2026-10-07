@@ -161,11 +161,8 @@ const painters = {
     const seam = y % 16 < 2 ? 0.72 : 1;
     return shade([185, 138, 78, 255], seam * (0.92 + noise(hash('planks'), x, y >> 2) * 0.14));
   },
-  leaves: (x, y) => {
-    const sample = noise(hash('leaves'), x, y);
-    if (sample < 0.18) return [0, 0, 0, 0];
-    return shade([74, 122, 53, 255], 0.78 + sample * 0.44);
-  },
+  // A generated tree's trunk core draws nothing: the tree is a mesh standing on it (#9665).
+  'tree-core': () => [0, 0, 0, 0],
   water: (x, y) => {
     const wave = Math.sin(((x + y * 0.6) / TILE) * Math.PI * 4) * 0.08;
     return [47 + wave * 90, 111 + wave * 90, 191 + wave * 70, 150];
@@ -198,7 +195,7 @@ const layout = [
   { id: 'brick', block: 'brick', face: 'base', at: [TILE * 3, TILE] },
   { id: 'log', block: 'log', face: 'base', at: [0, TILE * 2] },
   { id: 'planks', block: 'planks', face: 'base', at: [TILE, TILE * 2] },
-  { id: 'leaves', block: 'leaves', face: 'base', at: [TILE * 2, TILE * 2] },
+  { id: 'tree-core', block: 'tree-core', face: 'base', at: [TILE * 2, TILE * 2] },
   { id: 'water', block: 'water', face: 'base', at: [TILE * 3, TILE * 2] },
   { id: 'glass', block: 'glass', face: 'base', at: [0, TILE * 3] },
   { id: 'lamp', block: 'lamp', face: 'base', at: [TILE, TILE * 3] },

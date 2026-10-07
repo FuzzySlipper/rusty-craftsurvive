@@ -47,7 +47,7 @@ for (const region of metadata.regions) {
 const bases = new Set(metadata.regions.filter((region) => region.face === 'base').map((region) => region.block));
 for (const block of [
   'grass', 'dirt', 'stone', 'sand', 'gravel', 'cobblestone', 'brick',
-  'log', 'planks', 'leaves', 'water', 'glass', 'lamp', 'bedrock', 'snow',
+  'log', 'planks', 'tree-core', 'water', 'glass', 'lamp', 'bedrock', 'snow',
 ]) {
   assert.ok(bases.has(block), `block ${block} has no base tile in the atlas`);
 }
