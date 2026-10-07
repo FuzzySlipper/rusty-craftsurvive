@@ -1,14 +1,24 @@
-"""Deterministic grass blades for CraftSurvive's scattered grass clumps (#9546): grass-blades.png, blades
+"""Deterministic grass blades for CraftSurvive's scattered grass clumps (#9546, #9668): grass-blades.png, blades
 rising from the bottom edge of a transparent card, tapering to a point, darker at the root and lighter toward
-the tip. Alpha is opaque inside a blade and clear outside, for a masked material. No runtime image generation."""
-import math, random, struct, zlib
+the tip. Colours come from the palette's meadow ramp (content/style/palette.json) so the cards sit in the painted
+meadow ground: each blade picks its own root and tip shades, and a few are dry ochre seed stalks from the autumn
+ramp. Alpha is opaque inside a blade and clear outside, for a masked material. No runtime image generation."""
+import json, math, random, struct, zlib
 from pathlib import Path
 
 SIZE = 128
-BLADES = 30
-ROOT = (46, 66, 30)
-TIP = (118, 138, 70)
+BLADES = 34
+DRY_SHARE = 0.12
 SEED = 9546
+RAMPS = json.loads((Path(__file__).resolve().parent.parent / 'content' / 'style' / 'palette.json').read_text())['ramps']
+
+
+def rgb(hex_colour):
+    return tuple(int(hex_colour.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4))
+
+
+MEADOW = [rgb(c) for c in RAMPS['meadow']]
+AUTUMN = [rgb(c) for c in RAMPS['autumn']]
 
 def png(path, width, height, rows):
     def chunk(kind, data):
@@ -20,6 +30,11 @@ def png(path, width, height, rows):
 random.seed(SEED)
 pixels = [[0, 0, 0, 0] * SIZE for _ in range(SIZE)]
 for _ in range(BLADES):
+    dry = random.random() < DRY_SHARE
+    ramp = AUTUMN if dry else MEADOW
+    root_index = random.choice((0, 1))
+    ROOT = ramp[root_index]
+    TIP = ramp[random.choice((root_index + 2, root_index + 3))]
     base = random.uniform(6, SIZE - 6)
     height = random.uniform(0.55, 0.98) * SIZE
     width = random.uniform(3.5, 7.0)
