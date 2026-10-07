@@ -156,9 +156,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   (about 1.5 km), drawn with the walking ground's four layers and one flat water colour. It has no
   collision, trees, structures or rivers narrower than a voxel, it is sunk `SinkMetres` under the near
   ground and rises to its true height short of the drawn chunks' edge, and the fog hides the join; a
-  hole dug deeper than the sink shows it. It re-samples when the world origin moves and when the player
-  walks a chunk column; a new world samples the whole field in about a second on its first update.
-  Landscape studies and dungeons have no far field.
+  hole dug deeper than the sink shows it. Its columns are addressed in world chunk coordinates, so a
+  world-origin rebase only moves its session's origin with the walking frame (`Align`) and samples
+  nothing; new columns are sampled when the player crosses into another far chunk column, and the sunk
+  zone is re-sampled every `SinkFollowStepMetres`. A new world grows the field from the player's column
+  by `GrowthPerUpdate` chunk columns an update until it reaches `RadiusChunks`, so the full field is
+  requested over the first six updates. Landscape studies and dungeons have no far field.
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in
@@ -291,7 +294,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   player rests only at night with no awake hostile within `SurvivalRules.RestSafetyMetres`; the
   night passes at once to `WorldClock.WakingFraction`, and health comes back as food pays for it.
 - **Placed lights are lamps with real light**, but only the `LampLights.MaximumLitLamps` nearest
-  the player are lit at once, and a lamp's light is unoccluded by walls (no shadows).
+  the player are lit at once; every lit lamp requests a shadow and the Engine's budget keeps the
+  nearest that fit (Presentation, above), so a lamp far from the player lights through walls.
 
 - **Supplies come from creatures and places, not from the ground.** `ItemCatalog` holds the items,
   `Recipes` the three recipes, and `SupplyCache` what a place holds on the first reach (a return
