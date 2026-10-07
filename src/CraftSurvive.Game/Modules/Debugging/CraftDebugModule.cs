@@ -70,7 +70,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
     {
         VoxelSceneReadout scene = terrain.ReadScene();
         return string.Create(CultureInfo.InvariantCulture,
-            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()}");
+            $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};solidVoxels={scene.SolidVoxelCount};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()}");
     }
 
     [DebugCommand("craft.terrain.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the overworld's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every resident chunk remeshes.")]
@@ -79,6 +79,10 @@ public sealed class CraftDebugModule : IDebugCommandModule
         VoxelSceneReadout scene = terrain.ConfigureVertexOcclusion(strength);
         return string.Create(CultureInfo.InvariantCulture, $"vertexOcclusion={strength:F2};chunks={scene.ResidentChunkCount}");
     }
+
+    [DebugCommand("craft.terrain.scatter", Description = "Assisted (#9546): grows grass clumps and bushes on the overworld's grass at these densities per square metre (0 removes one).")]
+    public string TerrainScatter(float grassPerSquareMetre, float bushesPerSquareMetre) =>
+        terrain.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
 
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]
     public string ReadGeneration() => terrain.GenerationReadout();

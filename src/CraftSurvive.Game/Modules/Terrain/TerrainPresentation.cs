@@ -12,6 +12,7 @@ internal sealed class TerrainPresentation : IDisposable
     private readonly IEngineContext engine;
     private TerrainAtlasCatalog? atlas;
     private TerrainGroundMaterials? ground;
+    private TerrainScatter? scatter;
     private VoxelScenePresentation? projection;
 
     /// <summary>Authored content is admitted at product create, so every later projection can bind it.</summary>
@@ -19,8 +20,17 @@ internal sealed class TerrainPresentation : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         atlas = new TerrainAtlasCatalog(engine, content);
-        try { ground = new TerrainGroundMaterials(engine, content); }
-        catch { atlas.Dispose(); throw; }
+        try
+        {
+            ground = new TerrainGroundMaterials(engine, content);
+            scatter = new TerrainScatter(engine);
+        }
+        catch
+        {
+            ground?.Dispose();
+            atlas.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -45,7 +55,21 @@ internal sealed class TerrainPresentation : IDisposable
             MaterialBindings(),
             FaceMaterialBindings()));
         engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, CoarseBeyondMetres));
+        scatter?.Grow(projection);
     }
+
+    /// <summary>Sets how densely grass and bushes grow (0 removes them), for tuning.</summary>
+    internal string TuneScatter(float grassPerSquareMetre, float bushesPerSquareMetre)
+    {
+        VoxelScenePresentation current = projection ?? throw new InvalidOperationException("Terrain presentation is unavailable.");
+        scatter!.Tune(current, grassPerSquareMetre, bushesPerSquareMetre);
+        return ScatterReadout();
+    }
+
+    /// <summary>What grows on the ground now, for the scene readout.</summary>
+    internal string ScatterReadout() => projection is VoxelScenePresentation current && scatter is not null
+        ? scatter.Readout(engine.VoxelScenePresentation.RefreshScene(current))
+        : "scatter=none";
 
     /// <summary>How many chunks are drawn and how many of them coarse, for the scene readout.</summary>
     internal string LevelOfDetailReadout()
@@ -76,8 +100,11 @@ internal sealed class TerrainPresentation : IDisposable
 
     public void Dispose()
     {
+        // The projection lets go of the appearances its scatters grow first.
         projection?.Dispose();
         projection = null;
+        scatter?.Dispose();
+        scatter = null;
         ground?.Dispose();
         ground = null;
         atlas?.Dispose();

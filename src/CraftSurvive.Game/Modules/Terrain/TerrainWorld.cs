@@ -108,6 +108,11 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>How much of the open world's ground is drawn coarse (#9563).</summary>
     internal string LevelOfDetailReadout() => presentation.LevelOfDetailReadout();
 
+    internal string ScatterReadout() => presentation.ScatterReadout();
+
+    internal string TuneScatter(float grassPerSquareMetre, float bushesPerSquareMetre) =>
+        presentation.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
+
     /// <summary>The atlas image every block material is built from.</summary>
     internal RenderResourceReference AtlasSprite => presentation.AtlasSprite;
 
