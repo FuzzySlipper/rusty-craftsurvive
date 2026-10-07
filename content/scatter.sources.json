@@ -1,0 +1,141 @@
+{
+  "purpose": "Ground clutter scattered by TerrainScatter (#9668): bushes, a fern, flower clumps and field stones. Generated locally and stylised toward content/style/palette.json.",
+  "generated": "2026-10-07",
+  "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter",
+  "rejected": "fern seed 31 came out as a small palm",
+  "models": [
+    {
+      "model": "content/game/models/scatter/bush-1.prop-mesh.json",
+      "sha256": "b8eb238f7ef9429bc1d53855fff6dacb95ed3f19f52b6c8591e55a0d0afb1e43",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 31,
+        "prompt": "a round leafy green shrub bush with dense clumps of leaves in deep and yellow-green tones, wider than tall, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/bush-s31/round-leafy-green-shrub-bush-with-dense-e5ba2d60.png",
+        "sha256": "e5ba2d6031540452fa288100d02ee54103f6b1740284f1daa45562f47a97c9fd"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/bush-s31/textured_00001_.glb",
+        "sha256": "d43620e27e94a061fd3e050062f6958aa0cddf39cc4e19dd48d7a3bf7dd15d50",
+        "prompt_id": "b6c0217b-11ef-40da-bc7d-426a7fdba7ff",
+        "wall_seconds": 525.6
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 1.1 --faces 600 --role leaves --colors 6 --saturation 1.25 --pull-leaves foliage,meadow,autumn --pull-strength 0.35"
+    },
+    {
+      "model": "content/game/models/scatter/bush-2.prop-mesh.json",
+      "sha256": "145dac744dd44db969ffc3d742f0f6b1db69dfc49771b18741d7e0483cc6df9d",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 32,
+        "prompt": "a round leafy green shrub bush with dense clumps of leaves in deep and yellow-green tones, wider than tall, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/bush-s32/round-leafy-green-shrub-bush-with-dense-d4a99871.png",
+        "sha256": "d4a99871e60173bc8a5c74c6429e418cbf0821491c1b4b0d5e6b68ac0ef066aa"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/bush-s32/textured_00001_.glb",
+        "sha256": "30040f17592872e5668034e6ac77cb3d00a0388d45287f8d0e40c0d66dea50a9",
+        "prompt_id": "8791d93a-97b5-4f3a-b870-5331aaee0dfc",
+        "wall_seconds": 375.4
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 1.0 --faces 600 --role leaves --colors 6 --saturation 1.25 --pull-leaves foliage,meadow,autumn --pull-strength 0.35"
+    },
+    {
+      "model": "content/game/models/scatter/fern-1.prop-mesh.json",
+      "sha256": "23f8fbb394a8d191a4f74b4161586d8f8da1d682547b9e906219b40a5dc5f3d8",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 32,
+        "prompt": "a small fern plant with a few long arching fronds in fresh green, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/fern-s32/small-fern-plant-with-a-few-long-arching-5449603e.png",
+        "sha256": "5449603e0bcd4f1630b7cf8807a5d2421aed2730845925b128d3204c86e7715f"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/fern-s32/textured_00001_.glb",
+        "sha256": "5635056c289c31eaff54774f55219e0b807140ec1608e00e707bdce77c2490f1",
+        "prompt_id": "59f7fb85-7b18-41eb-b546-a9c16fcff96a",
+        "wall_seconds": 55.1
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.8 --faces 700 --role leaves --colors 6 --saturation 1.25 --pull-leaves foliage,meadow --pull-strength 0.3"
+    },
+    {
+      "model": "content/game/models/scatter/flowers-1.prop-mesh.json",
+      "sha256": "d36fe0c92507902eb55b51e2d2bcd9ae3a7e14352cff22a3bc29ebb4343f81cb",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 31,
+        "prompt": "a small low clump of meadow wildflowers with green leaves and a few small yellow and white blossoms, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/flowers-s31/small-low-clump-of-meadow-wildflowers-with-9d3dc5b2.png",
+        "sha256": "9d3dc5b2ea18ca461d361bd8a52bab2977858f82662959bdaab81ecafa50b5ee"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/flowers-s31/textured_00001_.glb",
+        "sha256": "7f4998f2eef9f029640a8f811daa81e8c5aca9f800e4869dad674ed05ef4341d",
+        "prompt_id": "35abe71a-8707-4038-9e01-b329a0664ed6",
+        "wall_seconds": 210.2
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.45 --faces 1000 --role leaves --colors 10 --saturation 1.2 --pull-leaves foliage,meadow,autumn,snow --pull-strength 0.15"
+    },
+    {
+      "model": "content/game/models/scatter/flowers-2.prop-mesh.json",
+      "sha256": "eeec17d4c5ee0390763e08f2c3fdcb3eb99d2e122de80040fc5865b661e102bd",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 32,
+        "prompt": "a small low clump of meadow wildflowers with green leaves and a few small yellow and white blossoms, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/flowers-s32/small-low-clump-of-meadow-wildflowers-with-4adad972.png",
+        "sha256": "4adad97279d462882d5fc331d05a80f41a5ccb05dd58fc160f55992e647e1e8a"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/flowers-s32/textured_00001_.glb",
+        "sha256": "f77a06446db90d016d9e96b13b71d39ef8adf828397238d5ac60ad9a194689b6",
+        "prompt_id": "c6562422-d815-44b0-b421-35665dbede7a",
+        "wall_seconds": 145.2
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.4 --faces 1000 --role leaves --colors 10 --saturation 1.2 --pull-leaves foliage,meadow,autumn,snow --pull-strength 0.15"
+    },
+    {
+      "model": "content/game/models/scatter/stones-1.prop-mesh.json",
+      "sha256": "73798cb7c340dcc1ab6bbeeb20d38b66533223fd86bbcb9a4d8c632f167bffb4",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 31,
+        "prompt": "a small cluster of three weathered grey and ochre field stones of different sizes, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/stones-s31/small-cluster-of-three-weathered-grey-and-9bdedfb8.png",
+        "sha256": "9bdedfb837ebe1a327f8965be17866865f4544a3ba00f303b1de5fa6262f1fb1"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/stones-s31/textured_00001_.glb",
+        "sha256": "b39dcda58004a229de466b3b212fbc5218d350fb72a1c7a1a6ac4431288d41d6",
+        "prompt_id": "761ac8e8-1636-4baf-9b15-d8dbd27dfdb7",
+        "wall_seconds": 120.1
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 700 --colors 6 --pull-solid stone,sandstone,earth --pull-strength 0.35"
+    },
+    {
+      "model": "content/game/models/scatter/stones-2.prop-mesh.json",
+      "sha256": "98d9e6228ecac13a51d8fb0d965002b28703e5dd0f5e09dcf5433d7fd1fc4d82",
+      "concept": {
+        "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
+        "seed": 32,
+        "prompt": "a small cluster of three weathered grey and ochre field stones of different sizes, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/stones-s32/small-cluster-of-three-weathered-grey-and-07593cc7.png",
+        "sha256": "07593cc7732cb400533b7fd5b3fc8736b4f3b4cc457c52b436cfdfc384d42acb"
+      },
+      "mesh": {
+        "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
+        "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/stones-s32/textured_00001_.glb",
+        "sha256": "78d189a0a849682aa8fb3477f36085c3acd64d984a6675dc5c99fe7490f4d783",
+        "prompt_id": "e810a925-6c72-403a-9ea9-235542a7b2ae",
+        "wall_seconds": 125.2
+      },
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 700 --colors 6 --pull-solid stone,sandstone,earth --pull-strength 0.35"
+    }
+  ]
+}

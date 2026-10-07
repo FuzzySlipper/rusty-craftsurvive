@@ -23,7 +23,7 @@ internal sealed class TerrainPresentation : IDisposable
         try
         {
             ground = new TerrainGroundMaterials(engine, content);
-            scatter = new TerrainScatter(engine);
+            scatter = new TerrainScatter(engine, content);
         }
         catch
         {

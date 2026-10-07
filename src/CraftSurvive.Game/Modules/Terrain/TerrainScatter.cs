@@ -5,7 +5,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// What grows on the overworld's grass (Engine #9546): clumps of grass cards and low-poly bushes
+/// What grows on the overworld's ground (Engine #9546): clumps of grass cards, and generated low-poly
+/// bushes, ferns, flowers and field stones (#9668)
 /// the Engine scatters on the grass block's ground around the camera. The product decides what
 /// grows, where and how densely; the Engine places, draws, fades and re-places the copies.
 /// </summary>
@@ -13,22 +14,49 @@ internal sealed class TerrainScatter : IDisposable
 {
     internal const string GrassContentPath = "textures/grass-blades.png";
 
-    private const uint GrassScatter = 0, BushScatter = 1;
+    private const uint GrassScatter = 0;
 
     /// <summary>Clumps per square metre of grass ground, and how far from the camera they grow.</summary>
     internal const float DefaultGrassDensity = 2.5f;
     internal const float DefaultBushDensity = 0.03f;
+    internal const string PropFolder = "models/scatter/";
     /// <summary>Inside the coarse distance (<see cref="TerrainPresentation.CoarseBeyondMetres"/>): coarse chunks grow nothing.</summary>
     private const float Reach = 44f;
     private const float FadeMetres = 12f;
-    private const float GrassSlopeDegrees = 38f, BushSlopeDegrees = 28f;
+    private const float GrassSlopeDegrees = 38f;
     private const float GrassLean = 0.35f;
     private const float GrassScaleMin = 0.75f, GrassScaleMax = 1.3f;
-    private const float BushScaleMin = 0.7f, BushScaleMax = 1.6f;
-    private const uint MaximumGrass = 60_000, MaximumBushes = 1_500;
-    private const uint BushSeed = 1;
+    private const uint MaximumGrass = 60_000;
     private static readonly Vector3 GrassTintLow = new(0.62f, 0.66f, 0.5f), GrassTintHigh = new(0.95f, 0.95f, 0.82f);
-    private static readonly Vector3 BushTintLow = new(0.75f, 0.8f, 0.7f), BushTintHigh = new(1.15f, 1.1f, 0.9f);
+
+    /// <summary>
+    /// What else grows or lies on the ground, each a generated prop mesh (scripts/stylise-mesh.py,
+    /// content/scatter.sources.json) scattered on its own: bushes, a fern, flower clumps and field
+    /// stones. Density is per square metre of the named ground; the bushes' share follows the bush
+    /// density the debug command tunes.
+    /// </summary>
+    private sealed record Layer(uint Id, string Mesh, bool Sways, float Density, float ScaleMin, float ScaleMax,
+        float SlopeDegrees, float Align, bool CastsShadows, uint Maximum, Vector3 TintLow, Vector3 TintHigh, BlockId[] Ground,
+        bool Bush = false);
+
+    private static readonly Vector3 PlantTintLow = new(0.8f, 0.85f, 0.75f), PlantTintHigh = new(1.12f, 1.08f, 0.92f);
+    private static readonly Vector3 StoneTintLow = new(0.85f, 0.85f, 0.85f), StoneTintHigh = new(1.1f, 1.05f, 1f);
+    private static readonly BlockId[] Meadow = [BlockId.Grass];
+    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
+    private static readonly Layer[] Layers =
+    [
+        new(1, "bush-1", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),
+        new(2, "bush-2", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),
+        new(3, "fern-1", true, 0.02f, 0.7f, 1.3f, 32f, 0.2f, false, 2_000, PlantTintLow, PlantTintHigh, Meadow),
+        new(4, "flowers-1", true, 0.05f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
+        new(5, "flowers-2", true, 0.05f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
+        new(6, "stones-1", false, 0.008f, 0.6f, 1.6f, 45f, 0.8f, true, 1_000, StoneTintLow, StoneTintHigh, Stony),
+        new(7, "stones-2", false, 0.008f, 0.6f, 1.6f, 45f, 0.8f, true, 1_000, StoneTintLow, StoneTintHigh, Stony),
+    ];
+
+    // Plants flutter by their vertex wind weight and lean a little; stones hold still.
+    private const float PlantWindBend = 0.05f, PlantWindFlutter = 0.05f;
+    private const float PlantRoughness = 0.85f, StoneRoughness = 0.95f;
 
     // The clump: cards crossed at even angles around its origin, blades from the texture on them.
     private const int GrassCards = 4;
@@ -39,20 +67,16 @@ internal sealed class TerrainScatter : IDisposable
     private const float GrassRoughness = 0.9f;
     private static readonly Color GrassColor = new(1, 1, 1, 1);
 
-    // The bush: a squashed low-poly sphere standing on its origin, flat shaded.
-    private const int BushRings = 4, BushSegments = 7;
-    private const float BushWidth = 0.7f, BushHeight = 0.5f, BushFootDepth = 0.7f;
-    private const float BushRoughness = 0.85f;
-    private static readonly Color BushColor = new(0.1f, 0.17f, 0.07f, 1);
-
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
-    private readonly Material grass, bush;
-    private readonly MeshResource grassMesh, bushMesh;
-    private readonly Appearance grassLook, bushLook;
+    private readonly Material grass, plant, stone;
+    private readonly MeshResource grassMesh;
+    private readonly Appearance grassLook;
+    private readonly List<MeshResource> propMeshes = [];
+    private readonly Dictionary<uint, Appearance> looks = [];
     private float grassDensity = DefaultGrassDensity, bushDensity = DefaultBushDensity;
 
-    internal TerrainScatter(IEngineContext engine)
+    internal TerrainScatter(IEngineContext engine, ProductContent content)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         Color white = new(1, 1, 1, 1);
@@ -70,14 +94,25 @@ internal sealed class TerrainScatter : IDisposable
             WindBend = GrassWindBend,
             WindFlutter = GrassWindFlutter,
         });
-        bush = engine.Graphics.CreateMaterial(new MaterialRequest(BushColor, default(RenderResourceReference), BushRoughness, white, Vector3.Zero, 0, false) with
+        plant = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), PlantRoughness, white, Vector3.Zero, 0, true) with
+        {
+            FlatShading = true,
+            WindBend = PlantWindBend,
+            WindFlutter = PlantWindFlutter,
+        });
+        stone = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), StoneRoughness, white, Vector3.Zero, 0, false) with
         {
             FlatShading = true,
         });
         grassMesh = engine.Graphics.CreateMeshResource(Clump(grass));
-        bushMesh = engine.Graphics.CreateMeshResource(Bush(bush));
         grassLook = engine.Graphics.CreateMeshAppearance(grassMesh);
-        bushLook = engine.Graphics.CreateMeshAppearance(bushMesh);
+        foreach (Layer layer in Layers)
+        {
+            Material material = layer.Sways ? plant : stone;
+            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, PropFolder + layer.Mesh + PropMesh.Suffix, _ => material));
+            propMeshes.Add(mesh);
+            looks[layer.Id] = engine.Graphics.CreateMeshAppearance(mesh);
+        }
     }
 
     /// <summary>Grows grass and bushes on the projection's grass ground at the current densities.</summary>
@@ -95,18 +130,25 @@ internal sealed class TerrainScatter : IDisposable
             Align = GrassLean,
             MaximumInstances = MaximumGrass,
         });
-        Set(projection, BushScatter, bushDensity, new VoxelSceneScatterRequest(projection, BushScatter, bushLook, bush, onGrass, bushDensity, Reach) with
+        foreach (Layer layer in Layers)
         {
-            Fade = FadeMetres,
-            ScaleMin = BushScaleMin,
-            ScaleMax = BushScaleMax,
-            TintLow = BushTintLow,
-            TintHigh = BushTintHigh,
-            SlopeLimitDegrees = BushSlopeDegrees,
-            CastsShadows = true,
-            MaximumInstances = MaximumBushes,
-            Seed = BushSeed,
-        });
+            float density = layer.Bush ? bushDensity / 2 : layer.Density * (grassDensity > 0 ? 1 : 0);
+            ReadOnlyMemory<uint> ground = layer.Ground.Select(block => (uint)BlockRegistry.Get(block).Slot).ToArray();
+            Set(projection, layer.Id, density, new VoxelSceneScatterRequest(projection, layer.Id, looks[layer.Id], layer.Sways ? plant : stone,
+                ground, density, Reach) with
+            {
+                Fade = FadeMetres,
+                ScaleMin = layer.ScaleMin,
+                ScaleMax = layer.ScaleMax,
+                TintLow = layer.TintLow,
+                TintHigh = layer.TintHigh,
+                SlopeLimitDegrees = layer.SlopeDegrees,
+                Align = layer.Align,
+                CastsShadows = layer.CastsShadows,
+                MaximumInstances = layer.Maximum,
+                Seed = layer.Id,
+            });
+        }
     }
 
     /// <summary>Sets the densities (0 removes that scatter) and grows again.</summary>
@@ -128,12 +170,15 @@ internal sealed class TerrainScatter : IDisposable
 
     public void Dispose()
     {
+        foreach (Appearance look in looks.Values) look.Dispose();
+        looks.Clear();
         grassLook.Dispose();
-        bushLook.Dispose();
         grassMesh.Dispose();
-        bushMesh.Dispose();
+        foreach (MeshResource mesh in propMeshes) mesh.Dispose();
+        propMeshes.Clear();
         grass.Dispose();
-        bush.Dispose();
+        plant.Dispose();
+        stone.Dispose();
         grassTexture.Dispose();
     }
 
@@ -164,34 +209,6 @@ internal sealed class TerrainScatter : IDisposable
         }
 
         return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), colors.ToArray(), indices.ToArray(),
-            new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
-    }
-
-    /// <summary>A bush: a squashed sphere of few rings whose lower part sinks below its origin.</summary>
-    private static MeshResourceCreateRequest Bush(Material material)
-    {
-        List<Vector3> positions = [], normals = [];
-        List<Vector2> uvs = [];
-        List<uint> indices = [];
-        for (int ring = 0; ring <= BushRings; ring++)
-        for (int segment = 0; segment <= BushSegments; segment++)
-        {
-            float theta = MathF.PI * ring / BushRings, phi = MathF.Tau * segment / BushSegments;
-            Vector3 n = new(MathF.Sin(theta) * MathF.Cos(phi), MathF.Cos(theta), MathF.Sin(theta) * MathF.Sin(phi));
-            positions.Add(new(n.X * BushWidth / 2, (n.Y + BushFootDepth) * BushHeight / (1 + BushFootDepth), n.Z * BushWidth / 2));
-            normals.Add(n);
-            uvs.Add(new((float)segment / BushSegments, (float)ring / BushRings));
-        }
-
-        const uint across = BushSegments + 1;
-        for (uint ring = 0; ring < BushRings; ring++)
-        for (uint segment = 0; segment < BushSegments; segment++)
-        {
-            uint a = ring * across + segment, b = a + across;
-            indices.AddRange([a, a + 1, b, a + 1, b + 1, b]);
-        }
-
-        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), ReadOnlyMemory<Color>.Empty, indices.ToArray(),
             new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
     }
 }
