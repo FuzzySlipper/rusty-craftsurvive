@@ -265,8 +265,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   with Stone, whose distance feeds the voxel densities, so dual contouring draws them as worn faceted
   rock with terrain collision, navigation and blasts. Features thinner than about two metres do not
   survive one-metre voxels, so the shapes stay chunky; parts sunk into a slope are simply buried.
-  Vantage points are still stepped cobble with a lamp, and there is no coloured (ceramic) accent:
-  the terrain blend's four layers are taken (rusty-engine #9676).
+  Every shape reaches three metres into the ground, so on a slope it fills the gap rather than
+  overhanging it. Vantage points stay stepped cobble with a lamp: the player steps up a one-metre
+  cube course but not the same course reconstructed as stone (rusty-engine #9681), and a vantage
+  point is there to be walked up. There is no coloured (ceramic) accent: the terrain blend's four
+  layers are taken (rusty-engine #9676).
 - **Trees are meshes on an invisible trunk core, drawn near the player only.** The recipe plants
   each tree (kind by biome, drawn variant, size and turn) and writes only a short `TreeCore` column
   into the voxels, which bodies collide with and a blast can break; `TerrainTrees` draws a

@@ -149,8 +149,8 @@ internal static class PoiStructures
     }
 
     /// <summary>
-    /// A stepped look-out: courses of rounded stone, each a square two blocks smaller than the
-    /// last, rising from the ground. Every course is one block high, so the whole thing can be
+    /// A stepped look-out: four courses, each a square two blocks smaller than the last,
+    /// rising from the ground. Every course is one block high, so the whole thing can be
     /// walked up without climbing - which is the point, because traversal must not
     /// depend on an Engine capability that is still being built.
     /// </summary>
@@ -163,8 +163,16 @@ internal static class PoiStructures
             return PoiVoxel.Fill(BlockId.Lamp);
         }
 
-        // The courses themselves are rounded stone (PoiShapes).
-        return Shaped(site, x, y, z);
+        // The courses stay cobble cubes: the player's step-up climbs a one-metre cube riser but not
+        // the same riser reconstructed as stone (rusty-engine #9681), and being walked up is the point.
+        long dx = Math.Abs(x - site.X), dz = Math.Abs(z - site.Z), below = y - site.Ground;
+        if (below <= 0 || below > site.Height)
+        {
+            return PoiVoxel.None;
+        }
+
+        long half = Math.Max(PoiConstants.VantageHalfExtent - (below - 1), 0);
+        return dx > half || dz > half ? PoiVoxel.None : PoiVoxel.Fill(BlockId.Cobblestone);
     }
 
     internal static (long X, long Z) CardinalOf(long index) => Cardinal(index);

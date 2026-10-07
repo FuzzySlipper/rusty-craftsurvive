@@ -12,6 +12,13 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// </summary>
 internal static class PoiShapes
 {
+    /// <summary>
+    /// How far every shape reaches below its site's ground: on a slope the ground falls away from
+    /// the site's own height, and a shape that stopped at it would overhang a gap. Fills only reach
+    /// air, so the foundation fills the gap and leaves solid ground alone.
+    /// </summary>
+    private const double Foundation = 3.0;
+
     // Ribs and walls are at least about two metres thick: on one-metre voxels, dual contouring drops
     // thinner stone.
 
@@ -19,7 +26,7 @@ internal static class PoiShapes
     internal const double Band = 3.0;
 
     // Dungeon entrance: a low platform around the shaft, crossed by two arches that meet over it.
-    private const double PlatformHalf = 3.5, PlatformTop = 0.25, PlatformDepth = 1.2, PlatformRound = 0.4;
+    private const double PlatformHalf = 3.5, PlatformTop = 0.25, PlatformDepth = 2.5, PlatformRound = 0.4;
     private const double ShaftHalf = 1.5;
     private const double GateArchRadius = 4.6, GateRibBase = 1.35, GateRibTop = 1.0;
 
@@ -31,8 +38,6 @@ internal static class PoiShapes
     // Standing stones: tapered steles around a ring, the tallest pierced by a round opening.
     private const double SteleBase = 0.95, SteleTop = 0.5, SteleLean = 0.08, PortholeRadius = 0.5, PortholeAt = 0.68;
     private const double CairnRadius = 0.9;
-
-    private const double LookoutRound = 0.3;
 
     // Cave mouth: a tall arch framing the opening, set in the plane of the mouth.
     private const double CaveArchRadius = 2.9, CaveArchRib = 1.15, CaveArchStretch = 1.5, CaveArchSetBack = 0.8;
@@ -47,7 +52,6 @@ internal static class PoiShapes
             PoiKind.Ruin => Ruin(site, p),
             PoiKind.StandingStones => Stones(site, p),
             PoiKind.CaveMouth => CaveArch(site, p),
-            PoiKind.VantagePoint => Lookout(site, p),
             _ => null,
         };
         // Nothing rises past the declared structure height, whatever a stele's lean or a rib's reach.
@@ -75,12 +79,12 @@ internal static class PoiShapes
         double phase = site.Variant * 0.9;
         double fraction = 0.5 + (0.35 * Math.Sin((2 * angle) + phase)) + (0.25 * Math.Sin((5 * angle) - (phase * 1.7)));
         double height = site.Height * Math.Clamp(fraction, -0.2, 1.0);
-        double wall = Math.Max(Math.Abs(radial - RuinRadius) - RuinWallHalfThickness, Math.Max(p.Y - height, -p.Y - 1.0));
+        double wall = Math.Max(Math.Abs(radial - RuinRadius) - RuinWallHalfThickness, Math.Max(p.Y - height, -p.Y - Foundation));
         double ribs = double.MaxValue;
         for (int rib = 0; rib < RuinRibs; rib++)
         {
             double a = phase + (rib * Math.Tau / RuinRibs);
-            Vector3d foot = new(Math.Cos(a) * RuinRadius, -0.5, Math.Sin(a) * RuinRadius);
+            Vector3d foot = new(Math.Cos(a) * RuinRadius, -Foundation, Math.Sin(a) * RuinRadius);
             Vector3d head = new(Math.Cos(a) * RuinRadius * RuinRibInward, site.Height * RuinRibRise, Math.Sin(a) * RuinRadius * RuinRibInward);
             ribs = Math.Min(ribs, RoundCone(p, foot, head, RuinRibBase, RuinRibTop));
         }
@@ -98,8 +102,8 @@ internal static class PoiShapes
             double height = site.Height - (((index + site.Variant) % 3) * 2);
             height = Math.Max(height, PoiConstants.StoneMinimumHeight - 3);
             Vector3d outward = new(Math.Cos(a), 0, Math.Sin(a));
-            Vector3d foot = outward * PoiConstants.StoneRingRadius + new Vector3d(0, -0.5, 0);
-            Vector3d head = foot + new Vector3d(outward.X * height * SteleLean, height, outward.Z * height * SteleLean);
+            Vector3d foot = outward * PoiConstants.StoneRingRadius + new Vector3d(0, -Foundation, 0);
+            Vector3d head = foot + new Vector3d(outward.X * height * SteleLean, height + Foundation, outward.Z * height * SteleLean);
             double stele = RoundCone(p, foot, head, SteleBase, SteleTop);
             if (index == 0)
             {
@@ -126,24 +130,7 @@ internal static class PoiShapes
         double y = p.Y / CaveArchStretch;
         double ring = Math.Sqrt((across * across) + (y * y)) - CaveArchRadius;
         double arch = Math.Sqrt((ring * ring) + Math.Pow(along + CaveArchSetBack, 2)) - CaveArchRib;
-        return Math.Max(arch, -p.Y - 0.5);
-    }
-
-    /// <summary>
-    /// A stepped look-out: one-metre courses of rounded stone, each a metre in from the one below,
-    /// so it is still walked up course by course without climbing.
-    /// </summary>
-    private static double Lookout(PoiSite site, Vector3d p)
-    {
-        double shape = double.MaxValue;
-        for (long course = 1; course <= site.Height; course++)
-        {
-            double half = Math.Max(PoiConstants.VantageHalfExtent - (course - 1), 0) + 0.5;
-            Vector3d centre = new(0, course - 0.5, 0);
-            shape = Math.Min(shape, RoundBox(p - centre, new Vector3d(half, 0.5, half), LookoutRound));
-        }
-
-        return shape;
+        return Math.Max(arch, -p.Y - Foundation);
     }
 
     /// <summary>A half ring standing on the ground in the plane spanned by `u` and up, its rib tapering upward.</summary>
@@ -152,7 +139,7 @@ internal static class PoiShapes
         double ring = Math.Sqrt((u * u) + (up * up)) - radius;
         double t = Math.Clamp(up / radius, 0, 1);
         double rib = ribBase + ((ribTop - ribBase) * t);
-        return Math.Max(Math.Sqrt((ring * ring) + (w * w)) - rib, -up - 0.5);
+        return Math.Max(Math.Sqrt((ring * ring) + (w * w)) - rib, -up - Foundation);
     }
 
     private static double Box(Vector3d p, Vector3d half)

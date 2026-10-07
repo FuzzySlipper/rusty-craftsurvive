@@ -48,10 +48,12 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// region tile a 16 km square of its own (#9550 review); version 24 plants trees as meshes on an
     /// invisible trunk core, with a kind per biome and a drawn variant, size and turn (#9665); version 25
     /// shapes the landmarks - dungeon gates, ruins, standing stones and cave arches - as stone distance
-    /// fields reconstructed by dual contouring instead of stacked blocks (#9671); version 26 does the
-    /// same for the vantage points' stepped courses (#9671).
+    /// fields reconstructed by dual contouring instead of stacked blocks (#9671); version 26 did the
+    /// same for the vantage points' stepped courses (#9671); version 27 sets every shaped landmark on
+    /// a foundation three metres into the ground, so none overhangs ground that falls away, and
+    /// returns the vantage points to cube courses, which the player can step up (#9669).
     /// </summary>
-    internal const uint CurrentVersion = 26;
+    internal const uint CurrentVersion = 27;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
