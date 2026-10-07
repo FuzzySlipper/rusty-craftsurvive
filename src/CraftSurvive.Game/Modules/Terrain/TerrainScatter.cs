@@ -14,7 +14,19 @@ internal sealed class TerrainScatter : IDisposable
 {
     internal const string GrassContentPath = "textures/grass-blades.png";
 
-    private const uint GrassScatter = 0;
+    /// <summary>
+    /// The grass clump variants: each samples one cell of the painted 2x2 atlas (scripts/make-grass-atlas.py,
+    /// content/grass.sources.json) and takes its share of the grass density; the seed-head tuft stands taller.
+    /// </summary>
+    private sealed record GrassVariant(uint Id, int Cell, float Share, float HeightScale);
+    private static readonly GrassVariant[] GrassVariants =
+    [
+        new(0, 0, 0.35f, 1f),
+        new(8, 1, 0.35f, 1f),
+        new(9, 2, 0.15f, 1.35f),
+        new(10, 3, 0.15f, 0.85f),
+    ];
+    private const int AtlasCells = 2;
 
     /// <summary>Clumps per square metre of grass ground, and how far from the camera they grow.</summary>
     internal const float DefaultGrassDensity = 2.5f;
@@ -27,7 +39,8 @@ internal sealed class TerrainScatter : IDisposable
     private const float GrassLean = 0.35f;
     private const float GrassScaleMin = 0.75f, GrassScaleMax = 1.3f;
     private const uint MaximumGrass = 60_000;
-    private static readonly Vector3 GrassTintLow = new(0.62f, 0.66f, 0.5f), GrassTintHigh = new(0.95f, 0.95f, 0.82f);
+    private const uint GrassSeedOffset = 100;
+    private static readonly Vector3 GrassTintLow = new(0.78f, 0.82f, 0.68f), GrassTintHigh = new(1.05f, 1.05f, 0.92f);
 
     /// <summary>
     /// What else grows or lies on the ground, each a generated prop mesh (scripts/stylise-mesh.py,
@@ -60,7 +73,7 @@ internal sealed class TerrainScatter : IDisposable
 
     // The clump: cards crossed at even angles around its origin, blades from the texture on them.
     private const int GrassCards = 4;
-    private const float CardWidth = 0.5f, CardHeight = 0.55f, ClumpSpread = 0.35f;
+    private const float CardWidth = 0.6f, CardHeight = 0.65f, ClumpSpread = 0.35f;
     private const int ClumpLayoutSeed = 9546;
     private const float GrassWindBend = 0.08f, GrassWindFlutter = 0.06f;
     private const float GrassAlphaCutoff = 0.5f;
@@ -70,8 +83,8 @@ internal sealed class TerrainScatter : IDisposable
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
     private readonly Material grass, plant, stone;
-    private readonly MeshResource grassMesh;
-    private readonly Appearance grassLook;
+    private readonly List<MeshResource> grassMeshes = [];
+    private readonly Dictionary<uint, Appearance> grassLooks = [];
     private readonly List<MeshResource> propMeshes = [];
     private readonly Dictionary<uint, Appearance> looks = [];
     private float grassDensity = DefaultGrassDensity, bushDensity = DefaultBushDensity;
@@ -104,8 +117,12 @@ internal sealed class TerrainScatter : IDisposable
         {
             FlatShading = true,
         });
-        grassMesh = engine.Graphics.CreateMeshResource(Clump(grass));
-        grassLook = engine.Graphics.CreateMeshAppearance(grassMesh);
+        foreach (GrassVariant variant in GrassVariants)
+        {
+            MeshResource mesh = engine.Graphics.CreateMeshResource(Clump(grass, variant));
+            grassMeshes.Add(mesh);
+            grassLooks[variant.Id] = engine.Graphics.CreateMeshAppearance(mesh);
+        }
         foreach (Layer layer in Layers)
         {
             Material material = layer.Sways ? plant : stone;
@@ -119,17 +136,23 @@ internal sealed class TerrainScatter : IDisposable
     internal void Grow(VoxelScenePresentation projection)
     {
         ReadOnlyMemory<uint> onGrass = new uint[] { BlockRegistry.Get(BlockId.Grass).Slot };
-        Set(projection, GrassScatter, grassDensity, new VoxelSceneScatterRequest(projection, GrassScatter, grassLook, grass, onGrass, grassDensity, Reach) with
+        foreach (GrassVariant variant in GrassVariants)
         {
-            Fade = FadeMetres,
-            ScaleMin = GrassScaleMin,
-            ScaleMax = GrassScaleMax,
-            TintLow = GrassTintLow,
-            TintHigh = GrassTintHigh,
-            SlopeLimitDegrees = GrassSlopeDegrees,
-            Align = GrassLean,
-            MaximumInstances = MaximumGrass,
-        });
+            float density = grassDensity * variant.Share;
+            Set(projection, variant.Id, density, new VoxelSceneScatterRequest(projection, variant.Id, grassLooks[variant.Id], grass, onGrass, density, Reach) with
+            {
+                Fade = FadeMetres,
+                ScaleMin = GrassScaleMin,
+                ScaleMax = GrassScaleMax,
+                TintLow = GrassTintLow,
+                TintHigh = GrassTintHigh,
+                SlopeLimitDegrees = GrassSlopeDegrees,
+                Align = GrassLean,
+                MaximumInstances = (uint)(MaximumGrass * variant.Share),
+                Seed = variant.Id + GrassSeedOffset,
+            });
+        }
+
         foreach (Layer layer in Layers)
         {
             float density = layer.Bush ? bushDensity / 2 : layer.Density * (grassDensity > 0 ? 1 : 0);
@@ -172,8 +195,10 @@ internal sealed class TerrainScatter : IDisposable
     {
         foreach (Appearance look in looks.Values) look.Dispose();
         looks.Clear();
-        grassLook.Dispose();
-        grassMesh.Dispose();
+        foreach (Appearance look in grassLooks.Values) look.Dispose();
+        grassLooks.Clear();
+        foreach (MeshResource mesh in grassMeshes) mesh.Dispose();
+        grassMeshes.Clear();
         foreach (MeshResource mesh in propMeshes) mesh.Dispose();
         propMeshes.Clear();
         grass.Dispose();
@@ -183,17 +208,19 @@ internal sealed class TerrainScatter : IDisposable
     }
 
     /// <summary>
-    /// A clump: <see cref="GrassCards"/> cards crossed at even angles near its origin; vertex alpha
-    /// 0 at the root and 1 at the tip weights the wind's flutter.
+    /// A clump: <see cref="GrassCards"/> cards crossed at even angles near its origin, each showing the
+    /// variant's atlas cell; vertex alpha 0 at the root and 1 at the tip weights the wind's flutter.
     /// </summary>
-    private static MeshResourceCreateRequest Clump(Material material)
+    private static MeshResourceCreateRequest Clump(Material material, GrassVariant variant)
     {
+        float u0 = (float)(variant.Cell % AtlasCells) / AtlasCells, v0 = (float)(variant.Cell / AtlasCells) / AtlasCells;
+        float u1 = u0 + (1f / AtlasCells), v1 = v0 + (1f / AtlasCells);
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];
         List<Color> colors = [];
         List<uint> indices = [];
-        Random layout = new(ClumpLayoutSeed);
-        Vector3 up = new(0, CardHeight, 0);
+        Random layout = new(ClumpLayoutSeed + variant.Cell);
+        Vector3 up = new(0, CardHeight * variant.HeightScale, 0);
         for (int card = 0; card < GrassCards; card++)
         {
             float angle = card * MathF.PI / GrassCards;
@@ -203,7 +230,7 @@ internal sealed class TerrainScatter : IDisposable
             uint first = (uint)positions.Count;
             positions.AddRange([root - across, root + across, root + across + up, root - across + up]);
             normals.AddRange([normal, normal, normal, normal]);
-            uvs.AddRange([new(0, 1), new(1, 1), new(1, 0), new(0, 0)]);
+            uvs.AddRange([new(u0, v1), new(u1, v1), new(u1, v0), new(u0, v0)]);
             colors.AddRange([new(1, 1, 1, 0), new(1, 1, 1, 0), new(1, 1, 1, 1), new(1, 1, 1, 1)]);
             indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
         }

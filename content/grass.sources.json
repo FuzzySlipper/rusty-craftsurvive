@@ -1,0 +1,38 @@
+{
+  "purpose": "The grass card atlas (#9668 review): four painted tuft sprites keyed and packed 2x2; TerrainScatter's clump variants each sample one cell.",
+  "texture": "content/game/textures/grass-blades.png",
+  "sha256": "7598e2f84a54d0133e40b18bfcd2f3cc1378d4b27b044e4301d857238fd5e819",
+  "generator": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py --raw-prompt 1024x1024 (den-nimo), outputs/craftsurvive-content-pass/grass/generate.sh",
+  "derivation": "python3 scripts/make-grass-atlas.py content/game/textures/grass-blades.png <cell 0> <cell 1> <cell 2> <cell 3> (cell 256)",
+  "rejected": "dry-s42 and flowered-s42 were usable alternatives; lush-s42 kept as the second plain clump",
+  "cells": [
+    {
+      "cell": 0,
+      "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/grass/lush-s41/dense-tuft-of-tall-slender-green-grass-075a6d47.png",
+      "sha256": "075a6d470730edb7a0220fd2767ed8ae08e782d88723732c6a59db136f71403e",
+      "seed": 41,
+      "prompt": "a dense tuft of tall slender green grass blades in warm mid green and yellow-green, slightly curving, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, the blades rise from a straight base line along the bottom edge of the image, isolated on a pure flat white background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    },
+    {
+      "cell": 1,
+      "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/grass/lush-s42/dense-tuft-of-tall-slender-green-grass-50930492.png",
+      "sha256": "5093049295a1d626474d1be9daf710452c085ebd9508010841dcbf6fd98352e1",
+      "seed": 42,
+      "prompt": "a dense tuft of tall slender green grass blades in warm mid green and yellow-green, slightly curving, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, the blades rise from a straight base line along the bottom edge of the image, isolated on a pure flat white background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    },
+    {
+      "cell": 2,
+      "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/grass/dry-s41/tuft-of-meadow-grass-with-green-blades-and-a-4a14c22f.png",
+      "sha256": "4a14c22fa8f354be4e801a4acc4cbecd3ccfd2739c43caddbb5865cd84a21106",
+      "seed": 41,
+      "prompt": "a tuft of meadow grass with green blades and a few taller dry golden seed stalks with small seed heads, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, the blades rise from a straight base line along the bottom edge of the image, isolated on a pure flat white background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    },
+    {
+      "cell": 3,
+      "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/grass/flowered-s41/tuft-of-short-green-grass-blades-with-a-few-a1471207.png",
+      "sha256": "a147120747d1e1df8bb07ed3555263630e26ee1d8ada3c1b7e5f1aed5f1fafe4",
+      "seed": 41,
+      "prompt": "a tuft of short green grass blades with a few tiny white and yellow wildflowers among them, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, the blades rise from a straight base line along the bottom edge of the image, isolated on a pure flat white background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    }
+  ]
+}
