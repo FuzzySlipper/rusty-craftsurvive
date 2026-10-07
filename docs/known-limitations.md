@@ -252,11 +252,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   flicker on the light itself, no heat or sound, and a fire burns whatever the weather. The fires of
   the nearest `LampLights.MaximumLitLamps` lamps burn; the rest are dark until the player comes near.
 - **Texture filtering is decided per material class (#9547).** The block atlas (bricks, planks,
-  lamps, trees) stays nearest-filtered: its pixels read as authored marks at 3 m and vanish into a
-  plain colour by 20 m, which is the retro surface the direction asks for. The painted ground layers
-  stay linear with stochastic tiling, because nearest sampling of a 1254² painting shimmers in motion
-  without adding character. Density and contrast were judged in live captures at play distance, not
-  by walking; the grading in `DayNightSky` carries the contrast. The atlas art itself is provisional.
+  lamps, trees) stays nearest-filtered: walked at from 16 m to contact, its pixels hold still on the
+  surface and read as authored marks from about 6 m, resolving to a plain colour farther out, which
+  is the retro surface the direction asks for. The painted ground layers stay linear with stochastic
+  tiling: walked over, the painting's marks slide without sparkle, where nearest sampling of a 1254²
+  painting would shimmer without adding character. Judged in ordinary W-key movement at play
+  distance (the motion sequences in the #9547 evidence); the grading in `DayNightSky` carries the
+  contrast. The atlas art itself is provisional.
 - **Under water the view closes into murk.** While the player's eyes are under water,
   `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same
   colour (exponential squared), in the open and underground alike. Water, glass and leaves are
