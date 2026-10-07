@@ -10,8 +10,12 @@ public sealed class BuildDebugModule : IDebugCommandModule
     private readonly Func<BlockEntityStore> entityStoreSource;
     private BlockEntityStore entityStore => entityStoreSource();
 
-    internal BuildDebugModule(Func<BuildModule> build, Func<BlockEntityStore> entityStore)
+    private readonly Func<LampLights> lampsSource;
+    private LampLights lamps => lampsSource();
+
+    internal BuildDebugModule(Func<BuildModule> build, Func<BlockEntityStore> entityStore, Func<LampLights> lamps)
     {
+        lampsSource = lamps;
         this.buildSource = build ?? throw new ArgumentNullException(nameof(build));
         this.entityStoreSource = entityStore ?? throw new ArgumentNullException(nameof(entityStore));
     }
@@ -40,6 +44,6 @@ public sealed class BuildDebugModule : IDebugCommandModule
     [DebugCommand("craft.build.entities", Description = "Lists the block entities standing in the world, and how their save went.")]
     public string Entities() => $"{build.Entities()}; {entityStore.Readout()}";
 
-    [DebugCommand("craft.build.readout", Description = "Reports stamps placed, undos, refusals, and the last outcome.")]
-    public string Readout() => build.Readout();
+    [DebugCommand("craft.build.readout", Description = "Reports stamps placed, undos, refusals, the last outcome, and the lamps lit and burning.")]
+    public string Readout() => build.Readout() + $" lamps={lamps.Lit} fires={lamps.FiresBurning}";
 }

@@ -41,6 +41,13 @@ public sealed class CraftDebugModule : IDebugCommandModule
             ? FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}")
             : FormattableString.Invariant($"refused: a standing body fits neither at {x:F3},{y:F3},{z:F3} nor on the ground below it");
 
+    [DebugCommand("craft.player.look", Description = "Assisted: turns the live view by degrees of yaw and pitch through the player's own look rules, for aimed captures.")]
+    public string LookBy(double yawDegrees, double pitchDegrees)
+    {
+        player.LookBy(yawDegrees, pitchDegrees);
+        return player.DebugReadout();
+    }
+
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();
 

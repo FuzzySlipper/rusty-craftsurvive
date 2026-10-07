@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -20,7 +21,7 @@ internal sealed class LampLights : IProductModule
     /// <summary>How far the player may move before the nearest lamps are chosen again.</summary>
     private const float RechooseDistanceMetres = 8f;
 
-    private const float LampIntensity = 30f;
+    private const float LampIntensity = 10f;
     private const float LampRange = 12f;
     private const float LampDecay = 2f;
 
@@ -32,6 +33,13 @@ internal sealed class LampLights : IProductModule
     private const uint LampShadowResolution = 256;
     private const int LampShadowPriority = 0;
     private const float CellCentre = 0.5f;
+
+    /// <summary>
+    /// The light hangs this far above the lamp block's top face, outside its cell: a light inside
+    /// an opaque block is shadowed by the block's own faces, and the faces a hand's breadth from
+    /// it bloom to white.
+    /// </summary>
+    private const float LightAboveBlock = 1.2f;
     private static readonly Vector3 LampColour = new(1f, 0.72f, 0.38f);
 
     private readonly IEngineContext engine;
@@ -39,6 +47,10 @@ internal sealed class LampLights : IProductModule
     private readonly PlayerController player;
     private readonly WorldFrame frame;
     private readonly Light?[] pool = new Light?[MaximumLitLamps];
+
+    /// <summary>Each lit lamp burns a fire on its top face (#9547).</summary>
+    private readonly FireEmitters fires;
+    private const float FireAboveBlock = 0.1f;
     private long shownRevision = -1;
     private Vector3? shownAround;
     private int lit;
@@ -50,10 +62,14 @@ internal sealed class LampLights : IProductModule
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         frame.Rebased += _ => shownAround = null;
+        fires = new FireEmitters(engine, ProductIds.LampFireBase, "craftsurvive.lamp", MaximumLitLamps);
     }
 
     /// <summary>How many lamps are lit now.</summary>
     internal int Lit => lit;
+
+    /// <summary>How many of them burn a fire.</summary>
+    internal int FiresBurning => fires.Burning;
 
     public void Start() => Show();
 
@@ -70,6 +86,7 @@ internal sealed class LampLights : IProductModule
 
     public void Dispose()
     {
+        fires.Dispose();
         foreach (Light? light in pool) light?.Dispose();
         Array.Clear(pool);
     }
@@ -101,10 +118,11 @@ internal sealed class LampLights : IProductModule
             }
         }
 
+        fires.Show([.. lamps.Select(cell => frame.ToLocal(new Vector3(cell.X + CellCentre, cell.Y + 1f + FireAboveBlock, cell.Z + CellCentre)))]);
         lit = lamps.Length;
         shownRevision = entities.Revision;
         shownAround = feet;
     }
 
-    private static Vector3 Centre(VoxelAddress cell) => new(cell.X + CellCentre, cell.Y + CellCentre, cell.Z + CellCentre);
+    private static Vector3 Centre(VoxelAddress cell) => new(cell.X + CellCentre, cell.Y + 1f + LightAboveBlock, cell.Z + CellCentre);
 }

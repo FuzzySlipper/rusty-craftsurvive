@@ -51,6 +51,10 @@ internal static class ProductIds
     /// <summary>A dungeon's own lights are this base plus their index in its layout.</summary>
     internal const ulong DungeonLightBase = 0x200UL;
 
+    /// <summary>Retained fire emitters: three per lamp slot and per dungeon torch slot (#9547).</summary>
+    internal const ulong LampFireBase = 0x300UL;
+    internal const ulong DungeonFireBase = 0x400UL;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

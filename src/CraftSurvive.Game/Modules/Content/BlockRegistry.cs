@@ -80,9 +80,10 @@ internal static class BlockRegistry
             Solid: true, Collidable: true, Occludes: false, Replaceable: false,
             BlastResistance: 0.3f, LightEmission: 0f, LightAttenuation: 0.1f),
 
+        // A lit lamp's own glow stays under white so its fire (Fires) reads over it under bloom.
         new(BlockId.Lamp, "lamp", "lamp", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
-            BlastResistance: 0.3f, LightEmission: 1f, LightAttenuation: 1f),
+            BlastResistance: 0.3f, LightEmission: 0.35f, LightAttenuation: 1f),
 
         // Bedrock is the world's floor and border: placeable by generation only.
         new(BlockId.Bedrock, "bedrock", "bedrock", null, BlockTransparency.Opaque,

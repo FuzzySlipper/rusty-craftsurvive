@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
@@ -73,6 +74,10 @@ internal sealed class DungeonModule : IProductModule
     private readonly ProductUiPublisher ui;
     private readonly List<PoiSite> candidates = [];
     private readonly Light?[] pool = new Light?[MaximumLights];
+
+    /// <summary>Each torch burns a fire a little below its light (#9547).</summary>
+    private readonly FireEmitters fires;
+    private const float FireBelowLight = 0.35f;
     private DungeonSpace? space;
 
     /// <summary>A closed dungeon waiting for one snapshot without its rock before it is released.</summary>
@@ -119,6 +124,7 @@ internal sealed class DungeonModule : IProductModule
         this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
         this.sky = sky ?? throw new ArgumentNullException(nameof(sky));
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
+        fires = new FireEmitters(engine, ProductIds.DungeonFireBase, "craftsurvive.torch", MaximumLights);
     }
 
     internal DungeonState State => state;
@@ -211,6 +217,7 @@ internal sealed class DungeonModule : IProductModule
         AfterAppearanceSnapshot();
         rockMaterial?.Dispose();
         rockMaterial = null;
+        fires.Dispose();
         foreach (Light? light in pool) light?.Dispose();
         Array.Clear(pool);
     }
@@ -588,6 +595,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Hangs the dungeon's lights from the pool; the pool's spare lights are put out.</summary>
     private void Light(IReadOnlyList<Vector3> lights)
     {
+        fires.Show([.. lights.Take(MaximumLights).Select(light => DungeonSpace.InSession(light) - (Vector3.UnitY * FireBelowLight))]);
         for (int slot = 0; slot < MaximumLights; slot++)
         {
             bool on = slot < lights.Count;

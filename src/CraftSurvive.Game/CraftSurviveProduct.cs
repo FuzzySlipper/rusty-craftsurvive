@@ -204,7 +204,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(creatureDebug));
         RequireRegistration(registrar.Register(new DiscoveryDebugModule(() => Owner(discovery))));
         RequireRegistration(registrar.Register(new BlastDebugModule(() => Owner(blast))));
-        RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore))));
+        RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore), () => Owner(lamps))));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
