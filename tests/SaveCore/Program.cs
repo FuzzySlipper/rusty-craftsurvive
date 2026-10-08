@@ -279,6 +279,21 @@ Check.That(MathF.Abs(boxed - (solidCells * cell)) < 1e-3f && leftBoxes.Count < s
 PieceRemnant shattered = left with { Craters = [new Crater(left.Piece.Anchor + new Vector3(0, 1.25f, 0), 3f)] };
 Check.That(shattered.ShareLeft() < PieceRemnant.CollapseShare, "a remnant with almost nothing left would fall to pieces");
 
+// --- support (#9733): what touches, back to a piece on the ground, stands -------------------------
+PlacedPiece hutFloor = new(PieceKind.Floor, PieceMaterial.Planks, 0, 0, 0, 0);
+PlacedPiece hutWall = PieceGeometry.Snap(hutFloor, PieceKind.Wall, PieceMaterial.Planks, new Vector3(0, 0.25f, 1f), -Vector3.UnitZ)!.Value;
+PlacedPiece hutRoof = PieceGeometry.Snap(hutWall, PieceKind.Roof, PieceMaterial.Shingles, hutWall.Anchor + new Vector3(0, PieceCatalog.WallHeight, -0.1f), -Vector3.UnitZ)!.Value;
+PlacedPiece floatingPost = new(PieceKind.Post, PieceMaterial.Timber, 40, 40, 40, 0);
+List<IReadOnlyList<(Vector3 Centre, Vector3 Half)>> Nodes(params PlacedPiece[] standingPieces) =>
+    [.. standingPieces.Select(piece => (IReadOnlyList<(Vector3, Vector3)>)PieceGeometry.Bounds(piece).ToList())];
+bool[] hut = PieceSupport.Standing(Nodes(hutFloor, hutWall, hutRoof, floatingPost), index => index == 0);
+Check.That(hut.SequenceEqual([true, true, true, false]),
+    $"a floor on the ground holds the wall on it and the roof on the wall; a post touching nothing falls, stood {string.Join(",", hut)}");
+bool[] noWall = PieceSupport.Standing(Nodes(hutFloor, hutRoof), index => index == 0);
+Check.That(noWall.SequenceEqual([true, false]), "with the wall gone, nothing holds the roof up");
+bool[] groundless = PieceSupport.Standing(Nodes(hutFloor, hutWall, hutRoof), _ => false);
+Check.That(groundless.All(stood => !stood), "with the ground gone from under the floor, the whole hut falls");
+
 WorldConditionsCodec conditionsCodec = new(identity);
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { Day = -1 })), "a day before the first cannot be saved");

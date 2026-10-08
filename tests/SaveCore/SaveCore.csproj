@@ -42,6 +42,7 @@
     <Compile Include="$(ProductModules)Building/PieceRemnant.cs" LinkBase="Product/Building" />
     <Compile Include="$(ProductModules)Building/RemnantSet.cs" LinkBase="Product/Building" />
     <Compile Include="$(ProductModules)Building/RemnantCodec.cs" LinkBase="Product/Building" />
+    <Compile Include="$(ProductModules)Building/PieceSupport.cs" LinkBase="Product/Building" />
     <Compile Include="$(ProductModules)Player/PlayerContinuation.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Survival/WorldConditions.cs" LinkBase="Product/Survival" />
     <Compile Include="$(ProductModules)Survival/Difficulty.cs" LinkBase="Product/Survival" />

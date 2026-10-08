@@ -48,6 +48,11 @@ internal sealed class BuildPieceModule : IProductModule
     private readonly List<List<(Vector3 Centre, Vector3 Half)>> remnantBoxes = [];
     private long savedRemnantRevision, boxedRemnantRevision = -1;
     private long destroyed, bitten, collapsed;
+
+    /// <summary>Support (#9733): set by a removal, a charge or a terrain edit; the next update lets what is not held up fall.</summary>
+    private bool supportDirty;
+    private long fell;
+    private readonly Action<IReadOnlyList<TerrainVoxelEdit>> onTerrainEdited;
     private bool started;
     private PieceKind kind = PieceKind.Wall;
     private int materialIndex;
@@ -64,6 +69,8 @@ internal sealed class BuildPieceModule : IProductModule
         remnantSlot = new ProductSaveSlot<PieceRemnant[]>(engine, store, SaveManifest.BuildRemnants, new RemnantCodec(terrain.SaveIdentity));
         remnantVoxels = new RemnantVoxels(engine, content, frame, remnants);
         colliders = new PieceColliders(terrain, frame);
+        onTerrainEdited = _ => supportDirty = true;
+        terrain.Edited += onTerrainEdited;
     }
 
     internal RemnantSet Remnants => remnants;
@@ -101,6 +108,12 @@ internal sealed class BuildPieceModule : IProductModule
             SaveRemnants();
         }
 
+        if (started && supportDirty)
+        {
+            supportDirty = false;
+            Fall();
+        }
+
         if (started) colliders.Follow(set, remnants, RemnantBoxes());
     }
 
@@ -119,6 +132,7 @@ internal sealed class BuildPieceModule : IProductModule
         }
 
         started = false;
+        terrain.Edited -= onTerrainEdited;
         presenter.Dispose();
         remnantVoxels.Dispose();
     }
@@ -172,6 +186,7 @@ internal sealed class BuildPieceModule : IProductModule
             // Taking down what is left of a bitten piece takes all of it.
             PieceRemnant gone = remnants.RemoveAt(remnantHit!.Value.Index);
             remnantVoxels.Redraw([gone.Bounds()]);
+            supportDirty = true;
             removed++;
             last = $"removed what was left of a {PieceCatalog.Name(gone.Piece.Kind)}";
             cues.RaiseAt(Cue.Break, frame.ToLocal(remnantHit.Value.Point.X, remnantHit.Value.Point.Y, remnantHit.Value.Point.Z));
@@ -183,6 +198,7 @@ internal sealed class BuildPieceModule : IProductModule
             if (!pieceFirst) return false;
             PlacedPiece gone = set.Pieces[pieceHit!.Value.Index];
             set.RemoveAt(pieceHit.Value.Index);
+            supportDirty = true;
             removed++;
             last = $"removed {PieceCatalog.Name(gone.Kind)}";
             cues.RaiseAt(Cue.Break, Middle(gone));
@@ -234,6 +250,7 @@ internal sealed class BuildPieceModule : IProductModule
         bitten += blast.Remnants;
         collapsed += blast.Collapsed;
         if (blast.Changed.Count > 0) remnantVoxels.Redraw(blast.Changed);
+        if (blast.Destroyed + blast.Remnants + blast.Collapsed > 0) supportDirty = true;
         if (blast.Destroyed + blast.Remnants + blast.Collapsed > 0)
         {
             last = $"charge destroyed {blast.Destroyed}, broke {blast.Remnants}, brought down {blast.Collapsed}";
@@ -289,7 +306,7 @@ internal sealed class BuildPieceModule : IProductModule
         $"{PieceCatalog.Name(remnant.Piece.Kind)}@{remnant.Piece.Anchor.X:F2},{remnant.Piece.Anchor.Y:F2},{remnant.Piece.Anchor.Z:F2}/t{remnant.Piece.Turn} craters={remnant.Craters.Count} boxes={RemnantBoxes()[index].Count}")));
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} remnants={remnants.Count} chunks={remnantVoxels.ResidentChunks} colliders={colliders.Instances} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
+        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} remnants={remnants.Count} fell={fell} chunks={remnantVoxels.ResidentChunks} colliders={colliders.Instances} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
 
     /// <summary>What this view meets: the nearest piece and the ground, with their distances, for diagnosis.</summary>
     internal string AimReadout(Vector3 eye, Vector3 forward)
@@ -302,6 +319,96 @@ internal sealed class BuildPieceModule : IProductModule
     }
 
     /// <summary>Where the selected piece would go from this view: on the first piece or ground it meets.</summary>
+    /// <summary>How far under a box's underside solid ground may lie and still bear it.</summary>
+    private const float BearingDepth = 0.35f;
+    /// <summary>How far apart the ground is sampled under a box's footprint.</summary>
+    private const float BearingStep = 0.5f;
+    /// <summary>Cues for a collapse: at most this many pieces are heard and seen falling at once.</summary>
+    private const int FallCues = 6;
+
+    /// <summary>
+    /// Lets what is not held up fall (#9733): every piece and remnant no longer connected, through
+    /// touching pieces, to one resting on the ground breaks and is taken away, with splinters and
+    /// dust where it was. One pass finds the whole cascade.
+    /// </summary>
+    private void Fall()
+    {
+        List<IReadOnlyList<(Vector3 Centre, Vector3 Half)>> nodes = [.. set.Pieces.Select(piece => (IReadOnlyList<(Vector3, Vector3)>)PieceGeometry.Bounds(piece).ToList())];
+        nodes.AddRange(RemnantBoxes());
+        bool[] standing = PieceSupport.Standing(nodes, index => Grounded(nodes[index]));
+        int pieceCount = set.Count, heard = 0, down = 0;
+        List<(Vector3 Low, Vector3 High)> redraw = [];
+        for (int index = nodes.Count - 1; index >= 0; index--)
+        {
+            if (standing[index]) continue;
+            Vector3 where;
+            if (index >= pieceCount)
+            {
+                PieceRemnant gone = remnants.RemoveAt(index - pieceCount);
+                redraw.Add(gone.Bounds());
+                where = (gone.Bounds().Low + gone.Bounds().High) / 2;
+                where = frame.ToLocal(where.X, where.Y, where.Z);
+            }
+            else
+            {
+                where = Middle(set.Pieces[index]);
+                set.RemoveAt(index);
+            }
+
+            down++;
+            if (++heard <= FallCues) cues.RaiseAt(Cue.Break, where);
+        }
+
+        if (redraw.Count > 0) remnantVoxels.Redraw(redraw);
+        if (down > 0)
+        {
+            fell += down;
+            last = $"{down} piece(s) fell with nothing to hold them up";
+        }
+    }
+
+    /// <summary>Whether a piece would be held up where it stands: on the ground, or touching what stands.</summary>
+    private bool HeldUp(PlacedPiece piece)
+    {
+        List<(Vector3 Centre, Vector3 Half)> boxes = [.. PieceGeometry.Bounds(piece)];
+        if (Grounded(boxes)) return true;
+        foreach (PlacedPiece other in set.Pieces)
+        {
+            if (Vector3.DistanceSquared(other.Anchor, piece.Anchor) > 36f) continue;
+            if (PieceSupport.Touch(boxes, [.. PieceGeometry.Bounds(other)])) return true;
+        }
+
+        foreach (List<(Vector3 Centre, Vector3 Half)> remnant in RemnantBoxes())
+        {
+            if (PieceSupport.Touch(boxes, remnant)) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether any of the boxes bears on solid ground: a collidable cell within <see cref="BearingDepth"/> under its underside, or one it stands in.</summary>
+    private bool Grounded(IReadOnlyList<(Vector3 Centre, Vector3 Half)> boxes)
+    {
+        foreach ((Vector3 centre, Vector3 half) in boxes)
+        {
+            float bottom = centre.Y - half.Y;
+            long low = (long)MathF.Floor(bottom - BearingDepth), high = (long)MathF.Floor(bottom + 0.05f);
+            for (float x = centre.X - half.X; x <= centre.X + half.X + 0.001f; x += Math.Min(BearingStep, Math.Max(half.X * 2, 0.01f)))
+            {
+                for (float z = centre.Z - half.Z; z <= centre.Z + half.Z + 0.001f; z += Math.Min(BearingStep, Math.Max(half.Z * 2, 0.01f)))
+                {
+                    for (long y = low; y <= high; y++)
+                    {
+                        ushort material = terrain.MaterialAt(new VoxelAddress((long)MathF.Floor(x), y, (long)MathF.Floor(z)));
+                        if (Content.BlockRegistry.TryGetBySlot(material, out Content.BlockDefinition block) && block.Collidable) return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>How far under a floor's or stairs' underside the ground it tramples may lie.</summary>
     private const float TrampleDepth = 0.75f;
 
@@ -339,6 +446,7 @@ internal sealed class BuildPieceModule : IProductModule
     /// <summary>Why the piece may not stand there (for the refusal and the ghost's tint), or null if it may.</summary>
     private string? Verdict(PlacedPiece piece, Vector3 eye) =>
         Traps(piece, eye) ? "would stand where you are"
+        : set.Check(piece) == PieceOutcome.Placed && !HeldUp(piece) ? "would not be held up"
         : set.Check(piece) switch
         {
             PieceOutcome.Placed => null,
