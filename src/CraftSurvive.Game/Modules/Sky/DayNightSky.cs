@@ -202,7 +202,11 @@ internal sealed class DayNightSky : IDisposable
     /// and greys it; murk and rain thicken the fog toward the fronts' air colour and fill the valleys;
     /// wind strengthens the sway and gusts along the flow; the arcane brightens and tints the colour.
     /// </summary>
-    private const float CloudSunDim = 0.8f, CloudSkyLightDim = 0.35f, CloudExposure = -0.2f;
+    /// <summary>
+    /// The Engine shades the sun where cloud lies toward it (rusty-engine #9743); the product adds only
+    /// a little overall dimming and lets the sky's light fall with the cloud.
+    /// </summary>
+    private const float CloudSunDim = 0.2f, CloudSkyLightDim = 0.35f, CloudExposure = -0.2f;
     private const float CloudCooling = -0.1f, ColdCooling = -0.1f, CloudDesaturation = -0.15f, MurkFlattening = -0.06f;
     private const float ArcaneSaturation = 0.2f, ArcaneTint = 0.12f;
     private const float MurkFog = 8f, RainFog = 3f, CloudFog = 0.5f;
@@ -217,6 +221,77 @@ internal sealed class DayNightSky : IDisposable
     private const float MurkCloud = 1f, MurkCloudBrightness = 1.6f;
     /// <summary>A clear sky: no cloud layer and no clouds pass.</summary>
     private static readonly CloudsRequest NoClouds = new(0f, Vector2.Zero, CloudAltitudeMetres, CloudScaleMetres, Vector3.One);
+    /// <summary>
+    /// What falls (rusty-engine #9742), by kind at full density: how many drops, how they fall (down,
+    /// and along the flow by the wind), their size, a streak's seconds of travel, their colour by
+    /// day (dimmed toward night), and whether they add light. The volume reaches this far around the eyes.
+    /// </summary>
+    private const uint RainDrops = 40_000, SnowFlakes = 25_000, DustGrains = 12_000, GlassGlints = 9_000;
+    private const float RainFall = 14f, SnowFall = 1.4f, DustFall = 0.3f, GlassFall = 1.8f;
+    private const float RainDrift = 3f, SnowDrift = 4f, DustDrift = 14f, GlassDrift = 0.6f;
+    private const float RainSize = 0.012f, SnowSize = 0.05f, DustSize = 0.2f, GlassSize = 0.06f, RainStreakSeconds = 0.04f;
+    private static readonly Color RainColour = new(1.3f, 1.4f, 1.6f, 0.35f), SnowColour = new(2f, 2f, 2.1f, 0.85f);
+    private static readonly Color DustColour = new(0.9f, 0.68f, 0.4f, 0.22f), GlassColour = new(5f, 3.5f, 4.5f, 0.9f);
+    private const float PrecipitationRadius = 18f, PrecipitationHeight = 10f, NightPrecipitation = 0.15f;
+    private const float DriftCalm = 0.2f;
+    private float shownDaylight = 1f;
+
+    /// <summary>How wet the ground looks (rusty-engine #9744): 0 dry to 1 soaked, and how much stands in puddles.</summary>
+    internal void Wetness(float wetness, float puddles)
+    {
+        if (disposed) return;
+        wetGround = (Math.Clamp(wetness, 0f, 1f), Math.Clamp(puddles, 0f, 1f));
+        engine.CameraView.SetWetness(underground ? new WetnessRequest(0f, 0f) : new WetnessRequest(wetGround.Wetness, wetGround.Puddles));
+    }
+
+    private (float Wetness, float Puddles) wetGround;
+
+    /// <summary>The precipitation for the weather: its kind and density, blown along the flow, dimmed by night.</summary>
+    private PrecipitationRequest Precipitation(WeatherLook w)
+    {
+        if (underground || w.Fall == WeatherFall.None || w.FallDensity <= 0f) return NoPrecipitation;
+        Vector3 along = new(w.Flow.X, 0f, w.Flow.Y);
+        float wind = DriftCalm + w.Wind;
+        float light = NightPrecipitation + ((1f - NightPrecipitation) * shownDaylight);
+        Color Dim(Color colour) => new(colour.R * light, colour.G * light, colour.B * light, colour.A);
+        uint Drops(uint full) => (uint)(full * Math.Clamp(w.FallDensity, 0f, 1f));
+        return w.Fall switch
+        {
+            WeatherFall.Rain => new(Drops(RainDrops), PrecipitationShape.Streak, (along * RainDrift * wind) - (Vector3.UnitY * RainFall), RainSize, RainStreakSeconds,
+                Dim(RainColour), false, PrecipitationRadius, PrecipitationHeight),
+            WeatherFall.Snow => new(Drops(SnowFlakes), PrecipitationShape.Flake, (along * SnowDrift * wind) - (Vector3.UnitY * SnowFall), SnowSize, 0f,
+                Dim(SnowColour), false, PrecipitationRadius, PrecipitationHeight),
+            WeatherFall.Dust => new(Drops(DustGrains), PrecipitationShape.Flake, (along * DustDrift * wind) - (Vector3.UnitY * DustFall), DustSize, 0f,
+                Dim(DustColour), false, PrecipitationRadius, PrecipitationHeight),
+            _ => new(Drops(GlassGlints), PrecipitationShape.Flake, (along * GlassDrift) - (Vector3.UnitY * GlassFall), GlassSize, 0f,
+                Dim(GlassColour), true, PrecipitationRadius, PrecipitationHeight),
+        };
+    }
+
+    /// <summary>The glass storm's veil over the view (rusty-engine #9745), shown once the arcane channel passes this.</summary>
+    internal const string VeilContentPath = "shaders/weather-veil.wgsl";
+    private const float VeilAbove = 0.02f;
+    private RenderResource? veil;
+    private bool veiled;
+
+    /// <summary>The arcane air ripples and splits the light over the view; nothing runs while there is none.</summary>
+    private void ArcaneVeil(WeatherLook w)
+    {
+        bool wanted = !underground && w.Arcane > VeilAbove;
+        if (!wanted)
+        {
+            if (veiled) engine.CameraView.SetImageEffect(default);
+            veiled = false;
+            return;
+        }
+
+        veil ??= engine.Graphics.OpenResource(new RenderResourceRequest(VeilContentPath)).Handle;
+        engine.CameraView.SetImageEffect(new ImageEffectRequest(veil, new Vector4(w.Arcane, 0f, 0f, 0f)));
+        veiled = true;
+    }
+
+    private static readonly PrecipitationRequest NoPrecipitation = new(0, PrecipitationShape.Streak, -Vector3.UnitY, 0.1f, 0f, new Color(1, 1, 1, 1), false, 1f, 1f);
+
     /// <summary>The lights and fog are replaced once the weather has moved this far.</summary>
     private const float WeatherRelightStep = 0.02f;
 
@@ -341,6 +416,8 @@ internal sealed class DayNightSky : IDisposable
             ? new CloudsRequest(Math.Min(1f, CloudCoverageFloor + (CloudCoverageSpan * cover)), flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)),
                 CloudAltitudeMetres, CloudScaleMetres, tint)
             : NoClouds);
+        engine.CameraView.SetPrecipitation(Precipitation(w));
+        ArcaneVeil(w);
     }
 
     /// <summary>
@@ -378,6 +455,7 @@ internal sealed class DayNightSky : IDisposable
 
         litDaylight = daylight;
         litWeather = weather;
+        shownDaylight = (float)daylight;
     }
 
     /// <summary>Releases this world's Engine lights and panorama handles before another world takes their place.</summary>
@@ -390,6 +468,11 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
         engine.CameraView.SetClouds(NoClouds);
+        engine.CameraView.SetPrecipitation(NoPrecipitation);
+        engine.CameraView.SetWetness(new WetnessRequest(0f, 0f));
+        engine.CameraView.SetImageEffect(default);
+        veil?.Dispose();
+        veil = null;
         engine.CameraView.ClearSkyBackground(new ClearSkyBackgroundRequest(0U));
         sun?.Dispose();
         skyShadow?.Dispose();

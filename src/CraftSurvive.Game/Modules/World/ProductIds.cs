@@ -74,9 +74,6 @@ internal static class ProductIds
     internal const ulong LampFireBase = 0x300UL;
     internal const ulong DungeonFireBase = 0x400UL;
 
-    /// <summary>Retained precipitation emitters around the player's eyes (#9740).</summary>
-    internal const ulong WeatherFallBase = 0x500UL;
-
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

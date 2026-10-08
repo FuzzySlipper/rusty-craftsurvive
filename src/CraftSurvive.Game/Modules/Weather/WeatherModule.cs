@@ -4,7 +4,6 @@ using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
-using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Weather;
 
@@ -27,22 +26,24 @@ internal sealed class WeatherModule : IProductModule
 
     /// <summary>The look eases toward the weather's with this time constant, in game hours: conditions blend in over game minutes.</summary>
     private const double LookEaseHours = 0.25;
+    /// <summary>The ground wets as fast as the look eases, and dries over a couple of game hours once the rain stops.</summary>
+    private const double DryingHours = 2;
+    /// <summary>Puddles gather once the ground is this wet, and are as deep as it is wetter.</summary>
+    private const float PuddlesAbove = 0.5f;
+    private float groundWetness;
 
     private readonly Func<WorldTime> clock;
     private readonly Func<Vector3> playerWorld;
-    private readonly Func<Vector3> eyesLocal;
     private readonly Func<bool> inTheOpen;
     private readonly Func<bool> covered;
     private readonly DayNightSky sky;
-    private readonly WeatherParticles particles;
     private double sampledHours = double.NegativeInfinity;
     private Vector2 sampledAt;
     private double lookedHours = double.NaN;
 
-    /// <param name="eyesLocal">The player's eyes in the Engine's local frame, which precipitation surrounds.</param>
     /// <param name="inTheOpen">Whether the player is under the open sky: not in a dungeon, not under water.</param>
     /// <param name="covered">Whether something solid stands over the player's head: a roof, an overhang.</param>
-    internal WeatherModule(IEngineContext engine, WorldMap map, DayNightSky sky, Func<WorldTime> clock, Func<Vector3> playerWorld, Func<Vector3> eyesLocal,
+    internal WeatherModule(WorldMap map, DayNightSky sky, Func<WorldTime> clock, Func<Vector3> playerWorld,
         Func<bool> inTheOpen, Func<bool> covered)
     {
         this.covered = covered ?? throw new ArgumentNullException(nameof(covered));
@@ -50,9 +51,7 @@ internal sealed class WeatherModule : IProductModule
         this.sky = sky ?? throw new ArgumentNullException(nameof(sky));
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
-        this.eyesLocal = eyesLocal ?? throw new ArgumentNullException(nameof(eyesLocal));
         this.inTheOpen = inTheOpen ?? throw new ArgumentNullException(nameof(inTheOpen));
-        particles = new WeatherParticles(engine);
     }
 
     internal WeatherField Field { get; }
@@ -90,7 +89,9 @@ internal sealed class WeatherModule : IProductModule
         Present();
     }
 
-    public void Dispose() => particles.Dispose();
+    public void Dispose()
+    {
+    }
 
     /// <summary>
     /// The sky and what falls ease toward the weather over the player (#9740): a step of the way each
@@ -108,8 +109,12 @@ internal sealed class WeatherModule : IProductModule
         double passed = double.IsNaN(lookedHours) ? double.PositiveInfinity : Math.Max(0, hours - lookedHours);
         float share = (float)(1 - Math.Exp(-passed / LookEaseHours));
         sky.Weather(sky.Look.Toward(target, share));
+        // The ground wets in rain and dries slowly after it (rusty-engine #9744 draws it).
+        float raining = target.Fall == WeatherFall.Rain ? target.FallDensity : 0f;
+        float dryShare = (float)(1 - Math.Exp(-passed / DryingHours));
+        groundWetness = raining >= groundWetness ? groundWetness + ((raining - groundWetness) * share) : groundWetness + ((raining - groundWetness) * dryShare);
+        sky.Wetness(groundWetness, Math.Max(0f, (groundWetness - PuddlesAbove) / (1f - PuddlesAbove)));
         lookedHours = hours;
-        particles.Show(sky.Look, eyesLocal(), open);
     }
 
     private void Refresh(bool force)
@@ -135,7 +140,7 @@ internal sealed class WeatherModule : IProductModule
             + string.Create(CultureInfo.InvariantCulture,
             $"travelCost={e.TravelCost:F2} supplyUse={e.SupplyUse:F2} eventRisk={e.EventRisk:F2} wetting={e.Wetting:F2}/h chill={e.Chill:F2}/h harm={e.Harm:F2}/h sight={e.Sight:F2} ")
             + $"sheltered={Exposure.Sheltered} fronts={Here.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
-            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} {particles.Readout}");
+            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2}");
     }
 
     /// <summary>The fronts within reach of the player: where, which way they go, how strong, and when they would arrive.</summary>

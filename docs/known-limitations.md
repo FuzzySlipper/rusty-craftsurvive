@@ -149,8 +149,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
         wetness, a Cold bar, and a reminder to take cover.
         - **Shelter** is anything solid within 30 m over the head (a built roof, an overhang, a cave).
           Tree canopies do not shelter: their leaves have no collision.
-        - Precipitation still falls through roofs. Wetness has no other effect yet: fire, stamina
-          and visibility are untouched.
+        - Wetness has no other effect yet: fire, stamina and visibility are untouched.
         - Fronts are circles, without shape or rain bands.
         - Seasons do not exist (#9554).
       - **First-person look (#9740):** the weather over the player eases in over game minutes. Its
@@ -158,10 +157,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
         shafts, cools and greys the grade; murk and rain thicken the fog toward the front's air
         colour (ochre in sand, white in snow, rose in the glass storm); wind strengthens the sway.
         Because the Engine never fogs the background, murk veils the sky through the tinted cloud
-        layer. What falls is drawn by a grid of nine point emitters around the eyes (rain streaks,
-        snow, blown dust, glass glints): it falls through roofs, and drops are spread rather than
-        streamed, until rusty-engine #9742. Cloud shadows (#9743), wet surfaces (#9744) and screen
-        effects such as droplets or flashes (#9745) wait on the Engine.
+        layer. Clouds shade the ground as they pass. What falls is the Engine's precipitation
+        around the camera (rain streaks, snowflakes, blown dust, additive glass glints), kept off
+        covered ground. Rain wets open ground: it darkens and glosses, and puddles gather on flat
+        ground once it is soaked; it dries over a couple of hours. The glass storm's arcane
+        channel bends the picture with a prismatic ripple (`shaders/weather-veil.wgsl`).
+        Droplets on the view and lightning flashes are not drawn.
     - "Explore here" drops into first person at the token. Whenever the journey pauses, halts,
       arrives, camps or meets an event, the player is placed at the token and the continuation,
       survival and pack are saved, so position and supplies survive a restart; an unfinished route

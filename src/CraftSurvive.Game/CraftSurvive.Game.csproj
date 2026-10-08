@@ -31,12 +31,14 @@
     <!-- The sun's cascades, the sky's occlusion layer and the nearest lamps cast; the budget
          (shadow layers a frame) lets the Engine choose which lamps, by priority then distance
          (#9544). Ambient occlusion darkens where surfaces meet; it is screen-space here because
-         lamps and clutter are meshes the distance-field mode would not see. -->
+         lamps and clutter are meshes the distance-field mode would not see. Its radius reaches
+         across a 1 m block, so piece corners and grass bases read under overcast fill
+         (rusty-engine #9565). -->
     <RustyEngineProductSceneShadows>enabled</RustyEngineProductSceneShadows>
     <RustyEngineProductShadowBudget>24</RustyEngineProductShadowBudget>
     <RustyEngineProductAmbientOcclusion>enabled</RustyEngineProductAmbientOcclusion>
     <RustyEngineProductAmbientOcclusionStrength>1</RustyEngineProductAmbientOcclusionStrength>
-    <RustyEngineProductAmbientOcclusionRadius>0.75</RustyEngineProductAmbientOcclusionRadius>
+    <RustyEngineProductAmbientOcclusionRadius>1.25</RustyEngineProductAmbientOcclusionRadius>
     <RustyEngineProductLifecycleMode>realtime</RustyEngineProductLifecycleMode>
     <RustyEngineProductFixedStepHz>60</RustyEngineProductFixedStepHz>
     <RustyEngineProductFixedStepMaxCatchUpSteps>4</RustyEngineProductFixedStepMaxCatchUpSteps>
