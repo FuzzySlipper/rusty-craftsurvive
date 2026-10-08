@@ -32,15 +32,23 @@ internal sealed class SurvivalModule : IProductModule
     private readonly Func<double> nearestHostileMetres;
 
     internal SurvivalModule(IEngineContext engine, ProductStore store, SaveIdentity identity, PlayerController player,
-        WorldConditionsModule conditions, ProductUiPublisher ui, Func<double> nearestHostileMetres)
+        WorldConditionsModule conditions, ProductUiPublisher ui, Func<double> nearestHostileMetres, Func<WeatherExposure> weather, Func<string> weatherName)
     {
         this.nearestHostileMetres = nearestHostileMetres ?? throw new ArgumentNullException(nameof(nearestHostileMetres));
+        this.weather = weather ?? throw new ArgumentNullException(nameof(weather));
+        this.weatherName = weatherName ?? throw new ArgumentNullException(nameof(weatherName));
         ArgumentNullException.ThrowIfNull(engine);
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.conditions = conditions ?? throw new ArgumentNullException(nameof(conditions));
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         slot = new ProductSaveSlot<SurvivalState>(engine, store, SaveManifest.PlayerSurvival, new SurvivalCodec(identity));
     }
+
+    /// <summary>Wetness and chill are published as whole percents.</summary>
+    private const double UiPercent = 100d;
+
+    private readonly Func<WeatherExposure> weather;
+    private readonly Func<string> weatherName;
 
     internal SurvivalState State => state;
 
@@ -65,7 +73,7 @@ internal sealed class SurvivalModule : IProductModule
 
         SurvivalStep next = SurvivalRules.Advance(
             state,
-            new SurvivalFacts(health, player.Vitals.MaximumHealth, player.HeadSubmerged, player.Sprinting, Hurt: health < lastHealth),
+            new SurvivalFacts(health, player.Vitals.MaximumHealth, player.HeadSubmerged, player.Sprinting, Hurt: health < lastHealth, Weather: weather()),
             conditions.Difficulty,
             step.ElapsedSeconds);
         state = next.State;
@@ -221,16 +229,22 @@ internal sealed class SurvivalModule : IProductModule
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"survival satiety={state.Satiety:F1} breath={state.Breath:F1} calm={state.SinceHurtSeconds:F1}s regained={regained} lost={lost} lastHarm={lastHarm} difficulty={conditions.Difficulty} health={player.Vitals.State.Health}/{player.Vitals.MaximumHealth} submerged={player.HeadSubmerged} restore={slot.RestoreOutcome} saves={slot.Saves} failure={slot.LastFailure ?? "none"}");
+        $"survival satiety={state.Satiety:F1} breath={state.Breath:F1} wetness={state.Wetness:F2} chill={state.Chill:F2} weather={weather()} calm={state.SinceHurtSeconds:F1}s regained={regained} lost={lost} lastHarm={lastHarm} difficulty={conditions.Difficulty} health={player.Vitals.State.Health}/{player.Vitals.MaximumHealth} submerged={player.HeadSubmerged} restore={slot.RestoreOutcome} saves={slot.Saves} failure={slot.LastFailure ?? "none"}");
 
     /// <summary>Publishes the tracks when what a player would read of them has changed.</summary>
     private void Publish()
     {
+        WeatherExposure exposure = weather();
         SurvivalUiFacts facts = new(
             Math.Ceiling(state.Satiety),
             Math.Ceiling(state.Breath),
             SurvivalRules.MaximumBreathSeconds,
-            lastHarm == SurvivalHarm.None ? string.Empty : lastHarm.ToString().ToLowerInvariant());
+            lastHarm == SurvivalHarm.None ? string.Empty : lastHarm.ToString().ToLowerInvariant(),
+            Math.Round(state.Wetness * UiPercent),
+            Math.Round(state.Chill * UiPercent),
+            weatherName(),
+            exposure.Sheltered,
+            exposure.Harm > 0d);
         if (published != facts)
         {
             published = facts;

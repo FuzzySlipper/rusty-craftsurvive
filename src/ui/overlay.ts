@@ -54,6 +54,26 @@ const VITALS: readonly Vital[] = [
     },
   },
   {
+    // The weather over the player (#9741): the bar is how wet they are; the note names the weather and says whether they are under cover.
+    // Weather that wounds warns in the expedition's reminders instead, where there is room.
+    label: 'Weather', colour: '#7fa9c9',
+    read: (v) => {
+      const wet = number(v, 'wetness');
+      const sky = text(v, 'weather') ?? '';
+      if (wet === null || (wet <= 0 && sky === '')) return null;
+      // Short, beside the hotbar: the weather's name and whether the player is under cover; the bar shows how wet.
+      const cover = sky !== '' && number(v, 'sheltered') === 1 ? ' · sheltered' : '';
+      return { share: Math.max(0, Math.min(1, wet / 100)), note: `${sky === '' ? 'drying' : sky}${cover}` };
+    },
+  },
+  {
+    label: 'Cold', colour: '#a8c8e8',
+    read: (v) => {
+      const chill = number(v, 'chill');
+      return chill === null || chill <= 0 ? null : { share: Math.max(0, Math.min(1, chill / 100)), note: chill >= 60 ? 'freezing' : 'chilled' };
+    },
+  },
+  {
     label: 'Air', colour: '#5aa6d8',
     read: (v) => {
       const s = share(number(v, 'breath'), number(v, 'maximumBreath'));

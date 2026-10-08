@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
@@ -31,6 +32,7 @@ internal sealed class WeatherModule : IProductModule
     private readonly Func<Vector3> playerWorld;
     private readonly Func<Vector3> eyesLocal;
     private readonly Func<bool> inTheOpen;
+    private readonly Func<bool> covered;
     private readonly DayNightSky sky;
     private readonly WeatherParticles particles;
     private double sampledHours = double.NegativeInfinity;
@@ -39,8 +41,11 @@ internal sealed class WeatherModule : IProductModule
 
     /// <param name="eyesLocal">The player's eyes in the Engine's local frame, which precipitation surrounds.</param>
     /// <param name="inTheOpen">Whether the player is under the open sky: not in a dungeon, not under water.</param>
-    internal WeatherModule(IEngineContext engine, WorldMap map, DayNightSky sky, Func<WorldTime> clock, Func<Vector3> playerWorld, Func<Vector3> eyesLocal, Func<bool> inTheOpen)
+    /// <param name="covered">Whether something solid stands over the player's head: a roof, an overhang.</param>
+    internal WeatherModule(IEngineContext engine, WorldMap map, DayNightSky sky, Func<WorldTime> clock, Func<Vector3> playerWorld, Func<Vector3> eyesLocal,
+        Func<bool> inTheOpen, Func<bool> covered)
     {
+        this.covered = covered ?? throw new ArgumentNullException(nameof(covered));
         Field = WeatherField.For(map ?? throw new ArgumentNullException(nameof(map)));
         this.sky = sky ?? throw new ArgumentNullException(nameof(sky));
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -54,6 +59,12 @@ internal sealed class WeatherModule : IProductModule
 
     /// <summary>The weather over the player as of the last refresh.</summary>
     internal EnvironmentSample Here { get; private set; } = EnvironmentSample.Clear;
+
+    /// <summary>
+    /// What the weather over the player does to them (#9741): its wetting, chill and harm, and whether
+    /// they are sheltered - under a roof or an overhang, or out of the open altogether (a dungeon).
+    /// </summary>
+    internal WeatherExposure Exposure { get; private set; } = WeatherExposure.None;
 
     /// <summary>The clock as absolute game hours, the weather's time.</summary>
     internal double Hours => Of(clock());
@@ -88,6 +99,9 @@ internal sealed class WeatherModule : IProductModule
     /// </summary>
     private void Present()
     {
+        bool open = inTheOpen();
+        EnvironmentEffects effects = Here.Effects;
+        Exposure = new WeatherExposure(effects.Wetting, effects.Chill, effects.Harm, !open || (Here.Fronts.Count > 0 && covered()));
         double hours = Hours;
         Vector3 at = playerWorld();
         WeatherLook target = WeatherLook.From(Here, Field.Flow(at.X, at.Z));
@@ -95,7 +109,7 @@ internal sealed class WeatherModule : IProductModule
         float share = (float)(1 - Math.Exp(-passed / LookEaseHours));
         sky.Weather(sky.Look.Toward(target, share));
         lookedHours = hours;
-        particles.Show(sky.Look, eyesLocal(), inTheOpen());
+        particles.Show(sky.Look, eyesLocal(), open);
     }
 
     private void Refresh(bool force)
@@ -120,7 +134,7 @@ internal sealed class WeatherModule : IProductModule
             $"precipitation={c.Precipitation:F2} cloud={c.Cloud:F2} wind={c.Wind:F2} cold={c.Cold:F2} murk={c.Murk:F2} arcane={c.Arcane:F2} ")
             + string.Create(CultureInfo.InvariantCulture,
             $"travelCost={e.TravelCost:F2} supplyUse={e.SupplyUse:F2} eventRisk={e.EventRisk:F2} wetting={e.Wetting:F2}/h chill={e.Chill:F2}/h harm={e.Harm:F2}/h sight={e.Sight:F2} ")
-            + $"fronts={Here.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
+            + $"sheltered={Exposure.Sheltered} fronts={Here.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
             + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} {particles.Readout}");
     }
 

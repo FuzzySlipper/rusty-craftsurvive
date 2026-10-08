@@ -312,6 +312,21 @@ internal sealed class TerrainWorld : IDisposable
         return hit.Present ? (float)(top - hit.Distance) : null;
     }
 
+    /// <summary>
+    /// Whether anything solid stands over a point within <paramref name="reach"/> metres (#9741): a
+    /// built roof, an overhang, a cave's ceiling. The point is in the Engine's local frame.
+    /// </summary>
+    internal bool CoveredAbove(Vector3 local, double reach)
+    {
+        if (session is null) return false;
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            session, local, Vector3.UnitY, reach,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty,
+            ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        return hit.Present;
+    }
+
     /// <summary>Whether the chunk holding a cell is resident: drawn, and solid to collision and sight.</summary>
     internal bool IsResident(VoxelAddress cell) => streamer.IsResident(cell.Chunk);
 

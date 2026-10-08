@@ -86,7 +86,9 @@ internal readonly record struct InventoryUiFacts(string Carried, string Items, s
 internal readonly record struct DungeonUiFacts(string State, double Progress, string Prompt, bool CanEnter, bool CanLeave, string Last);
 
 /// <summary>The player's survival tracks for the UI projection: food and air, and the last harm they did.</summary>
-internal readonly record struct SurvivalUiFacts(double Satiety, double Breath, double MaximumBreath, string LastHarm);
+/// <summary>The survival tracks for the HUD, with how wet and chilled the player is (whole percents) and the weather over them (#9741).</summary>
+internal readonly record struct SurvivalUiFacts(double Satiety, double Breath, double MaximumBreath, string LastHarm,
+    double Wetness = 0, double Chill = 0, string Weather = "", bool Sheltered = true, bool WeatherWounds = false);
 
 /// <summary>The world's conditions for the UI projection: the time as a player reads it, its daylight, the difficulty and the difficulties to choose from.</summary>
 internal readonly record struct ConditionsUiFacts(string Time, double Daylight, bool Night, string Difficulty, string Difficulties);

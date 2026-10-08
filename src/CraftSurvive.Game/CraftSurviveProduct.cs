@@ -119,6 +119,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         productDebug = new CraftDebugModule(() => Owner(player), () => Owner(creatures), () => Owner(terrain), context.Debugging);
     }
 
+    /// <summary>Something solid within this far over the player's head shelters them from the weather (#9741).</summary>
+    private const double ShelterReachMetres = 30;
+
     private void CreateWorld()
     {
         terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
@@ -129,10 +132,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
         weather = new WeatherModule(context.Engine, worlds.Current.Map, sky, () => conditions.Time, () => player.WorldPosition,
-            () => frame.ToLocal(player.WorldEyePosition), () => !player.InSeparateSpace && !player.HeadSubmerged);
+            () => frame.ToLocal(player.WorldEyePosition), () => !player.InSeparateSpace && !player.HeadSubmerged,
+            () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
-            () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
+            () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition), () => weather.Exposure, () => weather.Here.Dominant?.Front.Kind.Name ?? "");
         survival.Slept += hours => party?.Rest(hours);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);

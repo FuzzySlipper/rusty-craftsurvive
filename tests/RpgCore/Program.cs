@@ -720,6 +720,34 @@ Check.That(WorldClock.Describe(new WorldTime(2, 0.5 + (1.0 / 24 / 60 * 7))) == "
 // stomach drains health but never kills, and drowning can. The difficulty tunes each.
 SurvivalFacts Calm(int health) => new(health, 30, HeadSubmerged: false, Sprinting: false, Hurt: false);
 SurvivalStep hour = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30), Difficulty.Normal, 60);
+// Weather on the body (#9741): rain soaks only out in it, cover dries; wet and cold burn food; a
+// storm's cold chills; the glass storm wounds only the unsheltered; going under water soaks at once.
+const double GameHour = WorldClock.DaySeconds / 24d;
+WeatherExposure rain = new(Wetting: 0.5, Chill: 0.05, Harm: 0, Sheltered: false);
+SurvivalStep soaked = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Weather = rain }, Difficulty.Normal, GameHour);
+SurvivalStep covered = SurvivalRules.Advance(SurvivalState.Fresh with { Wetness = 0.9 }, Calm(30) with { Weather = rain with { Sheltered = true } }, Difficulty.Normal, GameHour);
+Check.That(Math.Abs(soaked.State.Wetness - 0.5) < 1e-9 && Math.Abs(covered.State.Wetness - (0.9 - SurvivalRules.DryUnderCoverPerHour)) < 1e-9,
+    $"an hour of rain in the open soaks halfway; an hour under cover dries ({soaked.State.Wetness:F2}, {covered.State.Wetness:F2})");
+double dryEaten = SurvivalState.Fresh.Satiety - SurvivalRules.Advance(SurvivalState.Fresh, Calm(30), Difficulty.Normal, GameHour).State.Satiety;
+double wetEaten = SurvivalState.Fresh.Satiety - SurvivalRules.Advance(SurvivalState.Fresh with { Wetness = 1, Chill = 1 }, Calm(30) with { Weather = WeatherExposure.None }, Difficulty.Normal, GameHour).State.Satiety;
+Check.That(wetEaten > dryEaten * 1.5, $"being wet and cold burns food ({wetEaten:F2} against {dryEaten:F2} an hour)");
+WeatherExposure blizzard = new(Wetting: 0.2, Chill: 0.6, Harm: 0, Sheltered: false);
+SurvivalStep outside = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Weather = blizzard }, Difficulty.Normal, 2 * GameHour);
+SurvivalStep inside = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Weather = blizzard with { Sheltered = true } }, Difficulty.Normal, 2 * GameHour);
+Check.That(outside.State.Chill > 0.4 && inside.State.Chill == 0, $"two hours out in a snowstorm chill; under cover the body keeps warm ({outside.State.Chill:F2}, {inside.State.Chill:F2})");
+WeatherExposure glass = new(Wetting: 0, Chill: 0, Harm: 6, Sheltered: false);
+SurvivalStep cut = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Weather = glass }, Difficulty.Normal, GameHour);
+SurvivalStep spared = SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Weather = glass with { Sheltered = true } }, Difficulty.Normal, GameHour);
+Check.That(cut.Lost == 6 && cut.Cause == SurvivalHarm.Exposure && spared.Lost == 0, $"the glass storm wounds the unsheltered and spares those under cover ({cut.Lost}, {spared.Lost})");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh with { SinceHurtSeconds = 60 }, Calm(20) with { Weather = glass with { Harm = 0.1 } }, Difficulty.Normal, 20).Regained == 0
+    && SurvivalRules.Advance(SurvivalState.Fresh with { SinceHurtSeconds = 60 }, Calm(20) with { Weather = glass with { Sheltered = true } }, Difficulty.Normal, 20).Regained > 0,
+    "nothing mends out in weather that wounds; under cover it does");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh, Calm(1) with { Weather = glass }, Difficulty.Normal, GameHour).Lost == 1,
+    "the glass storm can take a last point: ignoring it kills");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { HeadSubmerged = true }, Difficulty.Normal, 1).State.Wetness == 1, "going under water soaks at once");
+Check.That(SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Weather = glass }, Difficulty.Gentle, GameHour).Lost == 0, "Gentle turns weather's wounds off too");
+Check.That(SurvivalRules.Respawned(SurvivalState.Fresh with { Wetness = 1, Chill = 1 }) is { Wetness: 0, Chill: 0 }, "a respawned player is dry and warm");
+
 Check.That(hour.State.Satiety < SurvivalRules.MaximumSatiety && hour.Regained == 0 && hour.Lost == 0,
     "a healthy minute costs food and changes no health");
 Check.That(SurvivalRules.Advance(SurvivalState.Fresh, Calm(30) with { Sprinting = true }, Difficulty.Normal, 60).State.Satiety < hour.State.Satiety,

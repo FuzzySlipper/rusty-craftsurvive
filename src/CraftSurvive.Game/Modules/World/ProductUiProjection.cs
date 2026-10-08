@@ -87,6 +87,11 @@ internal static class ProductUiProjection
             values.Add("breath", tracks.Breath);
             values.Add("maximumBreath", tracks.MaximumBreath);
             values.AddText("lastHarm", tracks.LastHarm);
+            values.Add("wetness", tracks.Wetness);
+            values.Add("chill", tracks.Chill);
+            values.AddText("weather", tracks.Weather);
+            values.Add("sheltered", tracks.Sheltered ? 1 : 0);
+            values.Add("weatherWounds", tracks.WeatherWounds ? 1 : 0);
         }
 
         if (inventory is InventoryUiFacts carried)

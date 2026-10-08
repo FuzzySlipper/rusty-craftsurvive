@@ -35,7 +35,7 @@ index.Place(BlockEntityKind.Container, new VoxelAddress(-4, 12, 8), 5);
 BlockEntityRecord[] entities = index.Snapshot();
 PlayerContinuation player = new(812.5, 14.0, -96.25, 1.25, -0.3, 17, 2, 350, 6);
 WorldConditionsState conditions = new(12, 0.8125, Difficulty.Harsh);
-SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5 };
+SurvivalState tracks = SurvivalState.Fresh with { Satiety = 61.25, Breath = 7.5, Wetness = 0.4, Chill = 0.15 };
 CarriedItems carried = new([new SlotContents(0, ItemCatalog.Torch, 4), new SlotContents(3, ItemCatalog.Meat, 3), new SlotContents(20, ItemCatalog.Oil, 1)]);
 
 HomeMarker homeMarker = new(-1234.5, 2048.25);
@@ -357,6 +357,8 @@ Check.That(Throws(() => conditionsCodec.Encode(conditions with { Difficulty = (D
 SurvivalCodec survivalCodec = new(identity);
 Check.That(Throws(() => survivalCodec.Encode(tracks with { Satiety = SurvivalRules.MaximumSatiety + 1 })), "a stomach past full cannot be saved");
 Check.That(Throws(() => survivalCodec.Encode(tracks with { Breath = -1 })), "negative air cannot be saved");
+Check.That(Throws(() => survivalCodec.Encode(tracks with { Wetness = 1.5 })) && Throws(() => survivalCodec.Encode(tracks with { Chill = -0.1 })),
+    "wetness and chill past their range cannot be saved");
 
 InventoryCodec inventoryCodec = new(identity);
 Check.That(Throws(() => inventoryCodec.Encode(new CarriedItems([new SlotContents(5, ItemCatalog.Torch, 1), new SlotContents(2, ItemCatalog.Meat, 1)]))),

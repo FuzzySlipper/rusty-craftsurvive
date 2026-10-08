@@ -52,7 +52,7 @@ internal static class SaveManifest
 
     /// <summary>How fed the player is and how much air they hold.</summary>
     internal static SaveKey PlayerSurvival { get; } =
-        new("player/survival", "player/survival.backup", "SurvivalModule", 0x5649_5653, 1);
+        new("player/survival", "player/survival.backup", "SurvivalModule", 0x5649_5653, 2);
 
     /// <summary>What the player carries.</summary>
     internal static SaveKey PlayerInventory { get; } =

@@ -1,8 +1,9 @@
 namespace CraftSurvive.Game.Modules.Survival;
 
 /// <summary>
-/// The player's survival tracks: how fed they are and how much air they hold, plus the progress
-/// toward the next point of health regained or lost, carried between updates.
+/// The player's survival tracks: how fed they are and how much air they hold, how wet and chilled
+/// the weather has left them (0..1, #9741), plus the progress toward the next point of health
+/// regained or lost, carried between updates.
 /// </summary>
 internal readonly record struct SurvivalState(
     double Satiety,
@@ -10,13 +11,26 @@ internal readonly record struct SurvivalState(
     double RegainProgress,
     double StarveProgress,
     double DrownProgress,
-    double SinceHurtSeconds)
+    double SinceHurtSeconds,
+    double Wetness = 0d,
+    double Chill = 0d,
+    double ExposureProgress = 0d)
 {
     internal static SurvivalState Fresh => new(SurvivalRules.MaximumSatiety, SurvivalRules.MaximumBreathSeconds, 0d, 0d, 0d, 0d);
 }
 
+/// <summary>
+/// What the weather does to someone out in it (#9741, Den <c>design/weather-and-environment</c>): how
+/// fast it wets and chills them and how much it wounds, per game hour, and whether they are under
+/// cover. Under cover nothing wets or wounds, and chill comes only in part.
+/// </summary>
+internal readonly record struct WeatherExposure(double Wetting, double Chill, double Harm, bool Sheltered)
+{
+    internal static WeatherExposure None => new(0d, 0d, 0d, true);
+}
+
 /// <summary>What the player is doing this update, as survival needs to know it.</summary>
-internal readonly record struct SurvivalFacts(int Health, int MaximumHealth, bool HeadSubmerged, bool Sprinting, bool Hurt, double HungerFactor = 1);
+internal readonly record struct SurvivalFacts(int Health, int MaximumHealth, bool HeadSubmerged, bool Sprinting, bool Hurt, double HungerFactor = 1, WeatherExposure Weather = default);
 
 /// <summary>Why health changed in a survival step.</summary>
 internal enum SurvivalHarm
@@ -24,6 +38,7 @@ internal enum SurvivalHarm
     None,
     Starving,
     Drowning,
+    Exposure,
 }
 
 /// <summary>One survival step: the new tracks, the health to give back, and the health to take and why.</summary>
@@ -37,7 +52,8 @@ internal readonly record struct SurvivalTuning(
     double SecondsPerPointDrowned,
     double BreathLostPerSecond,
     bool StarvingHurts,
-    bool DrowningHurts);
+    bool DrowningHurts,
+    bool WeatherHurts = true);
 
 /// <summary>
 /// The rules of hunger, air and recovery, sized for expeditions rather than for a farm. Hunger
@@ -74,12 +90,23 @@ internal static class SurvivalRules
     /// <summary>A respawned player comes back at least this fed, and with full breath.</summary>
     internal const double RespawnSatiety = 50d;
 
+    /// <summary>Seconds of play in a game hour: weather rates are per game hour.</summary>
+    private const double SecondsPerHour = Sky.WorldClock.DaySeconds / 24d;
+
+    /// <summary>
+    /// Wetness (#9741): it dries this much a game hour out of the wet, faster under cover; going under
+    /// water soaks completely. Being wet chills a little, and wet and cold both make the body burn food.
+    /// </summary>
+    internal const double DryInTheOpenPerHour = 0.3d, DryUnderCoverPerHour = 0.6d;
+    internal const double WetChillPerHour = 0.08d, ChillUnderCoverShare = 0.25d, ChillRecoveryPerHour = 0.3d;
+    internal const double WetHunger = 0.25d, ChillHunger = 0.75d;
+
     /// <summary>A full stomach lasts about one and a half in-game days at Normal.</summary>
     private const double NormalFullStomachSeconds = 1.5d * 20d * 60d;
 
     internal static SurvivalTuning Tuning(Difficulty difficulty) => difficulty switch
     {
-        Difficulty.Gentle => new(MaximumSatiety / (NormalFullStomachSeconds * 2d), 2d, double.PositiveInfinity, double.PositiveInfinity, 0.75d, false, false),
+        Difficulty.Gentle => new(MaximumSatiety / (NormalFullStomachSeconds * 2d), 2d, double.PositiveInfinity, double.PositiveInfinity, 0.75d, false, false, WeatherHurts: false),
         Difficulty.Harsh => new(MaximumSatiety / (NormalFullStomachSeconds / 1.5d), 8d, 6d, 1d, 1.5d, true, true),
         _ => new(MaximumSatiety / NormalFullStomachSeconds, 4d, 10d, 1.5d, 1d, true, true),
     };
@@ -95,7 +122,9 @@ internal static class SurvivalRules
         }
 
         SurvivalTuning tuning = Tuning(difficulty);
-        double hunger = tuning.HungerPerSecond * (facts.Sprinting ? SprintHungerFactor : 1d) * Math.Max(0d, facts.HungerFactor) * seconds;
+        (double wetness, double chill, double exposure, int exposed) = Weathered(state, facts with { Weather = tuning.WeatherHurts ? facts.Weather : facts.Weather with { Harm = 0d } }, seconds);
+        double weatherHunger = 1d + (WetHunger * wetness) + (ChillHunger * chill);
+        double hunger = tuning.HungerPerSecond * (facts.Sprinting ? SprintHungerFactor : 1d) * Math.Max(0d, facts.HungerFactor) * weatherHunger * seconds;
         double satiety = Math.Max(0d, state.Satiety - hunger);
         double breath = facts.HeadSubmerged
             ? Math.Max(0d, state.Breath - (tuning.BreathLostPerSecond * seconds))
@@ -106,21 +135,46 @@ internal static class SurvivalRules
         double drown = breath <= 0d && tuning.DrowningHurts ? state.DrownProgress + (seconds / tuning.SecondsPerPointDrowned) : 0d;
         double starve = satiety <= 0d && tuning.StarvingHurts ? state.StarveProgress + (seconds / tuning.SecondsPerPointStarved) : 0d;
         int drowned = (int)Math.Floor(drown);
-        int starved = Math.Min((int)Math.Floor(starve), Math.Max(0, facts.Health - drowned - 1));
+        // Starving never takes the last point, after what water and weather took this step.
+        int starved = Math.Min((int)Math.Floor(starve), Math.Max(0, facts.Health - drowned - exposed - 1));
         drown -= drowned;
         starve -= (int)Math.Floor(starve);
 
         // A fed, calm, hurt player regains health, and pays for it in food.
         bool regaining = satiety >= RegainAboveSatiety && sinceHurt >= CalmSecondsBeforeRegaining
-            && drowned == 0 && facts.Health < facts.MaximumHealth;
+            && drowned + exposed == 0 && facts.Health < facts.MaximumHealth
+            // Nothing mends out in weather that wounds (#9741): it must be sheltered from, not outlasted.
+            && !(facts.Weather.Harm > 0d && !facts.Weather.Sheltered);
         double regain = regaining ? state.RegainProgress + (seconds / tuning.SecondsPerPointRegained) : 0d;
         int regained = Math.Min((int)Math.Floor(regain), facts.MaximumHealth - facts.Health);
         regain -= Math.Floor(regain);
         satiety = Math.Max(0d, satiety - (regained * SatietyPerPointRegained));
 
-        int lost = drowned + starved;
-        SurvivalHarm cause = drowned > 0 ? SurvivalHarm.Drowning : starved > 0 ? SurvivalHarm.Starving : SurvivalHarm.None;
-        return new SurvivalStep(new SurvivalState(satiety, breath, regain, starve, drown, lost > 0 ? 0d : sinceHurt), regained, lost, cause);
+        int lost = drowned + starved + exposed;
+        SurvivalHarm cause = drowned > 0 ? SurvivalHarm.Drowning : exposed > 0 ? SurvivalHarm.Exposure : starved > 0 ? SurvivalHarm.Starving : SurvivalHarm.None;
+        return new SurvivalStep(new SurvivalState(satiety, breath, regain, starve, drown, lost > 0 ? 0d : sinceHurt, wetness, chill, exposure), regained, lost, cause);
+    }
+
+    /// <summary>
+    /// The weather on the body over some seconds (#9741): out in it, wetting soaks and harm wounds
+    /// (whole points, the fraction carried); under cover it dries and nothing wounds; under water
+    /// soaks at once. Chill rises with the weather's cold (a quarter of it under cover) and a little
+    /// with being wet, and the body warms back at a steady rate.
+    /// </summary>
+    private static (double Wetness, double Chill, double ExposureProgress, int Wounds) Weathered(SurvivalState state, SurvivalFacts facts, double seconds)
+    {
+        double hours = seconds / SecondsPerHour;
+        WeatherExposure weather = facts.Weather;
+        bool open = !weather.Sheltered;
+        double wetness = facts.HeadSubmerged ? 1d
+            : open && weather.Wetting > 0d ? state.Wetness + (weather.Wetting * hours)
+            : state.Wetness - ((open ? DryInTheOpenPerHour : DryUnderCoverPerHour) * hours);
+        wetness = Math.Clamp(wetness, 0d, 1d);
+        double cold = (open ? weather.Chill : weather.Chill * ChillUnderCoverShare) + (WetChillPerHour * wetness);
+        double chill = Math.Clamp(state.Chill + ((cold - ChillRecoveryPerHour) * hours), 0d, 1d);
+        double exposure = open && weather.Harm > 0d ? state.ExposureProgress + (weather.Harm * hours) : state.ExposureProgress;
+        int wounds = Math.Min((int)Math.Floor(exposure), Math.Max(0, facts.Health));
+        return (wetness, chill, exposure - Math.Floor(exposure), wounds);
     }
 
     /// <summary>A rest is advanced in slices this long, so health regained early is paid for by the food on hand then.</summary>
@@ -183,5 +237,8 @@ internal static class SurvivalRules
         StarveProgress = 0d,
         DrownProgress = 0d,
         SinceHurtSeconds = 0d,
+        Wetness = 0d,
+        Chill = 0d,
+        ExposureProgress = 0d,
     };
 }

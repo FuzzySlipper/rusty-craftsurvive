@@ -217,6 +217,9 @@ public sealed partial class CraftSurviveProduct
         if (!player.InSeparateSpace && fromSled > SledLeashMetres)
             parts.Add(FormattableString.Invariant($"The sled is {fromSled / 1000:F1} km back: open the map to bring the expedition"));
         if (party is { Exhausted: true }) parts.Add("Exhausted: camp or rest to recover");
+        // Weather that wounds anyone in the open (#9741) says so while the player stands in it.
+        if (weather.Exposure is { Harm: > 0, Sheltered: false })
+            parts.Add($"Take cover: the {weather.Here.Dominant?.Front.Kind.Name.ToLowerInvariant() ?? "weather"} wounds anyone in the open");
         return string.Join(" · ", parts);
     }
 

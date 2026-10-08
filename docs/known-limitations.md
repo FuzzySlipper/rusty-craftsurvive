@@ -142,7 +142,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
         again.
       - **Not yet:**
         - The preview's hours and rations ignore the weather's slowing.
-        - First-person consequences (wetness, shelter) are #9741.
+      - **First-person consequences (#9741):** out in the weather the player gets wet (rain, snow) and
+        chilled (snow, a little from being wet). Both make the body burn food faster and are saved
+        with survival; they dry and warm under cover. Weather that wounds (the glass storm) takes
+        health in the open, stops it mending there, and can kill. The HUD shows a Weather bar for
+        wetness, a Cold bar, and a reminder to take cover.
+        - **Shelter** is anything solid within 30 m over the head (a built roof, an overhang, a cave).
+          Tree canopies do not shelter: their leaves have no collision.
+        - Precipitation still falls through roofs. Wetness has no other effect yet: fire, stamina
+          and visibility are untouched.
         - Fronts are circles, without shape or rain bands.
         - Seasons do not exist (#9554).
       - **First-person look (#9740):** the weather over the player eases in over game minutes. Its
@@ -371,8 +379,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Hunger and air are `SurvivalRules`, tuned by `Difficulty`.** Food drains with time (faster
   while sprinting); a fed player regains health once calm, and pays for it in food; an empty
   stomach drains health but never below one point. Air runs out while the head is under water,
-  and drowning can kill. Gentle turns off both kinds of harm. There is no temperature, thirst or
-  disease.
+  and drowning can kill. Weather wets, chills and (the glass storm) wounds the unsheltered (#9741).
+  Gentle turns off all three kinds of harm. There is no thirst or disease, and no temperature
+  beyond the weather's chill.
 - **Night is the creatures'.** Hostiles see `CreatureModule.NightSightFactor` further by night. A
   player rests only at night with no awake hostile within `SurvivalRules.RestSafetyMetres`; the
   night passes at once to `WorldClock.WakingFraction`, and health comes back as food pays for it.
