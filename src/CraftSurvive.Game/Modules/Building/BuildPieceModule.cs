@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
+using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Building;
 
@@ -163,6 +164,7 @@ internal sealed class BuildPieceModule : IProductModule
         set.Add(candidate.Piece);
         placed++;
         last = $"placed {PieceCatalog.Name(candidate.Piece.Kind)}";
+        Trample(candidate.Piece);
         cues.RaiseAt(Cue.Place, Middle(candidate.Piece));
         return true;
     }
@@ -204,6 +206,40 @@ internal sealed class BuildPieceModule : IProductModule
     }
 
     /// <summary>Where the selected piece would go from this view: on the first piece or ground it meets.</summary>
+    /// <summary>How far under a floor's or stairs' underside the ground it tramples may lie.</summary>
+    private const float TrampleDepth = 0.75f;
+
+    /// <summary>
+    /// A floor or stairs laid on the ground tramples the grass beneath it (#9730): the grass cells
+    /// just under its footprint become dirt, which draws the same ground but grows no scatter, so
+    /// meadow grass does not grow up through the boards. The trampled patch stays when the piece goes.
+    /// </summary>
+    private void Trample(PlacedPiece piece)
+    {
+        if (piece.Kind is not (PieceKind.Floor or PieceKind.Stairs)) return;
+        List<VoxelAddress> trampled = [];
+        foreach ((Vector3 centre, Vector3 half) in PieceGeometry.Bounds(piece))
+        {
+            long bottom = (long)MathF.Floor(centre.Y - half.Y - 0.01f), deepest = (long)MathF.Floor(centre.Y - half.Y - TrampleDepth);
+            for (long x = (long)MathF.Floor(centre.X - half.X); x < (long)MathF.Ceiling(centre.X + half.X); x++)
+            {
+                for (long z = (long)MathF.Floor(centre.Z - half.Z); z < (long)MathF.Ceiling(centre.Z + half.Z); z++)
+                {
+                    for (long y = bottom; y >= deepest; y--)
+                    {
+                        VoxelAddress cell = new(x, y, z);
+                        ushort material = terrain.MaterialAt(cell);
+                        if (material == TerrainConstants.EmptyMaterial) continue;
+                        if (material == TerrainConstants.GrassMaterial && !trampled.Contains(cell)) trampled.Add(cell);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (trampled.Count > 0) terrain.TryEditCells(trampled, TerrainEditKind.Set, TerrainConstants.DirtMaterial);
+    }
+
     /// <summary>Why the piece may not stand there (for the refusal and the ghost's tint), or null if it may.</summary>
     private string? Verdict(PlacedPiece piece, Vector3 eye) =>
         Traps(piece, eye) ? "would stand where you are"

@@ -202,10 +202,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   collide only with the player, as world-axis boxes in the character step (`PiecePresenter.Obstacles`):
   exact for walls and floors, while a pitched roof is four stepped boxes. Creatures, navigation, the
   terrain pick and lamps do not see pieces. A piece placed on a slope does not reach down to the
-  ground; posts and stairs are the player's to add. Pieces may cross each other and the terrain. Only
-  a second identical footing and a piece over the player are refused, and the ghost is not tinted
-  for that. A charge removes the pieces whose anchors are within its reach; damaged pieces do not yet
-  become voxels (#9731).
+  ground; posts and stairs are the player's to add. Aimed at a piece, a new piece snaps to the
+  nearest of its sockets that accepts the kind (`PieceCatalog.SocketsOf`). Placing is refused, and
+  the ghost turns red, for a second identical footing, a piece over the player, or one cutting
+  through a standing piece (world bounds overlapping by more than a post's half width). Pieces may
+  still cross the terrain, and nothing holds pieces up: a roof stays where it was when the wall under
+  it is taken away. A floor or stairs tramples the grass under its footprint to dirt, so meadow
+  grass does not grow through it; the scatter otherwise ignores pieces (rusty-engine scatter
+  exclusion request). A charge removes the pieces whose anchors are within its reach; damaged pieces
+  do not yet become voxels (#9731).
 - **Cube building remains for earthworks.** T switches placing to the terrain brush, and the UI still
   builds floors and walls from `BuildPalette` blocks, laid relative to where the player faces, and
   only over replaceable cells (air, water), so a floor across a slope fills the gaps and leaves the
