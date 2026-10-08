@@ -82,7 +82,10 @@ internal static class CreatureSimulation
             distance = PlanarDistance(creature.Position, playerWorld);
         }
 
+        // A blow needs a clear line as well as reach: a creature cannot strike through a wall it
+        // stands against (#9734), and perception's casts meet built work as the session's collision.
         if (!playerCanBeHit
+            || !sense.PlayerVisible
             || !creature.Behavior.CanAttack(time.Step, kind.Tuning)
             || distance > kind.ReachMetres)
         {

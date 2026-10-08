@@ -77,6 +77,8 @@ internal sealed class CreatureNavigation
     private readonly WorldFrame frame;
     private Vector3? publishedAround;
     private ulong publishedEditRevision;
+    /// <summary>The built pieces' collision revision the publication saw (#9734): built work changes what is walkable.</summary>
+    private long publishedStaticRevision = -1;
     private float? publishedBottom;
     private CollisionNavigationReplaceReceipt lastPublished;
     private long publishes;
@@ -130,7 +132,8 @@ internal sealed class CreatureNavigation
         bool stale = force
             || publishedAround is not Vector3 centre
             || Vector2.Distance(new Vector2(centre.X, centre.Z), new Vector2(playerFeetWorld.X, playerFeetWorld.Z)) > RepublishDistanceMetres
-            || publishedEditRevision != terrain.EditRevision;
+            || publishedEditRevision != terrain.EditRevision
+            || publishedStaticRevision != terrain.StaticCollisionRevision;
         if (!stale)
         {
             return;
@@ -157,6 +160,7 @@ internal sealed class CreatureNavigation
         publishedAround = playerFeetWorld;
         publishedBottom = bottom;
         publishedEditRevision = terrain.EditRevision;
+        publishedStaticRevision = terrain.StaticCollisionRevision;
     }
 
     /// <summary>One bounded step of the route from a creature's feet to the player's, in world coordinates.</summary>

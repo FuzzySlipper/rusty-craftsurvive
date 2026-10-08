@@ -544,7 +544,7 @@ internal sealed class PlayerController : IDisposable
                     playerLocal,
                     motion,
                     default,
-                    away is null && Pieces is { } pieces ? pieces.Obstacles(playerLocal) : ReadOnlyMemory<CharacterObstacle>.Empty,
+                    ReadOnlyMemory<CharacterObstacle>.Empty,
                     ReadOnlyMemory<CharacterMeshInstance>.Empty,
                     stepConfig,
                     Command(frame, lookReceipt, commandSequence)));

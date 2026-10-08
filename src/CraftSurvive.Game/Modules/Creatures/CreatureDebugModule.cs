@@ -33,6 +33,9 @@ public sealed class CreatureDebugModule : IDebugCommandModule
         return creatures.Readout();
     }
 
+    [DebugCommand("craft.creatures.route", Description = "Reads the navigation route from a world column (x z) to the player as cells, for diagnosis.")]
+    public string Route(double x, double z) => creatures.RouteReadout(x, z);
+
     [DebugCommand("craft.creatures.navigation", Description = "Publishes navigation around the player now and reports the columns it re-derived and reused, and its cost.")]
     public string Navigation() => creatures.PublishNavigation();
 }

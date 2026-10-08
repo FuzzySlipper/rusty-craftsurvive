@@ -198,10 +198,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   position and a bounded search above it; this is recovery, not permission to place into a body.
 - **Construction is snap pieces drawn as meshes; their collision is boxes.** `BuildPieceModule`
   places walls, doorways, windows, posts, beams, floors, pitched roofs and stairs on a quarter-metre
-  grid in quarter turns, where the view meets a piece or the ground, turned to face the player. They
-  collide only with the player, as world-axis boxes in the character step (`PiecePresenter.Obstacles`):
-  exact for walls and floors, while a pitched roof is four stepped boxes. Creatures, navigation, the
-  terrain pick and lamps do not see pieces. A piece placed on a slope does not reach down to the
+  grid in quarter turns, where the view meets a piece or the ground, turned to face the player. Pieces
+  and remnants are the walking session's static-mesh collision (`PieceColliders`). The player's step,
+  creature navigation, perception and the session's casts meet them exactly, so creatures route
+  around huts and through doorways, and cannot strike through a wall. A doorway's opening is 1.7 m
+  by 2.25 m because navigation stands a 0.3 m agent at the middle of 1 m cells; narrower doors would
+  block routes at some grid alignments (rusty-engine narrow-passage request). Lamps do not see pieces. A piece placed on a slope does not reach down to the
   ground; posts and stairs are the player's to add. Aimed at a piece, a new piece snaps to the
   nearest of its sockets that accepts the kind (`PieceCatalog.SocketsOf`). Placing is refused, and
   the ghost turns red, for a second identical footing, a piece over the player, or one cutting

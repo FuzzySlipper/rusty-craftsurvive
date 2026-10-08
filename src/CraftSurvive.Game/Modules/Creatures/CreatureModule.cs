@@ -336,6 +336,15 @@ internal sealed class CreatureModule : IProductModule
         return readout;
     }
 
+    /// <summary>The route from a column to the player as navigation cells (x,y,z), for diagnosis.</summary>
+    internal string RouteReadout(double x, double z)
+    {
+        Vector3 feet = player.WorldFeetPosition;
+        navigation.EnsurePublished(feet);
+        NavigationStepResult result = navigation.Step(Feet(new Vector2((float)x, (float)z)), feet, 4096);
+        return $"outcome={result.Outcome} visited={result.Visited} cells=" + string.Join(" ", result.Path.ToArray().Select(cell => $"{cell.X},{cell.Y},{cell.Z}"));
+    }
+
     internal string PublishNavigation()
     {
         try

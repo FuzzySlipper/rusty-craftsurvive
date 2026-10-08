@@ -19,7 +19,7 @@ namespace CraftSurvive.Game.Modules.Building;
 /// <item>Apply: placing (G, secondary) adds it unless it is occupied or would trap the player;
 /// clearing (F, primary) removes an aimed piece, and otherwise falls through to digging.</item>
 /// <item>Publish: the ghost, tinted by whether the piece may stand (#9730), and the pieces
-/// (<see cref="PiecePresenter"/>), the obstacles the player's step collides with, the place and
+/// (<see cref="PiecePresenter"/>), their collision as the walking session's (<see cref="PieceColliders"/>), the place and
 /// break cues, the save, and a line for the HUD.</item>
 /// </list>
 /// T switches placing between pieces and the terrain brush (earthworks); Q steps the piece, Z its material.
@@ -43,6 +43,7 @@ internal sealed class BuildPieceModule : IProductModule
     /// <summary>Pieces a charge has bitten into (#9731): their description, drawing, collision boxes and save.</summary>
     private readonly RemnantSet remnants = new();
     private readonly RemnantVoxels remnantVoxels;
+    private readonly PieceColliders colliders;
     private readonly ProductSaveSlot<PieceRemnant[]> remnantSlot;
     private readonly List<List<(Vector3 Centre, Vector3 Half)>> remnantBoxes = [];
     private long savedRemnantRevision, boxedRemnantRevision = -1;
@@ -62,6 +63,7 @@ internal sealed class BuildPieceModule : IProductModule
         slot = new ProductSaveSlot<PlacedPiece[]>(engine, store, SaveManifest.BuildPieces, new BuildPieceCodec(terrain.SaveIdentity));
         remnantSlot = new ProductSaveSlot<PieceRemnant[]>(engine, store, SaveManifest.BuildRemnants, new RemnantCodec(terrain.SaveIdentity));
         remnantVoxels = new RemnantVoxels(engine, content, frame, remnants);
+        colliders = new PieceColliders(terrain, frame);
     }
 
     internal RemnantSet Remnants => remnants;
@@ -98,6 +100,8 @@ internal sealed class BuildPieceModule : IProductModule
         {
             SaveRemnants();
         }
+
+        if (started) colliders.Follow(set, remnants, RemnantBoxes());
     }
 
     public void Restart() => Restore();
@@ -245,32 +249,6 @@ internal sealed class BuildPieceModule : IProductModule
         remnantVoxels.RedrawAll();
     }
 
-    /// <summary>The pieces' and remnants' boxes near the player, for the character step.</summary>
-    internal CharacterObstacle[] Obstacles(Vector3 local)
-    {
-        CharacterObstacle[] pieces = presenter.Obstacles(local);
-        if (remnants.Count == 0) return pieces;
-        Vector3 world = frame.ToWorld(local);
-        List<CharacterObstacle> near = [.. pieces];
-        List<List<(Vector3 Centre, Vector3 Half)>> boxes = RemnantBoxes();
-        for (int index = 0; index < boxes.Count; index++)
-        {
-            (Vector3 low, Vector3 high) = remnants.Remnants[index].Bounds();
-            if (Vector3.DistanceSquared((low + high) / 2, world) > PiecePresenter.CollisionReach * PiecePresenter.CollisionReach) continue;
-            for (int box = 0; box < boxes[index].Count && box < RemnantObstacleStride; box++)
-            {
-                (Vector3 centre, Vector3 half) = boxes[index][box];
-                near.Add(new CharacterObstacle(ProductIds.BuildRemnantObstacleBase + (ulong)((index * RemnantObstacleStride) + box),
-                    new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), Quaternion.Identity, Vector3.One), -half, half, true, Vector3.Zero, Vector3.Zero));
-            }
-        }
-
-        return [.. near];
-    }
-
-    /// <summary>Boxes per remnant the obstacle ids leave room for; a remnant broken into more collides as its first ones.</summary>
-    internal const int RemnantObstacleStride = 512;
-
     /// <summary>The remnants' merged boxes, rebuilt when the remnants change.</summary>
     private List<List<(Vector3 Centre, Vector3 Half)>> RemnantBoxes()
     {
@@ -311,7 +289,7 @@ internal sealed class BuildPieceModule : IProductModule
         $"{PieceCatalog.Name(remnant.Piece.Kind)}@{remnant.Piece.Anchor.X:F2},{remnant.Piece.Anchor.Y:F2},{remnant.Piece.Anchor.Z:F2}/t{remnant.Piece.Turn} craters={remnant.Craters.Count} boxes={RemnantBoxes()[index].Count}")));
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} remnants={remnants.Count} chunks={remnantVoxels.ResidentChunks} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
+        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} remnants={remnants.Count} chunks={remnantVoxels.ResidentChunks} colliders={colliders.Instances} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
 
     /// <summary>What this view meets: the nearest piece and the ground, with their distances, for diagnosis.</summary>
     internal string AimReadout(Vector3 eye, Vector3 forward)

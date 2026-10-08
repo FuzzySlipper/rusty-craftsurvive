@@ -221,6 +221,20 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string TreesReadout() => trees.Readout();
 
+    /// <summary>
+    /// How many times the walking session's static collision (built pieces, #9734) has been replaced:
+    /// navigation republishes when it moves, as it does for edits.
+    /// </summary>
+    internal long StaticCollisionRevision { get; private set; }
+
+    /// <summary>Replaces the walking session's static collision (built work is its only owner) and moves the revision.</summary>
+    internal void ReplaceStaticCollision(CollisionReplaceRequest request)
+    {
+        EnsureStarted();
+        engine.Spatial.ReplaceCollision(request);
+        StaticCollisionRevision++;
+    }
+
     /// <summary>The building look study's draw facts (#9684); empty unless one is built.</summary>
     internal AppearanceFact[] StudyFacts => study?.Facts ?? [];
 

@@ -480,6 +480,10 @@ Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer
 Check.That(CreatureSimulation.Step(striker, new CreatureSense(true), closePlayer, true, new ProductStep(100 + cooldown + 1, 2, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is CreatureStrike,
     "the cooldown must release once its steps have passed, even when an update covers two");
 Creature patientStriker = new(4, CreatureKinds.Hostile, new Vector2(38, 0));
+Check.That(CreatureSimulation.Step(new Creature(98, CreatureKinds.Hostile, new Vector2(closePlayer.X + 1f, closePlayer.Z)) { Behavior = striker.Behavior },
+    new CreatureSense(false), closePlayer, true, new ProductStep(100 + (2 * cooldown) + 2, 2, FixedDelta), sightScale: 1,
+    waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null,
+    "a creature within reach that cannot see the player (a wall between them) does not strike");
 Check.That(CreatureSimulation.Step(patientStriker, new CreatureSense(true), closePlayer, playerCanBeHit: false, new ProductStep(10, 1, FixedDelta), sightScale: 1, waypoint: new Vector2(closePlayer.X, closePlayer.Z)) is null
     && patientStriker.Behavior.CanAttack(11, CreatureKinds.Hostile.Tuning),
     "a player who cannot be hit draws no blow and costs no cooldown");

@@ -6,8 +6,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Building;
 
 /// <summary>
-/// Draws the placed pieces and the placement ghost (#9729), and hands their boxes to the player's
-/// step as obstacles. One mesh per kind and material, built from the catalog's boxes and textured
+/// Draws the placed pieces and the placement ghost (#9729); their collision is
+/// <see cref="PieceColliders"/>. One mesh per kind and material, built from the catalog's boxes and textured
 /// with the construction maps (nearest-filtered, as the trees' bark); one translucent ghost mesh per
 /// kind. Pieces are drawn as appearance facts in the walking frame; their world anchors follow the
 /// frame's rebases.
@@ -23,9 +23,6 @@ internal sealed class PiecePresenter : IDisposable
     private static readonly Color White = new(1, 1, 1, 0);
     /// <summary>The ghost's vertices keep full alpha, so its blended material shows at its own colour's alpha.</summary>
     private static readonly Color GhostVertex = new(1, 1, 1, 1);
-
-    /// <summary>Pieces whose anchors are within this distance of the player collide with them.</summary>
-    internal const float CollisionReach = 24f;
 
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
@@ -76,32 +73,6 @@ internal sealed class PiecePresenter : IDisposable
             ? [.. facts, Fact(ProductIds.BuildPieceGhost, ghost, GhostLook(ghost.Kind, GhostValid), ShadowCasting.None)]
             : facts;
     }
-
-    /// <summary>
-    /// The boxes of pieces near a point (walking frame) as the character step's obstacles, as their
-    /// world bounds (<see cref="PieceGeometry.Bounds"/>): the step takes no obstacle rotation.
-    /// </summary>
-    internal CharacterObstacle[] Obstacles(Vector3 local)
-    {
-        Vector3 world = frame.ToWorld(local);
-        List<CharacterObstacle> near = [];
-        for (int index = 0; index < pieces.Count; index++)
-        {
-            PlacedPiece piece = pieces.Pieces[index];
-            if (Vector3.DistanceSquared(piece.Anchor, world) > CollisionReach * CollisionReach) continue;
-            int slot = 0;
-            foreach ((Vector3 centre, Vector3 extent) in PieceGeometry.Bounds(piece))
-            {
-                near.Add(new CharacterObstacle(ProductIds.BuildPieceObstacleBase + (ulong)((index * PieceObstacleStride) + slot++),
-                    new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), Quaternion.Identity, Vector3.One), -extent, extent, true, Vector3.Zero, Vector3.Zero));
-            }
-        }
-
-        return [.. near];
-    }
-
-    /// <summary>Boxes per piece the obstacle ids leave room for (stairs have the most).</summary>
-    internal const int PieceObstacleStride = 8;
 
     public void Dispose()
     {
