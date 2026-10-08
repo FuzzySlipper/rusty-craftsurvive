@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Travel;
+using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game;
@@ -27,17 +28,48 @@ public sealed partial class CraftSurviveProduct
 
     private TravelEventDirector TravelEventRolls => travelEvents ??= new TravelEventDirector(worlds.Current.Map.Configuration.Seed ^ TravelEventSeedSalt);
 
-    /// <summary>Roll for the hours the party just travelled; an event stops the journey for a choice.</summary>
-    private void RollTravelEvent(double hours)
+    /// <summary>
+    /// Roll for the hours the party just travelled; an event stops the journey for a choice. A front
+    /// reaching the party is not rolled (#9739): it stops the journey once, when it first covers it.
+    /// </summary>
+    private void RollTravelEvent(double hours, EnvironmentSample sky)
     {
         if (party is not { State: TravelState.Travelling } || pendingEvent is not null) return;
+        if (sky.Dominant is { Cover: >= WeatherArrivalCover } top && top.Front.Key != announcedFront)
+        {
+            announcedFront = top.Front.Key;
+            RaiseWeather(top.Front);
+            return;
+        }
+
         WorldMap map = worlds.Current.Map;
         MapSample here = map.Sample(party.Position.X, party.Position.Y);
         MapBiome biome = WorldMap.Biome(here);
         bool river = double.IsFinite(here.RiverSurface);
         TravelEventFacts facts = new(biome, conditions.IsNight, river,
-            Vector2.Distance(party.Position, new((float)home.Home.X, (float)home.Home.Z)) / 1000, party.EventRisk);
+            Vector2.Distance(party.Position, new((float)home.Home.X, (float)home.Home.Z)) / 1000, party.EventRisk * sky.Effects.EventRisk);
         if (TravelEventRolls.Roll(hours, facts) is TravelEventKind kind) Raise(kind, biome, river);
+    }
+
+    /// <summary>A front stops the journey when it covers the party at least this strongly.</summary>
+    private const double WeatherArrivalCover = 0.3;
+    /// <summary>A front has passed once it covers the party less than this.</summary>
+    private const double WeatherPassedCover = 0.1;
+    /// <summary>The front last announced, so each stops the journey once; and how long sheltering from it takes.</summary>
+    private FrontKey? announcedFront;
+    private double shelterHours;
+
+    /// <summary>A front reaches the party: the journey pauses, offering to camp until it passes or to press on.</summary>
+    private void RaiseWeather(WeatherFront front)
+    {
+        if (party is null) return;
+        double now = weather.Hours, passed = now;
+        while (passed < front.EndHours && front.Cover(party.Position.X, party.Position.Y, passed) >= WeatherPassedCover) passed += 1;
+        shelterHours = Math.Max(1, Math.Min(passed - now, TravelEvents.LongestShelterHours));
+        party.Pause();
+        pendingEvent = TravelEvents.Weather(front.Kind.Name, front.Kind.Arrival, passed - now, front.Kind.Effects.Harm > 0);
+        worldMessage = pendingEvent.Title + ": " + pendingEvent.Text;
+        SettleParty();
     }
 
     /// <summary>Present an event: the journey pauses and the map screen offers its choices.</summary>
@@ -47,7 +79,6 @@ public sealed partial class CraftSurviveProduct
         {
             TravelEventKind.Encounter => TravelEvents.Encounter(biome),
             TravelEventKind.Discovery => DiscoverNearParty(),
-            TravelEventKind.Weather => TravelEvents.Weather(biome),
             _ => TravelEvents.Hazard(biome, river),
         };
         // A discovery with nothing left to find nearby is no event at all.
@@ -98,10 +129,9 @@ public sealed partial class CraftSurviveProduct
                 worldMessage = "Noted on the map.";
                 break;
             case TravelEvents.Shelter:
-                Camp(TravelEvents.ShelterHours);
+                Camp(shelterHours, overNight: false);
                 return;
             case TravelEvents.Press:
-                party.Slow(TravelEvents.WeatherSlowHours, TravelEvents.WeatherSlowMultiplier);
                 worldMessage = "Pressing on through the weather.";
                 break;
             case TravelEvents.Detour:
@@ -144,6 +174,15 @@ public sealed partial class CraftSurviveProduct
         if (party is null || !mapOpen) return "refused: open the map with a party first";
         if (!Enum.TryParse(kind, ignoreCase: true, out TravelEventKind parsed)) return "refused: encounter, discovery, weather or hazard";
         pendingEvent = null;
+        if (parsed == TravelEventKind.Weather)
+        {
+            // Weather comes only with a front: summon one first (craft.weather.summon) to see it.
+            if (weather.Field.Sample(party.Position.X, party.Position.Y, weather.Hours).Dominant is not FrontPresence over) return "no event: no front over the party";
+            RaiseWeather(over.Front);
+            PublishWorld();
+            return TravelEventFacts();
+        }
+
         MapSample here = worlds.Current.Map.Sample(party.Position.X, party.Position.Y);
         Raise(parsed, WorldMap.Biome(here), double.IsFinite(here.RiverSurface));
         PublishWorld();
@@ -151,5 +190,5 @@ public sealed partial class CraftSurviveProduct
     }
 
     internal string TravelReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} slowHours={party?.SlowHours ?? 0:F1} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
+        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
 }

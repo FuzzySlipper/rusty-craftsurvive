@@ -4,6 +4,8 @@ using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Travel;
+using CraftSurvive.Game.Modules.Weather;
+using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game;
@@ -81,7 +83,75 @@ public sealed partial class CraftSurviveProduct
         double homeKilometres = Vector2.Distance(route.Points[^1], new((float)home.Home.X, (float)home.Home.Z)) / 1000;
         string danger = TravelEventDirector.DangerName(TravelEventDirector.Danger(homeKilometres));
         return string.Create(CultureInfo.InvariantCulture,
-            $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration) + (sledWithParty ? sled.Sled.Count(ItemCatalog.Ration) : 0)}); danger {danger}; {(sledWithParty ? "hauling the sled" : "the sled stays behind")}. Set out to confirm.");
+            $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration) + (sledWithParty ? sled.Sled.Count(ItemCatalog.Ration) : 0)}); danger {danger}; {(sledWithParty ? "hauling the sled" : "the sled stays behind")}. {WeatherOnRoute(route)} Set out to confirm.");
+    }
+
+    /// <summary>The route is checked against the forecast at about this many places along it.</summary>
+    private const int RouteForecastSamples = 48;
+    private const double RouteForecastCover = 0.3;
+
+    /// <summary>
+    /// The forecast along a route (#9739): each front the party would meet, and about when, reading
+    /// the weather where the party would be at the hour it would get there (daylight pace, no weather
+    /// delays), so the player can wait, detour or prepare.
+    /// </summary>
+    private string WeatherOnRoute(TravelRoute route)
+    {
+        double now = weather.Hours, total = route.Hours;
+        List<(WeatherFront Front, double After)> met = [];
+        double along = 0;
+        int leg = 0;
+        for (int sample = 0; sample <= RouteForecastSamples; sample++)
+        {
+            double target = total * sample / RouteForecastSamples;
+            while (leg < route.LegHours.Length - 1 && along + route.LegHours[leg] < target) along += route.LegHours[leg++];
+            double t = route.LegHours.Length == 0 || route.LegHours[leg] <= 0 ? 0 : Math.Clamp((target - along) / route.LegHours[leg], 0, 1);
+            Vector2 at = route.LegHours.Length == 0 ? route.Points[0] : Vector2.Lerp(route.Points[leg], route.Points[leg + 1], (float)t);
+            foreach (FrontPresence over in weather.Field.Sample(at.X, at.Y, now + target).Fronts)
+            {
+                if (over.Cover >= RouteForecastCover && met.All(seen => seen.Front.Key != over.Front.Key)) met.Add((over.Front, target));
+            }
+        }
+
+        if (met.Count == 0) return "Clear skies forecast.";
+        return "Weather on the way: " + string.Join(", ", met.Select(seen => seen.After < 1
+            ? $"{seen.Front.Kind.Name.ToLowerInvariant()} now"
+            : string.Create(CultureInfo.InvariantCulture, $"{seen.Front.Kind.Name.ToLowerInvariant()} in about {seen.After:F0} h"))) + ".";
+    }
+
+    /// <summary>The map shows fronts within this many map radii of the party, and where each will be over this many hours.</summary>
+    private const double WeatherShownRadii = 1.5;
+    private const double WeatherTrackHours = 24, WeatherTrackStepHours = 6;
+    /// <summary>The map's fronts are redrawn once the clock has moved this many game hours.</summary>
+    private const double WeatherRedrawHours = 0.1;
+    private double weatherDrawnHours = double.NaN;
+    private object? weatherDrawnOn;
+    private int weatherDrawnRevision;
+
+    /// <summary>Draws the fronts near the party on the faceted map (#9739), again whenever the clock has moved on.</summary>
+    private void ShowWeatherOnMap()
+    {
+        if (facetedMap is null) return;
+        double hours = weather.Hours;
+        if (ReferenceEquals(weatherDrawnOn, facetedMap) && weatherDrawnRevision == weather.Field.Revision && Math.Abs(hours - weatherDrawnHours) < WeatherRedrawHours) return;
+        Vector2 at = party?.Position ?? new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z);
+        List<WeatherMarker> fronts = [];
+        double edge = worlds.Current.Map.Radius;
+        // Fronts that touch the world, nearest the party first; those still beyond its edge are not drawn.
+        foreach (WeatherFront front in weather.Field.Alive(at.X, at.Y, hours, edge * WeatherShownRadii)
+            .Where(front => Math.Abs(front.Centre(hours).X) <= edge + front.RadiusMetres && Math.Abs(front.Centre(hours).Y) <= edge + front.RadiusMetres)
+            .OrderBy(front => Vector2.Distance(front.Centre(hours), at)))
+        {
+            List<Vector2> track = [];
+            for (double ahead = WeatherTrackStepHours; ahead <= WeatherTrackHours && hours + ahead <= front.EndHours; ahead += WeatherTrackStepHours)
+                track.Add(front.Centre(hours + ahead));
+            fronts.Add(new WeatherMarker(front.Kind.Id, front.Centre(hours), (float)front.RadiusMetres, (float)front.Strength(hours), [.. track]));
+        }
+
+        facetedMap.ShowWeather(fronts);
+        weatherDrawnHours = hours;
+        weatherDrawnOn = facetedMap;
+        weatherDrawnRevision = weather.Field.Revision;
     }
 
     /// <summary>Choose how fast the journey runs; events still stop it whatever the speed.</summary>
@@ -150,16 +220,23 @@ public sealed partial class CraftSurviveProduct
         return string.Join(" · ", parts);
     }
 
-    /// <summary>Advance a travelling party by this update's time; the world clock follows it.</summary>
+    /// <summary>
+    /// Advance a travelling party by this update's time; the world clock follows it. The weather where
+    /// the party walks (#9739) slows each leg, makes the march hungrier, and may wound.
+    /// </summary>
     private void AdvanceTravel(double elapsedSeconds)
     {
         if (party is not { State: TravelState.Travelling }) return;
         WorldTime start = conditions.Time;
+        double startHours = WeatherModule.Of(start);
         double spent = party.Advance(elapsedSeconds * PartyTravel.HoursPerSecond * travelSpeed,
-            hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction));
+            hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction),
+            hours => weather.Field.Sample(party.Position.X, party.Position.Y, startHours + hours).Effects.TravelCost);
         bool arrived = party.State != TravelState.Travelling;
         conditions.Pass(spent / PlayHoursPerSecond, save: arrived);
-        survival.Journey(spent / PlayHoursPerSecond, Meal);
+        EnvironmentSample sky = weather.Field.Sample(party.Position.X, party.Position.Y, weather.Hours);
+        survival.Journey(spent / PlayHoursPerSecond, Meal, sky.Effects.SupplyUse);
+        WoundInTheOpen(sky, spent);
         facetedMap?.MoveParty(party.Position);
         // On a continent, the country ahead is refined before the party could stop in it (#9550), and
         // the route's head follows region ground as the party reaches it (#9552).
@@ -170,7 +247,7 @@ public sealed partial class CraftSurviveProduct
         }
         unpublishedTravelHours += spent;
         // An event settles the party itself and keeps the route for after the choice.
-        RollTravelEvent(spent);
+        RollTravelEvent(spent, sky);
         bool stopped = party.State != TravelState.Travelling;
         if (arrived)
         {
@@ -185,6 +262,21 @@ public sealed partial class CraftSurviveProduct
         }
     }
 
+    /// <summary>Wounds a party travelling in the open owes the weather, carried between updates until whole.</summary>
+    private double woundsOwed;
+
+    /// <summary>Weather that harms (the glass storm, #9739) wounds a party travelling through it; a camp is shelter.</summary>
+    private void WoundInTheOpen(EnvironmentSample sky, double hours)
+    {
+        if (sky.Effects.Harm <= 0 || hours <= 0) return;
+        woundsOwed += sky.Effects.Harm * hours;
+        int wounds = (int)woundsOwed;
+        if (wounds <= 0) return;
+        woundsOwed -= wounds;
+        player.Vitals.TakeHit(wounds, 0);
+        worldMessage = string.Create(CultureInfo.InvariantCulture, $"The {sky.Dominant?.Front.Kind.Name.ToLowerInvariant() ?? "weather"} cuts at the party: {wounds} damage.");
+    }
+
     /// <summary>The expedition eats a ration from its packs whenever one would not be wasted, marching or camped.</summary>
     private SurvivalState Meal(SurvivalState state) =>
         state.Satiety <= EatRationBelowSatiety && (inventory.Spend(ItemCatalog.Ration) || TakeSledRation()) ? SurvivalRules.Eat(state, ItemCatalog.Ration.Value) : state;
@@ -194,12 +286,13 @@ public sealed partial class CraftSurviveProduct
     /// after a long enough night; by day it halts a couple of hours and recovers part of its fatigue. Camping is never
     /// required; it is how fatigue and the slow night march are avoided.
     /// </summary>
-    private void Camp(double dayHours = DayCampHours)
+    /// <param name="overNight">At night, sleep until morning; otherwise (sheltering from weather) rest exactly <paramref name="dayHours"/>.</param>
+    private void Camp(double dayHours = DayCampHours, bool overNight = true)
     {
         if (party is null) throw new FormatException("Open the map to make camp.");
         party.Pause();
         if (!SettleParty()) return;
-        bool night = conditions.IsNight;
+        bool night = conditions.IsNight && overNight;
         long refused = survival.RestsRefused;
         // The rest itself restores the expedition, through the survival owner's Slept (#9553).
         string outcome = night ? survival.Rest(Meal) : survival.RestFor(dayHours / PlayHoursPerSecond, Meal);

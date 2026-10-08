@@ -108,6 +108,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     private Vector2 waypoint;
     private Vector3[] routeMarkers = [];
     private readonly Appearance routeMarker, waypointMarker;
+    private readonly MapWeather weather;
     private int factsVersion, publishedVersion = -1;
     private bool waypointForward, waypointBack, waypointLeft, waypointRight;
     // The waypoint moves at a fixed fraction of the camera distance per update, so it suits any zoom.
@@ -150,6 +151,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor));
             routeMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, RouteColor));
             waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor));
+            weather = new MapWeather(engine, Surface, CellMetres, CellMetres / WorldMapPresentation.VerticalExaggeration);
             waypoint = new(partyWorldFeet.X, partyWorldFeet.Z);
 
             firstDetailChunk = (long)Math.Floor(-map.Radius / DetailChunkMetres);
@@ -191,7 +193,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     internal bool Loaded => (continent?.Settled ?? true) && coarse.Settled && detail.Settled && !detailPending;
     internal string Readout => FormattableString.Invariant(
-        $"style={Style.Name};tiers={(continent is null ? 2 : 3)};continentChunks={continent?.ResidentChunks ?? 0}+{continent?.PendingChunks ?? 0}pending;regionColumns={regionCovered.Count};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};lod={LevelOfDetailReadout()};")
+        $"style={Style.Name};tiers={(continent is null ? 2 : 3)};continentChunks={continent?.ResidentChunks ?? 0}+{continent?.PendingChunks ?? 0}pending;regionColumns={regionCovered.Count};cells={cells};cellMetres={CellMetres};detailMetres={DetailMetres};clutter={clutter.Count};coarseChunks={coarse.ResidentChunks}+{coarse.PendingChunks}pending;detailChunks={detail.ResidentChunks}+{detail.PendingChunks}pending;windowShifts={windowShifts};window={detailMinimum.X:F0},{detailMinimum.Y:F0};loaded={Loaded};coarseWorkMs={coarse.WorkMilliseconds:F0};detailWorkMs={detail.WorkMilliseconds:F0};wallMs={loadMilliseconds:F0};lastPick={PickReadout};lod={LevelOfDetailReadout()};party={partyPosition.X:F1},{partyPosition.Y:F1},{partyPosition.Z:F1};{weather.Readout()}")
         + rig.Readout;
 
     private string LevelOfDetailReadout()
@@ -214,6 +216,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
         Marker(ProductIds.WorldMapWaypointObject, Surface(waypoint.X, waypoint.Y), PartyScalePerDistance, waypointMarker),
         .. routeMarkers.Select((point, i) => Marker(ProductIds.WorldMapRouteBase + (ulong)i, point, RouteMarkerScalePerDistance, routeMarker)),
+        .. weather.Facts(rig.Distance),
         .. PlaceClusters.Group(places, (float)(rig.Distance * CellMetres * ClusterPerDistance)).Take(ProductIds.WorldMapPlaceLimit).Select((cluster, i) =>
             Marker(ProductIds.WorldMapPlaceBase + (ulong)i, Surface(cluster.Position.X, cluster.Position.Y),
                 cluster.Single ? (cluster.First.Kind == KnownPlaceKind.Home ? PartyScalePerDistance : MarkerScalePerDistance)
@@ -237,6 +240,16 @@ internal sealed class WorldMapVoxelView : IDisposable
         places = [.. known];
         factsVersion++;
     }
+
+    /// <summary>Show the weather fronts near the party (#9739); the list replaces the previous one.</summary>
+    internal void ShowWeather(IReadOnlyList<WeatherMarker> fronts)
+    {
+        weather.Show(fronts);
+        factsVersion++;
+    }
+
+    /// <summary>How many fronts the map draws, for the readout.</summary>
+    internal int WeatherShown => weather.Shown;
 
     /// <summary>Whether zoom, the party, its route or the waypoint changed since the facts were last published.</summary>
     internal bool MarkersStale => rig.Distance != publishedDistance || factsVersion != publishedVersion;
@@ -562,6 +575,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         party?.Dispose();
         routeMarker?.Dispose();
         waypointMarker?.Dispose();
+        weather?.Dispose();
         foreach (Appearance placeMarker in placeMarkers.Values) placeMarker.Dispose();
         clusterMarker?.Dispose();
         foreach (Material material in materials.Values) material.Dispose();

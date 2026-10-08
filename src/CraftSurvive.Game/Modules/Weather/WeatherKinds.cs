@@ -13,7 +13,7 @@ internal static class WeatherKinds
     private const double UplandHeight = 0.75;
 
     internal static WeatherKind RainFront { get; } = new(
-        "rain", "Rain front",
+        "rain", "Rain front", "A grey wall of rain sweeps in across the country. The going will be slow and wet.",
         Birth: ground => ground.Biome switch
         {
             MapBiome.TemperateForest or MapBiome.Rainforest or MapBiome.Grassland or MapBiome.BorealForest or MapBiome.Sea => 1,
@@ -35,7 +35,7 @@ internal static class WeatherKinds
         Effects: new(TravelCost: 1.4, SupplyUse: 1.1, EventRisk: 1.2, Wetting: 0.5, Chill: 0.05, Harm: 0, Sight: 0.7));
 
     internal static WeatherKind Snowstorm { get; } = new(
-        "snow", "Snowstorm",
+        "snow", "Snowstorm", "The sky closes and snow drives in sideways. Every step costs warmth and food.",
         Birth: ground => ground.Biome switch
         {
             MapBiome.IceField or MapBiome.Tundra or MapBiome.Alpine => 1,
@@ -56,7 +56,7 @@ internal static class WeatherKinds
         Effects: new(TravelCost: 2.5, SupplyUse: 1.5, EventRisk: 1.5, Wetting: 0.2, Chill: 0.6, Harm: 0, Sight: 0.35));
 
     internal static WeatherKind Sandstorm { get; } = new(
-        "sand", "Sandstorm",
+        "sand", "Sandstorm", "A brown wall of sand rolls over the land, swallowing the horizon.",
         Birth: ground => ground.Biome switch
         {
             MapBiome.Desert => 1,
@@ -78,7 +78,7 @@ internal static class WeatherKinds
         Effects: new(TravelCost: 2.2, SupplyUse: 1.3, EventRisk: 1.4, Wetting: 0, Chill: 0, Harm: 0, Sight: 0.3));
 
     internal static WeatherKind FogBank { get; } = new(
-        "fog", "Fog bank",
+        "fog", "Fog bank", "A fog bank settles over the land. The way ahead is hard to read, and anything could be close.",
         Birth: ground => ground.Biome switch
         {
             MapBiome.Rainforest => 1,
@@ -103,7 +103,7 @@ internal static class WeatherKinds
     /// It forms only over uplands but roams anywhere, a moving wall that reshapes routes for days.
     /// </summary>
     internal static WeatherKind GlassStorm { get; } = new(
-        "glass", "Glass storm",
+        "glass", "Glass storm", "The air begins to ring. Fine glittering glass falls from a prismatic sky, and it cuts whatever it finds in the open.",
         Birth: ground => ground.Biome == MapBiome.Alpine || ground.Height >= UplandHeight ? 1 : 0,
         Sustain: ground => ground.Biome == MapBiome.Sea ? 0.5 : 1,
         RadiusMetres: 35_000, MetresPerHour: 800, LifeHours: 120,

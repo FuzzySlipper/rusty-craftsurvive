@@ -61,14 +61,15 @@ internal readonly record struct WeatherGround(MapSample Sample, double Height)
 }
 
 /// <summary>
-/// One kind of weather (Den <c>design/weather-and-environment</c>): where it may form and what keeps
-/// it alive (each 0..1 from the geography under it), its size, speed and life, how often it is
+/// One kind of weather (Den <c>design/weather-and-environment</c>): its name and how its arrival
+/// reads, where it may form and what keeps it alive (each 0..1 from the geography under it), its size, speed and life, how often it is
 /// born, and what it does. Lengths are metres and times game hours at the reference scale; a small
 /// world shrinks them (<see cref="WeatherScale"/>).
 /// </summary>
 internal sealed record WeatherKind(
     string Id,
     string Name,
+    string Arrival,
     Func<WeatherGround, double> Birth,
     Func<WeatherGround, double> Sustain,
     double RadiusMetres,

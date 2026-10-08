@@ -38,6 +38,12 @@ internal static class ProductIds
     internal const ulong WorldMapPlaceBase = 0x5_0000UL;
     internal const int WorldMapPlaceLimit = 0x2000;
 
+    /// <summary>Weather fronts on the faceted map (#9739): a disc each, and a trail of dots where each is heading.</summary>
+    internal const ulong WorldMapWeatherBase = 0x5_2000UL;
+    internal const int WorldMapWeatherLimit = 0x400;
+    internal const ulong WorldMapWeatherTrackBase = 0x5_2400UL;
+    internal const int WorldMapWeatherTrackLimit = 0x1000;
+
     /// <summary>The overworld's drawn trees (TerrainTrees, #9665); up to 0x4000 of them.</summary>
     internal const ulong TreeObjectBase = 0x6_0000UL;
     internal const int TreeObjectLimit = 0x4000;

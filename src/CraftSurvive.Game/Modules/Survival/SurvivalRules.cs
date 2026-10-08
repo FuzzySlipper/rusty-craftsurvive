@@ -16,7 +16,7 @@ internal readonly record struct SurvivalState(
 }
 
 /// <summary>What the player is doing this update, as survival needs to know it.</summary>
-internal readonly record struct SurvivalFacts(int Health, int MaximumHealth, bool HeadSubmerged, bool Sprinting, bool Hurt);
+internal readonly record struct SurvivalFacts(int Health, int MaximumHealth, bool HeadSubmerged, bool Sprinting, bool Hurt, double HungerFactor = 1);
 
 /// <summary>Why health changed in a survival step.</summary>
 internal enum SurvivalHarm
@@ -95,7 +95,7 @@ internal static class SurvivalRules
         }
 
         SurvivalTuning tuning = Tuning(difficulty);
-        double hunger = tuning.HungerPerSecond * (facts.Sprinting ? SprintHungerFactor : 1d) * seconds;
+        double hunger = tuning.HungerPerSecond * (facts.Sprinting ? SprintHungerFactor : 1d) * Math.Max(0d, facts.HungerFactor) * seconds;
         double satiety = Math.Max(0d, state.Satiety - hunger);
         double breath = facts.HeadSubmerged
             ? Math.Max(0d, state.Breath - (tuning.BreathLostPerSecond * seconds))
@@ -135,18 +135,19 @@ internal static class SurvivalRules
     /// comes, so it is the food missing, not the food held, that hurts.</param>
     internal static SurvivalStep Rest(SurvivalState state, int health, int maximumHealth, Difficulty difficulty, double seconds,
         Func<SurvivalState, SurvivalState>? meal = null) =>
-        Slices(state with { SinceHurtSeconds = CalmSecondsBeforeRegaining, Breath = MaximumBreathSeconds }, health, maximumHealth, difficulty, seconds, meal);
+        Slices(state with { SinceHurtSeconds = CalmSecondsBeforeRegaining, Breath = MaximumBreathSeconds }, health, maximumHealth, difficulty, seconds, meal, 1d);
 
     /// <summary>
     /// A march on the map: the ordinary rules over those seconds, a slice at a time, never sprinting or
-    /// submerged, eating as hunger comes when there is food to eat.
+    /// submerged, eating as hunger comes when there is food to eat. Hard weather makes the march hungrier
+    /// (<paramref name="hungerFactor"/>, #9739).
     /// </summary>
     internal static SurvivalStep March(SurvivalState state, int health, int maximumHealth, Difficulty difficulty, double seconds,
-        Func<SurvivalState, SurvivalState>? meal = null) =>
-        Slices(state, health, maximumHealth, difficulty, seconds, meal);
+        Func<SurvivalState, SurvivalState>? meal = null, double hungerFactor = 1d) =>
+        Slices(state, health, maximumHealth, difficulty, seconds, meal, hungerFactor);
 
     private static SurvivalStep Slices(SurvivalState resting, int health, int maximumHealth, Difficulty difficulty, double seconds,
-        Func<SurvivalState, SurvivalState>? meal)
+        Func<SurvivalState, SurvivalState>? meal, double hungerFactor)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(seconds);
         int regained = 0;
@@ -155,7 +156,7 @@ internal static class SurvivalRules
         for (double slept = 0d; slept < seconds; slept += RestSliceSeconds)
         {
             int now = health + regained - lost;
-            SurvivalStep slice = Advance(resting, new SurvivalFacts(now, maximumHealth, HeadSubmerged: false, Sprinting: false, Hurt: false),
+            SurvivalStep slice = Advance(resting, new SurvivalFacts(now, maximumHealth, HeadSubmerged: false, Sprinting: false, Hurt: false, hungerFactor),
                 difficulty, Math.Min(RestSliceSeconds, seconds - slept));
             resting = meal?.Invoke(slice.State) ?? slice.State;
             regained += slice.Regained;

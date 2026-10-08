@@ -81,6 +81,9 @@ internal sealed class WeatherField
 
     internal IReadOnlyList<WeatherKind> Kinds { get; }
 
+    /// <summary>Changes whenever fronts are summoned or cleared, so presentation drawn from the field redraws.</summary>
+    internal int Revision { get; private set; }
+
     /// <summary>How many fronts the field has worked out (born or not), for the readout.</summary>
     internal int Remembered => fronts.Count;
 
@@ -188,6 +191,7 @@ internal sealed class WeatherField
         WeatherFront front = Drift(new FrontKey(index, long.MinValue, summoned.Count, long.MinValue), kind,
             x - (flow.X * back), z - (flow.Y * back), hours - grown, summonedFront: true);
         summoned.Add(front);
+        Revision++;
         return front;
     }
 
@@ -195,6 +199,7 @@ internal sealed class WeatherField
     {
         int count = summoned.Count;
         summoned.Clear();
+        Revision++;
         return count;
     }
 

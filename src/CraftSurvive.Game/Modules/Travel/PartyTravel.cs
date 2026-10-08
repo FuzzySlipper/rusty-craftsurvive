@@ -30,7 +30,6 @@ internal sealed class PartyTravel
     private int leg;
     /// <summary>The leg at which head refinement was last tried, so an unrefinable head is not retried every update.</summary>
     private int refineTriedAt = -1;
-    private double slowHours, slowMultiplier = 1;
     private double legProgress;
 
     internal PartyTravel(Vector2 position) => Position = position;
@@ -56,15 +55,6 @@ internal sealed class PartyTravel
 
     /// <summary>Hours lost without progress (a detour, slipping away) still tire the expedition.</summary>
     internal void Tire(double hours) => Fatigue = Math.Min(MaximumFatigue, Fatigue + Math.Max(0, hours) * FatiguePerHour);
-
-    /// <summary>Weather slows travel: the next <paramref name="hours"/> of travel cost this many times more.</summary>
-    internal void Slow(double hours, double multiplier)
-    {
-        slowHours = Math.Max(slowHours, hours);
-        slowMultiplier = multiplier;
-    }
-
-    internal double SlowHours => slowHours;
 
     /// <summary>A multiplier on every leg for what the party hauls (a loaded sled, #9473); 1 on foot.</summary>
     internal double LoadMultiplier { get; set; } = 1;
@@ -166,16 +156,18 @@ internal sealed class PartyTravel
 
     /// <summary>
     /// Spend up to <paramref name="hours"/> of game time moving along the route. Night multiplies
-    /// each leg's cost. Returns the game hours actually spent; arrival ends travel.
+    /// each leg's cost, and so does the weather where the party stands (#9739): <paramref name="environment"/>
+    /// gives the multiplier after so many hours, read where the party then is. Returns the game hours
+    /// actually spent; arrival ends travel.
     /// </summary>
-    internal double Advance(double hours, Func<double, bool> nightAfter)
+    internal double Advance(double hours, Func<double, bool> nightAfter, Func<double, double>? environment = null)
     {
         if (State != TravelState.Travelling || Route is null || hours <= 0) return 0;
         double spent = 0;
         while (spent < hours && leg < Route.LegHours.Length)
         {
             double multiplier = (nightAfter(spent) ? TravelCostModel.NightMultiplier : 1) * (Exhausted ? ExhaustedMultiplier : 1)
-                * (slowHours > 0 ? slowMultiplier : 1) * LoadMultiplier;
+                * Math.Max(1, environment?.Invoke(spent) ?? 1) * LoadMultiplier;
             double before = spent;
             double legHours = Math.Max(Route.LegHours[leg] * multiplier, 1e-9);
             double available = hours - spent;
@@ -195,7 +187,6 @@ internal sealed class PartyTravel
                 ? Vector2.Lerp(Route.Points[leg], Route.Points[leg + 1], (float)legProgress)
                 : Route.Points[^1];
             Fatigue = Math.Min(MaximumFatigue, Fatigue + (spent - before) * FatiguePerHour);
-            slowHours = Math.Max(0, slowHours - (spent - before));
         }
         if (leg >= Route.LegHours.Length)
         {

@@ -73,15 +73,17 @@ internal sealed class TravelEventDirector(ulong seed)
     /// <summary>How likely each kind is here, indexed by <see cref="TravelEventKind"/>.</summary>
     internal static double[] Weights(TravelEventFacts facts)
     {
-        (double encounter, double weather, double hazard) = facts.Biome switch
+        (double encounter, double hazard) = facts.Biome switch
         {
-            MapBiome.TemperateForest or MapBiome.BorealForest or MapBiome.Rainforest => (1.5, 0.8, 0.8),
-            MapBiome.Grassland or MapBiome.Shrubland or MapBiome.ColdSteppe => (1.2, 0.8, 0.6),
-            MapBiome.Desert => (0.7, 1.5, 1.0),
-            MapBiome.Tundra or MapBiome.IceField => (0.6, 1.8, 1.0),
-            MapBiome.Alpine => (0.6, 1.4, 1.8),
-            _ => (1, 1, 1),
+            MapBiome.TemperateForest or MapBiome.BorealForest or MapBiome.Rainforest => (1.5, 0.8),
+            MapBiome.Grassland or MapBiome.Shrubland or MapBiome.ColdSteppe => (1.2, 0.6),
+            MapBiome.Desert => (0.7, 1.0),
+            MapBiome.Tundra or MapBiome.IceField => (0.6, 1.0),
+            MapBiome.Alpine => (0.6, 1.8),
+            _ => (1, 1),
         };
+        // Weather is never rolled (#9739): it arrives with the fronts the party can see coming.
+        const double weather = 0;
         double discovery = 1;
         if (facts.Night)
         {
@@ -111,13 +113,11 @@ internal static class TravelEvents
     internal const string Shelter = "camp", Press = "press";
     internal const string Detour = "detour", Push = "push";
 
-    /// <summary>Hours lost slipping away from an encounter, sheltering from weather, or going round a hazard.</summary>
+    /// <summary>Hours lost slipping away from an encounter, or going round a hazard.</summary>
     internal const double EvadeHours = 2;
-    internal const double ShelterHours = 3;
     internal const double DetourHours = 3;
-    /// <summary>Pressing on through weather: this much slower for this many hours of travel.</summary>
-    internal const double WeatherSlowHours = 4;
-    internal const double WeatherSlowMultiplier = 2;
+    /// <summary>Sheltering from a front camps until it has passed, but never longer than this at one time.</summary>
+    internal const double LongestShelterHours = 48;
     /// <summary>Pushing through a hazard costs a ration, or this much health with none to spare.</summary>
     internal const int HazardDamage = 4;
     internal const int AmbushSize = 3;
@@ -134,15 +134,15 @@ internal static class TravelEvents
         FormattableString.Invariant($"A scout spots a {place.ToLowerInvariant()} {kilometres:F1} km away. It is now on the map."),
         [new(Divert, "Divert to it"), new(Note, "Note it and carry on")]);
 
-    internal static TravelEvent Weather(MapBiome biome) => new(TravelEventKind.Weather,
-        biome switch
-        {
-            MapBiome.Tundra or MapBiome.IceField or MapBiome.Alpine => "Blizzard",
-            MapBiome.Desert => "Sandstorm",
-            _ => "Storm",
-        },
-        "The weather turns hard. Pressing on will be slow and wearing.",
-        [new(Shelter, FormattableString.Invariant($"Make camp until it passes ({ShelterHours:F0} h)")), new(Press, "Press on (slow going)")]);
+    /// <summary>
+    /// A front reaches the party (#9739): named for what it is, with how long sheltering would take
+    /// (until it passes, up to <see cref="LongestShelterHours"/>) and what pressing on costs.
+    /// </summary>
+    internal static TravelEvent Weather(string name, string arrival, double shelterHours, bool wounds) => new(TravelEventKind.Weather,
+        name,
+        arrival,
+        [new(Shelter, FormattableString.Invariant($"Make camp until it passes ({Math.Min(shelterHours, LongestShelterHours):F0} h)")),
+            new(Press, wounds ? "Press on (it wounds)" : "Press on (slow going)")]);
 
     internal static TravelEvent Hazard(MapBiome biome, bool river) => new(TravelEventKind.Hazard,
         river ? "Swollen ford" : biome == MapBiome.Alpine ? "Rockslide" : "Broken ground",

@@ -20,6 +20,17 @@ internal static class MapPalette
     /// <summary>Several places drawn as one marker at the current zoom (#9553).</summary>
     internal static readonly Color PlaceCluster = new(0.95f, 0.82f, 0.55f, 1);
 
+    /// <summary>Weather fronts on the map (#9739), by kind id: rain slate blue, snow white, sand ochre, fog grey, the arcane glass storm a prismatic rose.</summary>
+    internal static Color Weather(string kind) => kind switch
+    {
+        "rain" => new(0.36f, 0.46f, 0.62f, 1),
+        "snow" => new(0.92f, 0.94f, 1, 1),
+        "sand" => new(0.86f, 0.68f, 0.42f, 1),
+        "fog" => new(0.78f, 0.8f, 0.8f, 1),
+        "glass" => new(0.96f, 0.62f, 0.94f, 1),
+        _ => new(0.7f, 0.7f, 0.75f, 1),
+    };
+
     private const float RockBlend = 0.45f;
     internal static readonly Color Stone = new(0.5f, 0.48f, 0.46f, 1);
     internal static readonly Color River = new(0.22f, 0.42f, 0.72f, 1);

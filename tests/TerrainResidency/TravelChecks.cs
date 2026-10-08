@@ -209,9 +209,12 @@ internal static class TravelChecks
         Check.That(dark.Encounters * calm.Count > calm.Encounters * dark.Count, "encounters make up more of the night's events");
         double[] alpine = TravelEventDirector.Weights(open with { Biome = MapBiome.Alpine, River = true });
         double[] meadow = TravelEventDirector.Weights(open);
-        Check.That(alpine[(int)TravelEventKind.Hazard] > meadow[(int)TravelEventKind.Hazard] && alpine[(int)TravelEventKind.Weather] > meadow[(int)TravelEventKind.Weather],
-            "mountains and fords bring more hazards and weather");
-        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather(MapBiome.Alpine), TravelEvents.Hazard(MapBiome.Alpine, true) })
+        Check.That(alpine[(int)TravelEventKind.Hazard] > meadow[(int)TravelEventKind.Hazard], "mountains and fords bring more hazards");
+        Check.That(alpine[(int)TravelEventKind.Weather] == 0 && meadow[(int)TravelEventKind.Weather] == 0, "weather is never rolled: it comes with the fronts (#9739)");
+        TravelEvent glass = TravelEvents.Weather("Glass storm", "The air rings.", 100, wounds: true);
+        Check.That(glass.Choices[0].Label.Contains($"{TravelEvents.LongestShelterHours:F0} h", StringComparison.Ordinal) && glass.Choices[1].Label.Contains("wounds", StringComparison.Ordinal),
+            "a front's event offers to camp until it passes, at most two days at a time, and says when pressing on wounds");
+        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather("Rain front", "Rain sweeps in.", 6, wounds: false), TravelEvents.Hazard(MapBiome.Alpine, true) })
             Check.That(shown.Choices.Count == 2 && shown.Choices.All(c => !c.Label.Contains(',') && !c.Label.Contains('|') && !c.Id.Contains(':'))
                 && !shown.Title.Contains('|') && !shown.Text.Contains('|'), $"{shown.Kind} offers two answers that publish cleanly");
 
@@ -233,15 +236,15 @@ internal static class TravelChecks
         int iceNode = Enumerable.Range(0, grid.Count).FirstOrDefault(i => cost.Passable(i) && WorldMap.Biome(map.Node(i)) == MapBiome.IceField, -1);
         if (iceNode >= 0) Check.That(hauling.Multiplier(iceNode) < cost.Multiplier(iceNode), "a sled crosses ice field faster than a party on foot");
 
-        // Weather slows the next hours of travel; time lost still tires.
+        // Weather where the party walks slows each leg (#9739); time lost still tires.
         PartyTravel slowed = new(Vector2.Zero), steady = new(Vector2.Zero);
         TravelRoute? across = Crossing(cost, grid);
         if (across is not null)
         {
             foreach (PartyTravel p in new[] { slowed, steady }) { p.Plan(cost, across.Points[^1], "far"); p.Relocate(across.Points[0]); p.Plan(cost, across.Points[^1], "far"); p.Begin(); }
-            slowed.Slow(TravelEvents.WeatherSlowHours, TravelEvents.WeatherSlowMultiplier);
-            slowed.Advance(TravelEvents.WeatherSlowHours, _ => false);
-            steady.Advance(TravelEvents.WeatherSlowHours, _ => false);
+            const double hours = 4, storm = 2;
+            slowed.Advance(hours, _ => false, _ => storm);
+            steady.Advance(hours, _ => false);
             Check.That(slowed.RemainingHours > steady.RemainingHours, "pressing on through weather covers less ground");
             double before = steady.Fatigue;
             steady.Tire(2);

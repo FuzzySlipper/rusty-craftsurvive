@@ -151,12 +151,13 @@ internal sealed class SurvivalModule : IProductModule
 
     /// <summary>
     /// Time spent marching on the map: the ordinary rules applied over those seconds, so the journey
-    /// costs food, carried food is eaten as hunger comes, and an empty stomach hurts.
+    /// costs food, carried food is eaten as hunger comes, and an empty stomach hurts. Hard weather
+    /// makes it hungrier by <paramref name="hungerFactor"/>.
     /// </summary>
-    internal void Journey(double seconds, Func<SurvivalState, SurvivalState>? meal = null)
+    internal void Journey(double seconds, Func<SurvivalState, SurvivalState>? meal = null, double hungerFactor = 1d)
     {
         if (seconds <= 0) return;
-        Apply(SurvivalRules.March(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds, meal));
+        Apply(SurvivalRules.March(state, player.Vitals.State.Health, player.Vitals.MaximumHealth, conditions.Difficulty, seconds, meal, hungerFactor));
         Publish();
     }
 

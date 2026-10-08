@@ -272,6 +272,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 PublishWorld();
             }
             AdvanceTravel(ProductStep.From(update.Facts).ElapsedSeconds);
+            if (facetedMapShown) ShowWeatherOnMap();
             if (facetedMapShown && facetedMap is not null && (facetedMap.Steer(update.Input) | facetedMap.MarkersStale)) PublishAppearanceSnapshot();
             AdvanceFacetedMap();
             return ProductUpdateResult.None;

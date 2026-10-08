@@ -14,12 +14,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   through Engine triplanar projection. Three authored landscape studies are reachable
   through Menu → Landscape study → Visit landscape; they are small material/topography
   experiments loaded as separate spaces.
-- **The world map is simulated geography, not yet a travel layer.** `MapSimulation`
+- **The world map is simulated geography with an overland travel layer.** `MapSimulation`
   generates relief, stream-power erosion, terrain-driven climate and biomes once per new
-  world; local terrain samples it continuously and representative environments are reachable
-  from **World**. The map is an inspection view that pauses local gameplay; site visits do
-  not implement travel, weather, logistics or route costs, and there is no guaranteed route
-  network between destinations.
+  world; local terrain samples it continuously, and **World** opens the map, which pauses
+  local gameplay while the party travels on it (below). There is no road network between
+  destinations.
   - **Continents are experimental (#9549).** A 390 km world (320–450 km;
     "390 km continent" on the new-world form) runs the same pipeline on a kilometre lattice
     with every tuned length scaled by `MapScale.Lengths`, peaks near 1,800 m under a 2,400 m
@@ -126,9 +125,26 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       person at the token, where hostile creatures close in once the ground is streamed, on ground
       with a route to the player; in broken or wooded ground a pursuer can still lose its route and
       wait, as any pursuer does. A discovery reveals the nearest unknown place within 1.5 km and
-      offers to divert there. Weather either shelters for three hours or slows the next four hours
-      of travel. A hazard costs three hours to go round, or a ration (or health) to push through.
-      Events are not saved: one waiting at a restart is gone.
+      offers to divert there. Weather is not rolled: it comes with the fronts (below). A hazard
+      costs three hours to go round, or a ration (or health) to push through. Events are not
+      saved: one waiting at a restart is gone.
+    - **Weather (#9683, Den `design/weather-and-environment`)** is a deterministic field of fronts
+      (rain, snowstorm, sandstorm, fog bank, and the rare arcane glass storm). Each forms only where
+      its climate allows, drifts along the map's prevailing flow, and fades out of its climate.
+      Fronts are shrunk on small worlds. Nothing about them is saved: the seed, the map and the
+      clock decide them, so the forecast is exact.
+      - **On the map:** fronts are drawn as soft domes, with dots where each will be over the next
+        day. The route preview names the fronts the route meets and when.
+      - **Travel:** a front covering the party slows each leg, makes the march hungrier and raises
+        event risk; the glass storm also wounds a party pressing on through it. The first time a
+        front covers the party, the journey stops and offers to camp until it passes (up to 48 h)
+        or to press on. Restarting forgets which fronts were announced, so one may be announced
+        again.
+      - **Not yet:**
+        - The preview's hours and rations ignore the weather's slowing.
+        - Nothing first-person reacts to weather yet (#9740, #9741).
+        - Fronts are circles, without shape or rain bands.
+        - Seasons do not exist (#9554).
     - "Explore here" drops into first person at the token. Whenever the journey pauses, halts,
       arrives, camps or meets an event, the player is placed at the token and the continuation,
       survival and pack are saved, so position and supplies survive a restart; an unfinished route
