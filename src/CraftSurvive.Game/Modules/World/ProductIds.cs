@@ -42,6 +42,9 @@ internal static class ProductIds
     internal const ulong TreeObjectBase = 0x6_0000UL;
     internal const int TreeObjectLimit = 0x4000;
 
+    /// <summary>The building look study's mesh cabin (BuildStudy, #9684).</summary>
+    internal const ulong BuildStudyObject = 0x7_0000UL;
+
     /// <summary>Retained light ids: the sky's sun (or moon), its occlusion layer (an ambient light) and its hemisphere fill.</summary>
     internal const ulong SunLight = 1UL;
 

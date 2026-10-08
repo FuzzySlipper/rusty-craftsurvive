@@ -25,6 +25,7 @@ internal sealed class TerrainWorld : IDisposable
 
     private readonly IEngineContext engine;
     private readonly ProductContent content;
+    private Manipulation.BuildStudy? study;
     private readonly ProductUiPublisher ui;
     private readonly WorldFrame frame;
     private readonly TerrainTrees trees;
@@ -187,6 +188,7 @@ internal sealed class TerrainWorld : IDisposable
         farField?.Dispose();
         farField = null;
         trees.Dispose();
+        study?.Dispose();
         presentation.Dispose();
         chunkCache.Dispose();
         session?.Dispose();
@@ -218,6 +220,22 @@ internal sealed class TerrainWorld : IDisposable
     internal AppearanceFact[] TreeFacts => trees.Facts;
 
     internal string TreesReadout() => trees.Readout();
+
+    /// <summary>The building look study's draw facts (#9684); empty unless one is built.</summary>
+    internal AppearanceFact[] StudyFacts => study?.Facts ?? [];
+
+    /// <summary>Builds the building look study's cabins in a row from (x, z) (#9684), or clears it.</summary>
+    internal string BuildStudy(double x, double z, bool clear, bool collide = false)
+    {
+        if (clear)
+        {
+            study?.Clear();
+            return study?.Readout() ?? "buildStudy none";
+        }
+
+        study ??= new Manipulation.BuildStudy(engine, content, frame);
+        return study.Build(x, z, (cx, cz) => recipe.ContinuousHeightAt((long)Math.Round(cx), (long)Math.Round(cz)) + 1, collide);
+    }
 
     /// <summary>Sets how far the distant trees reach (#9677); 0 turns them off.</summary>
     internal string SetFarTrees(long metres)

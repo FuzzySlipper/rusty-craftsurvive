@@ -1,0 +1,38 @@
+[
+  {
+    "id": "planks",
+    "width": 64,
+    "height": 64,
+    "sha256": "eef64008c36a7e3d1e2cfd9cc903c91c5011b3d6a2c9adfa394fbaf800924c44",
+    "metresPerTile": 2.0,
+    "triplanarSharpness": 8,
+    "filter": "nearest"
+  },
+  {
+    "id": "timber",
+    "width": 64,
+    "height": 64,
+    "sha256": "e3453c2b59a4d1202cb3906bef4c3e9f1b8d10ab682de86acda9f28340f3ec93",
+    "metresPerTile": 2.0,
+    "triplanarSharpness": 8,
+    "filter": "nearest"
+  },
+  {
+    "id": "masonry",
+    "width": 64,
+    "height": 64,
+    "sha256": "67d694df000faae85593754ffcdcc0bb6ee934ae4f694c41a5cb7f9d1d3917cd",
+    "metresPerTile": 2.0,
+    "triplanarSharpness": 8,
+    "filter": "nearest"
+  },
+  {
+    "id": "shingles",
+    "width": 64,
+    "height": 64,
+    "sha256": "dccb1c4a3147001f381d4abd70ad3f6ada671659ff85940b7ea3946cb88dced5",
+    "metresPerTile": 2.0,
+    "triplanarSharpness": 8,
+    "filter": "nearest"
+  }
+]

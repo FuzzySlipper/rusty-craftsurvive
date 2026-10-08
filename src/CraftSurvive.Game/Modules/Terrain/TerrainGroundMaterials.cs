@@ -11,6 +11,9 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal sealed record GroundTextureSet(string Root, IReadOnlyList<string> LayerNames, string Namespace)
 {
     internal static GroundTextureSet Walking { get; } = new("textures/terrain-studies/", TerrainLayers.Names, "ground");
+
+    /// <summary>The building study's maps (#9684, scripts/generate-construction-textures.py): timber, stone and roof.</summary>
+    internal static GroundTextureSet Construction { get; } = new("textures/construction/", ["planks", "timber", "masonry", "shingles"], "construction");
 }
 
 /// <summary>Authored repeating terrain maps. Engine owns texture sampling and triplanar blending.</summary>
@@ -38,7 +41,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
         List<AuthoredMaterialInput> definitions = [];
         List<AuthoredTextureInput> textureDefinitions = [];
         List<AuthoredVoxelSurfaceInput> surfaces = [];
-        List<(string Name, string Material, string Path, float Sharpness)> maps = [];
+        List<(string Name, string Material, string Path, float Sharpness, bool Nearest)> maps = [];
         foreach (JsonElement item in manifest.RootElement.EnumerateArray())
         {
             string name = item.GetProperty("id").GetString()!;
@@ -49,11 +52,13 @@ internal sealed class TerrainGroundMaterials : IDisposable
             string hash = item.GetProperty("sha256").GetString()!;
             // Engine repeat scales are tile widths in voxel cells, not repeats per cell.
             float scale = item.GetProperty("metresPerTile").GetSingle() * Settings.TextureScale / (float)voxelSize;
+            // A map may ask for nearest filtering ("filter": "nearest"), for chunky texels; the ground maps are linear.
+            bool nearest = item.TryGetProperty("filter", out JsonElement filter) && filter.GetString() == "nearest";
             entries.Add(new(texture, Version, true, hash, true, path, true, name));
             entries.Add(new(material, Version, false, string.Empty, false, string.Empty, true, name));
             dependencies.Add(new(material, texture, AssetVersionRequirementKind.Exact, Version, true, hash));
             textureDefinitions.Add(new(texture, item.GetProperty("width").GetUInt32(),
-                item.GetProperty("height").GetUInt32(), AuthoredTextureFilter.Linear, AuthoredTextureWrap.Repeat));
+                item.GetProperty("height").GetUInt32(), nearest ? AuthoredTextureFilter.Nearest : AuthoredTextureFilter.Linear, AuthoredTextureWrap.Repeat));
             definitions.Add(new(material, true, true, true, AuthoredStructuralClass.Solid,
                 new Color(Unit, Unit, Unit, Unit), true, texture, AssetVersionRequirementKind.Exact,
                 Version, true, hash, Roughness, new Color(Unit, Unit, Unit, Unit),
@@ -62,7 +67,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
                 texture, AssetVersionRequirementKind.Exact, Version, true, hash,
                 string.Empty, AssetVersionRequirementKind.Any, 0, false, string.Empty, string.Empty,
                 scale, scale, Zero, Zero, AuthoredVoxelAlphaModeKind.Opaque, Zero));
-            maps.Add((name, material, path, item.GetProperty("triplanarSharpness").GetSingle() * Settings.ProjectionSharpnessScale));
+            maps.Add((name, material, path, item.GetProperty("triplanarSharpness").GetSingle() * Settings.ProjectionSharpnessScale, nearest));
         }
 
         try
@@ -73,7 +78,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
             foreach (var map in maps)
             {
                 RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(
-                    map.Path, TextureFilter.Linear, TextureWrap.Repeat)).Handle;
+                    map.Path, map.Nearest ? TextureFilter.Nearest : TextureFilter.Linear, TextureWrap.Repeat)).Handle;
                 textures.Add(texture);
                 materials.Add(map.Name, engine.Graphics.CreateAuthoredMaterial(
                     new AuthoredMaterialAppearanceRequest(catalog, map.Material, texture) { TriplanarSharpness = map.Sharpness }));

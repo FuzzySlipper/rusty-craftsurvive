@@ -102,6 +102,15 @@ public sealed class CraftDebugModule : IDebugCommandModule
             : string.Join(';', found.Select(tree => FormattableString.Invariant($"{tree.Kind} {tree.X},{tree.GroundY},{tree.Z} scale={tree.Scale:F2}")));
     }
 
+    [DebugCommand("craft.build.study", Description = "Assisted (#9684): builds the building look study, one cabin as 1 m cubes, 1 m blocky, 0.5 m and 0.25 m dual contouring, and snap meshes, in a row along +X from x,z.")]
+    public string BuildStudy(double x, double z) => terrain.BuildStudy(x, z, clear: false);
+
+    [DebugCommand("craft.build.studycollide", Description = "Assisted (#9684): as craft.build.study, with the voxel cabins colliding, to test a second colliding session beside the walking world.")]
+    public string BuildCollidingStudy(double x, double z) => terrain.BuildStudy(x, z, clear: false, collide: true);
+
+    [DebugCommand("craft.build.studyclear", Description = "Assisted (#9684): removes the building look study.")]
+    public string ClearBuildStudy() => terrain.BuildStudy(0, 0, clear: true);
+
     [DebugCommand("craft.terrain.fartrees", Description = "Assisted (#9677): how far the distant trees reach in metres (0 off, up to 400), for measuring their cost.")]
     public string SetFarTrees(long metres) => terrain.SetFarTrees(metres);
 

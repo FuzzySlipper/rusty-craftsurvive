@@ -387,7 +387,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's trees, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] TreeFacts() => player.InSeparateSpace ? [] : terrain.TreeFacts;
+    private AppearanceFact[] TreeFacts() => player.InSeparateSpace ? [] : [.. terrain.TreeFacts, .. terrain.StudyFacts];
 
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()
