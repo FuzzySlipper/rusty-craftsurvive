@@ -202,7 +202,7 @@ Check.Section("generated prop meshes load through the Engine", () =>
         using Material leaves = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), 0.8f, white, Vector3.Zero, 0, true) with { WindFlutter = 0.1f });
         ProductContent content = new(new[] { new ProductContentFile(System.Text.Encoding.UTF8.GetBytes(PropPath), prop) });
         List<string> roles = [];
-        MeshResourceCreateRequest request = PropMesh.Read(content, PropPath, role =>
+        MeshResourceCreateRequest request = PropMesh.Read(content, PropPath, (role, _) =>
         {
             roles.Add(role);
             return role == "leaves" ? leaves : bark;
@@ -217,6 +217,28 @@ Check.Section("generated prop meshes load through the Engine", () =>
         using MeshResource mesh = engine.Graphics.CreateMeshResource(request);
         using Appearance appearance = engine.Graphics.CreateMeshAppearance(mesh);
         Check.That(appearance is not null, "the prop mesh becomes an Engine mesh appearance");
+
+        // Procedural trees (#9685): scripts/generate-tree.py adds per-part UVs and a texture per role.
+        const string TreePath = "models/textured.prop-mesh.json";
+        const string Textured = """
+            {"name":"textured","height":1,"textures":{"leaves":"textures/trees/oak-leaves.png"},"parts":[
+             {"role":"bark","positions":[0,0,0,1,0,0,0,1,0],"normals":[0,0,1,0,0,1,0,0,1],"colors":[1,1,1,0,1,1,1,0,1,1,1,0],"indices":[0,1,2]},
+             {"role":"leaves","positions":[0,0,0,1,0,0,0,1,0],"normals":[0,1,0,0,1,0,0,1,0],"uvs":[0,1,0.5,1,0,0.5],
+              "colors":[1,1,1,0.5,1,1,1,1,1,1,1,1],"indices":[0,1,2,0,2,1]}]}
+            """;
+        List<(string Role, string? Texture)> asked = [];
+        MeshResourceCreateRequest tree = PropMesh.Read(
+            new(new[] { new ProductContentFile(System.Text.Encoding.UTF8.GetBytes(TreePath), System.Text.Encoding.UTF8.GetBytes(Textured)) }),
+            TreePath, (role, texture) =>
+            {
+                asked.Add((role, texture));
+                return role == "leaves" ? leaves : bark;
+            });
+        Vector2[] uvs = tree.Uvs.ToArray();
+        Check.That(asked.SequenceEqual(new (string, string?)[] { ("bark", null), ("leaves", "textures/trees/oak-leaves.png") }),
+            "each role is asked for with its named texture, and an untextured role with none");
+        Check.That(uvs.Take(3).All(uv => uv == Vector2.Zero) && uvs.Skip(3).SequenceEqual(new Vector2[] { new(0, 1), new(0.5f, 1), new(0, 0.5f) }),
+            "a part's UVs are read, and a part without them maps to zero");
     });
 });
 return Check.Finish("TerrainSurface");

@@ -34,11 +34,16 @@ internal sealed class TerrainTrees : IDisposable
     // Wind: trunks lean a little from their roots; leaves also flutter, most at the canopy's edge.
     private const float BarkWindBend = 0.006f, LeafWindBend = 0.01f, LeafWindFlutter = 0.12f;
     private const float BarkRoughness = 0.9f, LeafRoughness = 0.8f;
+    /// <summary>Leaf cards (#9685) are cut out where their cluster texture is transparent.</summary>
+    private const float LeafCardAlphaCutoff = 0.5f;
     private static readonly Color White = new(1, 1, 1, 1);
 
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
     private readonly Material bark, leaves;
+    /// <summary>Materials for textured parts (procedural trees, #9685), by role and texture.</summary>
+    private readonly Dictionary<(string Role, string Texture), Material> textured = [];
+    private readonly Dictionary<string, RenderResource> textures = [];
     private readonly List<MeshResource> meshes = [];
     private readonly Dictionary<TreeKind, Appearance[]> kinds = [];
     private readonly List<TerrainTree> candidates = [];
@@ -155,6 +160,18 @@ internal sealed class TerrainTrees : IDisposable
         }
 
         meshes.Clear();
+        foreach (Material material in textured.Values)
+        {
+            material.Dispose();
+        }
+
+        textured.Clear();
+        foreach (RenderResource texture in textures.Values)
+        {
+            texture.Dispose();
+        }
+
+        textures.Clear();
         leaves.Dispose();
         bark.Dispose();
     }
@@ -163,8 +180,42 @@ internal sealed class TerrainTrees : IDisposable
     private Appearance Load(ProductContent content, string name)
     {
         MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, MeshFolder + name + PropMesh.Suffix,
-            role => role == LeavesRole ? leaves : bark));
+            (role, texture) => texture is null ? role == LeavesRole ? leaves : bark : Textured(role, texture)));
         meshes.Add(mesh);
         return engine.Graphics.CreateMeshAppearance(mesh);
+    }
+
+    /// <summary>
+    /// A procedural tree's material (#9685): its bark or leaf-card texture, nearest-filtered so the
+    /// low-resolution texels read as one chunky style. Bark is smooth-shaded by its tube normals;
+    /// leaf cards are alpha-cut and one-sided (each card is built with both windings), so both sides
+    /// keep the crown-facing normals they were built with.
+    /// </summary>
+    private Material Textured(string role, string path)
+    {
+        if (textured.TryGetValue((role, path), out Material? material)) return material;
+        if (!textures.TryGetValue(path, out RenderResource? texture))
+        {
+            RenderResourceInfo info = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.Nearest, TextureWrap.Repeat));
+            if (info.Kind != RenderResourceKind.Texture || info.ByteLength == 0)
+            {
+                throw new InvalidOperationException($"CraftSurvive tree texture '{path}' must be a non-empty Engine texture.");
+            }
+
+            texture = info.Handle;
+            textures[path] = texture;
+        }
+
+        bool isLeaves = role == LeavesRole;
+        material = engine.Graphics.CreateMaterial(new MaterialRequest(White, texture, isLeaves ? LeafRoughness : BarkRoughness,
+            White, Vector3.Zero, 0, false) with
+        {
+            AlphaMode = isLeaves ? MaterialAlphaMode.Mask : MaterialAlphaMode.Opaque,
+            AlphaCutoff = isLeaves ? LeafCardAlphaCutoff : 0,
+            WindBend = isLeaves ? LeafWindBend : BarkWindBend,
+            WindFlutter = isLeaves ? LeafWindFlutter : 0,
+        });
+        textured[(role, path)] = material;
+        return material;
     }
 }

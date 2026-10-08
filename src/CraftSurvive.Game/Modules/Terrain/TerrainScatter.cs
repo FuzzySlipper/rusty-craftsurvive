@@ -126,7 +126,7 @@ internal sealed class TerrainScatter : IDisposable
         foreach (Layer layer in Layers)
         {
             Material material = layer.Sways ? plant : stone;
-            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, PropFolder + layer.Mesh + PropMesh.Suffix, _ => material));
+            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, PropFolder + layer.Mesh + PropMesh.Suffix, (_, _) => material));
             propMeshes.Add(mesh);
             looks[layer.Id] = engine.Graphics.CreateMeshAppearance(mesh);
         }
