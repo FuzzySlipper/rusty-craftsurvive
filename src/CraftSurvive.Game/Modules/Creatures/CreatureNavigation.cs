@@ -27,6 +27,9 @@ internal sealed class CreatureNavigation
     /// <summary>How high a creature steps: the ground's own terraces are up to two blocks.</summary>
     private const uint MaximumStepCells = 2U;
 
+    /// <summary>How far a creature steps up or down in one move, metres: what its standing height follows.</summary>
+    internal const double ClimbMetres = TerrainConstants.VoxelSize * MaximumStepCells;
+
     /// <summary>The box's cell budget: its square by its height must stay within it.</summary>
     private const uint MaximumCells = 262_144U;
 

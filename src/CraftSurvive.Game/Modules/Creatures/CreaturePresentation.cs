@@ -36,7 +36,7 @@ internal sealed class CreaturePresentation : IDisposable
 
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
-    private readonly Func<Vector2, float> groundAt;
+    private readonly Func<Creature, float> groundAt;
     private readonly Dictionary<int, (Appearance Appearance, EntityId Entity)> shown = [];
 
     /// <summary>
@@ -48,7 +48,7 @@ internal sealed class CreaturePresentation : IDisposable
 
     private AppearanceFact[] facts = [];
 
-    internal CreaturePresentation(IEngineContext engine, WorldFrame frame, Func<Vector2, float> groundAt)
+    internal CreaturePresentation(IEngineContext engine, WorldFrame frame, Func<Creature, float> groundAt)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
@@ -99,7 +99,7 @@ internal sealed class CreaturePresentation : IDisposable
                 shown[creature.Id] = entry;
             }
 
-            float ground = groundAt(creature.Position);
+            float ground = groundAt(creature);
             Entities.Set(entry.Entity, RuntimeComponent, new CreatureRuntimeComponent(
                 creature.Position.X,
                 ground,

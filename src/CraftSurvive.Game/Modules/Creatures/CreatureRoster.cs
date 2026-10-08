@@ -22,6 +22,13 @@ internal sealed class Creature
     /// <summary>World X and Z. Height follows the ground the creature stands on.</summary>
     internal Vector2 Position { get; set; }
 
+    /// <summary>
+    /// The height of the ground it stands on, carried from step to step (#9734): each move takes the
+    /// first surface below its reach from here, not the highest in its column, so a creature that
+    /// walked in under a roof stays on the floor. Null until first placed on resident ground.
+    /// </summary>
+    internal float? Feet { get; set; }
+
     internal CombatantState Combat { get; set; }
 
     internal CreatureBehaviorState Behavior { get; set; }

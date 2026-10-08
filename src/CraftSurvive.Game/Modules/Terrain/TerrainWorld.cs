@@ -295,6 +295,23 @@ internal sealed class TerrainWorld : IDisposable
         return surface + 1;
     }
 
+    /// <summary>
+    /// The standing surface under a body that stood at <paramref name="feet"/> and can climb
+    /// <paramref name="climb"/> metres (#9734): the session's first surface below that reach,
+    /// so a body indoors stays on the floor beneath a roof. Null when nothing resident is met.
+    /// </summary>
+    internal float? GroundBelow(double x, double z, double feet, double climb)
+    {
+        if (session is null || !IsResident(new VoxelAddress((long)Math.Floor(x), (long)Math.Floor(feet), (long)Math.Floor(z)))) return null;
+        double top = feet + climb;
+        SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            session, frame.ToLocal(x, top, z), -Vector3.UnitY, climb + GroundSearchBelow,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty,
+            ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        return hit.Present ? (float)(top - hit.Distance) : null;
+    }
+
     /// <summary>Whether the chunk holding a cell is resident: drawn, and solid to collision and sight.</summary>
     internal bool IsResident(VoxelAddress cell) => streamer.IsResident(cell.Chunk);
 

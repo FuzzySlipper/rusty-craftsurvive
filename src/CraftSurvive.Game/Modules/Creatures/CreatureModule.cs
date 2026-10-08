@@ -106,7 +106,7 @@ internal sealed class CreatureModule : IProductModule
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
-        presentation = new CreaturePresentation(engine, frame, GroundAt);
+        presentation = new CreaturePresentation(engine, frame, StandingAt);
         navigation = new CreatureNavigation(engine, terrain, frame);
     }
 
@@ -163,7 +163,7 @@ internal sealed class CreatureModule : IProductModule
         Vector3 playerWorld = player.WorldPosition;
         foreach (Creature creature in roster.All)
         {
-            creature.Awake = terrain.IsResident(GroundCell(creature.Position));
+            creature.Awake = terrain.IsResident(GroundCell(creature.Position, StandingAt(creature)));
         }
 
         long routingStarted = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -183,6 +183,8 @@ internal sealed class CreatureModule : IProductModule
                 ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
             }
+
+            Follow(creature);
         }
 
         IReadOnlyList<int> leaving = director.Tick(
@@ -286,7 +288,7 @@ internal sealed class CreatureModule : IProductModule
 
         target.Combat = struck;
         cues.RaiseAt(struck.IsDown ? Cue.Defeat : Cue.Strike,
-            frame.ToLocal(target.Position.X, GroundAt(target.Position) + StruckHeightMetres, target.Position.Y));
+            frame.ToLocal(target.Position.X, StandingAt(target) + StruckHeightMetres, target.Position.Y));
         if (!struck.IsDown)
         {
             return string.Create(CultureInfo.InvariantCulture,
@@ -317,7 +319,7 @@ internal sealed class CreatureModule : IProductModule
         Vector3 playerWorld = player.WorldPosition;
         PlayerDefeatState vitals = player.Vitals.State;
         string rows = string.Join(" | ", roster.All.Select(creature => string.Create(CultureInfo.InvariantCulture,
-            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}")));
+            $"id={creature.Id} kind={creature.Kind.Name} at={creature.Position.X:F2},{creature.Position.Y:F2} feet={StandingAt(creature):F2} awake={creature.Awake} route={creature.RouteOutcome} state={creature.Behavior.State} hp={creature.Combat.Health}/{creature.Combat.MaximumHealth} d={CreatureSimulation.PlanarDistance(creature.Position, playerWorld):F2}")));
         return string.Create(CultureInfo.InvariantCulture,
             $"step={step}; active={director.ActiveCount}; roster={roster.Count}; awake={roster.All.Count(creature => creature.Awake)}; shown={presentation.Shown}; released={released}; spawnRefusals={spawnRefusals}; {navigation.Readout()}; ")
             + string.Create(CultureInfo.InvariantCulture,
@@ -432,7 +434,7 @@ internal sealed class CreatureModule : IProductModule
     /// <summary>Ask for a fresh path; a failure backs the pursuer off. Returns whether it has a path.</summary>
     private bool Replan(Creature creature, Vector3 playerFeet, Vector2 playerGround)
     {
-        NavigationStepResult result = navigation.Step(Feet(creature.Position), playerFeet);
+        NavigationStepResult result = navigation.Step(Feet(creature), playerFeet);
         creature.RouteOutcome = result.Outcome.ToString();
         creature.WaypointStep = step;
         creature.StuckSteps = 0;
@@ -455,6 +457,8 @@ internal sealed class CreatureModule : IProductModule
     }
 
     private Vector3 Feet(Vector2 position) => new(position.X, GroundAt(position), position.Y);
+
+    private Vector3 Feet(Creature creature) => new(creature.Position.X, StandingAt(creature), creature.Position.Y);
 
     /// <summary>The block a creature stands on.</summary>
     private static VoxelAddress GroundCell(Vector2 position, float ground) =>
@@ -575,7 +579,7 @@ internal sealed class CreatureModule : IProductModule
 
         PerceptionObserver[] observers = roster.All.Where(creature => creature.Awake).Select(creature => new PerceptionObserver(
             ProductIds.CreatureObserverBase + (ulong)creature.Id,
-            frame.ToLocal(creature.Position.X, GroundAt(creature.Position) + EyeHeightMetres, creature.Position.Y),
+            frame.ToLocal(creature.Position.X, StandingAt(creature) + EyeHeightMetres, creature.Position.Y),
             Vector3.UnitZ,
             CreatureSimulation.EngineSightRadius(creature.Kind.Tuning.SightRange * SightScale(creature), MaximumHeightDifference),
             AllAroundFacingCosine,
@@ -623,7 +627,20 @@ internal sealed class CreatureModule : IProductModule
         return senses;
     }
 
-    /// <summary>The height a creature stands at: the ground of the column it is over.</summary>
+    /// <summary>The ground of a column, from above: where a creature is first set down.</summary>
     private float GroundAt(Vector2 position) =>
         terrain.GroundAt(position.X, position.Y);
+
+    /// <summary>The height a creature stands at: carried with it once known, else its column's ground.</summary>
+    private float StandingAt(Creature creature) => creature.Feet ?? GroundAt(creature.Position);
+
+    /// <summary>
+    /// After a move, the creature's feet follow the surface below its reach from where they were
+    /// (#9734), never the top of its column: under a roof it stays on the floor it walked onto.
+    /// </summary>
+    private void Follow(Creature creature)
+    {
+        float from = StandingAt(creature);
+        creature.Feet = terrain.GroundBelow(creature.Position.X, creature.Position.Y, from, CreatureNavigation.ClimbMetres) ?? creature.Feet;
+    }
 }
