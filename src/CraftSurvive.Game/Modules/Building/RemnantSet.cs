@@ -3,7 +3,14 @@ using System.Numerics;
 namespace CraftSurvive.Game.Modules.Building;
 
 /// <summary>What a charge did to built work: pieces it destroyed, remnants it made or bit into, and what fell.</summary>
-internal readonly record struct PieceBlast(int Destroyed, int Remnants, int Collapsed, IReadOnlyList<(Vector3 Low, Vector3 High)> Changed);
+internal readonly record struct PieceBlast(int Destroyed, int Remnants, int Collapsed, IReadOnlyList<(Vector3 Low, Vector3 High)> Changed)
+{
+    /// <summary>
+    /// Whether what holds built work up may have changed (#9733): a piece gone or broken, or a
+    /// remnant's shape bitten into even when nothing new was made or fell.
+    /// </summary>
+    internal bool MovesSupport => Destroyed + Remnants + Collapsed > 0 || Changed.Count > 0;
+}
 
 /// <summary>
 /// The owner of the remnants (#9731): pieces a charge has bitten into, kept as their piece and

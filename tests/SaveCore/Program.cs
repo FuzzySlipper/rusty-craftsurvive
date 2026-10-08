@@ -320,6 +320,20 @@ Check.That(noWall.SequenceEqual([true, false]), "with the wall gone, nothing hol
 bool[] groundless = PieceSupport.Standing(Nodes(hutFloor, hutWall, hutRoof), _ => false);
 Check.That(groundless.All(stood => !stood), "with the ground gone from under the floor, the whole hut falls");
 
+// A charge that only bites a remnant can still take its last contact with what holds it up.
+PlacedPiece raisedWall = new(PieceKind.Wall, PieceMaterial.Planks, 0, 1, 0, 0);
+PlacedPiece underFloor = new(PieceKind.Floor, PieceMaterial.Planks, 0, 0, 0, 0);
+RemnantSet footing = new();
+footing.Restore([new PieceRemnant(raisedWall, [new Crater(new Vector3(-0.75f, 0.375f, 0f), 0.3f),
+    new Crater(new Vector3(-0.25f, 0.375f, 0f), 0.3f), new Crater(new Vector3(0.25f, 0.375f, 0f), 0.3f)])]);
+List<IReadOnlyList<(Vector3 Centre, Vector3 Half)>> FootingNodes() =>
+    [PieceGeometry.Bounds(underFloor).ToList(), footing.Remnants[0].Boxes()];
+Check.That(PieceSupport.Standing(FootingNodes(), index => index == 0).SequenceEqual([true, true]), "a wall remnant with one foot left on the floor stands");
+PieceBlast lastFoot = footing.Blast(new BuildPieceSet(), new Crater(new Vector3(0.75f, 0.375f, 0f), 0.3f));
+Check.That(lastFoot is { Destroyed: 0, Remnants: 0, Collapsed: 0 } && lastFoot.MovesSupport && footing.Count == 1,
+    $"a charge that only bites a remnant still moves what holds work up, {lastFoot}");
+Check.That(PieceSupport.Standing(FootingNodes(), index => index == 0).SequenceEqual([true, false]), "with its last foot gone, the remnant is held up by nothing");
+
 WorldConditionsCodec conditionsCodec = new(identity);
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { Day = -1 })), "a day before the first cannot be saved");

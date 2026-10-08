@@ -250,7 +250,7 @@ internal sealed class BuildPieceModule : IProductModule
         bitten += blast.Remnants;
         collapsed += blast.Collapsed;
         if (blast.Changed.Count > 0) remnantVoxels.Redraw(blast.Changed);
-        if (blast.Destroyed + blast.Remnants + blast.Collapsed > 0) supportDirty = true;
+        if (blast.MovesSupport) supportDirty = true;
         if (blast.Destroyed + blast.Remnants + blast.Collapsed > 0)
         {
             last = $"charge destroyed {blast.Destroyed}, broke {blast.Remnants}, brought down {blast.Collapsed}";
