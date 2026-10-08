@@ -17,6 +17,8 @@ internal sealed class PiecePresenter : IDisposable
     private const float Roughness = 0.9f;
     private const float GhostRoughness = 1f;
     private static readonly Color GhostColour = new(0.75f, 0.92f, 1f, 0.45f);
+    /// <summary>The ghost where the piece may not stand (#9730).</summary>
+    private static readonly Color RefusedColour = new(1f, 0.45f, 0.38f, 0.45f);
     /// <summary>Vertex colours: white, the alpha a wind weight of zero for solid pieces (they hold still).</summary>
     private static readonly Color White = new(1, 1, 1, 0);
     /// <summary>The ghost's vertices keep full alpha, so its blended material shows at its own colour's alpha.</summary>
@@ -29,9 +31,9 @@ internal sealed class PiecePresenter : IDisposable
     private readonly WorldFrame frame;
     private readonly BuildPieceSet pieces;
     private readonly PropMaterials materials;
-    private readonly Material ghostMaterial;
+    private readonly Material ghostMaterial, refusedMaterial;
     private readonly Dictionary<(PieceKind, PieceMaterial), (MeshResource Mesh, Appearance Look)> looks = [];
-    private readonly Dictionary<PieceKind, (MeshResource Mesh, Appearance Look)> ghosts = [];
+    private readonly Dictionary<(PieceKind, bool), (MeshResource Mesh, Appearance Look)> ghosts = [];
     private AppearanceFact[] facts = [];
     private long builtRevision = -1;
     private (long X, long Y, long Z) builtOrigin;
@@ -44,10 +46,15 @@ internal sealed class PiecePresenter : IDisposable
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0f, 0f));
         ghostMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(GhostColour, default(RenderResourceReference), GhostRoughness,
             GhostColour, Vector3.Zero, 0, true) with { AlphaMode = MaterialAlphaMode.Blend });
+        refusedMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(RefusedColour, default(RenderResourceReference), GhostRoughness,
+            RefusedColour, Vector3.Zero, 0, true) with { AlphaMode = MaterialAlphaMode.Blend });
     }
 
     /// <summary>Where the selected piece would go, drawn as a ghost; null hides it.</summary>
     internal PlacedPiece? Ghost { get; set; }
+
+    /// <summary>Whether the ghost's piece may stand where it is: blue if so, red if not.</summary>
+    internal bool GhostValid { get; set; } = true;
 
     /// <summary>The pieces' and the ghost's draw facts, for the snapshot.</summary>
     internal AppearanceFact[] Facts()
@@ -66,15 +73,13 @@ internal sealed class PiecePresenter : IDisposable
         }
 
         return Ghost is PlacedPiece ghost
-            ? [.. facts, Fact(ProductIds.BuildPieceGhost, ghost, GhostLook(ghost.Kind), ShadowCasting.None)]
+            ? [.. facts, Fact(ProductIds.BuildPieceGhost, ghost, GhostLook(ghost.Kind, GhostValid), ShadowCasting.None)]
             : facts;
     }
 
     /// <summary>
-    /// The boxes of pieces near a point (walking frame) as the character step's obstacles. The step
-    /// takes world-axis boxes (an obstacle's rotation is not applied), so each box goes as its
-    /// world bounds: exact for the quarter turns, and a pitched roof slab as
-    /// <see cref="PitchedSlices"/> stepped boxes along its slope.
+    /// The boxes of pieces near a point (walking frame) as the character step's obstacles, as their
+    /// world bounds (<see cref="PieceGeometry.Bounds"/>): the step takes no obstacle rotation.
     /// </summary>
     internal CharacterObstacle[] Obstacles(Vector3 local)
     {
@@ -85,41 +90,15 @@ internal sealed class PiecePresenter : IDisposable
             PlacedPiece piece = pieces.Pieces[index];
             if (Vector3.DistanceSquared(piece.Anchor, world) > CollisionReach * CollisionReach) continue;
             int slot = 0;
-            foreach (PieceBox box in PieceCatalog.Boxes(piece.Kind))
+            foreach ((Vector3 centre, Vector3 extent) in PieceGeometry.Bounds(piece))
             {
-                foreach (PieceBox part in box.Pitch == 0 ? [box] : Slices(box))
-                {
-                    (Vector3 centre, Quaternion rotation, Vector3 half) = piece.World(part);
-                    Vector3 extent = Bounds(rotation, half);
-                    near.Add(new CharacterObstacle(ProductIds.BuildPieceObstacleBase + (ulong)((index * PieceObstacleStride) + slot++),
-                        new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), Quaternion.Identity, Vector3.One), -extent, extent, true, Vector3.Zero, Vector3.Zero));
-                }
+                near.Add(new CharacterObstacle(ProductIds.BuildPieceObstacleBase + (ulong)((index * PieceObstacleStride) + slot++),
+                    new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), Quaternion.Identity, Vector3.One), -extent, extent, true, Vector3.Zero, Vector3.Zero));
             }
         }
 
         return [.. near];
     }
-
-    /// <summary>How many stepped boxes stand in for a pitched slab.</summary>
-    internal const int PitchedSlices = 4;
-
-    /// <summary>A pitched box cut into slices along its own Z, each still pitched.</summary>
-    private static IEnumerable<PieceBox> Slices(PieceBox box)
-    {
-        Quaternion pitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, box.Pitch);
-        float slice = box.Half.Z * 2 / PitchedSlices;
-        for (int index = 0; index < PitchedSlices; index++)
-        {
-            float along = -box.Half.Z + (slice * (index + 0.5f));
-            yield return box with { Centre = box.Centre + Vector3.Transform(new Vector3(0, 0, along), pitch), Half = box.Half with { Z = slice / 2 } };
-        }
-    }
-
-    /// <summary>The half extents of a rotated box's world-axis bounds.</summary>
-    private static Vector3 Bounds(Quaternion rotation, Vector3 half) =>
-        Vector3.Abs(Vector3.Transform(new Vector3(half.X, 0, 0), rotation))
-        + Vector3.Abs(Vector3.Transform(new Vector3(0, half.Y, 0), rotation))
-        + Vector3.Abs(Vector3.Transform(new Vector3(0, 0, half.Z), rotation));
 
     /// <summary>Boxes per piece the obstacle ids leave room for (stairs have the most).</summary>
     internal const int PieceObstacleStride = 8;
@@ -135,6 +114,7 @@ internal sealed class PiecePresenter : IDisposable
         looks.Clear();
         ghosts.Clear();
         ghostMaterial.Dispose();
+        refusedMaterial.Dispose();
         materials.Dispose();
     }
 
@@ -154,12 +134,12 @@ internal sealed class PiecePresenter : IDisposable
         return look;
     }
 
-    private Appearance GhostLook(PieceKind kind)
+    private Appearance GhostLook(PieceKind kind, bool valid)
     {
-        if (ghosts.TryGetValue(kind, out var built)) return built.Look;
-        MeshResource mesh = engine.Graphics.CreateMeshResource(Mesh(kind, ghostMaterial, GhostVertex));
+        if (ghosts.TryGetValue((kind, valid), out var built)) return built.Look;
+        MeshResource mesh = engine.Graphics.CreateMeshResource(Mesh(kind, valid ? ghostMaterial : refusedMaterial, GhostVertex));
         Appearance look = engine.Graphics.CreateMeshAppearance(mesh);
-        ghosts[kind] = (mesh, look);
+        ghosts[(kind, valid)] = (mesh, look);
         return look;
     }
 

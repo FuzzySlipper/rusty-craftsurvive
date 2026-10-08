@@ -6,6 +6,8 @@ internal enum PieceOutcome
     Placed,
     Removed,
     Occupied,
+    /// <summary>It would cut through a piece already standing (#9730).</summary>
+    Overlaps,
     Full,
     NotAllowed,
     Missing,
@@ -18,6 +20,15 @@ internal enum PieceOutcome
 /// </summary>
 internal sealed class BuildPieceSet
 {
+    /// <summary>
+    /// How deep two pieces may overlap on every axis and still both stand: a post's half width, so a
+    /// post at a wall's end and walls meeting at a corner are allowed.
+    /// </summary>
+    internal const float OverlapTolerance = 0.16f;
+
+    /// <summary>Only pieces whose anchors are this near can overlap (the largest piece reaches about 2.5 m).</summary>
+    private const float ClashReach = 6f;
+
     /// <summary>How many pieces a world holds at most (also the save's bound and the draw ids' range).</summary>
     internal const int MaximumPieces = 0x2000;
 
@@ -35,6 +46,7 @@ internal sealed class BuildPieceSet
         if (pieces.Count >= MaximumPieces) return PieceOutcome.Full;
         int at = pieces.BinarySearch(piece);
         if (at >= 0 || Overlaps(piece)) return PieceOutcome.Occupied;
+        if (Clashes(piece)) return PieceOutcome.Overlaps;
         pieces.Insert(~at, piece);
         Revision++;
         return PieceOutcome.Placed;
@@ -46,6 +58,26 @@ internal sealed class BuildPieceSet
         pieces.RemoveAt(index);
         Revision++;
         return PieceOutcome.Removed;
+    }
+
+    /// <summary>What adding this piece would come to, without adding it: for the ghost's tint.</summary>
+    internal PieceOutcome Check(PlacedPiece piece) =>
+        !PieceCatalog.Allows(piece.Kind, piece.Material) ? PieceOutcome.NotAllowed
+        : pieces.Count >= MaximumPieces ? PieceOutcome.Full
+        : pieces.BinarySearch(piece) >= 0 || Overlaps(piece) ? PieceOutcome.Occupied
+        : Clashes(piece) ? PieceOutcome.Overlaps
+        : PieceOutcome.Placed;
+
+    /// <summary>Whether the piece would cut through one already standing (beyond the tolerance).</summary>
+    internal bool Clashes(PlacedPiece piece)
+    {
+        foreach (PlacedPiece other in pieces)
+        {
+            if (System.Numerics.Vector3.DistanceSquared(other.Anchor, piece.Anchor) > ClashReach * ClashReach) continue;
+            if (PieceGeometry.Clash(piece, other, OverlapTolerance)) return true;
+        }
+
+        return false;
     }
 
     /// <summary>Removes every piece whose anchor lies within the radius (a blast, until damaged pieces become voxels, #9731).</summary>

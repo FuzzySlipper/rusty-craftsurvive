@@ -139,6 +139,106 @@ internal static class PieceGeometry
         return new PlacedPiece(kind, material, Snap(anchor.X), SnapUp(anchor.Y, normal.Y), Snap(anchor.Z), turn);
     }
 
+    /// <summary>
+    /// Where a piece of this kind goes when aimed at a host piece (#9730): at the host's socket that
+    /// accepts the kind and lies nearest the aimed point, turned as the socket says; or null when the
+    /// host has no socket for the kind.
+    /// </summary>
+    internal static PlacedPiece? Snap(PlacedPiece host, PieceKind kind, PieceMaterial material, Vector3 aimPoint, Vector3 facing)
+    {
+        PieceSocket? best = null;
+        Vector3 bestAt = default;
+        float bestDistance = float.MaxValue;
+        Quaternion turn = host.Rotation;
+        foreach (PieceSocket socket in PieceCatalog.SocketsOf(host.Kind))
+        {
+            if (Array.IndexOf(socket.Accepts, kind) < 0) continue;
+            Vector3 at = host.Anchor + Vector3.Transform(socket.Offset, turn);
+            float distance = Vector3.DistanceSquared(at, aimPoint);
+            if (distance < bestDistance)
+            {
+                best = socket;
+                bestAt = at;
+                bestDistance = distance;
+            }
+        }
+
+        if (best is not PieceSocket chosen) return null;
+        byte placed;
+        if (chosen.Facing)
+        {
+            placed = TurnFacing(-facing);
+        }
+        else
+        {
+            int turned = (host.Turn + chosen.Turn) % PlacedPiece.Turns;
+            if (chosen.Flips)
+            {
+                // Of the two opposite turns, the one whose +Z faces back toward the player.
+                Vector3 front = Vector3.Transform(Vector3.UnitZ, Quaternion.CreateFromAxisAngle(Vector3.UnitY, turned * MathF.PI / 2f));
+                if (Vector3.Dot(front, -facing) < 0) turned = (turned + 2) % PlacedPiece.Turns;
+            }
+
+            placed = (byte)turned;
+        }
+
+        return new PlacedPiece(kind, material, Snap(bestAt.X), Snap(bestAt.Y), Snap(bestAt.Z), placed);
+    }
+
+    /// <summary>
+    /// A piece's boxes as world-axis bounds (centre, half extents): exact for the quarter turns, and
+    /// a pitched slab as <see cref="PitchedSlices"/> stepped boxes along its slope. The character
+    /// step collides with these (it takes no rotation), and overlap is judged on them.
+    /// </summary>
+    internal static IEnumerable<(Vector3 Centre, Vector3 Half)> Bounds(PlacedPiece piece)
+    {
+        foreach (PieceBox box in PieceCatalog.Boxes(piece.Kind))
+        {
+            foreach (PieceBox part in box.Pitch == 0 ? [box] : Slices(box))
+            {
+                (Vector3 centre, Quaternion rotation, Vector3 half) = piece.World(part);
+                yield return (centre, Extent(rotation, half));
+            }
+        }
+    }
+
+    /// <summary>How many stepped boxes stand in for a pitched slab.</summary>
+    internal const int PitchedSlices = 4;
+
+    /// <summary>
+    /// Whether two pieces' bounds overlap by more than <paramref name="tolerance"/> on every axis:
+    /// pieces that touch, or meet at a corner or an end within a post's width, do not clash.
+    /// </summary>
+    internal static bool Clash(PlacedPiece a, PlacedPiece b, float tolerance)
+    {
+        foreach ((Vector3 ac, Vector3 ah) in Bounds(a))
+        {
+            foreach ((Vector3 bc, Vector3 bh) in Bounds(b))
+            {
+                Vector3 depth = ah + bh - Vector3.Abs(ac - bc);
+                if (depth.X > tolerance && depth.Y > tolerance && depth.Z > tolerance) return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<PieceBox> Slices(PieceBox box)
+    {
+        Quaternion pitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, box.Pitch);
+        float slice = box.Half.Z * 2 / PitchedSlices;
+        for (int index = 0; index < PitchedSlices; index++)
+        {
+            float along = -box.Half.Z + (slice * (index + 0.5f));
+            yield return box with { Centre = box.Centre + Vector3.Transform(new Vector3(0, 0, along), pitch), Half = box.Half with { Z = slice / 2 } };
+        }
+    }
+
+    private static Vector3 Extent(Quaternion rotation, Vector3 half) =>
+        Vector3.Abs(Vector3.Transform(new Vector3(half.X, 0, 0), rotation))
+        + Vector3.Abs(Vector3.Transform(new Vector3(0, half.Y, 0), rotation))
+        + Vector3.Abs(Vector3.Transform(new Vector3(0, 0, half.Z), rotation));
+
     /// <summary>The quarter turn whose rotated +Z is nearest this horizontal direction.</summary>
     internal static byte TurnFacing(Vector3 direction)
     {

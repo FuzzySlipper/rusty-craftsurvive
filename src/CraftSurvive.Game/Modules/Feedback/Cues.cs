@@ -17,6 +17,8 @@ internal enum Cue
     Defeat,
     Blast,
     Place,
+    /// <summary>A built piece taken down (#9730).</summary>
+    Break,
     Craft,
     Pickup,
     Discovery,

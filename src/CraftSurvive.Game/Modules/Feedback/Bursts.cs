@@ -127,6 +127,14 @@ internal static class Bursts
         [(0f, 0.2f), (1f, 0.55f)],
         [(0f, Earth), (1f, EarthGone)]);
 
+    /// <summary>A built piece taken down: splinters thrown out that fall and settle (#9730).</summary>
+    internal static readonly BurstStyle BreakSplinters = new(
+        "craftsurvive.break.splinters", BurstLook.Chips, 18, 0.7f, 1.0f,
+        new(-2.2f, 1.0f, -2.2f), new(2.2f, 3.2f, 2.2f), Gravity,
+        [(0f, 0.14f), (1f, 0.1f)],
+        [(0f, new(0.55f, 0.4f, 0.26f, 1f)), (1f, new(0.48f, 0.35f, 0.23f, 1f))],
+        SettleRadius: 2f);
+
     /// <summary>What each cue is seen as; a cue not listed has no burst.</summary>
     internal static readonly IReadOnlyDictionary<Cue, BurstStyle[]> ByCue = new Dictionary<Cue, BurstStyle[]>
     {
@@ -137,6 +145,7 @@ internal static class Bursts
         [Cue.Strike] = [StrikePuff],
         [Cue.Defeat] = [DefeatCloud],
         [Cue.Place] = [PlaceDust],
+        [Cue.Break] = [BreakSplinters, PlaceDust],
     };
 
     /// <summary>One burst of a style at a place, drawn with the given sprite, from a seed.</summary>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
@@ -12,11 +13,13 @@ namespace CraftSurvive.Game.Modules.Building;
 /// <list type="bullet">
 /// <item>Read: the player's view (eye and forward, walking frame) each update.</item>
 /// <item>Decide: what the view meets first, a piece or the ground, and where the selected piece
-/// would go there (<see cref="PieceGeometry.Place"/>).</item>
+/// would go there: at the nearest socket of an aimed piece (<see cref="PieceGeometry.Snap"/>),
+/// else on the aimed ground (<see cref="PieceGeometry.Place"/>); and whether it may stand there.</item>
 /// <item>Apply: placing (G, secondary) adds it unless it is occupied or would trap the player;
 /// clearing (F, primary) removes an aimed piece, and otherwise falls through to digging.</item>
-/// <item>Publish: the ghost and the pieces (<see cref="PiecePresenter"/>), the obstacles the
-/// player's step collides with, the save, and a line for the HUD.</item>
+/// <item>Publish: the ghost, tinted by whether the piece may stand (#9730), and the pieces
+/// (<see cref="PiecePresenter"/>), the obstacles the player's step collides with, the place and
+/// break cues, the save, and a line for the HUD.</item>
 /// </list>
 /// T switches placing between pieces and the terrain brush (earthworks); Q steps the piece, Z its material.
 /// </summary>
@@ -29,6 +32,7 @@ internal sealed class BuildPieceModule : IProductModule
     private const float BodyBelowEye = 0.75f;
 
     private readonly TerrainWorld terrain;
+    private readonly Cues cues;
     private readonly WorldFrame frame;
     private readonly BuildPieceSet set = new();
     private readonly PiecePresenter presenter;
@@ -40,8 +44,9 @@ internal sealed class BuildPieceModule : IProductModule
     private long placed, removed, refused;
     private string last = "none";
 
-    internal BuildPieceModule(IEngineContext engine, ProductStore store, TerrainWorld terrain, WorldFrame frame)
+    internal BuildPieceModule(IEngineContext engine, ProductStore store, TerrainWorld terrain, WorldFrame frame, Cues cues)
     {
+        this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         presenter = new PiecePresenter(engine, frame, set);
@@ -110,7 +115,15 @@ internal sealed class BuildPieceModule : IProductModule
             materialIndex = ((materialIndex + materialSteps) % count + count) % count;
         }
 
-        presenter.Ghost = active && PiecesMode && Candidate(eye, forward) is { } candidate ? candidate.Piece : null;
+        if (active && PiecesMode && Candidate(eye, forward) is { } candidate)
+        {
+            presenter.Ghost = candidate.Piece;
+            presenter.GhostValid = Verdict(candidate.Piece, eye) is null;
+        }
+        else
+        {
+            presenter.Ghost = null;
+        }
     }
 
     /// <summary>
@@ -130,6 +143,7 @@ internal sealed class BuildPieceModule : IProductModule
             set.RemoveAt(pieceHit.Value.Index);
             removed++;
             last = $"removed {PieceCatalog.Name(gone.Kind)}";
+            cues.RaiseAt(Cue.Break, Middle(gone));
             return true;
         }
 
@@ -140,23 +154,16 @@ internal sealed class BuildPieceModule : IProductModule
             return true;
         }
 
-        if (Traps(candidate.Piece, eye))
+        if (Verdict(candidate.Piece, eye) is string why)
         {
-            Refuse($"{PieceCatalog.Name(candidate.Piece.Kind)} would stand where you are");
+            Refuse($"{PieceCatalog.Name(candidate.Piece.Kind)} {why}");
             return true;
         }
 
-        PieceOutcome outcome = set.Add(candidate.Piece);
-        if (outcome == PieceOutcome.Placed)
-        {
-            placed++;
-            last = $"placed {PieceCatalog.Name(candidate.Piece.Kind)}";
-        }
-        else
-        {
-            Refuse($"{PieceCatalog.Name(candidate.Piece.Kind)}: {outcome.ToString().ToLowerInvariant()}");
-        }
-
+        set.Add(candidate.Piece);
+        placed++;
+        last = $"placed {PieceCatalog.Name(candidate.Piece.Kind)}";
+        cues.RaiseAt(Cue.Place, Middle(candidate.Piece));
         return true;
     }
 
@@ -197,6 +204,34 @@ internal sealed class BuildPieceModule : IProductModule
     }
 
     /// <summary>Where the selected piece would go from this view: on the first piece or ground it meets.</summary>
+    /// <summary>Why the piece may not stand there (for the refusal and the ghost's tint), or null if it may.</summary>
+    private string? Verdict(PlacedPiece piece, Vector3 eye) =>
+        Traps(piece, eye) ? "would stand where you are"
+        : set.Check(piece) switch
+        {
+            PieceOutcome.Placed => null,
+            PieceOutcome.Occupied => "is already there",
+            PieceOutcome.Overlaps => "would cut through what stands there",
+            PieceOutcome.Full => "cannot be built: the world holds as many pieces as it can",
+            PieceOutcome.NotAllowed => "cannot be made of that",
+            PieceOutcome outcome => outcome.ToString().ToLowerInvariant(),
+        };
+
+    /// <summary>Where a piece's cue is seen and heard: the middle of its boxes, in the walking frame.</summary>
+    private Vector3 Middle(PlacedPiece piece)
+    {
+        Vector3 sum = Vector3.Zero;
+        int count = 0;
+        foreach ((Vector3 centre, _) in PieceGeometry.Bounds(piece))
+        {
+            sum += centre;
+            count++;
+        }
+
+        Vector3 world = sum / Math.Max(1, count);
+        return frame.ToLocal(world.X, world.Y, world.Z);
+    }
+
     private (PlacedPiece Piece, float Distance)? Candidate(Vector3 eye, Vector3 forward)
     {
         Vector3 origin = frame.ToWorld(eye);
@@ -207,7 +242,9 @@ internal sealed class BuildPieceModule : IProductModule
         facing = Vector3.Normalize(facing);
         if (pieceHit is PieceHit hit && (!ground.Present || hit.Distance <= ground.Distance))
         {
-            return (PieceGeometry.Place(kind, Material, hit.Point, hit.Normal, facing), hit.Distance);
+            // Aimed at a piece: attach at its nearest socket for the kind, else stand on the aimed face.
+            PlacedPiece host = set.Pieces[hit.Index];
+            return (PieceGeometry.Snap(host, kind, Material, hit.Point, facing) ?? PieceGeometry.Place(kind, Material, hit.Point, hit.Normal, facing), hit.Distance);
         }
 
         if (!ground.Present) return null;
@@ -251,6 +288,7 @@ internal sealed class BuildPieceModule : IProductModule
     {
         refused++;
         last = $"refused: {why}";
+        cues.Raise(Cue.Refused);
     }
 
     private void Restore()

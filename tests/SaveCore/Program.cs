@@ -182,8 +182,10 @@ Check.That(Refuses(pieceCodec, badTurn), "a piece turned past three quarter turn
 Check.That(Throws(() => pieceCodec.Encode([pieces[1], pieces[0]])), "pieces out of canonical order cannot be saved");
 Check.That(built.Add(pieces[0] with { Turn = 1 }) == PieceOutcome.Occupied, "a second piece of the same kind on the same anchor is refused");
 Check.That(built.Add(new PlacedPiece(PieceKind.Beam, PieceMaterial.Masonry, 0, 0, 0, 0)) == PieceOutcome.NotAllowed, "a masonry beam is not a piece");
-Check.That(built.Add(new PlacedPiece(PieceKind.Post, PieceMaterial.Timber, 1488, 314, -952, 0)) == PieceOutcome.Placed,
-    "a different kind may share an anchor (a post at a floor's middle)");
+Check.That(built.Add(new PlacedPiece(PieceKind.Post, PieceMaterial.Timber, 1488, 314, -952, 0)) == PieceOutcome.Overlaps,
+    "a post through a floor cuts through it");
+Check.That(built.Add(new PlacedPiece(PieceKind.Post, PieceMaterial.Timber, 1488, 315, -952, 0)) == PieceOutcome.Placed,
+    "a post standing on a floor's top stands");
 long piecesBefore = built.Revision;
 Check.That(built.RemoveWithin(new Vector3(372f, 78.5f, -238f), 3f) == 3 && built.Revision > piecesBefore && built.Count == 1,
     "a charge takes the pieces whose anchors are within its reach");
@@ -205,6 +207,35 @@ PieceHit? roofHit = PieceGeometry.Cast([roof], new Vector3(0, 5f, 0), -Vector3.U
 float ridge = PieceCatalog.RoofRun / 2 * MathF.Tan(PieceCatalog.RoofPitch);
 Check.That(roofHit is { } r && r.Normal.Y > 0.7f && r.Normal.Z > 0.3f && MathF.Abs(r.Point.Y - (ridge + (PieceCatalog.RoofThickness / MathF.Cos(PieceCatalog.RoofPitch)))) < 0.05f,
     $"a roof is met on its pitched top, facing up and toward its low (+Z) eaves, met {roofHit}");
+
+// Sockets (#9730): a wall aimed at a floor's edge stands on that edge, along it, facing the player;
+// a second wall at the end of the first continues the line; a roof aimed at a wall's top rests its
+// eaves on the wall; walls meeting at a corner or a post at a wall's end do not clash, a wall
+// through another does.
+PlacedPiece floor = new(PieceKind.Floor, PieceMaterial.Planks, 0, 0, 0, 0);
+PlacedPiece? edgeWall = PieceGeometry.Snap(floor, PieceKind.Wall, PieceMaterial.Planks, new Vector3(0.1f, 0.2f, 0.95f), -Vector3.UnitZ);
+Check.That(edgeWall is { } e && e.Anchor == new Vector3(0, PieceCatalog.FloorThickness, PieceCatalog.FloorSide / 2)
+    && Vector3.Dot(Vector3.Transform(Vector3.UnitZ, e.Rotation), Vector3.UnitZ) > 0.99f,
+    $"a wall aimed at a floor's +Z edge stands on it, facing back toward the player, placed {edgeWall}");
+PlacedPiece firstWall = edgeWall!.Value;
+PlacedPiece? nextWall = PieceGeometry.Snap(firstWall, PieceKind.Wall, PieceMaterial.Planks, firstWall.Anchor + new Vector3(1.1f, 1f, 0), -Vector3.UnitZ);
+Check.That(nextWall is { } n && n.Anchor == firstWall.Anchor + new Vector3(PieceCatalog.WallWidth, 0, 0) && n.Turn == firstWall.Turn,
+    $"a wall aimed at a wall's end continues its line, placed {nextWall}");
+PlacedPiece? eaves = PieceGeometry.Snap(firstWall, PieceKind.Roof, PieceMaterial.Shingles, firstWall.Anchor + new Vector3(0, PieceCatalog.WallHeight, -0.1f), -Vector3.UnitZ);
+Check.That(eaves is { } roofOnWall && MathF.Abs(roofOnWall.Anchor.Y - (firstWall.Anchor.Y + PieceCatalog.WallHeight)) < 1e-4f
+    && MathF.Abs(MathF.Abs(roofOnWall.Anchor.Z - firstWall.Anchor.Z) - (PieceCatalog.RoofRun / 2)) < 1e-4f,
+    $"a roof aimed at a wall's top rests its eaves on the wall, placed {eaves}");
+Check.That(PieceGeometry.Snap(floor, PieceKind.Beam, PieceMaterial.Timber, Vector3.Zero, Vector3.UnitZ) is null, "a floor has no socket for a beam");
+PlacedPiece cornerWall = new(PieceKind.Wall, PieceMaterial.Planks, 4, 1, 0, 1);
+PlacedPiece endPost = new(PieceKind.Post, PieceMaterial.Timber, 4, 1, 4, 0);
+PlacedPiece throughWall = new(PieceKind.Wall, PieceMaterial.Planks, 0, 1, 6, 1);
+Check.That(!PieceGeometry.Clash(firstWall, cornerWall, BuildPieceSet.OverlapTolerance) && !PieceGeometry.Clash(firstWall, endPost, BuildPieceSet.OverlapTolerance)
+    && PieceGeometry.Clash(firstWall, throughWall, BuildPieceSet.OverlapTolerance),
+    "walls meeting at a corner and a post at a wall's end stand together; a wall through a wall clashes");
+BuildPieceSet clashing = new();
+clashing.Add(firstWall);
+Check.That(clashing.Add(throughWall) == PieceOutcome.Overlaps && clashing.Check(cornerWall) == PieceOutcome.Placed,
+    "the set refuses a piece that cuts through one standing, and allows one that meets it at a corner");
 
 WorldConditionsCodec conditionsCodec = new(identity);
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");

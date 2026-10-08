@@ -58,6 +58,7 @@ internal static class SoundCatalog
         [Cue.Defeat] = new(["defeat"], AudioBus.Sfx, 0.5f),
         [Cue.Blast] = new(["blast"], AudioBus.Sfx, 0.9f, Placed: true, RangeMetres: 96f),
         [Cue.Place] = new(["place"], AudioBus.Sfx, 0.5f),
+        [Cue.Break] = new(["break"], AudioBus.Sfx, 0.6f),
         [Cue.Craft] = new(["craft"], AudioBus.Ui, 0.35f),
         [Cue.Pickup] = new(["pickup"], AudioBus.Ui, 0.35f),
         [Cue.Discovery] = new(["discovery"], AudioBus.Ui, 0.4f),

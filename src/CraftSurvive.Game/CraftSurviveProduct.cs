@@ -122,7 +122,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
         terrain.Edited += entities.ApplyTerrainEdits;
         player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
-        pieces = new BuildPieceModule(context.Engine, store, terrain, frame);
+        pieces = new BuildPieceModule(context.Engine, store, terrain, frame, cues);
         player.Pieces = pieces;
         sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);

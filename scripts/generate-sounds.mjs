@@ -158,6 +158,11 @@ const EFFECTS = {
     [envelope(tone(0.03, 1100, (p) => square(p, 0.5)), 0.0005, 0.006), 0.4],
     [envelope(lowPass(noise(0.1, next), 1800), 0.0005, 0.012), 0.6],
     [envelope(tone(0.1, glide(220, 130, 0.08), triangle), 0.001, 0.03), 0.8]),
+  // A built piece taken down: a dry wooden crack, a splintering rattle and a low knock as it gives.
+  break: (next) => mix(0.42,
+    [envelope(band(heldNoise(0.05, next, 1), 900, 6000), 0.0005, 0.012), 1],
+    [envelope(band(heldNoise(0.3, next, 3), 500, 3200), 0.002, 0.08), 0.7, 0.03],
+    [envelope(tone(0.2, glide(160, 70, 0.16), triangle), 0.001, 0.06), 0.8, 0.02]),
   craft: () => mix(0.3,
     [envelope(tone(0.1, 660, (p) => square(p, 0.25)), 0.002, 0.035), 0.8],
     [envelope(tone(0.16, 990, (p) => square(p, 0.25)), 0.002, 0.05), 0.8, 0.09]),
