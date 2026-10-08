@@ -5,19 +5,20 @@
       "oak-p2"
     ],
     "pine": [
-      "pine-1",
-      "pine-2"
+      "pine-p1",
+      "pine-p2"
     ],
     "birch": [
       "birch-p1",
       "birch-p2"
     ],
     "dead": [
-      "dead-1",
-      "dead-2"
+      "dead-p1",
+      "dead-p2"
     ],
     "palm": [
-      "palm-1"
+      "palm-p1",
+      "palm-p2"
     ]
   }
 }

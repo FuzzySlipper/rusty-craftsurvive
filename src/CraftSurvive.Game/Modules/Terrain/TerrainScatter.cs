@@ -83,6 +83,9 @@ internal sealed class TerrainScatter : IDisposable
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
     private readonly Material grass, plant, stone;
+    /// <summary>Textured props (leaf-card bushes and frond ferns, #9685), and each layer's material.</summary>
+    private readonly PropMaterials textured;
+    private readonly Dictionary<uint, Material> layerMaterials = [];
     private readonly List<MeshResource> grassMeshes = [];
     private readonly Dictionary<uint, Appearance> grassLooks = [];
     private readonly List<MeshResource> propMeshes = [];
@@ -123,11 +126,15 @@ internal sealed class TerrainScatter : IDisposable
             grassMeshes.Add(mesh);
             grassLooks[variant.Id] = engine.Graphics.CreateMeshAppearance(mesh);
         }
+        textured = new PropMaterials(engine, _ => new PropMaterials.Finish(PlantRoughness, PlantWindBend, PlantWindFlutter));
         foreach (Layer layer in Layers)
         {
+            // A layer draws with one material: a textured prop is a single leaves part on its texture.
             Material material = layer.Sways ? plant : stone;
-            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, PropFolder + layer.Mesh + PropMesh.Suffix, (_, _) => material));
+            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, PropFolder + layer.Mesh + PropMesh.Suffix,
+                (role, texture) => material = texture is null ? material : textured.For(role, texture)));
             propMeshes.Add(mesh);
+            layerMaterials[layer.Id] = material;
             looks[layer.Id] = engine.Graphics.CreateMeshAppearance(mesh);
         }
     }
@@ -157,7 +164,7 @@ internal sealed class TerrainScatter : IDisposable
         {
             float density = layer.Bush ? bushDensity / 2 : layer.Density * (grassDensity > 0 ? 1 : 0);
             ReadOnlyMemory<uint> ground = layer.Ground.Select(block => (uint)BlockRegistry.Get(block).Slot).ToArray();
-            Set(projection, layer.Id, density, new VoxelSceneScatterRequest(projection, layer.Id, looks[layer.Id], layer.Sways ? plant : stone,
+            Set(projection, layer.Id, density, new VoxelSceneScatterRequest(projection, layer.Id, looks[layer.Id], layerMaterials[layer.Id],
                 ground, density, Reach) with
             {
                 Fade = FadeMetres,
@@ -204,6 +211,7 @@ internal sealed class TerrainScatter : IDisposable
         grass.Dispose();
         plant.Dispose();
         stone.Dispose();
+        textured.Dispose();
         grassTexture.Dispose();
     }
 

@@ -1,219 +1,112 @@
 {
- "purpose": "First-person tree meshes (#9665), drawn by TerrainTrees on the recipe's trunk cores. Generated locally (free) and stylised toward content/style/palette.json.",
- "generated": "2026-10-07",
- "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees",
- "models": [
+ "purpose": "First-person trees (#9665, #9685), drawn by TerrainTrees on the recipe's trunk cores: procedural low-poly trunks and branches with tiling nearest-filtered bark, and alpha-cut leaf cards or fronds that flutter in the wind. Generated offline by scripts/generate-tree.py (seeded, deterministic). The earlier TRELLIS-generated meshes are recorded in Den history/trees-trellis-sources.",
+ "generated": "2026-10-08",
+ "tool": "scripts/generate-tree.py",
+ "items": [
   {
-   "model": "content/game/models/trees/oak-1.prop-mesh.json",
-   "sha256": "2ed47bce5dfe9cde9a47bb0a54e10eb6de030f0e53b4058945ef18743550834a",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 11,
-    "prompt": "a broad old oak tree with a thick gnarled trunk and a wide clumpy canopy of large leaf clusters in deep and yellow-green tones, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/oak-s11/broad-old-oak-tree-with-a-thick-gnarled-2f1f73d6.png",
-    "sha256": "2f1f73d69777796bf927dc46eab61e608fdc204fb9930ffea142382f8e806798"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/oak-s11/textured_00001_.glb",
-    "sha256": "dd1c6aaaa8c51d5978fe0290658909f35eaff2133a3c084d5d77bafafcb34a4e",
-    "prompt_id": "99067f42-5fa9-455a-b234-a051bb7df257",
-    "wall_seconds": 305.4
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 9 --faces 2500 --foliage --colors 6 --saturation 1.3 --bark-saturation 0.85 --brightness 1.05 --pull-strength 0.35 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/oak-p1.prop-mesh.json",
+   "sha256": "a98436c8fdfd4573e145c4a8074d116122d1bb5ca057e3d0338218001555aee8",
+   "command": "python3 scripts/generate-tree.py oak --seed 1"
   },
   {
-   "model": "content/game/models/trees/oak-2.prop-mesh.json",
-   "sha256": "b6a887cba2c6135705f4380006332766984ff1d41c4eead9f4f92973d62a2873",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 12,
-    "prompt": "a broad old oak tree with a thick gnarled trunk and a wide clumpy canopy of large leaf clusters in deep and yellow-green tones, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/oak-s12/broad-old-oak-tree-with-a-thick-gnarled-ad57f900.png",
-    "sha256": "ad57f900c564677eb3d937409e4f8a2d6f22eda0e90693fe375e2005c64b3b70"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/oak-s12/textured_00001_.glb",
-    "sha256": "2e663c33657c4628cda6d2991d910f0857772db7a1b7e69109bc21f0fc6639bb",
-    "prompt_id": "5f2df56e-cf41-4eac-bc15-772334d5a89b",
-    "wall_seconds": 235.4
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 9.5 --faces 2500 --foliage --colors 6 --saturation 1.3 --bark-saturation 0.85 --brightness 1.05 --pull-strength 0.35 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/oak-p2.prop-mesh.json",
+   "sha256": "958bfa54044079bcd0910450cceba09d71624f66c0ed23deb7d554e633b9e1e0",
+   "command": "python3 scripts/generate-tree.py oak --seed 2"
   },
   {
-   "model": "content/game/models/trees/pine-1.prop-mesh.json",
-   "sha256": "b45c7055100dffc6b161d4838249126e2a89e6129735f429e72a54819afa1eb2",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 11,
-    "prompt": "a tall evergreen fir tree with a straight brown trunk and layered drooping tiers of dark blue-green needles, conical crown, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/pine-s11/tall-evergreen-fir-tree-with-a-straight-f3b32dbd.png",
-    "sha256": "f3b32dbd9006a2f97657df3943c6760d3467d8541056e496754dc913e887d863"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/pine-s11/textured_00001_.glb",
-    "sha256": "81a68b1c794eec380eda1a47d10370ea661f0b19a824bea5c759c8aaeda7d532",
-    "prompt_id": "1dd41156-8bbc-41b7-be71-09537a279b16",
-    "wall_seconds": 100.2
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 12 --faces 2500 --foliage --colors 6 --leaf-hue 55-230 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/birch-p1.prop-mesh.json",
+   "sha256": "1861c0e1d02517eba7365b8544e9b46c9de47f344492450ee03982aaf118d537",
+   "command": "python3 scripts/generate-tree.py birch --seed 1"
   },
   {
-   "model": "content/game/models/trees/pine-2.prop-mesh.json",
-   "sha256": "329df7a485228ec8f2ef4fd517edbceeba80a1be65a42a4e0aac44bd150b3c8c",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 12,
-    "prompt": "a tall evergreen fir tree with a straight brown trunk and layered drooping tiers of dark blue-green needles, conical crown, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/pine-s12/tall-evergreen-fir-tree-with-a-straight-59357941.png",
-    "sha256": "59357941b3fb61279f5d0d7e55ced0f45d1e9f19bd2fca333c3afce6e6266e2e"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/pine-s12/textured_00001_.glb",
-    "sha256": "395e4e87d73f264a664b9370218938076d84f5ac66ac2b0df2cb7fd4b583ed9b",
-    "prompt_id": "ff34ecb6-7f34-4eea-8da1-87022bb377cd",
-    "wall_seconds": 95.1
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 11 --faces 2500 --foliage --colors 6 --leaf-hue 55-230 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/birch-p2.prop-mesh.json",
+   "sha256": "393b2b6e4501a96126accf34082719d86c45d0861c02cbcde61ef27a9d2fe8ff",
+   "command": "python3 scripts/generate-tree.py birch --seed 2"
   },
   {
-   "model": "content/game/models/trees/birch-1.prop-mesh.json",
-   "sha256": "b1d68d9548b43d1b77bebc72f12e552b9a518305fa9e303336ef20de6ff49e37",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 11,
-    "prompt": "a slender birch tree with a pale white bark trunk with dark marks and a light airy canopy of small yellow-green leaf clusters, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/birch-s11/slender-birch-tree-with-a-pale-white-bark-edfc87bf.png",
-    "sha256": "edfc87bf223ae473fe1f43b1e3d94080ca3a0c528a048c3b46c11d930c9424ba"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/birch-s11/textured_00001_.glb",
-    "sha256": "902652a7054e3bb76527333b78a7a3d18051e7b6d2b5f55e2e9979691eb14a42",
-    "prompt_id": "2ed7135b-8b69-4a33-bb1e-9c397d2bbc94",
-    "wall_seconds": 75.3
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 10 --faces 2500 --foliage --colors 6 --saturation 1.3 --bark-saturation 0.8 --pull-bark stone,snow --pull-strength 0.35 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/pine-p1.prop-mesh.json",
+   "sha256": "94d44672829cfdfd81c46407dc967136505caf50e8dfbc360574c4259fb8310c",
+   "command": "python3 scripts/generate-tree.py pine --seed 1"
   },
   {
-   "model": "content/game/models/trees/birch-2.prop-mesh.json",
-   "sha256": "23c842d64f8b5f2ec5ca7e77a95349d207ce1893c20430a8de4fa85b6df2c3d7",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 12,
-    "prompt": "a slender birch tree with a pale white bark trunk with dark marks and a light airy canopy of small yellow-green leaf clusters, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/birch-s12/slender-birch-tree-with-a-pale-white-bark-e268b4a3.png",
-    "sha256": "e268b4a3feb81045d8e2975e339ea0686fbfe4aee2f71ad6adcadeed7e9475ba"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/birch-s12/textured_00001_.glb",
-    "sha256": "063fcb6c0a8f78360a18145aa9d0ddc2d58a754f03ff205c8d99b8cf084d3846",
-    "prompt_id": "88233df8-959c-44a9-ba0c-60b98b49bc6b",
-    "wall_seconds": 55.1
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 10 --faces 2500 --foliage --colors 6 --saturation 1.3 --bark-saturation 0.8 --pull-bark stone,snow --pull-strength 0.35 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/pine-p2.prop-mesh.json",
+   "sha256": "876f3fe9cdb48cc97a16d26a0a958d345a95c1847d9ca3b35fcb103e89d1f149",
+   "command": "python3 scripts/generate-tree.py pine --seed 2"
   },
   {
-   "model": "content/game/models/trees/dead-1.prop-mesh.json",
-   "sha256": "21ba79116dffbb6fc38a2c8f40bdce6ac8a839e8ceec4b4d2ecdf021535582c2",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 11,
-    "prompt": "a dead leafless tree with a weathered grey trunk and a few twisted bare branches, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/deadtree-s11/dead-leafless-tree-with-a-weathered-grey-70d33cb1.png",
-    "sha256": "70d33cb1761a6b802c08ab66b9331da9f2cf791e8c28d7f600aed0ad6ad73826"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/deadtree-s11/textured_00001_.glb",
-    "sha256": "05237cb4df595aa916b4dbf652cfc378d949a710f9545e98ac7dda232c97b334",
-    "prompt_id": "e4758c49-ade7-4092-b48e-acba9aa03fb2",
-    "wall_seconds": 50.1
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 8 --faces 1800 --colors 5 --pull-solid bark,stone --pull-strength 0.4"
+   "model": "content/game/models/trees/dead-p1.prop-mesh.json",
+   "sha256": "fb14fa90b11497240b34b9424c01e9c8beec2f325f12a0f3bd814b6604fc2188",
+   "command": "python3 scripts/generate-tree.py dead --seed 1"
   },
   {
-   "model": "content/game/models/trees/dead-2.prop-mesh.json",
-   "sha256": "ce0866644bf13c2a7ecf24a19eadded7ee94c2ce86f8a9628fe449932610e94c",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo ComfyUI), --framing object 1024x1024",
-    "seed": 12,
-    "prompt": "a dead leafless tree with a weathered grey trunk and a few twisted bare branches, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, full object visible from base to top, centered, plain white background, no ground, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/deadtree-s12/dead-leafless-tree-with-a-weathered-grey-cf95f2ff.png",
-    "sha256": "cf95f2ff35e5ddc5164c916ba2ef7237904834a125749ff21d8cc26230f88bc8"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via asset-pipeline legacy/experiments/comfy-native-image-to-3d/run_native.py --faces 10000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/trees/mesh/deadtree-s12/textured_00001_.glb",
-    "sha256": "62a0d361b16819d4e42a7a430dce235613b649a336a32534014d6dff76b9af2c",
-    "prompt_id": "8cd7df8e-85bb-4d3d-ba31-ac83ef78024f",
-    "wall_seconds": 40.1
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 8 --faces 1800 --colors 5 --pull-solid bark,stone --pull-strength 0.4"
+   "model": "content/game/models/trees/dead-p2.prop-mesh.json",
+   "sha256": "2a68110aed5ebacb6dd5df081288f917f08cd6d287a8bd08a7a7b59856e72ea9",
+   "command": "python3 scripts/generate-tree.py dead --seed 2"
   },
   {
-   "model": "content/game/models/trees/palm-1.prop-mesh.json",
-   "sha256": "ba45d746bf7fdfd0641935dbdea9bd7eb939b3a7e59be995111edd286120c4fd",
-   "source": "content/map-models/palm.glb (Tripo P2, see content/map-models.sources.json)",
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- content/map-models/palm.glb <model> --height 9 --faces 1500 --foliage --colors 5 --saturation 1.2 --wind-weight radial --leaf-root-weight 0.35"
+   "model": "content/game/models/trees/palm-p1.prop-mesh.json",
+   "sha256": "0cf0bff2cfb695073e934e26a48dbe9a61bb7253d89f68eac0587ca89fccb065",
+   "command": "python3 scripts/generate-tree.py palm --seed 1"
+  },
+  {
+   "model": "content/game/models/trees/palm-p2.prop-mesh.json",
+   "sha256": "d08e4536f5a02d91144e2401e48daefdcd11f544c6d893c139c7f03562664a00",
+   "command": "python3 scripts/generate-tree.py palm --seed 2"
+  },
+  {
+   "texture": "content/game/textures/trees/oak-bark.png",
+   "sha256": "b1c5eb90747ee2484e2326f9a479607af68458e386aa562b85f1c58826c66a29",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/oak-leaves.png",
+   "sha256": "687d141131e53bb79c8094d1c5e2b1153340182cc105f3e9b060c2773c0af243",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/birch-bark.png",
+   "sha256": "b858661c217e897b564359d0a60c79bac14c1d4a56c45dba12e13a53d5deace8",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/birch-leaves.png",
+   "sha256": "344b77def8007e5013427f36749502379e6861a498fac34702b542670af9d8cf",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/pine-bark.png",
+   "sha256": "89db2d406f3c365b1ad43d4d1af1e066624940be4329783d5d52aa7c2f382708",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/pine-leaves.png",
+   "sha256": "d007d28fc40a657a04339e89ca802e311ea8f885de3ed4c58e4a0b4e068e2dd3",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/dead-bark.png",
+   "sha256": "50d844c2ae42ba599589697978441b91a1f9f5ddf1fc5951e08163000fe80914",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/palm-bark.png",
+   "sha256": "5682cbf6fe1919312501f4bd1ba20e20d35d5c02b2a93e1327622eea8be5a87c",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/palm-leaves.png",
+   "sha256": "93df2097b7ab048db3a4903633b4e1a61ca6dc2782b142ef3083b67b0df64124",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/bush-leaves.png",
+   "sha256": "ca04bb95b196c82f3e8477ad811908368cbf07b77bdd1fb98a7032bb182dd4c0",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/fern-leaves.png",
+   "sha256": "cde716ff53ebbb9e7224a700a649a0475167e155bbf98e0bb1e7dbc4361b03fc",
+   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
   }
- ],
- "procedural": {
-  "purpose": "Procedural trees with leaf cards (#9685): a seeded low-poly trunk and branch skeleton with tiling nearest-filtered bark, and alpha-cut leaf-cluster cards that flutter in the wind. They replace the TRELLIS oak and birch crowns; the other kinds still use the generated meshes above.",
-  "generated": "2026-10-08",
-  "items": [
-   {
-    "model": "content/game/models/trees/oak-p1.prop-mesh.json",
-    "sha256": "a98436c8fdfd4573e145c4a8074d116122d1bb5ca057e3d0338218001555aee8",
-    "tool": "scripts/generate-tree.py (procedural, offline)",
-    "command": "python3 scripts/generate-tree.py oak --seed 1"
-   },
-   {
-    "model": "content/game/models/trees/oak-p2.prop-mesh.json",
-    "sha256": "958bfa54044079bcd0910450cceba09d71624f66c0ed23deb7d554e633b9e1e0",
-    "tool": "scripts/generate-tree.py (procedural, offline)",
-    "command": "python3 scripts/generate-tree.py oak --seed 2"
-   },
-   {
-    "texture": "content/game/textures/trees/oak-bark.png",
-    "sha256": "b1c5eb90747ee2484e2326f9a479607af68458e386aa562b85f1c58826c66a29",
-    "tool": "scripts/generate-tree.py, drawn from content/style/palette.json ramps",
-    "command": "python3 scripts/generate-tree.py oak --seed 1"
-   },
-   {
-    "texture": "content/game/textures/trees/oak-leaves.png",
-    "sha256": "687d141131e53bb79c8094d1c5e2b1153340182cc105f3e9b060c2773c0af243",
-    "tool": "scripts/generate-tree.py, drawn from content/style/palette.json ramps",
-    "command": "python3 scripts/generate-tree.py oak --seed 1"
-   },
-   {
-    "model": "content/game/models/trees/birch-p1.prop-mesh.json",
-    "sha256": "1861c0e1d02517eba7365b8544e9b46c9de47f344492450ee03982aaf118d537",
-    "tool": "scripts/generate-tree.py (procedural, offline)",
-    "command": "python3 scripts/generate-tree.py birch --seed 1"
-   },
-   {
-    "model": "content/game/models/trees/birch-p2.prop-mesh.json",
-    "sha256": "393b2b6e4501a96126accf34082719d86c45d0861c02cbcde61ef27a9d2fe8ff",
-    "tool": "scripts/generate-tree.py (procedural, offline)",
-    "command": "python3 scripts/generate-tree.py birch --seed 2"
-   },
-   {
-    "texture": "content/game/textures/trees/birch-bark.png",
-    "sha256": "b858661c217e897b564359d0a60c79bac14c1d4a56c45dba12e13a53d5deace8",
-    "tool": "scripts/generate-tree.py, drawn from content/style/palette.json ramps",
-    "command": "python3 scripts/generate-tree.py birch --seed 1"
-   },
-   {
-    "texture": "content/game/textures/trees/birch-leaves.png",
-    "sha256": "344b77def8007e5013427f36749502379e6861a498fac34702b542670af9d8cf",
-    "tool": "scripts/generate-tree.py, drawn from content/style/palette.json ramps",
-    "command": "python3 scripts/generate-tree.py birch --seed 1"
-   }
-  ]
- }
+ ]
 }

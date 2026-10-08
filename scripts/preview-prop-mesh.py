@@ -93,11 +93,12 @@ def main():
     for name, angle, pitch in VIEWS:
         yaw, tilt = math.radians(angle), math.radians(pitch)
         target = Vector((0, 0, height * (0.55 if pitch >= 0 else 0.75)))
-        distance = height * (1.9 if pitch >= 0 else 0.9)
+        # Small props (scatter) are framed from further off, so a camera never sits inside them.
+        distance = max(height * (1.9 if pitch >= 0 else 0.9), 3.0 if pitch >= 0 else 1.5)
         camera.location = target + Vector((math.sin(yaw) * math.cos(tilt), -math.cos(yaw) * math.cos(tilt),
                                            math.sin(tilt))) * distance
         if pitch < 0:
-            camera.location.z = 1.7
+            camera.location.z = min(1.7, height * 0.2)
         camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
         frame = str(Path(output).with_name(Path(output).stem + f"-{name}.png"))
         scene.render.filepath = frame
