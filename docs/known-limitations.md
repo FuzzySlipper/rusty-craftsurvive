@@ -209,8 +209,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   still cross the terrain, and nothing holds pieces up: a roof stays where it was when the wall under
   it is taken away. A floor or stairs tramples the grass under its footprint to dirt, so meadow
   grass does not grow through it; the scatter otherwise ignores pieces (rusty-engine scatter
-  exclusion request). A charge removes the pieces whose anchors are within its reach; damaged pieces
-  do not yet become voxels (#9731).
+  exclusion request).
+- **Charges break built pieces into quarter-metre voxels.** A charge destroys a piece whose middle
+  lies within half its reach. A piece it only reaches becomes a remnant (`PieceRemnant`): the piece
+  with the charge's sphere taken out, thickened to at least 0.3 m so thin boards survive the grid.
+  A later charge bites it again. A remnant with less than 15% left, or past eight craters, falls.
+  Remnants are saved as their piece and craters, so they regenerate exactly. `RemnantVoxels` draws
+  them in their own 0.25 m dual-contoured session; it does not collide, because the character step
+  takes one voxel session. Remnants collide as their solid cells merged into world-axis boxes. F
+  takes a whole remnant away. Remnants offer no sockets, nothing falls when what held it up is
+  gone, and the triplanar maps on a remnant do not line up with its intact piece's planar ones.
 - **Cube building remains for earthworks.** T switches placing to the terrain brush, and the UI still
   builds floors and walls from `BuildPalette` blocks, laid relative to where the player faces, and
   only over replaceable cells (air, water), so a floor across a slope fills the gaps and leaves the

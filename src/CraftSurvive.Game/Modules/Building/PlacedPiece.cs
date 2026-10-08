@@ -202,6 +202,25 @@ internal static class PieceGeometry
         }
     }
 
+    /// <summary>
+    /// Signed distance (metres, negative inside) from a world point to a piece's boxes, each at
+    /// least <paramref name="minimumHalf"/> thick on every axis (for sampling on a grid coarser than
+    /// a thin board).
+    /// </summary>
+    internal static float Distance(PlacedPiece piece, Vector3 point, float minimumHalf = 0f)
+    {
+        float best = float.MaxValue;
+        foreach (PieceBox box in PieceCatalog.Boxes(piece.Kind))
+        {
+            (Vector3 centre, Quaternion rotation, Vector3 half) = piece.World(box);
+            Vector3 q = Vector3.Abs(Vector3.Transform(point - centre, Quaternion.Inverse(rotation))) - Vector3.Max(half, new Vector3(minimumHalf));
+            float distance = Vector3.Max(q, Vector3.Zero).Length() + MathF.Min(MathF.Max(q.X, MathF.Max(q.Y, q.Z)), 0f);
+            best = MathF.Min(best, distance);
+        }
+
+        return best;
+    }
+
     /// <summary>How many stepped boxes stand in for a pitched slab.</summary>
     internal const int PitchedSlices = 4;
 

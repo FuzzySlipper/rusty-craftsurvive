@@ -48,6 +48,12 @@ built.Add(new PlacedPiece(PieceKind.Floor, PieceMaterial.Planks, 1488, 314, -952
 built.Add(new PlacedPiece(PieceKind.Doorway, PieceMaterial.Masonry, 1484, 315, -944, 2));
 built.Add(new PlacedPiece(PieceKind.Roof, PieceMaterial.Shingles, -4, 325, 8, 1));
 PlacedPiece[] pieces = built.Snapshot();
+PieceRemnant[] broken =
+[
+    new(new PlacedPiece(PieceKind.Wall, PieceMaterial.Masonry, -40, 300, 16, 1), [new Crater(new Vector3(-10f, 76f, 4.5f), 1.25f)]),
+    new(new PlacedPiece(PieceKind.Floor, PieceMaterial.Planks, 8, 300, 8, 0),
+        [new Crater(new Vector3(2.5f, 75f, 2f), 1f), new Crater(new Vector3(1.5f, 75f, 2.5f), 0.75f)]),
+];
 
 SavedForm[] forms =
 [
@@ -64,6 +70,9 @@ SavedForm[] forms =
         (left, right) => left.SequenceEqual(right), seed => new BlockEntityCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.BuildPieces, new BuildPieceCodec(identity), pieces, BuildPieceCodec.RecordBytes,
         (left, right) => left.SequenceEqual(right), seed => new BuildPieceCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.BuildRemnants, new RemnantCodec(identity), broken, RemnantCodec.RecordBytes,
+        (left, right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First.Piece == pair.Second.Piece && pair.First.Craters.SequenceEqual(pair.Second.Craters)),
+        seed => new RemnantCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.PlayerContinuation, new PlayerContinuationCodec(identity, MaximumHealth), player, PlayerContinuationCodec.RecordBytes,
         (left, right) => left == right, seed => new PlayerContinuationCodec(identity with { Seed = seed }, MaximumHealth)),
     SavedForm.For(SaveManifest.WorldConditions, new WorldConditionsCodec(identity), conditions, WorldConditionsCodec.RecordBytes,
@@ -236,6 +245,39 @@ BuildPieceSet clashing = new();
 clashing.Add(firstWall);
 Check.That(clashing.Add(throughWall) == PieceOutcome.Overlaps && clashing.Check(cornerWall) == PieceOutcome.Placed,
     "the set refuses a piece that cuts through one standing, and allows one that meets it at a corner");
+
+// --- remnants (#9731): a charge breaks what it reaches and destroys what it is in the middle of -----
+RemnantCodec remnantCodec = new(identity);
+Check.That(Throws(() => remnantCodec.Encode([broken[0] with { Craters = [] }])), "a remnant without a crater cannot be saved");
+byte[] noCraters = remnantCodec.Encode(broken);
+noCraters[SaveEnvelope.HeaderBytes + BuildPieceCodec.RecordBytes] = 0;
+Check.That(Refuses(remnantCodec, noCraters), "a stored remnant claiming no craters must be refused");
+
+BuildPieceSet standing = new();
+PlacedPiece blastWall = new(PieceKind.Wall, PieceMaterial.Planks, 0, 0, 0, 0);
+PlacedPiece blastFloor = new(PieceKind.Floor, PieceMaterial.Planks, 40, 0, 0, 0);
+standing.Add(blastWall);
+standing.Add(blastFloor);
+RemnantSet broke = new();
+PieceBlast endBlast = broke.Blast(standing, new Crater(new Vector3(1f, 1.25f, 0f), 0.9f));
+Check.That(endBlast.Remnants == 1 && endBlast.Destroyed == 0 && standing.Count == 1 && broke.Count == 1
+    && broke.Remnants[0].ShareLeft() is > 0.5f and < 1f && endBlast.Changed.Count == 1,
+    $"a charge at a wall's end bites a crater out of it and leaves the rest standing as a remnant, {endBlast}");
+PieceBlast secondBlast = broke.Blast(standing, new Crater(new Vector3(-0.5f, 1.25f, 0f), 0.6f));
+Check.That(secondBlast.Remnants == 0 && broke.Remnants[0].Craters.Count == 2, "a second charge reaching a remnant bites it again");
+PieceBlast coreBlast = broke.Blast(standing, new Crater(new Vector3(10f, 0.2f, 0f), 2.5f));
+Check.That(coreBlast.Destroyed == 1 && standing.Count == 0, "a charge in the middle of a piece destroys it outright");
+PieceRemnant left = broke.Remnants[0];
+(long lx0, long ly0, long lz0, long lx1, long ly1, long lz1) = left.Cells();
+int solidCells = 0;
+for (long x = lx0; x < lx1; x++) for (long y = ly0; y < ly1; y++) for (long z = lz0; z < lz1; z++) if (left.Solid(x, y, z)) solidCells++;
+List<(Vector3 Centre, Vector3 Half)> leftBoxes = left.Boxes();
+float cell = PieceRemnant.VoxelMetres * PieceRemnant.VoxelMetres * PieceRemnant.VoxelMetres;
+float boxed = leftBoxes.Sum(box => box.Half.X * box.Half.Y * box.Half.Z * 8f);
+Check.That(MathF.Abs(boxed - (solidCells * cell)) < 1e-3f && leftBoxes.Count < solidCells / 4,
+    $"a remnant's boxes cover exactly its solid cells, merged ({leftBoxes.Count} boxes for {solidCells} cells)");
+PieceRemnant shattered = left with { Craters = [new Crater(left.Piece.Anchor + new Vector3(0, 1.25f, 0), 3f)] };
+Check.That(shattered.ShareLeft() < PieceRemnant.CollapseShare, "a remnant with almost nothing left would fall to pieces");
 
 WorldConditionsCodec conditionsCodec = new(identity);
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");

@@ -115,6 +115,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.build.aim", Description = "Reads what the player's view meets: the nearest build piece and the ground, with distances (#9729).")]
     public string ReadPieceAim() => player.Pieces?.AimReadout(player.LocalAhead(0f), player.AimForward) ?? "no pieces";
 
+    [DebugCommand("craft.build.remnants", Description = "Lists the build remnants (#9731): each bitten piece, its craters and its collision boxes.")]
+    public string ReadRemnants() => player.Pieces?.RemnantsReadout() ?? "no pieces";
+
     [DebugCommand("craft.build.piecesclear", Description = "Assisted (#9729): removes every build piece.")]
     public string ClearPieces()
     {

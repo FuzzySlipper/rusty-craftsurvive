@@ -39,20 +39,32 @@ internal sealed class BuildPieceModule : IProductModule
     private readonly PiecePresenter presenter;
     private readonly ProductSaveSlot<PlacedPiece[]> slot;
     private long savedRevision;
+
+    /// <summary>Pieces a charge has bitten into (#9731): their description, drawing, collision boxes and save.</summary>
+    private readonly RemnantSet remnants = new();
+    private readonly RemnantVoxels remnantVoxels;
+    private readonly ProductSaveSlot<PieceRemnant[]> remnantSlot;
+    private readonly List<List<(Vector3 Centre, Vector3 Half)>> remnantBoxes = [];
+    private long savedRemnantRevision, boxedRemnantRevision = -1;
+    private long destroyed, bitten, collapsed;
     private bool started;
     private PieceKind kind = PieceKind.Wall;
     private int materialIndex;
     private long placed, removed, refused;
     private string last = "none";
 
-    internal BuildPieceModule(IEngineContext engine, ProductStore store, TerrainWorld terrain, WorldFrame frame, Cues cues)
+    internal BuildPieceModule(IEngineContext engine, ProductContent content, ProductStore store, TerrainWorld terrain, WorldFrame frame, Cues cues)
     {
         this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         presenter = new PiecePresenter(engine, frame, set);
         slot = new ProductSaveSlot<PlacedPiece[]>(engine, store, SaveManifest.BuildPieces, new BuildPieceCodec(terrain.SaveIdentity));
+        remnantSlot = new ProductSaveSlot<PieceRemnant[]>(engine, store, SaveManifest.BuildRemnants, new RemnantCodec(terrain.SaveIdentity));
+        remnantVoxels = new RemnantVoxels(engine, content, frame, remnants);
     }
+
+    internal RemnantSet Remnants => remnants;
 
     /// <summary>Whether placing builds pieces (true) or works the terrain with the brush.</summary>
     internal bool PiecesMode { get; private set; } = true;
@@ -81,6 +93,11 @@ internal sealed class BuildPieceModule : IProductModule
         {
             Save();
         }
+
+        if (started && remnants.Revision != savedRemnantRevision)
+        {
+            SaveRemnants();
+        }
     }
 
     public void Restart() => Restore();
@@ -92,8 +109,14 @@ internal sealed class BuildPieceModule : IProductModule
             Save();
         }
 
+        if (started && remnants.Revision != savedRemnantRevision)
+        {
+            SaveRemnants();
+        }
+
         started = false;
         presenter.Dispose();
+        remnantVoxels.Dispose();
     }
 
     /// <summary>
@@ -137,6 +160,20 @@ internal sealed class BuildPieceModule : IProductModule
         PieceHit? pieceHit = PieceGeometry.Cast(set.Pieces, origin, forward, Reach);
         SpatialHit ground = terrain.CastView(eye, forward);
         bool pieceFirst = pieceHit is PieceHit hit && (!ground.Present || hit.Distance <= ground.Distance);
+        PieceHit? remnantHit = CastRemnants(origin, forward);
+        bool remnantFirst = remnantHit is PieceHit r && (!ground.Present || r.Distance <= ground.Distance)
+            && (pieceHit is not PieceHit p || r.Distance < p.Distance);
+        if (edit == TerrainEditKind.Clear && remnantFirst)
+        {
+            // Taking down what is left of a bitten piece takes all of it.
+            PieceRemnant gone = remnants.RemoveAt(remnantHit!.Value.Index);
+            remnantVoxels.Redraw([gone.Bounds()]);
+            removed++;
+            last = $"removed what was left of a {PieceCatalog.Name(gone.Piece.Kind)}";
+            cues.RaiseAt(Cue.Break, frame.ToLocal(remnantHit.Value.Point.X, remnantHit.Value.Point.Y, remnantHit.Value.Point.Z));
+            return true;
+        }
+
         if (edit == TerrainEditKind.Clear)
         {
             if (!pieceFirst) return false;
@@ -180,29 +217,110 @@ internal sealed class BuildPieceModule : IProductModule
         return $"{outcome.ToString().ToLowerInvariant()}; {Readout()}";
     }
 
-    /// <summary>A charge takes the pieces within its reach (until damaged pieces become voxels, #9731).</summary>
-    internal int Blast(Vector3 worldCentre, float radius) => set.RemoveWithin(worldCentre, radius);
+    /// <summary>
+    /// A charge (#9731): pieces near its centre are destroyed, pieces it only reaches become remnants
+    /// with its crater bitten out, and remnants it reaches take the crater too; the voxels redraw what
+    /// changed. Returns how many intact pieces it took.
+    /// </summary>
+    internal int Blast(Vector3 worldCentre, float radius)
+    {
+        int before = set.Count;
+        PieceBlast blast = remnants.Blast(set, new Crater(worldCentre, radius));
+        destroyed += blast.Destroyed;
+        bitten += blast.Remnants;
+        collapsed += blast.Collapsed;
+        if (blast.Changed.Count > 0) remnantVoxels.Redraw(blast.Changed);
+        if (blast.Destroyed + blast.Remnants + blast.Collapsed > 0)
+        {
+            last = $"charge destroyed {blast.Destroyed}, broke {blast.Remnants}, brought down {blast.Collapsed}";
+        }
+
+        return before - set.Count;
+    }
 
     internal void Clear()
     {
         set.Restore([]);
+        remnants.Restore([]);
+        remnantVoxels.RedrawAll();
     }
 
-    /// <summary>The pieces' boxes near the player, for the character step.</summary>
-    internal CharacterObstacle[] Obstacles(Vector3 local) => presenter.Obstacles(local);
+    /// <summary>The pieces' and remnants' boxes near the player, for the character step.</summary>
+    internal CharacterObstacle[] Obstacles(Vector3 local)
+    {
+        CharacterObstacle[] pieces = presenter.Obstacles(local);
+        if (remnants.Count == 0) return pieces;
+        Vector3 world = frame.ToWorld(local);
+        List<CharacterObstacle> near = [.. pieces];
+        List<List<(Vector3 Centre, Vector3 Half)>> boxes = RemnantBoxes();
+        for (int index = 0; index < boxes.Count; index++)
+        {
+            (Vector3 low, Vector3 high) = remnants.Remnants[index].Bounds();
+            if (Vector3.DistanceSquared((low + high) / 2, world) > PiecePresenter.CollisionReach * PiecePresenter.CollisionReach) continue;
+            for (int box = 0; box < boxes[index].Count && box < RemnantObstacleStride; box++)
+            {
+                (Vector3 centre, Vector3 half) = boxes[index][box];
+                near.Add(new CharacterObstacle(ProductIds.BuildRemnantObstacleBase + (ulong)((index * RemnantObstacleStride) + box),
+                    new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), Quaternion.Identity, Vector3.One), -half, half, true, Vector3.Zero, Vector3.Zero));
+            }
+        }
+
+        return [.. near];
+    }
+
+    /// <summary>Boxes per remnant the obstacle ids leave room for; a remnant broken into more collides as its first ones.</summary>
+    internal const int RemnantObstacleStride = 512;
+
+    /// <summary>The remnants' merged boxes, rebuilt when the remnants change.</summary>
+    private List<List<(Vector3 Centre, Vector3 Half)>> RemnantBoxes()
+    {
+        if (boxedRemnantRevision != remnants.Revision)
+        {
+            remnantBoxes.Clear();
+            remnantBoxes.AddRange(remnants.Remnants.Select(remnant => remnant.Boxes()));
+            boxedRemnantRevision = remnants.Revision;
+        }
+
+        return remnantBoxes;
+    }
+
+    /// <summary>The nearest remnant box a ray meets within reach.</summary>
+    private PieceHit? CastRemnants(Vector3 origin, Vector3 direction)
+    {
+        PieceHit? best = null;
+        List<List<(Vector3 Centre, Vector3 Half)>> boxes = RemnantBoxes();
+        for (int index = 0; index < boxes.Count; index++)
+        {
+            foreach ((Vector3 centre, Vector3 half) in boxes[index])
+            {
+                if (PieceGeometry.RayBox(origin, direction, centre, Quaternion.Identity, half, out float distance, out Vector3 normal)
+                    && distance <= Reach && (best is not PieceHit current || distance < current.Distance))
+                {
+                    best = new PieceHit(index, distance, origin + (direction * distance), normal);
+                }
+            }
+        }
+
+        return best;
+    }
 
     internal AppearanceFact[] Facts() => presenter.Facts();
 
+    /// <summary>The remnants, one line each: kind, anchor, craters and boxes, for diagnosis.</summary>
+    internal string RemnantsReadout() => string.Join("; ", remnants.Remnants.Select((remnant, index) => string.Create(CultureInfo.InvariantCulture,
+        $"{PieceCatalog.Name(remnant.Piece.Kind)}@{remnant.Piece.Anchor.X:F2},{remnant.Piece.Anchor.Y:F2},{remnant.Piece.Anchor.Z:F2}/t{remnant.Piece.Turn} craters={remnant.Craters.Count} boxes={RemnantBoxes()[index].Count}")));
+
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
+        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} remnants={remnants.Count} chunks={remnantVoxels.ResidentChunks} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
 
     /// <summary>What this view meets: the nearest piece and the ground, with their distances, for diagnosis.</summary>
     internal string AimReadout(Vector3 eye, Vector3 forward)
     {
         PieceHit? pieceHit = PieceGeometry.Cast(set.Pieces, frame.ToWorld(eye), forward, Reach);
         SpatialHit ground = terrain.CastView(eye, forward);
+        PieceHit? remnantHit = CastRemnants(frame.ToWorld(eye), forward);
         return string.Create(CultureInfo.InvariantCulture,
-            $"eye={frame.ToWorld(eye)} forward={forward} piece={(pieceHit is PieceHit hit ? $"{PieceCatalog.Name(set.Pieces[hit.Index].Kind)}@{hit.Distance:F2} point={hit.Point}" : "none")} ground={(ground.Present ? $"{ground.Distance:F2} toi={ground.TimeOfImpact:F3} point={frame.ToWorld(ground.Point)} normal={ground.Normal}" : "none")}");
+            $"eye={frame.ToWorld(eye)} forward={forward} piece={(pieceHit is PieceHit hit ? $"{PieceCatalog.Name(set.Pieces[hit.Index].Kind)}@{hit.Distance:F2} point={hit.Point}" : "none")} remnant={(remnantHit is PieceHit broken ? $"{PieceCatalog.Name(remnants.Remnants[broken.Index].Piece.Kind)}@{broken.Distance:F2} point={broken.Point}" : "none")} ground={(ground.Present ? $"{ground.Distance:F2} toi={ground.TimeOfImpact:F3} point={frame.ToWorld(ground.Point)} normal={ground.Normal}" : "none")}");
     }
 
     /// <summary>Where the selected piece would go from this view: on the first piece or ground it meets.</summary>
@@ -276,6 +394,13 @@ internal sealed class BuildPieceModule : IProductModule
         Vector3 facing = new(forward.X, 0, forward.Z);
         if (facing.LengthSquared() < 1e-6f) facing = Vector3.UnitZ;
         facing = Vector3.Normalize(facing);
+        if (CastRemnants(origin, forward) is PieceHit broken && (!ground.Present || broken.Distance <= ground.Distance)
+            && (pieceHit is not PieceHit nearer || broken.Distance < nearer.Distance))
+        {
+            // Aimed at what is left of a bitten piece: stand on its face (it offers no sockets).
+            return (PieceGeometry.Place(kind, Material, broken.Point, broken.Normal, facing), broken.Distance);
+        }
+
         if (pieceHit is PieceHit hit && (!ground.Present || hit.Distance <= ground.Distance))
         {
             // Aimed at a piece: attach at its nearest socket for the kind, else stand on the aimed face.
@@ -339,6 +464,15 @@ internal sealed class BuildPieceModule : IProductModule
         }
 
         savedRevision = set.Revision;
+        remnants.Restore(remnantSlot.Restore() is { Outcome: SaveRestoreOutcome.Restored, State: PieceRemnant[] broken } ? broken : []);
+        savedRemnantRevision = remnants.Revision;
+        remnantVoxels.RedrawAll();
+    }
+
+    private void SaveRemnants()
+    {
+        remnantSlot.Save(remnants.Snapshot());
+        savedRemnantRevision = remnants.Revision;
     }
 
     private void Save()

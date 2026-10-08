@@ -54,6 +54,9 @@ internal static class ProductIds
     /// <summary>The character-step obstacle ids of build pieces' boxes: eight per piece.</summary>
     internal const ulong BuildPieceObstacleBase = 0x10_0000UL;
 
+    /// <summary>The character-step obstacle ids of remnants' merged boxes (#9731): up to 512 per remnant.</summary>
+    internal const ulong BuildRemnantObstacleBase = 0x100_0000UL;
+
     /// <summary>Retained light ids: the sky's sun (or moon), its occlusion layer (an ambient light) and its hemisphere fill.</summary>
     internal const ulong SunLight = 1UL;
 
