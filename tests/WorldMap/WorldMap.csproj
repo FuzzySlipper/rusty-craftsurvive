@@ -10,6 +10,7 @@
     <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TreeFelling.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainOverlayCodec.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product" />

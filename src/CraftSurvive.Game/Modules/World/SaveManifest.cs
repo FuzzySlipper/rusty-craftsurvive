@@ -34,6 +34,10 @@ internal static class SaveManifest
     internal static SaveKey BlockEntities { get; } =
         new("build/entities", "build/entities.backup", "BlockEntityStore", 0x544E_4542, 1);
 
+    /// <summary>The construction pieces the player has built (#9729).</summary>
+    internal static SaveKey BuildPieces { get; } =
+        new("build/pieces", "build/pieces.backup", "BuildPieceStore", 0x5345_4350, 1);
+
     /// <summary>Where the player stands, which way they look, and what they have earned.</summary>
     internal static SaveKey PlayerContinuation { get; } =
         new("player/continuation", "player/continuation.backup", "PlayerContinuationStore", 0x5952_4C50, 1);
@@ -59,5 +63,5 @@ internal static class SaveManifest
         new("travel/sled", "travel/sled.backup", "SledStore", 0x4445_4C53, 1);
 
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled];
 }

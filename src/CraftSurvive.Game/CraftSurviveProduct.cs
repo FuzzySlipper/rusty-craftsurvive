@@ -1,6 +1,7 @@
 using Rusty.Engine;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine.Debugging;
+using CraftSurvive.Game.Modules.Building;
 using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Creatures;
@@ -78,6 +79,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private BuildModule build = null!;
     private BlockEntityStore entityStore = null!;
 
+    /// <summary>Building with pieces (#9729): what stands, its save, its drawing and its collision.</summary>
+    private BuildPieceModule pieces = null!;
+
     /// <summary>The light placed lamps give, from a pool of Engine lights.</summary>
     private LampLights lamps = null!;
 
@@ -118,6 +122,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
         terrain.Edited += entities.ApplyTerrainEdits;
         player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
+        pieces = new BuildPieceModule(context.Engine, store, terrain, frame);
+        player.Pieces = pieces;
         sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
@@ -128,6 +134,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         sled = new SledStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         blast = new BlastModule(terrain, frame, entities, cues);
+        blast.ChargeAdmitted += (centre, radius) => pieces.Blast(centre, radius);
         build = new BuildModule(terrain, entities, player.Occupies);
         entityStore = new BlockEntityStore(context.Engine, store, terrain, entities);
         lamps = new LampLights(context.Engine, entities, player, frame);
@@ -140,7 +147,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
-        gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, entityStore, lamps, feedback];
+        gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback];
         worldBuilt = true;
         if (worldStoresRegistered)
         {
@@ -387,7 +394,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's trees, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] TreeFacts() => player.InSeparateSpace ? [] : [.. terrain.TreeFacts, .. terrain.StudyFacts];
+    private AppearanceFact[] TreeFacts() => player.InSeparateSpace ? [] : [.. terrain.TreeFacts, .. terrain.StudyFacts, .. pieces.Facts()];
 
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()

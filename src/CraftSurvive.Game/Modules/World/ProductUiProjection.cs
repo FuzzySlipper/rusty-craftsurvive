@@ -44,6 +44,7 @@ internal static class ProductUiProjection
             values.Add("climbing", facts.Climbing ? 1d : 0d);
             values.Add("hitsTaken", facts.HitsTaken);
             values.Add("submerged", facts.Submerged ? 1d : 0d);
+            values.AddText("building", facts.Building ?? string.Empty);
         }
         if (discovery is DiscoveryUiFacts journal)
         {

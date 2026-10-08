@@ -143,6 +143,21 @@ internal sealed class TerrainEditService(
         return Apply(session, request, pick.Target, center, pick.Face, playerOverlaps, step);
     }
 
+    /// <summary>Where the view meets a voxel surface within reach (the hit's point, normal and distance), or no hit.</summary>
+    internal SpatialHit Cast(SpatialSession session, Vector3 origin, Vector3 direction)
+    {
+        SpatialHit cast = engine.Spatial.CastRay(new SpatialRaycastRequest(
+            session,
+            origin,
+            direction,
+            TerrainConstants.EditReach,
+            new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+            ReadOnlyMemory<SpatialEntityCollider>.Empty,
+            ReadOnlyMemory<ulong>.Empty,
+            ReadOnlyMemory<SpatialEntityCollider>.Empty));
+        return cast.Present && cast.Kind == SpatialHitKind.Voxel ? cast : default;
+    }
+
     /// <summary>The voxel the view meets within reach, the face it meets it on, and the open cell in front of that face.</summary>
     internal TerrainPick Pick(SpatialSession session, Vector3 origin, Vector3 direction)
     {

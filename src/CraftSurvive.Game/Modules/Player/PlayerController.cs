@@ -97,6 +97,12 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Where the view pointed after the latest update's look; zero before the first update.</summary>
     private Vector3 aimForward;
 
+    /// <summary>
+    /// Building with pieces (#9729): offered each place or clear before the terrain, steered by the
+    /// view each update, and colliding with the player's step. Null builds terrain only.
+    /// </summary>
+    internal Building.BuildPieceModule? Pieces { get; set; }
+
     internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, Cues cues)
     {
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
@@ -269,7 +275,9 @@ internal sealed class PlayerController : IDisposable
             terrain.SynchronizeAround(playerGlobal.FloorVoxel());
         }
 
-        if (away is null && frame.Edit is TerrainEditKind edit)
+        Pieces?.Steer(EyePosition(), lookReceipt.Forward, frame.PieceSteps, frame.MaterialSteps, frame.BuildModeToggle, active: away is null);
+        if (away is null && frame.Edit is TerrainEditKind edit
+            && Pieces?.TryEdit(edit, EyePosition(), lookReceipt.Forward) != true)
         {
             lastTerrainEdit = terrain.TryEditFromView(
                 EyePosition(),
@@ -536,7 +544,7 @@ internal sealed class PlayerController : IDisposable
                     playerLocal,
                     motion,
                     default,
-                    ReadOnlyMemory<CharacterObstacle>.Empty,
+                    away is null && Pieces is { } pieces ? pieces.Obstacles(playerLocal) : ReadOnlyMemory<CharacterObstacle>.Empty,
                     ReadOnlyMemory<CharacterMeshInstance>.Empty,
                     stepConfig,
                     Command(frame, lookReceipt, commandSequence)));
@@ -780,6 +788,7 @@ internal sealed class PlayerController : IDisposable
         Climbing = climbHeld,
         HitsTaken = Vitals.HitsTaken,
         Submerged = headSubmerged,
+        Building = away is null ? Pieces?.HudLine ?? string.Empty : string.Empty,
     };
 
     private void PublishRuntimeComponent()

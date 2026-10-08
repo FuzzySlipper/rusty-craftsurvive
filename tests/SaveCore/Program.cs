@@ -1,5 +1,7 @@
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Numerics;
+using CraftSurvive.Game.Modules.Building;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
@@ -41,6 +43,12 @@ SledSave sledSave = new(512.75, -96.5, [new ItemCount(ItemCatalog.Meat, 30), new
 
 WorldMapSave mapSave = new(3, WorldMapGenerator.Generate(new TerrainConfiguration(Seed, 4096)));
 
+BuildPieceSet built = new();
+built.Add(new PlacedPiece(PieceKind.Floor, PieceMaterial.Planks, 1488, 314, -952, 0));
+built.Add(new PlacedPiece(PieceKind.Doorway, PieceMaterial.Masonry, 1484, 315, -944, 2));
+built.Add(new PlacedPiece(PieceKind.Roof, PieceMaterial.Shingles, -4, 325, 8, 1));
+PlacedPiece[] pieces = built.Snapshot();
+
 SavedForm[] forms =
 [
     SavedForm.For(SaveManifest.WorldMap, new WorldMapCodec(), mapSave, MapFields.FieldCount * sizeof(float),
@@ -54,6 +62,8 @@ SavedForm[] forms =
         (left, right) => left.Entries.SequenceEqual(right.Entries), seed => new DiscoveryCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.BlockEntities, new BlockEntityCodec(identity), entities, BlockEntityCodec.RecordBytes,
         (left, right) => left.SequenceEqual(right), seed => new BlockEntityCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.BuildPieces, new BuildPieceCodec(identity), pieces, BuildPieceCodec.RecordBytes,
+        (left, right) => left.SequenceEqual(right), seed => new BuildPieceCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.PlayerContinuation, new PlayerContinuationCodec(identity, MaximumHealth), player, PlayerContinuationCodec.RecordBytes,
         (left, right) => left == right, seed => new PlayerContinuationCodec(identity with { Seed = seed }, MaximumHealth)),
     SavedForm.For(SaveManifest.WorldConditions, new WorldConditionsCodec(identity), conditions, WorldConditionsCodec.RecordBytes,
@@ -158,6 +168,43 @@ Check.That(Throws(() => playerCodec.Encode(player with { FeetX = double.NaN })),
 byte[] twoRecords = [.. playerCodec.Encode(player)];
 BinaryPrimitives.WriteInt32LittleEndian(twoRecords.AsSpan(20), 2);
 Check.That(Refuses(playerCodec, [.. twoRecords, .. new byte[PlayerContinuationCodec.RecordBytes]]), "a continuation holds exactly one record");
+
+// --- build pieces (#9729): the codec refuses pieces that cannot stand, the set refuses doubles ------
+BuildPieceCodec pieceCodec = new(identity);
+byte[] badMaterial = pieceCodec.Encode(pieces);
+// Canonical order puts the roof (X = -4) first; make it a masonry roof.
+Check.That(pieces[0].Kind == PieceKind.Roof, "the saved pieces are in canonical order, the roof first");
+badMaterial[SaveEnvelope.HeaderBytes + 24 + 1] = (byte)PieceMaterial.Masonry;
+Check.That(Refuses(pieceCodec, badMaterial), "a piece of a material its kind does not allow must be refused");
+byte[] badTurn = pieceCodec.Encode(pieces);
+badTurn[SaveEnvelope.HeaderBytes + 24 + 2] = PlacedPiece.Turns;
+Check.That(Refuses(pieceCodec, badTurn), "a piece turned past three quarter turns must be refused");
+Check.That(Throws(() => pieceCodec.Encode([pieces[1], pieces[0]])), "pieces out of canonical order cannot be saved");
+Check.That(built.Add(pieces[0] with { Turn = 1 }) == PieceOutcome.Occupied, "a second piece of the same kind on the same anchor is refused");
+Check.That(built.Add(new PlacedPiece(PieceKind.Beam, PieceMaterial.Masonry, 0, 0, 0, 0)) == PieceOutcome.NotAllowed, "a masonry beam is not a piece");
+Check.That(built.Add(new PlacedPiece(PieceKind.Post, PieceMaterial.Timber, 1488, 314, -952, 0)) == PieceOutcome.Placed,
+    "a different kind may share an anchor (a post at a floor's middle)");
+long piecesBefore = built.Revision;
+Check.That(built.RemoveWithin(new Vector3(372f, 78.5f, -238f), 3f) == 3 && built.Revision > piecesBefore && built.Count == 1,
+    "a charge takes the pieces whose anchors are within its reach");
+
+// Geometry: a wall faced from its front is met on its front face; a piece aimed at the ground stands on it,
+// snapped up the grid, turned to face back toward the player; a pitched roof is met along its slope.
+PlacedPiece wall = new(PieceKind.Wall, PieceMaterial.Planks, 0, 0, 0, 0);
+PieceHit? wallHit = PieceGeometry.Cast([wall], new Vector3(0, 1.5f, 5f), -Vector3.UnitZ, 8f);
+Check.That(wallHit is { } w && MathF.Abs(w.Distance - (5f - (PieceCatalog.WallThickness / 2))) < 1e-4f && Vector3.Distance(w.Normal, Vector3.UnitZ) < 1e-4f,
+    $"a wall faced from the front is met on its front face, met {wallHit}");
+Check.That(PieceGeometry.Cast([wall], new Vector3(0, 3.5f, 5f), -Vector3.UnitZ, 8f) is null, "a ray over a wall's top misses it");
+PlacedPiece onGround = PieceGeometry.Place(PieceKind.Floor, PieceMaterial.Planks, new Vector3(10.1f, 78.43f, -3.9f), Vector3.UnitY, Vector3.UnitX);
+Check.That(onGround.X == 40 && onGround.Y == 314 && onGround.Z == -16 && onGround.Turn == PieceGeometry.TurnFacing(-Vector3.UnitX),
+    $"a floor aimed at the ground stands on it, snapped to the quarter-metre grid, placed {onGround}");
+Check.That(Vector3.Distance(Vector3.Transform(Vector3.UnitZ, new PlacedPiece(PieceKind.Wall, PieceMaterial.Planks, 0, 0, 0, PieceGeometry.TurnFacing(Vector3.UnitX)).Rotation), Vector3.UnitX) < 1e-4f,
+    "a turn faces a piece's +Z the way asked");
+PlacedPiece roof = new(PieceKind.Roof, PieceMaterial.Shingles, 0, 0, 0, 0);
+PieceHit? roofHit = PieceGeometry.Cast([roof], new Vector3(0, 5f, 0), -Vector3.UnitY, 8f);
+float ridge = PieceCatalog.RoofRun / 2 * MathF.Tan(PieceCatalog.RoofPitch);
+Check.That(roofHit is { } r && r.Normal.Y > 0.7f && r.Normal.Z > 0.3f && MathF.Abs(r.Point.Y - (ridge + (PieceCatalog.RoofThickness / MathF.Cos(PieceCatalog.RoofPitch)))) < 0.05f,
+    $"a roof is met on its pitched top, facing up and toward its low (+Z) eaves, met {roofHit}");
 
 WorldConditionsCodec conditionsCodec = new(identity);
 Check.That(Throws(() => conditionsCodec.Encode(conditions with { DayFraction = 1.0 })), "a time past the end of the day cannot be saved");

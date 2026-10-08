@@ -29,6 +29,7 @@ const ROWS: readonly HudRow[] = [
   { label: 'Dungeon', show: (v) => { const p = text(v, 'dungeonPrompt'); return p === null || p === '' ? null : p; } },
   { label: 'Time', show: (v) => { const t = text(v, 'worldTime'); return t === null ? null : number(v, 'night') === 1 ? `${t} (night)` : t; } },
   { label: 'Level', show: (v) => { const l = number(v, 'level'); const x = number(v, 'experience'); return l === null || x === null ? null : `${l} (${x} xp)`; } },
+  { label: 'Building', show: (v) => { const t = text(v, 'building'); return t === null || t === '' ? null : t; } },
   { label: 'Carrying', show: (v) => { const c = text(v, 'carried'); return c === null ? null : c === '' ? 'nothing' : c; } },
   { label: 'Defeats', show: (v) => fixed(number(v, 'defeats'), 0) },
   { label: 'Position', show: (v) => { const x = number(v, 'playerX'); const y = number(v, 'playerY'); const z = number(v, 'playerZ'); return x === null || y === null || z === null ? null : `${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)}`; } },

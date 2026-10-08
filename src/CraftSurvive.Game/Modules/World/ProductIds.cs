@@ -45,6 +45,15 @@ internal static class ProductIds
     /// <summary>The building look study's mesh cabin (BuildStudy, #9684).</summary>
     internal const ulong BuildStudyObject = 0x7_0000UL;
 
+    /// <summary>The placement ghost of the selected build piece (#9729).</summary>
+    internal const ulong BuildPieceGhost = 0x7_0001UL;
+
+    /// <summary>Placed build pieces (#9729); up to <see cref="Building.BuildPieceSet.MaximumPieces"/> of them.</summary>
+    internal const ulong BuildPieceBase = 0x7_1000UL;
+
+    /// <summary>The character-step obstacle ids of build pieces' boxes: eight per piece.</summary>
+    internal const ulong BuildPieceObstacleBase = 0x10_0000UL;
+
     /// <summary>Retained light ids: the sky's sun (or moon), its occlusion layer (an ambient light) and its hemisphere fill.</summary>
     internal const ulong SunLight = 1UL;
 

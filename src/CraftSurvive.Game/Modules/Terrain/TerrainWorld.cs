@@ -319,6 +319,13 @@ internal sealed class TerrainWorld : IDisposable
         return edits.ApplyFromView(Session, origin, direction, kind, material, radius, playerOverlaps, currentStep);
     }
 
+    /// <summary>Where the view from this origin first meets the ground, within edit reach: point and normal in the walking frame.</summary>
+    internal SpatialHit CastView(Vector3 origin, Vector3 direction)
+    {
+        EnsureStarted();
+        return edits.Cast(Session, origin, direction);
+    }
+
     /// <summary>What the view from this origin is aimed at, within edit reach.</summary>
     internal TerrainPick PickFromView(Vector3 origin, Vector3 direction)
     {

@@ -26,6 +26,9 @@ internal sealed class PlayerInputState
     private int brushRadius = PlayerConstants.DefaultBrushRadius;
     private Vector2 pendingLookDelta;
     private TerrainEditKind? pendingEdit;
+    /// <summary>Build piece keys (#9729): Q steps the piece, Z its material, T switches pieces and the terrain brush.</summary>
+    private int pieceSteps, materialSteps;
+    private bool buildModeToggle;
 
     private bool attackPending;
 
@@ -119,8 +122,14 @@ internal sealed class PlayerInputState
             climbPending,
             hotbarPick,
             hotbarSteps,
-            usePending);
+            usePending,
+            pieceSteps,
+            materialSteps,
+            buildModeToggle);
         pendingLookDelta = Vector2.Zero;
+        pieceSteps = 0;
+        materialSteps = 0;
+        buildModeToggle = false;
         pendingEdit = null;
         attackPending = false;
         climbPending = false;
@@ -193,6 +202,15 @@ internal sealed class PlayerInputState
             case KeyboardControl.KeyR:
                 usePending = true;
                 break;
+            case KeyboardControl.KeyQ:
+                pieceSteps++;
+                break;
+            case KeyboardControl.KeyZ:
+                materialSteps++;
+                break;
+            case KeyboardControl.KeyT:
+                buildModeToggle = !buildModeToggle;
+                break;
             case >= KeyboardControl.Digit1 and <= KeyboardControl.Digit9:
                 hotbarPick = (int)(key - KeyboardControl.Digit1);
                 break;
@@ -211,6 +229,9 @@ internal sealed class PlayerInputState
         hotbarSteps = 0;
         wheelTravel = 0f;
         usePending = false;
+        pieceSteps = 0;
+        materialSteps = 0;
+        buildModeToggle = false;
     }
 
     private void ClearHeld()
@@ -336,4 +357,7 @@ internal readonly record struct PlayerInputFrame(
     bool ClimbRequested,
     int HotbarPick,
     int HotbarSteps,
-    bool UseRequested);
+    bool UseRequested,
+    int PieceSteps = 0,
+    int MaterialSteps = 0,
+    bool BuildModeToggle = false);

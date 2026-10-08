@@ -107,6 +107,9 @@ internal sealed class BlastModule : IProductModule
     /// <summary>What the last request came to, for the player-facing UI.</summary>
     internal string LastOutcome => lastOutcome;
 
+    /// <summary>A charge was admitted at this world point with this reach: built pieces within it fall (#9729).</summary>
+    internal event Action<Vector3, float>? ChargeAdmitted;
+
     internal string Fire(long x, long y, long z, long radius)
     {
         BlastCharge charge = BlastCharge.Plan(
@@ -122,6 +125,7 @@ internal sealed class BlastModule : IProductModule
 
         pending = charge;
         fired++;
+        ChargeAdmitted?.Invoke(new Vector3(x + (float)CellCentre, y + (float)CellCentre, z + (float)CellCentre), (float)charge.Radius + (float)CellCentre);
         lastOutcome = $"fired: breaks {charge.Cleared.Count} of {charge.Admission.Cells} cells";
         return Readout();
     }

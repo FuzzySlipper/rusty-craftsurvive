@@ -102,6 +102,23 @@ public sealed class CraftDebugModule : IDebugCommandModule
             : string.Join(';', found.Select(tree => FormattableString.Invariant($"{tree.Kind} {tree.X},{tree.GroundY},{tree.Z} scale={tree.Scale:F2}")));
     }
 
+    [DebugCommand("craft.build.piece", Description = "Assisted (#9729): places a build piece (wall, doorway, window, post, beam, floor, roof, stairs) of a material (planks, timber, masonry, shingles) with its anchor at world x,y,z (snapped to 0.25 m), turned this many quarter turns.")]
+    public string PlacePiece(string kind, string material, double x, double y, double z, long turn) =>
+        player.Pieces is not { } pieces ? "no pieces"
+        : !Building.PieceCatalog.TryParse(kind, out Building.PieceKind pieceKind) ? $"refused: no piece {kind}"
+        : !Building.PieceCatalog.TryParse(material, out Building.PieceMaterial pieceMaterial) ? $"refused: no material {material}"
+        : pieces.PlaceAt(pieceKind, pieceMaterial, x, y, z, (int)turn);
+
+    [DebugCommand("craft.build.pieces", Description = "Reads the build pieces: how many stand, the selection, the ghost's anchor and the save.")]
+    public string ReadPieces() => player.Pieces?.Readout() ?? "no pieces";
+
+    [DebugCommand("craft.build.piecesclear", Description = "Assisted (#9729): removes every build piece.")]
+    public string ClearPieces()
+    {
+        player.Pieces?.Clear();
+        return player.Pieces?.Readout() ?? "no pieces";
+    }
+
     [DebugCommand("craft.build.study", Description = "Assisted (#9684): builds the building look study, one cabin as 1 m cubes, 1 m blocky, 0.5 m and 0.25 m dual contouring, and snap meshes, in a row along +X from x,z.")]
     public string BuildStudy(double x, double z) => terrain.BuildStudy(x, z, clear: false);
 
