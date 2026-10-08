@@ -102,6 +102,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
             : string.Join(';', found.Select(tree => FormattableString.Invariant($"{tree.Kind} {tree.X},{tree.GroundY},{tree.Z} scale={tree.Scale:F2}")));
     }
 
+    [DebugCommand("craft.terrain.fartrees", Description = "Assisted (#9677): how far the distant trees reach in metres (0 off, up to 400), for measuring their cost.")]
+    public string SetFarTrees(long metres) => terrain.SetFarTrees(metres);
+
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]
     public string ReadGeneration() => terrain.GenerationReadout();
 

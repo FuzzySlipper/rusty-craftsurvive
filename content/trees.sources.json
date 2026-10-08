@@ -1,58 +1,8 @@
 {
- "purpose": "First-person trees (#9665, #9685), drawn by TerrainTrees on the recipe's trunk cores: procedural low-poly trunks and branches with tiling nearest-filtered bark, and alpha-cut leaf cards or fronds that flutter in the wind. Generated offline by scripts/generate-tree.py (seeded, deterministic). The earlier TRELLIS-generated meshes are recorded in Den history/trees-trellis-sources.",
+ "purpose": "First-person trees (#9665, #9685), drawn by TerrainTrees on the recipe's trunk cores: procedural low-poly trunks and branches with tiling nearest-filtered bark, and alpha-cut leaf cards or fronds that flutter in the wind. Generated offline by scripts/generate-tree.py (seeded, deterministic); each NAME-far is the distant-band variant (#9677), written by --far. The earlier TRELLIS-generated meshes are recorded in Den history/trees-trellis-sources.",
  "generated": "2026-10-08",
  "tool": "scripts/generate-tree.py",
  "items": [
-  {
-   "model": "content/game/models/trees/oak-p1.prop-mesh.json",
-   "sha256": "a98436c8fdfd4573e145c4a8074d116122d1bb5ca057e3d0338218001555aee8",
-   "command": "python3 scripts/generate-tree.py oak --seed 1"
-  },
-  {
-   "model": "content/game/models/trees/oak-p2.prop-mesh.json",
-   "sha256": "958bfa54044079bcd0910450cceba09d71624f66c0ed23deb7d554e633b9e1e0",
-   "command": "python3 scripts/generate-tree.py oak --seed 2"
-  },
-  {
-   "model": "content/game/models/trees/birch-p1.prop-mesh.json",
-   "sha256": "1861c0e1d02517eba7365b8544e9b46c9de47f344492450ee03982aaf118d537",
-   "command": "python3 scripts/generate-tree.py birch --seed 1"
-  },
-  {
-   "model": "content/game/models/trees/birch-p2.prop-mesh.json",
-   "sha256": "393b2b6e4501a96126accf34082719d86c45d0861c02cbcde61ef27a9d2fe8ff",
-   "command": "python3 scripts/generate-tree.py birch --seed 2"
-  },
-  {
-   "model": "content/game/models/trees/pine-p1.prop-mesh.json",
-   "sha256": "94d44672829cfdfd81c46407dc967136505caf50e8dfbc360574c4259fb8310c",
-   "command": "python3 scripts/generate-tree.py pine --seed 1"
-  },
-  {
-   "model": "content/game/models/trees/pine-p2.prop-mesh.json",
-   "sha256": "876f3fe9cdb48cc97a16d26a0a958d345a95c1847d9ca3b35fcb103e89d1f149",
-   "command": "python3 scripts/generate-tree.py pine --seed 2"
-  },
-  {
-   "model": "content/game/models/trees/dead-p1.prop-mesh.json",
-   "sha256": "fb14fa90b11497240b34b9424c01e9c8beec2f325f12a0f3bd814b6604fc2188",
-   "command": "python3 scripts/generate-tree.py dead --seed 1"
-  },
-  {
-   "model": "content/game/models/trees/dead-p2.prop-mesh.json",
-   "sha256": "2a68110aed5ebacb6dd5df081288f917f08cd6d287a8bd08a7a7b59856e72ea9",
-   "command": "python3 scripts/generate-tree.py dead --seed 2"
-  },
-  {
-   "model": "content/game/models/trees/palm-p1.prop-mesh.json",
-   "sha256": "0cf0bff2cfb695073e934e26a48dbe9a61bb7253d89f68eac0587ca89fccb065",
-   "command": "python3 scripts/generate-tree.py palm --seed 1"
-  },
-  {
-   "model": "content/game/models/trees/palm-p2.prop-mesh.json",
-   "sha256": "d08e4536f5a02d91144e2401e48daefdcd11f544c6d893c139c7f03562664a00",
-   "command": "python3 scripts/generate-tree.py palm --seed 2"
-  },
   {
    "texture": "content/game/textures/trees/oak-bark.png",
    "sha256": "b1c5eb90747ee2484e2326f9a479607af68458e386aa562b85f1c58826c66a29",
@@ -107,6 +57,106 @@
    "texture": "content/game/textures/trees/fern-leaves.png",
    "sha256": "cde716ff53ebbb9e7224a700a649a0475167e155bbf98e0bb1e7dbc4361b03fc",
    "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+  },
+  {
+   "model": "content/game/models/trees/oak-p1.prop-mesh.json",
+   "sha256": "a98436c8fdfd4573e145c4a8074d116122d1bb5ca057e3d0338218001555aee8",
+   "command": "python3 scripts/generate-tree.py oak --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/oak-p1-far.prop-mesh.json",
+   "sha256": "d026f44f3eafe6788e7850d93dcdf32b17031c2d53c8c8a7b57485f3e88f9c95",
+   "command": "python3 scripts/generate-tree.py oak --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/oak-p2.prop-mesh.json",
+   "sha256": "958bfa54044079bcd0910450cceba09d71624f66c0ed23deb7d554e633b9e1e0",
+   "command": "python3 scripts/generate-tree.py oak --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/oak-p2-far.prop-mesh.json",
+   "sha256": "4374e355018e4a63c84010e9f0023432d9c4bbdd9b6b10b1c62cb8d9bc1de420",
+   "command": "python3 scripts/generate-tree.py oak --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/birch-p1.prop-mesh.json",
+   "sha256": "1861c0e1d02517eba7365b8544e9b46c9de47f344492450ee03982aaf118d537",
+   "command": "python3 scripts/generate-tree.py birch --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/birch-p1-far.prop-mesh.json",
+   "sha256": "c911693abb3cb09d188b9545121607e30d3f0db5c4b0724eec1902fb54254a92",
+   "command": "python3 scripts/generate-tree.py birch --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/birch-p2.prop-mesh.json",
+   "sha256": "393b2b6e4501a96126accf34082719d86c45d0861c02cbcde61ef27a9d2fe8ff",
+   "command": "python3 scripts/generate-tree.py birch --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/birch-p2-far.prop-mesh.json",
+   "sha256": "39176e66c1a72339dc00cf911c875b2100a77c80c1173b373071eccd43fe33e0",
+   "command": "python3 scripts/generate-tree.py birch --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/pine-p1.prop-mesh.json",
+   "sha256": "73c25be69842c65d55f501e06949d7077f6dc7c791dc52d8de3292a0fadb9f55",
+   "command": "python3 scripts/generate-tree.py pine --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/pine-p1-far.prop-mesh.json",
+   "sha256": "d5166a2dc814b13dd1acb8ecb399b0a56587d168f370d22cad595b39fc52f0bd",
+   "command": "python3 scripts/generate-tree.py pine --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/pine-p2.prop-mesh.json",
+   "sha256": "ea131437970b1c282ec18207c3ef37e2b95e6b71c21826d83453edfb29d0cc0f",
+   "command": "python3 scripts/generate-tree.py pine --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/pine-p2-far.prop-mesh.json",
+   "sha256": "ca666871f89a3e307ec63a53a6832e58f8cb0022015615b926858fd1d0cd0be7",
+   "command": "python3 scripts/generate-tree.py pine --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/dead-p1.prop-mesh.json",
+   "sha256": "fb14fa90b11497240b34b9424c01e9c8beec2f325f12a0f3bd814b6604fc2188",
+   "command": "python3 scripts/generate-tree.py dead --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/dead-p1-far.prop-mesh.json",
+   "sha256": "fbb6598d895bd1c0b603f0071c3e14fb3707e328c6a6286f2ef5f126da4b4f6f",
+   "command": "python3 scripts/generate-tree.py dead --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/dead-p2.prop-mesh.json",
+   "sha256": "2a68110aed5ebacb6dd5df081288f917f08cd6d287a8bd08a7a7b59856e72ea9",
+   "command": "python3 scripts/generate-tree.py dead --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/dead-p2-far.prop-mesh.json",
+   "sha256": "b1c1dc4c8eebbba6cf1a5937cbd70b3ac47a0d23d905e58653e31ca8fab05535",
+   "command": "python3 scripts/generate-tree.py dead --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/palm-p1.prop-mesh.json",
+   "sha256": "3cb159fc3144610ffe32c21999f93a988b4e2c29d2cfae295c4968c3fbb5c7ba",
+   "command": "python3 scripts/generate-tree.py palm --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/palm-p1-far.prop-mesh.json",
+   "sha256": "7cccab61813588fd2ddd463bf6cbc30c9b09b61d85ed2e4b84e63f7ac8846ee7",
+   "command": "python3 scripts/generate-tree.py palm --seed 1 --far"
+  },
+  {
+   "model": "content/game/models/trees/palm-p2.prop-mesh.json",
+   "sha256": "fda3b02eecd50590ab0ecbd6d929c51066a69ce642beb7f17b7ce41f55c493dc",
+   "command": "python3 scripts/generate-tree.py palm --seed 2 --far"
+  },
+  {
+   "model": "content/game/models/trees/palm-p2-far.prop-mesh.json",
+   "sha256": "841b87ea3383047dfe08c444c84740a06e15343bbf0bde45f32129680c690e8e",
+   "command": "python3 scripts/generate-tree.py palm --seed 2 --far"
   }
  ]
 }

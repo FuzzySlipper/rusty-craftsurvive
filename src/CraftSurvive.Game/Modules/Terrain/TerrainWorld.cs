@@ -206,7 +206,7 @@ internal sealed class TerrainWorld : IDisposable
             ui.Publish();
         }
 
-        trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
+        trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, IsEdited, EditRevision, streamer.ResidentCount);
         if (farField is FarField horizon)
         {
             horizon.Follow(centerVoxel.X, centerVoxel.Z);
@@ -218,6 +218,13 @@ internal sealed class TerrainWorld : IDisposable
     internal AppearanceFact[] TreeFacts => trees.Facts;
 
     internal string TreesReadout() => trees.Readout();
+
+    /// <summary>Sets how far the distant trees reach (#9677); 0 turns them off.</summary>
+    internal string SetFarTrees(long metres)
+    {
+        trees.FarReach = metres;
+        return trees.Readout();
+    }
 
     /// <summary>How much of the horizon is drawn, for the scene readout.</summary>
     internal string FarFieldReadout() => farField?.Readout() ?? "farField=none";
@@ -263,6 +270,9 @@ internal sealed class TerrainWorld : IDisposable
     internal ulong EditRevision => overlayStore.Overlay.Revision;
 
     /// <summary>The material standing at a cell now: the player's override, else the recipe's.</summary>
+    /// <summary>Whether an edit has changed this cell from what the recipe generated.</summary>
+    internal bool IsEdited(VoxelAddress address) => overlayStore.Overlay.TryGetMaterial(address, out _);
+
     internal ushort MaterialAt(VoxelAddress address) =>
         overlayStore.Overlay.TryGetMaterial(address, out ushort material) ? material : recipe.MaterialAt(address);
 

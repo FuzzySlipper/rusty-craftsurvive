@@ -687,6 +687,23 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>
+    /// The tree one anchor cell owns, if any, decided afresh rather than through the feature cache,
+    /// for a presenter that keeps its own (the distant trees, #9677): a sweep over thousands of
+    /// distant cells must not evict the decisions chunk generation is using.
+    /// </summary>
+    internal TerrainTree? TreeInCell(long anchorX, long anchorZ)
+    {
+        if (DecideTree(anchorX, anchorZ) is not TreeShape tree)
+        {
+            return null;
+        }
+
+        long x = (anchorX * GenerationConstants.FeatureCellSize) + tree.OffsetX;
+        long z = (anchorZ * GenerationConstants.FeatureCellSize) + tree.OffsetZ;
+        return new TerrainTree(x, TerrainSurface(x, z) + 1, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw);
+    }
+
+    /// <summary>
     /// Whether one anchor cell owns a tree, and its shape. Decisions are cached
     /// because every voxel in the neighbourhood asks the same nine questions;
     /// clearing the cache is always safe because a decision is a pure function of

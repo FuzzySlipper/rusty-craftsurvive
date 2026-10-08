@@ -14,6 +14,10 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// into the voxels for bodies to collide with; this presents a mesh on every resident core near the
 /// player. A tree is drawn only while it stands (TreeFelling): an edit that breaks its core or digs
 /// out its footing fells it, clearing the rest of the core in the same edit.
+/// Beyond the near trees, a far band (#9677) out to <see cref="FarMetres"/> draws each tree's
+/// lighter far variant (the same skeleton, fewer and larger leaf cards) on the recipe's ground, so
+/// a forest runs on to the fog instead of ending at the residency's edge. Its decisions are kept
+/// here per anchor cell and made a slice at a time as the player moves.
 /// </summary>
 internal sealed class TerrainTrees : IDisposable
 {
@@ -27,6 +31,25 @@ internal sealed class TerrainTrees : IDisposable
     private const long RebuildMetres = 8;
     /// <summary>How far a trunk is sunk below its ground's surface, so a slope never shows its base.</summary>
     private const float Sink = 0.25f;
+
+    /// <summary>The far band reaches this far (a circle), past the near trees to the fog.</summary>
+    internal const long FarMetres = 400;
+    /// <summary>The far band's anchor cells are swept again when the player has moved this many cells.</summary>
+    private const long FarStepCells = 4;
+    /// <summary>At most this many anchor cells are decided per update, so a teleport fills the band over a few frames.</summary>
+    private const int FarDecisionsPerUpdate = 1_500;
+    /// <summary>Far trees stand on the recipe's ground under the far field's coarser mesh: sunk deeper.</summary>
+    private const float FarSink = 1.0f;
+    private static readonly long FarReachCells = (FarMetres / GenerationConstants.FeatureCellSize) + 1;
+    /// <summary>The anchor cells of the far band about the player's own, nearest first.</summary>
+    private static readonly (long X, long Z)[] FarOffsets =
+    [
+        .. from dx in Enumerable.Range((int)-FarReachCells, (int)((2 * FarReachCells) + 1))
+           from dz in Enumerable.Range((int)-FarReachCells, (int)((2 * FarReachCells) + 1))
+           where ((long)dx * dx) + ((long)dz * dz) <= FarReachCells * FarReachCells
+           orderby ((long)dx * dx) + ((long)dz * dz)
+           select ((long)dx, (long)dz),
+    ];
     private const double CellCentre = 0.5;
     /// <summary>The natural ground is the top face of its unrounded top cell (TerrainDensity).</summary>
     private const double GroundTopFace = 1.0;
@@ -43,6 +66,29 @@ internal sealed class TerrainTrees : IDisposable
     private readonly PropMaterials textured;
     private readonly List<MeshResource> meshes = [];
     private readonly Dictionary<TreeKind, Appearance[]> kinds = [];
+    private readonly Dictionary<TreeKind, Appearance[]> farKinds = [];
+    /// <summary>The far band's decisions by anchor cell (null: the cell owns no tree), and which of its trees stand.</summary>
+    private readonly Dictionary<(long X, long Z), TerrainTree?> farCells = [];
+    private readonly Dictionary<(long X, long Z), bool> farStands = [];
+    private readonly HashSet<(long X, long Z)> nearDrawn = [];
+    private TerrainRecipe? farRecipe;
+    private (long X, long Z)? farSweptAround;
+    private bool farPending;
+    private ulong farStandsRevision = ulong.MaxValue;
+    private AppearanceFact[] nearFacts = [];
+    private int farCount;
+    private long farReach = FarMetres;
+
+    /// <summary>How far the far band reaches (0 turns it off), up to <see cref="FarMetres"/>; for measuring its cost.</summary>
+    internal long FarReach
+    {
+        get => farReach;
+        set
+        {
+            farReach = Math.Clamp(value, 0, FarMetres);
+            stale = true;
+        }
+    }
     private readonly List<TerrainTree> candidates = [];
     private AppearanceFact[] facts = [];
     private (long X, long Z)? builtAround;
@@ -77,11 +123,19 @@ internal sealed class TerrainTrees : IDisposable
                 kinds[id] = [.. kind.Value.EnumerateArray().Select(name => Load(content, name.GetString()!))];
             }
 
+            foreach (JsonProperty kind in manifest.RootElement.GetProperty("far").EnumerateObject())
+            {
+                TreeKind id = Enum.Parse<TreeKind>(kind.Name, ignoreCase: true);
+                farKinds[id] = [.. kind.Value.EnumerateArray().Select(name => Load(content, name.GetString()!))];
+            }
+
             foreach (TreeKind kind in Enum.GetValues<TreeKind>())
             {
-                if (!kinds.TryGetValue(kind, out Appearance[]? variants) || variants.Length == 0)
+                if (!kinds.TryGetValue(kind, out Appearance[]? variants) || variants.Length == 0
+                    || !farKinds.TryGetValue(kind, out Appearance[]? far) || far.Length != variants.Length)
                 {
-                    throw new InvalidOperationException($"CraftSurvive tree manifest '{ManifestPath}' has no mesh for {kind}.");
+                    throw new InvalidOperationException(
+                        $"CraftSurvive tree manifest '{ManifestPath}' needs a mesh and a matching far variant for each {kind}.");
                 }
             }
         }
@@ -101,19 +155,36 @@ internal sealed class TerrainTrees : IDisposable
     internal void Invalidate() => stale = true;
 
     /// <summary>
-    /// Draws the trees around the player: those whose trunk core still stands in a resident chunk.
-    /// Rebuilt only when the player has moved a few metres, the edits or residency changed.
+    /// Draws the trees around the player: near, those whose trunk core still stands in a resident
+    /// chunk; far, every other standing tree out to <see cref="FarMetres"/>. The near set is rebuilt
+    /// when the player has moved a few metres or the edits or residency changed; the far band's
+    /// decisions are made a slice per update, and its facts follow either change.
     /// </summary>
     internal void Follow(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt,
-        Func<VoxelAddress, bool> resident, ulong editRevision, int residentChunks)
+        Func<VoxelAddress, bool> resident, Func<VoxelAddress, bool> edited, ulong editRevision, int residentChunks)
     {
-        if (!stale && builtRevision == editRevision && builtResidents == residentChunks
-            && builtAround is (long x, long z) && Math.Abs(center.X - x) < RebuildMetres && Math.Abs(center.Z - z) < RebuildMetres)
+        bool farChanged = SweepFar(center, recipe);
+        bool nearStale = stale || builtRevision != editRevision || builtResidents != residentChunks
+            || builtAround is not (long x, long z) || Math.Abs(center.X - x) >= RebuildMetres || Math.Abs(center.Z - z) >= RebuildMetres;
+        if (nearStale)
         {
-            return;
+            BuildNear(center, recipe, materialAt, resident);
+            builtAround = (center.X, center.Z);
+            builtRevision = editRevision;
+            builtResidents = residentChunks;
+            stale = false;
         }
 
+        if (nearStale || farChanged)
+        {
+            facts = [.. nearFacts, .. BuildFar(center, materialAt, edited, editRevision, nearFacts.Length)];
+        }
+    }
+
+    private void BuildNear(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt, Func<VoxelAddress, bool> resident)
+    {
         candidates.Clear();
+        nearDrawn.Clear();
         recipe.TreesIn(center.X - DrawMetres, center.Z - DrawMetres, center.X + DrawMetres, center.Z + DrawMetres, candidates);
         List<AppearanceFact> drawn = new(candidates.Count);
         foreach (TerrainTree tree in candidates)
@@ -124,24 +195,113 @@ internal sealed class TerrainTrees : IDisposable
                 continue;
             }
 
-            Appearance[] variants = kinds[tree.Kind];
-            Appearance mesh = variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))];
-            double ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + GroundTopFace;
-            Vector3 at = frame.ToLocal(tree.X + CellCentre, ground - Sink, tree.Z + CellCentre);
-            Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)tree.Yaw);
-            drawn.Add(new(ProductIds.TreeObjectBase + (ulong)drawn.Count, false, 0,
-                new(at, turn, Vector3.One * (float)tree.Scale), mesh, true, RenderLayer.Scene));
+            nearDrawn.Add((tree.X, tree.Z));
+            drawn.Add(Place(tree, recipe, kinds, Sink, drawn.Count));
         }
 
-        facts = [.. drawn];
-        builtAround = (center.X, center.Z);
-        builtRevision = editRevision;
-        builtResidents = residentChunks;
-        stale = false;
+        nearFacts = [.. drawn];
+    }
+
+    /// <summary>
+    /// Decides the far band's anchor cells not yet known, nearest first by sweep order, within this
+    /// update's budget, and forgets those now beyond the band. Returns whether anything changed.
+    /// </summary>
+    private bool SweepFar(VoxelAddress center, TerrainRecipe recipe)
+    {
+        long cell = GenerationConstants.FeatureCellSize;
+        long cx = GridMath.FloorDivide(center.X, cell), cz = GridMath.FloorDivide(center.Z, cell);
+        long reach = FarReachCells;
+        bool changed = false;
+        if (!ReferenceEquals(recipe, farRecipe))
+        {
+            farCells.Clear();
+            farStands.Clear();
+            farRecipe = recipe;
+            farSweptAround = null;
+            changed = true;
+        }
+
+        if (farSweptAround is not (long sx, long sz) || Math.Abs(cx - sx) >= FarStepCells || Math.Abs(cz - sz) >= FarStepCells)
+        {
+            farSweptAround = (cx, cz);
+            farPending = true;
+            long keep = reach + FarStepCells;
+            foreach ((long X, long Z) key in farCells.Keys.Where(key => Math.Abs(key.X - cx) > keep || Math.Abs(key.Z - cz) > keep).ToList())
+            {
+                farCells.Remove(key);
+                farStands.Remove(key);
+                changed = true;
+            }
+        }
+
+        if (!farPending) return changed;
+        int budget = FarDecisionsPerUpdate;
+        foreach ((long dx, long dz) in FarOffsets)
+        {
+            (long X, long Z) key = (cx + dx, cz + dz);
+            if (farCells.ContainsKey(key)) continue;
+            if (budget-- == 0) return true;
+            farCells[key] = recipe.TreeInCell(key.X, key.Z);
+            changed = true;
+        }
+
+        farPending = false;
+        return changed;
+    }
+
+    /// <summary>
+    /// The far band's facts: every decided tree within reach that the near set does not draw and that
+    /// stands. A tree whose core and footing were never edited stands as generated; only an edited
+    /// one is read back through the materials, so the band never asks the recipe about cores.
+    /// </summary>
+    private List<AppearanceFact> BuildFar(VoxelAddress center, Func<VoxelAddress, ushort> materialAt,
+        Func<VoxelAddress, bool> edited, ulong editRevision, int firstIndex)
+    {
+        if (farStandsRevision != editRevision)
+        {
+            farStands.Clear();
+            farStandsRevision = editRevision;
+        }
+
+        List<AppearanceFact> drawn = [];
+        long reach = farReach * farReach;
+        foreach (((long X, long Z) key, TerrainTree? decided) in farCells)
+        {
+            if (decided is not TerrainTree tree || firstIndex + drawn.Count >= ProductIds.TreeObjectLimit
+                || nearDrawn.Contains((tree.X, tree.Z))
+                || ((tree.X - center.X) * (tree.X - center.X)) + ((tree.Z - center.Z) * (tree.Z - center.Z)) > reach)
+            {
+                continue;
+            }
+
+            if (!farStands.TryGetValue(key, out bool stands))
+            {
+                stands = !TreeFelling.Core(tree).Append(TreeFelling.Support(tree)).Any(edited) || TreeFelling.Stands(tree, materialAt);
+                farStands[key] = stands;
+            }
+
+            if (stands)
+            {
+                drawn.Add(Place(tree, farRecipe!, farKinds, FarSink, firstIndex + drawn.Count));
+            }
+        }
+
+        farCount = drawn.Count;
+        return drawn;
+    }
+
+    private AppearanceFact Place(TerrainTree tree, TerrainRecipe recipe, Dictionary<TreeKind, Appearance[]> meshes, float sink, int index)
+    {
+        Appearance[] variants = meshes[tree.Kind];
+        Appearance mesh = variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))];
+        double ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + GroundTopFace;
+        Vector3 at = frame.ToLocal(tree.X + CellCentre, ground - sink, tree.Z + CellCentre);
+        Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)tree.Yaw);
+        return new(ProductIds.TreeObjectBase + (ulong)index, false, 0, new(at, turn, Vector3.One * (float)tree.Scale), mesh, true, RenderLayer.Scene);
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"trees drawn={facts.Length} candidates={candidates.Count} meshes={meshes.Count}");
+        $"trees drawn={facts.Length} near={nearFacts.Length} far={farCount} farCells={farCells.Count} farPending={farPending} candidates={candidates.Count} meshes={meshes.Count}");
 
     public void Dispose()
     {
@@ -154,6 +314,15 @@ internal sealed class TerrainTrees : IDisposable
         }
 
         kinds.Clear();
+        foreach (Appearance[] variants in farKinds.Values)
+        {
+            foreach (Appearance appearance in variants)
+            {
+                appearance.Dispose();
+            }
+        }
+
+        farKinds.Clear();
         foreach (MeshResource mesh in meshes)
         {
             mesh.Dispose();

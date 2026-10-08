@@ -20,5 +20,27 @@
       "palm-p1",
       "palm-p2"
     ]
+  },
+  "far": {
+    "oak": [
+      "oak-p1-far",
+      "oak-p2-far"
+    ],
+    "pine": [
+      "pine-p1-far",
+      "pine-p2-far"
+    ],
+    "birch": [
+      "birch-p1-far",
+      "birch-p2-far"
+    ],
+    "dead": [
+      "dead-p1-far",
+      "dead-p2-far"
+    ],
+    "palm": [
+      "palm-p1-far",
+      "palm-p2-far"
+    ]
   }
 }

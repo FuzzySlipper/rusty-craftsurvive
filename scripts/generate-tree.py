@@ -18,6 +18,10 @@ bare limbs; a palm's curved trunk crowned with fronds, and a fern's fronds from 
 frond a drooping strip showing a painted frond); and a bush's leaf cards on short stems, whose
 wind weight rises from the root. Bushes and ferns are written to models/scatter/.
 
+With --far it also writes NAME-far: the distant-band variant (#9677) from the same skeleton and
+scale, so the silhouette holds at the switch: only the trunk and first limbs, four-sided, and every
+FAR_KEEP-th leaf card enlarged by FAR_GROW (fronds in two segments).
+
 Textures are drawn from the palette ramps (content/style/palette.json): KIND-bark.png and
 KIND-leaves.png in content/game/textures/trees/, RGBA (the Engine admits only RGBA PNGs). They are
 the same for every seed of a kind.
@@ -51,6 +55,8 @@ GOLDEN_ANGLE = math.pi * (3 - math.sqrt(5))
 # Bark texture: TEXELS_AROUND texels around a trunk of about BARK_TILE_METRES circumference,
 # BARK_TEXELS_UP texels up the tile's height (square texels on the trunk).
 BARK_TEXELS_AROUND, BARK_TEXELS_UP, BARK_TILE_METRES = 32, 64, 1.0
+# The far variant keeps one leaf card in FAR_KEEP, enlarged FAR_GROW times, on limbs of FAR_SIDES.
+FAR_KEEP, FAR_GROW, FAR_SIDES, FAR_FROND_SEGMENTS = 3, 1.6, 4, 2
 # Leaf atlas: ATLAS_CELLS x ATLAS_CELLS clusters of LEAF_CELL pixels.
 ATLAS_CELLS, LEAF_CELL = 2, 128
 # Frond atlas: FROND_CELLS fronds side by side, each FROND_WIDTH x FROND_LENGTH pixels, base at the bottom.
@@ -190,6 +196,7 @@ def arguments():
     parser.add_argument("--name", help="mesh name (default KIND-pSEED)")
     parser.add_argument("--height", type=float, help="metres to the crown's top (default the kind's)")
     parser.add_argument("--no-textures", action="store_true", help="leave the kind's textures as they are")
+    parser.add_argument("--far", action="store_true", help="also write NAME-far, the distant-band variant")
     return parser.parse_args()
 
 
@@ -291,7 +298,7 @@ def tube(branch, uv_metres):
     return positions, normals, uvs, indices
 
 
-def leaf_cards(rng, kind, branches, crown_top):
+def leaf_cards(rng, kind, branches, crown_top, far=False):
     cards = kind["cards"]
     twigs = [b for b in branches if b.level == len(kind["levels"])]
     anchors = []
@@ -304,6 +311,8 @@ def leaf_cards(rng, kind, branches, crown_top):
             t = rng.uniform(cards["from"], 1.0)
             point, axis, _ = twig.at(t)
             anchors.append((point, axis, reach_scale))
+    if far:
+        anchors = [(point, axis, reach_scale * FAR_GROW) for point, axis, reach_scale in anchors[::FAR_KEEP]]
     centre = np.mean([p for p, _, _ in anchors], axis=0)
     reach = max(np.linalg.norm((p - centre) * np.array([1, 0.8, 1])) for p, _, _ in anchors) or 1.0
     trunk_reach = max(math.hypot(p[0], p[2]) for p, _, _ in anchors) or 1.0
@@ -391,7 +400,7 @@ def frond_strips(rng, spec, origin):
     return positions, normals, uvs, colors, indices
 
 
-def build(kind_name, seed, height):
+def build(kind_name, seed, height, far=False, scale=None):
     kind = KINDS[kind_name]
     rng = random.Random(f"{kind_name}-{seed}")
     trunk = kind["trunk"]
@@ -402,7 +411,11 @@ def build(kind_name, seed, height):
     crown_top = max((p[1] for b in branches for p in b.points), default=1.0)
     bark = {"positions": [], "normals": [], "uvs": [], "colors": [], "indices": []}
     uv_metres = BARK_TILE_METRES * BARK_TEXELS_UP / BARK_TEXELS_AROUND
-    for branch in branches if kind["bark"] else []:
+    # The far variant draws only the trunk and its first limbs, four-sided.
+    drawn = [b for b in branches if not far or b.level <= max(0, min(1, len(kind["levels"]) - 1))]
+    for branch in drawn if kind["bark"] else []:
+        if far:
+            branch.sides = min(branch.sides, FAR_SIDES)
         p, n, uv, idx = tube(branch, uv_metres)
         first = len(bark["positions"])
         bark["positions"] += p
@@ -417,11 +430,11 @@ def build(kind_name, seed, height):
     leaves = {"positions": [], "normals": [], "uvs": [], "colors": [], "indices": []}
     pieces = []
     if kind["cards"]:
-        pieces.append(leaf_cards(rng, kind, branches, crown_top))
+        pieces.append(leaf_cards(rng, kind, branches, crown_top, far))
     if kind.get("fronds"):
         fronds = kind["fronds"]
         origin = branches[0].points[-1] if fronds["at"] == "top" else np.array([0.0, -0.05, 0.0])
-        pieces.append(frond_strips(rng, fronds, origin))
+        pieces.append(frond_strips(rng, dict(fronds, segments=FAR_FROND_SEGMENTS) if far else fronds, origin))
     for lp, ln, luv, lc, li in pieces:
         first = len(leaves["positions"])
         leaves["positions"] += lp
@@ -429,8 +442,8 @@ def build(kind_name, seed, height):
         leaves["uvs"] += luv
         leaves["colors"] += lc
         leaves["indices"] += [first + i for i in li]
-    top = max(p[1] for p in bark["positions"] + leaves["positions"])
-    scale = height / top
+    if scale is None:
+        scale = height / max(p[1] for p in bark["positions"] + leaves["positions"])
     low, high = [math.inf] * 3, [-math.inf] * 3
     parts = []
     for role, part in (("bark", bark), ("leaves", leaves)):
@@ -451,7 +464,7 @@ def build(kind_name, seed, height):
             "colors": [round(float(c), DECIMALS) for col in part["colors"] for c in col],
             "indices": part["indices"],
         })
-    return parts, low, high
+    return parts, low, high, scale
 
 
 # ---- textures -------------------------------------------------------------------------------
@@ -732,7 +745,15 @@ def main():
     height = args.height or kind["height"]
     if not args.no_textures:
         write_textures(args.kind)
-    parts, low, high = build(args.kind, args.seed, height)
+    parts, low, high, scale = build(args.kind, args.seed, height)
+    write(kind, name, height, parts, low, high, args.seed)
+    if args.far:
+        # Same skeleton and scale as the near tree; only what is drawn of it changes.
+        parts, low, high, _ = build(args.kind, args.seed, height, far=True, scale=scale)
+        write(kind, f"{name}-far", height, parts, low, high, args.seed)
+
+
+def write(kind, name, height, parts, low, high, seed):
     asset = {
         "name": name,
         "height": height,
@@ -744,7 +765,7 @@ def main():
     output = MODELS / kind.get("folder", "trees") / f"{name}.prop-mesh.json"
     output.write_text(json.dumps(asset, separators=(",", ":")))
     counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in parts)
-    print(f"generate-tree {output.name}: {counts} triangles; seed {args.seed}")
+    print(f"generate-tree {output.name}: {counts} triangles; seed {seed}")
 
 
 if __name__ == "__main__":
