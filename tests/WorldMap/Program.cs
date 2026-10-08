@@ -114,6 +114,7 @@ try
         Check.That(continentFingerprint == ContinentGolden, $"the default continent's geography matches its golden ({continentFingerprint:x16})");
         Check.That(continent.Map.Scale.Continental && continent.Map.Spacing == 1000, "a continent is simulated on a kilometre lattice");
         RegionChecks(continent.Map);
+        Check.Section("weather on the continent", () => WeatherChecks.Continent(continent.Map));
         ContinentalTerrainChecks(continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
@@ -134,6 +135,7 @@ try
     });
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+Check.Section("weather", WeatherChecks.Synthetic);
 return Check.Finish("WorldMap");
 
 partial class Program

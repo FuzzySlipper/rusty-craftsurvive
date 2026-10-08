@@ -16,6 +16,7 @@ using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.World;
 
 namespace CraftSurvive.Game;
@@ -63,6 +64,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     /// <summary>The player's hunger and air, which give and take health through the player's vitals.</summary>
     private SurvivalModule survival = null!;
+    private WeatherModule weather = null!;
 
     /// <summary>What the player carries: drops and caches in, crafting and use out.</summary>
     private InventoryModule inventory = null!;
@@ -126,6 +128,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         player.Pieces = pieces;
         sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
+        weather = new WeatherModule(worlds.Current.Map, () => conditions.Time, () => player.WorldPosition);
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));
@@ -147,7 +150,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
-        gameplay = [conditions, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback];
+        gameplay = [conditions, weather, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback];
         worldBuilt = true;
         if (worldStoresRegistered)
         {
@@ -214,6 +217,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore), () => Owner(lamps))));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
+        RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather))));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
         RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
         RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));

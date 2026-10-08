@@ -1,0 +1,156 @@
+using System.Globalization;
+using System.Numerics;
+using CraftSurvive.Game.Modules.Sky;
+using CraftSurvive.Game.Modules.World;
+using CraftSurvive.Game.Modules.WorldGen;
+
+namespace CraftSurvive.Game.Modules.Weather;
+
+/// <summary>
+/// The owner of the world's weather (#9738, Den <c>design/weather-and-environment</c>): the field for
+/// this world, and the weather over the player, refreshed as the clock runs and the player moves.
+/// Map travel and presentation ask the field directly for other places and times. It saves nothing:
+/// the field follows from the seed, the map and the clock.
+/// </summary>
+internal sealed class WeatherModule : IProductModule
+{
+    /// <summary>The player's weather is worked out again after this much game time or this far walked.</summary>
+    private const double RefreshHours = 1.0 / 60, RefreshMetres = 25;
+    private const double HoursPerDay = 24;
+    /// <summary>How far around the player fronts are listed, and how far ahead the forecast looks, by default.</summary>
+    internal const double DefaultListKilometres = 120, DefaultForecastHours = 48;
+    private const double ForecastStepHours = 3;
+    private const double MetresPerKilometre = 1000;
+    private static readonly string[] Compass = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+    private readonly Func<WorldTime> clock;
+    private readonly Func<Vector3> playerWorld;
+    private double sampledHours = double.NegativeInfinity;
+    private Vector2 sampledAt;
+
+    internal WeatherModule(WorldMap map, Func<WorldTime> clock, Func<Vector3> playerWorld)
+    {
+        Field = WeatherField.For(map ?? throw new ArgumentNullException(nameof(map)));
+        this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
+    }
+
+    internal WeatherField Field { get; }
+
+    /// <summary>The weather over the player as of the last refresh.</summary>
+    internal EnvironmentSample Here { get; private set; } = EnvironmentSample.Clear;
+
+    /// <summary>The clock as absolute game hours, the weather's time.</summary>
+    internal double Hours => Of(clock());
+
+    internal static double Of(WorldTime time) => (time.Day * HoursPerDay) + (time.DayFraction * HoursPerDay);
+
+    public void Start() => Refresh(force: true);
+
+    public void Update(ProductStep step) => Refresh(force: false);
+
+    public void Restart() => Refresh(force: true);
+
+    public void Dispose()
+    {
+    }
+
+    private void Refresh(bool force)
+    {
+        double hours = Hours;
+        Vector3 at = playerWorld();
+        Vector2 here = new(at.X, at.Z);
+        if (!force && Math.Abs(hours - sampledHours) < RefreshHours && Vector2.Distance(here, sampledAt) < RefreshMetres) return;
+        Here = Field.Sample(here.X, here.Y, hours);
+        sampledHours = hours;
+        sampledAt = here;
+    }
+
+    internal string Readout()
+    {
+        Vector3 at = playerWorld();
+        EnvironmentChannels c = Here.Channels;
+        EnvironmentEffects e = Here.Effects;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"weather={Here.Describe()} hours={Hours:F2} at={at.X:F0},{at.Z:F0} flow={Heading(Field.Flow(at.X, at.Z))} ")
+            + string.Create(CultureInfo.InvariantCulture,
+            $"precipitation={c.Precipitation:F2} cloud={c.Cloud:F2} wind={c.Wind:F2} cold={c.Cold:F2} murk={c.Murk:F2} arcane={c.Arcane:F2} ")
+            + string.Create(CultureInfo.InvariantCulture,
+            $"travelCost={e.TravelCost:F2} supplyUse={e.SupplyUse:F2} eventRisk={e.EventRisk:F2} wetting={e.Wetting:F2}/h chill={e.Chill:F2}/h harm={e.Harm:F2}/h sight={e.Sight:F2} ")
+            + $"fronts={Here.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2}";
+    }
+
+    /// <summary>The fronts within reach of the player: where, which way they go, how strong, and when they would arrive.</summary>
+    internal string FrontsReadout(double kilometres)
+    {
+        Vector3 at = playerWorld();
+        double hours = Hours;
+        List<string> rows = [];
+        foreach (WeatherFront front in Field.Alive(at.X, at.Z, hours, kilometres * MetresPerKilometre)
+            .OrderBy(front => Vector2.Distance(front.Centre(hours), new Vector2(at.X, at.Z))))
+        {
+            Vector2 centre = front.Centre(hours);
+            Vector2 offset = centre - new Vector2(at.X, at.Z);
+            double arrives = Arrival(front, at.X, at.Z, hours);
+            rows.Add(string.Create(CultureInfo.InvariantCulture,
+                $"{front.Kind.Id} {offset.Length() / MetresPerKilometre:F1}km {Heading(offset)} heading={Heading(front.Velocity(hours))} speed={front.Velocity(hours).Length() / MetresPerKilometre:F2}km/h radius={front.RadiusMetres / MetresPerKilometre:F1}km strength={front.Strength(hours):F2} ")
+                + (double.IsNaN(arrives) ? "misses" : arrives <= 0 ? "here" : string.Create(CultureInfo.InvariantCulture, $"arrives+{arrives:F0}h"))
+                + string.Create(CultureInfo.InvariantCulture, $" ends+{front.EndHours - hours:F0}h"));
+        }
+
+        return rows.Count == 0 ? "no fronts" : $"{rows.Count} fronts: " + string.Join(" | ", rows);
+    }
+
+    /// <summary>The weather over the player for the hours ahead: the forecast is the field later.</summary>
+    internal string ForecastReadout(double ahead)
+    {
+        Vector3 at = playerWorld();
+        double hours = Hours;
+        List<string> steps = [];
+        for (double later = 0; later <= ahead; later += ForecastStepHours)
+        {
+            EnvironmentSample sample = Field.Sample(at.X, at.Z, hours + later);
+            steps.Add(string.Create(CultureInfo.InvariantCulture, $"+{later:F0}h {sample.Describe()}"));
+        }
+
+        return string.Join(" | ", steps);
+    }
+
+    /// <summary>For diagnosis: a front of a kind standing over the player now, or <paramref name="upwindKilometres"/> upwind of them.</summary>
+    internal string Summon(string id, double upwindKilometres)
+    {
+        if (WeatherKinds.Find(id) is not WeatherKind kind) return $"unknown weather '{id}'; kinds: {string.Join(", ", WeatherKinds.All.Select(k => k.Id))}";
+        Vector3 at = playerWorld();
+        Vector2 back = Field.Flow(at.X, at.Z) * (float)(upwindKilometres * MetresPerKilometre);
+        WeatherFront front = Field.Summon(kind, at.X - back.X, at.Z - back.Y, Hours);
+        Refresh(force: true);
+        return string.Create(CultureInfo.InvariantCulture, $"summoned {kind.Name} {upwindKilometres:F1}km upwind, radius {front.RadiusMetres / MetresPerKilometre:F1}km; {Readout()}");
+    }
+
+    internal string ClearSummoned()
+    {
+        int cleared = Field.ClearSummoned();
+        Refresh(force: true);
+        return $"cleared {cleared} summoned front(s); {Readout()}";
+    }
+
+    /// <summary>Hours until a front first covers a place, 0 if it already does, or NaN if it passes by.</summary>
+    private static double Arrival(WeatherFront front, double x, double z, double hours)
+    {
+        for (double later = 0; hours + later <= front.EndHours; later += 1)
+        {
+            if (front.Cover(x, z, hours + later) > 0) return later;
+        }
+
+        return double.NaN;
+    }
+
+    /// <summary>The compass point a world direction points to: north is -Z, east +X.</summary>
+    internal static string Heading(Vector2 direction)
+    {
+        if (direction.LengthSquared() < 1e-6f) return "-";
+        double clockwise = Math.Atan2(direction.X, -direction.Y);
+        int sector = (int)Math.Round(clockwise / (Math.PI / 4));
+        return Compass[((sector % Compass.Length) + Compass.Length) % Compass.Length];
+    }
+}
