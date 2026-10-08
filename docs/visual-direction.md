@@ -39,6 +39,13 @@ These qualities should coexist. A desert can be luminous and inviting to look
 at while its exposure makes crossing it difficult. A frozen landscape can feel
 quiet and immense before weather closes around the traveler.
 
+Present the world warmly even where play is harsh. Its danger comes from scale
+and indifference, not malice: a pleasant meadow is hazardous because it is a
+large system that does not account for one small traveler, not because it is
+conspiring against them. Do not paint deadliness onto every surface as dramatic
+foreshadowing. The warmth carries a quiet awe at the environment, and survival
+is a matter of respecting it rather than spotting tricks and traps.
+
 Use the references for the qualities named here:
 
 | Reference | What to take from it |
