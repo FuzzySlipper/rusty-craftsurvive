@@ -251,8 +251,9 @@ internal sealed class TerrainTrees : IDisposable
 
     /// <summary>
     /// The far band's facts: every decided tree within reach that the near set does not draw and that
-    /// stands. A tree whose core and footing were never edited stands as generated; only an edited
-    /// one is read back through the materials, so the band never asks the recipe about cores.
+    /// stands. <see cref="TerrainRecipe.TreeInCell"/> keeps only trees that stand as generated
+    /// (structures included), so a tree whose core and footing were never edited stands; only an
+    /// edited one is read back through the materials, so the band never asks the recipe about cores.
     /// </summary>
     private List<AppearanceFact> BuildFar(VoxelAddress center, Func<VoxelAddress, ushort> materialAt,
         Func<VoxelAddress, bool> edited, ulong editRevision, int firstIndex)

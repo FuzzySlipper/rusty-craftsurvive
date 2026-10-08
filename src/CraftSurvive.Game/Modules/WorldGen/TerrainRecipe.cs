@@ -687,20 +687,26 @@ internal sealed class TerrainRecipe : ITerrainColumns
     }
 
     /// <summary>
-    /// The tree one anchor cell owns, if any, decided afresh rather than through the feature cache,
-    /// for a presenter that keeps its own (the distant trees, #9677): a sweep over thousands of
-    /// distant cells must not evict the decisions chunk generation is using.
+    /// The tree one anchor cell owns and that stands as generated, if any, decided afresh rather
+    /// than through the feature cache, for a presenter that keeps its own (the distant trees,
+    /// #9677): a sweep over thousands of distant cells must not evict the decisions chunk
+    /// generation is using. A structure pass (a cave mouth's carve, a crossing) may take a planted
+    /// tree's core or footing; such a tree is read back through the final materials and left out
+    /// if it does not stand. Only those few trees touch the materials, so the sweep stays bounded.
     /// </summary>
     internal TerrainTree? TreeInCell(long anchorX, long anchorZ)
     {
-        if (DecideTree(anchorX, anchorZ) is not TreeShape tree)
+        if (DecideTree(anchorX, anchorZ) is not TreeShape shape)
         {
             return null;
         }
 
-        long x = (anchorX * GenerationConstants.FeatureCellSize) + tree.OffsetX;
-        long z = (anchorZ * GenerationConstants.FeatureCellSize) + tree.OffsetZ;
-        return new TerrainTree(x, TerrainSurface(x, z) + 1, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw);
+        long x = (anchorX * GenerationConstants.FeatureCellSize) + shape.OffsetX;
+        long z = (anchorZ * GenerationConstants.FeatureCellSize) + shape.OffsetZ;
+        TerrainTree tree = new(x, TerrainSurface(x, z) + 1, z, shape.Kind, shape.Variant, shape.Scale, shape.Yaw);
+        bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
+            .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
+        return !structured || TreeFelling.Stands(tree, MaterialAt) ? tree : null;
     }
 
     /// <summary>

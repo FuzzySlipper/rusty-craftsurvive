@@ -148,6 +148,31 @@ internal static class GenerationChecks
                 Console.WriteLine($"Mesh trees stand on their cores: {trees.Count} in 512 m around the origin ({string.Join(", ", kinds.Select(pair => $"{pair.Key}={pair.Value}"))})");
             }
 
+            // Distant trees (#9677 review): TreeInCell keeps a tree only if it stands as generated,
+            // structures included. A cave mouth at (-434,31,-3363) carves the core and footing of the
+            // oak planted at (-431,-3364) with no edit at all; it must not reach the far band (inside
+            // or outside the near band, which share this decision). Everywhere else TreeInCell must
+            // agree with the near band's own reading of the final materials.
+            {
+                TerrainConfiguration farConfig = TerrainConfiguration.Default;
+                TerrainRecipe farRecipe = farConfig.CreateRecipe(new TestDraws(farConfig.Seed));
+                List<TerrainTree> carved = [];
+                farRecipe.TreesIn(-450, -3379, -418, -3347, carved);
+                TerrainTree? oak = carved.Cast<TerrainTree?>().FirstOrDefault(tree => tree!.Value.X == -431 && tree.Value.Z == -3364);
+                long cell = GenerationConstants.FeatureCellSize;
+                Check.That(oak is TerrainTree planted && !TreeFelling.Stands(planted, farRecipe.MaterialAt)
+                    && farRecipe.TreeInCell(GridMath.FloorDivide(planted.X, cell), GridMath.FloorDivide(planted.Z, cell)) is null,
+                    "a tree whose core a cave mouth carves away is planted but not handed to the distant trees");
+                List<TerrainTree> square = [];
+                farRecipe.TreesIn(-256, -256, 255, 255, square);
+                foreach (TerrainTree tree in square)
+                {
+                    bool kept = farRecipe.TreeInCell(GridMath.FloorDivide(tree.X, cell), GridMath.FloorDivide(tree.Z, cell)) is TerrainTree;
+                    Check.That(kept == TreeFelling.Stands(tree, farRecipe.MaterialAt),
+                        $"the distant trees keep the tree at {tree.X},{tree.Z} exactly when it stands as generated");
+                }
+            }
+
 
             // The map separates basins from the quiet starting area. Test water at a
             // generated basin rather than requiring every small spawn window to contain it.
