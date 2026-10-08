@@ -105,7 +105,7 @@ Check.That(known.Select(place => place.Key).Distinct().Count() == known.Count, "
 IReadOnlyList<KnownPlace> withSled = KnownPlaces.List(homeMarker, journal.Entries, new System.Numerics.Vector2(40, 50));
 Check.That(withSled[1].Key == KnownPlaces.SledKey && withSled[1].Kind == KnownPlaceKind.Sled && withSled.Count == journal.Entries.Count(entry => KnownPlaces.IsMapSite(entry.Kind)) + 2,
     "a sled left behind is a known place, after home");
-// Crowded places draw as one marker at a zoom (#9553): grouped by world cell, never home or the sled.
+// Crowded places draw as one marker at a zoom (#9553): grouped by how near they are, never home or the sled.
 KnownPlace[] crowd = [
     new(KnownPlaces.HomeKey, "Home", KnownPlaceKind.Home, new(10, 10)),
     new("poi:a", "Ruin", KnownPlaceKind.Seen, new(20, 20)),
@@ -116,6 +116,21 @@ IReadOnlyList<PlaceCluster> wide = PlaceClusters.Group(crowd, 500), close = Plac
 Check.That(wide.Count == 3 && wide.Count(cluster => cluster.Count == 2) == 1 && wide.Single(cluster => cluster.Count == 2).Position == new System.Numerics.Vector2(40, 30)
     && wide.Any(cluster => cluster.Single && cluster.First.Kind == KnownPlaceKind.Home), "places crowded at a far zoom draw as one cluster at their centre; home stays itself");
 Check.That(close.Count == 4 && close.All(cluster => cluster.Single), "zooming in separates a cluster into its places");
+// Grouping follows how close the markers are, not a world grid: two places 2 m apart either side of
+// any grid line join, and two 704 m apart in what a 500 m grid would call one cell do not.
+KnownPlace[] seam = [
+    new("poi:d", "Ruin", KnownPlaceKind.Seen, new(499, 100)),
+    new("poi:e", "Ruin", KnownPlaceKind.Seen, new(501, 100)),
+    new("poi:f", "Ruin", KnownPlaceKind.Seen, new(1, 1)),
+    new("poi:g", "Ruin", KnownPlaceKind.Seen, new(499, 499)),
+];
+IReadOnlyList<PlaceCluster> acrossSeam = PlaceClusters.Group(seam[..2], 10), apart = PlaceClusters.Group(seam[2..], 500);
+Check.That(acrossSeam.Count == 1 && acrossSeam[0].Count == 2, "two places beside each other across a grid line draw as one cluster");
+Check.That(apart.Count == 2 && apart.All(cluster => cluster.Single), "two places further apart than the reach stay two markers");
+KnownPlace[] chain = [new("poi:h", "Ruin", KnownPlaceKind.Seen, new(495, 100)), new("poi:i", "Ruin", KnownPlaceKind.Seen, new(513, 100)),
+    new("poi:j", "Ruin", KnownPlaceKind.Seen, new(504, 100))];
+Check.That(PlaceClusters.Group(chain, 10).Count == 1 && PlaceClusters.Group([.. chain.Reverse()], 10).Count == 1,
+    "a place close to a cluster's member joins it, whatever order the places come in");
 
 bool overfull;
 try { new SledCodec(identity).Encode(sledSave with { Cargo = [new ItemCount(ItemCatalog.Ration, CraftSurvive.Game.Modules.Travel.Sled.Capacity + 1)] }); overfull = false; }
