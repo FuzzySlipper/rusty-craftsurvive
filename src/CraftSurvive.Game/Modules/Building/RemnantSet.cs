@@ -45,6 +45,20 @@ internal sealed class RemnantSet
     internal PieceRemnant[] Snapshot() => [.. remnants];
 
     /// <summary>
+    /// The remnant a new piece would stand in (#9731), or -1: what is left of a piece must be
+    /// cleared before another is built through it.
+    /// </summary>
+    internal int InTheWay(PlacedPiece piece)
+    {
+        for (int index = 0; index < remnants.Count; index++)
+        {
+            if (remnants[index].Piece.CompareTo(piece) == 0 || PieceGeometry.Clash(remnants[index].Piece, piece, BuildPieceSet.OverlapTolerance)) return index;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
     /// A charge at <paramref name="crater"/>: every intact piece it reaches leaves the intact set and
     /// is destroyed (its middle within <see cref="CoreShare"/> of the reach) or becomes a remnant
     /// bitten by the crater; every remnant it reaches takes the crater too. A remnant left with less
@@ -74,8 +88,19 @@ internal sealed class RemnantSet
                 continue;
             }
 
+            // A piece is one remnant at most: one rebuilt where its remnant stood (placement refuses
+            // that, but restored or assisted state may not) replaces it, the newer piece being whole.
             int at = remnants.BinarySearch(remnant, Order);
-            remnants.Insert(at >= 0 ? at : ~at, remnant);
+            if (at >= 0)
+            {
+                changed.Add(remnants[at].Bounds());
+                remnants[at] = remnant;
+            }
+            else
+            {
+                remnants.Insert(~at, remnant);
+            }
+
             changed.Add(remnant.Bounds());
             made++;
         }

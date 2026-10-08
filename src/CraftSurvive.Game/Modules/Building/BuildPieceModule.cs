@@ -231,7 +231,7 @@ internal sealed class BuildPieceModule : IProductModule
     {
         PlacedPiece piece = new(pieceKind, material, (long)Math.Round(x / PlacedPiece.GridMetres), (long)Math.Round(y / PlacedPiece.GridMetres),
             (long)Math.Round(z / PlacedPiece.GridMetres), (byte)(((turn % PlacedPiece.Turns) + PlacedPiece.Turns) % PlacedPiece.Turns));
-        PieceOutcome outcome = set.Add(piece);
+        PieceOutcome outcome = remnants.InTheWay(piece) >= 0 ? PieceOutcome.Overlaps : set.Add(piece);
         if (outcome == PieceOutcome.Placed) placed++;
         else refused++;
         return $"{outcome.ToString().ToLowerInvariant()}; {Readout()}";
@@ -446,6 +446,7 @@ internal sealed class BuildPieceModule : IProductModule
     /// <summary>Why the piece may not stand there (for the refusal and the ghost's tint), or null if it may.</summary>
     private string? Verdict(PlacedPiece piece, Vector3 eye) =>
         Traps(piece, eye) ? "would stand where you are"
+        : set.Check(piece) == PieceOutcome.Placed && remnants.InTheWay(piece) >= 0 ? "would cut through what is left there: clear it first"
         : set.Check(piece) == PieceOutcome.Placed && !HeldUp(piece) ? "would not be held up"
         : set.Check(piece) switch
         {

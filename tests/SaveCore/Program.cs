@@ -276,6 +276,23 @@ PieceBlast secondBlast = broke.Blast(standing, new Crater(new Vector3(-0.5f, 1.2
 Check.That(secondBlast.Remnants == 0 && broke.Remnants[0].Craters.Count == 2, "a second charge reaching a remnant bites it again");
 PieceBlast coreBlast = broke.Blast(standing, new Crater(new Vector3(10f, 0.2f, 0f), 2.5f));
 Check.That(coreBlast.Destroyed == 1 && standing.Count == 0, "a charge in the middle of a piece destroys it outright");
+
+// Rebuilding where a remnant stands is refused; one rebuilt anyway (assisted or restored state) and
+// blasted again replaces its remnant, so the set stays one remnant per piece and saves.
+BuildPieceSet rebuilt = new();
+RemnantSet rebroke = new();
+Crater endCrater = new(new Vector3(1f, 1.25f, 0f), 0.9f);
+rebuilt.Add(blastWall);
+rebroke.Blast(rebuilt, endCrater);
+Check.That(rebroke.InTheWay(blastWall) == 0 && rebroke.InTheWay(blastWall with { X = 40 }) < 0,
+    "a piece rebuilt through a remnant is in its way; one clear of it is not");
+rebuilt.Add(blastWall);
+rebroke.Blast(rebuilt, endCrater);
+PieceRemnant[] reloadedRemnants = remnantCodec.Decode(remnantCodec.Encode(rebroke.Snapshot()));
+Check.That(rebroke.Count == 1 && reloadedRemnants.Length == 1
+    && reloadedRemnants[0].Piece == blastWall && reloadedRemnants[0].Craters.SequenceEqual(rebroke.Remnants[0].Craters),
+    $"a rebuilt piece blasted again leaves one remnant, which saves and restores ({rebroke.Count} remnants)");
+
 PieceRemnant left = broke.Remnants[0];
 (long lx0, long ly0, long lz0, long lx1, long ly1, long lz1) = left.Cells();
 int solidCells = 0;
