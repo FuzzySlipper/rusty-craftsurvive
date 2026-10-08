@@ -209,6 +209,15 @@ Check.That(PieceGeometry.Cast([wall], new Vector3(0, 3.5f, 5f), -Vector3.UnitZ, 
 PlacedPiece onGround = PieceGeometry.Place(PieceKind.Floor, PieceMaterial.Planks, new Vector3(10.1f, 78.43f, -3.9f), Vector3.UnitY, Vector3.UnitX);
 Check.That(onGround.X == 40 && onGround.Y == 314 && onGround.Z == -16 && onGround.Turn == PieceGeometry.TurnFacing(-Vector3.UnitX),
     $"a floor aimed at the ground stands on it, snapped to the quarter-metre grid, placed {onGround}");
+foreach (PieceKind hanging in new[] { PieceKind.Floor, PieceKind.Beam, PieceKind.Roof, PieceKind.Stairs, PieceKind.Wall })
+{
+    // Aimed at an underside 5 m up: the piece's own top meets it, within a step of the grid (a
+    // roof's sloped top is off the grid).
+    PlacedPiece under = PieceGeometry.Place(hanging, PieceCatalog.Materials(hanging)[0], new Vector3(0, 5f, 0), -Vector3.UnitY, Vector3.UnitZ);
+    float top = PieceGeometry.Bounds(under).Max(bound => bound.Centre.Y + bound.Half.Y);
+    Check.That(MathF.Abs(top - 5f) < PlacedPiece.GridMetres, $"a {PieceCatalog.Name(hanging)} aimed at an underside meets it, its top at {top}");
+}
+
 Check.That(Vector3.Distance(Vector3.Transform(Vector3.UnitZ, new PlacedPiece(PieceKind.Wall, PieceMaterial.Planks, 0, 0, 0, PieceGeometry.TurnFacing(Vector3.UnitX)).Rotation), Vector3.UnitX) < 1e-4f,
     "a turn faces a piece's +Z the way asked");
 PlacedPiece roof = new(PieceKind.Roof, PieceMaterial.Shingles, 0, 0, 0, 0);

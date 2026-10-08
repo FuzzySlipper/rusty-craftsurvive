@@ -184,6 +184,12 @@ internal static class PieceCatalog
 
     internal static IReadOnlyList<PieceBox> Boxes(PieceKind kind) => Shapes[kind];
 
+    /// <summary>How far a piece's highest point stands above its anchor (pitched slabs included).</summary>
+    internal static float Top(PieceKind kind) => Tops[kind];
+
+    private static readonly Dictionary<PieceKind, float> Tops = Kinds.ToDictionary(kind => kind, kind => Shapes[kind].Max(box =>
+        box.Centre.Y + (MathF.Cos(box.Pitch) * box.Half.Y) + (MathF.Abs(MathF.Sin(box.Pitch)) * box.Half.Z)));
+
     /// <summary>The materials a kind may be made of; the first is its default.</summary>
     internal static IReadOnlyList<PieceMaterial> Materials(PieceKind kind) => Allowed[kind];
 

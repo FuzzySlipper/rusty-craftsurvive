@@ -132,8 +132,8 @@ internal static class PieceGeometry
 
         if (!againstSide && normal.Y < 0)
         {
-            // Aimed at an underside: hang from it rather than sink into it.
-            anchor.Y -= kind is PieceKind.Beam ? PieceCatalog.BeamSide : PieceCatalog.WallHeight;
+            // Aimed at an underside: hang from it, the piece's own top against the surface.
+            anchor.Y -= PieceCatalog.Top(kind);
         }
 
         return new PlacedPiece(kind, material, Snap(anchor.X), SnapUp(anchor.Y, normal.Y), Snap(anchor.Z), turn);
