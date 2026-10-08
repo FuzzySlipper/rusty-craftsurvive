@@ -138,6 +138,13 @@ conditions. Beauty is not confined to clear skies: a gathering storm can be a
 striking sight as well as a reason to seek shelter. Avoid making every location
 perpetually sunny and safe-looking, or uniformly bleak and colorless.
 
+Color belongs to the authored materials. Shared palette ramps (`content/style/palette.json`)
+and the stylisation scripts set it. The final color grade is a light, near-neutral trim: a
+little warmth and contrast. It must not compensate for an asset's color. If a surface reads too
+saturated, grey or flat, correct the texture or its ramp rather than the grade. Weather and
+time of day may shift the grade per condition. The accepted values and their history are in
+Den (`decision-colour-grade`).
+
 Dungeons carry the same surface language into enclosed and vertical spaces.
 Their mood can become darker and more threatening while footholds, ledges,
 openings, and relevant objects remain readable. At home, construction and
