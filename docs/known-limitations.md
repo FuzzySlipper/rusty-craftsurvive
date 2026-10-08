@@ -196,10 +196,21 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   refused on cells the player occupies. Teleport and respawn check standing-body clearance.
   If changing collision leaves the body deeply embedded, `PlayerRecovery` tries the last clear
   position and a bounded search above it; this is recovery, not permission to place into a body.
-- **Building is cubic and separate from the terrain's materials.** The UI builds floors and walls
-  from `BuildPalette` blocks, laid relative to where the player faces, and only over replaceable
-  cells (air, water), so a floor across a slope fills the gaps and leaves the hill. Undo takes back
-  the last floor or wall only, and leaves empty what it clears rather than restoring it.
+- **Construction is snap pieces drawn as meshes; their collision is boxes.** `BuildPieceModule`
+  places walls, doorways, windows, posts, beams, floors, pitched roofs and stairs on a quarter-metre
+  grid in quarter turns, where the view meets a piece or the ground, turned to face the player. They
+  collide only with the player, as world-axis boxes in the character step (`PiecePresenter.Obstacles`):
+  exact for walls and floors, while a pitched roof is four stepped boxes. Creatures, navigation, the
+  terrain pick and lamps do not see pieces. A piece placed on a slope does not reach down to the
+  ground; posts and stairs are the player's to add. Pieces may cross each other and the terrain. Only
+  a second identical footing and a piece over the player are refused, and the ghost is not tinted
+  for that. A charge removes the pieces whose anchors are within its reach; damaged pieces do not yet
+  become voxels (#9731).
+- **Cube building remains for earthworks.** T switches placing to the terrain brush, and the UI still
+  builds floors and walls from `BuildPalette` blocks, laid relative to where the player faces, and
+  only over replaceable cells (air, water), so a floor across a slope fills the gaps and leaves the
+  hill. Undo takes back the last floor or wall only, and leaves empty what it clears rather than
+  restoring it.
 - **A charge resolves on the update after it is fired**, as one transaction, with its cue raised
   first, so its smoke and debris (`Bursts.BlastSmoke`, `BlastDebris`, seeded from the charge's
   `BlastDust.ChargeIdentity`) are already in flight. A charge past `BlastPolicy.MaximumCells` is

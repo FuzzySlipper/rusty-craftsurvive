@@ -187,6 +187,15 @@ internal sealed class BuildPieceModule : IProductModule
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
 
+    /// <summary>What this view meets: the nearest piece and the ground, with their distances, for diagnosis.</summary>
+    internal string AimReadout(Vector3 eye, Vector3 forward)
+    {
+        PieceHit? pieceHit = PieceGeometry.Cast(set.Pieces, frame.ToWorld(eye), forward, Reach);
+        SpatialHit ground = terrain.CastView(eye, forward);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"eye={frame.ToWorld(eye)} forward={forward} piece={(pieceHit is PieceHit hit ? $"{PieceCatalog.Name(set.Pieces[hit.Index].Kind)}@{hit.Distance:F2} point={hit.Point}" : "none")} ground={(ground.Present ? $"{ground.Distance:F2} toi={ground.TimeOfImpact:F3} point={frame.ToWorld(ground.Point)} normal={ground.Normal}" : "none")}");
+    }
+
     /// <summary>Where the selected piece would go from this view: on the first piece or ground it meets.</summary>
     private (PlacedPiece Piece, float Distance)? Candidate(Vector3 eye, Vector3 forward)
     {
@@ -203,9 +212,20 @@ internal sealed class BuildPieceModule : IProductModule
 
         if (!ground.Present) return null;
         Vector3 point = frame.ToWorld(ground.Point);
-        Vector3 normal = ground.Normal.LengthSquared() > 1e-6f ? Vector3.Normalize(ground.Normal) : Vector3.UnitY;
+        // The voxel cast reports the face it met but not always a normal; the face's axis serves.
+        Vector3 normal = ground.Normal.LengthSquared() > 1e-6f ? Vector3.Normalize(ground.Normal) : FaceNormal(ground.Face);
         return (PieceGeometry.Place(kind, Material, point, normal, facing), (float)ground.Distance);
     }
+
+    private static Vector3 FaceNormal(SpatialFace face) => face switch
+    {
+        SpatialFace.PosX => Vector3.UnitX,
+        SpatialFace.NegX => -Vector3.UnitX,
+        SpatialFace.NegY => -Vector3.UnitY,
+        SpatialFace.PosZ => Vector3.UnitZ,
+        SpatialFace.NegZ => -Vector3.UnitZ,
+        _ => Vector3.UnitY,
+    };
 
     /// <summary>Whether any of the piece's boxes (by their world bounds) overlaps the player's body.</summary>
     private bool Traps(PlacedPiece piece, Vector3 eye)

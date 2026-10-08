@@ -17,7 +17,10 @@ internal sealed class PiecePresenter : IDisposable
     private const float Roughness = 0.9f;
     private const float GhostRoughness = 1f;
     private static readonly Color GhostColour = new(0.75f, 0.92f, 1f, 0.45f);
+    /// <summary>Vertex colours: white, the alpha a wind weight of zero for solid pieces (they hold still).</summary>
     private static readonly Color White = new(1, 1, 1, 0);
+    /// <summary>The ghost's vertices keep full alpha, so its blended material shows at its own colour's alpha.</summary>
+    private static readonly Color GhostVertex = new(1, 1, 1, 1);
 
     /// <summary>Pieces whose anchors are within this distance of the player collide with them.</summary>
     internal const float CollisionReach = 24f;
@@ -67,7 +70,12 @@ internal sealed class PiecePresenter : IDisposable
             : facts;
     }
 
-    /// <summary>The boxes of pieces near a point (walking frame) as the character step's obstacles.</summary>
+    /// <summary>
+    /// The boxes of pieces near a point (walking frame) as the character step's obstacles. The step
+    /// takes world-axis boxes (an obstacle's rotation is not applied), so each box goes as its
+    /// world bounds: exact for the quarter turns, and a pitched roof slab as
+    /// <see cref="PitchedSlices"/> stepped boxes along its slope.
+    /// </summary>
     internal CharacterObstacle[] Obstacles(Vector3 local)
     {
         Vector3 world = frame.ToWorld(local);
@@ -76,17 +84,42 @@ internal sealed class PiecePresenter : IDisposable
         {
             PlacedPiece piece = pieces.Pieces[index];
             if (Vector3.DistanceSquared(piece.Anchor, world) > CollisionReach * CollisionReach) continue;
-            IReadOnlyList<PieceBox> boxes = PieceCatalog.Boxes(piece.Kind);
-            for (int box = 0; box < boxes.Count; box++)
+            int slot = 0;
+            foreach (PieceBox box in PieceCatalog.Boxes(piece.Kind))
             {
-                (Vector3 centre, Quaternion rotation, Vector3 half) = piece.World(boxes[box]);
-                near.Add(new CharacterObstacle(ProductIds.BuildPieceObstacleBase + (ulong)((index * PieceObstacleStride) + box),
-                    new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), rotation, Vector3.One), -half, half, true, Vector3.Zero, Vector3.Zero));
+                foreach (PieceBox part in box.Pitch == 0 ? [box] : Slices(box))
+                {
+                    (Vector3 centre, Quaternion rotation, Vector3 half) = piece.World(part);
+                    Vector3 extent = Bounds(rotation, half);
+                    near.Add(new CharacterObstacle(ProductIds.BuildPieceObstacleBase + (ulong)((index * PieceObstacleStride) + slot++),
+                        new Transform(frame.ToLocal(centre.X, centre.Y, centre.Z), Quaternion.Identity, Vector3.One), -extent, extent, true, Vector3.Zero, Vector3.Zero));
+                }
             }
         }
 
         return [.. near];
     }
+
+    /// <summary>How many stepped boxes stand in for a pitched slab.</summary>
+    internal const int PitchedSlices = 4;
+
+    /// <summary>A pitched box cut into slices along its own Z, each still pitched.</summary>
+    private static IEnumerable<PieceBox> Slices(PieceBox box)
+    {
+        Quaternion pitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, box.Pitch);
+        float slice = box.Half.Z * 2 / PitchedSlices;
+        for (int index = 0; index < PitchedSlices; index++)
+        {
+            float along = -box.Half.Z + (slice * (index + 0.5f));
+            yield return box with { Centre = box.Centre + Vector3.Transform(new Vector3(0, 0, along), pitch), Half = box.Half with { Z = slice / 2 } };
+        }
+    }
+
+    /// <summary>The half extents of a rotated box's world-axis bounds.</summary>
+    private static Vector3 Bounds(Quaternion rotation, Vector3 half) =>
+        Vector3.Abs(Vector3.Transform(new Vector3(half.X, 0, 0), rotation))
+        + Vector3.Abs(Vector3.Transform(new Vector3(0, half.Y, 0), rotation))
+        + Vector3.Abs(Vector3.Transform(new Vector3(0, 0, half.Z), rotation));
 
     /// <summary>Boxes per piece the obstacle ids leave room for (stairs have the most).</summary>
     internal const int PieceObstacleStride = 8;
@@ -115,7 +148,7 @@ internal sealed class PiecePresenter : IDisposable
     private Appearance Look(PieceKind kind, PieceMaterial material)
     {
         if (looks.TryGetValue((kind, material), out var built)) return built.Look;
-        MeshResource mesh = engine.Graphics.CreateMeshResource(Mesh(kind, materials.For("solid", PieceCatalog.Texture(material))));
+        MeshResource mesh = engine.Graphics.CreateMeshResource(Mesh(kind, materials.For("solid", PieceCatalog.Texture(material)), White));
         Appearance look = engine.Graphics.CreateMeshAppearance(mesh);
         looks[(kind, material)] = (mesh, look);
         return look;
@@ -124,13 +157,13 @@ internal sealed class PiecePresenter : IDisposable
     private Appearance GhostLook(PieceKind kind)
     {
         if (ghosts.TryGetValue(kind, out var built)) return built.Look;
-        MeshResource mesh = engine.Graphics.CreateMeshResource(Mesh(kind, ghostMaterial));
+        MeshResource mesh = engine.Graphics.CreateMeshResource(Mesh(kind, ghostMaterial, GhostVertex));
         Appearance look = engine.Graphics.CreateMeshAppearance(mesh);
         ghosts[kind] = (mesh, look);
         return look;
     }
 
-    private static MeshResourceCreateRequest Mesh(PieceKind kind, Material material)
+    private static MeshResourceCreateRequest Mesh(PieceKind kind, Material material, Color vertex)
     {
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];
@@ -141,7 +174,7 @@ internal sealed class PiecePresenter : IDisposable
         }
 
         return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(),
-            Enumerable.Repeat(White, positions.Count).ToArray(), indices.ToArray(),
+            Enumerable.Repeat(vertex, positions.Count).ToArray(), indices.ToArray(),
             new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
     }
 }
