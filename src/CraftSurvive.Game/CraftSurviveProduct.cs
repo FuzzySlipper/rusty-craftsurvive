@@ -128,7 +128,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         player.Pieces = pieces;
         sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
-        weather = new WeatherModule(worlds.Current.Map, () => conditions.Time, () => player.WorldPosition);
+        weather = new WeatherModule(context.Engine, worlds.Current.Map, sky, () => conditions.Time, () => player.WorldPosition,
+            () => frame.ToLocal(player.WorldEyePosition), () => !player.InSeparateSpace && !player.HeadSubmerged);
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition));

@@ -142,9 +142,18 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
         again.
       - **Not yet:**
         - The preview's hours and rations ignore the weather's slowing.
-        - Nothing first-person reacts to weather yet (#9740, #9741).
+        - First-person consequences (wetness, shelter) are #9741.
         - Fronts are circles, without shape or rain bands.
         - Seasons do not exist (#9554).
+      - **First-person look (#9740):** the weather over the player eases in over game minutes. Its
+        cloud channel raises a drifting cloud layer (along the flow) and dims the sun, sky light and
+        shafts, cools and greys the grade; murk and rain thicken the fog toward the front's air
+        colour (ochre in sand, white in snow, rose in the glass storm); wind strengthens the sway.
+        Because the Engine never fogs the background, murk veils the sky through the tinted cloud
+        layer. What falls is drawn by a grid of nine point emitters around the eyes (rain streaks,
+        snow, blown dust, glass glints): it falls through roofs, and drops are spread rather than
+        streamed, until rusty-engine #9742. Cloud shadows (#9743), wet surfaces (#9744) and screen
+        effects such as droplets or flashes (#9745) wait on the Engine.
     - "Explore here" drops into first person at the token. Whenever the journey pauses, halts,
       arrives, camps or meets an event, the player is placed at the token and the continuation,
       survival and pack are saved, so position and supplies survive a restart; an unfinished route

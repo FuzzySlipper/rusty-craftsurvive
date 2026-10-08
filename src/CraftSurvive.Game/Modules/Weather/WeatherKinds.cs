@@ -1,3 +1,4 @@
+using System.Numerics;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Weather;
@@ -32,7 +33,8 @@ internal static class WeatherKinds
         RadiusMetres: 12_000, MetresPerHour: 1_500, LifeHours: 36,
         SpawnCellMetres: 40_000, SlotHours: 12, BirthChance: 0.35, Arcane: false,
         Channels: new(Precipitation: 0.8, Cloud: 1, Wind: 0.4, Cold: 0.1, Murk: 0.3, Arcane: 0),
-        Effects: new(TravelCost: 1.4, SupplyUse: 1.1, EventRisk: 1.2, Wetting: 0.5, Chill: 0.05, Harm: 0, Sight: 0.7));
+        Effects: new(TravelCost: 1.4, SupplyUse: 1.1, EventRisk: 1.2, Wetting: 0.5, Chill: 0.05, Harm: 0, Sight: 0.7),
+        Fall: WeatherFall.Rain, Air: new Vector3(0.3f, 0.34f, 0.38f));
 
     internal static WeatherKind Snowstorm { get; } = new(
         "snow", "Snowstorm", "The sky closes and snow drives in sideways. Every step costs warmth and food.",
@@ -53,7 +55,8 @@ internal static class WeatherKinds
         RadiusMetres: 15_000, MetresPerHour: 2_000, LifeHours: 30,
         SpawnCellMetres: 50_000, SlotHours: 18, BirthChance: 0.3, Arcane: false,
         Channels: new(Precipitation: 0.9, Cloud: 1, Wind: 0.9, Cold: 1, Murk: 0.8, Arcane: 0),
-        Effects: new(TravelCost: 2.5, SupplyUse: 1.5, EventRisk: 1.5, Wetting: 0.2, Chill: 0.6, Harm: 0, Sight: 0.35));
+        Effects: new(TravelCost: 2.5, SupplyUse: 1.5, EventRisk: 1.5, Wetting: 0.2, Chill: 0.6, Harm: 0, Sight: 0.35),
+        Fall: WeatherFall.Snow, Air: new Vector3(0.62f, 0.66f, 0.72f));
 
     internal static WeatherKind Sandstorm { get; } = new(
         "sand", "Sandstorm", "A brown wall of sand rolls over the land, swallowing the horizon.",
@@ -75,7 +78,8 @@ internal static class WeatherKinds
         RadiusMetres: 10_000, MetresPerHour: 2_500, LifeHours: 18,
         SpawnCellMetres: 45_000, SlotHours: 18, BirthChance: 0.3, Arcane: false,
         Channels: new(Precipitation: 0, Cloud: 0.5, Wind: 1, Cold: 0, Murk: 0.9, Arcane: 0),
-        Effects: new(TravelCost: 2.2, SupplyUse: 1.3, EventRisk: 1.4, Wetting: 0, Chill: 0, Harm: 0, Sight: 0.3));
+        Effects: new(TravelCost: 2.2, SupplyUse: 1.3, EventRisk: 1.4, Wetting: 0, Chill: 0, Harm: 0, Sight: 0.3),
+        Fall: WeatherFall.Dust, Air: new Vector3(0.55f, 0.4f, 0.22f));
 
     internal static WeatherKind FogBank { get; } = new(
         "fog", "Fog bank", "A fog bank settles over the land. The way ahead is hard to read, and anything could be close.",
@@ -96,7 +100,8 @@ internal static class WeatherKinds
         RadiusMetres: 6_000, MetresPerHour: 500, LifeHours: 12,
         SpawnCellMetres: 25_000, SlotHours: 12, BirthChance: 0.25, Arcane: false,
         Channels: new(Precipitation: 0, Cloud: 0.4, Wind: 0, Cold: 0.1, Murk: 0.9, Arcane: 0),
-        Effects: new(TravelCost: 1.3, SupplyUse: 1, EventRisk: 1.3, Wetting: 0.1, Chill: 0, Harm: 0, Sight: 0.4));
+        Effects: new(TravelCost: 1.3, SupplyUse: 1, EventRisk: 1.3, Wetting: 0.1, Chill: 0, Harm: 0, Sight: 0.4),
+        Fall: WeatherFall.None, Air: new Vector3(0.6f, 0.62f, 0.62f));
 
     /// <summary>
     /// The rare arcane storm: a slow, enormous fall of ringing glass that wounds anyone out in it.
@@ -109,7 +114,8 @@ internal static class WeatherKinds
         RadiusMetres: 35_000, MetresPerHour: 800, LifeHours: 120,
         SpawnCellMetres: 130_000, SlotHours: 168, BirthChance: 1, Arcane: true,
         Channels: new(Precipitation: 0.6, Cloud: 0.8, Wind: 0.5, Cold: 0, Murk: 0.4, Arcane: 1),
-        Effects: new(TravelCost: 4, SupplyUse: 2, EventRisk: 2, Wetting: 0, Chill: 0, Harm: 6, Sight: 0.6));
+        Effects: new(TravelCost: 4, SupplyUse: 2, EventRisk: 2, Wetting: 0, Chill: 0, Harm: 6, Sight: 0.6),
+        Fall: WeatherFall.Glitter, Air: new Vector3(0.7f, 0.5f, 0.62f));
 
     /// <summary>Every kind, in a fixed order: the order sets each kind's salt and the listing order.</summary>
     internal static IReadOnlyList<WeatherKind> All { get; } = [RainFront, Snowstorm, Sandstorm, FogBank, GlassStorm];

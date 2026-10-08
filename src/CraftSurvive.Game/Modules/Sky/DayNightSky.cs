@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 
@@ -195,6 +196,35 @@ internal sealed class DayNightSky : IDisposable
     private const float WindStrength = 1f;
     private const float WindGust = 0.6f;
 
+    /// <summary>
+    /// What the weather does to the sky and the light (#9740, Den <c>design/weather-and-environment</c>),
+    /// per unit of its channels: cloud dims the sun, the shafts and the sky's light, cools the grade
+    /// and greys it; murk and rain thicken the fog toward the fronts' air colour and fill the valleys;
+    /// wind strengthens the sway and gusts along the flow; the arcane brightens and tints the colour.
+    /// </summary>
+    private const float CloudSunDim = 0.8f, CloudSkyLightDim = 0.35f, CloudExposure = -0.2f;
+    private const float CloudCooling = -0.1f, ColdCooling = -0.1f, CloudDesaturation = -0.15f, MurkFlattening = -0.06f;
+    private const float ArcaneSaturation = 0.2f, ArcaneTint = 0.12f;
+    private const float MurkFog = 8f, RainFog = 3f, CloudFog = 0.5f;
+    private const float CloudAirShare = 0.6f, MurkAirShare = 0.8f, NightAir = 0.15f;
+    private const float MurkFogFalloffMetres = 120f;
+    private const float WindStrengthening = 3f, WindGusting = 0.4f;
+    /// <summary>The cloud layer: coverage from fair to full with the cloud channel, drifting with the flow faster as the wind rises.</summary>
+    private const float CloudCoverageFloor = 0.25f, CloudCoverageSpan = 0.7f, CloudAppearsAbove = 0.02f;
+    private const float CloudDriftMetresPerSecond = 6f, WindDriftMetresPerSecond = 18f;
+    private const float CloudAltitudeMetres = 1500f, CloudScaleMetres = 600f, CloudDarkening = 0.4f;
+    /// <summary>Murk covers the sky like cloud, this much of it, tinted by the air at this brightness.</summary>
+    private const float MurkCloud = 1f, MurkCloudBrightness = 1.6f;
+    /// <summary>A clear sky: no cloud layer and no clouds pass.</summary>
+    private static readonly CloudsRequest NoClouds = new(0f, Vector2.Zero, CloudAltitudeMetres, CloudScaleMetres, Vector3.One);
+    /// <summary>The lights and fog are replaced once the weather has moved this far.</summary>
+    private const float WeatherRelightStep = 0.02f;
+
+    private WeatherLook weather = WeatherLook.Clear(Vector2.Normalize(WindDirection));
+    private WeatherLook litWeather = WeatherLook.Clear(Vector2.Normalize(WindDirection));
+    private float gradeTemperature = GradingTemperature, gradeTint, gradeContrast = GradingContrast, gradeSaturation = GradingSaturation, gradeExposure = Exposure;
+    private float windStrength = WindStrength;
+
     /// <param name="observer">The eyes' position in the Engine's local frame: the sky's occlusion square follows them.</param>
     internal DayNightSky(IEngineContext engine, Func<Vector3> observer)
     {
@@ -202,24 +232,23 @@ internal sealed class DayNightSky : IDisposable
         this.observer = observer ?? throw new ArgumentNullException(nameof(observer));
         day = Panorama(DayPanoramaContentPath);
         night = Panorama(NightPanoramaContentPath);
-        engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, Exposure));
         engine.CameraView.SetBloom(new BloomRequest(BloomThreshold, BloomIntensity));
-        engine.CameraView.SetColorGrading(new ColorGradingRequest(GradingTemperature, 0f, GradingContrast, GradingSaturation));
-        engine.CameraView.SetWind(new(WindDirection, WindStrength, WindGust));
+        Weathered();
     }
 
     /// <summary>Sets the colour grade and exposure live, for tuning; the next world starts from the constants again.</summary>
     internal string SetGrade(float temperature, float tint, float contrast, float saturation, float exposure)
     {
-        engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, exposure));
-        engine.CameraView.SetColorGrading(new ColorGradingRequest(temperature, tint, contrast, saturation));
+        (gradeTemperature, gradeTint, gradeContrast, gradeSaturation, gradeExposure) = (temperature, tint, contrast, saturation, exposure);
+        Weathered();
         return FormattableString.Invariant($"grade temperature={temperature} tint={tint} contrast={contrast} saturation={saturation} exposure={exposure}");
     }
 
     /// <summary>Sets the wind's strength (0 stills it), for tuning and for measuring its cost.</summary>
     internal string SetWindStrength(float strength)
     {
-        engine.CameraView.SetWind(new(WindDirection, strength, WindGust));
+        windStrength = strength;
+        Weathered();
         return FormattableString.Invariant($"wind strength={strength} gust={WindGust} direction={WindDirection.X},{WindDirection.Y}");
     }
 
@@ -241,6 +270,7 @@ internal sealed class DayNightSky : IDisposable
         litDaylight = double.NaN;
         skyShadowAround = null;
         Veil();
+        Weathered();
         if (!below)
         {
             Show(time);
@@ -276,6 +306,44 @@ internal sealed class DayNightSky : IDisposable
     internal bool ViewSubmerged => submerged;
 
     /// <summary>
+    /// The weather over the player, as it should look now (#9740): the grade, wind and clouds follow
+    /// at once; lights and fog are replaced on the next <see cref="Show"/> once it has moved enough.
+    /// </summary>
+    internal void Weather(WeatherLook look)
+    {
+        if (disposed) return;
+        weather = look;
+        Weathered();
+        // Lights and fog follow once the weather has moved far enough from what they were set for.
+        if (look.Distance(litWeather) > WeatherRelightStep) litDaylight = double.NaN;
+    }
+
+    internal WeatherLook Look => weather;
+
+    /// <summary>The grade, wind and cloud layer for the weather: the base values in the open, the base alone underground.</summary>
+    private void Weathered()
+    {
+        if (disposed) return;
+        WeatherLook w = underground ? WeatherLook.Clear(weather.Flow) : weather;
+        engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, gradeExposure * (1f + (CloudExposure * w.Cloud))));
+        engine.CameraView.SetColorGrading(new ColorGradingRequest(
+            gradeTemperature + (CloudCooling * w.Cloud) + (ColdCooling * w.Cold),
+            gradeTint + (ArcaneTint * w.Arcane),
+            gradeContrast + (MurkFlattening * w.Murk),
+            gradeSaturation + (CloudDesaturation * w.Cloud) + (ArcaneSaturation * w.Arcane)));
+        Vector2 flow = w.Flow.LengthSquared() > 0 ? w.Flow : Vector2.Normalize(WindDirection);
+        engine.CameraView.SetWind(new(flow, windStrength * (1f + (WindStrengthening * w.Wind)), Math.Min(1f, WindGust + (WindGusting * w.Wind))));
+        // The background is never fogged, so murk (fog, blown sand) veils the sky through the cloud layer, tinted by the air.
+        float cover = Math.Max(w.Cloud, MurkCloud * w.Murk);
+        Vector3 tint = Vector3.One * (1f - (CloudDarkening * w.Cloud));
+        if (w.Air != Vector3.Zero) tint = Vector3.Lerp(tint, w.Air * MurkCloudBrightness, w.Murk);
+        engine.CameraView.SetClouds(cover > CloudAppearsAbove
+            ? new CloudsRequest(Math.Min(1f, CloudCoverageFloor + (CloudCoverageSpan * cover)), flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)),
+                CloudAltitudeMetres, CloudScaleMetres, tint)
+            : NoClouds);
+    }
+
+    /// <summary>
     /// Shows the sky and lights for a moment. Lights are replaced only when daylight has moved
     /// or the player has walked out from under the sky's occlusion square.
     /// </summary>
@@ -301,13 +369,15 @@ internal sealed class DayNightSky : IDisposable
 
         Vector3 skyCentre = moved ? eyes : skyShadowAround!.Value;
         skyShadowAround = skyCentre;
-        Relight(Sunlight(time.DayFraction, daylight), SkyShadow(daylight, skyCentre), Fill(time.DayFraction, daylight));
+        LightDescriptor sunlight = Sunlight(time.DayFraction, daylight);
+        Relight(sunlight with { Intensity = sunlight.Intensity * (1f - (CloudSunDim * weather.Cloud)) }, SkyShadow(daylight, skyCentre), Fill(time.DayFraction, daylight));
         if (!submerged)
         {
             Air(time.DayFraction, daylight, eyes);
         }
 
         litDaylight = daylight;
+        litWeather = weather;
     }
 
     /// <summary>Releases this world's Engine lights and panorama handles before another world takes their place.</summary>
@@ -319,6 +389,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
+        engine.CameraView.SetClouds(NoClouds);
         engine.CameraView.ClearSkyBackground(new ClearSkyBackgroundRequest(0U));
         sun?.Dispose();
         skyShadow?.Dispose();
@@ -373,16 +444,21 @@ internal sealed class DayNightSky : IDisposable
     private void Air(double dayFraction, double daylight, Vector3 eyes)
     {
         double elevation = WorldClock.SunElevation(dayFraction);
+        WeatherLook w = weather;
+        // The weather's air greys the horizon toward the fronts' colour, darker by night, and thickens the fog.
         Vector3 horizon = Vector3.Lerp(NightHorizon, DayHorizon, (float)daylight);
-        engine.CameraView.SetFog(new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, OpenFogDensity));
+        float airShare = Math.Min(1f, (CloudAirShare * w.Cloud) + (MurkAirShare * w.Murk));
+        if (w.Air != Vector3.Zero) horizon = Vector3.Lerp(horizon, w.Air * (NightAir + ((1f - NightAir) * (float)daylight)), airShare);
+        float density = OpenFogDensity * (1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud));
+        engine.CameraView.SetFog(new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, density));
         float warmth = Warmth(elevation);
-        Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * (float)daylight;
-        engine.CameraView.SetSkyLight(new SkyLightRequest((float)(NightSkyLightIntensity + ((DaySkyLightIntensity - NightSkyLightIntensity) * daylight))));
+        Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * (float)daylight * (1f - w.Cloud);
+        engine.CameraView.SetSkyLight(new SkyLightRequest((float)(NightSkyLightIntensity + ((DaySkyLightIntensity - NightSkyLightIntensity) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud))));
         engine.CameraView.SetAtmosphere(new AtmosphereRequest(
-            eyes.Y - FogBaseBelowEyesMetres, FogFalloffHeightMetres,
-            new Color(haze.X, haze.Y, haze.Z, 1f), HazeExponent, SunRadiusDegrees, SunHalo));
+            eyes.Y - FogBaseBelowEyesMetres, FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk),
+            new Color(haze.X, haze.Y, haze.Z, 1f), HazeExponent, SunRadiusDegrees, SunHalo * (1f - w.Cloud)));
         float shafts = elevation > 0d
-            ? SunShaftIntensity * (1f - (float)Smooth(elevation, 0d, SunShaftsFadeAbove))
+            ? SunShaftIntensity * (1f - (float)Smooth(elevation, 0d, SunShaftsFadeAbove)) * (1f - w.Cloud)
             : 0f;
         engine.CameraView.SetSunShafts(new SunShaftsRequest(shafts, 0f));
     }

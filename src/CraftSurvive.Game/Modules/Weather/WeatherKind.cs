@@ -1,3 +1,4 @@
+using System.Numerics;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Weather;
@@ -50,6 +51,16 @@ internal readonly record struct EnvironmentEffects(double TravelCost, double Sup
     private const double MinimumSight = 0.1;
 }
 
+/// <summary>What a front lets fall (or blow) past the player's eyes (#9740).</summary>
+internal enum WeatherFall : byte
+{
+    None,
+    Rain,
+    Snow,
+    Dust,
+    Glitter,
+}
+
 /// <summary>
 /// The ground under a front, as a weather kind judges it: the map's geography and its height as a
 /// share of the world's peak (0 at sea level, 1 at the highest peaks), so "uplands" mean the same on
@@ -63,7 +74,7 @@ internal readonly record struct WeatherGround(MapSample Sample, double Height)
 /// <summary>
 /// One kind of weather (Den <c>design/weather-and-environment</c>): its name and how its arrival
 /// reads, where it may form and what keeps it alive (each 0..1 from the geography under it), its size, speed and life, how often it is
-/// born, and what it does. Lengths are metres and times game hours at the reference scale; a small
+/// born, what it does, what falls from it and the colour it turns the air (linear light, for the fog). Lengths are metres and times game hours at the reference scale; a small
 /// world shrinks them (<see cref="WeatherScale"/>).
 /// </summary>
 internal sealed record WeatherKind(
@@ -80,7 +91,9 @@ internal sealed record WeatherKind(
     double BirthChance,
     bool Arcane,
     EnvironmentChannels Channels,
-    EnvironmentEffects Effects)
+    EnvironmentEffects Effects,
+    WeatherFall Fall,
+    Vector3 Air)
 {
     /// <summary>How far a front of this kind can reach from where it was born: its whole drift plus its radius.</summary>
     internal double ReachMetres(WeatherScale scale) => (MetresPerHour * scale.Speeds * LifeHours) + (RadiusMetres * scale.Lengths);
