@@ -202,8 +202,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   and remnants are the walking session's static-mesh collision (`PieceColliders`). The player's step,
   creature navigation, perception and the session's casts meet them exactly, so creatures route
   around huts and through doorways, and cannot strike through a wall. A doorway's opening is 1.7 m
-  by 2.25 m because navigation stands a 0.3 m agent at the middle of 1 m cells; narrower doors would
-  block routes at some grid alignments (rusty-engine narrow-passage request). Lamps do not see pieces. A piece placed on a slope does not reach down to the
+  wide, because navigation stands a 0.3 m agent at the middle of 1 m cells; narrower doors would block
+  routes at some grid alignments (rusty-engine narrow-passage request). It runs the wall's full
+  height with no lintel: the character's step lifts the body by its whole step height, so a lintel
+  over a raised floor's edge refuses the step (rusty-engine step-lift request). Lamps do not see
+  pieces.
+- **Built work falls when nothing holds it up.** A piece or remnant stands while it is connected,
+  through pieces whose boxes meet within 6 cm (`PieceSupport`), to one bearing on a collidable cell
+  within 0.35 m under its underside. After a removal, a charge or a terrain edit, everything else
+  breaks and is taken away, with break cues for the first six. Support is connectivity only: a
+  long cantilever stands, and nothing tracks load, material or the fall itself. A piece placed on a slope does not reach down to the
   ground; posts and stairs are the player's to add. Aimed at a piece, a new piece snaps to the
   nearest of its sockets that accepts the kind (`PieceCatalog.SocketsOf`). Placing is refused, and
   the ghost turns red, for a second identical footing, a piece over the player, or one cutting

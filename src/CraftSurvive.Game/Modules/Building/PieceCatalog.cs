@@ -50,11 +50,13 @@ internal static class PieceCatalog
     internal const float WallWidth = 2f, WallHeight = 2.5f, WallThickness = 0.2f;
     /// <summary>
     /// A doorway's opening. Creature navigation stands a 0.3 m capsule at the middle of its 1 m
-    /// cells and needs head room over the agent's height (#9734): 1.7 m lets a cell through, with its contact skin, wherever
-    /// the opening falls on the quarter-metre grid, and 2.25 m clears the head. Narrower openings
-    /// need finer navigation (rusty-engine request).
+    /// cells (#9734): 1.7 m lets a cell through, with its contact skin, wherever the opening falls on
+    /// the quarter-metre grid. The opening runs the wall's full height, with no lintel: the
+    /// character's step lifts the body by its whole step height before moving onto a floor's edge,
+    /// and a lintel over the threshold refuses that lift. Narrower and lintelled doors wait on
+    /// rusty-engine requests.
     /// </summary>
-    internal const float DoorWidth = 1.7f, DoorHeight = 2.25f;
+    internal const float DoorWidth = 1.7f, DoorHeight = WallHeight;
     internal const float WindowWidth = 0.8f, WindowSill = 1f, WindowHeight = 0.8f;
     // Every height a piece offers another (a floor's top, a beam's, a roof's rise, a stair's top) lies on
     // the quarter-metre grid, so a piece snapped to it sits exactly on its host.
@@ -205,7 +207,6 @@ internal static class PieceCatalog
         [
             new(new(-(DoorWidth / 2) - side, WallHeight / 2, 0), new(side, WallHeight / 2, WallThickness / 2)),
             new(new((DoorWidth / 2) + side, WallHeight / 2, 0), new(side, WallHeight / 2, WallThickness / 2)),
-            new(new(0, (DoorHeight + WallHeight) / 2, 0), new(DoorWidth / 2, (WallHeight - DoorHeight) / 2, WallThickness / 2)),
         ];
     }
 
