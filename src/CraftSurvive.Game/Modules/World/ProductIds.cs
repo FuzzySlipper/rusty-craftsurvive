@@ -44,6 +44,10 @@ internal static class ProductIds
     internal const ulong WorldMapWeatherTrackBase = 0x5_2400UL;
     internal const int WorldMapWeatherTrackLimit = 0x1000;
 
+    /// <summary>Weather fronts standing on the horizon, in the backdrop (HorizonWeather, #9780).</summary>
+    internal const ulong HorizonFrontBase = 0x8_0000UL;
+    internal const int HorizonFrontLimit = 0x100;
+
     /// <summary>The overworld's drawn trees (TerrainTrees, #9665); up to 0x4000 of them.</summary>
     internal const ulong TreeObjectBase = 0x6_0000UL;
     internal const int TreeObjectLimit = 0x4000;

@@ -243,8 +243,29 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Map relief.** A continent's relief is gentle: about 800 m within 60 km of a typical spawn. Its
     ranges are a few pixels tall on the skyline and the panorama's painted mountains dominate. A
     skyline that is visibly the map needs taller ranges (#9782).
+  - **Weather on the horizon (H2 #9780, `HorizonWeather`).** Every front within 150 km is shown in
+    three ways:
+    - **Cloud region.** The 32 nearest rain, snow and glass fronts are each a region in the sky's own
+      layer, in its kind (cumulonimbus for rain and glass, stratus for snow), darker as it
+      strengthens. `DayNightSky` places and lifts them as the owner of the sky, and none show
+      underground.
+    - **Curtain.** For each front the player is outside of, a translucent open cylinder in the
+      backdrop. Rain, snow and glass hang from the cloud base and fade into it; sand rises from the
+      ground as a brown wall; fog lies as a low bank.
+    - **Cloud body.** The 8 nearest falling fronts each have one: 96 soft puffs in a backdrop
+      particle emitter. The Engine's particle budget (4,096, shared) holds no more, and a refusal
+      leaves that front with its region and curtain.
+    - **Colour.** Bodies are muted (storm grey, snow white, pale rose) and hazed toward the air by
+      distance, since backdrop particles take no fog. They are dimmed by daylight, the glass storm
+      least.
+    - **Movement.** The list is refreshed every 3 game minutes or 200 m. A changed emitter recolours
+      only new puffs, so a body takes up to 90 s to follow a jump in the clock.
+    - **Cost.** About 0.25 ms of backdrop pass (curtains and bodies) and 0.21 ms of clouds pass at
+      1280×720 on an RX 9070 XT.
+    - **Look.** A first pass: the curtains are smooth translucent cylinders, without streaks or
+      shafts.
   - **Not yet.**
-    - Weather fronts on the horizon (H2 #9780) and landmarks (H3 #9781).
+    - Landmarks (H3 #9781).
     - The sky panorama's painted mountains still stand behind the map's own ground. On a small map
       they do not match it.
 - **The generator is versioned, and the version is the save contract.**

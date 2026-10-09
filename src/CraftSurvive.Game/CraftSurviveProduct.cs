@@ -168,7 +168,14 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
         horizon = new HorizonBackdrop(context.Engine, worlds.Current.Map, () => terrain.Session, () => player.WorldPosition,
-            () => player.ViewCamera, () => !player.InSeparateSpace, () => terrain.ViewDistanceChunks * (double)FarField.ChunkMetres, sky.Horizon);
+            () => player.ViewCamera, () => !player.InSeparateSpace, () => terrain.ViewDistanceChunks * (double)FarField.ChunkMetres, sky.Horizon)
+        {
+            Weather = new HorizonWeather(context.Engine, worlds.Current.Map, weather.Field, () => weather.Hours, () => player.WorldPosition,
+                world => { System.Numerics.Vector3 local = frame.ToLocal(world.X, 0, world.Y); return new System.Numerics.Vector2(local.X, local.Z); }, sky.CloudRegions)
+            {
+                Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
+            },
+        };
         gameplay = [conditions, weather, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
@@ -459,7 +466,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. TreeFacts()]
+        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. TreeFacts(), .. horizon.Facts]
             : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

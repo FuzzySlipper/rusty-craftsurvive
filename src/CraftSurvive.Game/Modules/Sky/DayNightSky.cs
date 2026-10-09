@@ -246,6 +246,39 @@ internal sealed class DayNightSky : IDisposable
     private const float MurkCloud = 1f, MurkCloudBrightness = 1.6f;
     /// <summary>A clear sky: no cloud layer and no clouds pass.</summary>
     private static readonly CloudsRequest NoClouds = new(0f, Vector2.Zero, CloudAltitudeMetres, CloudScaleMetres, Vector3.One);
+
+    /// <summary>The cloud layer's height: the base of every front's cloud, where its curtain on the horizon meets it (#9780).</summary>
+    internal const float CloudBaseMetres = CloudAltitudeMetres;
+
+    private IReadOnlyList<CloudRegionRequest> wantedRegions = [];
+    private readonly HashSet<uint> placedRegions = [];
+
+    /// <summary>
+    /// The fronts' clouds (#9780): each a cloud region where it stands, so a storm on the horizon is
+    /// cloud in the sky's own layer, and the one overhead is the same cloud. They are replaced as the
+    /// fronts move, and lifted underground.
+    /// </summary>
+    internal void CloudRegions(IReadOnlyList<CloudRegionRequest> regions)
+    {
+        if (disposed) return;
+        wantedRegions = regions ?? throw new ArgumentNullException(nameof(regions));
+        PlaceRegions();
+    }
+
+    private void PlaceRegions()
+    {
+        IReadOnlyList<CloudRegionRequest> wanted = underground ? [] : wantedRegions;
+        HashSet<uint> keep = [];
+        foreach (CloudRegionRequest region in wanted)
+        {
+            engine.CameraView.SetCloudRegion(region);
+            keep.Add(region.Id);
+        }
+
+        foreach (uint stale in placedRegions.Where(id => !keep.Contains(id)).ToList()) engine.CameraView.RemoveCloudRegion(new(stale));
+        placedRegions.Clear();
+        placedRegions.UnionWith(keep);
+    }
     /// <summary>
     /// What falls (rusty-engine #9742), by kind at full density: how many drops, how they fall (down,
     /// and along the flow by the wind), their size, a streak's seconds of travel, their colour by
@@ -371,6 +404,7 @@ internal sealed class DayNightSky : IDisposable
         underground = below;
         litDaylight = double.NaN;
         skyShadowAround = null;
+        PlaceRegions();
         Veil();
         Weathered();
         if (!below)
@@ -519,6 +553,8 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
         engine.CameraView.SetClouds(NoClouds);
+        foreach (uint region in placedRegions) engine.CameraView.RemoveCloudRegion(new(region));
+        placedRegions.Clear();
         Falling = NoPrecipitation;
         engine.CameraView.SetPrecipitation(Falling);
         engine.CameraView.SetWetness(new WetnessRequest(0f, 0f));

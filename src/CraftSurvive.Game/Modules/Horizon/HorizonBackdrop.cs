@@ -178,6 +178,12 @@ internal sealed class HorizonBackdrop : IProductModule
         return Readout();
     }
 
+    /// <summary>Weather fronts on the horizon (H2 #9780), drawn while the backdrop is shown.</summary>
+    internal HorizonWeather? Weather { get; set; }
+
+    /// <summary>The fronts' masses for the appearance snapshot while the backdrop is shown.</summary>
+    internal IEnumerable<AppearanceFact> Facts => shown && Weather is not null ? Weather.Facts(Scale) : [];
+
     /// <summary>For comparison captures: off unlinks the backdrop, leaving the far field over the panorama.</summary>
     internal bool Enabled { get; set; } = true;
 
@@ -200,6 +206,8 @@ internal sealed class HorizonBackdrop : IProductModule
         if (released)
         {
             shownChanged?.Invoke(false);
+            Weather?.Update(false);
+            Weather?.UpdateBodies(Scale, false);
             return;
         }
 
@@ -224,6 +232,8 @@ internal sealed class HorizonBackdrop : IProductModule
         continent?.Advance(ChunksPerUpdate);
         Link(inTheWorld() && Enabled ? camera() : null);
         shownChanged?.Invoke(shown);
+        Weather?.Update(shown);
+        Weather?.UpdateBodies(Scale, shown);
     }
 
     private void Link(Camera? view)
@@ -271,7 +281,7 @@ internal sealed class HorizonBackdrop : IProductModule
         + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
             $" continent={continent.ResidentChunks}+{continent.PendingChunks}pending regionColumns={regionCovered.Count}"))
         + string.Create(CultureInfo.InvariantCulture,
-            $" sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
+            $" {Weather?.Readout() ?? "fronts=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
 
     /// <summary>
     /// For aimed captures: the highest ground on the map within <paramref name="kilometres"/> of the player,
@@ -316,6 +326,7 @@ internal sealed class HorizonBackdrop : IProductModule
         }
         foreach (Material material in materials.Values) material.Dispose();
         materials.Clear();
+        Weather?.Dispose();
     }
 
     /// <summary>
