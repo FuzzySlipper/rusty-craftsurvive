@@ -207,9 +207,27 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     uses the kilometre tier.
   - **Link.** It is linked to the first-person camera alone, anchored at the world's origin in the
     walking session, so a rebase needs no call and the map screen never shows it. A dungeon unlinks it.
-  - **Join.** It is sunk 60 m within the far field's reach (the view distance option), rising to its
-    true height over 384 m past it, so the 8 m far field covers the near range. The sunk zone follows
-    the player every 256 m.
+  - **Join.** It is sunk 60 m about the player, so the 8 m far field covers the near range.
+    - The sink eases out (`HorizonSink`) inside the radius the far field always covers: its reach
+      less one far chunk and the 256 m follow step.
+    - The sunk zone follows the player every 256 m. Every point a move changes is under the far
+      field at the time, so ground the player can see never moves.
+    - A walk of 1 km crossing four moves measured 0.000 m of exposed change
+      (`craft.horizon.readout` `exposedChange`).
+  - **Memory.** Measured with `craft.horizon.hold 0|1`, from the scene's mesh memory:
+
+    | Map | Meshes | CPU geometry | GPU |
+    | --- | --- | --- | --- |
+    | 8 km | 480 | 6.1 MB | 13.0 MB |
+    | 390 km continent | 1,516 | 19.3 MB | 41.4 MB |
+
+    - Voxel payloads add at most 32 KB a chunk (16 MB and 60 MB), plus a 3 KB sampled column each
+      on the product's side.
+    - Resident memory does not fall on release, since the allocator keeps it.
+    - The horizon keeps its own sessions rather than sharing the map view's. The map view
+      exaggerates heights and draws textured ground. It is built only once the map screen is
+      opened in faceted relief, then kept. The horizon needs true heights and flat colours, and
+      must stand in first person from the start.
   - **Fog.** While it is shown, the open fog is exponential (0.0005 per metre, thickened by weather)
     instead of exponential squared, since the land now runs on past the far field.
   - **Cost.** A 10 km map streams 847 chunks in about 330 ms of work, a budget a frame. The backdrop

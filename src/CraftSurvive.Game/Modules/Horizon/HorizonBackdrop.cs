@@ -35,12 +35,6 @@ internal sealed class HorizonBackdrop : IProductModule
     private const int EdgeLength = MapVoxelLayer.EdgeLength;
     private const double CellChunkMetres = EdgeLength * CellMetres;
     private const double ContinentChunkMetres = EdgeLength * ContinentCellMetres;
-    /// <summary>The backdrop's ground is this far below the true ground within the far field's reach: below the far field's own error.</summary>
-    private const double SinkMetres = 60;
-    /// <summary>Past the far field's edge the backdrop rises back to its true height over this far.</summary>
-    private const double RiseMetres = 384;
-    /// <summary>The sunk zone moves onto the player once they have walked this far from its centre.</summary>
-    private const double SinkFollowMetres = 256;
     /// <summary>How many backdrop chunks each tier admits or replaces an update.</summary>
     private const int ChunksPerUpdate = 8;
     /// <summary>Chunks farther than these from the backdrop camera, in metres, are drawn from coarse meshes.</summary>
@@ -67,9 +61,11 @@ internal sealed class HorizonBackdrop : IProductModule
     private readonly Action<bool>? shownChanged;
     private readonly Dictionary<uint, Material> materials = [];
     /// <summary>The 32 m tier: the whole of an ordinary map, or a continent's region window.</summary>
-    private readonly MapVoxelLayer cells;
+    private MapVoxelLayer cells = null!;
     /// <summary>A continent's kilometre tier; null on an ordinary map.</summary>
-    private readonly MapVoxelLayer? continent;
+    private MapVoxelLayer? continent;
+    /// <summary>For measuring what the horizon holds: its sessions disposed until rebuilt.</summary>
+    private bool released;
     private readonly MapRegions? regions;
     private readonly HashSet<(long X, long Z)> regionCovered = [];
     private readonly long firstCellChunk, lastCellChunk;
@@ -104,20 +100,8 @@ internal sealed class HorizonBackdrop : IProductModule
             materials[RiverSlot] = Flat(MapPalette.River);
             materials[RockSlot] = Flat(MapPalette.Stone);
             foreach (MapBiome biome in Enum.GetValues<MapBiome>()) materials[Slot(biome)] = Flat(MapPalette.For(biome));
-            cells = new MapVoxelLayer(engine, CellMetres / Scale, SampleCells, materials,
-                coarseBeyond: CellCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop);
-            if (map.Scale.Continental)
-            {
-                regions = MapRegions.For(map);
-                continent = new MapVoxelLayer(engine, ContinentCellMetres / Scale, SampleContinent, materials,
-                    coarseBeyond: ContinentCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop);
-                long first = (long)Math.Floor(-map.Radius / ContinentChunkMetres), last = (long)Math.Floor((map.Radius - 1) / ContinentChunkMetres);
-                continent.Want(from z in Range(first, last) from x in Range(first, last) select (x, z));
-            }
-            else
-            {
-                cells.Want(from z in Range(firstCellChunk, lastCellChunk) from x in Range(firstCellChunk, lastCellChunk) select (x, z));
-            }
+            if (map.Scale.Continental) regions = MapRegions.For(map);
+            BuildTiers();
         }
         catch
         {
@@ -150,6 +134,50 @@ internal sealed class HorizonBackdrop : IProductModule
         return from z in Range(first, last) from x in Range(first, last) select (x, z);
     }
 
+    /// <summary>Creates the tiers' sessions and asks for the ground they stream.</summary>
+    private void BuildTiers()
+    {
+        cells = new MapVoxelLayer(engine, CellMetres / Scale, SampleCells, materials,
+            coarseBeyond: CellCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop);
+        if (map.Scale.Continental)
+        {
+            continent = new MapVoxelLayer(engine, ContinentCellMetres / Scale, SampleContinent, materials,
+                coarseBeyond: ContinentCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop);
+            continent.Want(AllColumns(ContinentChunkMetres));
+        }
+        else
+        {
+            cells.Want(from z in Range(firstCellChunk, lastCellChunk) from x in Range(firstCellChunk, lastCellChunk) select (x, z));
+        }
+
+        regionCovered.Clear();
+        regionMinimum = regionMaximum = default;
+        sinkCentre = (double.NaN, double.NaN);
+    }
+
+    /// <summary>
+    /// For measuring what the horizon holds (R9779-1): disposes its sessions (the voxels, meshes and
+    /// presentations) and unlinks it, or builds them again. The difference in the host's memory is
+    /// the horizon's cost.
+    /// </summary>
+    internal string Hold(bool held)
+    {
+        if (held == !released) return Readout();
+        if (!held)
+        {
+            Link(null);
+            cells.Dispose();
+            continent?.Dispose();
+            continent = null;
+            released = true;
+            return "horizon released";
+        }
+
+        released = false;
+        BuildTiers();
+        return Readout();
+    }
+
     /// <summary>For comparison captures: off unlinks the backdrop, leaving the far field over the panorama.</summary>
     internal bool Enabled { get; set; } = true;
 
@@ -169,12 +197,19 @@ internal sealed class HorizonBackdrop : IProductModule
     /// </summary>
     private void Follow()
     {
+        if (released)
+        {
+            shownChanged?.Invoke(false);
+            return;
+        }
+
         Vector3 at = playerWorld();
         double reachNow = reach();
         CoverRegion(at);
         if (reachNow != reachMetres || double.IsNaN(sinkCentre.X)
-            || Math.Max(Math.Abs(at.X - sinkCentre.X), Math.Abs(at.Z - sinkCentre.Z)) >= SinkFollowMetres)
+            || Math.Max(Math.Abs(at.X - sinkCentre.X), Math.Abs(at.Z - sinkCentre.Z)) >= HorizonSink.FollowMetres)
         {
+            if (!double.IsNaN(sinkCentre.X) && reachNow == reachMetres) MeasureExposedChange(sinkCentre, (at.X, at.Z));
             HashSet<(long X, long Z)> cellsChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(CellChunkMetres)];
             HashSet<(long X, long Z)> continentChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(ContinentChunkMetres)];
             sinkCentre = (at.X, at.Z);
@@ -208,12 +243,35 @@ internal sealed class HorizonBackdrop : IProductModule
         linkChanges++;
     }
 
+    private int sinkMoves;
+    private double exposedChange;
+
+    /// <summary>
+    /// The live check of R9779-2: when the sunk zone moves, the largest change in sink over ground
+    /// beyond the far field's reach about the player (which they can see). It should stay zero.
+    /// </summary>
+    private void MeasureExposedChange((double X, double Z) from, (double X, double Z) to)
+    {
+        const double StepMetres = 32;
+        double extent = reachMetres + HorizonSink.FollowMetres + FarField.ChunkMetres;
+        for (double z = to.Z - extent; z <= to.Z + extent; z += StepMetres)
+        for (double x = to.X - extent; x <= to.X + extent; x += StepMetres)
+        {
+            if (Math.Max(Math.Abs(x - to.X), Math.Abs(z - to.Z)) <= reachMetres) continue;
+            double before = HorizonSink.At(Math.Max(Math.Abs(x - from.X), Math.Abs(z - from.Z)), reachMetres, FarField.ChunkMetres);
+            double after = HorizonSink.At(Math.Max(Math.Abs(x - to.X), Math.Abs(z - to.Z)), reachMetres, FarField.ChunkMetres);
+            exposedChange = Math.Max(exposedChange, Math.Abs(after - before));
+        }
+
+        sinkMoves++;
+    }
+
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"horizon shown={shown} scale={Scale:F0}m cells={cells.ResidentChunks}+{cells.PendingChunks}pending")
         + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
             $" continent={continent.ResidentChunks}+{continent.PendingChunks}pending regionColumns={regionCovered.Count}"))
         + string.Create(CultureInfo.InvariantCulture,
-            $" settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
+            $" sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
 
     /// <summary>
     /// For aimed captures: the highest ground on the map within <paramref name="kilometres"/> of the player,
@@ -251,8 +309,11 @@ internal sealed class HorizonBackdrop : IProductModule
             shown = false;
         }
 
-        cells?.Dispose();
-        continent?.Dispose();
+        if (!released)
+        {
+            cells?.Dispose();
+            continent?.Dispose();
+        }
         foreach (Material material in materials.Values) material.Dispose();
         materials.Clear();
     }
@@ -365,19 +426,18 @@ internal sealed class HorizonBackdrop : IProductModule
                select (cx, cz);
     }
 
-    /// <summary>How far the backdrop is sunk at a world point: fully within the far field's reach, rising past it.</summary>
+    /// <summary>How far the backdrop is sunk at a world point: fully near the player, easing out inside what the far field always covers.</summary>
     private double Sink(double worldX, double worldZ)
     {
         if (double.IsNaN(sinkCentre.X)) return 0;
         double away = Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z));
-        double t = Math.Clamp((away - reachMetres) / RiseMetres, 0d, 1d);
-        return SinkMetres * (1d - (t * t * (3d - (2d * t))));
+        return HorizonSink.At(away, reachMetres, FarField.ChunkMetres);
     }
 
     /// <summary>A tier's chunk columns the sunk zone about its centre touches.</summary>
     private IEnumerable<(long X, long Z)> SunkColumns(double chunkMetres)
     {
-        double extent = reachMetres + RiseMetres + SinkFollowMetres;
+        double extent = HorizonSink.CoveredMetres(reachMetres, FarField.ChunkMetres);
         long minX = (long)Math.Floor((sinkCentre.X - extent) / chunkMetres), maxX = (long)Math.Floor((sinkCentre.X + extent) / chunkMetres);
         long minZ = (long)Math.Floor((sinkCentre.Z - extent) / chunkMetres), maxZ = (long)Math.Floor((sinkCentre.Z + extent) / chunkMetres);
         for (long z = minZ; z <= maxZ; z++)

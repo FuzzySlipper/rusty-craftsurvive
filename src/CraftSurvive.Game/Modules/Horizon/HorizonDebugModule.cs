@@ -26,6 +26,9 @@ public sealed class HorizonDebugModule : IDebugCommandModule
     [DebugCommand("craft.horizon.exaggerate", Description = "Captures only: multiplies the horizon's heights above the player's ground (1 to 20; 1 is true scale) so a gentle map's ranges read beside the map view.")]
     public string Exaggerate(double factor) => horizon().Exaggerate(factor);
 
+    [DebugCommand("craft.horizon.hold", Description = "Measuring only: 0 releases the horizon's sessions (voxels, meshes, presentations), 1 builds them again; the host's memory difference is its cost.")]
+    public string Hold(long held) => horizon().Hold(held != 0);
+
     [DebugCommand("craft.horizon.show", Description = "Assisted: shows (1) or hides (0) the horizon backdrop, for comparison captures.")]
     public string Show(long shown)
     {
