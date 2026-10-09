@@ -64,6 +64,27 @@ internal static class PropMesh
             colors.ToArray(), indices.ToArray(), groups.ToArray(), bindings.ToArray());
     }
 
+    /// <summary>The bounds of a prop mesh's parts of one role, in its own metres, or null when it has none.</summary>
+    internal static (Vector3 Min, Vector3 Max)? RoleBounds(ProductContent content, string path, string role)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        using JsonDocument document = JsonDocument.Parse(content.ReadText(path));
+        Vector3 min = new(float.PositiveInfinity), max = new(float.NegativeInfinity);
+        foreach (JsonElement part in document.RootElement.GetProperty("parts").EnumerateArray())
+        {
+            if (part.GetProperty("role").GetString() != role) continue;
+            float[] p = Floats(part, "positions");
+            for (int i = 0; i + 2 < p.Length; i += 3)
+            {
+                Vector3 at = new(p[i], p[i + 1], p[i + 2]);
+                min = Vector3.Min(min, at);
+                max = Vector3.Max(max, at);
+            }
+        }
+
+        return min.X <= max.X ? (min, max) : null;
+    }
+
     private static float[] Floats(JsonElement part, string name) =>
         [.. part.GetProperty(name).EnumerateArray().Select(value => value.GetSingle())];
 }

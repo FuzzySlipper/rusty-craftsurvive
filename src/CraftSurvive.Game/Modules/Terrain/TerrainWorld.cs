@@ -313,16 +313,19 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>
-    /// Whether anything solid stands over a point within <paramref name="reach"/> metres (#9741): a
-    /// built roof, an overhang, a cave's ceiling. The point is in the Engine's local frame.
+    /// Whether anything stands over a point within <paramref name="reach"/> metres (#9741): a built
+    /// roof, an overhang, a cave's ceiling, or a standing tree's crown. The Engine casts straight up
+    /// through the session and the crowns over the point. The point is in the Engine's local frame.
     /// </summary>
     internal bool CoveredAbove(Vector3 local, double reach)
     {
         if (session is null) return false;
+        SpatialEntityCollider[] crowns = [.. trees.Canopies.ToArray().Where(crown =>
+            local.X >= crown.Min.X && local.X <= crown.Max.X && local.Z >= crown.Min.Z && local.Z <= crown.Max.Z)];
         SpatialHit hit = engine.Spatial.CastRay(new SpatialRaycastRequest(
             session, local, Vector3.UnitY, reach,
             new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
-            ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty,
+            crowns, ReadOnlyMemory<ulong>.Empty,
             ReadOnlyMemory<SpatialEntityCollider>.Empty));
         return hit.Present;
     }

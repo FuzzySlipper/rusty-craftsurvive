@@ -86,33 +86,16 @@ public sealed partial class CraftSurviveProduct
             $"{party!.Last} At least {rations} ration{(rations == 1 ? "" : "s")} (carrying {inventory.Count(ItemCatalog.Ration) + (sledWithParty ? sled.Sled.Count(ItemCatalog.Ration) : 0)}); danger {danger}; {(sledWithParty ? "hauling the sled" : "the sled stays behind")}. {WeatherOnRoute(route)} Set out to confirm.");
     }
 
-    /// <summary>The route is checked against the forecast at about this many places along it.</summary>
-    private const int RouteForecastSamples = 48;
-    private const double RouteForecastCover = 0.3;
-
     /// <summary>
-    /// The forecast along a route (#9739): each front the party would meet, and about when, reading
-    /// the weather where the party would be at the hour it would get there (daylight pace, no weather
-    /// delays), so the player can wait, detour or prepare.
+    /// The forecast along a route (#9739): each front the party would meet, and about when, reading the
+    /// weather where the party would be at the hour it would get there - rehearsing the march at the
+    /// pace it will really keep (night, fatigue, load, weather) - so the player can wait, detour or prepare.
     /// </summary>
     private string WeatherOnRoute(TravelRoute route)
     {
-        double now = weather.Hours, total = route.Hours;
-        List<(WeatherFront Front, double After)> met = [];
-        double along = 0;
-        int leg = 0;
-        for (int sample = 0; sample <= RouteForecastSamples; sample++)
-        {
-            double target = total * sample / RouteForecastSamples;
-            while (leg < route.LegHours.Length - 1 && along + route.LegHours[leg] < target) along += route.LegHours[leg++];
-            double t = route.LegHours.Length == 0 || route.LegHours[leg] <= 0 ? 0 : Math.Clamp((target - along) / route.LegHours[leg], 0, 1);
-            Vector2 at = route.LegHours.Length == 0 ? route.Points[0] : Vector2.Lerp(route.Points[leg], route.Points[leg + 1], (float)t);
-            foreach (FrontPresence over in weather.Field.Sample(at.X, at.Y, now + target).Fronts)
-            {
-                if (over.Cover >= RouteForecastCover && met.All(seen => seen.Front.Key != over.Front.Key)) met.Add((over.Front, target));
-            }
-        }
-
+        WorldTime start = conditions.Time;
+        IReadOnlyList<(WeatherFront Front, double After)> met = party is null ? [] : RouteForecast.Encounters(party, weather.Field, weather.Hours,
+            hours => WorldClock.IsNight(WorldClock.Advance(start, hours / PlayHoursPerSecond).DayFraction));
         if (met.Count == 0) return "Clear skies forecast.";
         return "Weather on the way: " + string.Join(", ", met.Select(seen => seen.After < 1
             ? $"{seen.Front.Kind.Name.ToLowerInvariant()} now"

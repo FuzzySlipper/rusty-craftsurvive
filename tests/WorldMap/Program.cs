@@ -136,6 +136,9 @@ try
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 Check.Section("weather", WeatherChecks.Synthetic);
+Check.Section("weather over the player", WeatherChecks.HereFollowsTheClock);
+Check.Section("weather on a route", WeatherChecks.RouteForecastKeepsTheMarchPace);
+Check.Section("weather arrivals", WeatherChecks.EachFrontArrivesOnce);
 return Check.Finish("WorldMap");
 
 partial class Program

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Travel;
 using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
@@ -127,6 +128,92 @@ internal static class WeatherChecks
     }
 
     /// <summary>A census on a generated continent: the kinds that form, where, and that each forms in its climate.</summary>
+    /// <summary>
+    /// The weather over the player follows the clock and the player even when nothing updates it
+    /// (R9738-1): with the map open, travel and camp turn the clock while gameplay updates are skipped.
+    /// </summary>
+    internal static void HereFollowsTheClock()
+    {
+        WeatherField field = new(Seed, WindAngle, ContinentMetres, Peak, Halves);
+        double hours = 8;
+        Vector2 at = new(5_000, 0);
+        WeatherHere here = new(field, () => hours, () => at);
+        WeatherKind fog = WeatherKinds.All.First(kind => kind.Id == "fog");
+        WeatherFront bank = field.Summon(fog, at.X, at.Y, hours);
+        EnvironmentSample during = here.Fresh();
+        Check.That(during.Fronts.Any(front => front.Front == bank), "a summoned fog bank stands over the player");
+
+        // The clock runs past the bank's life, with no update in between.
+        hours += fog.LifeHours * 2;
+        EnvironmentSample after = here.Current;
+        EnvironmentSample truth = field.Sample(at.X, at.Y, hours);
+        Check.That(after.Describe() == truth.Describe() && after.Fronts.Count == truth.Fronts.Count,
+            $"read later, the weather is the field's at the time it is read ({after.Describe()} vs {truth.Describe()})");
+        Check.That(!after.Fronts.Any(front => front.Front == bank), "the expired fog bank no longer stands over the player");
+
+        // The player moves far, again with no update.
+        at = new Vector2(-60_000, 20_000);
+        EnvironmentSample moved = here.Current;
+        EnvironmentSample there = field.Sample(at.X, at.Y, hours);
+        Check.That(moved.Describe() == there.Describe() && moved.Fronts.Count == there.Fronts.Count, "read after a move, the weather is the new place's");
+    }
+
+    /// <summary>
+    /// The route forecast rehearses the march at its real pace (R9739-1): a front that arrives after
+    /// the route's daylight duration, but before a night march gets in, is named, and when.
+    /// </summary>
+    internal static void RouteForecastKeepsTheMarchPace()
+    {
+        WeatherField field = new(Seed, WindAngle, ContinentMetres, Peak, Halves);
+        const double Start = 22;
+        Vector2 at = new(5_000, 0);
+        WeatherKind rain = WeatherKinds.All.First(kind => kind.Id == "rain");
+        Vector2 flow = field.Flow(at.X, at.Y);
+        Vector2 upwind = at - (flow * 30_000);
+        WeatherFront front = field.Summon(rain, upwind.X, upwind.Y, Start);
+        double reaches = double.NaN;
+        for (double later = 0; later < 48; later += 0.05)
+        {
+            if (front.Cover(at.X, at.Y, Start + later) >= RouteForecast.CoverMet) { reaches = later; break; }
+        }
+
+        Check.That(double.IsFinite(reaches) && reaches > 1, $"the rain front reaches the party later ({reaches:F2} h)");
+        // A metre's route that takes half that by daylight, and three times as long by night.
+        double daylight = reaches / 2;
+        TravelRoute route = new("the far side", [at, at + Vector2.UnitX], [daylight]);
+        PartyTravel party = PartyTravel.Rehearsing(route, 0, 1);
+        Check.That(front.Cover(at.X, at.Y, Start + daylight) < RouteForecast.CoverMet, "by the daylight duration the front has not arrived");
+        IReadOnlyList<(WeatherFront Front, double After)> met = RouteForecast.Encounters(party, field, Start, _ => true);
+        (WeatherFront Front, double After) seen = met.FirstOrDefault(m => m.Front == front);
+        Check.That(seen.Front == front, "the night march meets the front the daylight estimate missed");
+        Check.That(Math.Abs(seen.After - reaches) < 0.3, $"and names when ({seen.After:F2} h, the front reaches the party at {reaches:F2} h)");
+        Check.That(party.State == TravelState.Travelling && party.Position == at, "the forecast moves no party");
+    }
+
+    /// <summary>
+    /// Each arriving front is announced once (R9739-2): a weaker harmful front arriving under a stronger
+    /// announced one is offered its own choice, and dominance swapping between announced fronts offers nothing.
+    /// </summary>
+    internal static void EachFrontArrivesOnce()
+    {
+        WeatherField field = new(Seed, WindAngle, ContinentMetres, Peak, Halves);
+        WeatherFront rain = field.Summon(WeatherKinds.All.First(kind => kind.Id == "rain"), 5_000, 0, 10);
+        WeatherFront glass = field.Summon(WeatherKinds.All.First(kind => kind.Id == "glass"), 5_000, 0, 10);
+        static EnvironmentSample Over(params FrontPresence[] fronts) =>
+            new(EnvironmentChannels.Clear, EnvironmentEffects.Neutral, [.. fronts.OrderByDescending(f => f.Cover)]);
+        FrontArrivals arrivals = new();
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.9))) == rain, "rain arrives");
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.9))) is null, "and is not announced again while it covers the party");
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.9), new FrontPresence(glass, 0.6))) == glass, "a weaker glass storm arriving under the rain is announced");
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.5), new FrontPresence(glass, 0.95))) is null, "the glass storm becoming the strongest announces nothing");
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.95), new FrontPresence(glass, 0.4))) is null, "nor does the rain becoming the strongest again");
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.05), new FrontPresence(glass, 0.4))) is null, "the rain passes");
+        Check.That(arrivals.Arrived(Over(new FrontPresence(rain, 0.6), new FrontPresence(glass, 0.4))) == rain, "and is announced when it returns");
+        FrontArrivals both = new();
+        Check.That(both.Arrived(Over(new FrontPresence(rain, 0.9), new FrontPresence(glass, 0.5))) == glass, "of two arriving at once, the harmful one comes first");
+        Check.That(both.Arrived(Over(new FrontPresence(rain, 0.9), new FrontPresence(glass, 0.5))) == rain, "and the other on the next sample");
+    }
+
     internal static void Continent(WorldMap map)
     {
         WeatherField field = WeatherField.For(map);

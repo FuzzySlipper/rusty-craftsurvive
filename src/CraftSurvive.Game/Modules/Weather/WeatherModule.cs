@@ -15,8 +15,6 @@ namespace CraftSurvive.Game.Modules.Weather;
 /// </summary>
 internal sealed class WeatherModule : IProductModule
 {
-    /// <summary>The player's weather is worked out again after this much game time or this far walked.</summary>
-    private const double RefreshHours = 1.0 / 60, RefreshMetres = 25;
     private const double HoursPerDay = 24;
     /// <summary>How far around the player fronts are listed, and how far ahead the forecast looks, by default.</summary>
     internal const double DefaultListKilometres = 120, DefaultForecastHours = 48;
@@ -37,8 +35,7 @@ internal sealed class WeatherModule : IProductModule
     private readonly Func<bool> inTheOpen;
     private readonly Func<bool> covered;
     private readonly DayNightSky sky;
-    private double sampledHours = double.NegativeInfinity;
-    private Vector2 sampledAt;
+    private readonly WeatherHere here;
     private double lookedHours = double.NaN;
 
     /// <param name="inTheOpen">Whether the player is under the open sky: not in a dungeon, not under water.</param>
@@ -52,12 +49,17 @@ internal sealed class WeatherModule : IProductModule
         this.clock = clock ?? throw new ArgumentNullException(nameof(clock));
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
         this.inTheOpen = inTheOpen ?? throw new ArgumentNullException(nameof(inTheOpen));
+        here = new WeatherHere(Field, () => Hours, () =>
+        {
+            Vector3 at = playerWorld();
+            return new Vector2(at.X, at.Z);
+        });
     }
 
     internal WeatherField Field { get; }
 
-    /// <summary>The weather over the player as of the last refresh.</summary>
-    internal EnvironmentSample Here { get; private set; } = EnvironmentSample.Clear;
+    /// <summary>The weather over the player now: sampled again on reading once the clock or the player has moved.</summary>
+    internal EnvironmentSample Here => here.Current;
 
     /// <summary>
     /// What the weather over the player does to them (#9741): its wetting, chill and harm, and whether
@@ -72,20 +74,19 @@ internal sealed class WeatherModule : IProductModule
 
     public void Start()
     {
-        Refresh(force: true);
+        here.Fresh();
         Present();
     }
 
     public void Update(ProductStep step)
     {
-        Refresh(force: false);
         Present();
     }
 
     public void Restart()
     {
         lookedHours = double.NaN;
-        Refresh(force: true);
+        here.Fresh();
         Present();
     }
 
@@ -102,7 +103,9 @@ internal sealed class WeatherModule : IProductModule
     {
         bool open = inTheOpen();
         EnvironmentEffects effects = Here.Effects;
-        Exposure = new WeatherExposure(effects.Wetting, effects.Chill, effects.Harm, !open || (Here.Fronts.Count > 0 && covered()));
+        // Shelter is the cover overhead, whatever the sky: a wet player under a roof dries as one under
+        // cover after the rain has passed, not as one in the open.
+        Exposure = new WeatherExposure(effects.Wetting, effects.Chill, effects.Harm, !open || covered());
         double hours = Hours;
         Vector3 at = playerWorld();
         WeatherLook target = WeatherLook.From(Here, Field.Flow(at.X, at.Z));
@@ -117,30 +120,21 @@ internal sealed class WeatherModule : IProductModule
         lookedHours = hours;
     }
 
-    private void Refresh(bool force)
-    {
-        double hours = Hours;
-        Vector3 at = playerWorld();
-        Vector2 here = new(at.X, at.Z);
-        if (!force && Math.Abs(hours - sampledHours) < RefreshHours && Vector2.Distance(here, sampledAt) < RefreshMetres) return;
-        Here = Field.Sample(here.X, here.Y, hours);
-        sampledHours = hours;
-        sampledAt = here;
-    }
-
     internal string Readout()
     {
         Vector3 at = playerWorld();
-        EnvironmentChannels c = Here.Channels;
-        EnvironmentEffects e = Here.Effects;
+        // Exactly the weather of the time and place it is labelled with, even when updates were skipped.
+        EnvironmentSample now = here.Fresh();
+        EnvironmentChannels c = now.Channels;
+        EnvironmentEffects e = now.Effects;
         return string.Create(CultureInfo.InvariantCulture,
-            $"weather={Here.Describe()} hours={Hours:F2} at={at.X:F0},{at.Z:F0} flow={Heading(Field.Flow(at.X, at.Z))} ")
+            $"weather={now.Describe()} hours={Hours:F2} at={at.X:F0},{at.Z:F0} flow={Heading(Field.Flow(at.X, at.Z))} ")
             + string.Create(CultureInfo.InvariantCulture,
             $"precipitation={c.Precipitation:F2} cloud={c.Cloud:F2} wind={c.Wind:F2} cold={c.Cold:F2} murk={c.Murk:F2} arcane={c.Arcane:F2} ")
             + string.Create(CultureInfo.InvariantCulture,
             $"travelCost={e.TravelCost:F2} supplyUse={e.SupplyUse:F2} eventRisk={e.EventRisk:F2} wetting={e.Wetting:F2}/h chill={e.Chill:F2}/h harm={e.Harm:F2}/h sight={e.Sight:F2} ")
-            + $"sheltered={Exposure.Sheltered} fronts={Here.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
-            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2}");
+            + $"sheltered={Exposure.Sheltered} fronts={now.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
+            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2} falling={sky.Falling.Drops} underWater={sky.ViewSubmerged}");
     }
 
     /// <summary>The fronts within reach of the player: where, which way they go, how strong, and when they would arrive.</summary>
@@ -186,14 +180,14 @@ internal sealed class WeatherModule : IProductModule
         Vector3 at = playerWorld();
         Vector2 back = Field.Flow(at.X, at.Z) * (float)(upwindKilometres * MetresPerKilometre);
         WeatherFront front = Field.Summon(kind, at.X - back.X, at.Z - back.Y, Hours);
-        Refresh(force: true);
+        here.Fresh();
         return string.Create(CultureInfo.InvariantCulture, $"summoned {kind.Name} {upwindKilometres:F1}km upwind, radius {front.RadiusMetres / MetresPerKilometre:F1}km; {Readout()}");
     }
 
     internal string ClearSummoned()
     {
         int cleared = Field.ClearSummoned();
-        Refresh(force: true);
+        here.Fresh();
         return $"cleared {cleared} summoned front(s); {Readout()}";
     }
 

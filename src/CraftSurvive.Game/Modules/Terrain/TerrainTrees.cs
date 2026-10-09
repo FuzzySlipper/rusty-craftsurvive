@@ -67,6 +67,9 @@ internal sealed class TerrainTrees : IDisposable
     private readonly List<MeshResource> meshes = [];
     private readonly Dictionary<TreeKind, Appearance[]> kinds = [];
     private readonly Dictionary<TreeKind, Appearance[]> farKinds = [];
+    /// <summary>Each near variant's leaves, as a box in the mesh's metres (null: a variant without leaves).</summary>
+    private readonly Dictionary<TreeKind, (Vector3 Min, Vector3 Max)?[]> crowns = [];
+    private SpatialEntityCollider[] canopies = [];
     /// <summary>The far band's decisions by anchor cell (null: the cell owns no tree), and which of its trees stand.</summary>
     private readonly Dictionary<(long X, long Z), TerrainTree?> farCells = [];
     private readonly Dictionary<(long X, long Z), bool> farStands = [];
@@ -121,6 +124,7 @@ internal sealed class TerrainTrees : IDisposable
             {
                 TreeKind id = Enum.Parse<TreeKind>(kind.Name, ignoreCase: true);
                 kinds[id] = [.. kind.Value.EnumerateArray().Select(name => Load(content, name.GetString()!))];
+                crowns[id] = [.. kind.Value.EnumerateArray().Select(name => PropMesh.RoleBounds(content, MeshFolder + name.GetString()! + PropMesh.Suffix, LeavesRole))];
             }
 
             foreach (JsonProperty kind in manifest.RootElement.GetProperty("far").EnumerateObject())
@@ -145,6 +149,17 @@ internal sealed class TerrainTrees : IDisposable
             throw;
         }
     }
+
+    /// <summary>
+    /// The crowns of the near standing trees as Engine colliders in the local frame (#9741): what a
+    /// query for cover overhead adds, so standing under leaves is shelter. Each is the leaves' box,
+    /// turned with the tree and narrowed to <see cref="CanopyShelterShare"/> of its spread, since a
+    /// crown's edge is thin. Only for queries: nothing collides with leaves.
+    /// </summary>
+    internal ReadOnlyMemory<SpatialEntityCollider> Canopies => canopies;
+
+    /// <summary>The share of a crown's spread that shelters: its thin edge does not.</summary>
+    private const float CanopyShelterShare = 0.8f;
 
     /// <summary>The drawn trees, for the appearance snapshot.</summary>
     internal AppearanceFact[] Facts => facts;
@@ -187,6 +202,7 @@ internal sealed class TerrainTrees : IDisposable
         nearDrawn.Clear();
         recipe.TreesIn(center.X - DrawMetres, center.Z - DrawMetres, center.X + DrawMetres, center.Z + DrawMetres, candidates);
         List<AppearanceFact> drawn = new(candidates.Count);
+        List<SpatialEntityCollider> crowned = new(candidates.Count);
         foreach (TerrainTree tree in candidates)
         {
             VoxelAddress core = new(tree.X, tree.GroundY, tree.Z);
@@ -196,10 +212,13 @@ internal sealed class TerrainTrees : IDisposable
             }
 
             nearDrawn.Add((tree.X, tree.Z));
-            drawn.Add(Place(tree, recipe, kinds, Sink, drawn.Count));
+            AppearanceFact placed = Place(tree, recipe, kinds, Sink, drawn.Count);
+            drawn.Add(placed);
+            if (Crown(tree, placed) is SpatialEntityCollider crown) crowned.Add(crown);
         }
 
         nearFacts = [.. drawn];
+        canopies = [.. crowned];
     }
 
     /// <summary>
@@ -301,8 +320,32 @@ internal sealed class TerrainTrees : IDisposable
         return new(ProductIds.TreeObjectBase + (ulong)index, false, 0, new(at, turn, Vector3.One * (float)tree.Scale), mesh, true, RenderLayer.Scene);
     }
 
+    /// <summary>A placed tree's crown as a query collider: its leaves' box turned, scaled and moved with the tree.</summary>
+    private SpatialEntityCollider? Crown(TerrainTree tree, AppearanceFact placed)
+    {
+        (Vector3 Min, Vector3 Max)?[] variants = crowns[tree.Kind];
+        if (variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))] is not (Vector3 min, Vector3 max)) return null;
+        Vector3 middle = (min + max) / 2, half = (max - min) / 2 * new Vector3(CanopyShelterShare, 1, CanopyShelterShare);
+        Vector3 low = new(float.PositiveInfinity), high = new(float.NegativeInfinity);
+        foreach (float sx in (ReadOnlySpan<float>)[-1, 1])
+        {
+            foreach (float sz in (ReadOnlySpan<float>)[-1, 1])
+            {
+                foreach (float sy in (ReadOnlySpan<float>)[-1, 1])
+                {
+                    Vector3 corner = Vector3.Transform((middle + (half * new Vector3(sx, sy, sz))) * placed.Transform.Scale, placed.Transform.Rotation) + placed.Transform.Translation;
+                    low = Vector3.Min(low, corner);
+                    high = Vector3.Max(high, corner);
+                }
+            }
+        }
+
+        return new SpatialEntityCollider(placed.ObjectId, low, high, TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll,
+            Enabled: true, StaticCollider: true, Trigger: false);
+    }
+
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"trees drawn={facts.Length} near={nearFacts.Length} far={farCount} farCells={farCells.Count} farPending={farPending} candidates={candidates.Count} meshes={meshes.Count}");
+        $"trees drawn={facts.Length} near={nearFacts.Length} canopies={canopies.Length} far={farCount} farCells={farCells.Count} farPending={farPending} candidates={candidates.Count} meshes={meshes.Count}");
 
     public void Dispose()
     {

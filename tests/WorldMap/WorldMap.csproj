@@ -31,5 +31,15 @@
     <Compile Include="$(ProductModules)Weather/WeatherKinds.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Weather/WeatherFront.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Weather/WeatherField.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/WeatherHere.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/RouteForecast.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Weather/FrontArrivals.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Travel/PartyTravel.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Travel/TravelCostModel.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Travel/TravelCalendar.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
+    <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product" />
   </ItemGroup>
 </Project>

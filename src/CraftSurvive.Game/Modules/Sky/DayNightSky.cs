@@ -249,7 +249,8 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>The precipitation for the weather: its kind and density, blown along the flow, dimmed by night.</summary>
     private PrecipitationRequest Precipitation(WeatherLook w)
     {
-        if (underground || w.Fall == WeatherFall.None || w.FallDensity <= 0f) return NoPrecipitation;
+        // Nothing falls under ground or under water: the eyes see the murk, not the weather above it.
+        if (underground || submerged || w.Fall == WeatherFall.None || w.FallDensity <= 0f) return NoPrecipitation;
         Vector3 along = new(w.Flow.X, 0f, w.Flow.Y);
         float wind = DriftCalm + w.Wind;
         float light = NightPrecipitation + ((1f - NightPrecipitation) * shownDaylight);
@@ -375,6 +376,8 @@ internal sealed class DayNightSky : IDisposable
         submerged = below;
         litDaylight = double.NaN;
         Veil();
+        // Precipitation stops at once under water and resumes on surfacing.
+        Weathered();
     }
 
     /// <summary>Whether the view is under water.</summary>
@@ -394,6 +397,9 @@ internal sealed class DayNightSky : IDisposable
     }
 
     internal WeatherLook Look => weather;
+
+    /// <summary>The precipitation last given the Engine: none under ground or under water.</summary>
+    internal PrecipitationRequest Falling { get; private set; } = NoPrecipitation;
 
     /// <summary>The grade, wind and cloud layer for the weather: the base values in the open, the base alone underground.</summary>
     private void Weathered()
@@ -416,7 +422,8 @@ internal sealed class DayNightSky : IDisposable
             ? new CloudsRequest(Math.Min(1f, CloudCoverageFloor + (CloudCoverageSpan * cover)), flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)),
                 CloudAltitudeMetres, CloudScaleMetres, tint)
             : NoClouds);
-        engine.CameraView.SetPrecipitation(Precipitation(w));
+        Falling = Precipitation(w);
+        engine.CameraView.SetPrecipitation(Falling);
         ArcaneVeil(w);
     }
 
@@ -468,7 +475,8 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
         engine.CameraView.SetClouds(NoClouds);
-        engine.CameraView.SetPrecipitation(NoPrecipitation);
+        Falling = NoPrecipitation;
+        engine.CameraView.SetPrecipitation(Falling);
         engine.CameraView.SetWetness(new WetnessRequest(0f, 0f));
         engine.CameraView.SetImageEffect(default);
         veil?.Dispose();

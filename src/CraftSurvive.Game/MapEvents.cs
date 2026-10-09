@@ -30,15 +30,14 @@ public sealed partial class CraftSurviveProduct
 
     /// <summary>
     /// Roll for the hours the party just travelled; an event stops the journey for a choice. A front
-    /// reaching the party is not rolled (#9739): it stops the journey once, when it first covers it.
+    /// reaching the party is not rolled (#9739): each front stops the journey once, when it first covers it.
     /// </summary>
     private void RollTravelEvent(double hours, EnvironmentSample sky)
     {
         if (party is not { State: TravelState.Travelling } || pendingEvent is not null) return;
-        if (sky.Dominant is { Cover: >= WeatherArrivalCover } top && top.Front.Key != announcedFront)
+        if (frontArrivals.Arrived(sky) is WeatherFront arrived)
         {
-            announcedFront = top.Front.Key;
-            RaiseWeather(top.Front);
+            RaiseWeather(arrived);
             return;
         }
 
@@ -51,12 +50,8 @@ public sealed partial class CraftSurviveProduct
         if (TravelEventRolls.Roll(hours, facts) is TravelEventKind kind) Raise(kind, biome, river);
     }
 
-    /// <summary>A front stops the journey when it covers the party at least this strongly.</summary>
-    private const double WeatherArrivalCover = 0.3;
-    /// <summary>A front has passed once it covers the party less than this.</summary>
-    private const double WeatherPassedCover = 0.1;
-    /// <summary>The front last announced, so each stops the journey once; and how long sheltering from it takes.</summary>
-    private FrontKey? announcedFront;
+    /// <summary>The fronts already announced to the party, so each stops the journey once; and how long sheltering from the last takes.</summary>
+    private readonly FrontArrivals frontArrivals = new();
     private double shelterHours;
 
     /// <summary>A front reaches the party: the journey pauses, offering to camp until it passes or to press on.</summary>
@@ -64,7 +59,7 @@ public sealed partial class CraftSurviveProduct
     {
         if (party is null) return;
         double now = weather.Hours, passed = now;
-        while (passed < front.EndHours && front.Cover(party.Position.X, party.Position.Y, passed) >= WeatherPassedCover) passed += 1;
+        while (passed < front.EndHours && front.Cover(party.Position.X, party.Position.Y, passed) >= FrontArrivals.PassedCover) passed += 1;
         shelterHours = Math.Max(1, Math.Min(passed - now, TravelEvents.LongestShelterHours));
         party.Pause();
         pendingEvent = TravelEvents.Weather(front.Kind.Name, front.Kind.Arrival, passed - now, front.Kind.Effects.Harm > 0);

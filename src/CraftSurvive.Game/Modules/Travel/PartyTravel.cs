@@ -123,6 +123,29 @@ internal sealed class PartyTravel
         return new(route.Destination, points, hours);
     }
 
+    /// <summary>
+    /// A copy of the party already on its way, to walk ahead of time (#9739): the forecast along a route
+    /// rehearses the journey with the same night, fatigue, load and weather costs the march will pay.
+    /// </summary>
+    internal PartyTravel Rehearsal()
+    {
+        PartyTravel copy = Route is null ? new PartyTravel(Position) : Rehearsing(Route, Fatigue, LoadMultiplier);
+        copy.Position = Position;
+        copy.leg = leg;
+        copy.legProgress = legProgress;
+        return copy;
+    }
+
+    /// <summary>A party setting out along a route from its start, as tired and as loaded as given.</summary>
+    internal static PartyTravel Rehearsing(TravelRoute route, double fatigue, double loadMultiplier) =>
+        new(route.Points[0])
+        {
+            Route = route,
+            State = TravelState.Travelling,
+            Fatigue = fatigue,
+            LoadMultiplier = loadMultiplier,
+        };
+
     internal bool Begin()
     {
         if (Route is null || State is not (TravelState.Planned or TravelState.Paused)) return false;

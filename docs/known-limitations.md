@@ -134,12 +134,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       Fronts are shrunk on small worlds. Nothing about them is saved: the seed, the map and the
       clock decide them, so the forecast is exact.
       - **On the map:** fronts are drawn as soft domes, with dots where each will be over the next
-        day. The route preview names the fronts the route meets and when.
+        day. The route preview names the fronts the route meets and when, rehearsing the march at
+        the pace it will keep (night, fatigue, load and the weather on the way).
       - **Travel:** a front covering the party slows each leg, makes the march hungrier and raises
-        event risk; the glass storm also wounds a party pressing on through it. The first time a
-        front covers the party, the journey stops and offers to camp until it passes (up to 48 h)
-        or to press on. Restarting forgets which fronts were announced, so one may be announced
-        again.
+        event risk; the glass storm also wounds a party pressing on through it. Each front that comes
+        to cover the party stops the journey once, however strong another front over it is (one that
+        harms first), offering to camp until it passes (up to 48 h) or to press on; it is announced
+        again only after it has passed and returns. Restarting forgets which fronts were announced,
+        so one may be announced again.
       - **Not yet:**
         - The preview's hours and rations ignore the weather's slowing.
       - **First-person consequences (#9741):** out in the weather the player gets wet (rain, snow) and
@@ -147,8 +149,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
         with survival; they dry and warm under cover. Weather that wounds (the glass storm) takes
         health in the open, stops it mending there, and can kill. The HUD shows a Weather bar for
         wetness, a Cold bar, and a reminder to take cover.
-        - **Shelter** is anything solid within 30 m over the head (a built roof, an overhang, a cave).
-          Tree canopies do not shelter: their leaves have no collision.
+        - **Shelter** is anything within 30 m over the head: a built roof, an overhang, a cave, or a
+          standing near tree's crown (its leaves' box, narrowed to eight tenths of its spread, added
+          to the Engine's upward cast as a query-only collider). It counts whether or not it is
+          raining, so a wet player under cover dries at the covered rate.
         - Wetness has no other effect yet: fire, stamina and visibility are untouched.
         - Fronts are circles, without shape or rain bands.
         - Seasons do not exist (#9554).
@@ -159,7 +163,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
         Because the Engine never fogs the background, murk veils the sky through the tinted cloud
         layer. Clouds shade the ground as they pass. What falls is the Engine's precipitation
         around the camera (rain streaks, snowflakes, blown dust, additive glass glints), kept off
-        covered ground. Rain wets open ground: it darkens and glosses, and puddles gather on flat
+        covered ground, and stopped while the eyes are under water. Rain wets open ground: it darkens and glosses, and puddles gather on flat
         ground once it is soaked; it dries over a couple of hours. The glass storm's arcane
         channel bends the picture with a prismatic ripple (`shaders/weather-veil.wgsl`).
         Droplets on the view and lightning flashes are not drawn.
