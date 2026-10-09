@@ -258,7 +258,7 @@ internal sealed class TerrainWorld : IDisposable
     private const int NearestRequestedRadius = 5, FarthestRequestedRadius = 10;
 
     /// <summary>The near ground's edge, in metres from the player.</summary>
-    private double NearEdgeMetres => policy.RequestedRadius * TerrainConstants.ChunkEdgeLength;
+    internal double NearEdgeMetres => policy.RequestedRadius * TerrainConstants.ChunkEdgeLength;
 
     /// <summary>
     /// How far the land is drawn (#9759), in the far field's chunk columns. It sets the far field's

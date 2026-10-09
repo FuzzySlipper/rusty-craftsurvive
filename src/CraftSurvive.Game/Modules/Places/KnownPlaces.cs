@@ -7,7 +7,8 @@ namespace CraftSurvive.Game.Modules.Places;
 internal enum KnownPlaceKind { Home, Visited, Seen, Entrance, Sled }
 
 /// <summary>A place the expedition knows and can travel to; <see cref="Key"/> is stable across publishes.</summary>
-internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKind Kind, Vector2 Position);
+/// <param name="Site">What stands there, for a found site; <see cref="PoiKind.None"/> for home and the sled.</param>
+internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKind Kind, Vector2 Position, PoiKind Site = PoiKind.None);
 
 /// <summary>
 /// The places on the map (#9471). There is no fog of war: geography is all visible, and what is
@@ -32,7 +33,7 @@ internal static class KnownPlaces
         new(HomeKey, "Home", KnownPlaceKind.Home, new((float)home.X, (float)home.Z)),
         .. sled is Vector2 left ? [new KnownPlace(SledKey, "The sled", KnownPlaceKind.Sled, left)] : Array.Empty<KnownPlace>(),
         .. journal.Where(entry => IsMapSite(entry.Kind)).OrderByDescending(entry => entry.LastTick).Select(entry => new KnownPlace(
-            PlacePrefix + entry.SiteId, DiscoveryRules.PlaceName(entry.Kind), Kind(entry), new(entry.X, entry.Z))),
+            PlacePrefix + entry.SiteId, DiscoveryRules.PlaceName(entry.Kind), Kind(entry), new(entry.X, entry.Z), entry.Kind)),
     ];
 
     /// <summary>A dungeon entrance is marked as one however it became known; other places by how well they are known.</summary>

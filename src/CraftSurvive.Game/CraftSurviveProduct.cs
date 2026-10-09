@@ -133,6 +133,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     /// <summary>Something solid within this far over the player's head shelters them from the weather (#9741).</summary>
     private const double ShelterReachMetres = 30;
+    /// <summary>The recipe's continuous height is a voxel's base; the ground drawn is its top face, a metre up.</summary>
+    private const double GroundTopFace = 1.0;
 
     private void CreateWorld()
     {
@@ -172,6 +174,12 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         {
             Weather = new HorizonWeather(context.Engine, worlds.Current.Map, weather.Field, () => weather.Hours, () => player.WorldPosition,
                 world => { System.Numerics.Vector3 local = frame.ToLocal(world.X, 0, world.Y); return new System.Numerics.Vector2(local.X, local.Z); }, sky.CloudRegions)
+            {
+                Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
+            },
+            Landmarks = new HorizonLandmarks(context.Engine, KnownPlacesNow, () => player.WorldPosition,
+                (x, z) => terrain.Recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + GroundTopFace,
+                frame.ToLocal, () => terrain.NearEdgeMetres)
             {
                 Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
             },

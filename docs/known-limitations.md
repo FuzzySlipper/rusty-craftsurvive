@@ -264,8 +264,27 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       1280×720 on an RX 9070 XT.
     - **Look.** A first pass: the curtains are smooth translucent cylinders, without streaks or
       shafts.
+    - **Look, seen far off.** A distant curtain is seen edge-on as a hard band along the skyline:
+      a fog bank tens of kilometres off is a grey bar, and a far rain curtain a darker one.
+  - **Known places on the horizon (H3 #9781, `HorizonLandmarks`).** Home, ruins, vantage points and
+    dungeon entrances stand where the map has them as stylised block silhouettes of their kind (the
+    sled and walking landmarks do not).
+    - **Where.** Within the near ground a place is its own structure and nothing is drawn. Between
+      the near ground and the far field's reach its silhouette stands in the world on the far
+      field's ground; past the reach, in the backdrop on the map's ground. At most the 64 nearest
+      within 40 km (`HorizonLandmarkRules`).
+    - **Size.** A real site is about ten metres across, so a silhouette is never drawn under 1°
+      tall: life size within about half a kilometre, six times at 3 km. It does not match the
+      structure's own shape, which takes over at the near ground's edge.
+    - **By day** a silhouette is fogged like the land under it, so it fades with the land: clear at
+      a kilometre, pale at 3 km (captured). By the fog's density a twentieth of it is left at 6 km
+      in clear air, less in weather.
+    - **By night** home, the one inhabited place, shows four warm windows. They are backdrop or
+      world particles (four emitters, at most 24 of the shared budget), which take no fog, dimmed by distance here
+      instead, so they read at 10 km. The Engine refuses a particle colour above white, so a
+      window's brightness comes from overlapping glows. A refusal leaves home unlit until the
+      places are listed again (`craft.horizon.readout` `lightsRefused`).
   - **Not yet.**
-    - Landmarks (H3 #9781).
     - The sky panorama's painted mountains still stand behind the map's own ground. On a small map
       they do not match it.
 - **The generator is versioned, and the version is the save contract.**

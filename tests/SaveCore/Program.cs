@@ -99,6 +99,8 @@ Check.That(known.Count == 4 && known[0].Key == KnownPlaces.HomeKey && known[0].K
     && known[0].Position == new System.Numerics.Vector2(-1234.5f, 2048.25f), "home is the first known place, where its marker stands");
 Check.That(known[1].Kind == KnownPlaceKind.Entrance && known[2].Kind == KnownPlaceKind.Visited && known[2].Name == "Vantage point"
     && known[3].Kind == KnownPlaceKind.Seen && known[3].Name == "Ruin", "journal places follow, newest first, an entrance marked whatever its stage");
+Check.That(known[0].Site == PoiKind.None && known[1].Site == PoiKind.DungeonEntrance && known[2].Site == PoiKind.VantagePoint && known[3].Site == PoiKind.Ruin,
+    "each found place carries what stands there, so the horizon draws its shape (#9781); home has none");
 // The map is the expedition's layer (#9553): a cave mouth found on foot stays a walking landmark.
 Check.That(known.All(place => place.Name != "Cave mouth") && !KnownPlaces.IsMapSite(PoiKind.CaveMouth) && !KnownPlaces.IsMapSite(PoiKind.StandingStones),
     "walking landmarks stay off the map's places");

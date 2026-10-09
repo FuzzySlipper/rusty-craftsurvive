@@ -48,6 +48,10 @@ internal static class ProductIds
     internal const ulong HorizonFrontBase = 0x8_0000UL;
     internal const int HorizonFrontLimit = 0x100;
 
+    /// <summary>Known places standing on the horizon (HorizonLandmarks, #9781); their lights' particles follow the limit.</summary>
+    internal const ulong HorizonLandmarkBase = 0x8_1000UL;
+    internal const int HorizonLandmarkLimit = 0x100;
+
     /// <summary>The overworld's drawn trees (TerrainTrees, #9665); up to 0x4000 of them.</summary>
     internal const ulong TreeObjectBase = 0x6_0000UL;
     internal const int TreeObjectLimit = 0x4000;

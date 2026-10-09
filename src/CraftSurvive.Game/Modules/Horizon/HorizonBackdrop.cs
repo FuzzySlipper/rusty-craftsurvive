@@ -181,8 +181,11 @@ internal sealed class HorizonBackdrop : IProductModule
     /// <summary>Weather fronts on the horizon (H2 #9780), drawn while the backdrop is shown.</summary>
     internal HorizonWeather? Weather { get; set; }
 
-    /// <summary>The fronts' masses for the appearance snapshot while the backdrop is shown.</summary>
-    internal IEnumerable<AppearanceFact> Facts => shown && Weather is not null ? Weather.Facts(Scale) : [];
+    /// <summary>Known places on the horizon (H3 #9781), placed while the backdrop is shown.</summary>
+    internal HorizonLandmarks? Landmarks { get; set; }
+
+    /// <summary>The fronts' masses and the places' silhouettes for the appearance snapshot while the backdrop is shown.</summary>
+    internal IEnumerable<AppearanceFact> Facts => !shown ? [] : [.. Weather?.Facts(Scale) ?? [], .. Landmarks?.Facts() ?? []];
 
     /// <summary>For comparison captures: off unlinks the backdrop, leaving the far field over the panorama.</summary>
     internal bool Enabled { get; set; } = true;
@@ -208,6 +211,7 @@ internal sealed class HorizonBackdrop : IProductModule
             shownChanged?.Invoke(false);
             Weather?.Update(false);
             Weather?.UpdateBodies(Scale, false);
+            Landmarks?.Update(Scale, false, reachMetres, GroundMetres);
             return;
         }
 
@@ -234,6 +238,7 @@ internal sealed class HorizonBackdrop : IProductModule
         shownChanged?.Invoke(shown);
         Weather?.Update(shown);
         Weather?.UpdateBodies(Scale, shown);
+        Landmarks?.Update(Scale, shown, reachMetres, GroundMetres);
     }
 
     private void Link(Camera? view)
@@ -281,7 +286,7 @@ internal sealed class HorizonBackdrop : IProductModule
         + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
             $" continent={continent.ResidentChunks}+{continent.PendingChunks}pending regionColumns={regionCovered.Count}"))
         + string.Create(CultureInfo.InvariantCulture,
-            $" {Weather?.Readout() ?? "fronts=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
+            $" {Weather?.Readout() ?? "fronts=off"} {Landmarks?.Readout() ?? "landmarks=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
 
     /// <summary>
     /// For aimed captures: the highest ground on the map within <paramref name="kilometres"/> of the player,
@@ -327,6 +332,7 @@ internal sealed class HorizonBackdrop : IProductModule
         foreach (Material material in materials.Values) material.Dispose();
         materials.Clear();
         Weather?.Dispose();
+        Landmarks?.Dispose();
     }
 
     /// <summary>
@@ -395,8 +401,7 @@ internal sealed class HorizonBackdrop : IProductModule
             }
 
             MapSample sample = geography(worldX, worldZ);
-            double top = Math.Max(sample.InRiver ? Math.Max(sample.Elevation, sample.RiverSurface) : sample.Elevation, GenerationConstants.WaterLevel);
-            if (exaggeration != 1) top = exaggerationBase + ((top - exaggerationBase) * exaggeration);
+            double top = Top(sample);
             double sink = Sink(worldX, worldZ) + (sunkUnderRegion && UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
             surface[i] = (top - sink) / cellMetres;
             material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
@@ -405,6 +410,20 @@ internal sealed class HorizonBackdrop : IProductModule
                 : Slot(WorldMap.Biome(sample));
         }
     }
+
+    /// <summary>The top of a map sample as the backdrop draws it: water's surface over the ground, and any exaggeration.</summary>
+    private double Top(MapSample sample)
+    {
+        double top = Math.Max(sample.InRiver ? Math.Max(sample.Elevation, sample.RiverSurface) : sample.Elevation, GenerationConstants.WaterLevel);
+        return exaggeration == 1 ? top : exaggerationBase + ((top - exaggerationBase) * exaggeration);
+    }
+
+    /// <summary>
+    /// The backdrop's ground at a world point, as its visible tier draws it (a continent's region ground
+    /// inside the window), sunk as that is: where a place on the horizon stands.
+    /// </summary>
+    internal double GroundMetres(double worldX, double worldZ) =>
+        Top(regions is not null && InRegion(worldX, worldZ) ? RegionGround(worldX, worldZ) : map.Sample(worldX, worldZ)) - Sink(worldX, worldZ);
 
     /// <summary>A continent's region ground: the region tiles' geography, easing onto the continent's across the window's outer band.</summary>
     private MapSample RegionGround(double worldX, double worldZ)

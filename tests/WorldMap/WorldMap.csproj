@@ -35,6 +35,7 @@
     <Compile Include="$(ProductModules)Weather/RouteForecast.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Weather/FrontArrivals.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonSink.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Horizon/HorizonLandmarkRules.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Travel/PartyTravel.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelCostModel.cs" LinkBase="Product/Travel" />

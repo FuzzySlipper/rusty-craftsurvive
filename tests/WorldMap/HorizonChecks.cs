@@ -44,4 +44,36 @@ internal static class HorizonChecks
         double reviewed = Math.Abs(HorizonSink.At(1952 - 256, 1536, FarChunkMetres) - HorizonSink.At(1952, 1536, FarChunkMetres));
         Check.That(reviewed == 0, $"the reviewed point 1,952 m out does not move ({reviewed:F3} m)");
     }
+
+    /// <summary>
+    /// Known places on the horizon (#9781): a place within the near ground is its own structure, between
+    /// it and the far field's reach it stands in the world, past that in the backdrop; its silhouette
+    /// is life size up close and never smaller than the floor angle far off; home is lit only by night.
+    /// </summary>
+    internal static void LandmarksStandInTheirBand()
+    {
+        const double Near = 128, Reach = 12 * FarChunkMetres, Height = 8;
+        Check.That(HorizonLandmarkRules.Band(Near - 1, Near, Reach) == LandmarkBand.None, "a place within the near ground is its own structure");
+        Check.That(HorizonLandmarkRules.Band(Near, Near, Reach) == LandmarkBand.World && HorizonLandmarkRules.Band(Reach - 1, Near, Reach) == LandmarkBand.World,
+            "between the near ground and the far field's reach it stands in the world");
+        Check.That(HorizonLandmarkRules.Band(Reach, Near, Reach) == LandmarkBand.Backdrop
+            && HorizonLandmarkRules.Band(HorizonLandmarkRules.RangeMetres, Near, Reach) == LandmarkBand.Backdrop, "past the reach, in the backdrop");
+        Check.That(HorizonLandmarkRules.Band(HorizonLandmarkRules.RangeMetres + 1, Near, Reach) == LandmarkBand.None, "and not past its range");
+
+        Check.That(HorizonLandmarkRules.Grow(Near, Height) == 1, "up close a silhouette is life size");
+        double worst = double.MaxValue, previous = 0;
+        bool growing = true;
+        for (double distance = Near; distance <= HorizonLandmarkRules.RangeMetres; distance += 50)
+        {
+            double grow = HorizonLandmarkRules.Grow(distance, Height);
+            worst = Math.Min(worst, Math.Atan(grow * Height / distance) * 180 / Math.PI);
+            growing &= grow >= previous;
+            previous = grow;
+        }
+
+        Check.That(worst >= HorizonLandmarkRules.MinimumDegrees - 1e-9, $"far off it is never under {HorizonLandmarkRules.MinimumDegrees} degrees tall (least {worst:F3})");
+        Check.That(growing, "and it grows steadily with distance, so it never jumps");
+        Check.That(HorizonLandmarkRules.Lit(1) == 0 && HorizonLandmarkRules.Lit(HorizonLandmarkRules.LightsFrom) == 0, "home is unlit by day");
+        Check.That(HorizonLandmarkRules.Lit(HorizonLandmarkRules.LightsFull) == 1 && HorizonLandmarkRules.Lit(0) == 1, "and fully lit by night");
+    }
 }
