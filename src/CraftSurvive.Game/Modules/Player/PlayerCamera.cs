@@ -32,6 +32,9 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
     /// <summary>The next sample jumps rather than interpolating: a teleport or a rebase moved the eye.</summary>
     internal void Cut() => cut = true;
 
+    /// <summary>The first-person camera once created: what the horizon's backdrop link names (#9779).</summary>
+    internal Camera? Handle => camera;
+
     internal void Activate()
     {
         if (camera is not null) engine.CameraView.SetActiveCamera(camera);

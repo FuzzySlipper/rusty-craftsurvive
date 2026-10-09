@@ -35,17 +35,20 @@ internal sealed class MapVoxelLayer : IDisposable
     private readonly Dictionary<(long X, long Y, long Z), Operation> pending = [];
     private VoxelScenePresentation? projection;
     private readonly double coarseBeyond;
+    private readonly RenderLayer layer;
     private long workTicks;
 
     /// <param name="terrainLayers">Slots drawn by a terrain-layer material, each with its layer index, blended
     /// across <c>TransitionCells</c>; null draws every slot with its own material.</param>
     /// <param name="coarseBeyond">Chunks farther than this from the camera, in map units, are drawn from coarse meshes (#9563); zero draws all fine.</param>
+    /// <param name="layer">The render layer it is drawn in: the scene for the map, the backdrop for the horizon (#9779).</param>
     internal MapVoxelLayer(IEngineContext engine, double voxelSize, ColumnSampler sampler, IReadOnlyDictionary<uint, Material> materials,
-        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null, double coarseBeyond = 0)
+        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null, double coarseBeyond = 0, RenderLayer layer = RenderLayer.Scene)
     {
         this.engine = engine;
         this.sampler = sampler;
         this.coarseBeyond = coarseBeyond;
+        this.layer = layer;
         bindings = [.. materials.Select(pair => new VoxelSceneMaterialBinding(pair.Key, pair.Value))];
         Session = engine.Spatial.CreateSession(new SpatialSessionConfig(voxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.DualContouring));
         try
@@ -153,6 +156,7 @@ internal sealed class MapVoxelLayer : IDisposable
             projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new(Session, bindings,
                 ReadOnlyMemory<VoxelSceneFaceMaterialBinding>.Empty));
             if (coarseBeyond > 0) engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, coarseBeyond));
+            if (layer != RenderLayer.Scene) engine.VoxelScenePresentation.SetLayer(new(projection, layer));
         }
         workTicks += Stopwatch.GetTimestamp() - started;
     }

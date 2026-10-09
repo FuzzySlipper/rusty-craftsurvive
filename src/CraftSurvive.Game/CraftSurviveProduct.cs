@@ -9,6 +9,7 @@ using CraftSurvive.Game.Modules.Debugging;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Feedback;
+using CraftSurvive.Game.Modules.Horizon;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
 using CraftSurvive.Game.Modules.Options;
@@ -99,6 +100,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The player-facing UI's action claims, turned into blast and build requests.</summary>
     private PlayerActionModule actions = null!;
 
+    /// <summary>The map on the skyline (#9779), in the Engine's backdrop.</summary>
+    private HorizonBackdrop horizon = null!;
+
     /// <summary>One owner for block entities: placed by building, swept by every clearing edit.</summary>
     private BlockEntityIndex entities = new();
 
@@ -163,7 +167,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
-        gameplay = [conditions, weather, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback];
+        horizon = new HorizonBackdrop(context.Engine, worlds.Current.Map, () => terrain.Session, () => player.WorldPosition,
+            () => player.ViewCamera, () => !player.InSeparateSpace, () => terrain.ViewDistanceChunks * (double)FarField.ChunkMetres, sky.Horizon);
+        gameplay = [conditions, weather, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
         ApplyOptions();
@@ -258,6 +264,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
         RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather))));
+        RequireRegistration(registrar.Register(new HorizonDebugModule(() => Owner(horizon), () => Owner(sky))));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
         RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
         RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));

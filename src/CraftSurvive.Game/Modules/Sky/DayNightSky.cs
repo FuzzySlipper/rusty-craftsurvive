@@ -108,6 +108,31 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     private const float OpenFogDensity = 0.004f;
 
+    /// <summary>
+    /// With the map on the horizon (#9779) the land runs on past the far field, so the haze no longer
+    /// hides an edge: the open fog thins with distance (exponential, not squared), keeping a tenth of a
+    /// ridge at about <c>ln 10 / density</c> metres, so ranges tens of kilometres off read as pale shapes.
+    /// </summary>
+    private const float HorizonFogDensity = 0.0005f;
+    private bool horizonShown;
+    private float horizonFogDensity = HorizonFogDensity;
+
+    /// <summary>Whether the map stands on the horizon behind the world: the open fog thins to show it.</summary>
+    internal void Horizon(bool shown)
+    {
+        if (disposed || shown == horizonShown) return;
+        horizonShown = shown;
+        litDaylight = double.NaN;
+    }
+
+    /// <summary>Sets the horizon fog's density live, for tuning; the next world starts from the constant again.</summary>
+    internal string SetHorizonFog(float density)
+    {
+        horizonFogDensity = Math.Max(0f, density);
+        litDaylight = double.NaN;
+        return FormattableString.Invariant($"horizon fog density={horizonFogDensity} shown={horizonShown}");
+    }
+
     /// <summary>The fog thins by e every this many metres above the fog's base, so valleys fill and ridges stand clear.</summary>
     private const float FogFalloffHeightMetres = 45f;
 
@@ -559,8 +584,10 @@ internal sealed class DayNightSky : IDisposable
         Vector3 horizon = Vector3.Lerp(NightHorizon, DayHorizon, (float)daylight);
         float airShare = Math.Min(1f, (CloudAirShare * w.Cloud) + (MurkAirShare * w.Murk));
         if (w.Air != Vector3.Zero) horizon = Vector3.Lerp(horizon, w.Air * (NightAir + ((1f - NightAir) * (float)daylight)), airShare);
-        float density = OpenFogDensity / fogReach * (1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud));
-        engine.CameraView.SetFog(new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, density));
+        float weatherThickening = 1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud);
+        engine.CameraView.SetFog(horizonShown
+            ? new(FogMode.Exponential, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, horizonFogDensity / fogReach * weatherThickening)
+            : new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, OpenFogDensity / fogReach * weatherThickening));
         float warmth = Warmth(elevation);
         Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * (float)daylight * (1f - w.Cloud);
         engine.CameraView.SetSkyLight(new SkyLightRequest((float)(NightSkyLightIntensity + ((DaySkyLightIntensity - NightSkyLightIntensity) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud))));

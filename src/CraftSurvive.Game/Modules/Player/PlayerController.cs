@@ -36,6 +36,9 @@ internal sealed class PlayerController : IDisposable
     private readonly PlayerClimbProbe climb;
     private readonly PlayerCamera camera;
 
+    /// <summary>The first-person camera, once created.</summary>
+    internal Camera? ViewCamera => camera.Handle;
+
     /// <summary>The first-person field of view in degrees: the player's option (#9759).</summary>
     internal double FieldOfViewDegrees
     {

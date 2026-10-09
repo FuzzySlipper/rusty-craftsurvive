@@ -200,6 +200,25 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   zone is re-sampled every `SinkFollowStepMetres`. A new world grows the field from the player's column
   by `GrowthPerUpdate` chunk columns an update until it reaches `RadiusChunks`, so the full field is
   requested over the first six updates. Landscape studies and dungeons have no far field.
+- **Past the far field, the map stands on the horizon (#9751, H1 #9779).** `HorizonBackdrop` draws the
+  world map's ground in the Engine's backdrop layer behind the first-person world.
+  - **Ground.** It is a dual-contoured session of one voxel per 32 m map cell (one backdrop unit) at
+    true height, sampling `WorldMap` with its biome colours, rivers and exposed rock. On a continent it
+    uses the kilometre tier.
+  - **Link.** It is linked to the first-person camera alone, anchored at the world's origin in the
+    walking session, so a rebase needs no call and the map screen never shows it. A dungeon unlinks it.
+  - **Join.** It is sunk 60 m within the far field's reach (the view distance option), rising to its
+    true height over 384 m past it, so the 8 m far field covers the near range. The sunk zone follows
+    the player every 256 m.
+  - **Fog.** While it is shown, the open fog is exponential (0.0005 per metre, thickened by weather)
+    instead of exponential squared, since the land now runs on past the far field.
+  - **Cost.** A 10 km map streams 847 chunks in about 330 ms of work, a budget a frame. The backdrop
+    pass costs about 0.09 ms at 1280×720 on an RX 9070 XT.
+  - **Not yet.**
+    - A continent's 32 m region window.
+    - Weather fronts on the horizon (H2 #9780) and landmarks (H3 #9781).
+    - The sky panorama's painted mountains still stand behind the map's own ground. On a small map
+      they do not match it.
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in
