@@ -20,6 +20,12 @@ public sealed class HorizonDebugModule : IDebugCommandModule
     [DebugCommand("craft.horizon.readout", Description = "Reads the horizon backdrop: linked, scale, chunks streamed, the sunk zone's centre and the far field's reach.")]
     public string Readout() => horizon().Readout();
 
+    [DebugCommand("craft.horizon.peaks", Description = "Assisted: the highest map ground in each of eight compass sectors within the given kilometres, with distance and bearing, for aimed captures.")]
+    public string Peaks(double kilometres) => horizon().Peaks(kilometres);
+
+    [DebugCommand("craft.horizon.exaggerate", Description = "Captures only: multiplies the horizon's heights above the player's ground (1 to 20; 1 is true scale) so a gentle map's ranges read beside the map view.")]
+    public string Exaggerate(double factor) => horizon().Exaggerate(factor);
+
     [DebugCommand("craft.horizon.show", Description = "Assisted: shows (1) or hides (0) the horizon backdrop, for comparison captures.")]
     public string Show(long shown)
     {

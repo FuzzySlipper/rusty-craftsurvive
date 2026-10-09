@@ -214,8 +214,18 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     instead of exponential squared, since the land now runs on past the far field.
   - **Cost.** A 10 km map streams 847 chunks in about 330 ms of work, a budget a frame. The backdrop
     pass costs about 0.09 ms at 1280×720 on an RX 9070 XT.
+  - **Continent.** The kilometre tier covers the whole continent, and a 32 m window of region ground
+    about the player (about 8 km across) is admitted as its region tiles are ready. The window eases
+    onto the kilometre tier over two chunks at its edge, and the kilometre tier sinks 1.5 km beneath
+    it. A 390 km continent streams 1,356 kilometre and 732 window chunks in about 1 s of work. The
+    backdrop pass is about 0.15 ms at 1280×720.
+  - **Tuning commands.**
+    - `craft.horizon.peaks <km>` finds the high ground about the player for aimed captures.
+    - `craft.horizon.exaggerate <f>` (captures only) multiplies heights above the player's ground.
+  - **Map relief.** A continent's relief is gentle: about 800 m within 60 km of a typical spawn. Its
+    ranges are a few pixels tall on the skyline and the panorama's painted mountains dominate. A
+    skyline that is visibly the map needs taller ranges (#9782).
   - **Not yet.**
-    - A continent's 32 m region window.
     - Weather fronts on the horizon (H2 #9780) and landmarks (H3 #9781).
     - The sky panorama's painted mountains still stand behind the map's own ground. On a small map
       they do not match it.
