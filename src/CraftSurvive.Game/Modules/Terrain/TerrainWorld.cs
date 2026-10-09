@@ -149,7 +149,7 @@ internal sealed class TerrainWorld : IDisposable
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
-            farField = new FarField(engine, content, recipe, frame);
+            farField = new FarField(engine, content, recipe, frame) { RadiusChunks = viewDistanceChunks };
             ui.Publish();
             started = true;
         }
@@ -249,6 +249,24 @@ internal sealed class TerrainWorld : IDisposable
 
         study ??= new Manipulation.BuildStudy(engine, content, frame);
         return study.Build(x, z, (cx, cz) => recipe.ContinuousHeightAt((long)Math.Round(cx), (long)Math.Round(cz)) + 1, collide);
+    }
+
+    private int viewDistanceChunks = FarField.DefaultRadiusChunks;
+
+    /// <summary>
+    /// How far the land is drawn (#9759): the far field's reach in its chunk columns, and the far trees'
+    /// band in proportion, up to its own reach at the default. The near ground is the gameplay
+    /// residency and does not change.
+    /// </summary>
+    internal int ViewDistanceChunks
+    {
+        get => viewDistanceChunks;
+        set
+        {
+            viewDistanceChunks = value;
+            if (farField is not null) farField.RadiusChunks = value;
+            trees.FarReach = Math.Min(TerrainTrees.FarMetres, TerrainTrees.FarMetres * value / FarField.DefaultRadiusChunks);
+        }
     }
 
     /// <summary>Sets how far the distant trees reach (#9677); 0 turns them off.</summary>

@@ -6,6 +6,7 @@ import { element, isolateEvents } from './dom.js';
 import { mountHud } from './hud.js';
 import { mountLoading } from './loading.js';
 import { mountOverlay } from './overlay.js';
+import { mountOptions } from './options.js';
 import { mountScreens } from './screens.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
@@ -42,6 +43,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const unsubscribe = mountHud(contents, context.projection);
   const unsubscribeActions = mountActions(contents, context.intents, context.projection);
   contents.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
+  const disposeOptions = mountOptions(contents, context.intents, context.projection, status);
   const disposeDeveloperTools = mountDeveloperTools(contents, status);
   gameUi.append(panel);
   const disposeOverlay = mountOverlay(gameUi, context.projection);
@@ -54,6 +56,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
     dispose: () => {
       unsubscribe();
       unsubscribeActions();
+      disposeOptions();
       disposeOverlay();
       disposeLoading();
       disposeScreens();

@@ -64,6 +64,9 @@ internal sealed class PlayerActionModule
 
     internal string Readout() => $"actions applied={applied} refused={refused} last={last}";
 
+    /// <summary>Changes one of the game's own options (#9759) and says what it now is; refuses with <see cref="FormatException"/>.</summary>
+    internal Func<string, int, string>? ChooseOption { get; set; }
+
     /// <summary>
     /// Applies the player's hotbar keys - a slot picked or stepped to, and the use of what it holds -
     /// then every action the UI claimed in this update, in the order it claimed them.
@@ -118,6 +121,29 @@ internal sealed class PlayerActionModule
     private void Apply(PlayerAction action)
     {
         string name = action.Kind.ToString().ToLowerInvariant();
+        if (action.Kind == PlayerActionKind.Option)
+        {
+            if (ChooseOption is null)
+            {
+                Refuse($"{name}: the options are not ready");
+                return;
+            }
+
+            try
+            {
+                // The panel shows the new value itself: a slider dragged through its range raises no
+                // message per step. A refusal is still shown.
+                _ = ChooseOption(action.Name, action.OptionValue);
+                applied++;
+            }
+            catch (FormatException refusal)
+            {
+                Refuse($"{name}: {refusal.Message}");
+            }
+
+            return;
+        }
+
         if (action.Kind == PlayerActionKind.Landscape)
         {
             if (player.VisitLandscape(action.Name)) Accept($"Visiting {action.Name}");

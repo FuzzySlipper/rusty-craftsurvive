@@ -154,6 +154,16 @@ internal sealed class ProductUiPublisher : IDisposable
 
     internal void PublishMap(WorldMapUiFacts facts) { map = facts; Publish(); }
 
+    /// <summary>The game's own options (#9759): the install's, so a world's reset keeps them.</summary>
+    internal void PublishOptions(string described)
+    {
+        if (gameOptions == described) return;
+        gameOptions = described;
+        Publish();
+    }
+
+    private string? gameOptions;
+
     internal void PublishSled(SledUiFacts facts)
     {
         if (sled == facts) return;
@@ -213,7 +223,7 @@ internal sealed class ProductUiPublisher : IDisposable
         // Without a world there is no scene; the map and its generating message still publish.
         WorldUiFacts? facts = world?.Invoke();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled)));
+            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions)));
     }
 
     public void Dispose()

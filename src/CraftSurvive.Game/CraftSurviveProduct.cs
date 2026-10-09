@@ -11,6 +11,7 @@ using CraftSurvive.Game.Modules.Dungeons;
 using CraftSurvive.Game.Modules.Feedback;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
+using CraftSurvive.Game.Modules.Options;
 using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Sky;
@@ -55,6 +56,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The product's one persistence store and one UI stream, shared by the owners that use them.</summary>
     private readonly ProductStore store;
     private readonly ProductUiPublisher ui;
+
+    /// <summary>The game's own options (#9759), kept for the install; the Engine keeps the renderer's.</summary>
+    private readonly GameOptionsStore optionsStore;
+    private GameOptions gameOptions;
     private TerrainWorld terrain = null!;
     private PlayerController player = null!;
     private DayNightSky sky = null!;
@@ -110,6 +115,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         engine = context.Engine;
         store = new ProductStore(context.Engine);
         ui = new ProductUiPublisher(context.Engine);
+        optionsStore = new GameOptionsStore(context.Engine);
+        gameOptions = optionsStore.Load();
+        ui.PublishOptions(gameOptions.Describe());
         worlds = new WorldCatalog(engine, store);
         if (worlds.HasWorld) CreateWorld();
         creatureDebug = new CreatureDebugModule(() => Owner(creatures));
@@ -156,7 +164,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
         gameplay = [conditions, weather, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback];
+        actions.ChooseOption = ChooseOption;
         worldBuilt = true;
+        ApplyOptions();
         if (worldStoresRegistered)
         {
             entityDebug.ReplaceStore("craft", player.EntityStore);
@@ -168,6 +178,31 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             entityDebug.RegisterStore("creatures", creatures.EntityStore);
             worldStoresRegistered = true;
         }
+    }
+
+    /// <summary>
+    /// Changes one of the game's own options from the options panel: keeps it for the install, applies
+    /// it to the world at once (no reload), and publishes the options again.
+    /// </summary>
+    private string ChooseOption(string id, int value)
+    {
+        gameOptions = gameOptions.With(id, value);
+        optionsStore.Save(gameOptions);
+        ApplyOptions();
+        ui.PublishOptions(gameOptions.Describe());
+        GameOptionSpec spec = GameOptions.Specs.First(spec => spec.Id == id);
+        return optionsStore.LastFailure is string failure
+            ? $"{spec.Label} {value} {spec.Unit} for this session (not kept: {failure})"
+            : $"{spec.Label} {value} {spec.Unit}";
+    }
+
+    /// <summary>Applies the game's options to the world's owners: the camera, how far the land is drawn, and the weather on screen.</summary>
+    private void ApplyOptions()
+    {
+        if (!worldBuilt) return;
+        player.FieldOfViewDegrees = gameOptions.FieldOfViewDegrees;
+        terrain.ViewDistanceChunks = gameOptions.ViewDistanceChunks;
+        sky.Options(gameOptions.WeatherEffectsPercent / 100f, (float)gameOptions.ViewDistanceChunks / FarField.DefaultRadiusChunks);
     }
 
     /// <summary>Start the world's owners and present it; disposes them all if any start fails.</summary>
@@ -247,6 +282,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         {
             ui.Dispose();
             store.Dispose();
+            optionsStore.Dispose();
             throw;
         }
     }
@@ -380,6 +416,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         ui.Dispose();
         store.Dispose();
+        optionsStore.Dispose();
         lifecycle = ProductLifecycleState.Disposed;
     }
 

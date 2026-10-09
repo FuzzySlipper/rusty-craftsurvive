@@ -35,6 +35,13 @@ internal sealed class PlayerController : IDisposable
     private readonly PlayerWaterProbe water;
     private readonly PlayerClimbProbe climb;
     private readonly PlayerCamera camera;
+
+    /// <summary>The first-person field of view in degrees: the player's option (#9759).</summary>
+    internal double FieldOfViewDegrees
+    {
+        get => camera.FieldOfViewDegrees;
+        set => camera.FieldOfViewDegrees = value;
+    }
     private readonly WorldOriginRebaser rebaser;
     private readonly PlayerContinuationStore continuation;
     private readonly EntityStore entityWorld = new([RuntimeComponent]);

@@ -255,7 +255,8 @@ internal sealed class DayNightSky : IDisposable
         float wind = DriftCalm + w.Wind;
         float light = NightPrecipitation + ((1f - NightPrecipitation) * shownDaylight);
         Color Dim(Color colour) => new(colour.R * light, colour.G * light, colour.B * light, colour.A);
-        uint Drops(uint full) => (uint)(full * Math.Clamp(w.FallDensity, 0f, 1f));
+        uint Drops(uint full) => (uint)(full * Math.Clamp(w.FallDensity, 0f, 1f) * screenWeather);
+        if (screenWeather <= 0f) return NoPrecipitation;
         return w.Fall switch
         {
             WeatherFall.Rain => new(Drops(RainDrops), PrecipitationShape.Streak, (along * RainDrift * wind) - (Vector3.UnitY * RainFall), RainSize, RainStreakSeconds,
@@ -278,7 +279,7 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>The arcane air ripples and splits the light over the view; nothing runs while there is none.</summary>
     private void ArcaneVeil(WeatherLook w)
     {
-        bool wanted = !underground && w.Arcane > VeilAbove;
+        bool wanted = !underground && w.Arcane * screenWeather > VeilAbove;
         if (!wanted)
         {
             if (veiled) engine.CameraView.SetImageEffect(default);
@@ -287,7 +288,7 @@ internal sealed class DayNightSky : IDisposable
         }
 
         veil ??= engine.Graphics.OpenResource(new RenderResourceRequest(VeilContentPath)).Handle;
-        engine.CameraView.SetImageEffect(new ImageEffectRequest(veil, new Vector4(w.Arcane, 0f, 0f, 0f)));
+        engine.CameraView.SetImageEffect(new ImageEffectRequest(veil, new Vector4(w.Arcane * screenWeather, 0f, 0f, 0f)));
         veiled = true;
     }
 
@@ -397,6 +398,24 @@ internal sealed class DayNightSky : IDisposable
     }
 
     internal WeatherLook Look => weather;
+
+    private float screenWeather = 1f;
+    private float fogReach = 1f;
+
+    /// <summary>
+    /// The player's options (#9759): how much of the weather is drawn on screen (0 to 1: what falls and
+    /// the glass storm's veil; the weather still acts on the game), and how far the land is drawn as a
+    /// share of the default reach. Exponential-squared fog keeps the same share of the land at the far
+    /// field's edge when its density scales inversely with the reach.
+    /// </summary>
+    internal void Options(float weatherOnScreen, float reachShare)
+    {
+        if (disposed) return;
+        screenWeather = Math.Clamp(weatherOnScreen, 0f, 1f);
+        fogReach = Math.Max(0.1f, reachShare);
+        litDaylight = double.NaN;
+        Weathered();
+    }
 
     /// <summary>The precipitation last given the Engine: none under ground or under water.</summary>
     internal PrecipitationRequest Falling { get; private set; } = NoPrecipitation;
@@ -540,7 +559,7 @@ internal sealed class DayNightSky : IDisposable
         Vector3 horizon = Vector3.Lerp(NightHorizon, DayHorizon, (float)daylight);
         float airShare = Math.Min(1f, (CloudAirShare * w.Cloud) + (MurkAirShare * w.Murk));
         if (w.Air != Vector3.Zero) horizon = Vector3.Lerp(horizon, w.Air * (NightAir + ((1f - NightAir) * (float)daylight)), airShare);
-        float density = OpenFogDensity * (1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud));
+        float density = OpenFogDensity / fogReach * (1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud));
         engine.CameraView.SetFog(new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, density));
         float warmth = Warmth(elevation);
         Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * (float)daylight * (1f - w.Cloud);

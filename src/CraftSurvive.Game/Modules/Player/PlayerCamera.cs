@@ -15,6 +15,9 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
     private const CameraInterpolation Interpolation = CameraInterpolation.Position;
     private const double DelaySeconds = PlayerConstants.CameraPresentationDelaySeconds;
     private bool cut = true;
+
+    /// <summary>The vertical field of view, in degrees: the player's option (#9759), taken on the next publication.</summary>
+    internal double FieldOfViewDegrees { get; set; } = PlayerConstants.CameraFieldOfViewDegrees;
     private ulong publications;
     private ulong publishedUpdate;
 
@@ -60,11 +63,11 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
         camera = null;
     }
 
-    private static CameraDescriptor Descriptor(Vector3 eye, LookState look) => new(
+    private CameraDescriptor Descriptor(Vector3 eye, LookState look) => new(
         new CameraPose(eye, Angles.ToDegrees(look.PitchRadians), Angles.ToDegrees(look.YawRadians)),
         CameraBasisMode.Derived,
         default,
-        new CameraProjection(CameraProjectionKind.Perspective, PlayerConstants.CameraFieldOfViewDegrees, 0d,
+        new CameraProjection(CameraProjectionKind.Perspective, FieldOfViewDegrees, 0d,
             PlayerConstants.CameraNearDistance, PlayerConstants.CameraFarDistance),
         new CameraViewport(PlayerConstants.CameraViewportOrigin, PlayerConstants.CameraViewportOrigin,
             PlayerConstants.CameraViewportExtent, PlayerConstants.CameraViewportExtent));

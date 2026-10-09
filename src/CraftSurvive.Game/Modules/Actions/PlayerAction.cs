@@ -23,6 +23,7 @@ internal enum PlayerActionKind
     Move,
     Select,
     Landscape,
+    Option,
 }
 
 /// <summary>
@@ -46,6 +47,12 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
 
     /// <summary>The largest count a move names: a whole stack.</summary>
     internal const int MaximumMoveCount = 99;
+
+    /// <summary>The largest value an option change carries either way; the option's own range decides.</summary>
+    internal const int MaximumOptionValue = 10_000;
+
+    /// <summary>An option change's new value.</summary>
+    internal int OptionValue => Count;
 
     /// <summary>A charge's radius.</summary>
     internal int Radius => Size1;
@@ -90,6 +97,7 @@ internal readonly record struct PlayerAction(PlayerActionKind Kind, int Size1 = 
             "leave" => new(PlayerActionKind.Leave),
             "difficulty" => new(PlayerActionKind.Difficulty, Name: Named(root, "level")),
             "landscape" => new(PlayerActionKind.Landscape, Name: Named(root, "name")),
+            "option" => new(PlayerActionKind.Option, Name: Named(root, "name"), Count: Size(root, "value", -MaximumOptionValue, MaximumOptionValue)),
             string other => throw new FormatException($"\"{other}\" is not an action the UI can ask for."),
             null => throw new FormatException("A UI action names what it asks for in \"action\"."),
         };

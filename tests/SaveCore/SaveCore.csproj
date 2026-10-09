@@ -54,5 +54,6 @@
     <Compile Include="$(ProductModules)Inventory/InventorySlots.cs" LinkBase="Product/Inventory" />
     <Compile Include="$(ProductModules)Rpg/*.cs" LinkBase="Product/Rpg" />
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
+    <Compile Include="$(ProductModules)Options/GameOptions.cs" LinkBase="Product/Options" />
   </ItemGroup>
 </Project>

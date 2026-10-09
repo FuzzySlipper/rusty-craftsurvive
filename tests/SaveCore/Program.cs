@@ -5,6 +5,7 @@ using CraftSurvive.Game.Modules.Building;
 using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Manipulation;
+using CraftSurvive.Game.Modules.Options;
 using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Survival;
@@ -438,6 +439,33 @@ Check.That(continued.ResumeTick == 41, $"a restored journal resumes after its la
 
 Console.WriteLine($"Save checks: {SaveManifest.All.Count} manifest keys, each codec's round trip and tamper matrix, the restore rule, "
     + "the overlay's unchanged layout, block-entity reload, and journal ticks resuming across sessions.");
+// The game's own options (#9759): kept for the install as a small JSON object, read back leniently.
+GameOptions chosenOptions = GameOptions.Defaults.With(GameOptions.ViewDistance, 8).With(GameOptions.FieldOfView, 90).With(GameOptions.WeatherEffects, 25);
+Check.That(GameOptions.Decode(chosenOptions.Encode()) == chosenOptions, "the game's options round-trip through their stored form");
+Check.That(GameOptions.Decode("{}"u8) == GameOptions.Defaults, "options missing from the stored form keep their defaults");
+Check.That(GameOptions.Decode("""{"fieldofview":400,"viewdistance":"far","weathereffects":40}"""u8) == GameOptions.Defaults.With(GameOptions.WeatherEffects, 40),
+    "an option out of range or unreadable keeps its default, and the rest are read");
+Check.That(RefusedOption(() => GameOptions.Defaults.With(GameOptions.FieldOfView, 30)) && RefusedOption(() => GameOptions.Defaults.With("brightness", 1)),
+    "a change out of range, or to an option the game does not have, is refused");
+string[] describedOptions = GameOptions.Defaults.Describe().Split(';');
+Check.That(describedOptions.Length == GameOptions.Specs.Count && describedOptions.All(entry => entry.Split('|').Length == 8),
+    "the options panel's list has one entry of eight fields per option");
+Check.That(GameOptions.Specs.All(spec => !(spec.Label + spec.Description + spec.Unit).Any(c => c is ';' or '|')),
+    "no option's label, unit or description holds the list's separators");
+
+static bool RefusedOption(Func<GameOptions> change)
+{
+    try
+    {
+        _ = change();
+        return false;
+    }
+    catch (FormatException)
+    {
+        return true;
+    }
+}
+
 return Check.Finish("SaveCore");
 
 static bool Throws(Action action)

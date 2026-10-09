@@ -14,9 +14,11 @@ namespace CraftSurvive.Game.Modules.World;
 internal static class ProductUiProjection
 {
     internal static UiValue Create(WorldUiFacts? sceneFacts, PlayerUiFacts? player,
-        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null, SledUiFacts? sled = null)
+        DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null, SledUiFacts? sled = null, string? gameOptions = null)
     {
         NumericObjectBuilder values = new();
+        // The game's own options for the options panel (#9759): id|label|min|max|step|unit|value|description, ';' between.
+        if (gameOptions is not null) values.AddText("gameOptions", gameOptions);
         if (sceneFacts is WorldUiFacts scene)
         {
             values.Add("revision", scene.Scene.SourceRevision);

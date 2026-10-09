@@ -537,6 +537,22 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   projection is the product's one UI channel, stream `craftsurvive.game` and contract
   `craftsurvive.game.v1` (`ProductUiPublisher.StreamName`); kind and stage enums travel as
   numbers and may be appended to but never renumbered.
+- **Options (#9759)** in the Menu drawer mount the Engine's video options panel when opened. It
+  holds every renderer setting the pinned pair has, with presets, and the Engine keeps the player's
+  choices for the install over the project's manifest values. The game adds three options of its
+  own, owned in C# (`GameOptions`) and kept for the install in the `craftsurvive.options` scope,
+  apart from the worlds' saves:
+  - **View distance:** the far field's reach in 128 m chunk columns (6 to 16, default 12), and
+    the far trees' band in proportion, up to its own 400 m. The open fog's density scales
+    inversely with the reach, so the haze covers the far field's edge at any setting. The near
+    ground is the gameplay residency and does not change.
+  - **Field of view:** 55 to 100 degrees (default 70).
+  - **Weather effects:** what falls on screen and the glass storm's veil, 0 to 100 %. The
+    weather still acts on the game.
+
+  Each option applies at once, with no reload, and a change raises no message unless it is
+  refused. The panel's "Reset to game defaults" resets the Engine's settings only. The panel
+  redraws on every change, so a keyboard user's focus leaves the slider after each step.
 - Developer tools in the panel (renderer metrics, the live-debug panel) work only on a host
   started with `--live-debug`.
 

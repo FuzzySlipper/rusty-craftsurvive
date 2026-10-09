@@ -23,8 +23,22 @@ internal sealed class FarField : IDisposable
     /// <summary>One far chunk column, in metres.</summary>
     internal const int ChunkMetres = (int)VoxelMetres * TerrainConstants.ChunkEdgeLength;
 
-    /// <summary>How many far chunk columns are kept each way from the player's: a mile and a half.</summary>
-    internal const int RadiusChunks = 12;
+    /// <summary>How many far chunk columns are kept each way from the player's by default: a mile and a half.</summary>
+    internal const int DefaultRadiusChunks = 12;
+    private int radiusChunks = DefaultRadiusChunks;
+    private bool rewant;
+
+    /// <summary>How many far chunk columns are kept each way: the player's view distance (#9759), taken on the next follow.</summary>
+    internal int RadiusChunks
+    {
+        get => radiusChunks;
+        set
+        {
+            radiusChunks = Math.Max(1, value);
+            grownRadius = Math.Min(grownRadius, radiusChunks);
+            rewant = true;
+        }
+    }
 
     /// <summary>The far field grows out from the player this many chunk columns an update, so a new world starts drawing at once.</summary>
     private const int GrowthPerUpdate = 2;
@@ -115,8 +129,9 @@ internal sealed class FarField : IDisposable
         (long X, long Z) column = (GridMath.FloorDivide(worldX, ChunkMetres), GridMath.FloorDivide(worldZ, ChunkMetres));
         bool moved = centre != column;
         if (moved) centre = column;
-        if (grownRadius < RadiusChunks || moved)
+        if (grownRadius < RadiusChunks || moved || rewant)
         {
+            rewant = false;
             grownRadius = Math.Min(RadiusChunks, grownRadius + GrowthPerUpdate);
             layer.Want(from z in Range(column.Z - grownRadius, column.Z + grownRadius)
                        from x in Range(column.X - grownRadius, column.X + grownRadius)
