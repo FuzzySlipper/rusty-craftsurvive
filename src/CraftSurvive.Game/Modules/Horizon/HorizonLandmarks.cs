@@ -15,6 +15,7 @@ namespace CraftSurvive.Game.Modules.Horizon;
 /// <item>between the near ground's edge and that reach, in the world on the far field's ground;</item>
 /// <item>within the near ground, nothing: the place's own structure is built there.</item>
 /// </list>
+/// The edges are measured square, as those windows are (<see cref="HorizonLandmarkRules.Band"/>).
 /// A real site is about ten metres across, a few pixels a kilometre off, so a silhouette never shrinks
 /// below <see cref="HorizonLandmarkRules.MinimumDegrees"/> tall: past half a kilometre or so it is drawn larger than life. It is
 /// fogged like the land it stands on, so it fades with it. By night home, the one inhabited place, shows
@@ -155,8 +156,8 @@ internal sealed class HorizonLandmarks : IDisposable
             Vector2 here = new(at.X, at.Z);
             double near = nearEdge();
             foreach ((KnownPlace place, double distance, LandmarkBand band) in listed.Where(place => Of(place) is not null)
-                .Select(place => (Place: place, Distance: (double)Vector2.Distance(place.Position, here)))
-                .Select(entry => (entry.Place, entry.Distance, Band: HorizonLandmarkRules.Band(entry.Distance, near, reach)))
+                .Select(place => (Place: place, Distance: (double)Vector2.Distance(place.Position, here),
+                    Band: HorizonLandmarkRules.Band(place.Position.X - here.X, place.Position.Y - here.Y, near, reach)))
                 .Where(entry => entry.Band != LandmarkBand.None)
                 .OrderBy(entry => entry.Distance).Take(MaximumLandmarks))
             {

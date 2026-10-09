@@ -18,6 +18,12 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
 
     /// <summary>The vertical field of view, in degrees: the player's option (#9759), taken on the next publication.</summary>
     internal double FieldOfViewDegrees { get; set; } = PlayerConstants.CameraFieldOfViewDegrees;
+
+    /// <summary>
+    /// The far clip, in metres, taken on the next publication: far enough for all the far field draws
+    /// (R9781-1), so its ground, not the sunk horizon beneath it, is what the player sees out to its reach.
+    /// </summary>
+    internal double FarDistance { get; set; } = PlayerConstants.CameraFarDistance;
     private ulong publications;
     private ulong publishedUpdate;
 
@@ -71,7 +77,7 @@ internal sealed class PlayerCamera(IEngineContext engine) : IDisposable
         CameraBasisMode.Derived,
         default,
         new CameraProjection(CameraProjectionKind.Perspective, FieldOfViewDegrees, 0d,
-            PlayerConstants.CameraNearDistance, PlayerConstants.CameraFarDistance),
+            PlayerConstants.CameraNearDistance, FarDistance),
         new CameraViewport(PlayerConstants.CameraViewportOrigin, PlayerConstants.CameraViewportOrigin,
             PlayerConstants.CameraViewportExtent, PlayerConstants.CameraViewportExtent));
 }

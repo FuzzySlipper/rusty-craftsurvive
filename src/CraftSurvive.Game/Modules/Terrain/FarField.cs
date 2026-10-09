@@ -40,6 +40,12 @@ internal sealed class FarField : IDisposable
         }
     }
 
+    /// <summary>
+    /// The farthest the far field draws from the player at a radius: whole chunk columns about the
+    /// player's, so up to one more column each way, to the corner of the square.
+    /// </summary>
+    internal static double FarthestMetres(int radiusChunks) => Math.Sqrt(2) * (Math.Max(1, radiusChunks) + 1) * ChunkMetres;
+
     /// <summary>The far field grows out from the player this many chunk columns an update, so a new world starts drawing at once.</summary>
     private const int GrowthPerUpdate = 2;
 

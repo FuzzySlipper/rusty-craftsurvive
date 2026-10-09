@@ -53,12 +53,15 @@ internal static class HorizonChecks
     internal static void LandmarksStandInTheirBand()
     {
         const double Near = 128, Reach = 12 * FarChunkMetres, Height = 8;
-        Check.That(HorizonLandmarkRules.Band(Near - 1, Near, Reach) == LandmarkBand.None, "a place within the near ground is its own structure");
-        Check.That(HorizonLandmarkRules.Band(Near, Near, Reach) == LandmarkBand.World && HorizonLandmarkRules.Band(Reach - 1, Near, Reach) == LandmarkBand.World,
+        Check.That(HorizonLandmarkRules.Band(Near - 1, 0, Near, Reach) == LandmarkBand.None, "a place within the near ground is its own structure");
+        Check.That(HorizonLandmarkRules.Band(Near, 0, Near, Reach) == LandmarkBand.World && HorizonLandmarkRules.Band(Reach - 1, 0, Near, Reach) == LandmarkBand.World,
             "between the near ground and the far field's reach it stands in the world");
-        Check.That(HorizonLandmarkRules.Band(Reach, Near, Reach) == LandmarkBand.Backdrop
-            && HorizonLandmarkRules.Band(HorizonLandmarkRules.RangeMetres, Near, Reach) == LandmarkBand.Backdrop, "past the reach, in the backdrop");
-        Check.That(HorizonLandmarkRules.Band(HorizonLandmarkRules.RangeMetres + 1, Near, Reach) == LandmarkBand.None, "and not past its range");
+        Check.That(HorizonLandmarkRules.Band(Reach, 0, Near, Reach) == LandmarkBand.Backdrop
+            && HorizonLandmarkRules.Band(0, HorizonLandmarkRules.RangeMetres, Near, Reach) == LandmarkBand.Backdrop, "past the reach, in the backdrop");
+        Check.That(HorizonLandmarkRules.Band(HorizonLandmarkRules.RangeMetres + 1, 0, Near, Reach) == LandmarkBand.None, "and not past its range");
+        // The reviewed diagonals (R9781-1): radially past the reach, but still under the square far field.
+        Check.That(HorizonLandmarkRules.Band(1088, 1088, Near, 1536) == LandmarkBand.World && HorizonLandmarkRules.Band(1450, 1450, Near, 2048) == LandmarkBand.World,
+            "a place on the diagonal stays in the world while the far field covers it");
 
         Check.That(HorizonLandmarkRules.Grow(Near, Height) == 1, "up close a silhouette is life size");
         double worst = double.MaxValue, previous = 0;
@@ -75,5 +78,44 @@ internal static class HorizonChecks
         Check.That(growing, "and it grows steadily with distance, so it never jumps");
         Check.That(HorizonLandmarkRules.Lit(1) == 0 && HorizonLandmarkRules.Lit(HorizonLandmarkRules.LightsFrom) == 0, "home is unlit by day");
         Check.That(HorizonLandmarkRules.Lit(HorizonLandmarkRules.LightsFull) == 1 && HorizonLandmarkRules.Lit(0) == 1, "and fully lit by night");
+    }
+
+    /// <summary>
+    /// R9781-1: wherever a place is drawn in the backdrop, the backdrop's ground under it is not sunk,
+    /// so its silhouette stands on visible ground; wherever it is drawn in the world, the far field
+    /// (a square of at least its reach about the player) covers it. Every bearing, with the sunk zone's
+    /// centre anywhere within a follow step of the player.
+    /// </summary>
+    internal static void LandmarksStandOnVisibleGround()
+    {
+        const double Near = 128;
+        Random random = new(9781);
+        int backdrop = 0, world = 0, sunk = 0, uncovered = 0;
+        foreach (double reach in new double[] { 6 * FarChunkMetres, 12 * FarChunkMetres, 16 * FarChunkMetres })
+        {
+            for (int sample = 0; sample < 20_000; sample++)
+            {
+                // About the band's edge, on any bearing: the diagonals are where radial and square differ most.
+                double angle = random.NextDouble() * Math.Tau;
+                double radius = reach * (0.9 + (0.6 * random.NextDouble()));
+                double dx = Math.Cos(angle) * radius, dz = Math.Sin(angle) * radius;
+                double sinkX = (random.NextDouble() - 0.5) * 2 * (HorizonSink.FollowMetres - 1), sinkZ = (random.NextDouble() - 0.5) * 2 * (HorizonSink.FollowMetres - 1);
+                switch (HorizonLandmarkRules.Band(dx, dz, Near, reach))
+                {
+                    case LandmarkBand.Backdrop:
+                        backdrop++;
+                        if (HorizonSink.At(Math.Max(Math.Abs(dx - sinkX), Math.Abs(dz - sinkZ)), reach, FarChunkMetres) > 0) sunk++;
+                        break;
+                    case LandmarkBand.World:
+                        world++;
+                        if (Math.Max(Math.Abs(dx), Math.Abs(dz)) >= reach) uncovered++;
+                        break;
+                }
+            }
+        }
+
+        Check.That(backdrop > 0 && world > 0, "places fall in both bands about the edge");
+        Check.That(sunk == 0, $"no backdrop place stands on sunk ground ({sunk} of {backdrop} did)");
+        Check.That(uncovered == 0, $"every world place is under the far field ({uncovered} of {world} were not)");
     }
 }

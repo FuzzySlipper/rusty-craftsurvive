@@ -89,6 +89,7 @@ internal static class PlayerConstants
 
     internal const double CameraFieldOfViewDegrees = 70d;
     internal const double CameraNearDistance = 0.05d;
+    /// <summary>The camera's least far clip; the far field's extent raises it (<see cref="Terrain.FarField.FarthestMetres"/>).</summary>
     internal const double CameraFarDistance = 1_000d;
     internal const double CameraViewportOrigin = 0d;
     internal const double CameraViewportExtent = 1d;

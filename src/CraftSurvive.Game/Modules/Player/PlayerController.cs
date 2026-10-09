@@ -45,6 +45,13 @@ internal sealed class PlayerController : IDisposable
         get => camera.FieldOfViewDegrees;
         set => camera.FieldOfViewDegrees = value;
     }
+
+    /// <summary>The first-person camera's far clip in metres: as far as the far field draws.</summary>
+    internal double FarDistance
+    {
+        get => camera.FarDistance;
+        set => camera.FarDistance = value;
+    }
     private readonly WorldOriginRebaser rebaser;
     private readonly PlayerContinuationStore continuation;
     private readonly EntityStore entityWorld = new([RuntimeComponent]);

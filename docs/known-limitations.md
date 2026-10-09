@@ -271,8 +271,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     sled and walking landmarks do not).
     - **Where.** Within the near ground a place is its own structure and nothing is drawn. Between
       the near ground and the far field's reach its silhouette stands in the world on the far
-      field's ground; past the reach, in the backdrop on the map's ground. At most the 64 nearest
+      field's ground; past the reach, in the backdrop on the map's ground. Both edges are measured
+      square, as the near ground, the far field and the backdrop's sunk zone are, so a place on the
+      diagonal never stands on sunk backdrop ground under the far field. At most the 64 nearest
       within 40 km (`HorizonLandmarkRules`).
+    - **The camera's far clip** follows the far field (`FarField.FarthestMetres`, about 2.35 km at
+      the default view distance): the old fixed 1 km clip cut the far field's outer ground, leaving
+      the sunk backdrop showing there.
     - **Size.** A real site is about ten metres across, so a silhouette is never drawn under 1°
       tall: life size within about half a kilometre, six times at 3 km. It does not match the
       structure's own shape, which takes over at the near ground's edge.

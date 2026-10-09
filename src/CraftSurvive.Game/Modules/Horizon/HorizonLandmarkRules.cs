@@ -26,12 +26,22 @@ internal static class HorizonLandmarkRules
     /// <summary>Lights show as the daylight falls from the first value to the second, full by then.</summary>
     internal const double LightsFrom = 0.45, LightsFull = 0.15;
 
+    /// <summary>
+    /// The band of a place at an offset (x, z) from the player. The near ground, the far field and the
+    /// backdrop's sunk zone are all square windows about the player, so the near edge and the reach are
+    /// measured square (the larger of the two offsets), not radially: a place on the diagonal stays in
+    /// the world while the far field still covers it, and reaches the backdrop only where its ground is
+    /// no longer sunk (R9781-1). The range is radial.
+    /// </summary>
     /// <param name="nearEdge">The near ground's edge from the player: its own structure is built within it.</param>
     /// <param name="reach">The far field's reach from the player: past it the backdrop is the ground.</param>
-    internal static LandmarkBand Band(double distance, double nearEdge, double reach) =>
-        distance < nearEdge || distance > RangeMetres ? LandmarkBand.None
-        : distance >= reach ? LandmarkBand.Backdrop
-        : LandmarkBand.World;
+    internal static LandmarkBand Band(double dx, double dz, double nearEdge, double reach)
+    {
+        double square = Math.Max(Math.Abs(dx), Math.Abs(dz));
+        return square < nearEdge || Math.Sqrt((dx * dx) + (dz * dz)) > RangeMetres ? LandmarkBand.None
+            : square >= reach ? LandmarkBand.Backdrop
+            : LandmarkBand.World;
+    }
 
     /// <summary>How many times life size a silhouette of <paramref name="heightMetres"/> is drawn at a distance: never less than one.</summary>
     internal static double Grow(double distance, double heightMetres, double minimumDegrees = MinimumDegrees) =>

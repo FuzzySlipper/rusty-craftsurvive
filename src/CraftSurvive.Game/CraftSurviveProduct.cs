@@ -223,6 +223,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (!worldBuilt) return;
         player.FieldOfViewDegrees = gameOptions.FieldOfViewDegrees;
         terrain.ViewDistanceChunks = gameOptions.ViewDistanceChunks;
+        player.FarDistance = Math.Max(PlayerConstants.CameraFarDistance, FarField.FarthestMetres(gameOptions.ViewDistanceChunks));
         sky.Options(gameOptions.WeatherEffectsPercent / 100f, (float)gameOptions.ViewDistanceChunks / FarField.DefaultRadiusChunks);
     }
 
