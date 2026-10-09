@@ -13,6 +13,24 @@ internal sealed class TerrainResidencyPolicy
     private TerrainChunkAddress[] cachedCandidates = [];
     private HashSet<TerrainChunkAddress> cachedWindow = [];
     private TerrainResidencyPlan? cachedPlan;
+
+    /// <summary>The ground requested about the player, in chunks: the player's view distance (#9759).</summary>
+    internal int RequestedRadius { get; private set; } = TerrainConstants.RequestedChunkRadius;
+
+    /// <summary>The ring kept beyond the request, so crossing a chunk boundary reuses chunks.</summary>
+    internal int RetainedRadius => RequestedRadius + (TerrainConstants.RetainedChunkRadius - TerrainConstants.RequestedChunkRadius);
+
+    /// <summary>
+    /// Changes the request window. The next plan is built for it while the player stands still; the
+    /// streamer admits and evicts the difference within its per-update budget.
+    /// </summary>
+    internal void SetRequestedRadius(int radius)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(radius, 1);
+        if (radius == RequestedRadius) return;
+        RequestedRadius = radius;
+        cachedPlan = null;
+    }
     private TerrainOverlaySnapshot? cachedOverlay;
     private ulong cachedOverlayRevision;
 
@@ -46,7 +64,7 @@ internal sealed class TerrainResidencyPolicy
         // A restore or an edit not reported through RefreshAfterOverlayChange
         // invalidates the payloads. Ordinary boundary crossings reuse overlap.
         if (overlayChanged) cachedChunks.Clear();
-        HashSet<TerrainChunkAddress> candidates = CandidateChunks(center, TerrainConstants.RetainedChunkRadius, snapshot).ToHashSet();
+        HashSet<TerrainChunkAddress> candidates = CandidateChunks(center, RetainedRadius, snapshot).ToHashSet();
         foreach (TerrainChunkAddress address in cachedChunks.Keys.Where(address => !candidates.Contains(address)).ToArray())
             cachedChunks.Remove(address);
         // No payloads are produced here. Content is decided by the recipe's predicate, which
@@ -92,7 +110,7 @@ internal sealed class TerrainResidencyPolicy
         cachedOverlay = snapshot;
         cachedOverlayRevision = overlay.Revision;
         // An edit can occupy a chunk outside every surface band, which makes it a new candidate.
-        HashSet<TerrainChunkAddress> candidates = CandidateChunks(cachedPlan.Center, TerrainConstants.RetainedChunkRadius, snapshot).ToHashSet();
+        HashSet<TerrainChunkAddress> candidates = CandidateChunks(cachedPlan.Center, RetainedRadius, snapshot).ToHashSet();
         cachedCandidates = candidates.ToArray();
         cachedWindow = candidates;
         long candidated = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -131,7 +149,7 @@ internal sealed class TerrainResidencyPolicy
         // Only what will be retained is requested: a requested chunk beyond the retained cap would
         // be admitted on one update and evicted on the next, forever.
         TerrainChunkAddress[] requested = retained
-            .Where(address => IsWithinHorizontalRadius(address, center, TerrainConstants.RequestedChunkRadius))
+            .Where(address => IsWithinHorizontalRadius(address, center, RequestedRadius))
             .ToArray();
 
         // A plan is a snapshot with a window. It serves the chunks that exist when it is

@@ -14,7 +14,12 @@ const SETTLE_MS = 1500;
 /** The game's own options are drawn in this group of the panel, after the Engine's. */
 const GAME_GROUP = 'Game';
 
-/** The panel's colours and type, from the HUD's: the Engine panel reads them as custom properties. */
+/**
+ * The panel's colours and type, from the HUD's. The Engine panel declares its own defaults on
+ * `.rusty-video-options` itself, so they are set there, by a rule under this menu's holder that
+ * outranks the panel's.
+ */
+const HOLDER_CLASS = 'craftsurvive-options';
 const PANEL_STYLE: Readonly<Record<string, string>> = {
   '--rusty-video-options-background': 'rgb(15 19 25 / 0%)',
   '--rusty-video-options-foreground': '#edf5ff',
@@ -46,9 +51,10 @@ export function mountOptions(host: HTMLElement, intents: RustyApplicationUiInten
   const details = element('details', 'margin-top:.35rem;');
   details.append(element('summary', 'cursor:pointer;font-weight:700;', 'Options'));
   const holder = element('div', 'margin-top:.3rem;');
-  holder.className = 'craftsurvive-options';
-  for (const [name, value] of Object.entries(PANEL_STYLE)) holder.style.setProperty(name, value);
-  details.append(holder);
+  holder.className = HOLDER_CLASS;
+  const theme = element('style');
+  theme.textContent = `.${HOLDER_CLASS} .rusty-video-options { ${Object.entries(PANEL_STYLE).map(([name, value]) => `${name}: ${value};`).join(' ')} padding: .35rem .2rem; }`;
+  details.append(theme, holder);
   host.append(details);
 
   let published: GameOption[] = [];

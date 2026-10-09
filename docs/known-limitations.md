@@ -541,11 +541,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   holds every renderer setting the pinned pair has, with presets, and the Engine keeps the player's
   choices for the install over the project's manifest values. The game adds three options of its
   own, owned in C# (`GameOptions`) and kept for the install in the `craftsurvive.options` scope,
-  apart from the worlds' saves:
-  - **View distance:** the far field's reach in 128 m chunk columns (6 to 16, default 12), and
-    the far trees' band in proportion, up to its own 400 m. The open fog's density scales
-    inversely with the reach, so the haze covers the far field's edge at any setting. The near
-    ground is the gameplay residency and does not change.
+  apart from the worlds' saves. The panel is themed to the HUD by a rule under the menu's holder,
+  since the panel declares its own defaults on `.rusty-video-options`:
+  - **View distance:** the far field's reach in 128 m chunk columns (6 to 16, default 12).
+    - The near ground's request window follows in proportion (8 chunks at the default, 5 to 10),
+      with the retained ring one wider. It streams in or out within the residency's per-update
+      budget, while standing still, with no reload.
+    - The far field's sunk zone keeps short of the near edge, and the near trees follow the
+      retained ring.
+    - The far trees' band follows in proportion, up to its own 400 m.
+    - The open fog's density scales inversely with the reach, so the haze covers the far field's
+      edge at any setting.
   - **Field of view:** 55 to 100 degrees (default 70).
   - **Weather effects:** what falls on screen and the glass storm's veil, 0 to 100 %. The
     weather still acts on the game.

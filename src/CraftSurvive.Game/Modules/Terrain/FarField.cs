@@ -51,14 +51,33 @@ internal sealed class FarField : IDisposable
 
     /// <summary>
     /// How far the far field is sunk under the near ground, and where: fully within
-    /// <see cref="SinkInnerMetres"/> of the player, rising to its true height by
-    /// <see cref="SinkOuterMetres"/>, short of the near ground's edge (the requested chunk
+    /// <see cref="sinkInnerMetres"/> of the player, rising to its true height by
+    /// <see cref="sinkOuterMetres"/>, short of the near ground's edge (the requested chunk
     /// radius) so the join is under the fog and never a drop. Six metres covers a far voxel's
     /// error against the metre ground.
     /// </summary>
     private const double SinkMetres = 6d;
-    private const double SinkInnerMetres = 64d;
-    private const double SinkOuterMetres = 112d;
+    /// <summary>The sunk zone ends this far inside the near ground's edge, and is fully sunk this far inside it.</summary>
+    private const double SinkOuterInsideEdgeMetres = 16d, SinkInnerInsideEdgeMetres = 64d;
+    private double sinkInnerMetres = (TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength) - SinkInnerInsideEdgeMetres;
+    private double sinkOuterMetres = (TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength) - SinkOuterInsideEdgeMetres;
+
+    /// <summary>
+    /// The near ground's edge, in metres from the player (its requested radius, #9759): the sunk zone
+    /// keeps short of it, so the join stays under the fog. A change re-samples the columns either touches.
+    /// </summary>
+    internal double NearEdgeMetres
+    {
+        set
+        {
+            HashSet<(long X, long Z)> changed = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(sinkCentre)];
+            sinkInnerMetres = Math.Max(0d, value - SinkInnerInsideEdgeMetres);
+            sinkOuterMetres = Math.Max(sinkInnerMetres + 1d, value - SinkOuterInsideEdgeMetres);
+            if (double.IsNaN(sinkCentre.X)) return;
+            changed.UnionWith(SunkColumns(sinkCentre));
+            layer.Invalidate(changed);
+        }
+    }
 
     /// <summary>How far the player walks before the sunk zone is moved onto them again.</summary>
     private const double SinkFollowStepMetres = 24d;
@@ -120,7 +139,7 @@ internal sealed class FarField : IDisposable
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"farField chunks={layer.ResidentChunks} pending={layer.PendingChunks} radius={grownRadius}/{RadiusChunks} centre={centre?.X ?? 0},{centre?.Z ?? 0} workMs={layer.WorkMilliseconds:F0}");
+        $"farField chunks={layer.ResidentChunks} pending={layer.PendingChunks} radius={grownRadius}/{RadiusChunks} sink={sinkInnerMetres:F0}-{sinkOuterMetres:F0}m centre={centre?.X ?? 0},{centre?.Z ?? 0} workMs={layer.WorkMilliseconds:F0}");
 
     /// <summary>Keeps the far field centred on a world column, and the sunk zone under the player.</summary>
     internal void Follow(long worldX, long worldZ)
@@ -173,12 +192,12 @@ internal sealed class FarField : IDisposable
     }
 
     /// <summary>The far chunk columns a sunk zone at a centre touches.</summary>
-    private static IEnumerable<(long X, long Z)> SunkColumns((double X, double Z) at)
+    private IEnumerable<(long X, long Z)> SunkColumns((double X, double Z) at)
     {
-        long minX = GridMath.FloorDivide((long)Math.Floor(at.X - SinkOuterMetres), ChunkMetres);
-        long maxX = GridMath.FloorDivide((long)Math.Ceiling(at.X + SinkOuterMetres), ChunkMetres);
-        long minZ = GridMath.FloorDivide((long)Math.Floor(at.Z - SinkOuterMetres), ChunkMetres);
-        long maxZ = GridMath.FloorDivide((long)Math.Ceiling(at.Z + SinkOuterMetres), ChunkMetres);
+        long minX = GridMath.FloorDivide((long)Math.Floor(at.X - sinkOuterMetres), ChunkMetres);
+        long maxX = GridMath.FloorDivide((long)Math.Ceiling(at.X + sinkOuterMetres), ChunkMetres);
+        long minZ = GridMath.FloorDivide((long)Math.Floor(at.Z - sinkOuterMetres), ChunkMetres);
+        long maxZ = GridMath.FloorDivide((long)Math.Ceiling(at.Z + sinkOuterMetres), ChunkMetres);
         for (long z = minZ; z <= maxZ; z++)
         for (long x = minX; x <= maxX; x++)
             yield return (x, z);
@@ -189,7 +208,7 @@ internal sealed class FarField : IDisposable
     {
         if (double.IsNaN(sinkCentre.X)) return 0d;
         double away = Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z));
-        double t = Math.Clamp((away - SinkInnerMetres) / (SinkOuterMetres - SinkInnerMetres), 0d, 1d);
+        double t = Math.Clamp((away - sinkInnerMetres) / (sinkOuterMetres - sinkInnerMetres), 0d, 1d);
         return SinkMetres * (1d - (t * t * (3d - (2d * t))));
     }
 

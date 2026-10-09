@@ -25,8 +25,19 @@ internal sealed class TerrainTrees : IDisposable
     private const string MeshFolder = "models/trees/";
     private const string LeavesRole = PropMaterials.LeavesRole;
 
-    /// <summary>Trees are drawn this far from the player: the walking residency's reach.</summary>
-    private const long DrawMetres = 144;
+    /// <summary>Trees are drawn this far from the player: the walking residency's retained reach, by default.</summary>
+    private long drawMetres = TerrainConstants.RetainedChunkRadius * TerrainConstants.ChunkEdgeLength;
+
+    /// <summary>The walking residency's retained reach (#9759): near trees are drawn out to it.</summary>
+    internal long NearMetres
+    {
+        set
+        {
+            if (value == drawMetres) return;
+            drawMetres = value;
+            stale = true;
+        }
+    }
     /// <summary>The drawn set is rebuilt when the player has moved this far, or the terrain changed.</summary>
     private const long RebuildMetres = 8;
     /// <summary>How far a trunk is sunk below its ground's surface, so a slope never shows its base.</summary>
@@ -200,7 +211,7 @@ internal sealed class TerrainTrees : IDisposable
     {
         candidates.Clear();
         nearDrawn.Clear();
-        recipe.TreesIn(center.X - DrawMetres, center.Z - DrawMetres, center.X + DrawMetres, center.Z + DrawMetres, candidates);
+        recipe.TreesIn(center.X - drawMetres, center.Z - drawMetres, center.X + drawMetres, center.Z + drawMetres, candidates);
         List<AppearanceFact> drawn = new(candidates.Count);
         List<SpatialEntityCollider> crowned = new(candidates.Count);
         foreach (TerrainTree tree in candidates)

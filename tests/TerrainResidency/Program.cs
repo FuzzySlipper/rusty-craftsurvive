@@ -30,6 +30,7 @@ Check.Section("regional terrain", RegionalTerrainChecks.Run);
 Check.Section("generator identity", GeneratorChecks.Run);
 Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);
+Check.Section("view distance window", ResidencyChecks.ViewDistanceMovesTheWindow);
 Check.Section("generation", GenerationChecks.Run);
 Check.Section("continuous density", DensityChecks.Run);
 Check.Section("edits", EditChecks.Run);

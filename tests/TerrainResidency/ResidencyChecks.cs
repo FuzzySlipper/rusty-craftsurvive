@@ -40,6 +40,33 @@ internal static class ResidencyChecks
             "an edited chunk gets a new payload; the earlier one is left as it was");
     }
 
+    /// <summary>
+    /// The view distance option (#9759) moves the request window while the player stands still: the
+    /// next plan for the same centre requests and retains only what the new radii reach, and back.
+    /// </summary>
+    internal static void ViewDistanceMovesTheWindow()
+    {
+        var configuration = TerrainConfiguration.Default;
+        var recipe = configuration.CreateRecipe(new TestDraws(configuration.Seed));
+        TerrainOverlayState state = new(configuration.Seed);
+        TerrainResidencyPolicy policy = new(recipe, new TerrainChunkGenerator(recipe));
+        TerrainChunkAddress center = new VoxelAddress(0, recipe.SurfaceAt(0, 0), 0).Chunk;
+        static long Reach(IEnumerable<TerrainChunkAddress> addresses, TerrainChunkAddress center) =>
+            addresses.Max(address => Math.Max(Math.Abs(address.X - center.X), Math.Abs(address.Z - center.Z)));
+        TerrainResidencyPlan standard = policy.PlanFor(center, state);
+        Check.That(Reach(standard.Requested, center) == TerrainConstants.RequestedChunkRadius && Reach(standard.Retained, center) == TerrainConstants.RetainedChunkRadius,
+            "by default the plan requests 8 chunks about the player and retains 9");
+        policy.SetRequestedRadius(5);
+        TerrainResidencyPlan near = policy.PlanFor(center, state);
+        Check.That(!ReferenceEquals(near, standard) && Reach(near.Requested, center) == 5 && Reach(near.Retained, center) == 6,
+            "a nearer view distance replans for the same centre: 5 requested, 6 retained");
+        Check.That(near.Requested.Count < standard.Requested.Count, "and requests fewer chunks");
+        policy.SetRequestedRadius(10);
+        TerrainResidencyPlan far = policy.PlanFor(center, state);
+        Check.That(Reach(far.Requested, center) == 10 && Reach(far.Retained, center) == 11 && far.Requested.Count > standard.Requested.Count,
+            "a farther one requests 10 and retains 11");
+    }
+
     internal static void Run()
     {
         var configuration = TerrainConfiguration.Default;

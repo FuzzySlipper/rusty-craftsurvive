@@ -29,6 +29,7 @@ internal sealed class TerrainWorld : IDisposable
     private readonly ProductUiPublisher ui;
     private readonly WorldFrame frame;
     private readonly TerrainTrees trees;
+    private readonly TerrainResidencyPolicy policy;
     private readonly TerrainRecipe recipe;
     private readonly TerrainChunkCache chunkCache;
     private readonly TerrainOverlayStore overlayStore;
@@ -63,7 +64,7 @@ internal sealed class TerrainWorld : IDisposable
         CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
         TerrainChunkGenerator generator = new(recipe, chunkCache);
-        TerrainResidencyPolicy policy = new(recipe, generator);
+        policy = new TerrainResidencyPolicy(recipe, generator);
         SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
         overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
@@ -149,7 +150,7 @@ internal sealed class TerrainWorld : IDisposable
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
-            farField = new FarField(engine, content, recipe, frame) { RadiusChunks = viewDistanceChunks };
+            farField = new FarField(engine, content, recipe, frame) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
             ui.Publish();
             started = true;
         }
@@ -253,10 +254,18 @@ internal sealed class TerrainWorld : IDisposable
 
     private int viewDistanceChunks = FarField.DefaultRadiusChunks;
 
+    /// <summary>The near ground's requested radius for a view distance, in chunks: in proportion to the default, within these.</summary>
+    private const int NearestRequestedRadius = 5, FarthestRequestedRadius = 10;
+
+    /// <summary>The near ground's edge, in metres from the player.</summary>
+    private double NearEdgeMetres => policy.RequestedRadius * TerrainConstants.ChunkEdgeLength;
+
     /// <summary>
-    /// How far the land is drawn (#9759): the far field's reach in its chunk columns, and the far trees'
-    /// band in proportion, up to its own reach at the default. The near ground is the gameplay
-    /// residency and does not change.
+    /// How far the land is drawn (#9759), in the far field's chunk columns. It sets the far field's
+    /// reach; the near ground's request window in proportion (8 chunks at the default 12, within
+    /// 5 to 10), which streams in or out within the residency's per-update budget with no reload;
+    /// the far field's sunk zone, which stays short of the near edge; the near trees, which follow
+    /// the retained ring; and the far trees' band, up to its own reach at the default.
     /// </summary>
     internal int ViewDistanceChunks
     {
@@ -264,10 +273,22 @@ internal sealed class TerrainWorld : IDisposable
         set
         {
             viewDistanceChunks = value;
-            if (farField is not null) farField.RadiusChunks = value;
+            int near = Math.Clamp((int)Math.Round((double)value * TerrainConstants.RequestedChunkRadius / FarField.DefaultRadiusChunks),
+                NearestRequestedRadius, FarthestRequestedRadius);
+            policy.SetRequestedRadius(near);
+            trees.NearMetres = policy.RetainedRadius * TerrainConstants.ChunkEdgeLength;
+            if (farField is not null)
+            {
+                farField.RadiusChunks = value;
+                farField.NearEdgeMetres = NearEdgeMetres;
+            }
+
             trees.FarReach = Math.Min(TerrainTrees.FarMetres, TerrainTrees.FarMetres * value / FarField.DefaultRadiusChunks);
         }
     }
+
+    /// <summary>The near ground's request and retained radii, in chunks.</summary>
+    internal (int Requested, int Retained) NearRadii => (policy.RequestedRadius, policy.RetainedRadius);
 
     /// <summary>Sets how far the distant trees reach (#9677); 0 turns them off.</summary>
     internal string SetFarTrees(long metres)
