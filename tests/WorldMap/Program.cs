@@ -113,6 +113,8 @@ try
         Console.WriteLine($"continent {continent.Map.Configuration.Size / 1000} km: map {continentFingerprint:x16}; nodes={continent.Map.Grid.Count}; spacing={continent.Map.Spacing:F0} m; bytes={catalog.StoredBytes}; generateMs={generateMs:F0}");
         Check.That(continentFingerprint == ContinentGolden, $"the default continent's geography matches its golden ({continentFingerprint:x16})");
         Check.That(continent.Map.Scale.Continental && continent.Map.Spacing == 1000, "a continent is simulated on a kilometre lattice");
+        DesignTopologyReport topology = DesignTopology.Check(continent.Map.Grid, i => continent.Map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, ContinentDesign.For(continent.Map.Configuration.Size)!);
+        Check.That(topology.Holds(ContinentDesign.For(continent.Map.Configuration.Size)!), $"the published continent keeps the frontier's rules: {topology}");
         RegionChecks(continent.Map);
         Check.Section("weather on the continent", () => WeatherChecks.Continent(continent.Map));
         ContinentalTerrainChecks(continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map));
@@ -137,6 +139,7 @@ try
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 Check.Section("generation recipe", RecipeChecks.DefaultsAreTheGeneratorsOwn);
 Check.Section("continent design", RecipeChecks.DesignsDrawTheContinent);
+Check.Section("continent design topology", RecipeChecks.DesignTopologyIsEnforced);
 Check.Section("weather", WeatherChecks.Synthetic);
 Check.Section("weather over the player", WeatherChecks.HereFollowsTheClock);
 Check.Section("weather on a route", WeatherChecks.RouteForecastKeepsTheMarchPace);
@@ -149,7 +152,7 @@ return Check.Finish("WorldMap");
 partial class Program
 {
     /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 23 (#9550); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0x2c94402073bedbb5UL;
+    private const ulong RegionTileGolden = 0x2b85db556bf8694eUL;
     /// <summary>
     /// A tile builds in about 1.5 s in Release on an idle machine; this wall-clock bound leaves room for a
     /// heavily shared runner (5.6 s was seen at a load average of 40) while still catching a regression.
@@ -239,5 +242,5 @@ partial class Program
 
     private const ulong ContinentSeed = 12345;
     /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 23 (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0x6522712339c7f8cbUL;
+    private const ulong ContinentGolden = 0x6d2e13a1b460ebeaUL;
 }

@@ -4,9 +4,9 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace MapLab;
 
 /// <summary>
-/// Measures of a generated map beyond its heights (#9815): whether a design's topology held (the
-/// peninsula meets the mainland only through the neck), how prominent its peaks are and how high the
-/// saddles between them, how much relief a traveller meets, and how much easy lowland there is.
+/// Measures of a generated map beyond its heights (#9815): how prominent its peaks are and how high the
+/// saddles between them, how much relief a traveller meets, and how much easy lowland there is. A
+/// design's topology is the generator's own check (<see cref="DesignTopology"/>).
 /// Everything is measured on the tool's sampled grid.
 /// </summary>
 internal static class Terrain
@@ -21,82 +21,8 @@ internal static class Terrain
     {
         int n = height.GetLength(0);
         bool Land(int x, int z) => height[x, z] > water;
-        if (design is not null) Topology(line, n, Land, radius, cell, design);
         Peaks(line, height, n, cell, radius, Land);
         Relief(line, height, n, cell, Land);
-    }
-
-    private static void Topology(Action<string> line, int n, Func<int, int, bool> land, double radius, double cell, ContinentDesign design)
-    {
-        (int X, int Z) Pixel(double u, double v) => ((int)((u + 1) / 2 * n), (int)((v + 1) / 2 * n));
-        double U(int x) => ((x + 0.5) / n * 2) - 1;
-        (int X, int Z) peninsula = Pixel(0, 0);
-        DesignLand? mainland = design.Land.FirstOrDefault(l => l.Forbidden);
-        if (mainland is null)
-        {
-            line("  topology: no forbidden mainland in the design");
-            return;
-        }
-
-        (int X, int Z) inland = Pixel(mainland.Points.Average(p => p[0]), mainland.Points.Average(p => p[1]));
-        int[,] component = Components(n, land, (_, _) => true, out int count, out int[] sizes);
-        bool connected = component[peninsula.X, peninsula.Z] >= 0 && component[peninsula.X, peninsula.Z] == component[inland.X, inland.Z];
-        int[,] outside = Components(n, land, (x, z) => !design.InNeck(U(x), U(z)), out _, out _);
-        bool bridge = outside[peninsula.X, peninsula.Z] >= 0 && outside[peninsula.X, peninsula.Z] == outside[inland.X, inland.Z];
-        int main = component[peninsula.X, peninsula.Z];
-        int islands = Enumerable.Range(0, count).Count(c => c != main && c != component[inland.X, inland.Z] && sizes[c] >= 2);
-        // The neck's width: across its band of rows, the fewest land cells in any one row.
-        int narrowest = int.MaxValue;
-        for (int z = 0; z < n; z++)
-        {
-            int across = 0, inNeck = 0;
-            for (int x = 0; x < n; x++)
-            {
-                if (!design.InNeck(U(x), U(z))) continue;
-                inNeck++;
-                if (land(x, z) && component[x, z] == main) across++;
-            }
-
-            if (inNeck > 0) narrowest = Math.Min(narrowest, across);
-        }
-
-        line(string.Create(CultureInfo.InvariantCulture,
-            $"  topology: peninsula meets the mainland {(connected ? "yes" : "NO")}; a bridge outside the neck {(bridge ? "YES" : "no")}; narrowest row of the neck {narrowest * cell / 1000:F0} km of land; islands {islands}"));
-    }
-
-    /// <summary>The 4-connected components of the cells that are land and allowed; -1 where not.</summary>
-    private static int[,] Components(int n, Func<int, int, bool> land, Func<int, int, bool> allowed, out int count, out int[] sizes)
-    {
-        int[,] id = new int[n, n];
-        for (int z = 0; z < n; z++) for (int x = 0; x < n; x++) id[x, z] = -1;
-        List<int> size = [];
-        Stack<(int, int)> open = new();
-        for (int z = 0; z < n; z++)
-        for (int x = 0; x < n; x++)
-        {
-            if (id[x, z] >= 0 || !land(x, z) || !allowed(x, z)) continue;
-            int c = size.Count, members = 0;
-            size.Add(0);
-            open.Push((x, z));
-            id[x, z] = c;
-            while (open.TryPop(out (int X, int Z) at))
-            {
-                members++;
-                foreach ((int dx, int dz) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
-                {
-                    int px = at.X + dx, pz = at.Z + dz;
-                    if (px < 0 || pz < 0 || px >= n || pz >= n || id[px, pz] >= 0 || !land(px, pz) || !allowed(px, pz)) continue;
-                    id[px, pz] = c;
-                    open.Push((px, pz));
-                }
-            }
-
-            size[c] = members;
-        }
-
-        count = size.Count;
-        sizes = [.. size];
-        return id;
     }
 
     /// <summary>

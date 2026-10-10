@@ -58,6 +58,9 @@ internal sealed partial class MapRelief
             relief.Hardness[i] = Math.Clamp(relief.Hardness[i] + (design.BeltHardness * Math.Max(share, design.Ruggedness(u, v))), 0, 1);
         }
 
+        // The land must meet the mainland only through the neck (R9815-1): a stray bridge is drowned, a world that cannot be repaired refused.
+        DesignTopology.Enforce(grid, relief.Sea, design);
+
         // Land rises from the shore it actually has.
         double[] shore = DistanceFromOutlets(grid, relief.Sea);
         for (int i = 0; i < grid.Count; i++)
@@ -105,6 +108,17 @@ internal sealed partial class MapRelief
             relief.Uplift[i] = from.Bilinear(coarse.Uplift, x, z);
             double texture = MapNoise.Fbm(seed ^ TextureSalt, x / textureWavelength, z / textureWavelength, r.TextureOctaves, r.FractalPersistence);
             relief.Height[i] = Math.Max(from.Bilinear(coarse.Height, x, z), 0) + r.RefinedTexture * (1 + texture);
+        }
+
+        // The finer coast is held to the same rules; land a repair drowns becomes sea floor.
+        bool[] wasSea = (bool[])relief.Sea.Clone();
+        DesignTopology.Enforce(fine, relief.Sea, design);
+        for (int i = 0; i < fine.Count; i++)
+        {
+            if (!relief.Sea[i] || wasSea[i]) continue;
+            relief.Outlet[i] = true;
+            relief.Uplift[i] = 0;
+            relief.Height[i] = -r.SeaFloorDepth;
         }
 
         return relief;

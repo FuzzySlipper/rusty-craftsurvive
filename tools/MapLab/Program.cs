@@ -96,6 +96,7 @@ double Percentile(double p) => land.Count == 0 ? 0 : land[(int)Math.Clamp(p * (l
 Line(Invariant($"land={100.0 * land.Count / (pixels * pixels):F1}% elevation p50={Percentile(0.5):F0}m p90={Percentile(0.9):F0}m p99={Percentile(0.99):F0}m max={Percentile(1):F0}m"));
 
 DrawRelief().Save(Path.Combine(output, "relief.png"));
+if (design is not null) Line($"  topology: {DesignTopology.Check(map.Grid, i => map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, design)}");
 Terrain.Report(Line, height, cell, map.Radius, GenerationConstants.WaterLevel, design);
 if (design is not null)
 {

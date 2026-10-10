@@ -184,6 +184,9 @@ internal static class MapSimulation
             }
         }
 
+        // What is published must hold the design's rules (R9815-1): erosion moves no coast, so this only confirms the refined lattice's.
+        DesignTopologyReport topology = DesignTopology.Check(grid, i => !relief.Sea[i], design);
+        if (!topology.Holds(design)) throw new InvalidOperationException($"Continent design '{design.Name}' generated land that breaks its rules: {topology}.");
         return (relief, scale);
     }
 

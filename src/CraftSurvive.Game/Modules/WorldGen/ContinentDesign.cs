@@ -40,8 +40,11 @@ internal sealed record ContinentDesign
     /// <summary>Areas forced to land or to sea whatever the noise decides: the neck's core, and the moats that keep other bridges from forming.</summary>
     public IReadOnlyList<DesignZone> Fixed { get; init; } = [];
 
-    /// <summary>The only place the peninsula may meet the mainland (checked, #9815).</summary>
+    /// <summary>The only place the peninsula may meet the mainland (enforced: <see cref="DesignTopology"/>).</summary>
     public IReadOnlyList<double[]> Neck { get; init; } = [];
+
+    /// <summary>The neck's narrowest row of joining land must be within this range, in metres [least, most].</summary>
+    public double[] NeckWidthMetres { get; init; } = [0, double.MaxValue];
 
     /// <summary>How much harder a belt's rock is at its crest (0 to 1): resistant rock stands taller and sharper under erosion.</summary>
     public double BeltHardness { get; init; } = 0.35;
@@ -100,6 +103,7 @@ internal sealed record ContinentDesign
         if (Land.Count == 0) throw new InvalidDataException($"Design '{Name}' has no land.");
         foreach (DesignLand land in Land)
             if (land.Points.Count < 3 || land.Points.Any(p => p.Length < 2)) throw new InvalidDataException($"Land '{land.Name}' needs three or more [x, z] points.");
+        if (NeckWidthMetres.Length != 2 || NeckWidthMetres[0] > NeckWidthMetres[1]) throw new InvalidDataException($"Design '{Name}' needs a neck width range [least, most].");
         foreach (DesignZone zone in Fixed)
             if (zone.Points.Count < 3) throw new InvalidDataException($"Zone '{zone.Name}' needs three or more [x, z] points.");
         foreach (DesignBelt belt in Belts)

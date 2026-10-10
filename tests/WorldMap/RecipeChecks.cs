@@ -78,4 +78,57 @@ internal static class RecipeChecks
         Check.That(Math.Abs(massif.AreaUplift(-0.55, -0.35, areaGains, massif.HighestAsked, 1) - (2 * flat)) < 1e-9, "an area's calibration gain scales its uplift");
         Check.That(massif.Ruggedness(-0.55, -0.35) > 0.75 && massif.HighestAsked == design.HighestAsked, "rugged areas harden the rock; the highest asked is still the Wall's");
     }
+
+    /// <summary>
+    /// The design's topology is enforced, not only measured (R9815-1): a second land bridge to the mainland
+    /// is drowned, and a design whose neck cannot be the width it asks, or whose peninsula cannot reach the
+    /// mainland, yields no world at all.
+    /// </summary>
+    internal static void DesignTopologyIsEnforced()
+    {
+        ContinentDesign frontier = ContinentDesign.Builtin(ContinentDesign.FrontierName);
+        MapGrid grid = MapGrid.For(MapScale.DefaultContinentalSize).Coarsened();
+        bool[] Sea(ContinentDesign design) => [.. Enumerable.Range(0, grid.Count)
+            .Select(i => !MapRelief.DesignedLand(design, Seed, grid.X(i) / grid.Radius, grid.Z(i) / grid.Radius, design.CoastBand / 2))];
+
+        DesignTopologyReport plain = DesignTopology.Enforce(grid, Sea(frontier), frontier);
+        Check.That(plain.Connected && !plain.BridgeOutsideNeck, $"the frontier peninsula holds its rules as drawn: {plain}");
+
+        // A causeway forced as land from deep in the peninsula to the mainland west of the neck: it joins them outside it.
+        ContinentDesign causeway = frontier with
+        {
+            Fixed = [new DesignZone { Name = "causeway", Land = true, Points = [[-0.06, -0.50], [0.04, -0.50], [0.04, -0.98], [-0.06, -0.98]] }, .. frontier.Fixed],
+            Land = [.. frontier.Land, new DesignLand { Name = "causeway", Points = [[-0.06, -0.50], [0.04, -0.50], [0.04, -0.98], [-0.06, -0.98]] }],
+        };
+        bool[] bridged = Sea(causeway);
+        DesignTopologyReport before = DesignTopology.Check(grid, i => !bridged[i], causeway);
+        DesignTopologyReport after = DesignTopology.Enforce(grid, bridged, causeway);
+        Check.That(before.BridgeOutsideNeck && !after.BridgeOutsideNeck && after.Connected,
+            $"a second land bridge is drowned, and the neck still joins them (before: {before}; after: {after})");
+
+        Check.That(Refuses(() => DesignTopology.Enforce(grid, Sea(frontier), frontier with { NeckWidthMetres = [400_000, 500_000] })),
+            "a neck narrower than the design asks is refused");
+        ContinentDesign cut = frontier with
+        {
+            Fixed = [new DesignZone { Name = "strait", Land = false, Points = [[-1.1, -0.86], [1.1, -0.86], [1.1, -0.78], [-1.1, -0.78]] }],
+        };
+        Check.That(Refuses(() => DesignTopology.Enforce(grid, Sea(cut), cut)), "a peninsula that cannot reach the mainland is refused");
+
+        // The whole generator refuses too: a world that breaks its design is never returned.
+        TerrainConfiguration configuration = new(Seed, Size);
+        Check.That(Refuses(() => MapSimulation.Run(configuration, MapRecipe.Default, cut)), "generation refuses a design whose rules cannot hold");
+    }
+
+    private static bool Refuses(Action action)
+    {
+        try
+        {
+            action();
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return true;
+        }
+    }
 }
