@@ -42,6 +42,10 @@ internal readonly record struct MapGrid(int Segments, double Spacing, double Rad
 
     internal int Side => Segments + 1;
     internal int Count => Side * Side;
+    /// <summary>The node nearest a point in metres (clamped to the lattice).</summary>
+    internal int Nearest(double x, double z) =>
+        (Math.Clamp((int)Math.Round((z + Radius) / Spacing), 0, Side - 1) * Side) + Math.Clamp((int)Math.Round((x + Radius) / Spacing), 0, Side - 1);
+
     internal double X(int index) => -Radius + index % Side * Spacing;
     internal double Z(int index) => -Radius + index / Side * Spacing;
     internal bool IsEdge(int index)

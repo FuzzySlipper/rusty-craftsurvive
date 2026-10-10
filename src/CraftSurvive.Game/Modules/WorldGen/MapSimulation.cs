@@ -68,6 +68,8 @@ internal static class MapSimulation
         }
         else
         {
+            // A design stands as tall as it asks, up to the ceiling (#9816): its summits are only compressed near the ceiling itself.
+            peakElevation = mapScale.MaximumElevation - CeilingHeadroom - MinimumSummitRoom;
             (relief, scale) = Calibrated(configuration, recipe, seed, grid, coarse, climate, design, shore, peakElevation);
         }
 
@@ -152,27 +154,33 @@ internal static class MapSimulation
 
         double[] gains = [.. Enumerable.Repeat(1.0, design.Belts.Count)];
         double[] areaGains = [.. Enumerable.Repeat(1.0, design.Areas.Count)];
+        double[] passGains = [.. Enumerable.Repeat(1.0, design.Passes.Count)];
+        int[] passNode = [.. design.Passes.Select(pass => grid.Nearest(pass.At[0] * grid.Radius, pass.At[1] * grid.Radius))];
         MapRelief relief = null!;
         double scale = 1;
         for (int round = 0; round < CalibrationRounds; round++)
         {
-            relief = Evolve(configuration, recipe, seed, grid, coarse, climate, MapRelief.Designed(coarse, seed, recipe.Relief, design, gains, areaGains), design);
+            relief = Evolve(configuration, recipe, seed, grid, coarse, climate, MapRelief.Designed(coarse, seed, recipe.Relief, design, gains, areaGains, passGains), design);
             double[] h = relief.Height;
             double[] low = [.. Enumerable.Range(0, grid.Count).Where(i => lowland[i] && !relief.Sea[i]).Select(i => Math.Max(0, h[i]))];
             double cap = low.Length > 0 ? Math.Max(MapRelief.Quantile(low, LowlandQuantile), 1e-6) : 1;
             scale = ((design.LowlandPeak * fit) - shore) / cap;
             if (round == CalibrationRounds - 1) break;
+            // A belt's crest is judged by its higher ground, as a peak's height is read; its passes are left to their own calibration.
             for (int b = 0; b < design.Belts.Count; b++)
             {
-                double want = 0, made = 0;
-                for (int i = 0; i < grid.Count; i++)
-                {
-                    if (line[i] != b || relief.Sea[i]) continue;
-                    want += asked[i];
-                    made += shore + (Math.Max(0, h[i]) * scale);
-                }
+                double[] want = [.. Enumerable.Range(0, grid.Count).Where(i => line[i] == b && !relief.Sea[i]).Select(i => asked[i])];
+                double[] made = [.. Enumerable.Range(0, grid.Count).Where(i => line[i] == b && !relief.Sea[i]).Select(i => shore + (Math.Max(0, h[i]) * scale))];
+                if (made.Length == 0) continue;
+                double top = MapRelief.Quantile(made, AreaQuantile);
+                if (top > 0) gains[b] *= Math.Clamp(MapRelief.Quantile(want, AreaQuantile) / top, 1 / CalibrationStep, CalibrationStep);
+            }
 
-                if (made > 0) gains[b] *= Math.Clamp(want / made, 1 / CalibrationStep, CalibrationStep);
+            // A pass is judged by its saddle: deeper while it stands above the saddle asked, shallower while below.
+            for (int p = 0; p < design.Passes.Count; p++)
+            {
+                double target = design.Passes[p].Saddle(design) * fit, ground = shore + (Math.Max(0, h[passNode[p]]) * scale);
+                if (target > 0 && ground > 0) passGains[p] *= Math.Clamp(ground / target, 1 / CalibrationStep, CalibrationStep);
             }
 
             for (int a = 0; a < design.Areas.Count; a++)

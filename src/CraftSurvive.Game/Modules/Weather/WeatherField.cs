@@ -74,7 +74,9 @@ internal sealed class WeatherField
     {
         ArgumentNullException.ThrowIfNull(map);
         ulong seed = map.Configuration.Contract.GeographyNoiseSeed;
-        return new(seed, new MapClimate(seed, map.Scale).WindAngle, map.Radius * 2, map.Scale.PeakElevation, map.Broad);
+        // A designed continent's wind is its design's (#9815), as the map's own climate has it.
+        MapClimate climate = new(seed, map.Scale, ContinentDesign.For(map.Configuration.Size)?.Climate);
+        return new(seed, climate.WindAngle, map.Radius * 2, map.Scale.PeakElevation, map.Broad);
     }
 
     internal WeatherScale Scale { get; }

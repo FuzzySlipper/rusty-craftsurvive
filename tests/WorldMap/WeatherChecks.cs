@@ -236,9 +236,6 @@ internal static class WeatherChecks
             + $" in {clock.Elapsed.TotalMilliseconds:F0} ms");
         Check.That(inClimate, "on the continent every front was born in its kind's climate");
         Check.That(born.GetValueOrDefault("rain") > 0 && born.Count >= 3, "a continent has rain fronts and at least two other kinds of weather in a season");
-        // Glass storms are born on alpine or upland ground. The designed continent (#9815) stands at a
-        // scaled-down height until #9816 raises it, and has almost none, so for now they are only rare;
-        // #9816 restores "but do come".
-        Check.That(born.GetValueOrDefault("glass") < 30, $"glass storms are rare: {born.GetValueOrDefault("glass")} in a season");
+        Check.That(born.GetValueOrDefault("glass") is > 0 and < 30, $"glass storms are rare but do come: {born.GetValueOrDefault("glass")} in a season");
     }
 }

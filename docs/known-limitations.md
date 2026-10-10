@@ -241,9 +241,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - `craft.horizon.peaks <km>` finds the high ground about the player for aimed captures.
     - `craft.horizon.exaggerate <f>` (captures only) multiplies heights above the player's ground.
   - **Map relief.** A continent is drawn to the frontier peninsula design (#9815,
-    `WorldGen/Designs/frontier-peninsula.json`): its ranges and massif are calibrated under erosion to
-    the design's crests, but every height is scaled to 22.5% until the map's ceiling is raised (#9816),
-    so the 8 km Wall stands about 2 km and ranges are still a few pixels on the skyline.
+    `WorldGen/Designs/frontier-peninsula.json`) at its real heights under a 9 km ceiling (#9816): its
+    belts and massif are calibrated under erosion by their higher ground and its passes to their
+    saddles, so the Wall's peaks stand about 8 km and its passes about 3 and 4 km. From 50 km south the
+    Wall fills the skyline about 7° up. At the continent's 1 km lattice ranges are broad shapes; finer
+    ridges come from the region tiles.
   - **Weather on the horizon (H2 #9780, `HorizonWeather`).** Every front within 150 km is shown in
     three ways:
     - **Cloud region.** The 32 nearest rain, snow and glass fronts are each a region in the sky's own
@@ -277,8 +279,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Designed continents and their climate (#9815).** A designed continent's climate is absolute:
     rain from the metres the air climbs in fixed units, cooling per metre, moisture a fixed curve of
     rain (the deciles ranking used to give), so a region's change plays out in its own rain shadow
-    without re-ranking the rest. Glass storms are born on alpine or upland ground (over 1,350 m), which
-    the scaled-down continent barely has: until #9816 raises it they almost never come.
+    without re-ranking the rest. A continent's reference peak stays 1,800 m (what a seeded continent is
+    normalised to and what weather calls upland, over 1,350 m); only its ceiling rose for the design.
   - **Known places on the horizon (H3 #9781, `HorizonLandmarks`).** Home, ruins, vantage points and
     dungeon entrances stand where the map has them as stylised block silhouettes of their kind (the
     sled and walking landmarks do not).

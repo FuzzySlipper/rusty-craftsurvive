@@ -53,9 +53,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// a foundation three metres into the ground, so none overhangs ground that falls away, and
     /// returns the vantage points to cube courses, which the player can step up (#9669); version 28 draws
     /// every continent to a design (#9815): the frontier peninsula, its coast resolved in a band, its ranges
-    /// and massif calibrated under erosion, and an absolute climate.
+    /// and massif calibrated under erosion, and an absolute climate; version 29 stands a designed continent
+    /// at its real heights under a 9 km ceiling (#9816), its belts and areas calibrated by their higher
+    /// ground, its passes to their saddles, and its belts broken as far as each is rugged.
     /// </summary>
-    internal const uint CurrentVersion = 28;
+    internal const uint CurrentVersion = 29;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

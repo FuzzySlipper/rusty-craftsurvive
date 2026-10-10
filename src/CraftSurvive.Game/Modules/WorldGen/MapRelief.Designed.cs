@@ -21,15 +21,17 @@ internal sealed partial class MapRelief
     private const int CoastOctaves = 6;
     private const double CoastWarp = 0.6;
     private const ulong CoastSalt = 0x2F2B8C3E91D5A7C3UL;
-    /// <summary>A designed belt keeps this share of its uplift where the ridge noise is lowest.</summary>
-    private const double DesignedRidgeFloor = 0.5;
+    /// <summary>A pass's rock is this much softer at its middle, so erosion helps carve it.</summary>
+    private const double PassSoftRock = 0.4;
     /// <summary>The shore ramp varies between these shares of the design's, along the coast.</summary>
     private const double ShoreRampLeast = 0.25, ShoreRampMost = 1.75;
     private const ulong ShoreSalt = 0x45D3_A11B_09C7_6E25UL;
 
     /// <param name="gains">Each belt's calibration gain (1 at first); see <see cref="MapSimulation"/>.</param>
     /// <param name="areaGains">Each area's calibration gain (1 at first; unused for an area without a height).</param>
-    internal static MapRelief Designed(MapGrid grid, ulong seed, ReliefRecipe r, ContinentDesign design, IReadOnlyList<double> gains, IReadOnlyList<double> areaGains)
+    /// <param name="passGains">Each pass's calibration gain on its depth (1 at first).</param>
+    internal static MapRelief Designed(MapGrid grid, ulong seed, ReliefRecipe r, ContinentDesign design, IReadOnlyList<double> gains,
+        IReadOnlyList<double> areaGains, IReadOnlyList<double> passGains)
     {
         double l = MapScale.For(grid).Lengths;
         double warpWavelength = r.WarpWavelength * l, warpDistance = r.WarpDistance * l;
@@ -49,13 +51,15 @@ internal sealed partial class MapRelief
             relief.Height[i] = MapNoise.Fbm(seed ^ TextureSalt, x / textureWavelength, z / textureWavelength, r.TextureOctaves, r.FractalPersistence) * r.InitialTexture;
             if (relief.Sea[i]) continue;
 
-            double share = design.Crest(u, v, gains) / highest;
             double ridges = MapNoise.Ridged(seed ^ BeltSalt, u / design.RidgeWavelength, v / design.RidgeWavelength, r.BeltOctaves, r.BeltPersistence);
+            // Each belt is broken by the ridged noise as far as it is rugged; its smooth crest still sets the harder rock.
+            double belts = design.Crest(u, v, gains, passGains, ridges) / highest;
+            double share = design.Crest(u, v, gains, passGains) / highest;
             double upland = r.UplandUplift * (0.5 + 0.5 * MapNoise.Fbm(seed ^ UplandSalt, wx / uplandWavelength, wz / uplandWavelength, 3, r.FractalPersistence));
-            double belts = share * (DesignedRidgeFloor + ((1 - DesignedRidgeFloor) * ridges));
             double areas = design.AreaUplift(u, v, areaGains, highest, ridges);
             relief.Uplift[i] = Math.Max(0, ((r.PlainUplift + upland) * (1 + design.AreaLift(u, v))) + (r.BeltUplift * Math.Max(belts, areas)));
-            relief.Hardness[i] = Math.Clamp(relief.Hardness[i] + (design.BeltHardness * Math.Max(share, design.Ruggedness(u, v))), 0, 1);
+            relief.Hardness[i] = Math.Clamp(relief.Hardness[i] + (design.BeltHardness * Math.Max(share, design.Ruggedness(u, v)))
+                - (PassSoftRock * design.PassReach(u, v)), 0, 1);
         }
 
         // The land must meet the mainland only through the neck (R9815-1): a stray bridge is drowned, a world that cannot be repaired refused.

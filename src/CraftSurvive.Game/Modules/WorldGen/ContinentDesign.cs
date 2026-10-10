@@ -139,7 +139,9 @@ internal sealed record ContinentDesign
     /// The designed crest at a point, in metres: each belt's crest (interpolated along it) under its
     /// cross-section, the highest belt wins; dipped where a pass crosses.
     /// </summary>
-    internal double Crest(double x, double z, IReadOnlyList<double>? gains = null)
+    /// <param name="gains">Each belt's calibration gain (none: 1).</param>
+    /// <param name="passGains">Each pass's calibration gain on its depth (none: 1; 0 leaves the pass out).</param>
+    internal double Crest(double x, double z, IReadOnlyList<double>? gains = null, IReadOnlyList<double>? passGains = null, double ridges = 1)
     {
         double crest = 0;
         for (int b = 0; b < Belts.Count; b++)
@@ -148,12 +150,19 @@ internal sealed record ContinentDesign
             (double distance, double height) = belt.Nearest(x, z);
             if (distance >= belt.HalfWidth) continue;
             double across = distance / belt.HalfWidth;
-            crest = Math.Max(crest, height * (gains?[b] ?? 1) * Math.Pow(1 - (across * across), belt.Sharpness));
+            double rugged = 1 - belt.Ruggedness + (belt.Ruggedness * ridges);
+            crest = Math.Max(crest, height * (gains?[b] ?? 1) * Math.Pow(1 - (across * across), belt.Sharpness) * rugged);
         }
 
-        foreach (DesignPass pass in Passes) crest *= 1 - (pass.Depth * PassNear(pass, x, z));
+        for (int p = 0; p < Passes.Count; p++) crest *= 1 - Math.Min(DeepestPass, Passes[p].Depth * (passGains?[p] ?? 1) * PassNear(Passes[p], x, z));
         return crest;
     }
+
+    /// <summary>A pass never takes more than this share of its belt's crest, however it is calibrated.</summary>
+    private const double DeepestPass = 0.95;
+
+    /// <summary>How much of any pass's notch reaches a point (0 to 1): where the rock is softer, so erosion helps carve the way through.</summary>
+    internal double PassReach(double x, double z) => Passes.Select(pass => PassNear(pass, x, z)).DefaultIfEmpty(0).Max();
 
     /// <summary>
     /// The designed crest at a point and how far up its belt's cross-section the point stands (1 on the
@@ -254,6 +263,9 @@ internal sealed record DesignBelt
 
     public double Sharpness { get; init; } = 1.5;
 
+    /// <summary>How broken the belt is (0 a smooth ridge, 1 peaks and saddles all along it): the share of its uplift the ridged noise varies.</summary>
+    public double Ruggedness { get; init; } = 0.5;
+
     /// <summary>
     /// A point's place relative to another point on the belt (a pass): how far along the belt's line from
     /// it, and how far across, using the direction of the belt's segment nearest the pass.
@@ -301,6 +313,9 @@ internal sealed record DesignPass
     public double Radius { get; init; } = 0.02;
 
     public double Depth { get; init; } = 0.6;
+
+    /// <summary>The saddle the pass asks for: its belt's crest there, less its depth, in metres.</summary>
+    internal double Saddle(ContinentDesign design) => design.Crest(At[0], At[1], passGains: [.. design.Passes.Select(_ => 0.0)]) * (1 - Depth);
 }
 
 /// <summary>An upland (positive lift) or basin (negative) about a point: a share of uplift added or taken, easing out over its radius.</summary>

@@ -25,7 +25,9 @@ dotnet run --project tools/MapLab -c Release -- --seed 4242 --size 390000 --out 
   erosion), passes, areas, reserved sites, and the climate's cold side and wind. An area with a
   `Height` (metres) and `Ruggedness` (0 a plateau, 1 broken peaks) is calibrated like a belt, e.g.
   `{ "Name": "NW massif", "At": [-0.55, -0.35], "Radius": 0.22, "Height": 5000, "Ruggedness": 0.85 }`;
-  one with only a `Lift` raises or lowers the plain. The lowland's scale is measured outside every belt
+  one with only a `Lift` raises or lowers the plain. Belts take a `Ruggedness` too (default 0.5).
+  Belts and height areas are calibrated by their higher ground (90th percentile), passes to the
+  saddle their depth asks for. The lowland's scale is measured outside every belt
   and area, so editing one region does not rescale the rest.
 - `--view X,Z`: a viewpoint in world metres for a skyline (repeatable; default `0,0`, where a world
   starts). `--reach-km`: how far a skyline looks (default 150). `--pixels`: map image size.

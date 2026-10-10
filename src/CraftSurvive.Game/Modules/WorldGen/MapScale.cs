@@ -19,8 +19,14 @@ internal sealed record MapScale(double Lengths, double TargetSpacing, double Pea
 
     /// <summary>A continent's lattice: one node a kilometre; regions refine it on demand (#9550).</summary>
     private const double ContinentalSpacing = 1000;
+    /// <summary>
+    /// A continent's reference peak: what a seeded continent's heights are normalised to, and what
+    /// weather and the region tiles measure "high" against. A designed continent stands as its design
+    /// asks, up to the ceiling (#9816).
+    /// </summary>
     private const double ContinentalPeak = 1800;
-    private const double ContinentalCeiling = 2400;
+    /// <summary>The highest a continent's ground may stand: room for the frontier's 8 km Wall and its summits (#9816).</summary>
+    private const double ContinentalCeiling = 9000;
     /// <summary>
     /// River sources grow with the area a continent covers, less than in proportion: a continent
     /// keeps its great rivers and their main branches, and regions add the tributaries.
