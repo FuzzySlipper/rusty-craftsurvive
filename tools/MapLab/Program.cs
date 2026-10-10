@@ -25,6 +25,7 @@ const string Usage = """
       --view       a viewpoint in world metres for a skyline; repeatable (default 0,0, where a world starts)
       --pixels     the map images' width and height (default 1024)
       --reach-km   how far a skyline looks (default 150, or the map's size)
+      --erosion-filter  read every height through the horizon's erosion filter (#9822)
     """;
 
 JsonSerializerOptions json = new() { WriteIndented = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
@@ -63,8 +64,40 @@ TerrainConfiguration configuration = new(seed, size);
 Stopwatch clock = Stopwatch.StartNew();
 WorldMap map = new(configuration, MapSimulation.Run(configuration, recipe, design));
 double generationSeconds = clock.Elapsed.TotalSeconds;
+// With --erosion-filter, every height MapLab reads has the horizon's erosion filter cut in (#9822).
+ErodedHeights? eroded = options.ContainsKey("erosion-filter")
+    ? new(map, new ErosionFilter(configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent))
+    : null;
+MapSample Sample(double x, double z)
+{
+    MapSample sample = map.Sample(x, z);
+    return eroded is null ? sample : sample with { Elevation = eroded.Height(x, z, sample) };
+}
 double reach = Math.Min(options.TryGetValue("reach-km", out List<string>? reachArg)
     ? double.Parse(reachArg[0], CultureInfo.InvariantCulture) * 1000 : 150_000, map.Radius * 2);
+
+if (options.ContainsKey("bench-filter"))
+{
+    // Where a filtered sample's time goes (#9822): the map sample, the slope's four more, the river query, the filter, the crest.
+    ErosionFilter bench = new(configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent);
+    const int Count = 100_000;
+    double[] xs = [.. Enumerable.Range(0, Count).Select(k => (k % 300 * 250.0) - 40_000)], zs = [.. Enumerable.Range(0, Count).Select(k => (k / 300 * 250.0) - 140_000)];
+    double sink = 0;
+    Stopwatch watch = Stopwatch.StartNew();
+    for (int k = 0; k < Count; k++) sink += map.Sample(xs[k], zs[k]).Elevation;
+    double sampleUs = watch.Elapsed.TotalMilliseconds * 1000 / Count;
+    watch.Restart();
+    for (int k = 0; k < Count; k++) sink += map.Rivers.Nearest(xs[k], zs[k])?.Distance ?? 0;
+    double riverUs = watch.Elapsed.TotalMilliseconds * 1000 / Count;
+    watch.Restart();
+    for (int k = 0; k < Count; k++) sink += bench.Offset(xs[k], zs[k], 0.3, 0.2);
+    double filterUs = watch.Elapsed.TotalMilliseconds * 1000 / Count;
+    watch.Restart();
+    for (int k = 0; k < Count; k++) sink += bench.Crest(xs[k], zs[k], 4000);
+    double crestUs = watch.Elapsed.TotalMilliseconds * 1000 / Count;
+    Console.WriteLine(Invariant($"per sample: map {sampleUs:F2} us, river {riverUs:F2} us, filter {filterUs:F2} us, crest {crestUs:F2} us ({sink:F0})"));
+    return 0;
+}
 
 StringBuilder stats = new();
 void Line(string text)
@@ -73,11 +106,12 @@ void Line(string text)
     stats.AppendLine(text);
 }
 
-Line($"seed={seed} size={size}m generator=v{configuration.GeneratorVersion} fingerprint=0x{map.Fingerprint:x16} recipe={(recipePath is null ? "default" : recipePath[0])} design={design?.Name ?? "none"}");
+Line((eroded is null ? "" : "erosion filter on; ") + $"seed={seed} size={size}m generator=v{configuration.GeneratorVersion} fingerprint=0x{map.Fingerprint:x16} recipe={(recipePath is null ? "default" : recipePath[0])} design={design?.Name ?? "none"}");
 Line(Invariant($"generated in {generationSeconds:F1}s; continental={map.Scale.Continental} peak={recipe.Simulation.PeakElevation ?? map.Scale.PeakElevation:F0}m ceiling={map.Scale.MaximumElevation:F0}m"));
 
 // The whole map, sampled at the image's resolution.
 double cell = map.Radius * 2 / pixels;
+Stopwatch sampling = Stopwatch.StartNew();
 double[,] height = new double[pixels, pixels];
 MapSample[,] samples = new MapSample[pixels, pixels];
 List<double> land = [];
@@ -85,12 +119,13 @@ for (int py = 0; py < pixels; py++)
 for (int px = 0; px < pixels; px++)
 {
     double x = -map.Radius + ((px + 0.5) * cell), z = -map.Radius + ((py + 0.5) * cell);
-    MapSample sample = map.Sample(x, z);
+    MapSample sample = Sample(x, z);
     samples[px, py] = sample;
     height[px, py] = Math.Max(sample.Elevation, GenerationConstants.WaterLevel);
     if (sample.Elevation >= GenerationConstants.WaterLevel) land.Add(sample.Elevation);
 }
 
+Line(Invariant($"sampled {pixels * pixels} points in {sampling.Elapsed.TotalMilliseconds:F0} ms ({sampling.Elapsed.TotalMilliseconds * 1000 / (pixels * pixels):F2} us each)"));
 land.Sort();
 double Percentile(double p) => land.Count == 0 ? 0 : land[(int)Math.Clamp(p * (land.Count - 1), 0, land.Count - 1)];
 Line(Invariant($"land={100.0 * land.Count / (pixels * pixels):F1}% elevation p50={Percentile(0.5):F0}m p90={Percentile(0.9):F0}m p99={Percentile(0.99):F0}m max={Percentile(1):F0}m"));
@@ -110,7 +145,7 @@ DrawHeight().Save(Path.Combine(output, "height.png"));
 for (int v = 0; v < views.Count; v++)
 {
     (double vx, double vz) = views[v];
-    Skyline skyline = new(map, vx, vz, reach);
+    Skyline skyline = new(Sample, map.Radius, vx, vz, reach);
     Line(Invariant($"view {v} at {vx:F0},{vz:F0}: ground {skyline.Eye - 1.7:F0}m"));
     foreach (double km in new[] { 10.0, 30.0, 60.0 })
     {
@@ -213,7 +248,7 @@ void ReportDesign(ContinentDesign drawn)
             for (double t = 0; t <= 1; t += 0.01)
             {
                 double[] a = belt.Points[i - 1], b = belt.Points[i];
-                made = Math.Max(made, map.Sample(World(a[0] + ((b[0] - a[0]) * t)), World(a[1] + ((b[1] - a[1]) * t))).Elevation);
+                made = Math.Max(made, Sample(World(a[0] + ((b[0] - a[0]) * t)), World(a[1] + ((b[1] - a[1]) * t))).Elevation);
             }
 
         Line(Invariant($"  belt {belt.Name}: asked up to {asked:F0}m, highest along its line {made:F0}m"));
@@ -226,7 +261,7 @@ void ReportDesign(ContinentDesign drawn)
             for (double dx = -area.Radius; dx <= area.Radius; dx += area.Radius / 20)
                 if (area.Weight(area.At[0] + dx, area.At[1] + dz) >= 0.6)
                 {
-                    double ground = map.Sample(World(area.At[0] + dx), World(area.At[1] + dz)).Elevation;
+                    double ground = Sample(World(area.At[0] + dx), World(area.At[1] + dz)).Elevation;
                     if (ground > GenerationConstants.WaterLevel) core.Add(ground);
                 }
 
@@ -237,9 +272,9 @@ void ReportDesign(ContinentDesign drawn)
     }
 
     foreach (DesignPass pass in drawn.Passes)
-        Line(Invariant($"  pass {pass.Name}: ground {map.Sample(World(pass.At[0]), World(pass.At[1])).Elevation:F0}m"));
+        Line(Invariant($"  pass {pass.Name}: ground {Sample(World(pass.At[0]), World(pass.At[1])).Elevation:F0}m"));
     foreach (DesignSite site in drawn.Sites)
-        Line(Invariant($"  site {site.Name} ({site.Kind}): ground {map.Sample(World(site.At[0]), World(site.At[1])).Elevation:F0}m at {World(site.At[0]):F0},{World(site.At[1]):F0}"));
+        Line(Invariant($"  site {site.Name} ({site.Kind}): ground {Sample(World(site.At[0]), World(site.At[1])).Elevation:F0}m at {World(site.At[0]):F0},{World(site.At[1]):F0}"));
 }
 
 // Elevation as grey, from the sea to the highest point.
@@ -277,7 +312,7 @@ void Mark(Image image, double x, double z)
     {
         if (((px - x) * (px - x)) + ((pz - z) * (pz - z)) > radius * radius) continue;
         if (Math.Abs(px) > map.Radius || Math.Abs(pz) > map.Radius) continue;
-        double h = map.Sample(px, pz).Elevation;
+        double h = Sample(px, pz).Elevation;
         if (h > best.Height) best = (h, px, pz);
     }
 

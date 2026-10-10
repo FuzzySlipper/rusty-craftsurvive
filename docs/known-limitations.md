@@ -203,8 +203,19 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **Past the far field, the map stands on the horizon (#9751, H1 #9779).** `HorizonBackdrop` draws the
   world map's ground in the Engine's backdrop layer behind the first-person world.
   - **Ground.** It is a dual-contoured session of one voxel per 32 m map cell (one backdrop unit) at
-    true height, sampling `WorldMap` with its biome colours, rivers and exposed rock. On a continent it
-    uses the kilometre tier.
+    true height, sampling `WorldMap` with its biome colours, rivers and exposed rock. A continent
+    has three tiers (#9822):
+    - the 32 m region window about the player (about ±4 km);
+    - a 250 m middle tier out to about ±64 km, with the erosion filter cut in (`ErosionFilter`):
+      slope-aligned gullies from 8 km to 500 m, and crest relief that breaks ground over 2.5 km into
+      peaks and cols. It is faded off rivers and the coast, so neither moves. Walking terrain and
+      the generated world are untouched; the filter is the horizon's alone;
+    - the kilometre tier over the whole continent.
+
+    Each sinks beneath the finer one inside it and eases onto the coarser one at its edge. The tiers
+    sample their columns for at most 2 ms an update each, nearest the player first, so after a long
+    move the horizon fills from near to far. The middle tier took about 9 s of sampling and settled in
+    about 80 s.
   - **Link.** It is linked to the first-person camera alone, anchored at the world's origin in the
     walking session, so a rebase needs no call and the map screen never shows it. A dungeon unlinks it.
   - **Join.** It is sunk 60 m about the player, so the 8 m far field covers the near range.
@@ -220,6 +231,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     | --- | --- | --- | --- |
     | 8 km | 480 | 6.1 MB | 13.0 MB |
     | 390 km continent | 1,516 | 19.3 MB | 41.4 MB |
+    | 390 km continent with the middle tier (#9822) | 3,679 | 44.0 MB | 94.2 MB |
+
+    With the middle tier the backdrop pass measured 0.32 ms at 1280×720 (it was about 0.25 ms).
 
     - Voxel payloads add at most 32 KB a chunk (16 MB and 60 MB), plus a 3 KB sampled column each
       on the product's side.

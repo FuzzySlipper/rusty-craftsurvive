@@ -46,6 +46,21 @@ internal sealed class HorizonBackdrop : IProductModule
     private const double RegionFadeMetres = RegionFadeChunks * CellChunkMetres;
     /// <summary>The kilometre tier sinks this far beneath the window's ground past its fade band.</summary>
     private const double UnderRegionSinkMetres = 1_500;
+    /// <summary>
+    /// A continent's middle tier (#9822): 250 m cells with the erosion filter cut in, within this many chunk
+    /// columns (4 km each, so about 64 km) of the player's, easing onto the kilometre tier over its outer band.
+    /// </summary>
+    internal const double MidCellMetres = 250;
+    private const double MidChunkMetres = EdgeLength * MidCellMetres;
+    private const int MidRadiusChunks = 16, MidFadeChunks = 2;
+    private const double MidFadeMetres = MidFadeChunks * MidChunkMetres;
+    private const double MidCoarseBeyondMetres = 16_000;
+    /// <summary>The kilometre tier sinks this far beneath the middle tier past its fade band: below the deepest gully the filter cuts.</summary>
+    private const double UnderMidSinkMetres = 2_500;
+    /// <summary>The middle tier's base samples reach this many cells beyond a chunk, for the slope at its edge.</summary>
+    private static readonly int SlopeCells = (int)Math.Round(ErodedHeights.SlopeReachMetres / MidCellMetres);
+    /// <summary>Each tier samples for at most this long an update (#9822): sampling never stalls an update.</summary>
+    private const double SampleBudgetMilliseconds = 2;
     private const double ExposedRock = 0.6;
     private const double RiverReach = 0.5, ContinentRiverReach = 0.71;
     private const uint RiverSlot = 1, RockSlot = 2, FirstBiomeSlot = 3;
@@ -64,6 +79,11 @@ internal sealed class HorizonBackdrop : IProductModule
     private MapVoxelLayer cells = null!;
     /// <summary>A continent's kilometre tier; null on an ordinary map.</summary>
     private MapVoxelLayer? continent;
+    /// <summary>A continent's middle tier about the player, with the erosion filter (#9822); null on an ordinary map.</summary>
+    private MapVoxelLayer? mid;
+    private readonly ErodedHeights? eroded;
+    private readonly long firstMidChunk, lastMidChunk;
+    private Vector2 midMinimum, midMaximum;
     /// <summary>For measuring what the horizon holds: its sessions disposed until rebuilt.</summary>
     private bool released;
     private readonly MapRegions? regions;
@@ -95,6 +115,9 @@ internal sealed class HorizonBackdrop : IProductModule
         Scale = map.Scale.Continental ? ContinentCellMetres : CellMetres;
         firstCellChunk = (long)Math.Floor(-map.Radius / CellChunkMetres);
         lastCellChunk = (long)Math.Floor((map.Radius - 1) / CellChunkMetres);
+        firstMidChunk = (long)Math.Floor(-map.Radius / MidChunkMetres);
+        lastMidChunk = (long)Math.Floor((map.Radius - 1) / MidChunkMetres);
+        if (map.Scale.Continental) eroded = new(map, new ErosionFilter(map.Configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent));
         try
         {
             materials[RiverSlot] = Flat(MapPalette.River);
@@ -125,6 +148,7 @@ internal sealed class HorizonBackdrop : IProductModule
         exaggerationBase = map.Sample(at.X, at.Z).Elevation;
         cells.Invalidate(map.Scale.Continental ? regionCovered : AllColumns(CellChunkMetres));
         continent?.Invalidate(AllColumns(ContinentChunkMetres));
+        mid?.Invalidate(MidColumns(midMinimum, midMaximum));
         return string.Create(CultureInfo.InvariantCulture, $"exaggeration={exaggeration:F1} above {exaggerationBase:F0}m; ") + Readout();
     }
 
@@ -138,12 +162,14 @@ internal sealed class HorizonBackdrop : IProductModule
     private void BuildTiers()
     {
         cells = new MapVoxelLayer(engine, CellMetres / Scale, SampleCells, materials,
-            coarseBeyond: CellCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop);
+            coarseBeyond: CellCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
         if (map.Scale.Continental)
         {
             continent = new MapVoxelLayer(engine, ContinentCellMetres / Scale, SampleContinent, materials,
-                coarseBeyond: ContinentCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop);
+                coarseBeyond: ContinentCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
             continent.Want(AllColumns(ContinentChunkMetres));
+            mid = new MapVoxelLayer(engine, MidCellMetres / Scale, SampleMid, materials,
+                coarseBeyond: MidCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
         }
         else
         {
@@ -152,6 +178,7 @@ internal sealed class HorizonBackdrop : IProductModule
 
         regionCovered.Clear();
         regionMinimum = regionMaximum = default;
+        midMinimum = midMaximum = default;
         sinkCentre = (double.NaN, double.NaN);
     }
 
@@ -169,6 +196,8 @@ internal sealed class HorizonBackdrop : IProductModule
             cells.Dispose();
             continent?.Dispose();
             continent = null;
+            mid?.Dispose();
+            mid = null;
             released = true;
             return "horizon released";
         }
@@ -217,22 +246,30 @@ internal sealed class HorizonBackdrop : IProductModule
 
         Vector3 at = playerWorld();
         double reachNow = reach();
+        CoverMid(at);
         CoverRegion(at);
+        cells.Focus = ((long)Math.Floor(at.X / CellChunkMetres), (long)Math.Floor(at.Z / CellChunkMetres));
+        if (mid is not null) mid.Focus = ((long)Math.Floor(at.X / MidChunkMetres), (long)Math.Floor(at.Z / MidChunkMetres));
+        if (continent is not null) continent.Focus = ((long)Math.Floor(at.X / ContinentChunkMetres), (long)Math.Floor(at.Z / ContinentChunkMetres));
         if (reachNow != reachMetres || double.IsNaN(sinkCentre.X)
             || Math.Max(Math.Abs(at.X - sinkCentre.X), Math.Abs(at.Z - sinkCentre.Z)) >= HorizonSink.FollowMetres)
         {
             if (!double.IsNaN(sinkCentre.X) && reachNow == reachMetres) MeasureExposedChange(sinkCentre, (at.X, at.Z));
             HashSet<(long X, long Z)> cellsChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(CellChunkMetres)];
             HashSet<(long X, long Z)> continentChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(ContinentChunkMetres)];
+            HashSet<(long X, long Z)> midChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(MidChunkMetres)];
             sinkCentre = (at.X, at.Z);
             reachMetres = reachNow;
             cellsChanged.UnionWith(SunkColumns(CellChunkMetres));
             continentChanged.UnionWith(SunkColumns(ContinentChunkMetres));
+            midChanged.UnionWith(SunkColumns(MidChunkMetres));
             cells.Invalidate(cellsChanged);
             continent?.Invalidate(continentChanged);
+            mid?.Invalidate(midChanged);
         }
 
         cells.Advance(ChunksPerUpdate);
+        mid?.Advance(ChunksPerUpdate);
         continent?.Advance(ChunksPerUpdate);
         Link(inTheWorld() && Enabled ? camera() : null);
         shownChanged?.Invoke(shown);
@@ -285,8 +322,9 @@ internal sealed class HorizonBackdrop : IProductModule
         $"horizon shown={shown} scale={Scale:F0}m cells={cells.ResidentChunks}+{cells.PendingChunks}pending")
         + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
             $" continent={continent.ResidentChunks}+{continent.PendingChunks}pending regionColumns={regionCovered.Count}"))
+        + (mid is null ? "" : string.Create(CultureInfo.InvariantCulture, $" mid={mid.ResidentChunks}+{mid.PendingChunks}pending"))
         + string.Create(CultureInfo.InvariantCulture,
-            $" {Weather?.Readout() ?? "fronts=off"} {Landmarks?.Readout() ?? "landmarks=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0):F0} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
+            $" {Weather?.Readout() ?? "fronts=off"} {Landmarks?.Readout() ?? "landmarks=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true) && (mid?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0) + (mid?.WorkMilliseconds ?? 0):F0} (cells {cells.WorkMilliseconds:F0} mid {mid?.WorkMilliseconds ?? 0:F0} continent {continent?.WorkMilliseconds ?? 0:F0}) sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
 
     /// <summary>
     /// For aimed captures: the highest ground on the map within <paramref name="kilometres"/> of the player,
@@ -328,6 +366,7 @@ internal sealed class HorizonBackdrop : IProductModule
         {
             cells?.Dispose();
             continent?.Dispose();
+            mid?.Dispose();
         }
         foreach (Material material in materials.Values) material.Dispose();
         materials.Clear();
@@ -354,7 +393,7 @@ internal sealed class HorizonBackdrop : IProductModule
             // The window moved: the bands beside both its old and new edges carry a changed fade.
             (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
             (regionMinimum, regionMaximum) = (minimum, maximum);
-            cells.Invalidate(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum)));
+            cells.Invalidate(FadeBand(oldMinimum, oldMaximum, CellChunkMetres, RegionFadeChunks).Concat(FadeBand(minimum, maximum, CellChunkMetres, RegionFadeChunks)));
         }
 
         regions.Prefetch(minimum.X, minimum.Y, maximum.X, maximum.Y);
@@ -402,7 +441,9 @@ internal sealed class HorizonBackdrop : IProductModule
 
             MapSample sample = geography(worldX, worldZ);
             double top = Top(sample);
-            double sink = Sink(worldX, worldZ) + (sunkUnderRegion && UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
+            double sink = Sink(worldX, worldZ) + (!sunkUnderRegion ? 0
+                : mid is not null ? (UnderMid(worldX, worldZ) ? UnderMidSinkMetres : 0)
+                : UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
             surface[i] = (top - sink) / cellMetres;
             material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
                 : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + (cellMetres * riverReach) ? RiverSlot
@@ -422,8 +463,12 @@ internal sealed class HorizonBackdrop : IProductModule
     /// The backdrop's ground at a world point, as its visible tier draws it (a continent's region ground
     /// inside the window), sunk as that is: where a place on the horizon stands.
     /// </summary>
-    internal double GroundMetres(double worldX, double worldZ) =>
-        Top(regions is not null && InRegion(worldX, worldZ) ? RegionGround(worldX, worldZ) : map.Sample(worldX, worldZ)) - Sink(worldX, worldZ);
+    internal double GroundMetres(double worldX, double worldZ)
+    {
+        if (regions is not null && InRegion(worldX, worldZ)) return Top(RegionGround(worldX, worldZ)) - Sink(worldX, worldZ);
+        MapSample sample = map.Sample(worldX, worldZ);
+        return Top(sample with { Elevation = MidGround(worldX, worldZ, sample) }) - Sink(worldX, worldZ);
+    }
 
     /// <summary>A continent's region ground: the region tiles' geography, easing onto the continent's across the window's outer band.</summary>
     private MapSample RegionGround(double worldX, double worldZ)
@@ -432,7 +477,8 @@ internal sealed class HorizonBackdrop : IProductModule
         MapSample region = regions!.Sample(worldX, worldZ);
         double fade = WorldMap.Smooth(Math.Clamp(Inset(worldX, worldZ) / RegionFadeMetres, 0, 1));
         if (fade >= 1) return region;
-        double broad = map.Sample(worldX, worldZ).Elevation;
+        // The window eases onto the ground the middle tier draws there (#9822), filter and all.
+        double broad = MidGround(worldX, worldZ, map.Sample(worldX, worldZ));
         return region with { Elevation = broad + (fade * (region.Elevation - broad)) };
     }
 
@@ -442,18 +488,114 @@ internal sealed class HorizonBackdrop : IProductModule
     /// <summary>Where the kilometre tier sinks: beneath region ground past the window's fade band.</summary>
     private bool UnderRegion(double worldX, double worldZ) => InRegion(worldX, worldZ) && Inset(worldX, worldZ) >= RegionFadeMetres;
 
+    /// <summary>Where the kilometre tier sinks beneath the middle tier: inside its window past the fade band.</summary>
+    private bool UnderMid(double worldX, double worldZ) => InMid(worldX, worldZ) && MidInset(worldX, worldZ) >= MidFadeMetres;
+
     private bool InRegion(double worldX, double worldZ) =>
         regionCovered.Contains(((long)Math.Floor(worldX / CellChunkMetres), (long)Math.Floor(worldZ / CellChunkMetres)));
 
-    /// <summary>The window's fine chunk columns within the fade band inside its edges.</summary>
-    private static IEnumerable<(long X, long Z)> FadeBand(Vector2 minimum, Vector2 maximum)
+    /// <summary>A window's chunk columns within the fade band inside its edges.</summary>
+    private static IEnumerable<(long X, long Z)> FadeBand(Vector2 minimum, Vector2 maximum, double chunkMetres, int fadeChunks)
     {
-        long x0 = (long)Math.Floor(minimum.X / CellChunkMetres), x1 = (long)Math.Floor(maximum.X / CellChunkMetres) - 1;
-        long z0 = (long)Math.Floor(minimum.Y / CellChunkMetres), z1 = (long)Math.Floor(maximum.Y / CellChunkMetres) - 1;
+        long x0 = (long)Math.Floor(minimum.X / chunkMetres), x1 = (long)Math.Floor(maximum.X / chunkMetres) - 1;
+        long z0 = (long)Math.Floor(minimum.Y / chunkMetres), z1 = (long)Math.Floor(maximum.Y / chunkMetres) - 1;
         return from cz in Range(z0, z1)
                from cx in Range(x0, x1)
-               where cx < x0 + RegionFadeChunks || cx > x1 - RegionFadeChunks || cz < z0 + RegionFadeChunks || cz > z1 - RegionFadeChunks
+               where cx < x0 + fadeChunks || cx > x1 - fadeChunks || cz < z0 + fadeChunks || cz > z1 - fadeChunks
                select (cx, cz);
+    }
+
+    /// <summary>The middle tier's chunk columns within a window.</summary>
+    private static IEnumerable<(long X, long Z)> MidColumns(Vector2 minimum, Vector2 maximum)
+    {
+        long x0 = (long)Math.Floor(minimum.X / MidChunkMetres), x1 = (long)Math.Floor(maximum.X / MidChunkMetres) - 1;
+        long z0 = (long)Math.Floor(minimum.Y / MidChunkMetres), z1 = (long)Math.Floor(maximum.Y / MidChunkMetres) - 1;
+        return from cz in Range(z0, z1) from cx in Range(x0, x1) select (cx, cz);
+    }
+
+    /// <summary>
+    /// Keeps the middle tier's window about the player (#9822): new columns are wanted (and sampled within the
+    /// budget, nearest first), the fade bands at the old and new edges are sampled again, and the kilometre
+    /// tier beneath both windows is re-sunk.
+    /// </summary>
+    private void CoverMid(Vector3 at)
+    {
+        if (mid is null || continent is null) return;
+        long span = 2 * MidRadiusChunks;
+        long maximumStart = Math.Max(firstMidChunk, lastMidChunk - span + 1);
+        long x0 = Math.Clamp((long)Math.Floor(at.X / MidChunkMetres) - MidRadiusChunks, firstMidChunk, maximumStart);
+        long z0 = Math.Clamp((long)Math.Floor(at.Z / MidChunkMetres) - MidRadiusChunks, firstMidChunk, maximumStart);
+        long x1 = Math.Min(lastMidChunk, x0 + span - 1), z1 = Math.Min(lastMidChunk, z0 + span - 1);
+        Vector2 minimum = new((float)(x0 * MidChunkMetres), (float)(z0 * MidChunkMetres));
+        Vector2 maximum = new((float)((x1 + 1) * MidChunkMetres), (float)((z1 + 1) * MidChunkMetres));
+        if (minimum == midMinimum && maximum == midMaximum) return;
+        (Vector2 oldMinimum, Vector2 oldMaximum) = (midMinimum, midMaximum);
+        (midMinimum, midMaximum) = (minimum, maximum);
+        mid.Want(MidColumns(minimum, maximum));
+        mid.Invalidate(FadeBand(oldMinimum, oldMaximum, MidChunkMetres, MidFadeChunks).Concat(FadeBand(minimum, maximum, MidChunkMetres, MidFadeChunks)));
+        continent.Invalidate(MidColumns(oldMinimum, oldMaximum).Concat(MidColumns(minimum, maximum))
+            .Select(column => ((long)Math.Floor(column.X * MidChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * MidChunkMetres / ContinentChunkMetres))));
+    }
+
+    private bool InMid(double worldX, double worldZ) =>
+        mid is not null && worldX >= midMinimum.X && worldX < midMaximum.X && worldZ >= midMinimum.Y && worldZ < midMaximum.Y;
+
+    private double MidInset(double worldX, double worldZ) =>
+        Math.Min(Math.Min(worldX - midMinimum.X, midMaximum.X - worldX), Math.Min(worldZ - midMinimum.Y, midMaximum.Y - worldZ));
+
+    /// <summary>How much of the erosion filter the middle tier cuts in at a point: whole inside, easing out over its outer band.</summary>
+    private double MidFilter(double worldX, double worldZ) =>
+        InMid(worldX, worldZ) ? WorldMap.Smooth(Math.Clamp(MidInset(worldX, worldZ) / MidFadeMetres, 0, 1)) : 0;
+
+    /// <summary>The ground the middle tier draws at a point (the map's, with the filter as far as it reaches there), for the tiers that meet it.</summary>
+    private double MidGround(double worldX, double worldZ, MapSample sample)
+    {
+        double share = eroded is null ? 0 : MidFilter(worldX, worldZ);
+        return share <= 0 ? sample.Elevation : sample.Elevation + (share * (eroded!.Height(worldX, worldZ, sample) - sample.Elevation));
+    }
+
+    /// <summary>
+    /// The middle tier (#9822): the map's ground at 250 m with the erosion filter cut in, the slope taken from
+    /// this chunk's own lattice of samples; easing onto the kilometre tier over its window's outer band, and
+    /// sunk beneath the region window and about the player as the other tiers are.
+    /// </summary>
+    private void SampleMid(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
+    {
+        int border = SlopeCells, side = EdgeLength + (2 * border);
+        MapSample[] lattice = new MapSample[side * side];
+        for (int z = 0; z < side; z++)
+        for (int x = 0; x < side; x++)
+            lattice[(z * side) + x] = map.Sample(((chunkX * EdgeLength) + x - border) * MidCellMetres, ((chunkZ * EdgeLength) + z - border) * MidCellMetres);
+
+        for (int z = 0; z < EdgeLength; z++)
+        for (int x = 0; x < EdgeLength; x++)
+        {
+            int i = (z * EdgeLength) + x;
+            double worldX = ((chunkX * EdgeLength) + x) * MidCellMetres, worldZ = ((chunkZ * EdgeLength) + z) * MidCellMetres;
+            if (Math.Abs(worldX) > map.Radius || Math.Abs(worldZ) > map.Radius)
+            {
+                surface[i] = double.NaN;
+                continue;
+            }
+
+            int at = ((z + border) * side) + x + border;
+            MapSample sample = lattice[at];
+            RiverInfluence? nearest = map.Rivers.Nearest(worldX, worldZ);
+            double share = MidFilter(worldX, worldZ);
+            if (share > 0)
+            {
+                double slopeX = (lattice[at + border].Elevation - lattice[at - border].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
+                double slopeZ = (lattice[at + (border * side)].Elevation - lattice[at - (border * side)].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
+                sample = sample with { Elevation = sample.Elevation + (share * (eroded!.Height(worldX, worldZ, sample, slopeX, slopeZ, nearest) - sample.Elevation)) };
+            }
+
+            double sink = Sink(worldX, worldZ) + (UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
+            surface[i] = (Top(sample) - sink) / MidCellMetres;
+            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
+                : nearest is RiverInfluence river && river.Distance < river.HalfWidth + (MidCellMetres * RiverReach) ? RiverSlot
+                : sample.Rock >= ExposedRock ? RockSlot
+                : Slot(WorldMap.Biome(sample));
+        }
     }
 
     /// <summary>How far the backdrop is sunk at a world point: fully near the player, easing out inside what the far field always covers.</summary>

@@ -16,11 +16,11 @@ internal sealed class Skyline
     /// <summary>The march starts this far out (the near ground is the player's own) and steps a share of the distance.</summary>
     private const double FirstMetres = 200, LeastStepMetres = 25, StepShare = 0.004;
 
-    internal Skyline(WorldMap map, double x, double z, double reachMetres)
+    internal Skyline(Func<double, double, MapSample> sample, double radius, double x, double z, double reachMetres)
     {
         X = x;
         Z = z;
-        Eye = Math.Max(map.Sample(x, z).Elevation, GenerationConstants.WaterLevel) + EyeMetres;
+        Eye = Math.Max(sample(x, z).Elevation, GenerationConstants.WaterLevel) + EyeMetres;
         Degrees = new double[360 * PerDegree];
         Distance = new double[360 * PerDegree];
         for (int b = 0; b < Degrees.Length; b++)
@@ -32,8 +32,8 @@ internal sealed class Skyline
             for (double r = FirstMetres; r <= reachMetres; r += Math.Max(LeastStepMetres, r * StepShare))
             {
                 double px = x + (dx * r), pz = z + (dz * r);
-                if (Math.Abs(px) > map.Radius || Math.Abs(pz) > map.Radius) break;
-                double ground = Math.Max(map.Sample(px, pz).Elevation, GenerationConstants.WaterLevel);
+                if (Math.Abs(px) > radius || Math.Abs(pz) > radius) break;
+                double ground = Math.Max(sample(px, pz).Elevation, GenerationConstants.WaterLevel);
                 double angle = Math.Atan2(ground - Eye, r) * 180 / Math.PI;
                 if (angle > best)
                 {

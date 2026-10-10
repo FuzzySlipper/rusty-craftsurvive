@@ -29,6 +29,8 @@ dotnet run --project tools/MapLab -c Release -- --seed 4242 --size 390000 --out 
   Belts and height areas are calibrated by their higher ground (90th percentile), passes to the
   saddle their depth asks for. The lowland's scale is measured outside every belt
   and area, so editing one region does not rescale the rest.
+- `--erosion-filter`: read every height through the horizon's erosion filter (#9822), as the horizon's
+  middle tier draws it. `--bench-filter` times a map sample, a river query, the filter and its crest.
 - `--view X,Z`: a viewpoint in world metres for a skyline (repeatable; default `0,0`, where a world
   starts). `--reach-km`: how far a skyline looks (default 150). `--pixels`: map image size.
 

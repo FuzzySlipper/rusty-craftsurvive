@@ -37,15 +37,25 @@ internal sealed class MapVoxelLayer : IDisposable
     private readonly double coarseBeyond;
     private readonly RenderLayer layer;
     private long workTicks;
+    /// <summary>With a sampling budget, columns wait here to be sampled (nearest the focus first), and changed ones to be sampled again.</summary>
+    private readonly double sampleBudgetMilliseconds;
+    private readonly HashSet<(long X, long Z)> unsampled = [];
+    private readonly HashSet<(long X, long Z)> stale = [];
 
     /// <param name="terrainLayers">Slots drawn by a terrain-layer material, each with its layer index, blended
     /// across <c>TransitionCells</c>; null draws every slot with its own material.</param>
     /// <param name="coarseBeyond">Chunks farther than this from the camera, in map units, are drawn from coarse meshes (#9563); zero draws all fine.</param>
     /// <param name="layer">The render layer it is drawn in: the scene for the map, the backdrop for the horizon (#9779).</param>
+    /// <param name="sampleBudgetMilliseconds">
+    /// Zero samples a column as soon as it is wanted or changed. More defers sampling to <see cref="Advance"/>, which
+    /// spends up to this long an update on it, nearest <see cref="Focus"/> first, so an expensive sampler never stalls an update (#9822).
+    /// </param>
     internal MapVoxelLayer(IEngineContext engine, double voxelSize, ColumnSampler sampler, IReadOnlyDictionary<uint, Material> materials,
-        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null, double coarseBeyond = 0, RenderLayer layer = RenderLayer.Scene)
+        (uint[] Slots, uint[] Layers, uint TransitionCells)? terrainLayers = null, double coarseBeyond = 0, RenderLayer layer = RenderLayer.Scene,
+        double sampleBudgetMilliseconds = 0)
     {
         this.engine = engine;
+        this.sampleBudgetMilliseconds = sampleBudgetMilliseconds;
         this.sampler = sampler;
         this.coarseBeyond = coarseBeyond;
         this.layer = layer;
@@ -77,9 +87,12 @@ internal sealed class MapVoxelLayer : IDisposable
         return (readout.ChunkCount, readout.CoarseChunkCount);
     }
     internal int ResidentChunks => resident.Count;
-    internal int PendingChunks => pending.Count;
-    /// <summary>Whether the scene is projected and nothing waits to be applied.</summary>
-    internal bool Settled => projection is not null && pending.Count == 0;
+    internal int PendingChunks => pending.Count + unsampled.Count + stale.Count;
+    /// <summary>Whether the scene is projected and nothing waits to be sampled or applied.</summary>
+    internal bool Settled => projection is not null && pending.Count == 0 && unsampled.Count == 0 && stale.Count == 0;
+
+    /// <summary>With a sampling budget, the chunk column sampling works outward from.</summary>
+    internal (long X, long Z) Focus { get; set; }
     internal double WorkMilliseconds => Stopwatch.GetElapsedTime(0, workTicks).TotalMilliseconds;
 
     /// <summary>Make exactly these chunk columns resident: new ones are admitted, dropped ones evicted.</summary>
@@ -91,14 +104,22 @@ internal sealed class MapVoxelLayer : IDisposable
             if (columns.Remove(gone, out Column? old))
                 for (long y = old.LowChunk; y <= old.HighChunk; y++) Queue((gone.X, y, gone.Z), Operation.Evict);
             wanted.Remove(gone);
+            unsampled.Remove(gone);
+            stale.Remove(gone);
         }
         foreach ((long X, long Z) added in next.Where(column => !wanted.Contains(column)).ToArray())
         {
             wanted.Add(added);
-            Column column = Sample(added);
-            columns[added] = column;
-            for (long y = column.LowChunk; y <= column.HighChunk; y++) Queue((added.X, y, added.Z), Operation.Admit);
+            if (sampleBudgetMilliseconds > 0) unsampled.Add(added);
+            else Admit(added);
         }
+    }
+
+    private void Admit((long X, long Z) key)
+    {
+        Column column = Sample(key);
+        columns[key] = column;
+        for (long y = column.LowChunk; y <= column.HighChunk; y++) Queue((key.X, y, key.Z), Operation.Admit);
     }
 
     /// <summary>Resample these chunk columns; their resident chunks are replaced, and a changed band admits or evicts.</summary>
@@ -106,23 +127,47 @@ internal sealed class MapVoxelLayer : IDisposable
     {
         foreach ((long X, long Z) key in chunkColumns.Distinct())
         {
-            if (!wanted.Contains(key)) continue;
-            Column old = columns[key];
-            Column fresh = Sample(key);
-            columns[key] = fresh;
-            for (long y = Math.Min(old.LowChunk, fresh.LowChunk); y <= Math.Max(old.HighChunk, fresh.HighChunk); y++)
+            if (!wanted.Contains(key) || unsampled.Contains(key)) continue;
+            if (sampleBudgetMilliseconds > 0)
             {
-                (long, long, long) address = (key.X, y, key.Z);
-                if (y >= fresh.LowChunk && y <= fresh.HighChunk) Queue(address, resident.Contains(address) ? Operation.Replace : Operation.Admit);
-                else Queue(address, Operation.Evict);
+                stale.Add(key);
+                continue;
             }
+
+            Resample(key);
         }
     }
 
-    /// <summary>Apply up to <paramref name="budget"/> pending chunk operations, then project or refresh the scene.</summary>
+    private void Resample((long X, long Z) key)
+    {
+        Column old = columns[key];
+        Column fresh = Sample(key);
+        columns[key] = fresh;
+        for (long y = Math.Min(old.LowChunk, fresh.LowChunk); y <= Math.Max(old.HighChunk, fresh.HighChunk); y++)
+        {
+            (long, long, long) address = (key.X, y, key.Z);
+            if (y >= fresh.LowChunk && y <= fresh.HighChunk) Queue(address, resident.Contains(address) ? Operation.Replace : Operation.Admit);
+            else Queue(address, Operation.Evict);
+        }
+    }
+
+    /// <summary>
+    /// With a sampling budget, sample waiting columns (changed ones first, then new ones, nearest the focus
+    /// first) for up to that long; then apply up to <paramref name="budget"/> pending chunk operations, and
+    /// project or refresh the scene.
+    /// </summary>
     internal void Advance(int budget)
     {
         long started = Stopwatch.GetTimestamp();
+        while ((stale.Count > 0 || unsampled.Count > 0) && Stopwatch.GetElapsedTime(started).TotalMilliseconds < sampleBudgetMilliseconds)
+        {
+            HashSet<(long X, long Z)> from = stale.Count > 0 ? stale : unsampled;
+            (long X, long Z) next = from.MinBy(key => Math.Max(Math.Abs(key.X - Focus.X), Math.Abs(key.Z - Focus.Z)));
+            from.Remove(next);
+            if (ReferenceEquals(from, stale)) Resample(next);
+            else Admit(next);
+        }
+
         List<VoxelResidencyOperation> operations = [];
         List<uint> materials = [];
         List<float> densities = [];
@@ -151,7 +196,7 @@ internal sealed class MapVoxelLayer : IDisposable
             if (projection is not null) engine.VoxelScenePresentation.RefreshScene(projection);
         }
         // The first projection waits for the first complete load, so it appears whole.
-        if (projection is null && pending.Count == 0 && wanted.Count > 0)
+        if (projection is null && pending.Count == 0 && unsampled.Count == 0 && wanted.Count > 0)
         {
             projection = engine.VoxelScenePresentation.ProjectSceneDirectional(new(Session, bindings,
                 ReadOnlyMemory<VoxelSceneFaceMaterialBinding>.Empty));
