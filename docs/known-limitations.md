@@ -241,8 +241,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - `craft.horizon.peaks <km>` finds the high ground about the player for aimed captures.
     - `craft.horizon.exaggerate <f>` (captures only) multiplies heights above the player's ground.
   - **Map relief.** A continent's relief is gentle: about 800 m within 60 km of a typical spawn. Its
-    ranges are a few pixels tall on the skyline and the panorama's painted mountains dominate. A
-    skyline that is visibly the map needs taller ranges (#9782).
+    ranges are a few pixels tall on the skyline, so with the sky a plain gradient (#9804) the
+    skyline is flat in most directions. A skyline that is visibly the map needs taller ranges (#9782).
   - **Weather on the horizon (H2 #9780, `HorizonWeather`).** Every front within 150 km is shown in
     three ways:
     - **Cloud region.** The 32 nearest rain, snow and glass fronts are each a region in the sky's own
@@ -285,13 +285,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       a kilometre, pale at 3 km (captured). By the fog's density a twentieth of it is left at 6 km
       in clear air, less in weather.
     - **By night** home, the one inhabited place, shows four warm windows. They are backdrop or
-      world particles (four emitters, at most 24 of the shared budget), which take no fog, dimmed by distance here
-      instead, so they read at 10 km. The Engine refuses a particle colour above white, so a
+      world particles (four emitters, at most 24 of the shared budget), which take no fog, dimmed
+      by distance here instead, so they read at 10 km. The Engine refuses a particle colour above white, so a
       window's brightness comes from overlapping glows. A refusal leaves home unlit until the
       places are listed again (`craft.horizon.readout` `lightsRefused`).
-  - **Not yet.**
-    - The sky panorama's painted mountains still stand behind the map's own ground. On a small map
-      they do not match it.
 - **The generator is versioned, and the version is the save contract.**
   `TerrainGeneratorContract.CurrentVersion` identifies the world a seed produces. Changing any
   generation rule or tuning moves the generator's fingerprint; the managed goldens in
@@ -401,9 +398,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `SkyFollowStepMetres`, so a cave mouth darkens about where the player can see it), and a hemisphere
   fill. Twilight keeps a warm glow from the sunset side for a while after the sun sets. The fog's
   colour is each panorama's horizon, blended as the sky is, with height falloff and sun haze; the sun's
-  disc and shafts follow the clock, while the clouds painted in the day panorama do not move. The
-  panoramas are provisional art: the day sky's blocky painted clouds and the night sky's sparse stars
-  are the next thing to replace.
+  disc and shafts follow the clock.
+- **The panoramas are plain gradients (#9804).** No landforms, clouds, stars, sun or moon are painted
+  in (`scripts/make-sky-gradient.py`). What moves is drawn over them: the cloud layer, the sun's disc,
+  and the horizon terrain and weather. The night sky has no stars until #9807, and the moon is still
+  the sun's light opposite it, its disc the sun's dimmed (#9806).
 - **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
   irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
   bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)

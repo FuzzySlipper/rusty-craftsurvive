@@ -26,16 +26,17 @@ remains the focused file audit rather than runtime texture validation.
 
 ## Sky panorama provenance
 
-`source/craftsurvive-sky-panorama-klein-s24.png` (sha256 `0ef25a3a918e7b4db31552295fc31b5a3e11e09c92d28131d18fa38d45cb36b3`) was
-generated on 2026-10-07 for the content pass (#9667) with FLUX.2 klein on den-nimo
-(asset-pipeline `legacy/tools/text-to-3d/layers/text2image/src/klein.py --raw-prompt
---seed 24 --width 2048 --height 1024`; the exact prompt and the other candidates are in
-`asset-pipeline/outputs/craftsurvive-content-pass/sky/generate.sh`). It replaces the
-2026-08-14 GPT panorama, whose stepped voxel-era clouds no longer fit the world.
-`sky-panorama.png` is derived from it by `scripts/prepare-sky-panorama.py` (horizon remapped
-to the middle row, the wrap cross-faded seamless, the zenith calmed) as 2048 by 1024 RGBA8;
-the script prints the horizon colour `DayNightSky.DayHorizon` carries as the open fog colour.
+`sky-panorama.png` (2048 by 1024) and `sky-night.png` (1024 by 512) are plain gradients by
+elevation (#9804), written by `scripts/make-sky-gradient.py`: no landforms, clouds, stars, sun or
+moon. The dynamic sky is drawn over them: the cloud layer, the sun's disc, the horizon terrain and
+weather (#9751), and later the moon and stars (#9803). The script's colour stops are the clear sky of
+the painted panoramas they replace, and it prints the horizon colours `DayNightSky.DayHorizon` and
+`NightHorizon` carry as the open fog colour.
 
-The panorama is retained as canonical content for future Engine-backed
-presentation work. It is presentation-only and does not define environment
-light, reflections, collision, picking, or gameplay state.
+The painted day panorama they replace was derived from
+`source/craftsurvive-sky-panorama-klein-s24.png` (FLUX.2 klein, 2026-10-07, #9667) by
+`scripts/prepare-sky-panorama.py`. Both stay for reference: its painted mountains stood behind the
+map's real horizon and did not match it.
+
+The panoramas are presentation only. Through the Engine's sky light they light and reflect in
+the world (`DayNightSky`), but they define no collision, picking or gameplay state.

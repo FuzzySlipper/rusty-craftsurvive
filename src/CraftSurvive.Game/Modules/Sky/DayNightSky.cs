@@ -94,11 +94,12 @@ internal sealed class DayNightSky : IDisposable
     private static readonly Vector3 NightGroundColour = new(0.08f, 0.08f, 0.12f);
 
     /// <summary>
-    /// Distance fog in the open: the horizon colour of each panorama in linear light (sampled from
-    /// the images), blended as the sky is, so the far ground fades exactly into the sky behind it.
+    /// Distance fog in the open: the horizon colour of each panorama in linear light (printed by
+    /// <c>scripts/make-sky-gradient.py</c>), blended as the sky is, so the far ground fades exactly
+    /// into the sky behind it.
     /// </summary>
-    private static readonly Vector3 DayHorizon = new(0.456f, 0.549f, 0.567f);
-    private static readonly Vector3 NightHorizon = new(0.0103f, 0.0176f, 0.0467f);
+    private static readonly Vector3 DayHorizon = new(0.4172f, 0.5232f, 0.5619f);
+    private static readonly Vector3 NightHorizon = new(0.0094f, 0.0160f, 0.0427f);
 
     /// <summary>
     /// How quickly distance fades in the open (exponential squared, so the near ground is clear
