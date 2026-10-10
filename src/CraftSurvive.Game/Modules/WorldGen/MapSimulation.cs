@@ -26,14 +26,13 @@ internal static class MapSimulation
     private const double CeilingHeadroom = 8;
     /// <summary>A recipe's peak stays this far under the headroom, so summits above it have room to compress.</summary>
     private const double MinimumSummitRoom = 16;
-    /// <summary>A designed map's lowland: land under less than this share of any belt's cross-section; its hills are this quantile of it.</summary>
-    private const double LowlandProfile = 0.05, LowlandQuantile = 0.99;
-    /// <summary>A designed range's valleys: how far (in map units) a node looks for the ridge above it, and the lowest share of the crest a valley keeps.</summary>
-    private const double DesignedValleyReach = 0.08, DesignedValleyFloor = 0.25;
-    /// <summary>A designed range's ridged detail: the least share of its crest it keeps, its octaves, persistence and salt.</summary>
-    private const double DesignedRidgeFloor = 0.45, DesignedRidgePersistence = 0.55;
-    private const int DesignedRidgeOctaves = 5;
-    private const ulong DesignedRidgeSalt = 0x7C15_9E3A_42D8_B6F1UL;
+    /// <summary>A designed map's lowland hills (outside every belt) are scaled so this quantile reaches the design's lowland peak.</summary>
+    private const double LowlandQuantile = 0.99;
+    /// <summary>A belt's crest line is the nodes within this share of its half-width of its drawn line.</summary>
+    private const double CrestLineShare = 0.2;
+    /// <summary>Calibration runs the simulation this many times; a belt's gain moves at most this factor a round.</summary>
+    private const int CalibrationRounds = 4;
+    private const double CalibrationStep = 2.5;
     private const double CoastLift = 0.6;
     private const double SeaFloorDrop = 4;
     private const double RiparianMoisture = 0.22;
@@ -55,27 +54,28 @@ internal static class MapSimulation
         MapScale mapScale = MapScale.For(configuration.Size);
         double peakElevation = Math.Min(tuning.PeakElevation ?? mapScale.PeakElevation, mapScale.MaximumElevation - CeilingHeadroom - MinimumSummitRoom);
         MapClimate climate = new(seed, mapScale, design?.Climate);
-        MapRelief relief = MapRelief.Build(coarse, seed, recipe.Relief, design);
-        MapErosion.Evolve(relief, h => climate.Rainfall(coarse, h, relief.Sea), tuning.CoarseSteps, tuning.CoarseClimateInterval);
-        if (coarse != grid)
+        double shore = GenerationConstants.WaterLevel + CoastLift;
+        MapRelief relief;
+        double scale;
+        if (design is null)
         {
-            relief = MapRelief.Refine(relief, grid, seed, recipe.Relief);
-            MapRelief refined = relief;
-            MapErosion.Evolve(refined, h => climate.Rainfall(grid, h, refined.Sea), tuning.RefineSteps, tuning.RefineSteps);
+            relief = Evolve(configuration, recipe, seed, grid, coarse, climate, MapRelief.Build(coarse, seed, recipe.Relief), null);
+            double[] land = Enumerable.Range(0, grid.Count).Where(i => !relief.Sea[i]).Select(i => relief.Height[i]).ToArray();
+            double top = land.Length > 0 ? Math.Max(MapRelief.Quantile(land, tuning.PeakQuantile), 1e-6) : 1;
+            scale = (peakElevation - shore) / top;
+        }
+        else
+        {
+            (relief, scale) = Calibrated(configuration, recipe, seed, grid, coarse, climate, design, shore, peakElevation);
         }
 
         double[] h = relief.Height;
-        double[] land = Enumerable.Range(0, grid.Count).Where(i => !relief.Sea[i]).Select(i => h[i]).ToArray();
-        double top = land.Length > 0 ? Math.Max(MapRelief.Quantile(land, tuning.PeakQuantile), 1e-6) : 1;
-        double shore = GenerationConstants.WaterLevel + CoastLift;
-        double scale = (peakElevation - shore) / top;
         double deepest = Math.Min(-1e-6, Enumerable.Range(0, grid.Count).Where(i => relief.Sea[i]).Select(i => h[i]).DefaultIfEmpty(-1).Min());
-        double[]? designed = design is null ? null : DesignedHeights(grid, h, relief.Sea, design, shore, peakElevation, seed);
         for (int i = 0; i < grid.Count; i++)
         {
             h[i] = relief.Sea[i]
                 ? Math.Max(GenerationConstants.MinimumTerrainHeight, GenerationConstants.WaterLevel - 1 - SeaFloorDrop * h[i] / deepest)
-                : Summit(designed?[i] ?? shore + Math.Max(0, h[i]) * scale, peakElevation, mapScale.MaximumElevation);
+                : Summit(shore + Math.Max(0, h[i]) * scale, peakElevation, mapScale.MaximumElevation);
         }
         MapErosion.Relax(grid, h, relief.Sea, tuning.TalusSlope, tuning.TalusIterations);
 
@@ -95,65 +95,80 @@ internal static class MapSimulation
         return new(grid, elevation, Round(temperature), Round(moisture), Round(relief.Hardness), Round(flow.Discharge));
     }
 
-    /// <summary>
-    /// A designed continent's land heights in metres (#9815). Instead of one normalised peak, the eroded
-    /// lowland is scaled so its hills reach the design's <see cref="ContinentDesign.LowlandPeak"/>, and
-    /// each belt rises from it to its drawn crest, textured by the eroded valleys: a node's eroded height
-    /// over the highest nearby says how far up the range it stands. Where the map's peak cannot hold the
-    /// design's highest crest, every height is scaled down together, so the shapes keep their proportion.
-    /// </summary>
-    private static double[] DesignedHeights(MapGrid grid, double[] h, bool[] sea, ContinentDesign design, double shore, double peak, ulong seed)
+    /// <summary>Erosion over a starting relief: most of it on the coarse lattice, a short refinement on the full one.</summary>
+    private static MapRelief Evolve(TerrainConfiguration configuration, MapRecipe recipe, ulong seed, MapGrid grid, MapGrid coarse,
+        MapClimate climate, MapRelief relief, ContinentDesign? design)
     {
-        double fit = Math.Min(1, (peak - shore) / Math.Max(design.HighestCrest, design.LowlandPeak));
-        double[] crest = new double[grid.Count], profile = new double[grid.Count];
-        List<double> lowland = [];
-        for (int i = 0; i < grid.Count; i++)
-        {
-            (crest[i], profile[i]) = design.CrestAndProfile(grid.X(i) / grid.Radius, grid.Z(i) / grid.Radius);
-            if (!sea[i] && profile[i] < LowlandProfile) lowland.Add(Math.Max(0, h[i]));
-        }
-
-        double cap = lowland.Count > 0 ? Math.Max(MapRelief.Quantile([.. lowland], LowlandQuantile), 1e-6) : 1;
-        double low = (design.LowlandPeak - shore) * fit / cap;
-        int reach = Math.Max(1, (int)Math.Round(DesignedValleyReach * grid.Radius / grid.Spacing));
-        double[] nearby = LocalMaximum(grid, h, reach);
-        double[] heights = new double[grid.Count];
-        for (int i = 0; i < grid.Count; i++)
-        {
-            double eroded = Math.Max(0, h[i]);
-            double land = shore + (low * Math.Min(eroded, cap));
-            double u = grid.X(i) / grid.Radius, v = grid.Z(i) / grid.Radius;
-            // The ridged noise carves spurs, summits and saddles the coarse erosion lattice cannot.
-            double ridges = MapNoise.Ridged(seed ^ DesignedRidgeSalt, u / design.RidgeWavelength, v / design.RidgeWavelength, DesignedRidgeOctaves, DesignedRidgePersistence);
-            double texture = Math.Clamp(eroded / Math.Max(nearby[i], 1e-6), DesignedValleyFloor, 1) * (DesignedRidgeFloor + ((1 - DesignedRidgeFloor) * ridges));
-            heights[i] = land + (Math.Max(0, (crest[i] * fit) - land) * texture);
-        }
-
-        return heights;
+        SimulationRecipe tuning = recipe.Simulation;
+        MapErosion.Evolve(relief, h => climate.Rainfall(coarse, h, relief.Sea), tuning.CoarseSteps, tuning.CoarseClimateInterval);
+        if (coarse == grid) return relief;
+        MapRelief refined = design is null
+            ? MapRelief.Refine(relief, grid, seed, recipe.Relief)
+            : MapRelief.RefineDesigned(relief, grid, seed, recipe.Relief, design);
+        MapErosion.Evolve(refined, h => climate.Rainfall(grid, h, refined.Sea), tuning.RefineSteps, tuning.RefineSteps);
+        return refined;
     }
 
-    /// <summary>Each node's highest value within <paramref name="reach"/> nodes along both axes (a square window).</summary>
-    private static double[] LocalMaximum(MapGrid grid, double[] values, int reach)
+    /// <summary>
+    /// A designed continent, eroded and calibrated (#9815). Its lowland is scaled so its hills reach the
+    /// design's lowland peak; then each belt's crest line is measured against the crest the design asks
+    /// for, its uplift gain adjusted, and the whole run repeated, so the heights come from erosion over the
+    /// designed uplift rather than being imposed on it. Where the map's peak cannot hold the design's
+    /// highest crest, the design is scaled down together (<c>fit</c>), keeping its proportions.
+    /// </summary>
+    private static (MapRelief Relief, double Scale) Calibrated(TerrainConfiguration configuration, MapRecipe recipe, ulong seed,
+        MapGrid grid, MapGrid coarse, MapClimate climate, ContinentDesign design, double shore, double peak)
     {
-        int side = grid.Side;
-        double[] across = new double[values.Length], result = new double[values.Length];
-        for (int z = 0; z < side; z++)
-        for (int x = 0; x < side; x++)
+        double fit = Math.Min(1, (peak - shore) / Math.Max(design.Belts.SelectMany(b => b.Points).Select(p => p[2]).DefaultIfEmpty(0).Max(), design.LowlandPeak));
+        // Which belt's crest line each node lies on (within a share of its half-width), and the crest asked there.
+        int[] line = new int[grid.Count];
+        double[] asked = new double[grid.Count];
+        bool[] lowland = new bool[grid.Count];
+        for (int i = 0; i < grid.Count; i++)
         {
-            double best = double.NegativeInfinity;
-            for (int k = Math.Max(0, x - reach); k <= Math.Min(side - 1, x + reach); k++) best = Math.Max(best, values[(z * side) + k]);
-            across[(z * side) + x] = best;
+            double u = grid.X(i) / grid.Radius, v = grid.Z(i) / grid.Radius;
+            line[i] = -1;
+            bool inBelt = false;
+            for (int b = 0; b < design.Belts.Count; b++)
+            {
+                (double distance, double crest) = design.Belts[b].Nearest(u, v);
+                inBelt |= distance < design.Belts[b].HalfWidth;
+                if (distance < design.Belts[b].HalfWidth * CrestLineShare && crest * fit > asked[i])
+                {
+                    line[i] = b;
+                    asked[i] = crest * fit;
+                }
+            }
+
+            lowland[i] = !inBelt;
         }
 
-        for (int z = 0; z < side; z++)
-        for (int x = 0; x < side; x++)
+        double[] gains = [.. Enumerable.Repeat(1.0, design.Belts.Count)];
+        MapRelief relief = null!;
+        double scale = 1;
+        for (int round = 0; round < CalibrationRounds; round++)
         {
-            double best = double.NegativeInfinity;
-            for (int k = Math.Max(0, z - reach); k <= Math.Min(side - 1, z + reach); k++) best = Math.Max(best, across[(k * side) + x]);
-            result[(z * side) + x] = best;
+            relief = Evolve(configuration, recipe, seed, grid, coarse, climate, MapRelief.Designed(coarse, seed, recipe.Relief, design, gains), design);
+            double[] h = relief.Height;
+            double[] low = [.. Enumerable.Range(0, grid.Count).Where(i => lowland[i] && !relief.Sea[i]).Select(i => Math.Max(0, h[i]))];
+            double cap = low.Length > 0 ? Math.Max(MapRelief.Quantile(low, LowlandQuantile), 1e-6) : 1;
+            scale = ((design.LowlandPeak * fit) - shore) / cap;
+            if (round == CalibrationRounds - 1) break;
+            for (int b = 0; b < design.Belts.Count; b++)
+            {
+                double want = 0, made = 0;
+                for (int i = 0; i < grid.Count; i++)
+                {
+                    if (line[i] != b || relief.Sea[i]) continue;
+                    want += asked[i];
+                    made += shore + (Math.Max(0, h[i]) * scale);
+                }
+
+                if (made > 0) gains[b] *= Math.Clamp(want / made, 1 / CalibrationStep, CalibrationStep);
+            }
         }
 
-        return result;
+        return (relief, scale);
     }
 
     /// <summary>The rare summits above the target peak are compressed smoothly toward the ceiling, never flattened.</summary>

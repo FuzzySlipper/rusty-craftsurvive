@@ -17,6 +17,11 @@ dotnet run --project tools/MapLab -c Release -- --seed 4242 --size 390000 --out 
 
   `--dump-recipe FILE.json` writes every field with its default. The defaults make the world the
   seed has always made; the game itself uses only the defaults.
+- `--design FILE.json` or `--design builtin:NAME`: a continent design (#9815) the generator follows,
+  such as `builtin:frontier-peninsula` (`src/CraftSurvive.Game/Modules/WorldGen/Designs/`). It draws the
+  land as outlines whose coast noise resolves within a band, forced land and sea zones, the neck where
+  the peninsula may meet the mainland, range belts with crest heights (calibrated by re-running
+  erosion), passes, uplands and basins, reserved sites, and the climate's cold side and wind.
 - `--view X,Z`: a viewpoint in world metres for a skyline (repeatable; default `0,0`, where a world
   starts). `--reach-km`: how far a skyline looks (default 150). `--pixels`: map image size.
 
@@ -28,6 +33,10 @@ Output, in `--out` (default `maplab-out/`):
   40 up. Red ticks mark north, north-east and so on from the left; faint lines mark whole degrees; the
   land is dark where its ridge is near and pale where it is far. At the default 70° field of view on a
   720-pixel screen, one degree is about 10 pixels.
+- `design.png`: with a design, the relief with its outlines (forbidden land red), belts, passes and sites.
 - `stats.txt`: land share, elevation percentiles, the highest ground within 10, 30 and 60 km of each
-  viewpoint, and the skyline's height by compass sector.
+  viewpoint, the skyline's height by compass sector, the ten most prominent peaks and their key saddles,
+  local relief within 5 km and the share of gentle land. With a design: the topology (does the
+  peninsula meet the mainland, only through the neck; islands), each belt's crest against the height
+  asked, each pass's saddle and each site's ground.
 - `recipe.json`: the recipe the run used, in full.

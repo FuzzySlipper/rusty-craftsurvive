@@ -19,16 +19,32 @@ internal sealed record ContinentDesign
 {
     public string Name { get; init; } = "";
 
-    /// <summary>Land areas. Everything outside them is sea.</summary>
+    /// <summary>Land areas, drawn as the coast's middle line. Everything well outside them is sea.</summary>
     public IReadOnlyList<DesignLand> Land { get; init; } = [];
 
     /// <summary>
-    /// How far the coast wanders from the drawn outline, the size of its largest bays and headlands, and
-    /// the width over which land rises from the shore.
+    /// The coast is undecided within this full width about the drawn outline (map units): noise resolves
+    /// it into bays, headlands, estuaries and islands. Deeper inside is land, farther out is sea.
     /// </summary>
-    public double CoastRoughness { get; init; } = 0.03;
+    public double CoastBand { get; init; } = 0.08;
+
+    /// <summary>The size of the coast's largest bays and headlands, in map units.</summary>
     public double CoastWavelength { get; init; } = 0.08;
-    public double CoastRamp { get; init; } = 0.015;
+
+    /// <summary>
+    /// Land rises from its resolved shore over about this many metres (varying along the coast, so cliffs
+    /// and broad plains both meet the sea). It is measured from the real shore, not the drawn outline.
+    /// </summary>
+    public double ShoreRampMetres { get; init; } = 8000;
+
+    /// <summary>Areas forced to land or to sea whatever the noise decides: the neck's core, and the moats that keep other bridges from forming.</summary>
+    public IReadOnlyList<DesignZone> Fixed { get; init; } = [];
+
+    /// <summary>The only place the peninsula may meet the mainland (checked, #9815).</summary>
+    public IReadOnlyList<double[]> Neck { get; init; } = [];
+
+    /// <summary>How much harder a belt's rock is at its crest (0 to 1): resistant rock stands taller and sharper under erosion.</summary>
+    public double BeltHardness { get; init; } = 0.35;
 
     /// <summary>
     /// The highest the land rises away from the belts, in metres: the eroded lowland relief is scaled so
@@ -78,6 +94,8 @@ internal sealed record ContinentDesign
         if (Land.Count == 0) throw new InvalidDataException($"Design '{Name}' has no land.");
         foreach (DesignLand land in Land)
             if (land.Points.Count < 3 || land.Points.Any(p => p.Length < 2)) throw new InvalidDataException($"Land '{land.Name}' needs three or more [x, z] points.");
+        foreach (DesignZone zone in Fixed)
+            if (zone.Points.Count < 3) throw new InvalidDataException($"Zone '{zone.Name}' needs three or more [x, z] points.");
         foreach (DesignBelt belt in Belts)
         {
             if (belt.Points.Count < 2 || belt.Points.Any(p => p.Length < 3)) throw new InvalidDataException($"Belt '{belt.Name}' needs two or more [x, z, crest metres] points.");
@@ -93,6 +111,17 @@ internal sealed record ContinentDesign
     /// </summary>
     internal double LandDistance(double x, double z) => Land.Max(land => land.SignedDistance(x, z));
 
+    /// <summary>Whether a point is forced to land (true) or sea (false), or left to the coast (null).</summary>
+    internal bool? FixedAt(double x, double z)
+    {
+        foreach (DesignZone zone in Fixed)
+            if (DesignGeometry.Inside(zone.Points, x, z)) return zone.Land;
+        return null;
+    }
+
+    /// <summary>Whether a point lies in the neck, the only place the peninsula may meet the mainland.</summary>
+    internal bool InNeck(double x, double z) => Neck.Count >= 3 && DesignGeometry.Inside(Neck, x, z);
+
     /// <summary>The land area containing a point, or null at sea.</summary>
     internal DesignLand? LandAt(double x, double z) => Land.FirstOrDefault(land => land.SignedDistance(x, z) > 0);
 
@@ -100,15 +129,16 @@ internal sealed record ContinentDesign
     /// The designed crest at a point, in metres: each belt's crest (interpolated along it) under its
     /// cross-section, the highest belt wins; dipped where a pass crosses.
     /// </summary>
-    internal double Crest(double x, double z)
+    internal double Crest(double x, double z, IReadOnlyList<double>? gains = null)
     {
         double crest = 0;
-        foreach (DesignBelt belt in Belts)
+        for (int b = 0; b < Belts.Count; b++)
         {
+            DesignBelt belt = Belts[b];
             (double distance, double height) = belt.Nearest(x, z);
             if (distance >= belt.HalfWidth) continue;
             double across = distance / belt.HalfWidth;
-            crest = Math.Max(crest, height * Math.Pow(1 - (across * across), belt.Sharpness));
+            crest = Math.Max(crest, height * (gains?[b] ?? 1) * Math.Pow(1 - (across * across), belt.Sharpness));
         }
 
         foreach (DesignPass pass in Passes) crest *= 1 - (pass.Depth * PassNear(pass, x, z));
@@ -260,6 +290,16 @@ internal sealed record DesignArea
     public double Lift { get; init; }
 }
 
+/// <summary>An area forced to land or sea, as a closed outline of [x, z] points.</summary>
+internal sealed record DesignZone
+{
+    public string Name { get; init; } = "";
+
+    public bool Land { get; init; }
+
+    public IReadOnlyList<double[]> Points { get; init; } = [];
+}
+
 /// <summary>A design's climate: the bearing the cold lies toward, and the bearing the prevailing wind blows toward.</summary>
 internal sealed record DesignClimate
 {
@@ -287,6 +327,19 @@ internal sealed record DesignSite
 
 internal static class DesignGeometry
 {
+    /// <summary>Whether a point lies inside a closed outline (even-odd rule).</summary>
+    internal static bool Inside(IReadOnlyList<double[]> points, double x, double z)
+    {
+        bool inside = false;
+        for (int i = 0, j = points.Count - 1; i < points.Count; j = i++)
+        {
+            double[] a = points[j], b = points[i];
+            if ((b[1] > z) != (a[1] > z) && x < ((a[0] - b[0]) * (z - b[1]) / (a[1] - b[1])) + b[0]) inside = !inside;
+        }
+
+        return inside;
+    }
+
     /// <summary>The distance from a point to the segment a-b, and where along it the nearest point is (0 at a, 1 at b).</summary>
     internal static double SegmentDistance(double x, double z, double[] a, double[] b, out double t)
     {

@@ -32,4 +32,33 @@ internal static class RecipeChecks
         ulong taller = new WorldMap(configuration, MapSimulation.Run(configuration, partial!)).Fingerprint;
         Check.That(taller != plain, "a changed recipe makes a different world");
     }
+
+    /// <summary>
+    /// The continent design (#9815): the built-in frontier peninsula parses and validates; its fixed zones
+    /// override the coast; the coast band is decided by noise but fixed per seed; and a belt's gain lifts it.
+    /// </summary>
+    internal static void DesignsDrawTheContinent()
+    {
+        ContinentDesign design = ContinentDesign.Builtin("frontier-peninsula");
+        Check.That(design.Land.Count(l => l.Forbidden) == 1 && design.Belts.Count > 0 && design.Neck.Count >= 3,
+            "the frontier peninsula has a forbidden mainland, belts and a neck");
+        Check.That(MapRelief.DesignedLand(design, Seed, 0.4, -0.74, design.CoastBand / 2), "the neck's core is land whatever the noise");
+        Check.That(!MapRelief.DesignedLand(design, Seed, -0.5, -0.9, design.CoastBand / 2), "the western gulf is sea whatever the noise");
+        Check.That(MapRelief.DesignedLand(design, Seed, 0, 0, design.CoastBand / 2), "deep inside the outline is land");
+        Check.That(!MapRelief.DesignedLand(design, Seed, -0.99, 0.99, design.CoastBand / 2), "far outside it is sea");
+
+        // Along the west coast's band, the noise decides: some land, some sea, the same each time for a seed.
+        bool[] coast = [.. Enumerable.Range(0, 200).Select(k => MapRelief.DesignedLand(design, Seed, -0.84, -0.4 + (k * 0.004), design.CoastBand / 2))];
+        bool[] again = [.. Enumerable.Range(0, 200).Select(k => MapRelief.DesignedLand(design, Seed, -0.84, -0.4 + (k * 0.004), design.CoastBand / 2))];
+        Check.That(coast.Contains(true) && coast.Contains(false), "on the drawn outline the coast is undecided: noise makes both bays and headlands");
+        Check.That(coast.SequenceEqual(again), "and decides it the same way every time");
+
+        double[] doubled = [.. design.Belts.Select(_ => 1.0)];
+        doubled[0] = 2;
+        double[] onBelt = design.Belts[0].Points[1];
+        Check.That(Math.Abs(design.Crest(onBelt[0], onBelt[1], doubled) - (2 * design.Crest(onBelt[0], onBelt[1]))) < 1e-6,
+            "a belt's calibration gain scales its crest");
+        Check.That(ContinentDesign.Parse(System.Text.Json.JsonSerializer.Serialize(design, ContinentDesign.Json)).Belts.Count == design.Belts.Count,
+            "a design survives a JSON round trip");
+    }
 }

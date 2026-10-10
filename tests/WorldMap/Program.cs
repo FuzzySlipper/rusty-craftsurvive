@@ -136,6 +136,7 @@ try
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 Check.Section("generation recipe", RecipeChecks.DefaultsAreTheGeneratorsOwn);
+Check.Section("continent design", RecipeChecks.DesignsDrawTheContinent);
 Check.Section("weather", WeatherChecks.Synthetic);
 Check.Section("weather over the player", WeatherChecks.HereFollowsTheClock);
 Check.Section("weather on a route", WeatherChecks.RouteForecastKeepsTheMarchPace);

@@ -95,6 +95,7 @@ double Percentile(double p) => land.Count == 0 ? 0 : land[(int)Math.Clamp(p * (l
 Line(Invariant($"land={100.0 * land.Count / (pixels * pixels):F1}% elevation p50={Percentile(0.5):F0}m p90={Percentile(0.9):F0}m p99={Percentile(0.99):F0}m max={Percentile(1):F0}m"));
 
 DrawRelief().Save(Path.Combine(output, "relief.png"));
+Terrain.Report(Line, height, cell, map.Radius, GenerationConstants.WaterLevel, design);
 if (design is not null)
 {
     Image overlay = DrawRelief();
@@ -143,7 +144,8 @@ return 0;
 // with each viewpoint marked.
 Image DrawRelief()
 {
-    const double Exaggeration = 4;
+    // Shading exaggerates slopes more on a coarser image, so a continent's relief still reads.
+    double exaggeration = Math.Max(4, cell / 25);
     Vector3d light = Normalise(new(-1, 1.4, -1));
     Image image = new(pixels, pixels);
     for (int py = 0; py < pixels; py++)
@@ -155,7 +157,7 @@ Image DrawRelief()
             : MapPalette.Tint(sample);
         double dx = (height[Math.Min(px + 1, pixels - 1), py] - height[Math.Max(px - 1, 0), py]) / (2 * cell);
         double dz = (height[px, Math.Min(py + 1, pixels - 1)] - height[px, Math.Max(py - 1, 0)]) / (2 * cell);
-        Vector3d normal = Normalise(new(-dx * Exaggeration, 1, -dz * Exaggeration));
+        Vector3d normal = Normalise(new(-dx * exaggeration, 1, -dz * exaggeration));
         double shade = 0.45 + (0.65 * Math.Max(0, Dot(normal, light)));
         image.Set(px, py, (colour.R * shade, colour.G * shade, colour.B * shade));
     }
