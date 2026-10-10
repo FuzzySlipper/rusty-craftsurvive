@@ -57,4 +57,45 @@ internal static class ErosionFilterChecks
         Check.That(rivers == 0, $"no river channel is moved ({rivers})");
         Check.That(shores == 0, $"no sea or shore below the water is moved ({shores})");
     }
+
+    /// <summary>
+    /// R9822-2: on the frontier peninsula the filter leaves every pass's notch exactly as generated (gullies
+    /// and crest relief alike), while the Wall's flanks around it still take detail.
+    /// </summary>
+    internal static void PassesAreSheltered()
+    {
+        TerrainConfiguration configuration = new(12345, MapScale.DefaultContinentalSize);
+        WorldMap map = WorldMapGenerator.Generate(configuration);
+        ContinentDesign design = ContinentDesign.For(configuration.Size)!;
+        ErodedHeights eroded = new(map, new ErosionFilter(configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent), design);
+        int corridor = 0, moved = 0, flanks = 0, detailed = 0;
+        for (int p = 0; p < design.Passes.Count; p++)
+        {
+            DesignPass pass = design.Passes[p];
+            for (double dz = -0.08; dz <= 0.08; dz += 0.004)
+            for (double dx = -0.08; dx <= 0.08; dx += 0.004)
+            {
+                double u = pass.At[0] + dx, v = pass.At[1] + dz, x = u * map.Radius, z = v * map.Radius;
+                MapSample sample = map.Sample(x, z);
+                double reach = design.PassReach(u, v);
+                double height = eroded.Height(x, z, sample);
+                if (reach >= 0.5)
+                {
+                    corridor++;
+                    if (height != sample.Elevation) moved++;
+                }
+                else if (reach < 0.05 && sample.Elevation > 2000)
+                {
+                    flanks++;
+                    if (Math.Abs(height - sample.Elevation) > 5) detailed++;
+                }
+            }
+
+            double at = eroded.Height(pass.At[0] * map.Radius, pass.At[1] * map.Radius, map.Sample(pass.At[0] * map.Radius, pass.At[1] * map.Radius));
+            Check.That(at == map.Sample(pass.At[0] * map.Radius, pass.At[1] * map.Radius).Elevation, $"{pass.Name}'s saddle is unchanged");
+        }
+
+        Check.That(corridor > 0 && moved == 0, $"nothing in a pass's notch moves ({moved} of {corridor})");
+        Check.That(flanks > 0 && detailed > flanks / 2, $"the high flanks about the passes still take detail ({detailed} of {flanks})");
+    }
 }

@@ -95,6 +95,28 @@ internal sealed class MapVoxelLayer : IDisposable
     internal (long X, long Z) Focus { get; set; }
     internal double WorkMilliseconds => Stopwatch.GetElapsedTime(0, workTicks).TotalMilliseconds;
 
+    /// <summary>
+    /// A digest of the sampled columns (keys, surfaces and materials, in key order), so two layers that should
+    /// hold the same ground can be compared: one that followed the player there, one built fresh (R9822-1).
+    /// </summary>
+    internal ulong Digest()
+    {
+        ulong hash = 0xCBF29CE484222325UL;
+        void Mix(ulong value) => hash = unchecked((hash ^ value) * 0x100000001B3UL);
+        foreach (((long X, long Z) key, Column column) in columns.OrderBy(pair => pair.Key.X).ThenBy(pair => pair.Key.Z))
+        {
+            Mix((ulong)key.X);
+            Mix((ulong)key.Z);
+            for (int i = 0; i < ColumnCount; i++)
+            {
+                Mix(BitConverter.SingleToUInt32Bits((float)column.Surface[i]));
+                Mix(column.Material[i]);
+            }
+        }
+
+        return hash;
+    }
+
     /// <summary>Make exactly these chunk columns resident: new ones are admitted, dropped ones evicted.</summary>
     internal void Want(IEnumerable<(long X, long Z)> chunkColumns)
     {

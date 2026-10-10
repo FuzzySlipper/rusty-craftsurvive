@@ -66,7 +66,7 @@ WorldMap map = new(configuration, MapSimulation.Run(configuration, recipe, desig
 double generationSeconds = clock.Elapsed.TotalSeconds;
 // With --erosion-filter, every height MapLab reads has the horizon's erosion filter cut in (#9822).
 ErodedHeights? eroded = options.ContainsKey("erosion-filter")
-    ? new(map, new ErosionFilter(configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent))
+    ? new(map, new ErosionFilter(configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent), design)
     : null;
 MapSample Sample(double x, double z)
 {

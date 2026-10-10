@@ -17,6 +17,9 @@ public sealed class HorizonDebugModule : IDebugCommandModule
     [DebugCommand("craft.horizon.fog", Description = "Tuning: sets the open fog's density while the horizon is shown (exponential, per metre).")]
     public string Fog(double density) => sky().SetHorizonFog((float)density);
 
+    [DebugCommand("craft.horizon.digest", Description = "Measuring: each tier's digest of its sampled ground, to compare a horizon that followed the player with one built fresh (hold 0, hold 1) where they stand.")]
+    public string Digest() => horizon().Digest();
+
     [DebugCommand("craft.horizon.readout", Description = "Reads the horizon backdrop: linked, scale, chunks streamed, the sunk zone's centre and the far field's reach.")]
     public string Readout() => horizon().Readout();
 

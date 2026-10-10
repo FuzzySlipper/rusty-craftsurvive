@@ -141,6 +141,7 @@ Check.Section("generation recipe", RecipeChecks.DefaultsAreTheGeneratorsOwn);
 Check.Section("continent design", RecipeChecks.DesignsDrawTheContinent);
 Check.Section("continent design topology", RecipeChecks.DesignTopologyIsEnforced);
 Check.Section("erosion filter", ErosionFilterChecks.Run);
+Check.Section("erosion filter shelters the passes", ErosionFilterChecks.PassesAreSheltered);
 Check.Section("weather", WeatherChecks.Synthetic);
 Check.Section("weather over the player", WeatherChecks.HereFollowsTheClock);
 Check.Section("weather on a route", WeatherChecks.RouteForecastKeepsTheMarchPace);
@@ -148,6 +149,7 @@ Check.Section("weather arrivals", WeatherChecks.EachFrontArrivesOnce);
 Check.Section("horizon sink", HorizonChecks.SinkMovesOnlyUnderTheFarField);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
+Check.Section("horizon middle tier follows the region window", HorizonChecks.MiddleTierFollowsTheRegionWindow);
 return Check.Finish("WorldMap");
 
 partial class Program

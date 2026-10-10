@@ -115,11 +115,14 @@ internal sealed record ErosionFilterSettings(double LongestMetres, int Octaves, 
 
 /// <summary>
 /// A map's height with the erosion filter cut into it (#9822): the slope from central differences of
-/// the smooth map, the filter faded out near rivers (it must not move their channels) and near sea level
-/// (it must not move the coast).
+/// the smooth map, the filter faded out near rivers (it must not move their channels), near sea level
+/// (it must not move the coast) and across a design's passes (it must not move the way through, R9822-2).
 /// </summary>
-internal sealed class ErodedHeights(WorldMap map, ErosionFilter filter)
+internal sealed class ErodedHeights(WorldMap map, ErosionFilter filter, ContinentDesign? design = null)
 {
+    /// <summary>A pass's notch shelters the ground from the filter from this share of its depth, wholly from the second.</summary>
+    private const double PassShelterFrom = 0.1, PassShelterFull = 0.5;
+
     /// <summary>The slope is measured across this many metres either side.</summary>
     internal const double SlopeReachMetres = 500;
     /// <summary>The filter fades in over this height above the water, and this many river half-widths from a channel.</summary>
@@ -150,6 +153,8 @@ internal sealed class ErodedHeights(WorldMap map, ErosionFilter filter)
         double above = sample.Elevation - GenerationConstants.WaterLevel;
         if (above <= 0 || sample.InRiver) return sample.Elevation;
         double fade = WorldMap.Smooth(Math.Clamp(above / ShoreFadeMetres, 0, 1));
+        if (design is not null && design.Passes.Count > 0)
+            fade *= 1 - WorldMap.Smooth(Math.Clamp((design.PassReach(x / map.Radius, z / map.Radius) - PassShelterFrom) / (PassShelterFull - PassShelterFrom), 0, 1));
         if (nearest is RiverInfluence river)
             fade *= WorldMap.Smooth(Math.Clamp((river.Distance - river.HalfWidth) / (river.HalfWidth * RiverFadeWidths + SlopeReachMetres), 0, 1));
         return fade <= 0 ? sample.Elevation : sample.Elevation + (fade * (filter.Offset(x, z, slopeX, slopeZ) + filter.Crest(x, z, sample.Elevation)));

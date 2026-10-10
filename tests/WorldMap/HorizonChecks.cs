@@ -1,3 +1,4 @@
+using System.Numerics;
 using CraftSurvive.Game.Modules.Horizon;
 using CraftSurvive.Game.Tests;
 
@@ -117,5 +118,54 @@ internal static class HorizonChecks
         Check.That(backdrop > 0 && world > 0, "places fall in both bands about the edge");
         Check.That(sunk == 0, $"no backdrop place stands on sunk ground ({sunk} of {backdrop} did)");
         Check.That(uncovered == 0, $"every world place is under the far field ({uncovered} of {world} were not)");
+    }
+
+    /// <summary>
+    /// R9822-1: the middle tier sinks beneath the region window, so when the window moves or its tiles
+    /// become ready, every middle column whose sinking changes must be sampled again. Any point whose
+    /// sinking differs between the old state and the new lies in a column under the old window or the new.
+    /// </summary>
+    internal static void MiddleTierFollowsTheRegionWindow()
+    {
+        const double Window = 16 * HorizonTiers.RegionChunkMetres;
+        Random random = new(98221);
+        int changes = 0, missed = 0;
+        for (int move = 0; move < 400; move++)
+        {
+            (Vector2 Min, Vector2 Max, HashSet<(long, long)> Covered) State(double x, double z, double readiness)
+            {
+                double minX = (Math.Floor(x / HorizonTiers.RegionChunkMetres) - 8) * HorizonTiers.RegionChunkMetres;
+                double minZ = (Math.Floor(z / HorizonTiers.RegionChunkMetres) - 8) * HorizonTiers.RegionChunkMetres;
+                HashSet<(long, long)> covered = [];
+                for (int cz = 0; cz < 16; cz++)
+                for (int cx = 0; cx < 16; cx++)
+                    if (random.NextDouble() < readiness) covered.Add(((long)(minX / HorizonTiers.RegionChunkMetres) + cx, (long)(minZ / HorizonTiers.RegionChunkMetres) + cz));
+                return (new((float)minX, (float)minZ), new((float)(minX + Window), (float)(minZ + Window)), covered);
+            }
+
+            double fromX = (random.NextDouble() - 0.5) * 100_000, fromZ = (random.NextDouble() - 0.5) * 100_000;
+            // A walk (a few chunks), or a teleport; tiles partly or wholly ready before and after.
+            bool teleport = random.NextDouble() < 0.2;
+            double toX = fromX + (teleport ? 30_000 : (random.NextDouble() - 0.5) * 3000), toZ = fromZ + (teleport ? -20_000 : (random.NextDouble() - 0.5) * 3000);
+            var before = State(fromX, fromZ, random.NextDouble());
+            var after = State(toX, toZ, random.NextDouble());
+            HashSet<(long, long)> resampled = [.. HorizonTiers.MidColumnsUnder(before.Min, before.Max).Concat(HorizonTiers.MidColumnsUnder(after.Min, after.Max))];
+            for (int sample = 0; sample < 200; sample++)
+            {
+                double x = fromX + ((random.NextDouble() - 0.5) * 80_000), z = fromZ + ((random.NextDouble() - 0.5) * 80_000);
+                if (sample % 2 == 0)
+                {
+                    x = before.Min.X + (random.NextDouble() * Window);
+                    z = before.Min.Y + (random.NextDouble() * Window);
+                }
+
+                if (HorizonTiers.UnderRegion(before.Covered, before.Min, before.Max, x, z) == HorizonTiers.UnderRegion(after.Covered, after.Min, after.Max, x, z)) continue;
+                changes++;
+                if (!resampled.Contains(((long)Math.Floor(x / HorizonTiers.MidChunkMetres), (long)Math.Floor(z / HorizonTiers.MidChunkMetres)))) missed++;
+            }
+        }
+
+        Check.That(changes > 0, "moves and readiness changes do change where the region sinks the tier beneath");
+        Check.That(missed == 0, $"every point whose sinking changes lies in a middle column sampled again ({missed} of {changes} did not)");
     }
 }

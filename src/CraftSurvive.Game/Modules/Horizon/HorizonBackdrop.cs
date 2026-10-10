@@ -33,7 +33,7 @@ internal sealed class HorizonBackdrop : IProductModule
     /// <summary>A continent's broad tier, and its backdrop unit: the map view's kilometre tier.</summary>
     internal const double ContinentCellMetres = 1000;
     private const int EdgeLength = MapVoxelLayer.EdgeLength;
-    private const double CellChunkMetres = EdgeLength * CellMetres;
+    private const double CellChunkMetres = HorizonTiers.RegionChunkMetres;
     private const double ContinentChunkMetres = EdgeLength * ContinentCellMetres;
     /// <summary>How many backdrop chunks each tier admits or replaces an update.</summary>
     private const int ChunksPerUpdate = 8;
@@ -42,8 +42,8 @@ internal sealed class HorizonBackdrop : IProductModule
     /// <summary>A continent's region window: chunk columns of the fine tier each side of the player's (one is 512 m).</summary>
     private const int RegionRadiusChunks = 8;
     /// <summary>Chunk columns over which the window's ground eases onto the kilometre tier, so the tiers meet flush.</summary>
-    private const int RegionFadeChunks = 2;
-    private const double RegionFadeMetres = RegionFadeChunks * CellChunkMetres;
+    private const int RegionFadeChunks = HorizonTiers.RegionFadeChunks;
+    private const double RegionFadeMetres = HorizonTiers.RegionFadeMetres;
     /// <summary>The kilometre tier sinks this far beneath the window's ground past its fade band.</summary>
     private const double UnderRegionSinkMetres = 1_500;
     /// <summary>
@@ -51,7 +51,7 @@ internal sealed class HorizonBackdrop : IProductModule
     /// columns (4 km each, so about 64 km) of the player's, easing onto the kilometre tier over its outer band.
     /// </summary>
     internal const double MidCellMetres = 250;
-    private const double MidChunkMetres = EdgeLength * MidCellMetres;
+    private const double MidChunkMetres = HorizonTiers.MidChunkMetres;
     private const int MidRadiusChunks = 16, MidFadeChunks = 2;
     private const double MidFadeMetres = MidFadeChunks * MidChunkMetres;
     private const double MidCoarseBeyondMetres = 16_000;
@@ -117,7 +117,8 @@ internal sealed class HorizonBackdrop : IProductModule
         lastCellChunk = (long)Math.Floor((map.Radius - 1) / CellChunkMetres);
         firstMidChunk = (long)Math.Floor(-map.Radius / MidChunkMetres);
         lastMidChunk = (long)Math.Floor((map.Radius - 1) / MidChunkMetres);
-        if (map.Scale.Continental) eroded = new(map, new ErosionFilter(map.Configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent));
+        if (map.Scale.Continental)
+            eroded = new(map, new ErosionFilter(map.Configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent), ContinentDesign.For(map.Configuration.Size));
         try
         {
             materials[RiverSlot] = Flat(MapPalette.River);
@@ -318,6 +319,10 @@ internal sealed class HorizonBackdrop : IProductModule
         sinkMoves++;
     }
 
+    /// <summary>Each tier's digest of its sampled ground (R9822-1): equal for a horizon that followed the player and one built fresh where they stand.</summary>
+    internal string Digest() => string.Create(CultureInfo.InvariantCulture,
+        $"cells={cells.Digest():x16} mid={mid?.Digest() ?? 0:x16} continent={continent?.Digest() ?? 0:x16} settled={cells.Settled && (continent?.Settled ?? true) && (mid?.Settled ?? true)}");
+
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"horizon shown={shown} scale={Scale:F0}m cells={cells.ResidentChunks}+{cells.PendingChunks}pending")
         + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
@@ -388,10 +393,11 @@ internal sealed class HorizonBackdrop : IProductModule
         long x1 = Math.Min(lastCellChunk, x0 + span - 1), z1 = Math.Min(lastCellChunk, z0 + span - 1);
         Vector2 minimum = new((float)(x0 * CellChunkMetres), (float)(z0 * CellChunkMetres));
         Vector2 maximum = new((float)((x1 + 1) * CellChunkMetres), (float)((z1 + 1) * CellChunkMetres));
-        if (minimum != regionMinimum || maximum != regionMaximum)
+        (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
+        bool moved = minimum != regionMinimum || maximum != regionMaximum;
+        if (moved)
         {
             // The window moved: the bands beside both its old and new edges carry a changed fade.
-            (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
             (regionMinimum, regionMaximum) = (minimum, maximum);
             cells.Invalidate(FadeBand(oldMinimum, oldMaximum, CellChunkMetres, RegionFadeChunks).Concat(FadeBand(minimum, maximum, CellChunkMetres, RegionFadeChunks)));
         }
@@ -404,7 +410,11 @@ internal sealed class HorizonBackdrop : IProductModule
             if (regions.Ready(cx * CellChunkMetres, cz * CellChunkMetres, (cx + 1) * CellChunkMetres, (cz + 1) * CellChunkMetres)) covered.Add((cx, cz));
         }
 
-        if (covered.SetEquals(regionCovered)) return;
+        bool recovered = !covered.SetEquals(regionCovered);
+        // The middle tier sinks beneath the window (R9822-1): whatever moved it or changed its coverage, every
+        // middle column under the old window or the new one is sampled again.
+        if (moved || recovered) mid?.Invalidate(HorizonTiers.MidColumnsUnder(oldMinimum, oldMaximum).Concat(HorizonTiers.MidColumnsUnder(minimum, maximum)));
+        if (!recovered) return;
         HashSet<(long X, long Z)> changed = [.. covered];
         changed.SymmetricExceptWith(regionCovered);
         regionCovered.Clear();
@@ -486,7 +496,7 @@ internal sealed class HorizonBackdrop : IProductModule
         Math.Min(Math.Min(worldX - regionMinimum.X, regionMaximum.X - worldX), Math.Min(worldZ - regionMinimum.Y, regionMaximum.Y - worldZ));
 
     /// <summary>Where the kilometre tier sinks: beneath region ground past the window's fade band.</summary>
-    private bool UnderRegion(double worldX, double worldZ) => InRegion(worldX, worldZ) && Inset(worldX, worldZ) >= RegionFadeMetres;
+    private bool UnderRegion(double worldX, double worldZ) => HorizonTiers.UnderRegion(regionCovered, regionMinimum, regionMaximum, worldX, worldZ);
 
     /// <summary>Where the kilometre tier sinks beneath the middle tier: inside its window past the fade band.</summary>
     private bool UnderMid(double worldX, double worldZ) => InMid(worldX, worldZ) && MidInset(worldX, worldZ) >= MidFadeMetres;
