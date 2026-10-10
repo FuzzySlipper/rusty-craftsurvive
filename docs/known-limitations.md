@@ -249,9 +249,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       layer, in its kind (cumulonimbus for rain and glass, stratus for snow), darker as it
       strengthens. `DayNightSky` places and lifts them as the owner of the sky, and none show
       underground.
-    - **Curtain.** For each front the player is outside of, a translucent open cylinder in the
-      backdrop. Rain, snow and glass hang from the cloud base and fade into it; sand rises from the
-      ground as a brown wall; fog lies as a low bank.
+    - **Curtain.** For each front the player is outside of, a translucent sheet in the backdrop
+      through the front's centre, turned to face the player (#9800). Rain, snow and glass hang from
+      the cloud base in uneven shafts and fade into it; sand rises from the ground as a brown wall;
+      fog lies as a low bank. Every sheet fades toward its ends and top, so it has no hard edge from
+      any bearing.
+    - **Distance.** A falling curtain fades from 20 km to 30% of itself at 100 km, so a far front
+      reads mostly as its cloud. A bank (fog, sand) fades from 15 km and is gone by 30 km, where it
+      would only be a thin line on the skyline. The fades come in four steps, each its own mesh.
     - **Cloud body.** The 8 nearest falling fronts each have one: 96 soft puffs in a backdrop
       particle emitter. The Engine's particle budget (4,096, shared) holds no more, and a refusal
       leaves that front with its region and curtain.
@@ -262,10 +267,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       only new puffs, so a body takes up to 90 s to follow a jump in the clock.
     - **Cost.** About 0.25 ms of backdrop pass (curtains and bodies) and 0.21 ms of clouds pass at
       1280×720 on an RX 9070 XT.
-    - **Look.** A first pass: the curtains are smooth translucent cylinders, without streaks or
-      shafts.
-    - **Look, seen far off.** A distant curtain is seen edge-on as a hard band along the skyline:
-      a fog bank tens of kilometres off is a grey bar, and a far rain curtain a darker one.
+    - **Fog wins past a few kilometres.** Curtains are meshes, so the horizon fog (exponential,
+      0.0005 per metre, thicker in weather) takes almost all their colour by about 6 km: farther off
+      a curtain is fog-coloured and shows only where the sky behind it differs. Bodies are particles,
+      which take no fog and are hazed here instead, so a storm at 15 km reads as a dark body over a
+      faint veil. Making the two agree (or thinning the horizon fog) is a tuning question, not done.
   - **Known places on the horizon (H3 #9781, `HorizonLandmarks`).** Home, ruins, vantage points and
     dungeon entrances stand where the map has them as stylised block silhouettes of their kind (the
     sled and walking landmarks do not).

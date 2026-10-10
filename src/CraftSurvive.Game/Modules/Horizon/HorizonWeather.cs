@@ -19,8 +19,11 @@ namespace CraftSurvive.Game.Modules.Horizon;
 /// <item>blown sand as a brown wall rising from the ground;</item>
 /// <item>a fog bank lying on the land.</item>
 /// </list>
-/// The haze reaches each at its world-equivalent distance, so a far storm is a pale shape and a near
-/// one a wall. A front over the player is the sky's precipitation and fog, so it has no curtain.
+/// A curtain is a soft sheet through the front's centre, turned to face the player (#9800): it fades
+/// toward its ends and its top, what falls in uneven shafts, so seen from anywhere it has no hard edge.
+/// It also fades with distance, a far front reading mostly as its cloud, and a bank lying on the land
+/// is gone by <see cref="BankGoneMetres"/>. The haze reaches each at its world-equivalent distance.
+/// A front over the player is the sky's precipitation and fog, so it has no curtain.
 /// </summary>
 internal sealed class HorizonWeather : IDisposable
 {
@@ -32,8 +35,19 @@ internal sealed class HorizonWeather : IDisposable
     private const int MaximumRegions = 32;
     /// <summary>The fronts are listed again after the clock has moved this many game hours or the player this far.</summary>
     private const double RefreshHours = 0.05, RefreshMetres = 200;
-    private const int Segments = 32;
+    /// <summary>A sheet's columns across and the share of its width over which its ends fade out.</summary>
+    private const int Columns = 48;
     private const int StrengthSteps = 3;
+    /// <summary>A curtain is whole out to the first distance, and fades to <see cref="FarShare"/> of itself by the second.</summary>
+    private const double FadeFromMetres = 20_000, FadeToMetres = 100_000;
+    private const float FarShare = 0.3f;
+    /// <summary>A bank lying on the land (fog, blown sand) fades from the first distance and is gone by the second.</summary>
+    private const double BankFadeFromMetres = 15_000, BankGoneMetres = 30_000;
+    /// <summary>Distance fades are drawn in this many steps, each its own mesh.</summary>
+    private const int FadeSteps = 4;
+    /// <summary>How much a falling curtain's shafts vary its opacity, and the seed of their pattern.</summary>
+    private const float ShaftDepth = 0.55f;
+    private const int ShaftSeed = 9800;
     private const float Roughness = 1f;
     /// <summary>How brightly a curtain glows by itself, so it still reads against a dusk sky; the glass storm glows more.</summary>
     private const float Glow = 0.08f, ArcaneGlow = 0.6f;
@@ -41,13 +55,13 @@ internal sealed class HorizonWeather : IDisposable
     private const float RegionCoverage = 0.55f, RegionCoverageByStrength = 0.4f;
 
     /// <summary>
-    /// How each kind stands. Its curtain: top in metres (the cloud base for what falls), radius as a
-    /// share of the front's, and opacity at the ground and at the top. Its cloud region, if it has one:
-    /// the cloud's kind, thickness and darkness.
+    /// How each kind stands. Its curtain: top in metres (the cloud base for what falls), half-width as a
+    /// share of the front's radius, and opacity at the ground and at the top. Its cloud region, if it has
+    /// one: the cloud's kind, thickness and darkness.
     /// </summary>
     /// <remarks>
-    /// What falls also has a cloud body above the curtain, to <c>BodyMetres</c> above the cloud base,
-    /// drawn as an open wall (no cap, so a near storm is a wall, not a ceiling), darkest at its base.
+    /// What falls also has a cloud body above the curtain: soft puffs filling a mass to <c>BodyMetres</c>
+    /// above the cloud base (<see cref="UpdateBodies"/>).
     /// </remarks>
     private sealed record Look(double TopMetres, float Radius, float GroundAlpha, float TopAlpha, CloudKind? Cloud, float Thickness, float Darkness,
         double BodyMetres = 0, float BodyAlpha = 0);
@@ -72,7 +86,7 @@ internal sealed class HorizonWeather : IDisposable
     internal Func<double> Daylight { get; set; } = () => 1;
     /// <summary>The least a body is lit, by night; the glass storm keeps its own glow.</summary>
     private const float NightBody = 0.12f, NightArcaneBody = 0.25f;
-    private readonly Dictionary<(string Kind, int Step), (MeshResource Mesh, Appearance Look)> curtains = [];
+    private readonly Dictionary<(string Kind, int Step, int Fade), (MeshResource Mesh, Appearance Look)> curtains = [];
     private readonly Dictionary<string, Material> materials = [];
     private readonly List<(WeatherFront Front, double Strength)> outside = [];
     private double listedHours = double.NegativeInfinity;
@@ -157,22 +171,49 @@ internal sealed class HorizonWeather : IDisposable
     internal IEnumerable<AppearanceFact> Facts(double scale)
     {
         double now = hours();
+        Vector3 player = playerWorld();
+        Vector2 here = new(player.X, player.Z);
         int index = 0;
         foreach ((WeatherFront front, double strength) in outside)
         {
             if (index >= ProductIds.HorizonFrontLimit) yield break;
             Look look = Looks[front.Kind.Id];
             Vector2 centre = front.Centre(now);
+            int fade = FadeStep(look, Vector2.Distance(centre, here));
+            if (fade < 0) continue;
             double ground = Math.Max(map.Sample(centre.X, centre.Y).Elevation, GenerationConstants.WaterLevel);
             // What falls hangs from the cloud base, wherever the ground is; what lies on the land rises from it.
             double top = look.Cloud is null ? ground + (look.TopMetres * field.Scale.Lengths) : CloudBase(ground, look);
             float radius = (float)(front.RadiusMetres * look.Radius / scale);
             float height = (float)(Math.Max(top - ground, 1) / scale);
+            // The sheet's face (+Z) turns toward the player.
+            Vector2 toward = here - centre;
+            Quaternion facing = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan2(toward.X, toward.Y));
             yield return new AppearanceFact(ProductIds.HorizonFrontBase + (ulong)index++, false, 0,
-                new Transform(new Vector3((float)(centre.X / scale), (float)(ground / scale), (float)(centre.Y / scale)), Quaternion.Identity,
-                    new Vector3(radius, height, radius)),
-                Curtain(front.Kind, strength), true, RenderLayer.Backdrop, ShadowCasting.None);
+                new Transform(new Vector3((float)(centre.X / scale), (float)(ground / scale), (float)(centre.Y / scale)), facing,
+                    new Vector3(radius, height, 1)),
+                Curtain(front.Kind, strength, fade), true, RenderLayer.Backdrop, ShadowCasting.None);
         }
+    }
+
+    /// <summary>
+    /// A curtain's distance fade step: 0 whole, rising to <see cref="FadeSteps"/> - 1 at its faintest,
+    /// or -1 where it is not drawn (a bank past <see cref="BankGoneMetres"/>).
+    /// </summary>
+    private static int FadeStep(Look look, double distance)
+    {
+        bool bank = look.Cloud is null;
+        double from = bank ? BankFadeFromMetres : FadeFromMetres, to = bank ? BankGoneMetres : FadeToMetres;
+        double t = Math.Clamp((distance - from) / (to - from), 0, 1);
+        if (bank && t >= 1) return -1;
+        return (int)Math.Round(t * (FadeSteps - 1));
+    }
+
+    /// <summary>The share of itself a curtain keeps at a fade step: a bank fades toward nothing, a falling curtain toward <see cref="FarShare"/>.</summary>
+    private static float FadeShare(Look look, int fade)
+    {
+        float t = (float)fade / FadeSteps;
+        return 1f - (t * (1f - (look.Cloud is null ? 0f : FarShare)));
     }
 
     /// <summary>Where a falling kind's cloud stands: at the sky's cloud base, or above high ground.</summary>
@@ -330,47 +371,61 @@ internal sealed class HorizonWeather : IDisposable
         materials.Clear();
     }
 
-    /// <summary>A kind's curtain at a strength step: an open cylinder of unit radius and height, its opacity from ground to top by kind, fainter when weak.</summary>
-    private Appearance Curtain(WeatherKind kind, double strength)
+    /// <summary>
+    /// A kind's curtain at a strength and fade step: a sheet of unit half-width and height facing +Z, its
+    /// opacity from ground to top by kind, fading toward its ends, falling in shafts for what falls, and
+    /// fainter when weak or far.
+    /// </summary>
+    private Appearance Curtain(WeatherKind kind, double strength, int fade)
     {
         int step = Math.Clamp((int)Math.Ceiling(strength * StrengthSteps), 1, StrengthSteps);
-        if (curtains.TryGetValue((kind.Id, step), out var built)) return built.Look;
+        if (curtains.TryGetValue((kind.Id, step, fade), out var built)) return built.Look;
         Look look = Looks[kind.Id];
         Color colour = MapPalette.Weather(kind.Id);
-        float weight = (float)step / StrengthSteps;
-        // Rings up the curtain, then (for what falls) up the cloud body: (height share, opacity, shade).
-        // What falls hangs from its cloud, fading into it at the top; what lies on the land fades upward.
-        List<(float Height, float Alpha, float Shade)> rings =
+        float weight = (float)step / StrengthSteps * FadeShare(look, fade);
+        // Rows up the sheet: (height share, opacity, shade). What falls hangs from its cloud, fading into
+        // it at the top; what lies on the land fades upward.
+        List<(float Height, float Alpha, float Shade)> rows =
         [
             (0f, look.GroundAlpha * 0.6f, 1f),
             (0.15f, look.GroundAlpha, 1f),
             (0.6f, (look.GroundAlpha + look.TopAlpha) / 2, 1f - (look.Darkness * 0.5f)),
-            (1f, look.Cloud is null ? 0f : look.TopAlpha * 0.1f, 1f - look.Darkness),
+            (0.85f, look.Cloud is null ? 0f : look.TopAlpha * 0.5f, 1f - (look.Darkness * 0.8f)),
+            (1f, 0f, 1f - look.Darkness),
         ];
+
+        Random shafts = new(ShaftSeed);
+        float[] across = new float[Columns + 1];
+        for (int column = 0; column <= Columns; column++)
+        {
+            float x = (2f * column / Columns) - 1f;
+            // Soft ends: no edge where the sheet stops.
+            float ends = MathF.Pow(Math.Max(0f, 1f - (x * x)), 1.5f);
+            float shaft = look.Cloud is null ? 1f : 1f - (ShaftDepth * (float)shafts.NextDouble());
+            across[column] = ends * shaft;
+        }
 
         List<Vector3> positions = [];
         List<Vector3> normals = [];
         List<Color> colours = [];
         List<uint> indices = [];
-        foreach ((float height, float alpha, float shade) in rings)
+        foreach ((float height, float alpha, float shade) in rows)
         {
-            for (int segment = 0; segment < Segments; segment++)
+            for (int column = 0; column <= Columns; column++)
             {
-                float angle = segment * MathF.Tau / Segments;
-                Vector2 way = new(MathF.Cos(angle), MathF.Sin(angle));
-                positions.Add(new Vector3(way.X, height, way.Y));
-                normals.Add(new Vector3(way.X, 0, way.Y));
-                colours.Add(new Color(colour.R * shade, colour.G * shade, colour.B * shade, alpha * weight));
+                positions.Add(new Vector3((2f * column / Columns) - 1f, height, 0));
+                normals.Add(Vector3.UnitZ);
+                colours.Add(new Color(colour.R * shade, colour.G * shade, colour.B * shade, alpha * weight * across[column]));
             }
         }
 
-        for (int ring = 0; ring < rings.Count - 1; ring++)
+        uint stride = Columns + 1;
+        for (int row = 0; row < rows.Count - 1; row++)
         {
-            uint lower = (uint)(ring * Segments), upper = lower + Segments;
-            for (int segment = 0; segment < Segments; segment++)
+            uint lower = (uint)row * stride, upper = lower + stride;
+            for (uint column = 0; column < Columns; column++)
             {
-                uint a = (uint)segment, b = (uint)((segment + 1) % Segments);
-                indices.AddRange([lower + a, upper + b, lower + b, lower + a, upper + a, upper + b]);
+                indices.AddRange([lower + column, lower + column + 1, upper + column + 1, lower + column, upper + column + 1, upper + column]);
             }
         }
 
@@ -378,7 +433,7 @@ internal sealed class HorizonWeather : IDisposable
             Enumerable.Repeat(Vector2.Zero, positions.Count).ToArray(), colours.ToArray(), indices.ToArray(),
             new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, Material(kind, colour)) }));
         Appearance appearance = engine.Graphics.CreateMeshAppearance(mesh);
-        curtains[(kind.Id, step)] = (mesh, appearance);
+        curtains[(kind.Id, step, fade)] = (mesh, appearance);
         return appearance;
     }
 
