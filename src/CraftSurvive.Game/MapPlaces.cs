@@ -11,7 +11,11 @@ namespace CraftSurvive.Game;
 public sealed partial class CraftSurviveProduct
 {
     private IReadOnlyList<KnownPlace> KnownPlacesNow() => KnownPlaces.List(home.Home, discovery.Entries,
-        sledWithParty ? null : sled.Sled.Position);
+        sledWithParty ? null : sled.Sled.Position, Bounds?.Sites.Where(site => site.Kind == TownKind),
+        Bounds is FrontierBound bound ? at => bound.Open(at.X, at.Y) : null);
+
+    /// <summary>The kind of reserved site a design marks a frontier town (#9817).</summary>
+    private const string TownKind = "Town";
 
     /// <summary>How the list describes a place: how it is known and the country it stands in.</summary>
     private static string PlaceDetail(KnownPlace place, WorldMap map)
@@ -22,6 +26,7 @@ public sealed partial class CraftSurviveProduct
             KnownPlaceKind.Entrance => "dungeon entrance",
             KnownPlaceKind.Visited => "visited",
             KnownPlaceKind.Sled => "where the sled was left",
+            KnownPlaceKind.Town => "frontier town",
             _ => "seen from afar",
         };
         return $"{known} · {WorldMap.Region(map.Sample(place.Position.X, place.Position.Y))}";

@@ -21,7 +21,8 @@ const string Usage = """
       --recipe     a JSON recipe; any fields it names override the defaults (see --dump-recipe)
       --design     a continent design: a JSON file, builtin:NAME for one the generator ships, or none
                    (default: what the game draws a world of this size to - the frontier peninsula for a continent)
-      --out        where to write relief.png, height.png, skyline-N.png and stats.txt (default ./maplab-out)
+      --out        where to write relief.png, height.png, skyline-N.png and stats.txt, and for a design
+                   design.png and bounds.png (default ./maplab-out)
       --view       a viewpoint in world metres for a skyline; repeatable (default 0,0, where a world starts)
       --pixels     the map images' width and height (default 1024)
       --reach-km   how far a skyline looks (default 150, or the map's size)
@@ -131,13 +132,21 @@ double Percentile(double p) => land.Count == 0 ? 0 : land[(int)Math.Clamp(p * (l
 Line(Invariant($"land={100.0 * land.Count / (pixels * pixels):F1}% elevation p50={Percentile(0.5):F0}m p90={Percentile(0.9):F0}m p99={Percentile(0.99):F0}m max={Percentile(1):F0}m"));
 
 DrawRelief().Save(Path.Combine(output, "relief.png"));
-if (design is not null) Line($"  topology: {DesignTopology.Check(map.Grid, i => map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, design)}");
+if (design is not null)
+{
+    Line($"  topology: {DesignTopology.Check(map.Grid, i => map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, design)}");
+    FrontierBound bound = FrontierBound.For(map) ?? throw new InvalidOperationException("A designed continent has bounds.");
+    Line($"  frontier: {DesignTopology.Reach(map.Grid, i => map.Fields.Elevation[i] >= GenerationConstants.WaterLevel, design, bound.Sites)}");
+    foreach (PlacedSite site in bound.Sites)
+        Line(Invariant($"  site {site.Name} stands at {site.X:F0},{site.Z:F0}, {Math.Sqrt(Math.Pow(site.X - (design.Sites.First(s => s.Name == site.Name).At[0] * map.Radius), 2) + Math.Pow(site.Z - (design.Sites.First(s => s.Name == site.Name).At[1] * map.Radius), 2)) / 1000:F1} km from where it was drawn, ground {map.Sample(site.X, site.Z).Elevation:F0}m"));
+}
 Terrain.Report(Line, height, cell, map.Radius, GenerationConstants.WaterLevel, design);
 if (design is not null)
 {
     Image overlay = DrawRelief();
     DrawDesign(overlay, design);
     overlay.Save(Path.Combine(output, "design.png"));
+    DrawBounds(FrontierBound.For(map)!).Save(Path.Combine(output, "bounds.png"));
     ReportDesign(design);
 }
 DrawHeight().Save(Path.Combine(output, "height.png"));
@@ -203,7 +212,24 @@ Image DrawRelief()
     return image;
 }
 
-// The design over the relief: land outlines (forbidden land in red), belt crest lines, passes and sites.
+// The bounds over the relief (#9817): the open sea darkened and the land beyond the frontier reddened.
+Image DrawBounds(FrontierBound bound)
+{
+    Image image = DrawRelief();
+    for (int py = 0; py < pixels; py++)
+    for (int px = 0; px < pixels; px++)
+    {
+        BoundSide side = bound.At(-map.Radius + ((px + 0.5) * cell), -map.Radius + ((py + 0.5) * cell));
+        if (side == BoundSide.Open) continue;
+        (double r, double g, double b) = image.Get(px, py);
+        image.Set(px, py, side == BoundSide.OpenSea ? (r * 0.55, g * 0.55, b * 0.55) : ((r * 0.6) + 0.3, g * 0.6, b * 0.6));
+    }
+
+    foreach (PlacedSite site in bound.Sites) Ring(image, [site.X / map.Radius, site.Z / map.Radius], 0.008, (1, 0.3, 0.9));
+    return image;
+}
+
+// The design over the relief: land outlines (forbidden land in red), the frontier (orange), belt crest lines, passes and sites.
 void DrawDesign(Image image, ContinentDesign drawn)
 {
     foreach (DesignLand area in drawn.Land)
@@ -211,6 +237,7 @@ void DrawDesign(Image image, ContinentDesign drawn)
             Segment(image, area.Points[j], area.Points[i], area.Forbidden ? (0.9, 0.15, 0.1) : (1, 1, 1));
     foreach (DesignBelt belt in drawn.Belts)
         for (int i = 1; i < belt.Points.Count; i++) Segment(image, belt.Points[i - 1], belt.Points[i], (0.35, 0.1, 0.45));
+    for (int i = 0, j = drawn.Frontier.Count - 1; i < drawn.Frontier.Count; j = i++) Segment(image, drawn.Frontier[j], drawn.Frontier[i], (1, 0.55, 0));
     foreach (DesignPass pass in drawn.Passes) Ring(image, pass.At, pass.Radius, (1, 0.85, 0.1));
     foreach (DesignSite site in drawn.Sites) Ring(image, site.At, 0.008, (1, 0.3, 0.9));
 }

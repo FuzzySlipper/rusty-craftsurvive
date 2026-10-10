@@ -117,6 +117,7 @@ try
         Check.That(topology.Holds(ContinentDesign.For(continent.Map.Configuration.Size)!), $"the published continent keeps the frontier's rules: {topology}");
         RegionChecks(continent.Map);
         Check.Section("weather on the continent", () => WeatherChecks.Continent(continent.Map));
+        Check.Section("the continent's bounds", () => FrontierChecks.Continent(continent.Map));
         ContinentalTerrainChecks(continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
@@ -140,6 +141,7 @@ finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 Check.Section("generation recipe", RecipeChecks.DefaultsAreTheGeneratorsOwn);
 Check.Section("continent design", RecipeChecks.DesignsDrawTheContinent);
 Check.Section("continent design topology", RecipeChecks.DesignTopologyIsEnforced);
+Check.Section("continent design frontier", FrontierChecks.DesignsKeepTheirWayOpen);
 Check.Section("map palette", PaletteChecks.Run);
 Check.Section("erosion filter", ErosionFilterChecks.Run);
 Check.Section("erosion filter shelters the passes", ErosionFilterChecks.PassesAreSheltered);

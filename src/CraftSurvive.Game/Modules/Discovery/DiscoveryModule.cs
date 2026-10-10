@@ -242,7 +242,7 @@ internal sealed class DiscoveryModule : IProductModule
         List<PoiSite> around = [];
         terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(at.X), (long)Math.Floor(at.Y), (long)Math.Ceiling(radius), around);
         PoiSite? nearest = around
-            .Where(site => journal.Find(site.CellX, site.CellZ) is null && Vector2.Distance(at, new(site.X, site.Z)) <= radius)
+            .Where(site => journal.Find(site.CellX, site.CellZ) is null && Vector2.Distance(at, new(site.X, site.Z)) <= radius && player.InBounds(site.X, site.Z))
             .OrderBy(site => Vector2.DistanceSquared(at, new(site.X, site.Z)))
             .Select(site => (PoiSite?)site).FirstOrDefault();
         if (nearest is PoiSite found && journal.Notice(found, DiscoveryStage.Seen, ++currentTick)) Persist();
@@ -254,7 +254,8 @@ internal sealed class DiscoveryModule : IProductModule
     {
         List<PoiSite> around = [];
         terrain.Recipe.Placement.CollectSitesNear((long)Math.Floor(at.X), (long)Math.Floor(at.Y), (long)Math.Ceiling(radius), around);
-        return around.Count(site => Vector2.Distance(at, new(site.X, site.Z)) <= radius && journal.Notice(site, DiscoveryStage.Seen, currentTick));
+        // Nothing past the world's bounds is learned of (#9817): the expedition could never go there.
+        return around.Count(site => Vector2.Distance(at, new(site.X, site.Z)) <= radius && player.InBounds(site.X, site.Z) && journal.Notice(site, DiscoveryStage.Seen, currentTick));
     }
 
     private void Persist()

@@ -26,6 +26,8 @@ internal static class PaletteChecks
             if (!Same(MapPalette.For(biome), Step(MapPalette.Source(biome)))) off.Add(biome.ToString());
         if (!Same(MapPalette.Stone, Step(MapPalette.StoneSource))) off.Add("stone");
         if (!Same(MapPalette.River, Step(MapPalette.RiverSource))) off.Add("river");
+        if (!Same(MapPalette.Town, Step(MapPalette.TownSource))) off.Add("town");
+        if (!Same(MapPalette.Frontier, Step(MapPalette.FrontierSource))) off.Add("frontier");
         Check.That(off.Count == 0, $"every map colour is its palette step ({(off.Count == 0 ? "all" : "off: " + string.Join(", ", off))})");
     }
 }

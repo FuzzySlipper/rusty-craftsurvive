@@ -7,13 +7,14 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>Flat overview colours for map environments, shared by every map presentation.</summary>
 internal static class MapPalette
 {
-    /// <summary>Known-place markers: home is green, places reached orange, places only seen a duller tan, dungeon entrances violet, the sled where it was left wood brown.</summary>
+    /// <summary>Known-place markers: home is green, places reached orange, places only seen a duller tan, dungeon entrances violet, the sled where it was left wood brown, frontier towns banner red.</summary>
     internal static Color Place(KnownPlaceKind kind) => kind switch
     {
         KnownPlaceKind.Home => new(0.35f, 0.9f, 0.45f, 1),
         KnownPlaceKind.Visited => new(1, 0.38f, 0.1f, 1),
         KnownPlaceKind.Entrance => new(0.62f, 0.32f, 0.95f, 1),
         KnownPlaceKind.Sled => new(0.55f, 0.36f, 0.18f, 1),
+        KnownPlaceKind.Town => Town,
         _ => new(0.78f, 0.6f, 0.42f, 1),
     };
 
@@ -39,6 +40,12 @@ internal static class MapPalette
     internal static readonly (string Ramp, int Step) StoneSource = ("stone", 2), RiverSource = ("water", 2);
     internal static readonly Color Stone = Hex(0x6f6a62);
     internal static readonly Color River = Hex(0x3f7378);
+    /// <summary>A frontier town's marker (#9817): a banner red from the cloth ramp.</summary>
+    internal static readonly (string Ramp, int Step) TownSource = ("cloth", 2);
+    internal static readonly Color Town = Hex(0xa5463a);
+    /// <summary>The frontier's posts on the map (#9817): a darker cloth red, to read on snow.</summary>
+    internal static readonly (string Ramp, int Step) FrontierSource = ("cloth", 1);
+    internal static readonly Color Frontier = Hex(0x7a2f22);
 
     /// <summary>Each environment's ramp and step in the content palette.</summary>
     internal static (string Ramp, int Step) Source(MapBiome biome) => biome switch

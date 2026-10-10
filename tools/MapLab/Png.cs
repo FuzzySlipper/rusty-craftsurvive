@@ -21,6 +21,12 @@ internal sealed class Image(int width, int height)
         pixels[i + 2] = Byte(colour.B);
     }
 
+    internal (double R, double G, double B) Get(int x, int y)
+    {
+        int i = ((y * width) + x) * 3;
+        return (pixels[i] / 255.0, pixels[i + 1] / 255.0, pixels[i + 2] / 255.0);
+    }
+
     private static byte Byte(double channel) => (byte)Math.Clamp((int)Math.Round(channel * 255), 0, 255);
 
     internal void Save(string path)

@@ -2,17 +2,27 @@ using Rusty.Engine.Debugging;
 
 namespace CraftSurvive.Game.Modules.World;
 
-/// <summary>Live checks of overland travel: its state, known places and travel events (#9470, #9471).</summary>
+/// <summary>Live checks of overland travel: its state, known places, travel events and the world's bounds (#9470, #9471, #9817).</summary>
 public sealed class TravelDebugModule : IDebugCommandModule
 {
     private readonly Func<string> readout;
     private readonly Func<string, string> forceEvent;
+    private readonly Func<double, double, string> bound;
+    private readonly Func<double, double, string> plan;
 
-    internal TravelDebugModule(Func<string> readout, Func<string, string> forceEvent)
+    internal TravelDebugModule(Func<string> readout, Func<string, string> forceEvent, Func<double, double, string> bound, Func<double, double, string> plan)
     {
         this.readout = readout;
         this.forceEvent = forceEvent;
+        this.bound = bound;
+        this.plan = plan;
     }
+
+    [DebugCommand("craft.travel.bound", Description = "Reads which side of the world's bounds a world point (x, z) lies on, and how far it is from the continent's land.")]
+    public string Bound(double x, double z) => bound(x, z);
+
+    [DebugCommand("craft.travel.plan", Description = "Assisted: plans the party's route to a world point (x, z) with the map open, as clicking the map does; reads the plan's message and where the route ends.")]
+    public string Plan(double x, double z) => plan(x, z);
 
     [DebugCommand("craft.travel.readout", Description = "Reads the party's travel state, fatigue, event risk and any waiting event, the home marker and how many places are known.")]
     public string Readout() => readout();

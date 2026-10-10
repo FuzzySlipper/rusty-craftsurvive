@@ -43,6 +43,13 @@ internal sealed record ContinentDesign
     /// <summary>The only place the peninsula may meet the mainland (enforced: <see cref="DesignTopology"/>).</summary>
     public IReadOnlyList<double[]> Neck { get; init; } = [];
 
+    /// <summary>
+    /// The forbidden side of the frontier (#9817): past this outline the expedition is turned back, on the
+    /// map and on foot. It runs just beyond the crest of the range across the neck, so a pass's saddle is
+    /// reached and the mainland seen from it, and takes in the mainland behind.
+    /// </summary>
+    public IReadOnlyList<double[]> Frontier { get; init; } = [];
+
     /// <summary>The neck's narrowest row of joining land must be within this range, in metres [least, most].</summary>
     public double[] NeckWidthMetres { get; init; } = [0, double.MaxValue];
 
@@ -80,9 +87,9 @@ internal sealed record ContinentDesign
     };
 
     /// <summary>The continent every new world of a size is drawn to (#9815): the frontier peninsula for a continent; none for a regional world.</summary>
-    internal static ContinentDesign? For(int size) => MapScale.IsContinental(size) ? Frontier.Value : null;
+    internal static ContinentDesign? For(int size) => MapScale.IsContinental(size) ? FrontierPeninsula.Value : null;
 
-    private static readonly Lazy<ContinentDesign> Frontier = new(() => Builtin(FrontierName));
+    private static readonly Lazy<ContinentDesign> FrontierPeninsula = new(() => Builtin(FrontierName));
     internal const string FrontierName = "frontier-peninsula";
 
     /// <summary>A design shipped with the generator, by name (an embedded <c>Designs/NAME.json</c>).</summary>
@@ -112,6 +119,13 @@ internal sealed record ContinentDesign
             if (belt.HalfWidth <= 0) throw new InvalidDataException($"Belt '{belt.Name}' needs a positive half-width.");
         }
 
+        if (Frontier.Count is > 0 and < 3 || Frontier.Any(p => p.Length < 2)) throw new InvalidDataException($"Design '{Name}' needs three or more [x, z] points for its frontier.");
+        // The way to the frontier is the expedition's to walk: a pass's saddle and a reserved site stand on its near side.
+        foreach (DesignPass pass in Passes)
+            if (BeyondFrontier(pass.At[0], pass.At[1])) throw new InvalidDataException($"Pass '{pass.Name}' lies beyond the frontier.");
+        foreach (DesignSite site in Sites)
+            if (BeyondFrontier(site.At[0], site.At[1])) throw new InvalidDataException($"Site '{site.Name}' lies beyond the frontier.");
+
         return this;
     }
 
@@ -131,6 +145,9 @@ internal sealed record ContinentDesign
 
     /// <summary>Whether a point lies in the neck, the only place the peninsula may meet the mainland.</summary>
     internal bool InNeck(double x, double z) => Neck.Count >= 3 && DesignGeometry.Inside(Neck, x, z);
+
+    /// <summary>Whether a point lies beyond the frontier, where the expedition is turned back (#9817).</summary>
+    internal bool BeyondFrontier(double x, double z) => Frontier.Count >= 3 && DesignGeometry.Inside(Frontier, x, z);
 
     /// <summary>The land area containing a point, or null at sea.</summary>
     internal DesignLand? LandAt(double x, double z) => Land.FirstOrDefault(land => land.SignedDistance(x, z) > 0);

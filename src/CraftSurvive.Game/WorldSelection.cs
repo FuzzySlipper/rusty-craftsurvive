@@ -104,6 +104,7 @@ public sealed partial class CraftSurviveProduct
                             || site < 0 || site >= worlds.Current.Map.Sites.Count) throw new FormatException("Choose a place on this map.");
                         if (player.InSeparateSpace) throw new FormatException("Return to the overworld before visiting another site.");
                         MapSite destination = worlds.Current.Map.Sites[site];
+                        if (BoundRefusal(destination.X, destination.Z) is string refusal) throw new FormatException(refusal);
                         if (player.Teleport(destination.X, terrain.GroundAt(destination.X, destination.Z) + ArrivalClearance, destination.Z) is null)
                             throw new FormatException("No clear arrival here; choose another site.");
                         worldMessage = $"Exploring {destination.Name}";

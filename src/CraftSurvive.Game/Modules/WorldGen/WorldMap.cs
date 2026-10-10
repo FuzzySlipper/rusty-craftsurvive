@@ -240,12 +240,15 @@ internal sealed class WorldMap
             biomes[i] = Biome(Node(i));
             totals[biomes[i]] = totals.GetValueOrDefault(biomes[i]) + 1;
         }
+        // No site stands beyond a designed continent's frontier (#9817): nobody arrives there.
+        ContinentDesign? design = ContinentDesign.For(Configuration.Size);
         for (int z = SiteEdgeMargin; z <= Segments - SiteEdgeMargin; z++)
         for (int x = SiteEdgeMargin; x <= Segments - SiteEdgeMargin; x++)
         {
             int i = z * Side + x;
             MapBiome biome = biomes[i];
             if (biome == MapBiome.Sea || elevation[i] < GenerationConstants.WaterLevel + SiteWaterClearance) continue;
+            if (design?.BeyondFrontier(Grid.X(i) / Radius, Grid.Z(i) / Radius) == true) continue;
             int score = 0;
             for (int dz = -SiteNeighbourhood; dz <= SiteNeighbourhood; dz++)
             for (int dx = -SiteNeighbourhood; dx <= SiteNeighbourhood; dx++)

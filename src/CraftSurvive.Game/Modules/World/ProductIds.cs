@@ -44,6 +44,10 @@ internal static class ProductIds
     internal const ulong WorldMapWeatherTrackBase = 0x5_2400UL;
     internal const int WorldMapWeatherTrackLimit = 0x1000;
 
+    /// <summary>The frontier's posts on the faceted map (#9817), where it crosses land.</summary>
+    internal const ulong WorldMapFrontierBase = 0x5_3400UL;
+    internal const int WorldMapFrontierLimit = 0x400;
+
     /// <summary>Weather fronts standing on the horizon, in the backdrop (HorizonWeather, #9780).</summary>
     internal const ulong HorizonFrontBase = 0x8_0000UL;
     internal const int HorizonFrontLimit = 0x100;

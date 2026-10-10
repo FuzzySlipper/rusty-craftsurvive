@@ -68,6 +68,7 @@ public sealed partial class CraftSurviveProduct
         bool planned = party.Plan(PartyCost, destination, name);
         facetedMap?.ShowRoute(party.Route?.Points);
         worldMessage = planned && party.Route is TravelRoute route ? RoutePreview(route) : party.Last;
+        if (RouteBoundNote(destination) is string bounded) worldMessage = $"{bounded} {worldMessage}";
     }
 
     /// <summary>
@@ -202,10 +203,11 @@ public sealed partial class CraftSurviveProduct
         lastWalked = here;
     }
 
-    /// <summary>The first-person reminders of the expedition: a sled left far behind, and exhaustion.</summary>
+    /// <summary>The first-person reminders of the expedition: a turn-back at the world's bounds, a sled left far behind, and exhaustion.</summary>
     private string ExpeditionPrompt()
     {
         List<string> parts = [];
+        if (TurnedBackPrompt() is string turnedBack) parts.Add(turnedBack);
         float fromSled = Vector2.Distance(new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z), sled.Sled.Position);
         if (!player.InSeparateSpace && fromSled > SledLeashMetres)
             parts.Add(FormattableString.Invariant($"The sled is {fromSled / 1000:F1} km back: open the map to bring the expedition"));

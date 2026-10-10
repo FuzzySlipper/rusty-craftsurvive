@@ -14,6 +14,22 @@ internal readonly record struct DesignTopologyReport(bool Connected, bool Bridge
         $"peninsula meets the mainland {(Connected ? "yes" : "NO")}; a bridge outside the neck {(BridgeOutsideNeck ? "YES" : "no")}; narrowest row of the neck {NeckWidthMetres / 1000:F0} km of land; islands {Islands}");
 }
 
+/// <summary>What the expedition can reach on a designed continent's land within its frontier (#9817).</summary>
+/// <param name="MainlandReached">Land on the mainland's side, outside the neck, joined to the peninsula without crossing the frontier, in square kilometres.</param>
+/// <param name="MainlandBeyond">The mainland's deepest land lies beyond the frontier.</param>
+/// <param name="PassesReached">Passes whose saddle is joined to the peninsula without crossing the frontier.</param>
+/// <param name="SitesReached">Reserved sites, where they stand (<see cref="FrontierBound.Sites"/>), so joined; of all the design reserves.</param>
+internal readonly record struct FrontierReport(double MainlandReached, bool MainlandBeyond, int PassesReached, int Passes, int SitesReached, int Sites)
+{
+    /// <summary>How much of the mainland's side the near side may hold: shoreline the coast's noise lets stray, not country.</summary>
+    internal const double MostMainlandReached = 200;
+
+    internal bool Holds => MainlandBeyond && MainlandReached <= MostMainlandReached && PassesReached == Passes && SitesReached == Sites;
+
+    public override string ToString() => FormattableString.Invariant(
+        $"mainland beyond the frontier {(MainlandBeyond ? "yes" : "NO")}; mainland reached outside the neck {MainlandReached:F0} km²; passes reached {PassesReached}/{Passes}; sites reached {SitesReached}/{Sites}");
+}
+
 /// <summary>
 /// The hard rules of a designed continent's land (#9815, R9815-1), on a lattice's land and sea:
 /// <list type="bullet">
@@ -93,6 +109,45 @@ internal static class DesignTopology
 
         int islands = Enumerable.Range(0, count).Count(c => c != all[peninsula] && c != all[inland]);
         return new(connected, bridge, narrowest == int.MaxValue ? 0 : narrowest * grid.Spacing, islands);
+    }
+
+    /// <summary>
+    /// What the expedition can reach (#9817): the land joined to the peninsula's deepest land without
+    /// crossing the frontier. It should hold the passes' saddles and the reserved sites where they stand,
+    /// and none of the mainland's country outside the neck.
+    /// </summary>
+    internal static FrontierReport Reach(MapGrid grid, Func<int, bool> land, ContinentDesign design, IReadOnlyList<PlacedSite> sites)
+    {
+        bool[] neck = new bool[grid.Count], beyond = new bool[grid.Count];
+        for (int i = 0; i < grid.Count; i++)
+        {
+            double u = grid.X(i) / grid.Radius, v = grid.Z(i) / grid.Radius;
+            neck[i] = design.InNeck(u, v);
+            beyond[i] = design.BeyondFrontier(u, v);
+        }
+
+        double PeninsulaDepth(double u, double v) => design.Land.Where(l => !l.Forbidden).Select(l => l.SignedDistance(u, v)).DefaultIfEmpty(-1).Max();
+        int peninsula = Deepest(grid, land, neck, PeninsulaDepth);
+        DesignLand? mainland = design.Land.FirstOrDefault(l => l.Forbidden);
+        int inland = mainland is null ? -1 : Deepest(grid, land, neck, mainland.SignedDistance);
+        if (peninsula < 0) return new(0, false, 0, design.Passes.Count, 0, design.Sites.Count);
+        int[] near = Components(grid, land, i => !beyond[i], out _);
+        int home = near[peninsula];
+        bool Reached(double x, double z) => near[grid.Nearest(x, z)] == home;
+        int strayed = 0;
+        if (mainland is not null)
+        {
+            for (int i = 0; i < grid.Count; i++)
+            {
+                if (near[i] != home || neck[i]) continue;
+                double u = grid.X(i) / grid.Radius, v = grid.Z(i) / grid.Radius;
+                if (mainland.SignedDistance(u, v) > PeninsulaDepth(u, v)) strayed++;
+            }
+        }
+
+        return new(strayed * grid.Spacing * grid.Spacing / 1e6, inland >= 0 && beyond[inland],
+            design.Passes.Count(pass => Reached(pass.At[0] * grid.Radius, pass.At[1] * grid.Radius)), design.Passes.Count,
+            sites.Count(site => Reached(site.X, site.Z)), design.Sites.Count);
     }
 
     /// <summary>The land node outside the neck deepest inside an outline (largest signed distance), or -1 if none is inside.</summary>

@@ -25,21 +25,28 @@ internal sealed class TravelCostModel
     private readonly double[] multiplier;
     private readonly Func<MapBiome, double>? transport;
     private readonly ConditionalWeakTable<WorldMap, TravelCostModel> regionCosts = [];
+    private readonly FrontierBound? bound;
 
     /// <param name="transport">A further multiplier per environment for how the party travels (a hitched
     /// sled, #9473); null for a party on foot.</param>
-    internal TravelCostModel(WorldMap map, Func<MapBiome, double>? transport = null)
+    internal TravelCostModel(WorldMap map, Func<MapBiome, double>? transport = null) : this(map, transport, FrontierBound.For(map)) { }
+
+    /// <param name="bound">The continent's bounds (#9817): nothing past them is crossed. A region tile is given its continent's.</param>
+    private TravelCostModel(WorldMap map, Func<MapBiome, double>? transport, FrontierBound? bound)
     {
         Transported = transport is not null;
         this.transport = transport;
         this.map = map;
+        this.bound = bound;
         Regions = map.Scale.Continental ? MapRegions.For(map) : null;
         MapGrid grid = map.Grid;
+        double offsetX = map.RegionFrame?.X ?? 0, offsetZ = map.RegionFrame?.Z ?? 0;
         multiplier = new double[grid.Count];
         for (int i = 0; i < grid.Count; i++)
         {
             float elevation = map.Fields.Elevation[i];
             if (elevation < GenerationConstants.WaterLevel) { multiplier[i] = double.PositiveInfinity; continue; }
+            if (bound is not null && !bound.Open(grid.X(i) + offsetX, grid.Z(i) + offsetZ)) { multiplier[i] = double.PositiveInfinity; continue; }
             double slope = Slope(i);
             if (slope > ImpassableSlope) { multiplier[i] = double.PositiveInfinity; continue; }
             MapBiome biome = WorldMap.Biome(map.Node(i));
@@ -55,7 +62,10 @@ internal sealed class TravelCostModel
     internal MapRegions? Regions { get; }
 
     /// <summary>The same costs, for the same party, over one region tile's 32 m lattice; built once per tile.</summary>
-    internal TravelCostModel RegionCost(WorldMap tile) => regionCosts.GetValue(tile, map => new TravelCostModel(map, transport));
+    internal TravelCostModel RegionCost(WorldMap tile) => regionCosts.GetValue(tile, map => new TravelCostModel(map, transport, bound));
+
+    /// <summary>The bounds the expedition is turned back at (#9817); null for a world without them.</summary>
+    internal FrontierBound? Bound => bound;
     internal bool Transported { get; }
 
     /// <summary>The cost multiplier of a lattice node; infinity where the expedition cannot go.</summary>

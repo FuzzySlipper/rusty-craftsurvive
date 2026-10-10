@@ -14,6 +14,12 @@
   "Climate": { "ColdToward": 0, "WindToward": 90 },
   "Neck": [ [0.02, -0.84], [0.88, -0.84], [0.88, -0.64], [0.02, -0.64] ],
   "NeckWidthMetres": [60000, 220000],
+  // Beyond this the expedition is turned back (#9817): just past the Wall's crest, so both passes'
+  // saddles are reached and the mainland is seen below them, and around the mainland behind.
+  "Frontier": [
+    [-0.05, -0.80], [0.00, -0.755], [0.20, -0.785], [0.32, -0.772], [0.45, -0.772], [0.58, -0.778],
+    [0.65, -0.795], [0.88, -0.715], [0.88, -0.62], [0.95, -0.52], [1.10, -0.42], [1.10, -1.10], [-0.05, -1.10]
+  ],
   "Fixed": [
     { "Name": "The neck's core", "Land": true, "Points": [ [0.10, -0.79], [0.80, -0.79], [0.80, -0.69], [0.10, -0.69] ] },
     { "Name": "The western gulf", "Land": false, "Points": [ [-1.05, -1.05], [-0.02, -1.05], [-0.04, -0.82], [-1.05, -0.82] ] },

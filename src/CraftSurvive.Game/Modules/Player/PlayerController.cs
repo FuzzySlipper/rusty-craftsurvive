@@ -7,6 +7,7 @@ using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 using Rusty.Engine.Entities;
+using BoundSide = CraftSurvive.Game.Modules.WorldGen.BoundSide;
 using TerrainVoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
 namespace CraftSurvive.Game.Modules.Player;
@@ -119,6 +120,22 @@ internal sealed class PlayerController : IDisposable
     /// view each update, and colliding with the player's step. Null builds terrain only.
     /// </summary>
     internal Building.BuildPieceModule? Pieces { get; set; }
+
+    /// <summary>
+    /// The world's bounds (#9817): which side of them a world point (x, z) lies on. A walk in the open
+    /// world that ends past them is undone, holding the player at the line, and <see cref="TurnedBack"/>
+    /// says at which bound and when. Null for a world without bounds.
+    /// </summary>
+    internal Func<double, double, BoundSide>? Bound { get; set; }
+
+    /// <summary>The bound the player was last turned back at and the step it happened; null if never.</summary>
+    internal (BoundSide Side, long Step)? TurnedBack { get; private set; }
+
+    /// <summary>How many times the player has been turned back at a bound.</summary>
+    internal long TurnBacks { get; private set; }
+
+    /// <summary>Where the player last stood inside the bounds in the open world; null until they have.</summary>
+    private PlayerWorldPosition? lastInBounds;
 
     internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, Cues cues)
     {
@@ -275,6 +292,7 @@ internal sealed class PlayerController : IDisposable
         lastUpdatePositionAfter = playerLocal;
         diagnostics.RecordMovement(updateCount, frame, lastControllerStepCount, lastStepReceipt,
             lastUpdatePositionBefore, lastUpdatePositionAfter);
+        if (away is null) HoldInBounds(step.Step);
 
         if (away is null && WorldOriginRebaser.IsNeeded(playerLocal))
         {
@@ -421,7 +439,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -688,6 +706,29 @@ internal sealed class PlayerController : IDisposable
 
     /// <summary>Home, or the ground of the home column if something now stands there; if neither has room the player stays put.</summary>
     private void MoveHome() => Teleport(spawn.WorldX, spawn.WorldY, spawn.WorldZ);
+
+    /// <summary>
+    /// Keeps the player inside the world's bounds (#9817): wherever a step, a teleport or a restored
+    /// session put them, past a bound they are stood back where they last stood inside, or at home if
+    /// they never have.
+    /// </summary>
+    private void HoldInBounds(long step)
+    {
+        if (Bound is not { } bound) return;
+        if (bound(playerGlobal.WorldX, playerGlobal.WorldZ) is var side && side == BoundSide.Open)
+        {
+            lastInBounds = playerGlobal;
+            return;
+        }
+
+        TurnedBack = (side, step);
+        TurnBacks++;
+        if (lastInBounds is PlayerWorldPosition back) Place(back);
+        else MoveHome();
+    }
+
+    /// <summary>Whether a world point lies inside the world's bounds (#9817); everywhere does in a world without them.</summary>
+    internal bool InBounds(double x, double z) => Bound?.Invoke(x, z) is null or BoundSide.Open;
 
     /// <summary>The capsule centre of a player standing with their feet at a height.</summary>
     private static PlayerWorldPosition StandingAt(double x, double feetY, double z) =>

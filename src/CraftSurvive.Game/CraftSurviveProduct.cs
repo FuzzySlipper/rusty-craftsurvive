@@ -143,6 +143,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
         pieces = new BuildPieceModule(context.Engine, context.Content, store, terrain, frame, cues);
         player.Pieces = pieces;
+        BindBounds();
         sky = new DayNightSky(context.Engine, () => frame.ToLocal(player.WorldEyePosition));
         conditions = new WorldConditionsModule(context.Engine, store, terrain.SaveIdentity, sky, () => player.HeadSubmerged, ui);
         weather = new WeatherModule(worlds.Current.Map, sky, () => conditions.Time, () => player.WorldPosition,
@@ -269,7 +270,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
-        RequireRegistration(registrar.Register(new TravelDebugModule(() => worldBuilt ? TravelReadout() : "no world", kind => worldBuilt ? ForceTravelEvent(kind) : "no world")));
+        RequireRegistration(registrar.Register(new TravelDebugModule(() => worldBuilt ? TravelReadout() : "no world", kind => worldBuilt ? ForceTravelEvent(kind) : "no world",
+            (x, z) => worldBuilt ? BoundReadout(x, z) : "no world", (x, z) => worldBuilt ? PlanReadout(x, z) : "no world")));
         RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style))));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
@@ -347,6 +349,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // where they now look; creatures, discovery and charges then read where the player is and
         // what they asked for this update.
         player.Update(update);
+        NoteTurnBacks(step.ElapsedSeconds);
         AccrueWalkingFatigue();
         actions.Update(update);
         foreach (IProductModule module in gameplay)

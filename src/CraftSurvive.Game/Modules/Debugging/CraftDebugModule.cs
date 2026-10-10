@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Rpg;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 using Rusty.Engine.Debugging;
 
@@ -37,7 +38,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.player.teleport", Description = "Moves the live player where a standing body fits: the point asked for, else the ground of that column.")]
     public string Teleport(double x, double y, double z) =>
-        player.Teleport(x, y, z) is PlayerRuntimeComponent state
+        player.Bound?.Invoke(x, z) is { } side && side != BoundSide.Open
+            ? FormattableString.Invariant($"refused: {x:F3},{z:F3} lies past the world's bounds ({side})")
+        : player.Teleport(x, y, z) is PlayerRuntimeComponent state
             ? FormattableString.Invariant($"player={state.X:F3},{state.Y:F3},{state.Z:F3}")
             : FormattableString.Invariant($"refused: a standing body fits neither at {x:F3},{y:F3},{z:F3} nor on the ground below it");
 

@@ -108,6 +108,11 @@ internal sealed class WorldMapVoxelView : IDisposable
     private Vector2 waypoint;
     private Vector3[] routeMarkers = [];
     private readonly Appearance routeMarker, waypointMarker;
+    /// <summary>The frontier's posts (#9817): where the expedition is turned back, drawn where it crosses land.</summary>
+    private readonly Vector3[] frontierPosts = [];
+    private readonly Appearance? frontierMarker;
+    private const double FrontierPostSpacingMetres = 1500;
+    private const float FrontierPostScalePerDistance = 0.006f;
     private readonly MapWeather weather;
     private int factsVersion, publishedVersion = -1;
     private bool waypointForward, waypointBack, waypointLeft, waypointRight;
@@ -180,6 +185,11 @@ internal sealed class WorldMapVoxelView : IDisposable
                 coarse.Want(from cz in Range(firstCoarse, lastCoarse) from cx in Range(firstCoarse, lastCoarse) select (cx, cz));
             }
             partyPosition = Surface(partyWorldFeet.X, partyWorldFeet.Z);
+            if (FrontierBound.For(map) is FrontierBound bound)
+            {
+                frontierMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Frontier));
+                frontierPosts = [.. bound.FrontierOnLand(FrontierPostSpacingMetres).Take(ProductIds.WorldMapFrontierLimit).Select(post => Surface(post.X, post.Y))];
+            }
             rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
         }
         catch
@@ -216,6 +226,9 @@ internal sealed class WorldMapVoxelView : IDisposable
         Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
         Marker(ProductIds.WorldMapWaypointObject, Surface(waypoint.X, waypoint.Y), PartyScalePerDistance, waypointMarker),
         .. routeMarkers.Select((point, i) => Marker(ProductIds.WorldMapRouteBase + (ulong)i, point, RouteMarkerScalePerDistance, routeMarker)),
+        .. frontierMarker is Appearance post
+            ? frontierPosts.Select((point, i) => Marker(ProductIds.WorldMapFrontierBase + (ulong)i, point, FrontierPostScalePerDistance, post))
+            : [],
         .. weather.Facts(rig.Distance),
         .. PlaceClusters.Group(places, (float)(rig.Distance * CellMetres * ClusterPerDistance)).Take(ProductIds.WorldMapPlaceLimit).Select((cluster, i) =>
             Marker(ProductIds.WorldMapPlaceBase + (ulong)i, Surface(cluster.Position.X, cluster.Position.Y),
@@ -575,6 +588,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         party?.Dispose();
         routeMarker?.Dispose();
         waypointMarker?.Dispose();
+        frontierMarker?.Dispose();
         weather?.Dispose();
         foreach (Appearance placeMarker in placeMarkers.Values) placeMarker.Dispose();
         clusterMarker?.Dispose();
