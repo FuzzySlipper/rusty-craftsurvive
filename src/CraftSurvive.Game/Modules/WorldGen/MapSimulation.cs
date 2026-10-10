@@ -30,6 +30,8 @@ internal static class MapSimulation
     private const double LowlandQuantile = 0.99;
     /// <summary>A belt's crest line is the nodes within this share of its half-width of its drawn line.</summary>
     private const double CrestLineShare = 0.2;
+    /// <summary>An area's core is where its weight is at least this, its edge where it falls under the second; its height is this quantile of its core.</summary>
+    private const double AreaCore = 0.6, AreaEdge = 0.05, AreaQuantile = 0.9;
     /// <summary>Calibration runs the simulation this many times; a belt's gain moves at most this factor a round.</summary>
     private const int CalibrationRounds = 4;
     private const double CalibrationStep = 2.5;
@@ -119,7 +121,7 @@ internal static class MapSimulation
     private static (MapRelief Relief, double Scale) Calibrated(TerrainConfiguration configuration, MapRecipe recipe, ulong seed,
         MapGrid grid, MapGrid coarse, MapClimate climate, ContinentDesign design, double shore, double peak)
     {
-        double fit = Math.Min(1, (peak - shore) / Math.Max(design.Belts.SelectMany(b => b.Points).Select(p => p[2]).DefaultIfEmpty(0).Max(), design.LowlandPeak));
+        double fit = Math.Min(1, (peak - shore) / Math.Max(design.HighestAsked, design.LowlandPeak));
         // Which belt's crest line each node lies on (within a share of its half-width), and the crest asked there.
         int[] line = new int[grid.Count];
         double[] asked = new double[grid.Count];
@@ -140,15 +142,21 @@ internal static class MapSimulation
                 }
             }
 
-            lowland[i] = !inBelt;
+            // The lowland the scale is measured on is land no belt or area shapes, so changing one region never rescales the rest.
+            lowland[i] = !inBelt && design.Areas.All(area => area.Weight(u, v) < AreaEdge);
         }
 
+        // Each area with a height is measured over its core.
+        List<int>[] core = [.. design.Areas.Select(area => area.Height is null ? new List<int>()
+            : [.. Enumerable.Range(0, grid.Count).Where(i => area.Weight(grid.X(i) / grid.Radius, grid.Z(i) / grid.Radius) >= AreaCore)])];
+
         double[] gains = [.. Enumerable.Repeat(1.0, design.Belts.Count)];
+        double[] areaGains = [.. Enumerable.Repeat(1.0, design.Areas.Count)];
         MapRelief relief = null!;
         double scale = 1;
         for (int round = 0; round < CalibrationRounds; round++)
         {
-            relief = Evolve(configuration, recipe, seed, grid, coarse, climate, MapRelief.Designed(coarse, seed, recipe.Relief, design, gains), design);
+            relief = Evolve(configuration, recipe, seed, grid, coarse, climate, MapRelief.Designed(coarse, seed, recipe.Relief, design, gains, areaGains), design);
             double[] h = relief.Height;
             double[] low = [.. Enumerable.Range(0, grid.Count).Where(i => lowland[i] && !relief.Sea[i]).Select(i => Math.Max(0, h[i]))];
             double cap = low.Length > 0 ? Math.Max(MapRelief.Quantile(low, LowlandQuantile), 1e-6) : 1;
@@ -165,6 +173,14 @@ internal static class MapSimulation
                 }
 
                 if (made > 0) gains[b] *= Math.Clamp(want / made, 1 / CalibrationStep, CalibrationStep);
+            }
+
+            for (int a = 0; a < design.Areas.Count; a++)
+            {
+                double[] heights = [.. core[a].Where(i => !relief.Sea[i]).Select(i => shore + (Math.Max(0, h[i]) * scale))];
+                if (design.Areas[a].Height is not double height || heights.Length == 0) continue;
+                double made = MapRelief.Quantile(heights, AreaQuantile);
+                if (made > 0) areaGains[a] *= Math.Clamp(height * fit / made, 1 / CalibrationStep, CalibrationStep);
             }
         }
 

@@ -21,7 +21,11 @@ dotnet run --project tools/MapLab -c Release -- --seed 4242 --size 390000 --out 
   such as `builtin:frontier-peninsula` (`src/CraftSurvive.Game/Modules/WorldGen/Designs/`). It draws the
   land as outlines whose coast noise resolves within a band, forced land and sea zones, the neck where
   the peninsula may meet the mainland, range belts with crest heights (calibrated by re-running
-  erosion), passes, uplands and basins, reserved sites, and the climate's cold side and wind.
+  erosion), passes, areas, reserved sites, and the climate's cold side and wind. An area with a
+  `Height` (metres) and `Ruggedness` (0 a plateau, 1 broken peaks) is calibrated like a belt, e.g.
+  `{ "Name": "NW massif", "At": [-0.55, -0.35], "Radius": 0.22, "Height": 5000, "Ruggedness": 0.85 }`;
+  one with only a `Lift` raises or lowers the plain. The lowland's scale is measured outside every belt
+  and area, so editing one region does not rescale the rest.
 - `--view X,Z`: a viewpoint in world metres for a skyline (repeatable; default `0,0`, where a world
   starts). `--reach-km`: how far a skyline looks (default 150). `--pixels`: map image size.
 

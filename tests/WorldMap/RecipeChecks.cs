@@ -60,5 +60,22 @@ internal static class RecipeChecks
             "a belt's calibration gain scales its crest");
         Check.That(ContinentDesign.Parse(System.Text.Json.JsonSerializer.Serialize(design, ContinentDesign.Json)).Belts.Count == design.Belts.Count,
             "a design survives a JSON round trip");
+
+        // Areas (#9815 review): a height makes a flat-topped area calibrated like a belt; a lift only scales the plain.
+        ContinentDesign massif = design with
+        {
+            Areas = [.. design.Areas, new DesignArea { Name = "massif", At = [-0.55, -0.35], Radius = 0.2, Height = 5000, Ruggedness = 0.8 }],
+        };
+        DesignArea added = massif.Areas[^1];
+        double[] areaGains = [.. massif.Areas.Select(_ => 1.0)];
+        Check.That(added.Weight(-0.55 + 0.1, -0.35) > 0.9 && added.Weight(-0.55 + 0.3, -0.35) < 0.05,
+            "a height area is whole across most of its radius and gone past it");
+        Check.That(massif.AreaLift(-0.55, -0.35) == design.AreaLift(-0.55, -0.35), "a height area adds no plain lift");
+        double flat = massif.AreaUplift(-0.55, -0.35, areaGains, massif.HighestAsked, 1);
+        double broken = massif.AreaUplift(-0.55, -0.35, areaGains, massif.HighestAsked, 0);
+        Check.That(flat > 0 && broken < flat * 0.25, "a rugged area's uplift follows the ridged noise");
+        areaGains[^1] = 2;
+        Check.That(Math.Abs(massif.AreaUplift(-0.55, -0.35, areaGains, massif.HighestAsked, 1) - (2 * flat)) < 1e-9, "an area's calibration gain scales its uplift");
+        Check.That(massif.Ruggedness(-0.55, -0.35) > 0.75 && massif.HighestAsked == design.HighestAsked, "rugged areas harden the rock; the highest asked is still the Wall's");
     }
 }

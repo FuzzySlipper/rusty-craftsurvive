@@ -28,13 +28,14 @@ internal sealed partial class MapRelief
     private const ulong ShoreSalt = 0x45D3_A11B_09C7_6E25UL;
 
     /// <param name="gains">Each belt's calibration gain (1 at first); see <see cref="MapSimulation"/>.</param>
-    internal static MapRelief Designed(MapGrid grid, ulong seed, ReliefRecipe r, ContinentDesign design, IReadOnlyList<double> gains)
+    /// <param name="areaGains">Each area's calibration gain (1 at first; unused for an area without a height).</param>
+    internal static MapRelief Designed(MapGrid grid, ulong seed, ReliefRecipe r, ContinentDesign design, IReadOnlyList<double> gains, IReadOnlyList<double> areaGains)
     {
         double l = MapScale.For(grid).Lengths;
         double warpWavelength = r.WarpWavelength * l, warpDistance = r.WarpDistance * l;
         double hardnessWavelength = r.HardnessWavelength * l, textureWavelength = r.TextureWavelength * l, uplandWavelength = r.UplandWavelength * l;
         // Shares are of the design's own highest crest, so a gain above 1 lifts a belt beyond it.
-        double highest = Math.Max(1, design.HighestCrest);
+        double highest = Math.Max(1, design.HighestAsked);
         double band = design.CoastBand / 2;
         MapRelief relief = new(grid);
         for (int i = 0; i < grid.Count; i++)
@@ -51,9 +52,10 @@ internal sealed partial class MapRelief
             double share = design.Crest(u, v, gains) / highest;
             double ridges = MapNoise.Ridged(seed ^ BeltSalt, u / design.RidgeWavelength, v / design.RidgeWavelength, r.BeltOctaves, r.BeltPersistence);
             double upland = r.UplandUplift * (0.5 + 0.5 * MapNoise.Fbm(seed ^ UplandSalt, wx / uplandWavelength, wz / uplandWavelength, 3, r.FractalPersistence));
-            relief.Uplift[i] = Math.Max(0, ((r.PlainUplift + upland) * (1 + design.AreaLift(u, v)))
-                + (r.BeltUplift * share * (DesignedRidgeFloor + ((1 - DesignedRidgeFloor) * ridges))));
-            relief.Hardness[i] = Math.Clamp(relief.Hardness[i] + (design.BeltHardness * share), 0, 1);
+            double belts = share * (DesignedRidgeFloor + ((1 - DesignedRidgeFloor) * ridges));
+            double areas = design.AreaUplift(u, v, areaGains, highest, ridges);
+            relief.Uplift[i] = Math.Max(0, ((r.PlainUplift + upland) * (1 + design.AreaLift(u, v))) + (r.BeltUplift * Math.Max(belts, areas)));
+            relief.Hardness[i] = Math.Clamp(relief.Hardness[i] + (design.BeltHardness * Math.Max(share, design.Ruggedness(u, v))), 0, 1);
         }
 
         // Land rises from the shore it actually has.

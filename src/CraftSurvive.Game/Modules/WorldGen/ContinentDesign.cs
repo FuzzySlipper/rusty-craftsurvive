@@ -181,17 +181,32 @@ internal sealed record ContinentDesign
     private const double PassThrough = 1.5;
 
     /// <summary>The designed raise (positive) or lowering (negative) of the land at a point, as a share of its uplift.</summary>
-    internal double AreaLift(double x, double z)
+    internal double AreaLift(double x, double z) => Areas.Where(area => area.Height is null).Sum(area => area.Lift * area.Weight(x, z));
+
+    /// <summary>
+    /// The uplift the areas with a height add at a point, as a share of the design's highest crest (like a
+    /// belt's): each area's height (times its calibration gain) under its weight, roughened by ridged noise
+    /// as far as it is rugged. Areas without a height only scale the plain's uplift (<see cref="AreaLift"/>).
+    /// </summary>
+    internal double AreaUplift(double x, double z, IReadOnlyList<double> gains, double highest, double ridges)
     {
-        double lift = 0;
-        foreach (DesignArea area in Areas)
+        double uplift = 0;
+        for (int a = 0; a < Areas.Count; a++)
         {
-            double dx = x - area.At[0], dz = z - area.At[1];
-            lift += area.Lift * Math.Exp(-((dx * dx) + (dz * dz)) / (area.Radius * area.Radius));
+            DesignArea area = Areas[a];
+            if (area.Height is not double height) continue;
+            double rugged = 1 - area.Ruggedness + (area.Ruggedness * ridges);
+            uplift = Math.Max(uplift, height * gains[a] / highest * area.Weight(x, z) * rugged);
         }
 
-        return lift;
+        return uplift;
     }
+
+    /// <summary>How rugged the land is at a point from the areas over it (0 to 1): rugged areas are harder rock, like belts.</summary>
+    internal double Ruggedness(double x, double z) => Areas.Select(area => area.Ruggedness * area.Weight(x, z)).DefaultIfEmpty(0).Max();
+
+    /// <summary>The highest anything in the design asks for: a belt's crest or an area's height, in metres.</summary>
+    internal double HighestAsked => Math.Max(HighestCrest, Areas.Select(area => area.Height ?? 0).DefaultIfEmpty(0).Max());
 }
 
 /// <summary>A land area as a closed outline of [x, z] points. A forbidden area is beyond the playable bounds (#9817).</summary>
@@ -287,7 +302,26 @@ internal sealed record DesignArea
 
     public double Radius { get; init; } = 0.1;
 
+    /// <summary>A share of the plain's uplift added (positive) or taken (negative), for an area without a <see cref="Height"/>.</summary>
     public double Lift { get; init; }
+
+    /// <summary>
+    /// The height the area's land reaches, in metres (its higher ground: the 90th percentile of its core),
+    /// calibrated like a belt's crest. Null leaves the area a plain <see cref="Lift"/>.
+    /// </summary>
+    public double? Height { get; init; }
+
+    /// <summary>How mountainous the area is (0 a smooth plateau, 1 broken peaks and valleys): ridged noise and harder rock across it.</summary>
+    public double Ruggedness { get; init; }
+
+    /// <summary>The area's weight at a point: whole across most of its radius, easing out at its edge.</summary>
+    internal double Weight(double x, double z)
+    {
+        double dx = x - At[0], dz = z - At[1];
+        double d2 = ((dx * dx) + (dz * dz)) / (Radius * Radius);
+        // A height area is flat-topped (a plateau or massif); a plain lift eases from its middle.
+        return Height is null ? Math.Exp(-d2) : Math.Exp(-(d2 * d2));
+    }
 }
 
 /// <summary>An area forced to land or sea, as a closed outline of [x, z] points.</summary>

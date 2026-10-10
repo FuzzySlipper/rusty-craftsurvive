@@ -217,6 +217,23 @@ void ReportDesign(ContinentDesign drawn)
         Line(Invariant($"  belt {belt.Name}: asked up to {asked:F0}m, highest along its line {made:F0}m"));
     }
 
+    foreach (DesignArea area in drawn.Areas)
+    {
+        List<double> core = [];
+        for (double dz = -area.Radius; dz <= area.Radius; dz += area.Radius / 20)
+            for (double dx = -area.Radius; dx <= area.Radius; dx += area.Radius / 20)
+                if (area.Weight(area.At[0] + dx, area.At[1] + dz) >= 0.6)
+                {
+                    double ground = map.Sample(World(area.At[0] + dx), World(area.At[1] + dz)).Elevation;
+                    if (ground > GenerationConstants.WaterLevel) core.Add(ground);
+                }
+
+        core.Sort();
+        string asked = area.Height is double height ? Invariant($"asked {height:F0}m (rugged {area.Ruggedness:F1})") : Invariant($"lift {area.Lift:+0.00;-0.00}");
+        Line(core.Count == 0 ? $"  area {area.Name}: {asked}, no land in its core"
+            : Invariant($"  area {area.Name}: {asked}; its core median {core[core.Count / 2]:F0}m, 90th {core[(int)(core.Count * 0.9)]:F0}m, highest {core[^1]:F0}m"));
+    }
+
     foreach (DesignPass pass in drawn.Passes)
         Line(Invariant($"  pass {pass.Name}: ground {map.Sample(World(pass.At[0]), World(pass.At[1])).Elevation:F0}m"));
     foreach (DesignSite site in drawn.Sites)
