@@ -19,6 +19,7 @@ const string Usage = """
       --seed       the world seed (decimal or 0x hex)
       --size       the world's size in metres: up to 65536 (regional) or 320000-450000 (continental)
       --recipe     a JSON recipe; any fields it names override the defaults (see --dump-recipe)
+      --design     a continent design: a JSON file, or builtin:NAME for one the generator ships (#9815)
       --out        where to write relief.png, height.png, skyline-N.png and stats.txt (default ./maplab-out)
       --view       a viewpoint in world metres for a skyline; repeatable (default 0,0, where a world starts)
       --pixels     the map images' width and height (default 1024)
@@ -45,6 +46,11 @@ int size = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
 MapRecipe recipe = options.TryGetValue("recipe", out List<string>? recipePath)
     ? JsonSerializer.Deserialize<MapRecipe>(File.ReadAllText(recipePath[0]), json) ?? MapRecipe.Default
     : MapRecipe.Default;
+ContinentDesign? design = options.TryGetValue("design", out List<string>? designArg)
+    ? designArg[0].StartsWith("builtin:", StringComparison.Ordinal)
+        ? ContinentDesign.Builtin(designArg[0]["builtin:".Length..])
+        : ContinentDesign.Parse(File.ReadAllText(designArg[0]))
+    : null;
 string output = options.TryGetValue("out", out List<string>? outPath) ? outPath[0] : "maplab-out";
 int pixels = options.TryGetValue("pixels", out List<string>? pixelArg) ? int.Parse(pixelArg[0], CultureInfo.InvariantCulture) : 1024;
 List<(double X, double Z)> views = options.TryGetValue("view", out List<string>? viewArgs)
@@ -54,7 +60,7 @@ Directory.CreateDirectory(output);
 
 TerrainConfiguration configuration = new(seed, size);
 Stopwatch clock = Stopwatch.StartNew();
-WorldMap map = new(configuration, MapSimulation.Run(configuration, recipe));
+WorldMap map = new(configuration, MapSimulation.Run(configuration, recipe, design));
 double generationSeconds = clock.Elapsed.TotalSeconds;
 double reach = Math.Min(options.TryGetValue("reach-km", out List<string>? reachArg)
     ? double.Parse(reachArg[0], CultureInfo.InvariantCulture) * 1000 : 150_000, map.Radius * 2);
@@ -66,7 +72,7 @@ void Line(string text)
     stats.AppendLine(text);
 }
 
-Line($"seed={seed} size={size}m generator=v{configuration.GeneratorVersion} fingerprint=0x{map.Fingerprint:x16} recipe={(recipePath is null ? "default" : recipePath[0])}");
+Line($"seed={seed} size={size}m generator=v{configuration.GeneratorVersion} fingerprint=0x{map.Fingerprint:x16} recipe={(recipePath is null ? "default" : recipePath[0])} design={design?.Name ?? "none"}");
 Line(Invariant($"generated in {generationSeconds:F1}s; continental={map.Scale.Continental} peak={recipe.Simulation.PeakElevation ?? map.Scale.PeakElevation:F0}m ceiling={map.Scale.MaximumElevation:F0}m"));
 
 // The whole map, sampled at the image's resolution.
@@ -89,6 +95,13 @@ double Percentile(double p) => land.Count == 0 ? 0 : land[(int)Math.Clamp(p * (l
 Line(Invariant($"land={100.0 * land.Count / (pixels * pixels):F1}% elevation p50={Percentile(0.5):F0}m p90={Percentile(0.9):F0}m p99={Percentile(0.99):F0}m max={Percentile(1):F0}m"));
 
 DrawRelief().Save(Path.Combine(output, "relief.png"));
+if (design is not null)
+{
+    Image overlay = DrawRelief();
+    DrawDesign(overlay, design);
+    overlay.Save(Path.Combine(output, "design.png"));
+    ReportDesign(design);
+}
 DrawHeight().Save(Path.Combine(output, "height.png"));
 
 for (int v = 0; v < views.Count; v++)
@@ -149,6 +162,63 @@ Image DrawRelief()
 
     foreach ((double vx, double vz) in views) Mark(image, vx, vz);
     return image;
+}
+
+// The design over the relief: land outlines (forbidden land in red), belt crest lines, passes and sites.
+void DrawDesign(Image image, ContinentDesign drawn)
+{
+    foreach (DesignLand area in drawn.Land)
+        for (int i = 0, j = area.Points.Count - 1; i < area.Points.Count; j = i++)
+            Segment(image, area.Points[j], area.Points[i], area.Forbidden ? (0.9, 0.15, 0.1) : (1, 1, 1));
+    foreach (DesignBelt belt in drawn.Belts)
+        for (int i = 1; i < belt.Points.Count; i++) Segment(image, belt.Points[i - 1], belt.Points[i], (0.35, 0.1, 0.45));
+    foreach (DesignPass pass in drawn.Passes) Ring(image, pass.At, pass.Radius, (1, 0.85, 0.1));
+    foreach (DesignSite site in drawn.Sites) Ring(image, site.At, 0.008, (1, 0.3, 0.9));
+}
+
+void Segment(Image image, double[] a, double[] b, (double, double, double) colour)
+{
+    int steps = (int)(Math.Sqrt(Math.Pow(b[0] - a[0], 2) + Math.Pow(b[1] - a[1], 2)) * pixels) + 1;
+    for (int s = 0; s <= steps; s++)
+    {
+        double t = (double)s / steps;
+        image.Set(Pixel(a[0] + ((b[0] - a[0]) * t)), Pixel(a[1] + ((b[1] - a[1]) * t)), colour);
+    }
+}
+
+void Ring(Image image, double[] at, double radius, (double, double, double) colour)
+{
+    for (int k = 0; k < 64; k++)
+    {
+        double angle = k * Math.Tau / 64;
+        image.Set(Pixel(at[0] + (radius * Math.Cos(angle))), Pixel(at[1] + (radius * Math.Sin(angle))), colour);
+    }
+}
+
+int Pixel(double unit) => (int)Math.Round((unit + 1) / 2 * pixels);
+
+// What the design asked for beside what generation made: each belt's crest, each pass's saddle, each site's ground.
+void ReportDesign(ContinentDesign drawn)
+{
+    double World(double unit) => unit * map.Radius;
+    foreach (DesignBelt belt in drawn.Belts)
+    {
+        double asked = belt.Points.Max(p => p[2]);
+        double made = 0;
+        for (int i = 1; i < belt.Points.Count; i++)
+            for (double t = 0; t <= 1; t += 0.01)
+            {
+                double[] a = belt.Points[i - 1], b = belt.Points[i];
+                made = Math.Max(made, map.Sample(World(a[0] + ((b[0] - a[0]) * t)), World(a[1] + ((b[1] - a[1]) * t))).Elevation);
+            }
+
+        Line(Invariant($"  belt {belt.Name}: asked up to {asked:F0}m, highest along its line {made:F0}m"));
+    }
+
+    foreach (DesignPass pass in drawn.Passes)
+        Line(Invariant($"  pass {pass.Name}: ground {map.Sample(World(pass.At[0]), World(pass.At[1])).Elevation:F0}m"));
+    foreach (DesignSite site in drawn.Sites)
+        Line(Invariant($"  site {site.Name} ({site.Kind}): ground {map.Sample(World(site.At[0]), World(site.At[1])).Elevation:F0}m at {World(site.At[0]):F0},{World(site.At[1]):F0}"));
 }
 
 // Elevation as grey, from the sea to the highest point.

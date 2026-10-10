@@ -48,6 +48,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Continent designs are part of the generator (#9815), so they ship inside it, not as content. -->
+    <EmbeddedResource Include="Modules/WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]">
       <!-- The package is the default. The explicit Engine contributor
            override supplies the same assembly directly and must therefore

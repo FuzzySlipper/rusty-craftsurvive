@@ -37,11 +37,12 @@ internal sealed class MapClimate
     internal MapClimate(ulong seed) : this(seed, MapScale.Regional) { }
 
     /// <param name="scale">A continent's lengths stretch the climate's wavelengths and the march's per-kilometre rates (#9549).</param>
-    internal MapClimate(ulong seed, MapScale scale)
+    /// <param name="design">A designed continent names its own cold side and prevailing wind (#9815); otherwise the seed draws them.</param>
+    internal MapClimate(ulong seed, MapScale scale, DesignClimate? design = null)
     {
         lengths = scale.Lengths;
-        LatitudeAngle = MapNoise.Unit(seed ^ AxisSalt, 0, 0) * 2 * Math.PI;
-        WindAngle = MapNoise.Unit(seed ^ WindSalt, 0, 0) * 2 * Math.PI;
+        LatitudeAngle = design is null ? MapNoise.Unit(seed ^ AxisSalt, 0, 0) * 2 * Math.PI : DesignClimate.Angle(design.ColdToward);
+        WindAngle = design is null ? MapNoise.Unit(seed ^ WindSalt, 0, 0) * 2 * Math.PI : DesignClimate.Angle(design.WindToward);
         Seed = seed;
     }
 

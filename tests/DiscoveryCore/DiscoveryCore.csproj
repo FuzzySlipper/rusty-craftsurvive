@@ -15,6 +15,7 @@
          determinism and the structure bounds are checked without a runtime. -->
     <!-- The world generator is pure: link it whole. -->
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
+    <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
     <Compile Include="$(ProductModules)Discovery/DiscoveryRules.cs" LinkBase="Product/Discovery" />
     <Compile Include="$(ProductModules)Discovery/DiscoveryState.cs" LinkBase="Product/Discovery" />
     <Compile Include="$(ProductModules)Discovery/DiscoveryConstants.cs" LinkBase="Product/Discovery" />

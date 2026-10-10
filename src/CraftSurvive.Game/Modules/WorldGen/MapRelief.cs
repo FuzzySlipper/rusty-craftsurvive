@@ -9,6 +9,11 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 internal sealed class MapRelief
 {
     // Tuning is the recipe's (ReliefRecipe); the salts keep each noise field independent.
+    /// <summary>A designed belt keeps this share of its crest where the ridge noise is lowest, so the drawn range is never lost.</summary>
+    private const double DesignedRidgeFloor = 0.6;
+    /// <summary>A designed coast's noise: its octaves (down to bays a few kilometres across) and salt.</summary>
+    private const int CoastOctaves = 6;
+    private const ulong CoastSalt = 0x2F2B8C3E91D5A7C3UL;
     private const ulong ContinentSalt = 0x6A09E667F3BCC908UL;
     private const ulong WarpXSalt = 0xBB67AE8584CAA73BUL;
     private const ulong WarpZSalt = 0x3C6EF372FE94F82BUL;
@@ -57,7 +62,11 @@ internal sealed class MapRelief
         return relief;
     }
 
-    internal static MapRelief Build(MapGrid grid, ulong seed, ReliefRecipe r)
+    /// <param name="design">
+    /// A drawn continent (#9815): where given, it decides where land is and where ranges rise, and the
+    /// noise only roughens and varies them; null keeps the seeded geography.
+    /// </param>
+    internal static MapRelief Build(MapGrid grid, ulong seed, ReliefRecipe r, ContinentDesign? design = null)
     {
         // Lengths were tuned on regional worlds; a continent scales them all (#9549).
         double l = MapScale.For(grid).Lengths;
@@ -68,17 +77,42 @@ internal sealed class MapRelief
         double CentreReserveRadius = r.CentreReserveRadius * l;
         double MaximumSeaReach = r.MaximumSeaReach * l, MaximumRangeReach = r.MaximumRangeReach * l;
         MapRelief relief = new(grid);
-        relief.ChooseBorders(seed, r.SeaSideChance);
+        // A design draws its own coasts; a map edge it leaves as land is a mountain rim, not an outlet.
+        if (design is null) relief.ChooseBorders(seed, r.SeaSideChance);
+        double highestCrest = Math.Max(design?.HighestCrest ?? 0, 1);
         double seaReach = Math.Min(MaximumSeaReach, grid.Radius * 2 * r.SeaReachFraction);
         double rangeReach = Math.Min(MaximumRangeReach, grid.Radius * 2 * r.RangeReachFraction);
         double[] continent = new double[grid.Count];
         double[] borderUplift = new double[grid.Count];
+
+        // A designed node: land from the drawn outline (roughened by the continent noise), uplift from the
+        // belts' crests (textured by the belt noise) and the drawn uplands and basins.
+        void Designed(MapRelief relief, ContinentDesign design, int i, double u, double v, double noise, double wx, double wz)
+        {
+            double coastX = u / design.CoastWavelength, coastZ = v / design.CoastWavelength;
+            double coast = MapNoise.Fbm(seed ^ CoastSalt, coastX + (0.5 * noise), coastZ - (0.5 * noise), CoastOctaves, r.FractalPersistence);
+            continent[i] = (design.LandDistance(u, v) + (design.CoastRoughness * coast)) / design.CoastRamp;
+            double ridges = MapNoise.Ridged(seed ^ BeltSalt, (u / design.RidgeWavelength) + (0.3 * noise), (v / design.RidgeWavelength) - (0.3 * noise), r.BeltOctaves, r.BeltPersistence);
+            double crest = design.Crest(u, v) / highestCrest;
+            double upland = r.UplandUplift * (0.5 + 0.5 * MapNoise.Fbm(seed ^ UplandSalt, wx / UplandWavelength, wz / UplandWavelength, 3, r.FractalPersistence));
+            relief.Uplift[i] = Math.Max(0, (r.PlainUplift + upland) * (1 + design.AreaLift(u, v)) + (r.BeltUplift * crest * (DesignedRidgeFloor + ((1 - DesignedRidgeFloor) * ridges))));
+            relief.Hardness[i] = WorldMap.Smooth(Math.Clamp(0.5 + r.HardnessContrast * MapNoise.Fbm(seed ^ HardnessSalt,
+                wx / HardnessWavelength, wz / HardnessWavelength, 3, r.FractalPersistence), 0, 1));
+            relief.Height[i] = MapNoise.Fbm(seed ^ TextureSalt, u * grid.Radius / TextureWavelength, v * grid.Radius / TextureWavelength, r.TextureOctaves, r.FractalPersistence) * r.InitialTexture;
+        }
+
         for (int i = 0; i < grid.Count; i++)
         {
             double x = grid.X(i), z = grid.Z(i);
             double wx = x + WarpDistance * MapNoise.Fbm(seed ^ WarpXSalt, x / WarpWavelength, z / WarpWavelength, 3, r.FractalPersistence);
             double wz = z + WarpDistance * MapNoise.Fbm(seed ^ WarpZSalt, x / WarpWavelength, z / WarpWavelength, 3, r.FractalPersistence);
             double c = MapNoise.Fbm(seed ^ ContinentSalt, wx / ContinentWavelength, wz / ContinentWavelength, r.ContinentOctaves, r.FractalPersistence);
+            if (design is not null)
+            {
+                Designed(relief, design, i, x / grid.Radius, z / grid.Radius, c, wx, wz);
+                continue;
+            }
+
             double centre = Math.Exp(-(x * x + z * z) / (CentreReserveRadius * CentreReserveRadius));
             c += r.CentreLandBias * centre;
             // Distance inside each border, west/east/north/south.
@@ -109,10 +143,12 @@ internal sealed class MapRelief
         }
 
         double seaFraction = r.MinimumSeaFraction + r.SeaFractionRange * MapNoise.Unit(seed ^ SeaFractionSalt, 0, 0);
-        double shoreline = Quantile(continent, seaFraction);
+        // A design's land field is already in coast-ramp units about its drawn shore.
+        double shoreline = design is null ? Quantile(continent, seaFraction) : 0;
+        double coastRamp = design is null ? r.CoastRamp : 1;
         for (int i = 0; i < grid.Count; i++)
         {
-            double land = Math.Clamp((continent[i] - shoreline) / r.CoastRamp, -1, 1);
+            double land = Math.Clamp((continent[i] - shoreline) / coastRamp, -1, 1);
             if (land <= 0)
             {
                 relief.Sea[i] = relief.Outlet[i] = true;

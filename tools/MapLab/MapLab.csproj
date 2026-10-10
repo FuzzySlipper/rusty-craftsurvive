@@ -28,6 +28,7 @@
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Places/KnownPlaceKind.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
+    <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
   </ItemGroup>
 </Project>

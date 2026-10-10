@@ -27,6 +27,7 @@
     <Compile Include="$(ProductModules)World/ProductUiPublisher.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)World/ProductUiProjection.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
+    <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
     <Compile Include="$(ProductModules)Weather/WeatherKind.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Weather/WeatherKinds.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Weather/WeatherFront.cs" LinkBase="Product" />

@@ -17,6 +17,7 @@
     <Compile Include="$(ProductModules)Content/BuildPalette.cs" LinkBase="Product/Content" />
     <!-- The world generator is pure: link it whole. -->
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
+    <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
     <Compile Include="$(ProductModules)Travel/*.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product/Terrain" />
