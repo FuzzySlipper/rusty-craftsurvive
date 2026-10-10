@@ -269,7 +269,7 @@ internal sealed class DayNightSky : IDisposable
 
     private void PlaceRegions()
     {
-        IReadOnlyList<CloudRegionRequest> wanted = underground ? [] : wantedRegions;
+        IReadOnlyList<CloudRegionRequest> wanted = underground || onMap ? [] : wantedRegions;
         HashSet<uint> keep = [];
         foreach (CloudRegionRequest region in wanted)
         {
@@ -442,6 +442,36 @@ internal sealed class DayNightSky : IDisposable
         Weathered();
     }
 
+    private bool onMap;
+    /// <summary>The map screen's sun: from the north-west, about 50° up, as a map is conventionally lit.</summary>
+    private static readonly Vector3 MapSunTravel = Vector3.Normalize(new Vector3(0.55f, -1.3f, 0.55f));
+
+    /// <summary>
+    /// Opens or closes the map screen's light (#9813). A map is read, not lived in: it is lit the same at
+    /// any hour, by a sun from the north-west and a clear day's sky, with no fog, haze, clouds or
+    /// precipitation, so its relief and colours read whatever the time and weather in the world. Closing
+    /// it leaves the world's sky to be shown again (<see cref="Underground"/> or <see cref="Show"/>).
+    /// </summary>
+    internal void Map(bool open)
+    {
+        if (disposed || open == onMap) return;
+        onMap = open;
+        litDaylight = double.NaN;
+        skyShadowAround = null;
+        PlaceRegions();
+        Weathered();
+        if (!open) return;
+        engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(day, night, 0f));
+        engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
+        engine.CameraView.SetAtmosphere(default);
+        engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
+        engine.CameraView.SetSkyLight(new SkyLightRequest(DaySkyLightIntensity));
+        Relight(
+            Directional(SunColour, DaySunIntensity, MapSunTravel),
+            SkyShadow(1d, Vector3.Zero) with { ShadowIntent = LightShadowIntent.Disabled },
+            Fill(0.5d, 1d));
+    }
+
     /// <summary>Whether the view is under water.</summary>
     internal bool ViewSubmerged => submerged;
 
@@ -485,7 +515,7 @@ internal sealed class DayNightSky : IDisposable
     private void Weathered()
     {
         if (disposed) return;
-        WeatherLook w = underground ? WeatherLook.Clear(weather.Flow) : weather;
+        WeatherLook w = underground || onMap ? WeatherLook.Clear(weather.Flow) : weather;
         engine.CameraView.SetToneMapping(new ToneMappingRequest(Operator, gradeExposure * (1f + (CloudExposure * w.Cloud))));
         engine.CameraView.SetColorGrading(new ColorGradingRequest(
             gradeTemperature + (CloudCooling * w.Cloud) + (ColdCooling * w.Cold),
@@ -513,7 +543,7 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     internal void Show(WorldTime time)
     {
-        if (underground || disposed)
+        if (underground || onMap || disposed)
         {
             return;
         }

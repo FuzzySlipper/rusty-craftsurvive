@@ -38,6 +38,8 @@
     <Compile Include="$(ProductModules)Horizon/HorizonSink.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonLandmarkRules.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonTiers.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/MapPalette.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Places/KnownPlaceKind.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)Travel/PartyTravel.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelCostModel.cs" LinkBase="Product/Travel" />

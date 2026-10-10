@@ -21,11 +21,11 @@ internal sealed class MapWeather : IDisposable
     private static readonly float[] Rings = [0.3f, CoreShare, 0.8f, 1f];
     private const int Segments = 48;
     /// <summary>Opacity at the core of a front at full strength; weaker fronts are drawn fainter, in steps.</summary>
-    private const float CoreAlpha = 0.7f;
+    private const float CoreAlpha = 0.5f;
     private const int StrengthSteps = 3;
     private const float DiscRoughness = 1f;
-    /// <summary>How brightly a front glows by itself, so it reads at night as well as by day.</summary>
-    private const float NightGlow = 0.25f;
+    /// <summary>How brightly a front glows by itself: a little, since the map screen is lit the same at any hour (#9813).</summary>
+    private const float NightGlow = 0.1f;
     /// <summary>Clouds float this far above the ground under their centre, in world metres.</summary>
     private const double CloudLiftMetres = 300;
     private const float TrackScalePerDistance = 0.005f, MinimumTrackScale = 0.2f;

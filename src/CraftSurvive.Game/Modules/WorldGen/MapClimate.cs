@@ -158,6 +158,12 @@ internal sealed class MapClimate
         return moisture;
     }
 
+    /// <summary>
+    /// How much an absolute climate cools over a rise in metres (#9813): what the horizon's filtered relief
+    /// uses to put snow on ground the filter lifts above the map's own height.
+    /// </summary>
+    internal static double Cooling(double metres) => AltitudeLapse * metres / LapseMetres;
+
     /// <summary>Where a rain value falls on <see cref="MoistureCurve"/>, from 0 to 1.</summary>
     private static double Curve(double rain)
     {

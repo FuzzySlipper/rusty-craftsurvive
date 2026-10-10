@@ -127,6 +127,7 @@ public sealed partial class CraftSurviveProduct
         player.ClearInput();
         sky.Submerged(false);
         sky.Underground(false, WorldConditionsState.Fresh.Time);
+        sky.Map(true);
         mapOpen = true;
         // The party and the sled's hitch are settled first, so both views draw the places as they now stand.
         SyncPartyToPlayer();
@@ -139,6 +140,7 @@ public sealed partial class CraftSurviveProduct
     {
         mapOpen = false;
         player.ClearInput();
+        sky.Map(false);
         sky.Underground(dungeons.State == DungeonState.Inside, conditions.Time);
         sky.Submerged(player.HeadSubmerged);
         player.ActivateCamera();

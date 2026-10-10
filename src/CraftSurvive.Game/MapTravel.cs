@@ -102,14 +102,23 @@ public sealed partial class CraftSurviveProduct
             : string.Create(CultureInfo.InvariantCulture, $"{seen.Front.Kind.Name.ToLowerInvariant()} in about {seen.After:F0} h"))) + ".";
     }
 
-    /// <summary>The map shows fronts within this many map radii of the party, and where each will be over this many hours.</summary>
-    private const double WeatherShownRadii = 1.5;
+    /// <summary>
+    /// The map shows fronts within this many map radii of the party, but no further than the weather a party
+    /// could meet in a few days on the road (#9813), and where each will be over this many hours.
+    /// </summary>
+    private const double WeatherShownRadii = 1.5, WeatherShownMetres = 100_000;
     private const double WeatherTrackHours = 24, WeatherTrackStepHours = 6;
     /// <summary>The map's fronts are redrawn once the clock has moved this many game hours.</summary>
     private const double WeatherRedrawHours = 0.1;
     private double weatherDrawnHours = double.NaN;
     private object? weatherDrawnOn;
     private int weatherDrawnRevision;
+    /// <summary>
+    /// The map shows where weather is without burying the land (#9813): fronts weaker than this are left
+    /// off, and only this many nearest the party draw the trail of where they are heading.
+    /// </summary>
+    private const double WeatherShownStrength = 0.15;
+    private const int WeatherTrailFronts = 6;
 
     /// <summary>Draws the fronts near the party on the faceted map (#9739), again whenever the clock has moved on.</summary>
     private void ShowWeatherOnMap()
@@ -121,12 +130,13 @@ public sealed partial class CraftSurviveProduct
         List<WeatherMarker> fronts = [];
         double edge = worlds.Current.Map.Radius;
         // Fronts that touch the world, nearest the party first; those still beyond its edge are not drawn.
-        foreach (WeatherFront front in weather.Field.Alive(at.X, at.Y, hours, edge * WeatherShownRadii)
+        foreach (WeatherFront front in weather.Field.Alive(at.X, at.Y, hours, Math.Min(edge * WeatherShownRadii, WeatherShownMetres))
             .Where(front => Math.Abs(front.Centre(hours).X) <= edge + front.RadiusMetres && Math.Abs(front.Centre(hours).Y) <= edge + front.RadiusMetres)
+            .Where(front => front.Strength(hours) >= WeatherShownStrength)
             .OrderBy(front => Vector2.Distance(front.Centre(hours), at)))
         {
             List<Vector2> track = [];
-            for (double ahead = WeatherTrackStepHours; ahead <= WeatherTrackHours && hours + ahead <= front.EndHours; ahead += WeatherTrackStepHours)
+            for (double ahead = WeatherTrackStepHours; fronts.Count < WeatherTrailFronts && ahead <= WeatherTrackHours && hours + ahead <= front.EndHours; ahead += WeatherTrackStepHours)
                 track.Add(front.Centre(hours + ahead));
             fronts.Add(new WeatherMarker(front.Kind.Id, front.Centre(hours), (float)front.RadiusMetres, (float)front.Strength(hours), [.. track]));
         }

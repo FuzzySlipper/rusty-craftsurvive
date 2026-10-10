@@ -57,8 +57,13 @@ internal sealed class HorizonBackdrop : IProductModule
     private const double MidCoarseBeyondMetres = 16_000;
     /// <summary>The kilometre tier sinks this far beneath the middle tier past its fade band: below the deepest gully the filter cuts.</summary>
     private const double UnderMidSinkMetres = 2_500;
-    /// <summary>The middle tier's base samples reach this many cells beyond a chunk, for the slope at its edge.</summary>
+    /// <summary>The filter's slope is measured this many middle cells either side.</summary>
     private static readonly int SlopeCells = (int)Math.Round(ErodedHeights.SlopeReachMetres / MidCellMetres);
+    /// <summary>
+    /// The filtered ground's own slope sets bare rock (#9813): from the first slope rock shows, wholly by the
+    /// second; snow follows the filtered height through the climate's cooling.
+    /// </summary>
+    private const double RockSlopeFrom = 0.45, RockSlopeFull = 0.95;
     /// <summary>Each tier samples for at most this long an update (#9822): sampling never stalls an update.</summary>
     private const double SampleBudgetMilliseconds = 2;
     private const double ExposedRock = 0.6;
@@ -571,11 +576,34 @@ internal sealed class HorizonBackdrop : IProductModule
     /// </summary>
     private void SampleMid(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
     {
-        int border = SlopeCells, side = EdgeLength + (2 * border);
+        // The map's samples reach the slope's cells beyond the chunk, and one more, so the filtered ground's
+        // own slope can be read at the chunk's edge.
+        int border = SlopeCells + 1, side = EdgeLength + (2 * border);
         MapSample[] lattice = new MapSample[side * side];
+        RiverInfluence?[] rivers = new RiverInfluence?[side * side];
+        double[] filtered = new double[side * side];
         for (int z = 0; z < side; z++)
         for (int x = 0; x < side; x++)
-            lattice[(z * side) + x] = map.Sample(((chunkX * EdgeLength) + x - border) * MidCellMetres, ((chunkZ * EdgeLength) + z - border) * MidCellMetres);
+        {
+            double worldX = ((chunkX * EdgeLength) + x - border) * MidCellMetres, worldZ = ((chunkZ * EdgeLength) + z - border) * MidCellMetres;
+            lattice[(z * side) + x] = map.Sample(worldX, worldZ);
+        }
+
+        for (int z = 1; z < side - 1; z++)
+        for (int x = 1; x < side - 1; x++)
+        {
+            int at = (z * side) + x;
+            double worldX = ((chunkX * EdgeLength) + x - border) * MidCellMetres, worldZ = ((chunkZ * EdgeLength) + z - border) * MidCellMetres;
+            MapSample sample = lattice[at];
+            filtered[at] = sample.Elevation;
+            if (x < SlopeCells || z < SlopeCells || x >= side - SlopeCells || z >= side - SlopeCells) continue;
+            rivers[at] = map.Rivers.Nearest(worldX, worldZ);
+            double share = MidFilter(worldX, worldZ);
+            if (share <= 0) continue;
+            double slopeX = (lattice[at + SlopeCells].Elevation - lattice[at - SlopeCells].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
+            double slopeZ = (lattice[at + (SlopeCells * side)].Elevation - lattice[at - (SlopeCells * side)].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
+            filtered[at] = sample.Elevation + (share * (eroded!.Height(worldX, worldZ, sample, slopeX, slopeZ, rivers[at]) - sample.Elevation));
+        }
 
         for (int z = 0; z < EdgeLength; z++)
         for (int x = 0; x < EdgeLength; x++)
@@ -589,15 +617,16 @@ internal sealed class HorizonBackdrop : IProductModule
             }
 
             int at = ((z + border) * side) + x + border;
-            MapSample sample = lattice[at];
-            RiverInfluence? nearest = map.Rivers.Nearest(worldX, worldZ);
-            double share = MidFilter(worldX, worldZ);
-            if (share > 0)
+            RiverInfluence? nearest = rivers[at];
+            // The ground as the filter leaves it: colder where it is lifted, bare where it is steep (#9813).
+            double steep = Math.Sqrt(Math.Pow((filtered[at + 1] - filtered[at - 1]) / (2 * MidCellMetres), 2)
+                + Math.Pow((filtered[at + side] - filtered[at - side]) / (2 * MidCellMetres), 2));
+            MapSample sample = lattice[at] with
             {
-                double slopeX = (lattice[at + border].Elevation - lattice[at - border].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
-                double slopeZ = (lattice[at + (border * side)].Elevation - lattice[at - (border * side)].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
-                sample = sample with { Elevation = sample.Elevation + (share * (eroded!.Height(worldX, worldZ, sample, slopeX, slopeZ, nearest) - sample.Elevation)) };
-            }
+                Elevation = filtered[at],
+                Temperature = Math.Clamp(lattice[at].Temperature - MapClimate.Cooling(filtered[at] - lattice[at].Elevation), 0, 1),
+                Rock = Math.Max(lattice[at].Rock, Math.Clamp((steep - RockSlopeFrom) / (RockSlopeFull - RockSlopeFrom), 0, 1)),
+            };
 
             double sink = Sink(worldX, worldZ) + (UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
             surface[i] = (Top(sample) - sink) / MidCellMetres;
