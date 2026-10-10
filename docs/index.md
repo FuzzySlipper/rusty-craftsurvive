@@ -13,6 +13,8 @@ provenance, and superseded state — lives in Den and is deliberately not copied
 
 `README.md` at the repository root is the entry point for developing and running the
 product. `AGENTS.md` holds the working rules.
+[`tools/MapLab`](../tools/MapLab/README.md) generates world maps offline from a seed, size and
+generation recipe, and measures how their ranges stand on the horizon.
 
 The visual guide is supported by the approved
 [Paperback Sanctum style references](style-references/paperback-sanctum/README.md):

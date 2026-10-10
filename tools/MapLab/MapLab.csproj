@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- MapLab (#9814): generates a world map from a seed, size and recipe, without the Engine host, and
+       writes images and numbers to judge it by. It compiles the product's generator, as the lanes do. -->
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors><InvariantGlobalization>true</InvariantGlobalization></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConstants.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainConfiguration.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunk.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/VoxelAddress.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TreeFelling.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayState.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainOverlayCodec.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainEditPolicy.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationFingerprint.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/TerrainGenerationGoldens.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductStore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductSaveSlot.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveManifest.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveRestore.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/SaveEnvelope.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/WorldMapSave.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/MapPalette.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Places/KnownPlaceKind.cs" LinkBase="Product/Places" />
+    <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
+  </ItemGroup>
+</Project>

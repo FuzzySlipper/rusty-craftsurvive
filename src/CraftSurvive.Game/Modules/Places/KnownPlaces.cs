@@ -4,8 +4,6 @@ using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Places;
 
-internal enum KnownPlaceKind { Home, Visited, Seen, Entrance, Sled }
-
 /// <summary>A place the expedition knows and can travel to; <see cref="Key"/> is stable across publishes.</summary>
 /// <param name="Site">What stands there, for a found site; <see cref="PoiKind.None"/> for home and the sled.</param>
 internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKind Kind, Vector2 Position, PoiKind Site = PoiKind.None);

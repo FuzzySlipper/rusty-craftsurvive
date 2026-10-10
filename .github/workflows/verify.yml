@@ -37,6 +37,8 @@ jobs:
         run: dotnet run --project tests/SubstrateProof -c Release
       - name: Check generated world-map persistence and new-world isolation
         run: dotnet run --project tests/WorldMap -c Release
+      - name: Build the MapLab generation tool (#9814)
+        run: dotnet build tools/MapLab -c Release
       - name: Check the RPG rules
         run: dotnet run --project tests/RpgCore -c Release
       - name: Check the player's body recovers from deep overlaps instead of stopping the game
