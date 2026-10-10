@@ -19,7 +19,8 @@ const string Usage = """
       --seed       the world seed (decimal or 0x hex)
       --size       the world's size in metres: up to 65536 (regional) or 320000-450000 (continental)
       --recipe     a JSON recipe; any fields it names override the defaults (see --dump-recipe)
-      --design     a continent design: a JSON file, or builtin:NAME for one the generator ships (#9815)
+      --design     a continent design: a JSON file, builtin:NAME for one the generator ships, or none
+                   (default: what the game draws a world of this size to - the frontier peninsula for a continent)
       --out        where to write relief.png, height.png, skyline-N.png and stats.txt (default ./maplab-out)
       --view       a viewpoint in world metres for a skyline; repeatable (default 0,0, where a world starts)
       --pixels     the map images' width and height (default 1024)
@@ -46,11 +47,11 @@ int size = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
 MapRecipe recipe = options.TryGetValue("recipe", out List<string>? recipePath)
     ? JsonSerializer.Deserialize<MapRecipe>(File.ReadAllText(recipePath[0]), json) ?? MapRecipe.Default
     : MapRecipe.Default;
-ContinentDesign? design = options.TryGetValue("design", out List<string>? designArg)
-    ? designArg[0].StartsWith("builtin:", StringComparison.Ordinal)
-        ? ContinentDesign.Builtin(designArg[0]["builtin:".Length..])
-        : ContinentDesign.Parse(File.ReadAllText(designArg[0]))
-    : null;
+// By default, the design the game draws a world of this size to; "none" for the seeded generator alone.
+ContinentDesign? design = !options.TryGetValue("design", out List<string>? designArg) ? ContinentDesign.For(size)
+    : designArg[0] == "none" ? null
+    : designArg[0].StartsWith("builtin:", StringComparison.Ordinal) ? ContinentDesign.Builtin(designArg[0]["builtin:".Length..])
+    : ContinentDesign.Parse(File.ReadAllText(designArg[0]));
 string output = options.TryGetValue("out", out List<string>? outPath) ? outPath[0] : "maplab-out";
 int pixels = options.TryGetValue("pixels", out List<string>? pixelArg) ? int.Parse(pixelArg[0], CultureInfo.InvariantCulture) : 1024;
 List<(double X, double Z)> views = options.TryGetValue("view", out List<string>? viewArgs)

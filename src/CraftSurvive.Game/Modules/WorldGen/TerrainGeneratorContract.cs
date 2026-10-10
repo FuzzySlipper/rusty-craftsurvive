@@ -51,9 +51,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// fields reconstructed by dual contouring instead of stacked blocks (#9671); version 26 did the
     /// same for the vantage points' stepped courses (#9671); version 27 sets every shaped landmark on
     /// a foundation three metres into the ground, so none overhangs ground that falls away, and
-    /// returns the vantage points to cube courses, which the player can step up (#9669).
+    /// returns the vantage points to cube courses, which the player can step up (#9669); version 28 draws
+    /// every continent to a design (#9815): the frontier peninsula, its coast resolved in a band, its ranges
+    /// and massif calibrated under erosion, and an absolute climate.
     /// </summary>
-    internal const uint CurrentVersion = 27;
+    internal const uint CurrentVersion = 28;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

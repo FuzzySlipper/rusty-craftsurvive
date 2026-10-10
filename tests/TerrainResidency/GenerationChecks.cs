@@ -11,6 +11,10 @@ namespace CraftSurvive.Game.Tests;
 /// <summary>What generation produces: order independence, the surface passes, the content predicate, and every kind of place.</summary>
 internal static class GenerationChecks
 {
+    /// <summary>The carved tree is looked for among landmarks this far from the origin, and trees this far from each.</summary>
+    private const long CarvedTreeSearchMetres = 6000, CarvedTreeReach = 12;
+    private static readonly ulong[] CarvedTreeSeeds = [TerrainConstants.DefaultSeed, 12345, 1, 2, 3, 4, 5, 6];
+
     internal static void Run()
     {
         // Cross-order agreement: two neighbours must produce identical voxels whichever
@@ -149,20 +153,36 @@ internal static class GenerationChecks
             }
 
             // Distant trees (#9677 review): TreeInCell keeps a tree only if it stands as generated,
-            // structures included. A cave mouth at (-434,31,-3363) carves the core and footing of the
-            // oak planted at (-431,-3364) with no edit at all; it must not reach the far band (inside
-            // or outside the near band, which share this decision). Everywhere else TreeInCell must
-            // agree with the near band's own reading of the final materials.
+            // structures included. A landmark that carves the core and footing of a tree planted beside it
+            // (with no edit at all) must keep that tree from the far band (inside or outside the near band,
+            // which share this decision). The case is searched for over a few worlds, so a generator version
+            // that moves its draws still tests it. Everywhere else TreeInCell must agree with the near
+            // band's own reading of the final materials.
             {
-                TerrainConfiguration farConfig = TerrainConfiguration.Default;
-                TerrainRecipe farRecipe = farConfig.CreateRecipe(new TestDraws(farConfig.Seed));
-                List<TerrainTree> carved = [];
-                farRecipe.TreesIn(-450, -3379, -418, -3347, carved);
-                TerrainTree? oak = carved.Cast<TerrainTree?>().FirstOrDefault(tree => tree!.Value.X == -431 && tree.Value.Z == -3364);
                 long cell = GenerationConstants.FeatureCellSize;
-                Check.That(oak is TerrainTree planted && !TreeFelling.Stands(planted, farRecipe.MaterialAt)
+                TerrainRecipe farRecipe = null!;
+                TerrainTree? carved = null;
+                foreach (ulong seed in CarvedTreeSeeds)
+                {
+                    TerrainConfiguration farConfig = TerrainConfiguration.Default with { Seed = seed };
+                    farRecipe = farConfig.CreateRecipe(new TestDraws(farConfig.Seed));
+                    List<PoiSite> landmarks = [];
+                    farRecipe.Placement.CollectSitesNear(0, 0, CarvedTreeSearchMetres, landmarks);
+                    foreach (PoiSite site in landmarks.Where(site => site.Kind is PoiKind.CaveMouth or PoiKind.DungeonEntrance or PoiKind.Ruin or PoiKind.StandingStones))
+                    {
+                        List<TerrainTree> beside = [];
+                        farRecipe.TreesIn(site.X - CarvedTreeReach, site.Z - CarvedTreeReach, site.X + CarvedTreeReach, site.Z + CarvedTreeReach, beside);
+                        carved = beside.Cast<TerrainTree?>().FirstOrDefault(tree => !TreeFelling.Stands(tree!.Value, farRecipe.MaterialAt));
+                        if (carved is not null) break;
+                    }
+
+                    if (carved is not null) break;
+                }
+
+                Check.That(carved is TerrainTree planted
                     && farRecipe.TreeInCell(GridMath.FloorDivide(planted.X, cell), GridMath.FloorDivide(planted.Z, cell)) is null,
-                    "a tree whose core a cave mouth carves away is planted but not handed to the distant trees");
+                    $"a tree whose core a landmark carves away is planted but not handed to the distant trees ({(carved is TerrainTree t ? $"at {t.X},{t.Z}, seed {farRecipe.Configuration.Seed}" : "no such tree found")})");
+
                 List<TerrainTree> square = [];
                 farRecipe.TreesIn(-256, -256, 255, 255, square);
                 foreach (TerrainTree tree in square)

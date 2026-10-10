@@ -1,6 +1,7 @@
 // The frontier peninsula (Den design/frontier-peninsula, #9815): an exaggerated Iberia. The playable
 // peninsula fills most of the map; across its north-east neck lies the forbidden mainland, behind a
-// Himalaya-scale wall crossed by two passes, where the frontier towns stand. Positions run -1 to 1
+// Himalaya-scale wall crossed by two passes, where the frontier towns stand. A rugged massif fills the
+// north-west, catching the westerlies. Positions run -1 to 1
 // across the map (x east, z south); crest heights are metres.
 {
   "Name": "frontier-peninsula",
@@ -66,7 +67,8 @@
   ],
   "Areas": [
     { "Name": "The central plateau", "At": [0.0, 0.15], "Radius": 0.35, "Lift": 0.25 },
-    { "Name": "The western basin", "At": [-0.5, 0.3], "Radius": 0.15, "Lift": -0.3 }
+    { "Name": "The western basin", "At": [-0.5, 0.3], "Radius": 0.15, "Lift": -0.3 },
+    { "Name": "The north-west massif", "At": [-0.55, -0.35], "Radius": 0.22, "Height": 5000, "Ruggedness": 0.85 }
   ],
   "Sites": [
     { "Name": "Gatehold", "Kind": "Town", "At": [0.32, -0.66] },

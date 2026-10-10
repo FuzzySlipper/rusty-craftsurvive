@@ -40,7 +40,7 @@ internal static class MapSimulation
     private const double RiparianMoisture = 0.22;
     private const double RiparianDischarge = 400;
 
-    internal static MapFields Run(TerrainConfiguration configuration) => Run(configuration, MapRecipe.Default);
+    internal static MapFields Run(TerrainConfiguration configuration) => Run(configuration, MapRecipe.Default, ContinentDesign.For(configuration.Size));
 
     /// <summary>
     /// A map made with a recipe's tuning (#9814), and drawn to a continent design if one is given
@@ -81,7 +81,7 @@ internal static class MapSimulation
         }
         MapErosion.Relax(grid, h, relief.Sea, tuning.TalusSlope, tuning.TalusIterations);
 
-        double[] rain = climate.Rainfall(grid, h, relief.Sea);
+        double[] rain = climate.Rainfall(grid, h, relief.Sea, metres: true);
         // Save filled heights, then route exactly as a restored map will: from the rounded
         // single-precision heights alone, so saved discharge always matches rebuilt drainage.
         MapFlow.Fill(grid, h, MapFlow.Outlets(grid, h), MapFlow.FillGradient);
@@ -90,7 +90,7 @@ internal static class MapSimulation
         MapFlow flow = MapFlow.Route(grid, routed, MapFlow.Outlets(grid, routed), rain, MapFlow.FillGradient);
         double[] temperature = new double[grid.Count];
         for (int i = 0; i < grid.Count; i++) temperature[i] = climate.Temperature(grid.X(i), grid.Z(i), grid.Radius, h[i], peakElevation);
-        double[] moisture = MapClimate.Moisture(rain, relief.Sea, temperature);
+        double[] moisture = climate.Moisture(rain, relief.Sea, temperature);
         for (int i = 0; i < grid.Count; i++)
             if (!relief.Sea[i]) moisture[i] = Math.Min(1, moisture[i] + RiparianMoisture * WorldMap.Smooth(Math.Clamp(flow.Discharge[i] / RiparianDischarge, 0, 1)));
 

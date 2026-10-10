@@ -29,6 +29,15 @@ internal sealed class MapClimate
     private const double HeatAridity = 0.25;
     private const double RainNoise = 0.08;
 
+    /// <summary>
+    /// An absolute climate's scales, taken from the frontier peninsula at today's heights (#9815): the
+    /// climb that counts as the whole relief, the raw rain that counts as 1, the metres over which the air
+    /// cools by <see cref="AltitudeLapse"/>, and the rain at each tenth of moisture (the deciles that
+    /// ranking gave), so its biomes keep the variety ranking gave them.
+    /// </summary>
+    private const double OrographicMetres = 2260, AbsoluteRain = 0.00285, LapseMetres = 1800;
+    private static readonly double[] MoistureCurve = [0.15, 0.265, 0.38, 0.49, 0.615, 0.78, 0.985, 1.205, 1.485, 1.88, 2.5];
+
     private const ulong AxisSalt = 0x2545F4914F6CDD1DUL;
     private const ulong WindSalt = 0x94D049BB133111EBUL;
     private const ulong TemperatureSalt = 0xBF58476D1CE4E5B9UL;
@@ -43,8 +52,17 @@ internal sealed class MapClimate
         lengths = scale.Lengths;
         LatitudeAngle = design is null ? MapNoise.Unit(seed ^ AxisSalt, 0, 0) * 2 * Math.PI : DesignClimate.Angle(design.ColdToward);
         WindAngle = design is null ? MapNoise.Unit(seed ^ WindSalt, 0, 0) * 2 * Math.PI : DesignClimate.Angle(design.WindToward);
+        Absolute = design is not null;
         Seed = seed;
     }
+
+    /// <summary>
+    /// A designed continent's climate is absolute (#9815): rain from the metres the air climbs, measured
+    /// in fixed units rather than against the land's average, cooling per metre rather than against the
+    /// peak, and moisture a fixed curve of rain rather than its rank. One region's change then plays out
+    /// in its own rain shadow and runoff without re-ranking the rest of the continent.
+    /// </summary>
+    internal bool Absolute { get; }
 
     internal double LatitudeAngle { get; }
     internal double WindAngle { get; }
@@ -52,10 +70,15 @@ internal sealed class MapClimate
     private readonly double lengths = 1;
     private double ClimateLength => ClimateWavelength * lengths;
 
-    /// <summary>Relative precipitation, mean near 1 over land; erosion weights discharge by it.</summary>
-    internal double[] Rainfall(MapGrid grid, double[] height, bool[] sea)
+    /// <summary>
+    /// Relative precipitation, mean near 1 over land; erosion weights discharge by it. For an absolute
+    /// climate given heights in metres (<paramref name="metres"/>), the climb is in fixed metres and the
+    /// rain in fixed units, so its mean is near 1 only on the continents its scale was taken from.
+    /// </summary>
+    internal double[] Rainfall(MapGrid grid, double[] height, bool[] sea, bool metres = false)
     {
-        double relief = Math.Max(1e-9, height.Max());
+        bool absolute = Absolute && metres;
+        double relief = absolute ? OrographicMetres : Math.Max(1e-9, height.Max());
         double[] rain = new double[grid.Count];
         int[] visits = new int[grid.Count];
         double ux = Math.Cos(WindAngle), uz = Math.Sin(WindAngle);
@@ -91,7 +114,7 @@ internal sealed class MapClimate
         double landMean = 0;
         int land = 0;
         for (int i = 0; i < grid.Count; i++) if (!sea[i]) { landMean += rain[i]; land++; }
-        landMean = land > 0 ? landMean / land : 1;
+        landMean = absolute ? AbsoluteRain : land > 0 ? landMean / land : 1;
         for (int i = 0; i < grid.Count; i++)
         {
             double variation = 1 + RainNoise * MapNoise.Fbm(Seed ^ RainSalt, grid.X(i) / ClimateLength, grid.Z(i) / ClimateLength, 3, 0.5);
@@ -106,12 +129,23 @@ internal sealed class MapClimate
         double t = Math.Clamp((x * Math.Cos(LatitudeAngle) + z * Math.Sin(LatitudeAngle)) / radius, -1, 1);
         double latitude = WarmEnd + (ColdEnd - WarmEnd) * (t + 1) / 2;
         double noise = TemperatureNoise * MapNoise.Fbm(Seed ^ TemperatureSalt, x / ClimateLength, z / ClimateLength, 3, 0.5);
-        return Math.Clamp(latitude + noise - AltitudeLapse * Math.Max(0, elevation) / peak, 0, 1);
+        return Math.Clamp(latitude + noise - AltitudeLapse * Math.Max(0, elevation) / (Absolute ? LapseMetres : peak), 0, 1);
     }
 
-    /// <summary>Land moisture as the rank of its rainfall, drier where it is hot.</summary>
-    internal static double[] Moisture(double[] rain, bool[] sea, double[] temperature)
+    /// <summary>
+    /// Land moisture, drier where it is hot: the rank of its rainfall, or for an absolute climate a fixed
+    /// curve of it (<see cref="MoistureCurve"/>), so how wet a place is depends on its own rain alone.
+    /// </summary>
+    internal double[] Moisture(double[] rain, bool[] sea, double[] temperature)
     {
+        if (Absolute)
+        {
+            double[] wet = new double[rain.Length];
+            for (int i = 0; i < rain.Length; i++)
+                wet[i] = sea[i] ? 1 : Math.Clamp(Curve(rain[i]) - HeatAridity * (temperature[i] - 0.5), 0, 1);
+            return wet;
+        }
+
         int[] land = Enumerable.Range(0, rain.Length).Where(i => !sea[i]).OrderBy(i => rain[i]).ThenBy(i => i).ToArray();
         double[] moisture = new double[rain.Length];
         Array.Fill(moisture, 1);
@@ -122,6 +156,20 @@ internal sealed class MapClimate
             moisture[i] = Math.Clamp(rank - HeatAridity * (temperature[i] - 0.5), 0, 1);
         }
         return moisture;
+    }
+
+    /// <summary>Where a rain value falls on <see cref="MoistureCurve"/>, from 0 to 1.</summary>
+    private static double Curve(double rain)
+    {
+        if (rain <= MoistureCurve[0]) return 0;
+        for (int k = 1; k < MoistureCurve.Length; k++)
+        {
+            if (rain > MoistureCurve[k]) continue;
+            double t = (rain - MoistureCurve[k - 1]) / (MoistureCurve[k] - MoistureCurve[k - 1]);
+            return (k - 1 + t) / (MoistureCurve.Length - 1);
+        }
+
+        return 1;
     }
 
     /// <summary>Separable box blur repeated toward a Gaussian; the border clamps.</summary>

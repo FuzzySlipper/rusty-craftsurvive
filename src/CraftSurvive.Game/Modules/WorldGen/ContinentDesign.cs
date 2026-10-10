@@ -76,6 +76,12 @@ internal sealed record ContinentDesign
         WriteIndented = true,
     };
 
+    /// <summary>The continent every new world of a size is drawn to (#9815): the frontier peninsula for a continent; none for a regional world.</summary>
+    internal static ContinentDesign? For(int size) => MapScale.IsContinental(size) ? Frontier.Value : null;
+
+    private static readonly Lazy<ContinentDesign> Frontier = new(() => Builtin(FrontierName));
+    internal const string FrontierName = "frontier-peninsula";
+
     /// <summary>A design shipped with the generator, by name (an embedded <c>Designs/NAME.json</c>).</summary>
     internal static ContinentDesign Builtin(string name)
     {

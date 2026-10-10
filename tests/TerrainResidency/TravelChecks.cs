@@ -10,7 +10,11 @@ internal static class TravelChecks
 {
     /// <summary>A cross-continent route must plan within this, on a slow shared runner too (#9552).</summary>
     private const double CrossContinentPlanBudgetMs = 1000;
-    private const float CrossContinentReach = 170_000;
+    /// <summary>
+    /// A crossing from the frontier peninsula's west interior to its south-east interior (#9815): both deep
+    /// inside its drawn coast, so land on every seed, about 233 km apart.
+    /// </summary>
+    private static readonly Vector2 CrossFrom = new(-135_000, 20_000), CrossTo = new(90_000, 80_000);
     private const int RefineWaitMs = 90_000;
     private const float TravelProbeEast = 20_000, TravelProbeNorth = 8_000;
     private const int FastestSpeed = 4;
@@ -32,10 +36,10 @@ internal static class TravelChecks
         TravelCostModel cost = new(continent);
         double costMs = clock.Elapsed.TotalMilliseconds;
         clock.Restart();
-        TravelRoute? across = TravelRouter.Plan(cost, new(-CrossContinentReach, -CrossContinentReach), new(CrossContinentReach, CrossContinentReach), "far shore");
+        TravelRoute? across = TravelRouter.Plan(cost, CrossFrom, CrossTo, "far shore");
         double planMs = clock.Elapsed.TotalMilliseconds;
         Console.WriteLine($"continent travel: costMs={costMs:F0} planMs={planMs:F0} km={(across?.Metres ?? 0) / 1000:F0} days={TravelCalendar.Days(across?.Hours ?? 0):F0} daylightHoursPerDay={TravelCalendar.DaylightHoursPerDay:F1}");
-        Check.That(across is not null && across.Metres > CrossContinentReach * 2, "a route crosses the continent");
+        Check.That(across is not null && across.Metres >= Vector2.Distance(CrossFrom, CrossTo), "a route crosses the continent");
         Check.That(planMs < CrossContinentPlanBudgetMs, $"a cross-continent route plans within its budget ({planMs:F0} ms)");
         Check.That(across is not null && TravelCalendar.Describe(across.Metres, across.Hours).Contains("days", StringComparison.Ordinal)
             && TravelCalendar.Days(across.Hours) >= 30, "a crossing previews in days, and takes at least a month");

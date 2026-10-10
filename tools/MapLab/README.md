@@ -17,8 +17,9 @@ dotnet run --project tools/MapLab -c Release -- --seed 4242 --size 390000 --out 
 
   `--dump-recipe FILE.json` writes every field with its default. The defaults make the world the
   seed has always made; the game itself uses only the defaults.
-- `--design FILE.json` or `--design builtin:NAME`: a continent design (#9815) the generator follows,
-  such as `builtin:frontier-peninsula` (`src/CraftSurvive.Game/Modules/WorldGen/Designs/`). It draws the
+- `--design FILE.json`, `--design builtin:NAME` or `--design none`: a continent design (#9815) the
+  generator follows. By default, the one the game uses for that size: `builtin:frontier-peninsula` for a
+  continent, none for a regional world (`src/CraftSurvive.Game/Modules/WorldGen/Designs/`). It draws the
   land as outlines whose coast noise resolves within a band, forced land and sea zones, the neck where
   the peninsula may meet the mainland, range belts with crest heights (calibrated by re-running
   erosion), passes, areas, reserved sites, and the climate's cold side and wind. An area with a
