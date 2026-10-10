@@ -228,7 +228,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       exaggerates heights and draws textured ground. It is built only once the map screen is
       opened in faceted relief, then kept. The horizon needs true heights and flat colours, and
       must stand in first person from the start.
-  - **Fog.** While it is shown, the open fog is exponential (0.0005 per metre, thickened by weather)
+  - **Fog.** While it is shown, the open fog is exponential (0.0002 per metre since #9800, thickened by weather)
     instead of exponential squared, since the land now runs on past the far field.
   - **Cost.** A 10 km map streams 847 chunks in about 330 ms of work, a budget a frame. The backdrop
     pass costs about 0.09 ms at 1280×720 on an RX 9070 XT.
@@ -267,11 +267,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       only new puffs, so a body takes up to 90 s to follow a jump in the clock.
     - **Cost.** About 0.25 ms of backdrop pass (curtains and bodies) and 0.21 ms of clouds pass at
       1280×720 on an RX 9070 XT.
-    - **Fog wins past a few kilometres.** Curtains are meshes, so the horizon fog (exponential,
-      0.0005 per metre, thicker in weather) takes almost all their colour by about 6 km: farther off
+    - **Fog wins past ten kilometres or so.** Curtains are meshes, so the horizon fog (exponential,
+      0.0002 per metre, thicker in weather) takes almost all their colour by about 15 km: farther off
       a curtain is fog-coloured and shows only where the sky behind it differs. Bodies are particles,
-      which take no fog and are hazed here instead, so a storm at 15 km reads as a dark body over a
-      faint veil. Making the two agree (or thinning the horizon fog) is a tuning question, not done.
+      which take no fog and are hazed here instead, so a storm at 25 km reads as a dark body over a
+      faint veil. The fog was thinned from 0.0005 to 0.0002 for this; making the two agree further is
+      open.
   - **Known places on the horizon (H3 #9781, `HorizonLandmarks`).** Home, ruins, vantage points and
     dungeon entrances stand where the map has them as stylised block silhouettes of their kind (the
     sled and walking landmarks do not).
@@ -288,8 +289,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       tall: life size within about half a kilometre, six times at 3 km. It does not match the
       structure's own shape, which takes over at the near ground's edge.
     - **By day** a silhouette is fogged like the land under it, so it fades with the land: clear at
-      a kilometre, pale at 3 km (captured). By the fog's density a twentieth of it is left at 6 km
-      in clear air, less in weather.
+      a kilometre, pale at 3 km (captured at the old 0.0005 fog). By the fog's density
+      (0.0002 per metre since #9800) a tenth of it is left at about 11.5 km in clear air, less in
+      weather.
     - **By night** home, the one inhabited place, shows four warm windows. They are backdrop or
       world particles (four emitters, at most 24 of the shared budget), which take no fog, dimmed
       by distance here instead, so they read at 10 km. The Engine refuses a particle colour above white, so a

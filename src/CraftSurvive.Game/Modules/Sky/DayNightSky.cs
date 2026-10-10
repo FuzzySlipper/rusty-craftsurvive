@@ -112,9 +112,10 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>
     /// With the map on the horizon (#9779) the land runs on past the far field, so the haze no longer
     /// hides an edge: the open fog thins with distance (exponential, not squared), keeping a tenth of a
-    /// ridge at about <c>ln 10 / density</c> metres, so ranges tens of kilometres off read as pale shapes.
+    /// ridge at about <c>ln 10 / density</c> metres (11.5 km), so ranges tens of kilometres off read as
+    /// pale shapes, and a weather front's veil and its cloud body stay together farther out (#9800).
     /// </summary>
-    private const float HorizonFogDensity = 0.0005f;
+    private const float HorizonFogDensity = 0.0002f;
     private bool horizonShown;
     private float horizonFogDensity = HorizonFogDensity;
 
