@@ -143,6 +143,7 @@ Check.Section("generation recipe", RecipeChecks.DefaultsAreTheGeneratorsOwn);
 Check.Section("continent design", RecipeChecks.DesignsDrawTheContinent);
 Check.Section("continent design topology", RecipeChecks.DesignTopologyIsEnforced);
 Check.Section("continent design frontier", FrontierChecks.DesignsKeepTheirWayOpen);
+Check.Section("twilight", TwilightChecks.Run);
 Check.Section("map palette", PaletteChecks.Run);
 Check.Section("erosion filter", ErosionFilterChecks.Run);
 Check.Section("erosion filter shelters the passes", ErosionFilterChecks.PassesAreSheltered);

@@ -26,8 +26,8 @@ internal static class WorldClock
     internal const double NightBelowDaylight = 0.25d;
 
     /// <summary>The sun's elevation, as a sine, where twilight begins and full day is reached.</summary>
-    private const double TwilightStartsAt = -0.25d;
-    private const double FullDayAt = 0.35d;
+    internal const double TwilightStartsAt = -0.25d;
+    internal const double FullDayAt = 0.35d;
 
     /// <summary>How far the sun's arc leans off the east-west line, so noon light is not straight down.</summary>
     private const float ArcTilt = 0.35f;

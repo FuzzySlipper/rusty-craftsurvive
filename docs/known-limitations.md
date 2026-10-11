@@ -415,7 +415,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   ambient occlusion is on; the distance-field mode was not chosen because lamps and clutter are
   meshes it would not see. Tone mapping is ACES filmic with bloom and a little grading, so every
   intensity in `DayNightSky`, `LampLights` and `DungeonModule` is tuned under that operator.
-- **Day and night are a sky blend, three lights and the air.** `DayNightSky` crossfades two authored
+- **Day and night are a sky blend, three lights and the air.** `DayNightSky` crossfades two neighbouring authored
   panoramas, lights the world from them (the sky's light), and keeps a sun that becomes the moon, an
   ambient light whose shadow is the open sky (its square follows the player in steps of
   `SkyFollowStepMetres`, so a cave mouth darkens about where the player can see it), and a hemisphere
@@ -426,6 +426,23 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   in (`scripts/make-sky-gradient.py`). What moves is drawn over them: the cloud layer, the sun's disc,
   and the horizon terrain and weather. The night sky has no stars until #9807, and the moon is still
   the sun's light opposite it, its disc the sun's dimmed (#9806).
+- **Sunrise and sunset are painted twilight panoramas (#9805).** The sun keeps one bearing all year,
+  so `scripts/make-twilight-sky.py` paints each twilight onto world-fixed panoramas:
+  - a glow (sun on the horizon) and an afterglow (sun a few degrees under) for dawn and for dusk;
+  - each vivid or muted, rolled per dawn and per dusk from the day number (`Twilight`).
+
+  The sky steps day → glow → afterglow → night, blending neighbours only. A low sun also:
+  - grows and warms its disc;
+  - widens the haze toward it;
+  - tints the clouds gold, then pink.
+
+  Heavy cloud mutes all of it. A sun with seasons would need a direction-driven twilight layer
+  from the Engine instead. Engine limits that remain:
+  - The disc and halo are display values that never bloom, dimmed with the light (rusty-engine #9858).
+  - Clouds take almost no light from a sun at or under the horizon (rusty-engine #9859). The ground's
+    twilight light is raised about 11° once the disc has set. While the disc is setting,
+    `SettingCloudLift` brightens the cloud tint in the sun's colour. Far front regions can still
+    read grey at the moment of sunset.
 - **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
   irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
   bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)

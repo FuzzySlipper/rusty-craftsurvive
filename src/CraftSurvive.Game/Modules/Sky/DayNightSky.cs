@@ -6,7 +6,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Sky;
 
 /// <summary>
-/// The sky and the world's light, following the clock. The Engine blends two authored panoramas,
+/// The sky and the world's light, following the clock. The Engine blends two neighbouring authored
+/// panoramas of the day, the twilights (<see cref="Twilight"/>) and the night,
 /// lights the world from them (the sky's light), and keeps three retained lights that replace its
 /// neutral rig (disabled in the project): a sun that becomes the moon after dusk and casts through
 /// cascades, the sky's occlusion layer (an ambient light whose shadow is the open sky, so caves and
@@ -18,6 +19,26 @@ internal sealed class DayNightSky : IDisposable
 {
     internal const string DayPanoramaContentPath = "textures/sky-panorama.png";
     internal const string NightPanoramaContentPath = "textures/sky-night.png";
+
+    /// <summary>
+    /// Each base panorama, and its horizon in linear light, which the open fog takes as the sky is
+    /// blended. Day and night: the horizon all round (printed by <c>scripts/make-sky-gradient.py</c>).
+    /// The twilights: the horizon away from the sun (printed by <c>scripts/make-twilight-sky.py</c>),
+    /// because the haze toward the sun warms the fog on its side.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<SkyPanorama, (string Path, Vector3 Horizon)> Panoramas = new Dictionary<SkyPanorama, (string, Vector3)>
+    {
+        [SkyPanorama.Day] = (DayPanoramaContentPath, new(0.4172f, 0.5232f, 0.5619f)),
+        [SkyPanorama.Night] = (NightPanoramaContentPath, new(0.0094f, 0.0160f, 0.0427f)),
+        [SkyPanorama.DawnGlowVivid] = ("textures/sky-dawn-glow-vivid.png", new(0.2854f, 0.2587f, 0.2795f)),
+        [SkyPanorama.DawnGlowMuted] = ("textures/sky-dawn-glow-muted.png", new(0.2539f, 0.2907f, 0.3245f)),
+        [SkyPanorama.DawnAfterglowVivid] = ("textures/sky-dawn-afterglow-vivid.png", new(0.1194f, 0.1252f, 0.1547f)),
+        [SkyPanorama.DawnAfterglowMuted] = ("textures/sky-dawn-afterglow-muted.png", new(0.1223f, 0.1482f, 0.1796f)),
+        [SkyPanorama.DuskGlowVivid] = ("textures/sky-dusk-glow-vivid.png", new(0.2854f, 0.2587f, 0.2795f)),
+        [SkyPanorama.DuskGlowMuted] = ("textures/sky-dusk-glow-muted.png", new(0.2539f, 0.2907f, 0.3245f)),
+        [SkyPanorama.DuskAfterglowVivid] = ("textures/sky-dusk-afterglow-vivid.png", new(0.1194f, 0.1252f, 0.1547f)),
+        [SkyPanorama.DuskAfterglowMuted] = ("textures/sky-dusk-afterglow-muted.png", new(0.1223f, 0.1482f, 0.1796f)),
+    };
 
     /// <summary>The operator every light below is tuned under: film-like contrast, highlights rolling to white.</summary>
     private const ToneMappingOperator Operator = ToneMappingOperator.AcesFilmic;
@@ -95,14 +116,6 @@ internal sealed class DayNightSky : IDisposable
     private static readonly Vector3 NightGroundColour = new(0.08f, 0.08f, 0.12f);
 
     /// <summary>
-    /// Distance fog in the open: the horizon colour of each panorama in linear light (printed by
-    /// <c>scripts/make-sky-gradient.py</c>), blended as the sky is, so the far ground fades exactly
-    /// into the sky behind it.
-    /// </summary>
-    private static readonly Vector3 DayHorizon = new(0.4172f, 0.5232f, 0.5619f);
-    private static readonly Vector3 NightHorizon = new(0.0094f, 0.0160f, 0.0427f);
-
-    /// <summary>
     /// How quickly distance fades in the open (exponential squared, so the near ground is clear
     /// and the far closes): half the ground is left at 200 m, where the far field (FarField) has
     /// taken over from the drawn chunks, and a tenth at 400 m, so ridges a kilometre off stand as
@@ -149,6 +162,47 @@ internal sealed class DayNightSky : IDisposable
     private const float SunRadiusDegrees = 1.6f;
     private const float SunHalo = 0.35f;
 
+    /// <summary>
+    /// A low sun (#9805): its disc grows toward this radius and its halo by this much as it warms. The
+    /// haze toward it strengthens by up to this much and spreads wider (a smaller exponent).
+    /// </summary>
+    private const float LowSunRadiusDegrees = 2.6f;
+    private const float LowSunHalo = 0.5f;
+    private const float LowSunHaze = 0.9f;
+    private const float LowSunHazeExponent = 2.5f;
+
+    /// <summary>
+    /// The sun's disc sets: below the horizon by this much (as a sine, a little over the disc's
+    /// radius) the light still comes from the sun itself, so the disc sinks behind the land and the
+    /// halo fades. Past it the disc is put out and the twilight's light rises to its glow above the
+    /// horizon over this span, rather than leaving the disc hanging in the sky.
+    /// </summary>
+    private const double SunSetsBelow = 0.035d;
+    private const double GlowRisesOver = 0.03d;
+
+    /// <summary>
+    /// The cloud layer lit by a low sun: tinted by the twilight toward gold while the sun is up, and
+    /// toward pink once it has gone under (the colour turns between these elevations, as sines). A
+    /// muted evening keeps a share of it, and heavy cloud mutes it (no light gets under an overcast).
+    /// </summary>
+    private static readonly Vector3 GoldenCloudColour = new(1.3f, 1f, 0.72f);
+    private static readonly Vector3 TwilightCloudColour = new(1.35f, 0.82f, 0.85f);
+    private const double CloudsPinkFrom = 0.08d, CloudsPinkTo = -0.02d;
+    private const float MutedTwilight = 0.5f;
+
+    /// <summary>
+    /// Interim until the Engine lights clouds from a sun under the horizon (rusty-engine #9859): the
+    /// Engine lights the clouds with little of a light within a few degrees of the horizon, so while the
+    /// setting sun's light is that low (between these elevations, as sines) the layer's tint is lifted
+    /// by up to this much, rather than letting the clouds go dark exactly as the sun sets.
+    /// </summary>
+    private const float SettingCloudLift = 3f;
+
+    /// <summary>The lift is in the setting sun's colour: the clouds' own sunlight is what it stands in for.</summary>
+    private static readonly Vector3 SettingCloudColour = new(1f, 0.55f, 0.35f);
+    private const float SettingLightFrom = -0.05f, SettingLightTo = 0.15f;
+    private const float OvercastFrom = 0.55f, OvercastTo = 0.95f;
+
     /// <summary>Light streams past what stands before a low sun; it fades by full day.</summary>
     private const float SunShaftIntensity = 0.7f;
     private const double SunShaftsFadeAbove = 0.5d;
@@ -168,12 +222,21 @@ internal sealed class DayNightSky : IDisposable
 
     private readonly IEngineContext engine;
     private readonly Func<Vector3> observer;
-    private readonly RenderResource day;
-    private readonly RenderResource night;
+    private readonly Dictionary<SkyPanorama, RenderResource> panoramas = [];
     private Light? sun;
     private Light? skyShadow;
     private Light? fill;
     private double litDaylight = double.NaN;
+    private SkyBlend litBlend;
+
+    /// <summary>How spectacular this twilight is (1 vivid, less muted), and how much its glow lights the clouds now.</summary>
+    private float spectacle = 1f;
+    private float cloudGlow;
+    private float cloudLift;
+    private Vector3 cloudColour = TwilightCloudColour;
+
+    /// <summary>A vividness held for captures instead of the day's own roll, or null.</summary>
+    private float? heldVividness;
     private Vector3? skyShadowAround;
     private bool underground;
     private bool submerged;
@@ -368,8 +431,7 @@ internal sealed class DayNightSky : IDisposable
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.observer = observer ?? throw new ArgumentNullException(nameof(observer));
-        day = Panorama(DayPanoramaContentPath);
-        night = Panorama(NightPanoramaContentPath);
+        foreach ((SkyPanorama key, (string path, _)) in Panoramas) panoramas[key] = Panorama(path);
         engine.CameraView.SetBloom(new BloomRequest(BloomThreshold, BloomIntensity));
         Weathered();
     }
@@ -462,7 +524,7 @@ internal sealed class DayNightSky : IDisposable
         PlaceRegions();
         Weathered();
         if (!open) return;
-        engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(day, night, 0f));
+        engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(panoramas[SkyPanorama.Day], panoramas[SkyPanorama.Night], 0f));
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetAtmosphere(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
@@ -525,17 +587,46 @@ internal sealed class DayNightSky : IDisposable
             gradeSaturation + (CloudDesaturation * w.Cloud) + (ArcaneSaturation * w.Arcane)));
         Vector2 flow = w.Flow.LengthSquared() > 0 ? w.Flow : Vector2.Normalize(WindDirection);
         engine.CameraView.SetWind(new(flow, windStrength * (1f + (WindStrengthening * w.Wind)), Math.Min(1f, WindGust + (WindGusting * w.Wind))));
-        // The background is never fogged, so murk (fog, blown sand) veils the sky through the cloud layer, tinted by the air.
-        float cover = Math.Max(w.Cloud, MurkCloud * w.Murk);
-        Vector3 tint = Vector3.One * (1f - (CloudDarkening * w.Cloud));
-        if (w.Air != Vector3.Zero) tint = Vector3.Lerp(tint, w.Air * MurkCloudBrightness, w.Murk);
-        engine.CameraView.SetClouds(cover > CloudAppearsAbove
-            ? new CloudsRequest(Math.Min(1f, CloudCoverageFloor + (CloudCoverageSpan * cover)), flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)),
-                CloudAltitudeMetres, CloudScaleMetres, tint)
-            : NoClouds);
+        Clouds(w);
         Falling = Precipitation(w);
         engine.CameraView.SetPrecipitation(Falling);
         ArcaneVeil(w);
+    }
+
+    /// <summary>
+    /// The cloud layer for the weather: its cover, drift and tint. A low sun warms it, less under a
+    /// heavy overcast that no light gets beneath.
+    /// </summary>
+    private void Clouds(WeatherLook w)
+    {
+        Vector2 flow = w.Flow.LengthSquared() > 0 ? w.Flow : Vector2.Normalize(WindDirection);
+        // The background is never fogged, so murk (fog, blown sand) veils the sky through the cloud layer, tinted by the air.
+        float cover = Math.Max(w.Cloud, MurkCloud * w.Murk);
+        Vector3 tint = Vector3.One * (1f - (CloudDarkening * w.Cloud));
+        float glow = underground || onMap ? 0f : cloudGlow * (1f - (float)Smooth(cover, OvercastFrom, OvercastTo));
+        tint *= Vector3.Lerp(Vector3.One, cloudColour, glow) * (Vector3.One + (SettingCloudColour * (SettingCloudLift * cloudLift * (underground || onMap ? 0f : 1f))));
+        if (w.Air != Vector3.Zero) tint = Vector3.Lerp(tint, w.Air * MurkCloudBrightness, w.Murk);
+        if (heldCloud is float held) cover = held;
+        // A clear layer still carries the tint: the fronts' cloud regions take it.
+        engine.CameraView.SetClouds(new CloudsRequest(cover > CloudAppearsAbove ? Math.Min(1f, CloudCoverageFloor + (CloudCoverageSpan * cover)) : 0f,
+            flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)), CloudAltitudeMetres, CloudScaleMetres, tint));
+    }
+
+    /// <summary>A cloud cover held for captures instead of the weather's, or null.</summary>
+    private float? heldCloud;
+
+    /// <summary>
+    /// Captures only: holds the twilight's vividness (0 to 1; below 0 follows the day's own roll) and
+    /// the cloud layer's cover (0 to 1; below 0 follows the weather), so dawn and dusk can be compared
+    /// in clear and broken cloud. Only the sky's look is held; the weather's effects on play are not.
+    /// </summary>
+    internal string HoldTwilight(float vividness, float cloud)
+    {
+        heldVividness = vividness < 0f ? null : Math.Clamp(vividness, 0f, 1f);
+        heldCloud = cloud < 0f ? null : Math.Clamp(cloud, 0f, 1f);
+        litDaylight = double.NaN;
+        Weathered();
+        return FormattableString.Invariant($"twilight vividness={(heldVividness?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "rolled")} cloud={(heldCloud?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "weather")}");
     }
 
     /// <summary>
@@ -550,14 +641,16 @@ internal sealed class DayNightSky : IDisposable
         }
 
         double daylight = WorldClock.Daylight(time.DayFraction);
+        float vividness = heldVividness ?? Twilight.Vividness(time.Day, Twilight.Rising(time.DayFraction));
+        SkyBlend blend = Twilight.Blend(time.DayFraction, vividness);
         if (!submerged)
         {
-            engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(day, night, (float)(1d - daylight)));
+            engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(panoramas[blend.From], panoramas[blend.To], blend.Amount));
         }
 
         Vector3 eyes = observer();
         bool moved = skyShadowAround is not Vector3 around || Vector3.Distance(around, eyes) > SkyFollowStepMetres;
-        if (sun is not null && Math.Abs(daylight - litDaylight) < RelightStep && !moved)
+        if (sun is not null && Math.Abs(daylight - litDaylight) < RelightStep && !moved && blend.From == litBlend.From)
         {
             return;
         }
@@ -566,11 +659,19 @@ internal sealed class DayNightSky : IDisposable
         skyShadowAround = skyCentre;
         LightDescriptor sunlight = Sunlight(time.DayFraction, daylight);
         Relight(sunlight with { Intensity = sunlight.Intensity * (1f - (CloudSunDim * weather.Cloud)) }, SkyShadow(daylight, skyCentre), Fill(time.DayFraction, daylight));
+        spectacle = Twilight.Mood(vividness) == TwilightMood.Vivid ? 1f : MutedTwilight;
+        double sunElevation = WorldClock.SunElevation(time.DayFraction);
+        cloudGlow = (float)TwilightGlow(sunElevation) * spectacle;
+        cloudColour = Vector3.Lerp(GoldenCloudColour, TwilightCloudColour, (float)Smooth(sunElevation, CloudsPinkFrom, CloudsPinkTo));
+        // The share of the light the Engine's clouds lose while the light is this low (#9859), during twilight only.
+        cloudLift = (1f - (float)Smooth(-sunlight.Direction.Y, SettingLightFrom, SettingLightTo)) * (float)TwilightGlow(WorldClock.SunElevation(time.DayFraction));
         if (!submerged)
         {
-            Air(time.DayFraction, daylight, eyes);
+            Air(time.DayFraction, daylight, blend, eyes);
         }
 
+        Clouds(underground || onMap ? WeatherLook.Clear(weather.Flow) : weather);
+        litBlend = blend;
         litDaylight = daylight;
         litWeather = weather;
         shownDaylight = (float)daylight;
@@ -598,8 +699,8 @@ internal sealed class DayNightSky : IDisposable
         sun?.Dispose();
         skyShadow?.Dispose();
         fill?.Dispose();
-        day.Dispose();
-        night.Dispose();
+        foreach (RenderResource panorama in panoramas.Values) panorama.Dispose();
+        panoramas.Clear();
         disposed = true;
         sun = null;
         skyShadow = null;
@@ -645,12 +746,13 @@ internal sealed class DayNightSky : IDisposable
     }
 
     /// <summary>The air in the open: the horizon's fog, haze toward the sun, its disc, and its shafts when it is low.</summary>
-    private void Air(double dayFraction, double daylight, Vector3 eyes)
+    private void Air(double dayFraction, double daylight, SkyBlend blend, Vector3 eyes)
     {
         double elevation = WorldClock.SunElevation(dayFraction);
         WeatherLook w = weather;
+        // The far ground fades into the horizon of the sky behind it, blended as the sky is.
+        Vector3 horizon = Vector3.Lerp(Panoramas[blend.From].Horizon, Panoramas[blend.To].Horizon, blend.Amount);
         // The weather's air greys the horizon toward the fronts' colour, darker by night, and thickens the fog.
-        Vector3 horizon = Vector3.Lerp(NightHorizon, DayHorizon, (float)daylight);
         float airShare = Math.Min(1f, (CloudAirShare * w.Cloud) + (MurkAirShare * w.Murk));
         if (w.Air != Vector3.Zero) horizon = Vector3.Lerp(horizon, w.Air * (NightAir + ((1f - NightAir) * (float)daylight)), airShare);
         float weatherThickening = 1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud);
@@ -658,11 +760,13 @@ internal sealed class DayNightSky : IDisposable
             ? new(FogMode.Exponential, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, horizonFogDensity / fogReach * weatherThickening)
             : new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, OpenFogDensity / fogReach * weatherThickening));
         float warmth = Warmth(elevation);
-        Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * (float)daylight * (1f - w.Cloud);
+        // A low sun hazes the air toward it more strongly and more widely, as much as the evening is spectacular.
+        float low = (float)TwilightGlow(elevation) * spectacle;
+        Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * ((float)daylight + (LowSunHaze * low)) * (1f - w.Cloud);
         engine.CameraView.SetSkyLight(new SkyLightRequest((float)(NightSkyLightIntensity + ((DaySkyLightIntensity - NightSkyLightIntensity) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud))));
         engine.CameraView.SetAtmosphere(new AtmosphereRequest(
             eyes.Y - FogBaseBelowEyesMetres, FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk),
-            new Color(haze.X, haze.Y, haze.Z, 1f), HazeExponent, SunRadiusDegrees, SunHalo * (1f - w.Cloud)));
+            new Color(haze.X, haze.Y, haze.Z, 1f), HazeExponent + ((LowSunHazeExponent - HazeExponent) * low), SunDisc(elevation), SunHaloFor(elevation) * (1f - w.Cloud)));
         float shafts = elevation > 0d
             ? SunShaftIntensity * (1f - (float)Smooth(elevation, 0d, SunShaftsFadeAbove)) * (1f - w.Cloud)
             : 0f;
@@ -685,9 +789,10 @@ internal sealed class DayNightSky : IDisposable
 
         if (elevation > TwilightBelow)
         {
-            // The glow comes from where the sun went down, a little above the horizon so the
-            // ground still catches it.
-            Vector3 alongHorizon = Vector3.Normalize(new Vector3(toward.X, TwilightGlowElevation, toward.Z));
+            // The glow comes from where the sun went down, a little above the horizon so the ground
+            // still catches it; while the disc is still sinking, it comes from the sun itself.
+            float rise = (float)Smooth(elevation, -SunSetsBelow, -SunSetsBelow - GlowRisesOver);
+            Vector3 alongHorizon = Vector3.Normalize(new Vector3(toward.X, toward.Y + ((TwilightGlowElevation - toward.Y) * rise), toward.Z));
             float intensity = TwilightSunIntensity * (float)Smooth(elevation, TwilightBelow, 0d);
             return Directional(DuskSunColour, intensity, -alongHorizon);
         }
@@ -695,8 +800,19 @@ internal sealed class DayNightSky : IDisposable
         return Directional(MoonColour, MoonIntensity * (float)(1d - daylight), toward);
     }
 
+    /// <summary>
+    /// The sun's disc in degrees: larger as it warms toward the horizon, and none once it has set and
+    /// the light has left it for the glow above the horizon.
+    /// </summary>
+    private static float SunDisc(double elevation) =>
+        elevation <= -SunSetsBelow ? 0f : SunRadiusDegrees + ((LowSunRadiusDegrees - SunRadiusDegrees) * Warmth(elevation));
+
+    /// <summary>The sun's halo: stronger as it warms, fading as the disc sinks below the horizon.</summary>
+    private static float SunHaloFor(double elevation) =>
+        (SunHalo + (LowSunHalo * Warmth(elevation))) * (float)Smooth(elevation, -SunSetsBelow, 0d);
+
     /// <summary>How much of the twilight glow there is: full with the sun just under the horizon, none by day or deep night.</summary>
-    private static double Twilight(double elevation) =>
+    private static double TwilightGlow(double elevation) =>
         elevation >= 0d ? 1d - Smooth(elevation, 0d, SunFullAbove) : Smooth(elevation, TwilightBelow, 0d);
 
     /// <summary>How far the sun has warmed toward its dusk colour: fully at the horizon, not at all high in the sky.</summary>
@@ -718,7 +834,7 @@ internal sealed class DayNightSky : IDisposable
 
     private static LightDescriptor Fill(double dayFraction, double daylight)
     {
-        float twilight = (float)Twilight(WorldClock.SunElevation(dayFraction));
+        float twilight = (float)TwilightGlow(WorldClock.SunElevation(dayFraction));
         Vector3 sky = Vector3.Lerp(Vector3.Lerp(NightSkyColour, DaySkyColour, (float)daylight), TwilightSkyColour, twilight);
         float intensity = (float)(NightFillIntensity + ((DayFillIntensity - NightFillIntensity) * daylight)) + (TwilightFillIntensity * twilight);
         return LightDescriptor.Hemisphere(sky, Vector3.Lerp(NightGroundColour, DayGroundColour, (float)daylight), intensity);

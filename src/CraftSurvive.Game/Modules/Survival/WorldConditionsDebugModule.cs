@@ -24,6 +24,9 @@ public sealed class WorldConditionsDebugModule : IDebugCommandModule
     public string Grade(float temperature, float tint, float contrast, float saturation, float exposure) =>
         conditions.SetGrade(temperature, tint, contrast, saturation, exposure);
 
+    [DebugCommand("craft.world.twilight", Description = "Captures only (#9805): holds the twilight's vividness (0 to 1; -1 follows the day's roll) and the sky's cloud cover (0 to 1; -1 follows the weather).")]
+    public string Twilight(float vividness, float cloud) => conditions.HoldTwilight(vividness, cloud);
+
     [DebugCommand("craft.world.difficulty", Description = "Sets the difficulty: gentle, normal or harsh.")]
     public string SetDifficulty(string name) => conditions.SetDifficulty(name);
 }
