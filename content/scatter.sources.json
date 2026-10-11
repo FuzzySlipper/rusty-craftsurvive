@@ -1,46 +1,22 @@
 {
- "purpose": "Ground clutter scattered by TerrainScatter (#9668): bushes, a fern, flower clumps and field stones. Generated locally and stylised toward content/style/palette.json. The field stones are textured (#9831); the flower clumps are per-face vertex colour.",
+ "purpose": "Ground clutter scattered by TerrainScatter (#9668): bushes, a fern, flower clumps and field stones. Generated locally and stylised toward content/style/palette.json. The field stones and flower clumps are textured (#9831).",
  "generated": "2026-10-07",
  "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter",
  "rejected": "fern seed 31 came out as a small palm",
  "models": [
   {
    "model": "content/game/models/scatter/flowers-1.prop-mesh.json",
-   "sha256": "d36fe0c92507902eb55b51e2d2bcd9ae3a7e14352cff22a3bc29ebb4343f81cb",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
-    "seed": 31,
-    "prompt": "a small low clump of meadow wildflowers with green leaves and a few small yellow and white blossoms, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/flowers-s31/small-low-clump-of-meadow-wildflowers-with-9d3dc5b2.png",
-    "sha256": "9d3dc5b2ea18ca461d361bd8a52bab2977858f82662959bdaab81ecafa50b5ee"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/flowers-s31/textured_00001_.glb",
-    "sha256": "7f4998f2eef9f029640a8f811daa81e8c5aca9f800e4869dad674ed05ef4341d",
-    "prompt_id": "35abe71a-8707-4038-9e01-b329a0664ed6",
-    "wall_seconds": 210.2
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.45 --faces 1000 --role leaves --colors 10 --saturation 1.2 --pull-leaves foliage,meadow,autumn,snow --pull-strength 0.15"
+   "sha256": "d919d6cf5f0ff275b0fdfdbe402d51e82e23c8932c20d5db6b038af57633d293",
+   "tool": "scripts/generate-tree.py (crossed upright cards of painted clump sprites, #9831)",
+   "command": "python3 scripts/generate-tree.py flowers --seed 1 --name flowers-1 --cells 0,1",
+   "texture": "content/game/textures/trees/flowers-leaves.png"
   },
   {
    "model": "content/game/models/scatter/flowers-2.prop-mesh.json",
-   "sha256": "eeec17d4c5ee0390763e08f2c3fdcb3eb99d2e122de80040fc5865b661e102bd",
-   "concept": {
-    "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
-    "seed": 32,
-    "prompt": "a small low clump of meadow wildflowers with green leaves and a few small yellow and white blossoms, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/flowers-s32/small-low-clump-of-meadow-wildflowers-with-4adad972.png",
-    "sha256": "4adad97279d462882d5fc331d05a80f41a5ccb05dd58fc160f55992e647e1e8a"
-   },
-   "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/flowers-s32/textured_00001_.glb",
-    "sha256": "f77a06446db90d016d9e96b13b71d39ef8adf828397238d5ac60ad9a194689b6",
-    "prompt_id": "c6562422-d815-44b0-b421-35665dbede7a",
-    "wall_seconds": 145.2
-   },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.4 --faces 1000 --role leaves --colors 10 --saturation 1.2 --pull-leaves foliage,meadow,autumn,snow --pull-strength 0.15"
+   "sha256": "9b6cd9ad1f360741239c98ce0b8eebf084ca9c68e1cfd8e47d7284257e1695d9",
+   "tool": "scripts/generate-tree.py (crossed upright cards of painted clump sprites, #9831)",
+   "command": "python3 scripts/generate-tree.py flowers --seed 2 --name flowers-2 --cells 2,3",
+   "texture": "content/game/textures/trees/flowers-leaves.png"
   },
   {
    "model": "content/game/models/scatter/stones-1.prop-mesh.json",
@@ -112,6 +88,44 @@
    "sourceSha256": "dcafd1027cf49ffc08e0ab5315f9f46baf40b9c1f0cca183cd6246eb8dbc8898",
    "stylise": "stylise-texture <source> content/game/textures/scatter/stones.png --size 256 --paint 1 --pull stone,earth --pull-strength 0.4 --saturation 0.75 --brightness 1.5 --contrast 0.7 --tile --sharpen 0.2",
    "note": "Brightness is high on purpose: a texture is decoded as sRGB where the vertex colours it replaces were read as linear, so a texture of the same average grey draws about 2.4 times darker."
+  },
+  {
+   "texture": "content/game/textures/trees/flowers-leaves.png",
+   "sha256": "b9f07cc74b74a2247259a4278cc34eda1aecfd946891177ae96d93fc90eb037c",
+   "purpose": "The flower card atlas: four painted clump sprites keyed out of a flat magenta ground and packed 2x2; cells 0 and 1 (yellow and white) are flowers-1, cells 2 and 3 (blue cornflowers) flowers-2.",
+   "generator": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py --raw-prompt --framing object 1024x1024 (den-nimo), outputs/craftsurvive-content-pass/props-9831/flowers/gen.sh",
+   "derivation": "python3 scripts/make-grass-atlas.py content/game/textures/trees/flowers-leaves.png <cell 0> <cell 1> <cell 2> <cell 3> --key magenta --ramps foliage,meadow,sky,snow,autumn --pull-strength 0.15 (cell 256)",
+   "rejected": "White would key out of a white ground, so the ground is magenta, keyed by hue (lavender petals survive a key by colour distance). Other methods tried side by side and dropped: a procedural clump (mesh stems, painted blades and blossom cards drawn from the palette; lollipop daisies on near-black stems) and the TRELLIS flower mesh retextured with its own UVs (still green shards).",
+   "cells": [
+    {
+     "cell": 0,
+     "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/flowers/yellow-s62/small-clump-of-yellow-and-white-meadow-a698e6e4.png",
+     "sha256": "a698e6e4c3ee7ab63212ec54481d20f8e951a402ef62b1a953567b4b1864ec29",
+     "seed": 62,
+     "prompt": "a small clump of yellow and white meadow wildflowers on slender stems with green leaves at the base, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, soft shading, the stems rise from a straight base line along the bottom edge of the image, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    },
+    {
+     "cell": 1,
+     "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/flowers/yellow-s61/small-clump-of-yellow-and-white-meadow-53b66efd.png",
+     "sha256": "53b66efdaf731789a2a9b0f7e6202db7567a11e87c6ab4c609f72ec82ac03f96",
+     "seed": 61,
+     "prompt": "a small clump of yellow and white meadow wildflowers on slender stems with green leaves at the base, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, soft shading, the stems rise from a straight base line along the bottom edge of the image, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    },
+    {
+     "cell": 2,
+     "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/flowers/blue-s62/small-clump-of-blue-cornflower-wildflowers-ae0cc903.png",
+     "sha256": "ae0cc903f68bef1befcdaebc54d43ccb4d6d680b68401d47f4501e0f75333633",
+     "seed": 62,
+     "prompt": "a small clump of blue cornflower wildflowers on slender stems with green leaves at the base, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, soft shading, the stems rise from a straight base line along the bottom edge of the image, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    },
+    {
+     "cell": 3,
+     "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/flowers/blue-s61/small-clump-of-blue-cornflower-wildflowers-0eb757bb.png",
+     "sha256": "0eb757bb552c62e2f5b5aecfabaf97204afb523f2c5c31105e0f42412163573e",
+     "seed": 61,
+     "prompt": "a small clump of blue cornflower wildflowers on slender stems with green leaves at the base, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, painterly brush strokes, soft shading, the stems rise from a straight base line along the bottom edge of the image, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+    }
+   ]
   }
  ]
 }

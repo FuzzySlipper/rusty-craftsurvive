@@ -16,7 +16,10 @@ Image-to-mesh crowns come out as lumpy shells. Instead, a tree here is built lik
 Other forms (#9685): a pine's flat needle sprays along whorls of level branches; a dead tree's
 bare limbs; a palm's curved trunk crowned with fronds, and a fern's fronds from the ground (each
 frond a drooping strip showing a painted frond); and a bush's leaf cards on short stems, whose
-wind weight rises from the root. Bushes and ferns are written to models/scatter/.
+wind weight rises from the root; and a flower clump (#9831), upright cards crossed at even angles, each
+showing one cell of an atlas of painted clump sprites (scripts/make-grass-atlas.py, chosen with --cells), its
+tip leaning and moving with the wind, as the grass clumps do. Bushes, ferns and flowers are written to
+models/scatter/.
 
 With --far it also writes NAME-far: the distant-band variant (#9677) from the same skeleton and
 scale, so the silhouette holds at the switch: only the trunk and first limbs, four-sided, and every
@@ -156,6 +159,18 @@ KINDS = {
         "cards": {"per_twig": (6, 9), "from": 0.25, "size": (0.55, 0.8), "crown_normal": 0.7, "spread": 0.5,
                   "hang": 0.0, "rooted": True},
     },
+    # A flower clump as crossed upright cards of painted sprites; its atlas is made by make-grass-atlas.py.
+    "flowers": {
+        "height": 0.5,
+        "folder": "scatter",
+        "bark": None,
+        "leaves": "flowers",
+        "sink": 0.0,
+        "trunk": None,
+        "levels": [],
+        "cards": None,
+        "clump": {"cards": (5, 6), "size": (0.4, 0.55), "spread": 0.1, "lean": 0.3, "cells": (0, 1)},
+    },
     "fern": {
         "height": 0.8,
         "folder": "scatter",
@@ -186,6 +201,8 @@ LEAF_STYLES = {
              "angle": (35, 50)},
     "fern": {"form": "frond", "ramp": "foliage", "light": "meadow", "leaflet": 26, "leaflet_width": 6, "spacing": 7,
              "angle": (20, 35)},
+    # Painted sprites made elsewhere (scripts/make-grass-atlas.py): nothing to draw here.
+    "flowers": {"form": "sprites"},
 }
 
 
@@ -197,6 +214,7 @@ def arguments():
     parser.add_argument("--height", type=float, help="metres to the crown's top (default the kind's)")
     parser.add_argument("--no-textures", action="store_true", help="leave the kind's textures as they are")
     parser.add_argument("--far", action="store_true", help="also write NAME-far, the distant-band variant")
+    parser.add_argument("--cells", help="flowers: comma-separated atlas cells (0-3) the cards show (default the kind's)")
     return parser.parse_args()
 
 
@@ -400,7 +418,37 @@ def frond_strips(rng, spec, origin):
     return positions, normals, uvs, colors, indices
 
 
-def build(kind_name, seed, height, far=False, scale=None):
+def card_clump(rng, spec, cells):
+    """Upright cards crossed at even angles about the origin, each showing one cell of a 2x2 sprite atlas,
+    its tip leaning a little and moving with the wind (weight 0 at the root, 1 at the tip)."""
+    positions, normals, uvs, colors, indices = [], [], [], [], []
+    count = rng.randint(*spec["cards"])
+    turn = rng.uniform(0, math.pi)
+    for k in range(count):
+        angle = turn + math.pi * k / count + rng.uniform(-0.15, 0.15)
+        across = np.array([math.cos(angle), 0.0, math.sin(angle)])
+        facing = np.array([-math.sin(angle), 0.0, math.cos(angle)])
+        root = np.array([rng.uniform(-1, 1), 0.0, rng.uniform(-1, 1)]) * spec["spread"]
+        size = rng.uniform(*spec["size"])
+        lean = random_unit(rng) * np.array([1.0, 0.0, 1.0]) * size * spec["lean"]
+        cell = cells[k % len(cells)]
+        u0, v0 = (cell % 2) / 2, (cell // 2) / 2
+        u1, v1 = u0 + 0.5, v0 + 0.5
+        shade = normalise(UP * 0.7 + facing * 0.3)
+        first = len(positions)
+        for corner, uv, weight in ((root - across * size / 2, (u0, v1), 0.0), (root + across * size / 2, (u1, v1), 0.0),
+                                   (root + across * size / 2 + UP * size + lean, (u1, v0), 1.0),
+                                   (root - across * size / 2 + UP * size + lean, (u0, v0), 1.0)):
+            positions.append(corner)
+            normals.append(shade)
+            uvs.append(uv)
+            colors.append((1.0, 1.0, 1.0, weight))
+        indices += [first, first + 1, first + 2, first, first + 2, first + 3,
+                    first, first + 2, first + 1, first, first + 3, first + 2]
+    return positions, normals, uvs, colors, indices
+
+
+def build(kind_name, seed, height, far=False, scale=None, cells=None):
     kind = KINDS[kind_name]
     rng = random.Random(f"{kind_name}-{seed}")
     trunk = kind["trunk"]
@@ -435,6 +483,8 @@ def build(kind_name, seed, height, far=False, scale=None):
         fronds = kind["fronds"]
         origin = branches[0].points[-1] if fronds["at"] == "top" else np.array([0.0, -0.05, 0.0])
         pieces.append(frond_strips(rng, dict(fronds, segments=FAR_FROND_SEGMENTS) if far else fronds, origin))
+    if kind.get("clump"):
+        pieces.append(card_clump(rng, kind["clump"], cells or kind["clump"]["cells"]))
     for lp, ln, luv, lc, li in pieces:
         first = len(leaves["positions"])
         leaves["positions"] += lp
@@ -732,7 +782,7 @@ def write_textures(kind_name):
     if kind["bark"]:
         bark = BARKS[kind["bark"]](palette, random.Random(f"bark-{kind['bark']}"))
         Image.fromarray(np.clip(bark, 0, 255).astype(np.uint8), "RGB").convert("RGBA").save(folder / f"{kind['bark']}-bark.png")
-    if kind["leaves"]:
+    if kind["leaves"] and LEAF_STYLES[kind["leaves"]].get("form") != "sprites":
         style = LEAF_STYLES[kind["leaves"]]
         LEAF_FORMS[style.get("form", "cluster")](palette, style, random.Random(f"leaves-{kind['leaves']}")).save(
             folder / f"{kind['leaves']}-leaves.png")
@@ -745,7 +795,8 @@ def main():
     height = args.height or kind["height"]
     if not args.no_textures:
         write_textures(args.kind)
-    parts, low, high, scale = build(args.kind, args.seed, height)
+    cells = [int(c) for c in args.cells.split(",")] if args.cells else None
+    parts, low, high, scale = build(args.kind, args.seed, height, cells=cells)
     write(kind, name, height, parts, low, high, args.seed)
     if args.far:
         # Same skeleton and scale as the near tree; only what is drawn of it changes.

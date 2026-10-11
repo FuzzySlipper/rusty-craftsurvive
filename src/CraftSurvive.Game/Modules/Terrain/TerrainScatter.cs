@@ -61,8 +61,8 @@ internal sealed class TerrainScatter : IDisposable
         new(1, "bush-1", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),
         new(2, "bush-2", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),
         new(3, "fern-1", true, 0.02f, 0.7f, 1.3f, 32f, 0.2f, false, 2_000, PlantTintLow, PlantTintHigh, Meadow),
-        new(4, "flowers-1", true, 0.05f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
-        new(5, "flowers-2", true, 0.05f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
+        new(4, "flowers-1", true, 0.1f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
+        new(5, "flowers-2", true, 0.1f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
         new(6, "stones-1", false, 0.008f, 0.6f, 1.6f, 45f, 0.8f, true, 1_000, StoneTintLow, StoneTintHigh, Stony),
         new(7, "stones-2", false, 0.008f, 0.6f, 1.6f, 45f, 0.8f, true, 1_000, StoneTintLow, StoneTintHigh, Stony),
     ];
