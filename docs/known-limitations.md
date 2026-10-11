@@ -202,9 +202,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   requested over the first six updates. Landscape studies and dungeons have no far field.
 - **Past the far field, the map stands on the horizon (#9751, H1 #9779).** `HorizonBackdrop` draws the
   world map's ground in the Engine's backdrop layer behind the first-person world.
-  - **Ground.** It is a dual-contoured session of one voxel per 32 m map cell (one backdrop unit) at
-    true height, sampling `WorldMap` with its biome colours, rivers and exposed rock. A continent
-    has three tiers (#9822):
+  - **Ground.** It is drawn as heightfield meshes by default (below). As voxel tiers, it is a
+    dual-contoured session of one voxel per 32 m map cell (one backdrop unit) at true height,
+    sampling `WorldMap` with its biome colours, rivers and exposed rock. A continent has three tiers
+    (#9822):
     - the 32 m region window about the player (about ±4 km);
     - a 250 m middle tier out to about ±64 km, with the erosion filter cut in (`ErosionFilter`):
       slope-aligned gullies from 8 km to 500 m, and crest relief that breaks ground over 2.5 km into
@@ -242,13 +243,16 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       exaggerates heights and draws textured ground. It is built only once the map screen is
       opened in faceted relief, then kept. The horizon needs true heights and flat colours, and
       must stand in first person from the start.
-  - **Heightfield meshes (#9839 prototype).** `craft.horizon.mode mesh` draws the same tiers from the same
-    samplers as heightfield grid meshes (`MapMeshLayer`, `HeightfieldTile`) in place of voxel sessions:
-    a vertex per sampled cell with its palette colour decoded to linear (the Engine takes vertex
-    colours as linear; the voxel tiers' flat materials pass each colour as both colour and tint, which
-    the Engine multiplies, so they land near the same decoded value), normals from the heights, 64-cell tiles that meet
-    exactly at their seams, and a one-cell skirt on each edge. Tier sinks and the far-field join are
-    unchanged. Voxel stays the default until the owner's verdict on #9839. A plain product mesh cannot
+  - **Heightfield meshes (#9839, the default).** The tiers below are drawn from the same samplers as
+    heightfield grid meshes (`MapMeshLayer`, `HeightfieldTile`) rather than voxel sessions:
+    - a vertex per sampled cell, its palette colour decoded to linear (the Engine takes every
+      non-particle colour as linear);
+    - normals from the heights, 64-cell tiles that meet exactly at their seams, and a one-cell skirt
+      on each edge;
+    - tier sinks and the far-field join as for the voxel tiers.
+
+    `craft.horizon.mode voxel` still draws the dual-contoured tiers for comparison, until the
+    Engine's heightfield service (rusty-engine #9842) replaces both. A plain product mesh cannot
     carry terrain-layer weights, so the mesh tiers draw vertex colour on a matte material, not the
     walking ground's textures.
   - **Fog.** While it is shown, the open fog is exponential (0.0002 per metre since #9800, thickened by weather)

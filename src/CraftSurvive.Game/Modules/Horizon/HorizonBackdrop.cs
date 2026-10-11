@@ -39,8 +39,8 @@ internal sealed class HorizonBackdrop : IProductModule
     private const int ChunksPerUpdate = 8;
     /// <summary>How many ground tiles each tier meshes an update when the ground is drawn as meshes (#9839).</summary>
     private const int TilesPerUpdate = 4;
-    /// <summary>How the ground is drawn until a comparison chooses otherwise (#9839).</summary>
-    internal const HorizonGroundMode DefaultMode = HorizonGroundMode.Voxel;
+    /// <summary>How the ground is drawn: heightfield meshes since the owner's verdict on #9839, until the Engine's heightfield service (#9842) replaces them.</summary>
+    internal const HorizonGroundMode DefaultMode = HorizonGroundMode.Mesh;
     /// <summary>Chunks farther than these from the backdrop camera, in metres, are drawn from coarse meshes.</summary>
     private const double CellCoarseBeyondMetres = 3_000, ContinentCoarseBeyondMetres = 60_000;
     /// <summary>A continent's region window: chunk columns of the fine tier each side of the player's (one is 512 m).</summary>
