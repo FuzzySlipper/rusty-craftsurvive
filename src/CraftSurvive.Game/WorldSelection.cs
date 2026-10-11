@@ -23,7 +23,10 @@ public sealed partial class CraftSurviveProduct
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384, MapScale.DefaultContinentalSize];
     private const int MetresPerKilometre = 1024;
     private const string BuildingFacetedMessage = "Building the faceted relief...";
-    private const string FirstWorldMessage = "Generating your first world: raising ranges, running rivers and settling climate...";
+    private const string SmoothMapView = "smooth";
+    private const string FacetedMapView = "faceted";
+    private const string CloseMapView = "close";
+    private const string FirstWorldMessage ="Generating your first world: raising ranges, running rivers and settling climate...";
 
     private bool HandleWorldActions(ProductUpdate update)
     {
@@ -146,6 +149,29 @@ public sealed partial class CraftSurviveProduct
         sky.Submerged(player.HeadSubmerged);
         player.ActivateCamera();
         PublishAppearanceSnapshot();
+    }
+
+    /// <summary>Open the map in a named view, or close it, as the World action's open, style and close do (craft.world.view, #9841).</summary>
+    private string MapViewReadout(string view)
+    {
+        switch (view)
+        {
+            case SmoothMapView or FacetedMapView:
+                if (!mapOpen) OpenMap();
+                bool faceted = view == FacetedMapView;
+                if (faceted != facetedMapShown) ShowFacetedMap(faceted);
+                break;
+            case CloseMapView:
+                if (mapOpen)
+                {
+                    ExploreAtParty();
+                    CloseMap();
+                }
+                break;
+            default: return $"refused: {SmoothMapView}, {FacetedMapView} or {CloseMapView}";
+        }
+        PublishWorld();
+        return $"open={mapOpen};view={(facetedMapShown ? FacetedMapView : SmoothMapView)};message={worldMessage}";
     }
 
     /// <summary>Admit a finished world simulation from the update thread; true when the world changed hands this update.</summary>

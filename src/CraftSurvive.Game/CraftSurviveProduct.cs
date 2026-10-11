@@ -272,7 +272,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         RequireRegistration(registrar.Register(new TravelDebugModule(() => worldBuilt ? TravelReadout() : "no world", kind => worldBuilt ? ForceTravelEvent(kind) : "no world",
             (x, z) => worldBuilt ? BoundReadout(x, z) : "no world", (x, z) => worldBuilt ? PlanReadout(x, z) : "no world")));
-        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style))));
+        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style),
+            view => worldBuilt ? MapViewReadout(view) : "no world")));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));

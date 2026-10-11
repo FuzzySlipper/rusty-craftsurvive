@@ -17,13 +17,19 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
 
     private readonly Action<string>? requestStyle;
 
+    private readonly Func<string, string>? showMap;
+
     internal WorldMapDebugModule(Func<WorldCatalog> catalog, Func<TerrainWorld> terrain, Func<WorldMapVoxelView?> faceted,
-        Action<string> requestStyle)
+        Action<string> requestStyle, Func<string, string> showMap)
         : this(catalog, terrain)
     {
         this.faceted = faceted;
         this.requestStyle = requestStyle;
+        this.showMap = showMap;
     }
+
+    [DebugCommand("craft.world.view", Description = "Assisted (#9841): opens the world map in its smooth or faceted view, or closes it, as the HUD's World and view buttons do.")]
+    public string ShowMap(string view) => showMap?.Invoke(view) ?? "map=none";
 
     [DebugCommand("craft.world.mapstyle", Description = "Experiment (#9464): rebuilds the faceted map with ground style flat, ground or painted on the next update.")]
     public string SetMapStyle(string style)

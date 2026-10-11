@@ -80,9 +80,9 @@ Runs any debug command, including the Engine's playtest commands the product reg
 **The `craft.*` commands are developer tooling, never part of play.** Everything in the core
 loop has a player path: moving, climbing and swimming on keys; fighting on the attack key;
 crafting, eating, resting, building, blasting, choosing a difficulty and going in and out of
-dungeons from the HUD's actions. A command that does one of these (`craft.player.attack`,
+dungeons and the world map from the HUD's actions. A command that does one of these (`craft.player.attack`,
 `craft.inventory.craft`/`use`, `craft.dungeon.enter`/`leave`, `craft.build.*`,
-`craft.blast.fire`, `craft.world.difficulty`) is a scripted stand-in for that path. The rest
+`craft.blast.fire`, `craft.world.difficulty`, `craft.world.view`) is a scripted stand-in for that path. The rest
 are for the lane:
 - reading an owner's state (each family's `readout`, `craft.terrain.*`, `craft.runtime`,
   `craft.save.manifest`, `craft.discovery.near`/`find`/`crossings`, `craft.feedback.readout`);

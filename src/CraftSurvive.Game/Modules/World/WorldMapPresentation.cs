@@ -47,7 +47,7 @@ internal sealed class WorldMapPresentation : IDisposable
             MapSample sample = map.Node(node);
             positions[i] = Point(map.Coordinate(x * stride), sample.Elevation, map.Coordinate(z * stride));
             uvs[i] = new(x / (float)segments, z / (float)segments);
-            colors[i] = RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample);
+            colors[i] = MapPalette.VertexColour(RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample));
         }
         for (int z = 0; z < side; z++)
         for (int x = 0; x < side; x++)
