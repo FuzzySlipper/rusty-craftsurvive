@@ -20,8 +20,10 @@
 
 const INPUT_CONTEXT = 'gameplay.default';
 const CLAIM_LABEL = 'craft-live';
-const LEASE_MS = '30000';
-const INPUT_OBSERVATION_TIMEOUT_MS = 5000;
+// A GPU-less CI runner can take several seconds an update: the lease covers a long hold and the wait
+// for an update to see both key edges after it.
+const LEASE_MS = '60000';
+const INPUT_OBSERVATION_TIMEOUT_MS = 30000;
 const INPUT_OBSERVATION_POLL_MS = 100;
 const DISCOVERY_WAIT_MS = 3000;
 const JOURNAL_HEADER_BYTES = 32;
