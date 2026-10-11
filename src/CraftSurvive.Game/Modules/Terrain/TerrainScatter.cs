@@ -70,6 +70,8 @@ internal sealed class TerrainScatter : IDisposable
     // Plants flutter by their vertex wind weight and lean a little; stones hold still.
     private const float PlantWindBend = 0.05f, PlantWindFlutter = 0.05f;
     private const float PlantRoughness = 0.85f, StoneRoughness = 0.95f;
+    /// <summary>The role of a stone prop's one part (scripts/stylise-mesh.py's default for a prop that is not foliage).</summary>
+    private const string StoneRole = "solid";
 
     // The clump: cards crossed at even angles around its origin, blades from the texture on them.
     private const int GrassCards = 4;
@@ -83,7 +85,7 @@ internal sealed class TerrainScatter : IDisposable
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
     private readonly Material grass, plant, stone;
-    /// <summary>Textured props (leaf-card bushes and frond ferns, #9685), and each layer's material.</summary>
+    /// <summary>Textured props (leaf-card bushes, frond ferns, #9685, and field stones, #9831), and each layer's material.</summary>
     private readonly PropMaterials textured;
     private readonly Dictionary<uint, Material> layerMaterials = [];
     private readonly List<MeshResource> grassMeshes = [];
@@ -126,10 +128,12 @@ internal sealed class TerrainScatter : IDisposable
             grassMeshes.Add(mesh);
             grassLooks[variant.Id] = engine.Graphics.CreateMeshAppearance(mesh);
         }
-        textured = new PropMaterials(engine, _ => new PropMaterials.Finish(PlantRoughness, PlantWindBend, PlantWindFlutter));
+        textured = new PropMaterials(engine, role => role == StoneRole
+            ? new PropMaterials.Finish(StoneRoughness, 0, 0)
+            : new PropMaterials.Finish(PlantRoughness, PlantWindBend, PlantWindFlutter));
         foreach (Layer layer in Layers)
         {
-            // A layer draws with one material: a textured prop is a single leaves part on its texture.
+            // A layer draws with one material: a textured prop is a single leaves or stone part on its texture.
             Material material = layer.Sways ? plant : stone;
             MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, PropFolder + layer.Mesh + PropMesh.Suffix,
                 (role, texture) => material = texture is null ? material : textured.For(role, texture)));

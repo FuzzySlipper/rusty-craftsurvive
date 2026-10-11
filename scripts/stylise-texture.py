@@ -14,7 +14,7 @@ fine noise, muddy colour, photographic detail. This turns one into a game textur
 6. optional unsharp mask so the downsampled marks stay crisp under linear filtering.
 
 Every neighbourhood operation wraps around the edges with --tile, so a tileable input stays tileable.
-Alpha is carried through untouched. The arguments are printed as one line for the sources record.
+Alpha is carried through untouched, and the output is always RGBA (the Engine admits only RGBA PNGs). The arguments are printed as one line for the sources record.
 
     python3 scripts/stylise-texture.py IN.png OUT.png --size 256 --paint 2 --pull meadow,earth \
         --pull-strength 0.5 --colors 24 --group-strength 0.6 --saturation 1.15 --tile
@@ -167,8 +167,8 @@ def main():
         rgb = unsharp(rgb, args.sharpen, args.tile)
 
     out = np.concatenate([np.clip(rgb, 0, 1), alpha], -1)
-    mode = "RGBA" if (alpha < 1).any() else "RGB"
-    Image.fromarray((out * 255 + 0.5).astype(np.uint8)[..., :4 if mode == "RGBA" else 3], mode).save(args.output)
+    # Always RGBA: the Engine admits only RGBA PNGs, opaque or not.
+    Image.fromarray((out * 255 + 0.5).astype(np.uint8), "RGBA").save(args.output)
     print("stylise-texture " + " ".join(sys.argv[1:]))
 
 

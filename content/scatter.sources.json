@@ -1,5 +1,5 @@
 {
- "purpose": "Ground clutter scattered by TerrainScatter (#9668): bushes, a fern, flower clumps and field stones. Generated locally and stylised toward content/style/palette.json.",
+ "purpose": "Ground clutter scattered by TerrainScatter (#9668): bushes, a fern, flower clumps and field stones. Generated locally and stylised toward content/style/palette.json. The field stones are textured (#9831); the flower clumps are per-face vertex colour.",
  "generated": "2026-10-07",
  "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter",
  "rejected": "fern seed 31 came out as a small palm",
@@ -44,41 +44,43 @@
   },
   {
    "model": "content/game/models/scatter/stones-1.prop-mesh.json",
-   "sha256": "73798cb7c340dcc1ab6bbeeb20d38b66533223fd86bbcb9a4d8c632f167bffb4",
+   "sha256": "b50e7ba8a9d9fe01dc8da3216800867e15237de199d322358322aabf9494fc7e",
    "concept": {
     "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
-    "seed": 31,
-    "prompt": "a small cluster of three weathered grey and ochre field stones of different sizes, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/stones-s31/small-cluster-of-three-weathered-grey-and-9bdedfb8.png",
-    "sha256": "9bdedfb837ebe1a327f8965be17866865f4544a3ba00f303b1de5fa6262f1fb1"
+    "seed": 54,
+    "prompt": "three rugged weathered grey boulders of different sizes clustered together, craggy irregular rock with a few worn cracks and a little green moss on the tops, stylized fantasy game prop with a chunky readable silhouette, smooth soft painted shading with calm broad colour areas and no speckle, muted dark grey and warm brown stone, mildly retro 2000s survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/stones-s54/three-rugged-weathered-grey-boulders-of-0bdd954b.png",
+    "sha256": "0bdd954b89bcd5b62ab95415723f1e404a3af25830b09a7132d3f57c4b236732"
    },
    "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/stones-s31/textured_00001_.glb",
-    "sha256": "b39dcda58004a229de466b3b212fbc5218d350fb72a1c7a1a6ac4431288d41d6",
-    "prompt_id": "761ac8e8-1636-4baf-9b15-d8dbd27dfdb7",
-    "wall_seconds": 120.1
+    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 3000 --decimate qem --tex-res 1024 (1,301 faces; used for the shape only)",
+    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/mesh/stones-s54/textured_00001_.glb",
+    "sha256": "2845d97abfab49771c8235580b5521d2456523d8d503d6beac9b76035f1b347c",
+    "prompt_id": "413476a1-3a58-4fc2-811b-cccd0b9a6922",
+    "wall_seconds": 200.6
    },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 700 --colors 6 --pull-solid stone,sandstone,earth --pull-strength 0.35"
+   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals, one tile of the shared stone texture per 1.4 m; the generator's own patchwork atlas is not used)",
+   "texture": "content/game/textures/scatter/stones.png"
   },
   {
    "model": "content/game/models/scatter/stones-2.prop-mesh.json",
-   "sha256": "98d9e6228ecac13a51d8fb0d965002b28703e5dd0f5e09dcf5433d7fd1fc4d82",
+   "sha256": "5f535c08fa942466450a45a727d50809a61651703d6c5da192b3f90827405c8d",
    "concept": {
     "tool": "FLUX.2 klein via asset-pipeline legacy/tools/text-to-3d layers/text2image/src/klein.py (den-nimo), --framing object 1024x1024",
-    "seed": 32,
-    "prompt": "a small cluster of three weathered grey and ochre field stones of different sizes, stylized low-poly game asset, faceted flat-shaded polygons, chunky readable silhouette, warm painterly colours, mildly retro 2000s fantasy survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/stones-s32/small-cluster-of-three-weathered-grey-and-07593cc7.png",
-    "sha256": "07593cc7732cb400533b7fd5b3fc8736b4f3b4cc457c52b436cfdfc384d42acb"
+    "seed": 52,
+    "prompt": "three rugged weathered grey boulders of different sizes clustered together, craggy irregular rock with a few worn cracks and a little green moss on the tops, stylized fantasy game prop with a chunky readable silhouette, smooth soft painted shading with calm broad colour areas and no speckle, muted dark grey and warm brown stone, mildly retro 2000s survival game style like Valheim, single isolated object, whole object visible, centered, plain white background, no ground plane, no shadow, no text",
+    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/stones-s52/three-rugged-weathered-grey-boulders-of-a71f5d4e.png",
+    "sha256": "a71f5d4ead26b55d8cd262ab3ffeab676c19e791e45d4dc3fe019f3aeee67286"
    },
    "mesh": {
-    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 6000 --decimate qem --tex-res 1024",
-    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter/mesh/stones-s32/textured_00001_.glb",
-    "sha256": "78d189a0a849682aa8fb3477f36085c3acd64d984a6675dc5c99fe7490f4d783",
-    "prompt_id": "e810a925-6c72-403a-9ea9-235542a7b2ae",
-    "wall_seconds": 125.2
+    "tool": "native ComfyUI TRELLIS.2 bf16 on the RTX 5090 via run_native.py --faces 3000 --decimate qem --tex-res 1024 (1,301 faces; used for the shape only)",
+    "file": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/mesh/stones-s52/textured_00001_.glb",
+    "sha256": "16437d5b1c8ace12fe43341099ecede8421dbe9ead0b1ee052f8316c7caa6a00",
+    "prompt_id": "b011e093-ab8f-4f8d-ba5f-42ea92725b4a",
+    "wall_seconds": 205.3
    },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 700 --colors 6 --pull-solid stone,sandstone,earth --pull-strength 0.35"
+   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals, one tile of the shared stone texture per 1.4 m; the generator's own patchwork atlas is not used)",
+   "texture": "content/game/textures/scatter/stones.png"
   },
   {
    "model": "content/game/models/scatter/bush-1.prop-mesh.json",
@@ -97,6 +99,19 @@
    "sha256": "5dade46e6710b26d06600b9fc08c654bf292fbfcbb7db5982f918f280cfd9476",
    "tool": "scripts/generate-tree.py (procedural leaf cards / fronds, #9685)",
    "command": "python3 scripts/generate-tree.py fern --seed 1 --name fern-1"
+  }
+ ],
+ "textures": [
+  {
+   "texture": "content/game/textures/scatter/stones.png",
+   "sha256": "3cb42331838ed5913da38a282352ae778757da5cb733732cb1fffc3a9f28aaa1",
+   "generator": "Z-Image with ComfyUI-Universal-Seamless-Tiles on den-m5 (asset-pipeline tools/materials/tileable_gen.py --tiling seamless --size 1024 --seed 12), the same route as the ground textures (content/game/textures/terrain-studies/prompts.json)",
+   "prompt": "Natural weathered bedrock surface like a smooth grey cliff face or a large worn boulder: large continuous flat planes and broad soft facets of solid stone, subtle strata bands, a few long thin cracks, cool mid grey and dark charcoal with warm brown-grey weathering stains and faint pale green-grey moss tints. Not individual stones, not cobbles, not pebbles, not paving, no gaps between stones. Seamless tileable square texture for a stylized fantasy survival game, seen straight on, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no highlights, no objects, no text.",
+   "rejected": "the first wording (a boulder-stone surface) returned cobble pavements at every seed tried; the bedrock wording above returns continuous rock faces",
+   "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/tiles/stone2-s12.png",
+   "sourceSha256": "dcafd1027cf49ffc08e0ab5315f9f46baf40b9c1f0cca183cd6246eb8dbc8898",
+   "stylise": "stylise-texture <source> content/game/textures/scatter/stones.png --size 256 --paint 1 --pull stone,earth --pull-strength 0.4 --saturation 0.75 --brightness 1.5 --contrast 0.7 --tile --sharpen 0.2",
+   "note": "Brightness is high on purpose: a texture is decoded as sRGB where the vertex colours it replaces were read as linear, so a texture of the same average grey draws about 2.4 times darker."
   }
  ]
 }

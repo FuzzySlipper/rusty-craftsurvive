@@ -1,7 +1,10 @@
 """Stylise a generated GLB into a CraftSurvive prop mesh (#9664). Blender, run headless.
 
 Local generators (asset-pipeline TRELLIS.2, Tripo) return dense, softly realistic textured meshes.
-This makes a faceted game prop with economical colour:
+This makes a game prop with economical colour. By default the colour is per triangle (below);
+with --texture-ref the prop is textured instead (see the end).
+Per-triangle colour is the legacy look: one flat colour per facet reads as a different game beside
+the painted ground (docs/visual-direction.md), so natural props use --texture-ref.
 
 1. join the meshes, stand the model on its base at the origin and scale it to --height metres;
 2. decimate to about --faces triangles (collapse);
@@ -33,6 +36,21 @@ A preview PNG (front, three-quarter, top) is rendered next to it unless --no-pre
 
     blender -b --python scripts/stylise-mesh.py -- SOURCE.glb OUT.prop-mesh.json --height 9 \
         --faces 2500 --foliage --pull-leaves foliage --pull-bark bark --colors 6
+
+--texture-ref PATH makes the prop textured. The prop is one part (--role, default "solid") with a
+"uvs" array (v counted down from the top, as glTF and PropMesh do), white vertex colours carrying the
+wind weight in alpha, and smooth normals unless --shading flat; "textures": {role: PATH} names the
+installed image (a content path such as textures/scatter/stones.png) for PropMesh. No colour is
+sampled, pulled or grouped; that is the texture's job. The UVs are one of:
+  - by default Smart-UV-projected into a few large charts and scaled to one tile of a tileable
+    texture per --tile-metres of surface (the tile repeats), so a graded tile you made elsewhere
+    (scripts/stylise-texture.py --tile) wraps the shape and only the shape comes from the model;
+  - with --keep-uv TEXTURE.png the model's own UVs, and its single base-colour image written to
+    TEXTURE.png ungraded (run scripts/stylise-texture.py on it, then install it).
+Preview the prop with scripts/preview-prop-mesh.py once its texture is installed.
+
+    blender -b --python scripts/stylise-mesh.py -- SOURCE.glb OUT.prop-mesh.json --height 0.6 \
+        --faces 1500 --texture-ref textures/scatter/stones.png --tile-metres 1.2
 """
 import argparse
 import colorsys
@@ -48,6 +66,8 @@ from mathutils import Vector
 PALETTE = Path(__file__).resolve().parent.parent / "content" / "style" / "palette.json"
 KMEANS_SEED = 9664
 KMEANS_ITERATIONS = 20
+DEFAULT_TILE_METRES = 1.2
+SMART_UV_ANGLE = 80
 PREVIEW_SIZE = 512
 DECIMALS = 4
 
@@ -66,7 +86,14 @@ def arguments():
     parser.add_argument("--leaf-saturation", type=float, default=0.18)
     parser.add_argument("--leaf-root-weight", type=float, default=0.0)
     parser.add_argument("--wind-weight", choices=("height", "radial"), default="height")
-    parser.add_argument("--shading", choices=("flat", "smooth"), default="flat")
+    parser.add_argument("--shading", choices=("flat", "smooth"), default=None,
+                        help="default flat; smooth with --texture-ref")
+    parser.add_argument("--texture-ref", default=None,
+                        help="content path of the texture the prop names; textures the prop instead of colouring triangles")
+    parser.add_argument("--tile-metres", type=float, default=DEFAULT_TILE_METRES,
+                        help="metres of surface per repeat of the tile (with --texture-ref)")
+    parser.add_argument("--keep-uv", default=None, metavar="TEXTURE_PNG",
+                        help="with --texture-ref: keep the model's UVs and write its base-colour image here")
     parser.add_argument("--static-mesh", default=None, help="also write an Engine StaticMeshAsset JSON here")
     parser.add_argument("--pull-leaves", default="foliage")
     parser.add_argument("--pull-bark", default="bark")
@@ -78,7 +105,13 @@ def arguments():
     parser.add_argument("--brightness", type=float, default=1.0)
     parser.add_argument("--yaw", type=float, default=0.0, help="turn about the vertical axis, degrees")
     parser.add_argument("--no-preview", action="store_true")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.keep_uv and not args.texture_ref:
+        parser.error("--keep-uv needs --texture-ref")
+    if args.texture_ref and (args.foliage or args.static_mesh):
+        parser.error("--texture-ref makes one part and no static mesh: drop --foliage and --static-mesh")
+    args.shading = args.shading or ("smooth" if args.texture_ref else "flat")
+    return args
 
 
 def hex_rgb(value):
@@ -184,7 +217,7 @@ def load(args):
 def faces(model, args):
     images = {}
     for index, slot in enumerate(model.material_slots):
-        image = base_image(slot.material)
+        image = None if args.texture_ref else base_image(slot.material)
         if image is not None:
             images[index] = (image.size[0], image.size[1], list(image.pixels[:]))
     mesh = model.data
@@ -203,6 +236,16 @@ def faces(model, args):
     for triangle in mesh.loop_triangles:
         slot = triangle.material_index
         material = model.material_slots[slot].material if model.material_slots else None
+        if args.texture_ref:
+            # The texture carries the colour; the triangle keeps its corners' UVs (glTF's v, counted down).
+            if uv is None:
+                raise SystemExit("--texture-ref needs a model with UVs")
+            corner_uvs = [(uv[loop].uv[0], 1 - uv[loop].uv[1]) for loop in triangle.loops]
+            normals = ([corner_normals[loop].vector.copy() for loop in triangle.loops] if args.shading == "smooth"
+                       else [triangle.normal.copy()] * 3)
+            result.append({"corners": [mesh.vertices[v].co.copy() for v in triangle.vertices],
+                           "normals": normals, "uvs": corner_uvs, "rgb": [1.0, 1.0, 1.0]})
+            continue
         if uv is not None and slot in images:
             uvs = [uv[loop].uv for loop in triangle.loops]
             points = uvs + [sum((Vector(p) for p in uvs), Vector((0, 0))) / 3]
@@ -249,11 +292,14 @@ def build(model, args):
         names = [n for n in pulls[role].split(",") if n]
         palette = [c for n in names for c in ramps[n]]
         amount = args.bark_saturation if role == "bark" and args.bark_saturation is not None else args.saturation
-        colours = group(pull([saturate(f["rgb"], amount) for f in members], palette, args.pull_strength), args.colors)
-        positions, normals, colors, indices = [], [], [], []
+        if args.texture_ref:
+            colours = [f["rgb"] for f in members]
+        else:
+            colours = group(pull([saturate(f["rgb"], amount) for f in members], palette, args.pull_strength), args.colors)
+        positions, normals, colors, indices, uvs = [], [], [], [], []
         top = max((c.z for f in members for c in f["corners"]), default=1.0) or 1.0
         for face, rgb in zip(members, colours):
-            for corner, n in zip(face["corners"], face["normals"]):
+            for corner, n, uv in zip(face["corners"], face["normals"], face.get("uvs") or [None] * 3):
                 # Blender Z up to Engine Y up.
                 p = (corner.x, corner.z, -corner.y)
                 for axis in range(3):
@@ -268,10 +314,54 @@ def build(model, args):
                 positions.extend(round(c, DECIMALS) for c in p)
                 normals.extend(round(c, DECIMALS) for c in (n.x, n.z, -n.y))
                 colors.extend([round(c, DECIMALS) for c in rgb] + [round(weight, DECIMALS)])
-        parts.append({"role": role, "positions": positions, "normals": normals, "colors": colors, "indices": indices})
-    return {"name": Path(args.output).name.split(".")[0], "height": args.height,
-            "bounds": {"min": [round(v, DECIMALS) for v in low], "max": [round(v, DECIMALS) for v in high]},
-            "parts": parts}
+                if uv is not None:
+                    uvs.extend(round(c, DECIMALS) for c in uv)
+        part = {"role": role, "positions": positions, "normals": normals, "colors": colors, "indices": indices}
+        if args.texture_ref:
+            part = {"role": role, "positions": positions, "normals": normals, "uvs": uvs, "colors": colors, "indices": indices}
+        parts.append(part)
+    asset = {"name": Path(args.output).name.split(".")[0], "height": args.height,
+             "bounds": {"min": [round(v, DECIMALS) for v in low], "max": [round(v, DECIMALS) for v in high]},
+             "parts": parts}
+    if args.texture_ref:
+        asset["textures"] = {part["role"]: args.texture_ref for part in parts}
+    return asset
+
+
+def unwrap(model, tile_metres):
+    """Smart-UV-project the model into a few large charts, scaled to one tile per tile_metres of surface."""
+    bpy.ops.object.select_all(action="DESELECT")
+    model.select_set(True)
+    bpy.context.view_layer.objects.active = model
+    mesh = model.data
+    while mesh.uv_layers:
+        mesh.uv_layers.remove(mesh.uv_layers[0])
+    mesh.uv_layers.new(name="UVMap")
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.mesh.select_all(action="SELECT")
+    bpy.ops.uv.smart_project(angle_limit=math.radians(SMART_UV_ANGLE), island_margin=0.0, scale_to_bounds=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    mesh.calc_loop_triangles()
+    uv = mesh.uv_layers.active.data
+    surface = uv_area = 0.0
+    for triangle in mesh.loop_triangles:
+        a, b, c = (uv[loop].uv for loop in triangle.loops)
+        uv_area += abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2
+        surface += triangle.area
+    scale = math.sqrt(surface / uv_area) / tile_metres
+    for corner in uv:
+        corner.uv = (corner.uv[0] * scale, corner.uv[1] * scale)
+
+
+def export_texture(model, path):
+    """The model's one base-colour image, as it came, for scripts/stylise-texture.py to grade."""
+    images = {base_image(slot.material) for slot in model.material_slots} - {None}
+    if len(images) != 1:
+        raise SystemExit(f"--keep-uv needs exactly one base-colour image on the model, found {len(images)}")
+    image = images.pop()
+    image.filepath_raw = str(path)
+    image.file_format = "PNG"
+    image.save()
 
 
 def static_mesh(asset):
@@ -371,14 +461,18 @@ def preview(asset, path):
 def main():
     args = arguments()
     model = load(args)
+    if args.texture_ref and not args.keep_uv:
+        unwrap(model, args.tile_metres)
     asset = build(model, args)
     output = Path(args.output)
     output.write_text(json.dumps(asset, separators=(",", ":")))
+    if args.keep_uv:
+        export_texture(model, args.keep_uv)
     if args.static_mesh:
         Path(args.static_mesh).write_text(json.dumps(static_mesh(asset), separators=(",", ":")))
     counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in asset["parts"])
     print(f"stylise-mesh {output.name}: {counts} triangles; args: {' '.join(sys.argv[sys.argv.index('--') + 1:])}")
-    if not args.no_preview:
+    if not args.no_preview and not args.texture_ref:
         preview(asset, output.with_suffix("").with_suffix(".preview.png"))
 
 
