@@ -40,6 +40,7 @@
     <Compile Include="$(ProductModules)World/MapPalette.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Content/ColourSpace.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Horizon/HorizonGround.cs" LinkBase="Product" />
+    <Compile Include="$(ProductModules)Terrain/FarGround.cs" LinkBase="Product" />
     <Compile Include="$(ProductModules)Places/KnownPlaceKind.cs" LinkBase="Product/Places" />
     <Compile Include="$(ProductModules)Travel/PartyTravel.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product/Travel" />

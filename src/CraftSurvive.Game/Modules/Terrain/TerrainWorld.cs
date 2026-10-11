@@ -39,7 +39,10 @@ internal sealed class TerrainWorld : IDisposable
     private SpatialSession? session;
 
     /// <summary>The horizon beyond the drawn chunks (#9548), drawn from the same height field.</summary>
-    private FarField? farField;
+    private IFarField? farField;
+    /// <summary>How the far field is drawn (#9850): voxel until the owner's verdict, heightfield, or none for measuring.</summary>
+    private string farFieldMode = VoxelFarField;
+    private const string VoxelFarField = "voxel", HeightfieldFarField = "heightfield", NoFarField = "none";
     private long currentStep;
     private bool started;
 
@@ -150,7 +153,7 @@ internal sealed class TerrainWorld : IDisposable
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
-            farField = new FarField(engine, content, recipe, frame) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
+            farField = CreateFarField(farFieldMode);
             ui.Publish();
             started = true;
         }
@@ -210,10 +213,10 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, IsEdited, EditRevision, streamer.ResidentCount);
-        if (farField is FarField horizon)
+        if (farField is IFarField far)
         {
-            horizon.Follow(centerVoxel.X, centerVoxel.Z);
-            horizon.Advance();
+            far.Follow(centerVoxel.X, centerVoxel.Z);
+            far.Advance();
         }
     }
 
@@ -299,6 +302,36 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>How much of the horizon is drawn, for the scene readout.</summary>
     internal string FarFieldReadout() => farField?.Readout() ?? "farField=none";
+
+    /// <summary>
+    /// For the comparison (#9850): draws the far field as its voxel session, as an Engine heightfield, or
+    /// not at all (for measuring what it costs). The new one follows the player from the next update.
+    /// </summary>
+    internal string SetFarFieldMode(string mode)
+    {
+        if (mode is not (VoxelFarField or HeightfieldFarField or NoFarField)) return $"unknown far field '{mode}': voxel, heightfield or none";
+        if (mode == farFieldMode) return FarFieldReadout();
+        farFieldMode = mode;
+        if (!started) return $"farField mode={mode}";
+        farField?.Dispose();
+        farField = null;
+        farField = CreateFarField(mode);
+        return $"farField mode={mode}";
+    }
+
+    private IFarField? CreateFarField(string mode)
+    {
+        IFarField? far = mode switch
+        {
+            VoxelFarField => new FarField(engine, content, recipe, frame),
+            HeightfieldFarField => new FarFieldHeightfield(engine, content, recipe, () => Session),
+            _ => null,
+        };
+        if (far is null) return null;
+        far.RadiusChunks = viewDistanceChunks;
+        far.NearEdgeMetres = NearEdgeMetres;
+        return far;
+    }
 
     /// <summary>
     /// The Engine's standing surface in resident terrain, including its reconstructed shape.

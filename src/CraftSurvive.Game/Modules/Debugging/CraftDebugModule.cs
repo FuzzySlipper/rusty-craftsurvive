@@ -137,6 +137,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.build.studyclear", Description = "Assisted (#9684): removes the building look study.")]
     public string ClearBuildStudy() => terrain.BuildStudy(0, 0, clear: true);
 
+    [DebugCommand("craft.terrain.farfield", Description = "Comparison (#9850): draws the far field as its voxel session (voxel), an Engine heightfield with the walking ground's layers (heightfield), or not at all (none, for measuring).")]
+    public string SetFarField(string mode) => terrain.SetFarFieldMode(mode);
+
     [DebugCommand("craft.terrain.fartrees", Description = "Assisted (#9677): how far the distant trees reach in metres (0 off, up to 400), for measuring their cost.")]
     public string SetFarTrees(long metres) => terrain.SetFarTrees(metres);
 

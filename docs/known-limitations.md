@@ -200,6 +200,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   zone is re-sampled every `SinkFollowStepMetres`. A new world grows the field from the player's column
   by `GrowthPerUpdate` chunk columns an update until it reaches `RadiusChunks`, so the full field is
   requested over the first six updates. Landscape studies and dungeons have no far field.
+  - **As a heightfield (#9850, comparison).** `craft.terrain.farfield heightfield` draws the same ground
+    (`FarGround`'s rules: the sink, the far material, water) as one 8 m ring of an Engine heightfield in
+    the scene, anchored in the walking session, sampled on workers (`FarFieldHeightfield`). Each vertex
+    weighs the far materials about it over the ground's transition reach, so patches blend as on the
+    voxel field, and water is its own hard-edged material. `voxel` stays the default until the owner's
+    verdict; `none` draws no far field, for measuring.
 - **Past the far field, the map stands on the horizon (#9751, H1 #9779).** `HorizonBackdrop` draws the
   world map's ground in the Engine's backdrop layer behind the first-person world.
   - **Ground.** It is one Engine heightfield (#9848, rusty-engine #9842, `docs/heightfield-terrain.md`

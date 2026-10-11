@@ -15,10 +15,10 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// height short of the near ground's edge so the two meet under the fog. It follows the player
 /// a chunk column at a time and moves with the world origin.
 /// </summary>
-internal sealed class FarField : IDisposable
+internal sealed class FarField : IFarField
 {
-    /// <summary>One far voxel. Eight metres keeps a ridge's shape and a valley's floor at a kilometre.</summary>
-    internal const double VoxelMetres = 8d;
+    /// <summary>One far voxel: a far cell (<see cref="FarGround.CellMetres"/>).</summary>
+    internal const double VoxelMetres = FarGround.CellMetres;
 
     /// <summary>One far chunk column, in metres.</summary>
     internal const int ChunkMetres = (int)VoxelMetres * TerrainConstants.ChunkEdgeLength;
@@ -29,7 +29,7 @@ internal sealed class FarField : IDisposable
     private bool rewant;
 
     /// <summary>How many far chunk columns are kept each way: the player's view distance (#9759), taken on the next follow.</summary>
-    internal int RadiusChunks
+    public int RadiusChunks
     {
         get => radiusChunks;
         set
@@ -55,41 +55,24 @@ internal sealed class FarField : IDisposable
     /// <summary>How many far chunks are admitted or replaced an update.</summary>
     private const int ChunksPerUpdate = 10;
 
-    /// <summary>
-    /// How far the far field is sunk under the near ground, and where: fully within
-    /// <see cref="sinkInnerMetres"/> of the player, rising to its true height by
-    /// <see cref="sinkOuterMetres"/>, short of the near ground's edge (the requested chunk
-    /// radius) so the join is under the fog and never a drop. Six metres covers a far voxel's
-    /// error against the metre ground.
-    /// </summary>
-    private const double SinkMetres = 6d;
-    /// <summary>The sunk zone ends this far inside the near ground's edge, and is fully sunk this far inside it.</summary>
-    private const double SinkOuterInsideEdgeMetres = 16d, SinkInnerInsideEdgeMetres = 64d;
-    private double sinkInnerMetres = (TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength) - SinkInnerInsideEdgeMetres;
-    private double sinkOuterMetres = (TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength) - SinkOuterInsideEdgeMetres;
+    private double sinkInnerMetres = FarGround.SinkBand(TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength).Inner;
+    private double sinkOuterMetres = FarGround.SinkBand(TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength).Outer;
 
     /// <summary>
     /// The near ground's edge, in metres from the player (its requested radius, #9759): the sunk zone
     /// keeps short of it, so the join stays under the fog. A change re-samples the columns either touches.
     /// </summary>
-    internal double NearEdgeMetres
+    public double NearEdgeMetres
     {
         set
         {
             HashSet<(long X, long Z)> changed = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(sinkCentre)];
-            sinkInnerMetres = Math.Max(0d, value - SinkInnerInsideEdgeMetres);
-            sinkOuterMetres = Math.Max(sinkInnerMetres + 1d, value - SinkOuterInsideEdgeMetres);
+            (sinkInnerMetres, sinkOuterMetres) = FarGround.SinkBand(value);
             if (double.IsNaN(sinkCentre.X)) return;
             changed.UnionWith(SunkColumns(sinkCentre));
             layer.Invalidate(changed);
         }
     }
-
-    /// <summary>How far the player walks before the sunk zone is moved onto them again.</summary>
-    private const double SinkFollowStepMetres = 24d;
-
-    /// <summary>Ground steeper than this, in metres of rise per metre, shows rock in the far field.</summary>
-    private const double RockSlope = 0.7d;
 
     /// <summary>The sea and rivers in the far field, one flat colour.</summary>
     private static readonly Color WaterColour = MapPalette.River;
@@ -140,15 +123,15 @@ internal sealed class FarField : IDisposable
             throw;
         }
 
-        frame.Rebased += _ => Align();
+        frame.Rebased += OnRebased;
         Align();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture,
+    public string Readout() => string.Create(CultureInfo.InvariantCulture,
         $"farField chunks={layer.ResidentChunks} pending={layer.PendingChunks} radius={grownRadius}/{RadiusChunks} sink={sinkInnerMetres:F0}-{sinkOuterMetres:F0}m centre={centre?.X ?? 0},{centre?.Z ?? 0} workMs={layer.WorkMilliseconds:F0}");
 
     /// <summary>Keeps the far field centred on a world column, and the sunk zone under the player.</summary>
-    internal void Follow(long worldX, long worldZ)
+    public void Follow(long worldX, long worldZ)
     {
         if (disposed) return;
         (long X, long Z) column = (GridMath.FloorDivide(worldX, ChunkMetres), GridMath.FloorDivide(worldZ, ChunkMetres));
@@ -167,7 +150,7 @@ internal sealed class FarField : IDisposable
     }
 
     /// <summary>Applies a bounded number of queued chunk operations and refreshes the drawn scene.</summary>
-    internal void Advance()
+    public void Advance()
     {
         if (disposed) return;
         layer.Advance(ChunksPerUpdate);
@@ -177,6 +160,8 @@ internal sealed class FarField : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        // A far field let go (the world closing, or another one drawn in its place) follows no more rebases.
+        frame.Rebased -= OnRebased;
         layer.Dispose();
         water.Dispose();
         ground.Dispose();
@@ -185,7 +170,7 @@ internal sealed class FarField : IDisposable
     /// <summary>Moves the sunk zone onto the player once they have walked a step from its centre, re-sampling the columns it changes.</summary>
     private void FollowSink(long worldX, long worldZ)
     {
-        if (!double.IsNaN(sinkCentre.X) && Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z)) < SinkFollowStepMetres)
+        if (!double.IsNaN(sinkCentre.X) && Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z)) < FarGround.SinkFollowStepMetres)
         {
             return;
         }
@@ -214,13 +199,15 @@ internal sealed class FarField : IDisposable
     {
         if (double.IsNaN(sinkCentre.X)) return 0d;
         double away = Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z));
-        double t = Math.Clamp((away - sinkInnerMetres) / (sinkOuterMetres - sinkInnerMetres), 0d, 1d);
-        return SinkMetres * (1d - (t * t * (3d - (2d * t))));
+        return FarGround.Sink(away, sinkInnerMetres, sinkOuterMetres);
     }
+
+    private void OnRebased(Vector3 shift) => Align();
 
     /// <summary>The far field's session shares the walking session's world origin, so the two draw in one frame.</summary>
     private void Align()
     {
+        if (disposed) return;
         (long X, long Y, long Z) origin = frame.Origin;
         if (origin == alignedOrigin) return;
         using WorldOriginPrepared prepared = engine.WorldOrigin.Prepare(new WorldOriginPrepareRequest(
@@ -265,9 +252,7 @@ internal sealed class FarField : IDisposable
             long worldX = ((chunkX * edge) + x) * (long)VoxelMetres + ((long)VoxelMetres / 2);
             long worldZ = ((chunkZ * edge) + z) * (long)VoxelMetres + ((long)VoxelMetres / 2);
             MapSample geography = recipe.Geography(worldX, worldZ);
-            double waterTop = geography.InRiver
-                ? Math.Max(GenerationConstants.WaterLevel, Math.Floor(geography.RiverSurface))
-                : GenerationConstants.WaterLevel;
+            double waterTop = FarGround.WaterTop(geography);
             double top = Math.Max(height, waterTop);
             surface[i] = (top - Sink(worldX, worldZ)) / VoxelMetres;
             material[i] = waterTop > height ? WaterSlot : (uint)Natural(geography, heights, x, z, height);
@@ -285,11 +270,7 @@ internal sealed class FarField : IDisposable
             if (!double.IsNaN(other)) rise = Math.Max(rise, Math.Abs(other - height));
         }
 
-        if (geography.Rock >= TerrainRecipe.ExposedRockThreshold || rise / VoxelMetres > RockSlope) return BlockId.Stone;
-        if (height <= GenerationConstants.WaterLevel + 1) return BlockId.Sand;
-        if (WorldMap.Frozen(geography)) return BlockId.Snow;
-        if (WorldMap.Arid(geography)) return BlockId.Sand;
-        return BlockId.Grass;
+        return FarGround.Natural(geography, rise, height, VoxelMetres);
     }
 
     private static IEnumerable<long> Range(long from, long to)
