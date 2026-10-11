@@ -98,6 +98,13 @@ Painterly color grouping or authored texture marks can provide that economical
 detail. Judge them as part of the material in a moving 3D scene; neither dense
 illustration detail nor a uniform paint effect across the entire view is needed.
 
+Props, rocks and vegetation share the textured ground's surface language. Untextured,
+flat-shaded faceted low-poly models (single flat colours per facet) read as a different
+game beside the painted ground and are not a target style: give natural props textured,
+softly shaded surfaces in the ground's palette, with silhouettes that can stay chunky.
+Earlier faceted props and the faceted prompt wording used to generate them are legacy to
+replace, not a reference.
+
 Do not assume a universal texture resolution or a mandatory nearest-neighbor
 filter. Filtering, texture density, and contrast must be judged together in
 motion and at the distance where a material is normally seen. An enlarged

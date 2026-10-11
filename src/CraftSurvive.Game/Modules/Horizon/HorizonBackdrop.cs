@@ -66,9 +66,15 @@ internal sealed class HorizonBackdrop : IProductModule
     private const double RockSlopeFrom = 0.45, RockSlopeFull = 0.95;
     /// <summary>Each tier samples for at most this long an update (#9822): sampling never stalls an update.</summary>
     private const double SampleBudgetMilliseconds = 2;
-    private const double ExposedRock = 0.6;
+    /// <summary>
+    /// Rock is shown in graded steps between each environment's colour and stone (#9813, owner review
+    /// 2026-10-10): the backdrop's cells are flat-coloured, so an all-or-nothing switch drew stair-stepped
+    /// rectangles of rock on smooth slopes. Rock shows from the first share and is whole by the second.
+    /// </summary>
+    private const int RockSteps = 8;
+    private const double RockShowsFrom = 0.15, RockWhole = 0.95;
     private const double RiverReach = 0.5, ContinentRiverReach = 0.71;
-    private const uint RiverSlot = 1, RockSlot = 2, FirstBiomeSlot = 3;
+    private const uint RiverSlot = 1, FirstBiomeSlot = 2;
     private static readonly Vector3 BackdropOrigin = Vector3.Zero;
 
     private readonly IEngineContext engine;
@@ -127,8 +133,9 @@ internal sealed class HorizonBackdrop : IProductModule
         try
         {
             materials[RiverSlot] = Flat(MapPalette.River);
-            materials[RockSlot] = Flat(MapPalette.Stone);
-            foreach (MapBiome biome in Enum.GetValues<MapBiome>()) materials[Slot(biome)] = Flat(MapPalette.For(biome));
+            foreach (MapBiome biome in Enum.GetValues<MapBiome>())
+            for (int step = 0; step <= RockSteps; step++)
+                materials[Slot(biome, step)] = Flat(Mix(MapPalette.For(biome), MapPalette.Stone, (float)step / RockSteps));
             if (map.Scale.Continental) regions = MapRegions.For(map);
             BuildTiers();
         }
@@ -460,10 +467,9 @@ internal sealed class HorizonBackdrop : IProductModule
                 : mid is not null ? (UnderMid(worldX, worldZ) ? UnderMidSinkMetres : 0)
                 : UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
             surface[i] = (top - sink) / cellMetres;
-            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
+            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea, 0)
                 : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + (cellMetres * riverReach) ? RiverSlot
-                : sample.Rock >= ExposedRock ? RockSlot
-                : Slot(WorldMap.Biome(sample));
+                : Ground(sample);
         }
     }
 
@@ -630,10 +636,9 @@ internal sealed class HorizonBackdrop : IProductModule
 
             double sink = Sink(worldX, worldZ) + (UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
             surface[i] = (Top(sample) - sink) / MidCellMetres;
-            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
+            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea, 0)
                 : nearest is RiverInfluence river && river.Distance < river.HalfWidth + (MidCellMetres * RiverReach) ? RiverSlot
-                : sample.Rock >= ExposedRock ? RockSlot
-                : Slot(WorldMap.Biome(sample));
+                : Ground(sample);
         }
     }
 
@@ -659,7 +664,17 @@ internal sealed class HorizonBackdrop : IProductModule
     private Material Flat(Color color) =>
         engine.Graphics.CreateMaterial(new MaterialRequest(color, default, 1f, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
 
-    private static uint Slot(MapBiome biome) => FirstBiomeSlot + (uint)biome;
+    private static uint Slot(MapBiome biome, int rockStep) => FirstBiomeSlot + ((uint)biome * (RockSteps + 1)) + (uint)rockStep;
+
+    /// <summary>A land sample's material: its environment, with its rock share graded in <see cref="RockSteps"/> steps toward stone.</summary>
+    private static uint Ground(MapSample sample)
+    {
+        double share = Math.Clamp((sample.Rock - RockShowsFrom) / (RockWhole - RockShowsFrom), 0, 1);
+        return Slot(WorldMap.Biome(sample), (int)Math.Round(WorldMap.Smooth(share) * RockSteps));
+    }
+
+    private static Color Mix(Color from, Color to, float t) =>
+        new(from.R + ((to.R - from.R) * t), from.G + ((to.G - from.G) * t), from.B + ((to.B - from.B) * t), 1);
 
     private static IEnumerable<long> Range(long first, long last)
     {
