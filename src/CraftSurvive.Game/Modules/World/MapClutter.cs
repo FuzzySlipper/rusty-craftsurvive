@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 
@@ -7,7 +8,8 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>
 /// Map-scale clutter for the faceted map's detail patch: generated low-poly meshes (trees, rocks),
 /// not voxels, scattered deterministically by environment over a jittered grid and set on the
-/// drawn surface. Instances are appearance facts sharing one appearance per model.
+/// drawn surface. Instances are appearance facts sharing one appearance per model. A model is a
+/// textured prop mesh (<see cref="PropMesh"/>, #9831) or a vertex-coloured static mesh, by its file's name.
 /// </summary>
 internal sealed class MapClutter : IDisposable
 {
@@ -23,21 +25,26 @@ internal sealed class MapClutter : IDisposable
     private const float SizeVariation = 0.25f;
     private const ulong ScatterSalt = 0xA0761D6478BD642FUL;
     private static readonly Color Untinted = new(1, 1, 1, 1);
+    /// <summary>Textured clutter is stone or wood: matt, and it holds still.</summary>
+    private const float PropRoughness = 0.95f;
 
     private readonly Dictionary<Model, Appearance> appearances = [];
+    private readonly List<MeshResource> meshes = [];
+    private readonly PropMaterials materials;
     private readonly WorldMap map;
     private readonly Func<double, double, MapSample> geography;
     private AppearanceFact[] shown = [], hidden = [];
 
     /// <param name="geography">Where clutter reads the ground: a continent's region tiles, else the map.</param>
-    internal MapClutter(IEngineContext engine, WorldMap map, Func<double, double, MapSample>? geography = null)
+    internal MapClutter(IEngineContext engine, ProductContent content, WorldMap map, Func<double, double, MapSample>? geography = null)
     {
         this.map = map;
         this.geography = geography ?? map.Sample;
+        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(PropRoughness, 0, 0));
         try
         {
             foreach (Model model in Enum.GetValues<Model>())
-                appearances[model] = engine.Graphics.CreateStaticMeshFromContent(new(ContentPath(model), Untinted));
+                appearances[model] = Create(engine, content, ContentPath(model));
         }
         catch
         {
@@ -83,6 +90,19 @@ internal sealed class MapClutter : IDisposable
     {
         foreach (Appearance appearance in appearances.Values) appearance.Dispose();
         appearances.Clear();
+        foreach (MeshResource mesh in meshes) mesh.Dispose();
+        meshes.Clear();
+        materials.Dispose();
+    }
+
+    private Appearance Create(IEngineContext engine, ProductContent content, string path)
+    {
+        if (!path.EndsWith(PropMesh.Suffix, StringComparison.Ordinal))
+            return engine.Graphics.CreateStaticMeshFromContent(new(path, Untinted));
+        MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, path,
+            (role, texture) => materials.For(role, texture ?? throw new InvalidOperationException($"CraftSurvive map clutter '{path}' part '{role}' names no texture."))));
+        meshes.Add(mesh);
+        return engine.Graphics.CreateMeshAppearance(mesh);
     }
 
     internal static string ContentPath(Model model) => model switch
@@ -90,7 +110,7 @@ internal sealed class MapClutter : IDisposable
         Model.Pine => "models/map/pine.static-mesh.json",
         Model.Broadleaf => "models/map/broadleaf.static-mesh.json",
         Model.Palm => "models/map/palm.static-mesh.json",
-        Model.Rock => "models/map/rock.static-mesh.json",
+        Model.Rock => "models/map/rock" + PropMesh.Suffix,
         Model.Cactus => "models/map/cactus.static-mesh.json",
         _ => "models/map/deadtree.static-mesh.json",
     };

@@ -172,7 +172,7 @@ internal sealed class WorldMapVoxelView : IDisposable
                     false, continentGround, ContinentLayerCoarseBeyond);
             coarse = Layer(1, CellMetres, fine, fineRivers, RiverReach, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround, CoarseLayerCoarseBeyond);
             detail = Layer(1d / DetailPerCell, DetailMetres, fine, fineRivers, RiverReach, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond);
-            clutter = new MapClutter(engine, map, fine);
+            clutter = new MapClutter(engine, content, map, fine);
             // The windows come first: the ground beneath samples them to sink under each finer tier.
             Follow(new(partyWorldFeet.X, partyWorldFeet.Z));
             if (continent is not null)

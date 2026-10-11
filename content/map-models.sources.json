@@ -35,15 +35,14 @@
       "normalized": "content/map-models/palm.glb"
     },
     {
-      "model": "content/game/models/map/rock.static-mesh.json",
-      "workbenchJob": "487764bc1044c6c684d6f3fc",
-      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-487764bc1044c6c684d6f3fc/generate-model.glb",
-      "tripoTask": "0950d814-42a3-466a-9ab0-7947a6c004d4",
-      "credits": 110.0,
-      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
-      "prompt": "A low-poly stylized grey rock outcrop for a strategy game world map: three faceted angular boulders clustered together, flat-shaded, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
-      "normalized": "content/map-models/rock.glb"
+      "model": "content/game/models/map/rock.prop-mesh.json",
+      "sha256": "b67b278a11e27de6dbb47e4c1862d5b76c25e3fe0099ac940b3be823a82c5711",
+      "supersedes": "The Tripo map rock (three faceted angular boulders, per-face colour) was replaced with the first-person stones' shape and texture so the rock is one material in both modes (#9831).",
+      "concept": "content/scatter.sources.json, stones-1 (FLUX.2 klein seed 54, then TRELLIS.2)",
+      "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/mesh/stones-s54/textured_00001_.glb",
+      "sourceSha256": "2845d97abfab49771c8235580b5521d2456523d8d503d6beac9b76035f1b347c",
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <source> content/game/models/map/rock.prop-mesh.json --height 1.0 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 2.333 (unit height, as the other map models; the tile is the stones' texture, repeated at the same density relative to the shape as the 0.6 m first-person stones); read by MapClutter",
+      "texture": "content/game/textures/scatter/stones.png"
     },
     {
       "model": "content/game/models/map/cactus.static-mesh.json",
