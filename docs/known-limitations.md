@@ -202,68 +202,40 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   requested over the first six updates. Landscape studies and dungeons have no far field.
 - **Past the far field, the map stands on the horizon (#9751, H1 #9779).** `HorizonBackdrop` draws the
   world map's ground in the Engine's backdrop layer behind the first-person world.
-  - **Ground.** It is drawn as heightfield meshes by default (below). As voxel tiers, it is a
-    dual-contoured session of one voxel per 32 m map cell (one backdrop unit) at true height,
-    sampling `WorldMap` with its biome colours, rivers and exposed rock. A continent has three tiers
-    (#9822):
-    - the 32 m region window about the player (about ±4 km);
-    - a 250 m middle tier out to about ±64 km, with the erosion filter cut in (`ErosionFilter`):
+  - **Ground.** It is one Engine heightfield (#9848, rusty-engine #9842, `docs/heightfield-terrain.md`
+    in the Engine) in the backdrop at 1:`Scale`, sampled in world metres by `HorizonGround` on the
+    `HeightfieldStreamer`'s workers. Its rings follow the first-person camera. A continent has three:
+    - 31.25 m out to about 4 km: region ground where its tiles are built, else the eroded map. As
+      region tiles about the player are built (prefetched as before) the ground over them is sampled
+      again;
+    - 250 m out to about 64 km: the map with the erosion filter cut in (`ErosionFilter`, #9822):
       slope-aligned gullies from 8 km to 500 m, and crest relief that breaks ground over 2.5 km into
-      peaks and cols. It is faded off rivers and the coast, so neither moves. Walking terrain and
-      the generated world are untouched; the filter is the horizon's alone;
-    - the kilometre tier over the whole continent.
+      peaks and cols. It is faded off rivers and the coast, so neither moves, and it is the horizon's
+      alone. Ground the filtered surface leaves steep is bare rock, and lifted ground is colder (#9813);
+    - 1 km over the whole continent.
 
-    Each sinks beneath the finer one inside it and eases onto the coarser one at its edge. The tiers
-    sample their columns for at most 2 ms an update each, nearest the player first, so after a long
-    move the horizon fills from near to far. The middle tier took about 9 s of sampling and settled in
-    about 80 s.
+    An ordinary map is one 32 m ring. Every ring's tile is 16 cells, so the continent's rings nest by
+    tile (500 m, 4 km, 16 km), which the Engine requires (32 m would not). The Engine geomorphs each
+    ring onto the next, so no tier is sunk beneath another and a ring shift does not pop. Vertex
+    colours are the palette decoded to linear (the Engine takes every non-particle colour as
+    linear), with rock graded smoothly toward stone. Colours are not morphed, so a ring edge can show
+    a slight change of tone. The sampler reads only the map, its rivers, the erosion filter and built
+    region tiles, plus an immutable frame (the sink and any exaggeration) that the update replaces
+    before invalidating what it changes.
   - **Link.** It is linked to the first-person camera alone, anchored at the world's origin in the
     walking session, so a rebase needs no call and the map screen never shows it. A dungeon unlinks it.
   - **Join.** It is sunk 60 m about the player, so the 8 m far field covers the near range.
     - The sink eases out (`HorizonSink`) inside the radius the far field always covers: its reach
       less one far chunk and the 256 m follow step.
-    - The sunk zone follows the player every 256 m. Every point a move changes is under the far
-      field at the time, so ground the player can see never moves.
-    - A walk of 1 km crossing four moves measured 0.000 m of exposed change
-      (`craft.horizon.readout` `exposedChange`).
-  - **Memory.** Measured with `craft.horizon.hold 0|1`, from the scene's mesh memory:
-
-    | Map | Meshes | CPU geometry | GPU |
-    | --- | --- | --- | --- |
-    | 8 km | 480 | 6.1 MB | 13.0 MB |
-    | 390 km continent | 1,516 | 19.3 MB | 41.4 MB |
-    | 390 km continent with the middle tier (#9822) | 3,679 | 44.0 MB | 94.2 MB |
-
-    With the middle tier the backdrop pass measured 0.32 ms at 1280×720 (it was about 0.25 ms).
-
-    - Voxel payloads add at most 32 KB a chunk (16 MB and 60 MB), plus a 3 KB sampled column each
-      on the product's side.
-    - Resident memory does not fall on release, since the allocator keeps it.
-    - The horizon keeps its own sessions rather than sharing the map view's. The map view
-      exaggerates heights and draws textured ground. It is built only once the map screen is
-      opened in faceted relief, then kept. The horizon needs true heights and flat colours, and
-      must stand in first person from the start.
-  - **Heightfield meshes (#9839, the default).** The tiers below are drawn from the same samplers as
-    heightfield grid meshes (`MapMeshLayer`, `HeightfieldTile`) rather than voxel sessions:
-    - a vertex per sampled cell, its palette colour decoded to linear (the Engine takes every
-      non-particle colour as linear);
-    - normals from the heights, 64-cell tiles that meet exactly at their seams, and a one-cell skirt
-      on each edge;
-    - tier sinks and the far-field join as for the voxel tiers.
-
-    `craft.horizon.mode voxel` still draws the dual-contoured tiers for comparison, until the
-    Engine's heightfield service (rusty-engine #9842) replaces both. A plain product mesh cannot
-    carry terrain-layer weights, so the mesh tiers draw vertex colour on a matte material, not the
-    walking ground's textures.
+    - The sunk zone follows the player every 256 m, and the ground it sank before and sinks now is
+      sampled again. Every point a move changes is under the far field at the time, so ground the
+      player can see never moves (`craft.horizon.readout` `exposedChange`).
+  - **Memory and cost.** `craft.horizon.readout` reports the heightfield's tiles, vertices, the
+    samples and meshes the Engine holds, and the streamer's sampling time; `craft.horizon.hold 0|1`
+    destroys and rebuilds it for measuring. Measurements against the earlier voxel and mesh horizons
+    are on Den #9848.
   - **Fog.** While it is shown, the open fog is exponential (0.0002 per metre since #9800, thickened by weather)
     instead of exponential squared, since the land now runs on past the far field.
-  - **Cost.** A 10 km map streams 847 chunks in about 330 ms of work, a budget a frame. The backdrop
-    pass costs about 0.09 ms at 1280×720 on an RX 9070 XT.
-  - **Continent.** The kilometre tier covers the whole continent, and a 32 m window of region ground
-    about the player (about 8 km across) is admitted as its region tiles are ready. The window eases
-    onto the kilometre tier over two chunks at its edge, and the kilometre tier sinks 1.5 km beneath
-    it. A 390 km continent streams 1,356 kilometre and 732 window chunks in about 1 s of work. The
-    backdrop pass is about 0.15 ms at 1280×720.
   - **Tuning commands.**
     - `craft.horizon.peaks <km>` finds the high ground about the player for aimed captures.
     - `craft.horizon.exaggerate <f>` (captures only) multiplies heights above the player's ground.

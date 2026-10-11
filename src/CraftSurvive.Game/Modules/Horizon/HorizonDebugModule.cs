@@ -17,10 +17,7 @@ public sealed class HorizonDebugModule : IDebugCommandModule
     [DebugCommand("craft.horizon.fog", Description = "Tuning: sets the open fog's density while the horizon is shown (exponential, per metre).")]
     public string Fog(double density) => sky().SetHorizonFog((float)density);
 
-    [DebugCommand("craft.horizon.digest", Description = "Measuring: each tier's digest of its sampled ground, to compare a horizon that followed the player with one built fresh (hold 0, hold 1) where they stand.")]
-    public string Digest() => horizon().Digest();
-
-    [DebugCommand("craft.horizon.readout", Description = "Reads the horizon backdrop: linked, scale, chunks streamed, the sunk zone's centre and the far field's reach.")]
+    [DebugCommand("craft.horizon.readout", Description = "Reads the horizon backdrop: linked, scale, the heightfield's tiles, vertices, held bytes and sampling, whether it is settled, the sunk zone's centre and the far field's reach.")]
     public string Readout() => horizon().Readout();
 
     [DebugCommand("craft.horizon.peaks", Description = "Assisted: the highest map ground in each of eight compass sectors within the given kilometres, with distance and bearing, for aimed captures.")]
@@ -29,11 +26,11 @@ public sealed class HorizonDebugModule : IDebugCommandModule
     [DebugCommand("craft.horizon.exaggerate", Description = "Captures only: multiplies the horizon's heights above the player's ground (1 to 20; 1 is true scale) so a gentle map's ranges read beside the map view.")]
     public string Exaggerate(double factor) => horizon().Exaggerate(factor);
 
-    [DebugCommand("craft.horizon.hold", Description = "Measuring only: 0 releases the horizon's sessions (voxels, meshes, presentations), 1 builds them again; the host's memory difference is its cost.")]
+    [DebugCommand("craft.horizon.hold", Description = "Measuring only: 0 destroys the horizon's heightfield (samples, meshes, draws), 1 builds it again; the host's memory difference is its cost.")]
     public string Hold(long held) => horizon().Hold(held != 0);
 
-    [DebugCommand("craft.horizon.mode", Description = "Comparison (#9839): draws the horizon's ground as dual-contoured voxel tiers (voxel) or heightfield grid meshes (mesh), rebuilt from the same samplers.")]
-    public string Mode(string mode) => horizon().SetMode(mode);
+    [DebugCommand("craft.horizon.tune", Description = "Tuning (#9848): the middle and coarsest rings' reaches in kilometres and the tiles committed an update; the heightfield is made again.")]
+    public string Tune(double midKilometres, double coarsestKilometres, long commits) => horizon().Tune(midKilometres, coarsestKilometres, commits);
 
     [DebugCommand("craft.horizon.show", Description = "Assisted: shows (1) or hides (0) the horizon backdrop, for comparison captures.")]
     public string Show(long shown)

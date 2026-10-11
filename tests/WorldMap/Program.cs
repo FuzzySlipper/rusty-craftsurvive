@@ -118,6 +118,7 @@ try
         RegionChecks(continent.Map);
         Check.Section("weather on the continent", () => WeatherChecks.Continent(continent.Map));
         Check.Section("the continent's bounds", () => FrontierChecks.Continent(continent.Map));
+        Check.Section("the horizon's heightfield ground", () => HorizonGroundChecks.Run(continent.Map));
         ContinentalTerrainChecks(continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
@@ -152,8 +153,6 @@ Check.Section("weather arrivals", WeatherChecks.EachFrontArrivesOnce);
 Check.Section("horizon sink", HorizonChecks.SinkMovesOnlyUnderTheFarField);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
-Check.Section("horizon middle tier follows the region window", HorizonChecks.MiddleTierFollowsTheRegionWindow);
-Check.Section("horizon heightfield tiles", HeightfieldTileChecks.Run);
 return Check.Finish("WorldMap");
 
 partial class Program

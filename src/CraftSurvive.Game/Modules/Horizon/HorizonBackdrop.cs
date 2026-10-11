@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
+using Rusty.Engine.Heightfields;
 
 namespace CraftSurvive.Game.Modules.Horizon;
 
@@ -13,73 +14,27 @@ namespace CraftSurvive.Game.Modules.Horizon;
 /// horizon in the direction it lies. The Engine's backdrop camera stands where the player stands,
 /// scaled down by <see cref="Scale"/>, so the whole map fits in a few hundred units.
 /// <para>
-/// The ground is dual-contoured voxel sessions sampling the map as the map view does, in tiers:
-/// <list type="bullet">
-/// <item>an ordinary map is one 32 m layer over the whole map;</item>
-/// <item>a continent is a kilometre tier over the whole continent, with a 32 m window of region ground
-/// about the player (about 8 km across, admitted as its region tiles are ready and easing onto the
-/// kilometre tier over its outer band), the kilometre tier sinking beneath it.</item>
-/// </list>
-/// Every tier is sunk within the far field's reach, so the 8 m far field covers the near range and
-/// the backdrop takes over beyond it under the haze.
+/// The ground is one Engine heightfield (#9848, rusty-engine #9842) in the backdrop, sampled in world
+/// metres by <see cref="HorizonGround"/> on the streamer's workers, its rings centred on the
+/// first-person camera and geomorphed one onto the next by the Engine. It is sunk about the player
+/// within the far field's reach (<see cref="HorizonSink"/>), so the 8 m far field covers the near range
+/// and the backdrop takes over beyond it under the haze.
 /// </para>
 /// It is linked to the first-person camera alone, so the map screen's camera never sees it, and is
 /// unlinked while the player is in a separate space (a dungeon).
 /// </summary>
 internal sealed class HorizonBackdrop : IProductModule
 {
-    /// <summary>The fine tier's cell: the map view's coarse layer, a whole ordinary map's backdrop unit.</summary>
+    /// <summary>An ordinary map's backdrop unit: the map view's coarse layer.</summary>
     internal const double CellMetres = 32;
-    /// <summary>A continent's broad tier, and its backdrop unit: the map view's kilometre tier.</summary>
+    /// <summary>A continent's backdrop unit: the map view's kilometre tier.</summary>
     internal const double ContinentCellMetres = 1000;
-    private const int EdgeLength = MapVoxelLayer.EdgeLength;
-    private const double CellChunkMetres = HorizonTiers.RegionChunkMetres;
-    private const double ContinentChunkMetres = EdgeLength * ContinentCellMetres;
-    /// <summary>How many backdrop chunks each tier admits or replaces an update.</summary>
-    private const int ChunksPerUpdate = 8;
-    /// <summary>How many ground tiles each tier meshes an update when the ground is drawn as meshes (#9839).</summary>
-    private const int TilesPerUpdate = 4;
-    /// <summary>How the ground is drawn: heightfield meshes since the owner's verdict on #9839, until the Engine's heightfield service (#9842) replaces them.</summary>
-    internal const HorizonGroundMode DefaultMode = HorizonGroundMode.Mesh;
-    /// <summary>Chunks farther than these from the backdrop camera, in metres, are drawn from coarse meshes.</summary>
-    private const double CellCoarseBeyondMetres = 3_000, ContinentCoarseBeyondMetres = 60_000;
-    /// <summary>A continent's region window: chunk columns of the fine tier each side of the player's (one is 512 m).</summary>
-    private const int RegionRadiusChunks = 8;
-    /// <summary>Chunk columns over which the window's ground eases onto the kilometre tier, so the tiers meet flush.</summary>
-    private const int RegionFadeChunks = HorizonTiers.RegionFadeChunks;
-    private const double RegionFadeMetres = HorizonTiers.RegionFadeMetres;
-    /// <summary>The kilometre tier sinks this far beneath the window's ground past its fade band.</summary>
-    private const double UnderRegionSinkMetres = 1_500;
-    /// <summary>
-    /// A continent's middle tier (#9822): 250 m cells with the erosion filter cut in, within this many chunk
-    /// columns (4 km each, so about 64 km) of the player's, easing onto the kilometre tier over its outer band.
-    /// </summary>
-    internal const double MidCellMetres = 250;
-    private const double MidChunkMetres = HorizonTiers.MidChunkMetres;
-    private const int MidRadiusChunks = 16, MidFadeChunks = 2;
-    private const double MidFadeMetres = MidFadeChunks * MidChunkMetres;
-    private const double MidCoarseBeyondMetres = 16_000;
-    /// <summary>The kilometre tier sinks this far beneath the middle tier past its fade band: below the deepest gully the filter cuts.</summary>
-    private const double UnderMidSinkMetres = 2_500;
-    /// <summary>The filter's slope is measured this many middle cells either side.</summary>
-    private static readonly int SlopeCells = (int)Math.Round(ErodedHeights.SlopeReachMetres / MidCellMetres);
-    /// <summary>
-    /// The filtered ground's own slope sets bare rock (#9813): from the first slope rock shows, wholly by the
-    /// second; snow follows the filtered height through the climate's cooling.
-    /// </summary>
-    private const double RockSlopeFrom = 0.45, RockSlopeFull = 0.95;
-    /// <summary>Each tier samples for at most this long an update (#9822): sampling never stalls an update.</summary>
-    private const double SampleBudgetMilliseconds = 2;
-    /// <summary>
-    /// Rock is shown in graded steps between each environment's colour and stone (#9813, owner review
-    /// 2026-10-10): the backdrop's cells are flat-coloured, so an all-or-nothing switch drew stair-stepped
-    /// rectangles of rock on smooth slopes. Rock shows from the first share and is whole by the second.
-    /// </summary>
-    private const int RockSteps = 8;
-    private const double RockShowsFrom = 0.15, RockWhole = 0.95;
-    private const double RiverReach = 0.5, ContinentRiverReach = 0.71;
-    private const uint RiverSlot = 1, FirstBiomeSlot = 2;
+    /// <summary>How many sampled tiles are committed to the Engine an update, by default: 64 settles a 130 km jump in about 4 s (8 took 19 s).</summary>
+    private const int DefaultCommitsPerUpdate = 64;
+    private int commitsPerUpdate = DefaultCommitsPerUpdate;
     private static readonly Vector3 BackdropOrigin = Vector3.Zero;
+    private static readonly Color White = new(1, 1, 1, 1);
+    private const float GroundRoughness = 1f;
 
     private readonly IEngineContext engine;
     private readonly WorldMap map;
@@ -89,36 +44,27 @@ internal sealed class HorizonBackdrop : IProductModule
     private readonly Func<bool> inTheWorld;
     private readonly Func<double> reach;
     private readonly Action<bool>? shownChanged;
-    private readonly Dictionary<uint, Material> materials = [];
-    /// <summary>Each material slot's vertex colour when the ground is drawn as meshes.</summary>
-    private readonly Dictionary<uint, Color> paints = [];
-    /// <summary>The meshes' one material: matte white, tinted by the vertex colour.</summary>
-    private readonly Material meshMaterial;
-    /// <summary>The 32 m tier: the whole of an ordinary map, or a continent's region window.</summary>
-    private IMapLayer cells = null!;
-    /// <summary>A continent's kilometre tier; null on an ordinary map.</summary>
-    private IMapLayer? continent;
-    /// <summary>A continent's middle tier about the player, with the erosion filter (#9822); null on an ordinary map.</summary>
-    private IMapLayer? mid;
-    /// <summary>Mesh tiers released but not yet out of the published snapshot.</summary>
-    private readonly List<IMapLayer> withdrawn = [];
-    private readonly ErodedHeights? eroded;
-    private readonly long firstMidChunk, lastMidChunk;
-    private Vector2 midMinimum, midMaximum;
-    /// <summary>For measuring what the horizon holds: its sessions disposed until rebuilt.</summary>
-    private bool released;
     private readonly MapRegions? regions;
-    private readonly HashSet<(long X, long Z)> regionCovered = [];
-    private readonly long firstCellChunk, lastCellChunk;
-    private Vector2 regionMinimum, regionMaximum;
+    private readonly HorizonGround ground;
+    /// <summary>The ground's one material: matte white, tinted by the samples' linear vertex colours.</summary>
+    private readonly Material material;
+    private Heightfield? heightfield;
+    private HeightfieldStreamer? streamer;
+    /// <summary>The camera the rings follow; the heightfield is made again for another.</summary>
+    private Camera? focusCamera;
+    /// <summary>For measuring what the horizon holds: the heightfield destroyed until built again.</summary>
+    private bool released;
+    /// <summary>Region tiles about the player that were built when last looked at; a change resamples the ground over them.</summary>
+    private readonly HashSet<(int X, int Z)> readyRegions = [];
     private (double X, double Z) sinkCentre = (double.NaN, double.NaN);
     private double reachMetres;
     private Camera? linked;
     private bool shown;
     private long linkChanges;
+    private double exaggeration = 1, exaggerationBase;
 
     /// <param name="walking">The walking session: the backdrop's anchor is resolved in its frame, so a rebase moves nothing.</param>
-    /// <param name="camera">The first-person camera, once it exists: the only view linked to the backdrop.</param>
+    /// <param name="camera">The first-person camera, once it exists: the only view linked to the backdrop, and the rings' focus.</param>
     /// <param name="inTheWorld">Whether the player is in the open world, not a separate space such as a dungeon.</param>
     /// <param name="reach">The far field's reach from the player, in metres: the backdrop is sunk within it.</param>
     /// <param name="shownChanged">Told each update whether the backdrop is shown, so the sky can thin its fog.</param>
@@ -134,143 +80,15 @@ internal sealed class HorizonBackdrop : IProductModule
         this.reach = reach ?? throw new ArgumentNullException(nameof(reach));
         this.shownChanged = shownChanged;
         Scale = map.Scale.Continental ? ContinentCellMetres : CellMetres;
-        firstCellChunk = (long)Math.Floor(-map.Radius / CellChunkMetres);
-        lastCellChunk = (long)Math.Floor((map.Radius - 1) / CellChunkMetres);
-        firstMidChunk = (long)Math.Floor(-map.Radius / MidChunkMetres);
-        lastMidChunk = (long)Math.Floor((map.Radius - 1) / MidChunkMetres);
+        ErodedHeights? eroded = null;
         if (map.Scale.Continental)
+        {
+            regions = MapRegions.For(map);
             eroded = new(map, new ErosionFilter(map.Configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent), ContinentDesign.For(map.Configuration.Size));
-        meshMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(White, default, 1f, White, Vector3.Zero, 0f, true));
-        try
-        {
-            Paint(RiverSlot, MapPalette.River);
-            foreach (MapBiome biome in Enum.GetValues<MapBiome>())
-            for (int step = 0; step <= RockSteps; step++)
-                Paint(Slot(biome, step), Mix(MapPalette.For(biome), MapPalette.Stone, (float)step / RockSteps));
-            if (map.Scale.Continental) regions = MapRegions.For(map);
-            BuildTiers();
-        }
-        catch
-        {
-            Dispose();
-            throw;
-        }
-    }
-
-    private double exaggeration = 1;
-    private double exaggerationBase;
-
-    /// <summary>
-    /// For aimed captures only (#9779): heights above the ground under the player are multiplied by
-    /// this, so a gentle map's ranges read on the skyline beside the map view. Play is at true scale (1).
-    /// Every streamed column is sampled again.
-    /// </summary>
-    internal string Exaggerate(double factor)
-    {
-        exaggeration = Math.Clamp(factor, 1, 20);
-        Vector3 at = playerWorld();
-        exaggerationBase = map.Sample(at.X, at.Z).Elevation;
-        cells.Invalidate(map.Scale.Continental ? regionCovered : AllColumns(CellChunkMetres));
-        continent?.Invalidate(AllColumns(ContinentChunkMetres));
-        mid?.Invalidate(MidColumns(midMinimum, midMaximum));
-        return string.Create(CultureInfo.InvariantCulture, $"exaggeration={exaggeration:F1} above {exaggerationBase:F0}m; ") + Readout();
-    }
-
-    private IEnumerable<(long X, long Z)> AllColumns(double chunkMetres)
-    {
-        long first = (long)Math.Floor(-map.Radius / chunkMetres), last = (long)Math.Floor((map.Radius - 1) / chunkMetres);
-        return from z in Range(first, last) from x in Range(first, last) select (x, z);
-    }
-
-    /// <summary>Creates the tiers' sessions and asks for the ground they stream.</summary>
-    private void BuildTiers()
-    {
-        cells = Layer(CellMetres, SampleCells, CellCoarseBeyondMetres, tier: 0);
-        if (map.Scale.Continental)
-        {
-            continent = Layer(ContinentCellMetres, SampleContinent, ContinentCoarseBeyondMetres, tier: 1);
-            continent.Want(AllColumns(ContinentChunkMetres));
-            mid = Layer(MidCellMetres, SampleMid, MidCoarseBeyondMetres, tier: 2);
-        }
-        else
-        {
-            cells.Want(from z in Range(firstCellChunk, lastCellChunk) from x in Range(firstCellChunk, lastCellChunk) select (x, z));
         }
 
-        regionCovered.Clear();
-        regionMinimum = regionMaximum = default;
-        midMinimum = midMaximum = default;
-        sinkCentre = (double.NaN, double.NaN);
-        // Each build starts a fresh join measurement, so a walk can be measured after a teleport.
-        sinkMoves = 0;
-        exposedChange = 0;
-    }
-
-    /// <summary>
-    /// One tier's ground in the current <see cref="Mode"/>: a dual-contoured voxel session, or heightfield
-    /// grid meshes from the same sampler (#9839), each tier with its own block of appearance ids.
-    /// </summary>
-    private IMapLayer Layer(double cellMetres, MapVoxelLayer.ColumnSampler sampler, double coarseBeyondMetres, int tier) => Mode == HorizonGroundMode.Mesh
-        ? new MapMeshLayer(engine, cellMetres / Scale, sampler, slot => paints.GetValueOrDefault(slot, White), meshMaterial,
-            ProductIds.HorizonGroundBase + ((ulong)tier * ProductIds.HorizonGroundTierLimit), ProductIds.HorizonGroundTierLimit, SampleBudgetMilliseconds)
-        : new MapVoxelLayer(engine, cellMetres / Scale, sampler, materials,
-            coarseBeyond: coarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
-
-    /// <summary>How the ground is drawn: dual-contoured voxel tiers, or heightfield grid meshes (#9839).</summary>
-    internal HorizonGroundMode Mode { get; private set; } = DefaultMode;
-
-    /// <summary>For the comparison (#9839): rebuilds every tier drawn the other way, from the same samplers.</summary>
-    internal string SetMode(string name)
-    {
-        if (!Enum.TryParse(name, ignoreCase: true, out HorizonGroundMode wanted) || !Enum.IsDefined(wanted))
-            return $"unknown mode '{name}': voxel or mesh";
-        if (wanted == Mode) return Readout();
-        bool wasHeld = !released;
-        if (wasHeld) Hold(false);
-        Mode = wanted;
-        return wasHeld ? Hold(true) : Readout();
-    }
-
-    /// <summary>
-    /// For measuring what the horizon holds (R9779-1): disposes its sessions (the voxels, meshes and
-    /// presentations) and unlinks it, or builds them again. The difference in the host's memory is
-    /// the horizon's cost.
-    /// </summary>
-    internal string Hold(bool held)
-    {
-        if (held == !released) return Readout();
-        if (!held)
-        {
-            Link(null);
-            Withdraw(cells);
-            Withdraw(continent);
-            continent = null;
-            Withdraw(mid);
-            mid = null;
-            released = true;
-            return "horizon released";
-        }
-
-        released = false;
-        BuildTiers();
-        return Readout();
-    }
-
-    /// <summary>
-    /// Releases a tier. A mesh tier's tiles may be in the published snapshot, and the Engine keeps an
-    /// appearance in use until a snapshot without it is published, so it waits for <see cref="AfterAppearanceSnapshot"/>.
-    /// </summary>
-    private void Withdraw(IMapLayer? layer)
-    {
-        if (layer is MapMeshLayer) withdrawn.Add(layer);
-        else layer?.Dispose();
-    }
-
-    /// <summary>Disposes the mesh tiers released before this snapshot, which no longer draws them.</summary>
-    internal void AfterAppearanceSnapshot()
-    {
-        foreach (IMapLayer layer in withdrawn) layer.Dispose();
-        withdrawn.Clear();
+        ground = new HorizonGround(map, regions, eroded, FarField.ChunkMetres);
+        material = engine.Graphics.CreateMaterial(new MaterialRequest(White, default, GroundRoughness, White, Vector3.Zero, 0f, false));
     }
 
     /// <summary>Weather fronts on the horizon (H2 #9780), drawn while the backdrop is shown.</summary>
@@ -280,17 +98,61 @@ internal sealed class HorizonBackdrop : IProductModule
     internal HorizonLandmarks? Landmarks { get; set; }
 
     /// <summary>The fronts' masses and the places' silhouettes for the appearance snapshot while the backdrop is shown.</summary>
-    internal IEnumerable<AppearanceFact> Facts => !shown ? [] : [.. GroundFacts(), .. Weather?.Facts(Scale) ?? [], .. Landmarks?.Facts() ?? []];
-
-    /// <summary>The ground's tiles when it is drawn as meshes; a voxel tier draws through its own presentation.</summary>
-    private IEnumerable<AppearanceFact> GroundFacts() => released ? [] :
-        new[] { cells, mid, continent }.OfType<MapMeshLayer>().SelectMany(layer => layer.Facts(RenderLayer.Backdrop));
+    internal IEnumerable<AppearanceFact> Facts => !shown ? [] : [.. Weather?.Facts(Scale) ?? [], .. Landmarks?.Facts() ?? []];
 
     /// <summary>For comparison captures: off unlinks the backdrop, leaving the far field over the panorama.</summary>
     internal bool Enabled { get; set; } = true;
 
     /// <summary>Metres per backdrop unit: the Engine draws the backdrop from the eye's position divided by this.</summary>
     internal double Scale { get; }
+
+    /// <summary>
+    /// For aimed captures only (#9779): heights above the ground under the player are multiplied by
+    /// this, so a gentle map's ranges read on the skyline beside the map view. Play is at true scale (1).
+    /// The whole ground is sampled again.
+    /// </summary>
+    internal string Exaggerate(double factor)
+    {
+        exaggeration = Math.Clamp(factor, 1, 20);
+        Vector3 at = playerWorld();
+        exaggerationBase = map.Sample(at.X, at.Z).Elevation;
+        Publish();
+        Invalidate(-map.Radius, -map.Radius, map.Radius, map.Radius);
+        return string.Create(CultureInfo.InvariantCulture, $"exaggeration={exaggeration:F1} above {exaggerationBase:F0}m; ") + Readout();
+    }
+
+    /// <summary>
+    /// For measuring what the horizon holds (R9779-1): destroys the heightfield (its samples, meshes and
+    /// draws) and unlinks it, or builds it again. The difference in the host's memory is the horizon's cost.
+    /// </summary>
+    internal string Hold(bool held)
+    {
+        if (held == !released) return Readout();
+        if (!held)
+        {
+            Link(null);
+            Release();
+            released = true;
+            return "horizon released";
+        }
+
+        released = false;
+        return Readout();
+    }
+
+    /// <summary>
+    /// For tuning (#9848): the middle and coarsest rings' reaches in kilometres and the tiles committed an
+    /// update; the heightfield is made again with them on the next update.
+    /// </summary>
+    internal string Tune(double midKilometres, double coarsestKilometres, long commits)
+    {
+        if (commits < 1) return "refused: at least one tile a commit";
+        ground.RingsReaching(midKilometres * 1000, coarsestKilometres * 1000);
+        commitsPerUpdate = (int)Math.Min(commits, 1024);
+        Release();
+        return string.Create(CultureInfo.InvariantCulture,
+            $"rings={string.Join(",", ground.Rings.Select(ring => $"{ring.CellSize}m@{ring.Reach / 1000:F0}km"))} commits={commitsPerUpdate}");
+    }
 
     public void Start() => Follow();
 
@@ -299,9 +161,9 @@ internal sealed class HorizonBackdrop : IProductModule
     public void Restart() => Follow();
 
     /// <summary>
-    /// Keeps the backdrop with the player: moves a continent's region window, sinks the ground under
-    /// the far field about them, links it to the first-person camera while they are in the open world,
-    /// and streams a bounded number of chunks per tier.
+    /// Keeps the backdrop with the player: sinks the ground under the far field about them, resamples it
+    /// where region tiles were built, links it to the first-person camera while they are in the open
+    /// world, and streams a bounded number of tiles an update.
     /// </summary>
     private void Follow()
     {
@@ -315,38 +177,93 @@ internal sealed class HorizonBackdrop : IProductModule
         }
 
         Vector3 at = playerWorld();
-        double reachNow = reach();
-        CoverMid(at);
-        CoverRegion(at);
-        cells.Focus = ((long)Math.Floor(at.X / CellChunkMetres), (long)Math.Floor(at.Z / CellChunkMetres));
-        if (mid is not null) mid.Focus = ((long)Math.Floor(at.X / MidChunkMetres), (long)Math.Floor(at.Z / MidChunkMetres));
-        if (continent is not null) continent.Focus = ((long)Math.Floor(at.X / ContinentChunkMetres), (long)Math.Floor(at.Z / ContinentChunkMetres));
-        if (reachNow != reachMetres || double.IsNaN(sinkCentre.X)
-            || Math.Max(Math.Abs(at.X - sinkCentre.X), Math.Abs(at.Z - sinkCentre.Z)) >= HorizonSink.FollowMetres)
-        {
-            if (!double.IsNaN(sinkCentre.X) && reachNow == reachMetres) MeasureExposedChange(sinkCentre, (at.X, at.Z));
-            HashSet<(long X, long Z)> cellsChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(CellChunkMetres)];
-            HashSet<(long X, long Z)> continentChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(ContinentChunkMetres)];
-            HashSet<(long X, long Z)> midChanged = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(MidChunkMetres)];
-            sinkCentre = (at.X, at.Z);
-            reachMetres = reachNow;
-            cellsChanged.UnionWith(SunkColumns(CellChunkMetres));
-            continentChanged.UnionWith(SunkColumns(ContinentChunkMetres));
-            midChanged.UnionWith(SunkColumns(MidChunkMetres));
-            cells.Invalidate(cellsChanged);
-            continent?.Invalidate(continentChanged);
-            mid?.Invalidate(midChanged);
-        }
-
-        int budget = Mode == HorizonGroundMode.Mesh ? TilesPerUpdate : ChunksPerUpdate;
-        cells.Advance(budget);
-        mid?.Advance(budget);
-        continent?.Advance(budget);
-        Link(inTheWorld() && Enabled ? camera() : null);
+        Camera? view = inTheWorld() && Enabled ? camera() : null;
+        Build(camera());
+        FollowSink(at);
+        FollowRegions(at);
+        streamer?.Update();
+        Link(view);
         shownChanged?.Invoke(shown);
         Weather?.Update(shown);
         Weather?.UpdateBodies(Scale, shown);
         Landmarks?.Update(Scale, shown, reachMetres, GroundMetres);
+    }
+
+    /// <summary>Makes the heightfield once the first-person camera exists, following it; again if the camera changes.</summary>
+    private void Build(Camera? view)
+    {
+        if (view is null || (heightfield is not null && ReferenceEquals(view, focusCamera))) return;
+        Release();
+        focusCamera = view;
+        heightfield = engine.Heightfield.Create(new HeightfieldCreateRequest(HorizonGround.TileCells, ground.Rings,
+            new HeightfieldMaterial[] { new(0, material) }, RenderLayer.Backdrop, BackdropOrigin, (float)(1 / Scale),
+            HeightfieldFocus.Following(view)) with { ShadowCasting = ShadowCasting.None });
+        streamer = new HeightfieldStreamer(engine, heightfield, ground, commitsPerUpdate);
+        readyRegions.Clear();
+        sinkCentre = (double.NaN, double.NaN);
+        sinkMoves = 0;
+        exposedChange = 0;
+    }
+
+    private void Release()
+    {
+        streamer?.Dispose();
+        streamer = null;
+        heightfield?.Dispose();
+        heightfield = null;
+        focusCamera = null;
+    }
+
+    /// <summary>
+    /// Moves the sunk zone onto the player once they have walked the follow step from its centre, and
+    /// samples again the ground it sank before and sinks now.
+    /// </summary>
+    private void FollowSink(Vector3 at)
+    {
+        double reachNow = reach();
+        if (reachNow == reachMetres && !double.IsNaN(sinkCentre.X)
+            && Math.Max(Math.Abs(at.X - sinkCentre.X), Math.Abs(at.Z - sinkCentre.Z)) < HorizonSink.FollowMetres) return;
+        (double X, double Z) previous = sinkCentre;
+        double previousExtent = HorizonSink.CoveredMetres(reachMetres, FarField.ChunkMetres);
+        if (!double.IsNaN(previous.X) && reachNow == reachMetres) MeasureExposedChange(previous, (at.X, at.Z));
+        sinkCentre = (at.X, at.Z);
+        reachMetres = reachNow;
+        // The frame the workers sample by changes first, so nothing invalidated is sampled again by the old one.
+        Publish();
+        if (!double.IsNaN(previous.X)) Invalidate(previous.X - previousExtent, previous.Z - previousExtent, previous.X + previousExtent, previous.Z + previousExtent);
+        double extent = HorizonSink.CoveredMetres(reachMetres, FarField.ChunkMetres);
+        Invalidate(sinkCentre.X - extent, sinkCentre.Z - extent, sinkCentre.X + extent, sinkCentre.Z + extent);
+    }
+
+    /// <summary>
+    /// A continent's region tiles about the player: those the finest ring reaches are built ahead of need,
+    /// and wherever one was built (or let go) since last looked at, the ground over it is sampled again.
+    /// </summary>
+    private void FollowRegions(Vector3 at)
+    {
+        if (regions is null) return;
+        double extent = HorizonGround.RegionReachMetres + (HorizonGround.RegionCellMetres * HorizonGround.TileCells);
+        regions.Prefetch(at.X - extent, at.Z - extent, at.X + extent, at.Z + extent);
+        HashSet<(int X, int Z)> near = [.. MapRegions.TilesNear(at.X, at.Z, extent)];
+        foreach ((int X, int Z) tile in near)
+        {
+            bool ready = regions.IsReady(tile);
+            if (ready == readyRegions.Contains(tile)) continue;
+            if (ready) readyRegions.Add(tile);
+            else readyRegions.Remove(tile);
+            (double x, double z) = MapRegions.Centre(tile);
+            double half = (MapRegions.TileSpacing / 2) + MapRegions.BlendHalfWidth;
+            Invalidate(x - half, z - half, x + half, z + half);
+        }
+
+        readyRegions.IntersectWith(near);
+    }
+
+    private void Publish() => ground.Current = new HorizonGround.Frame(sinkCentre, reachMetres, exaggeration, exaggerationBase);
+
+    private void Invalidate(double minX, double minZ, double maxX, double maxZ)
+    {
+        if (heightfield is not null) engine.Heightfield.Invalidate(new HeightfieldInvalidateRequest(heightfield, minX, minZ, maxX, maxZ));
     }
 
     private void Link(Camera? view)
@@ -389,29 +306,22 @@ internal sealed class HorizonBackdrop : IProductModule
         sinkMoves++;
     }
 
-    /// <summary>Each tier's digest of its sampled ground (R9822-1): equal for a horizon that followed the player and one built fresh where they stand.</summary>
-    internal string Digest() => string.Create(CultureInfo.InvariantCulture,
-        $"cells={cells.Digest():x16} mid={mid?.Digest() ?? 0:x16} continent={continent?.Digest() ?? 0:x16} settled={cells.Settled && (continent?.Settled ?? true) && (mid?.Settled ?? true)}");
+    /// <summary>Whether every tile the rings want is drawn and nothing waits to be sampled or committed.</summary>
+    internal bool Settled => heightfield is not null && streamer is not null && streamer.InFlight == 0
+        && engine.Heightfield.Read(heightfield).Settled;
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"horizon mode={Mode.ToString().ToLowerInvariant()} shown={shown} scale={Scale:F0}m cells={cells.ResidentChunks}+{cells.PendingChunks}pending")
-        + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
-            $" continent={continent.ResidentChunks}+{continent.PendingChunks}pending regionColumns={regionCovered.Count}"))
-        + (mid is null ? "" : string.Create(CultureInfo.InvariantCulture, $" mid={mid.ResidentChunks}+{mid.PendingChunks}pending"))
-        + MeshGeometry()
-        + string.Create(CultureInfo.InvariantCulture,
-            $" {Weather?.Readout() ?? "fronts=off"} {Landmarks?.Readout() ?? "landmarks=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true) && (mid?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0) + (mid?.WorkMilliseconds ?? 0):F0} (cells {cells.WorkMilliseconds:F0} mid {mid?.WorkMilliseconds ?? 0:F0} continent {continent?.WorkMilliseconds ?? 0:F0}) sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
-
-    /// <summary>The meshes' tiles, vertices and index memory (#9839), when the ground is drawn as meshes.</summary>
-    private string MeshGeometry()
+    internal string Readout()
     {
-        if (released || Mode != HorizonGroundMode.Mesh) return "";
-        (int Tiles, long Vertices, long Indices)[] tiers = [.. new[] { cells, mid, continent }.OfType<MapMeshLayer>().Select(layer => layer.Geometry())];
-        long vertices = tiers.Sum(tier => tier.Vertices), indices = tiers.Sum(tier => tier.Indices);
-        // Position, normal, uv and colour per vertex, as copied into the request.
-        const int VertexBytes = 12 + 12 + 8 + 16;
+        string groundReadout = "ground=none";
+        if (heightfield is not null && streamer is not null)
+        {
+            HeightfieldReadout read = engine.Heightfield.Read(heightfield);
+            groundReadout = string.Create(CultureInfo.InvariantCulture,
+                $"tiles={read.DrawnTiles}/{read.ResidentTiles}+{read.PendingTiles}pending vertices={read.Vertices} sampleMB={read.SampleBytes / 1048576.0:F1} meshMB={read.MeshBytes / 1048576.0:F1} inFlight={streamer.InFlight} committed={streamer.Committed} ignored={streamer.Ignored} sampleMs={streamer.SampleMilliseconds:F0} focus={read.FocusX:F0},{read.FocusZ:F0}");
+        }
+
         return string.Create(CultureInfo.InvariantCulture,
-            $" meshes={tiers.Sum(tier => tier.Tiles)} vertices={vertices} triangles={indices / 3} geometryMB={((vertices * VertexBytes) + (indices * sizeof(uint))) / 1048576.0:F1}");
+            $"horizon shown={shown} scale={Scale:F0}m {groundReadout} regionsReady={readyRegions.Count} {Weather?.Readout() ?? "fronts=off"} {Landmarks?.Readout() ?? "landmarks=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={Settled} sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
     }
 
     /// <summary>
@@ -442,6 +352,13 @@ internal sealed class HorizonBackdrop : IProductModule
             + string.Create(CultureInfo.InvariantCulture, $" | here {map.Sample(at.X, at.Z).Elevation:F0}m");
     }
 
+    /// <summary>The backdrop's ground at a world point, as the ring covering it there draws it, sunk as that is: where a place on the horizon stands.</summary>
+    internal double GroundMetres(double worldX, double worldZ)
+    {
+        Vector3 at = playerWorld();
+        return ground.GroundMetres(worldX, worldZ, (at.X, at.Z));
+    }
+
     public void Dispose()
     {
         if (shown && linked is not null)
@@ -450,324 +367,9 @@ internal sealed class HorizonBackdrop : IProductModule
             shown = false;
         }
 
-        if (!released)
-        {
-            cells?.Dispose();
-            continent?.Dispose();
-            mid?.Dispose();
-        }
-
-        AfterAppearanceSnapshot();
-        foreach (Material material in materials.Values) material.Dispose();
-        materials.Clear();
-        meshMaterial?.Dispose();
+        Release();
+        material.Dispose();
         Weather?.Dispose();
         Landmarks?.Dispose();
     }
-
-    /// <summary>
-    /// A continent's 32 m window about the player: every chunk column whose region tiles are built is
-    /// admitted, the rest are prefetched, and the kilometre tier is re-sunk where the cover changed.
-    /// </summary>
-    private void CoverRegion(Vector3 at)
-    {
-        if (regions is null || continent is null) return;
-        long span = 2 * RegionRadiusChunks;
-        long maximumStart = Math.Max(firstCellChunk, lastCellChunk - span + 1);
-        long x0 = Math.Clamp((long)Math.Floor(at.X / CellChunkMetres) - RegionRadiusChunks, firstCellChunk, maximumStart);
-        long z0 = Math.Clamp((long)Math.Floor(at.Z / CellChunkMetres) - RegionRadiusChunks, firstCellChunk, maximumStart);
-        long x1 = Math.Min(lastCellChunk, x0 + span - 1), z1 = Math.Min(lastCellChunk, z0 + span - 1);
-        Vector2 minimum = new((float)(x0 * CellChunkMetres), (float)(z0 * CellChunkMetres));
-        Vector2 maximum = new((float)((x1 + 1) * CellChunkMetres), (float)((z1 + 1) * CellChunkMetres));
-        (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
-        bool moved = minimum != regionMinimum || maximum != regionMaximum;
-        if (moved)
-        {
-            // The window moved: the bands beside both its old and new edges carry a changed fade.
-            (regionMinimum, regionMaximum) = (minimum, maximum);
-            cells.Invalidate(FadeBand(oldMinimum, oldMaximum, CellChunkMetres, RegionFadeChunks).Concat(FadeBand(minimum, maximum, CellChunkMetres, RegionFadeChunks)));
-        }
-
-        regions.Prefetch(minimum.X, minimum.Y, maximum.X, maximum.Y);
-        HashSet<(long X, long Z)> covered = [];
-        for (long cz = z0; cz <= z1; cz++)
-        for (long cx = x0; cx <= x1; cx++)
-        {
-            if (regions.Ready(cx * CellChunkMetres, cz * CellChunkMetres, (cx + 1) * CellChunkMetres, (cz + 1) * CellChunkMetres)) covered.Add((cx, cz));
-        }
-
-        bool recovered = !covered.SetEquals(regionCovered);
-        // The middle tier sinks beneath the window (R9822-1): whatever moved it or changed its coverage, every
-        // middle column under the old window or the new one is sampled again.
-        if (moved || recovered) mid?.Invalidate(HorizonTiers.MidColumnsUnder(oldMinimum, oldMaximum).Concat(HorizonTiers.MidColumnsUnder(minimum, maximum)));
-        if (!recovered) return;
-        HashSet<(long X, long Z)> changed = [.. covered];
-        changed.SymmetricExceptWith(regionCovered);
-        regionCovered.Clear();
-        regionCovered.UnionWith(covered);
-        cells.Want(covered);
-        continent.Invalidate(changed.Select(column => (
-            (long)Math.Floor(column.X * CellChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * CellChunkMetres / ContinentChunkMetres))));
-    }
-
-    /// <summary>The 32 m tier: an ordinary map's ground, or a continent's region ground easing onto the kilometre tier at the window's edge.</summary>
-    private void SampleCells(long chunkX, long chunkZ, Span<double> surface, Span<uint> material) =>
-        Sample(chunkX, chunkZ, CellMetres, surface, material,
-            regions is null ? map.Sample : RegionGround,
-            regions is null ? map.Rivers.Nearest : regions.RiverNear, RiverReach, sunkUnderRegion: false);
-
-    /// <summary>A continent's kilometre tier, sunk beneath the region window past its fade band.</summary>
-    private void SampleContinent(long chunkX, long chunkZ, Span<double> surface, Span<uint> material) =>
-        Sample(chunkX, chunkZ, ContinentCellMetres, surface, material, map.Sample, map.Rivers.Nearest, ContinentRiverReach, sunkUnderRegion: true);
-
-    /// <summary>A tier's ground at its true height, in that tier's voxels, sunk about the player.</summary>
-    private void Sample(long chunkX, long chunkZ, double cellMetres, Span<double> surface, Span<uint> material,
-        Func<double, double, MapSample> geography, Func<double, double, RiverInfluence?> rivers, double riverReach, bool sunkUnderRegion)
-    {
-        for (int z = 0; z < EdgeLength; z++)
-        for (int x = 0; x < EdgeLength; x++)
-        {
-            int i = (z * EdgeLength) + x;
-            double worldX = ((chunkX * EdgeLength) + x) * cellMetres, worldZ = ((chunkZ * EdgeLength) + z) * cellMetres;
-            if (Math.Abs(worldX) > map.Radius || Math.Abs(worldZ) > map.Radius)
-            {
-                surface[i] = double.NaN;
-                continue;
-            }
-
-            MapSample sample = geography(worldX, worldZ);
-            double top = Top(sample);
-            double sink = Sink(worldX, worldZ) + (!sunkUnderRegion ? 0
-                : mid is not null ? (UnderMid(worldX, worldZ) ? UnderMidSinkMetres : 0)
-                : UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
-            surface[i] = (top - sink) / cellMetres;
-            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea, 0)
-                : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + (cellMetres * riverReach) ? RiverSlot
-                : Ground(sample);
-        }
-    }
-
-    /// <summary>The top of a map sample as the backdrop draws it: water's surface over the ground, and any exaggeration.</summary>
-    private double Top(MapSample sample)
-    {
-        double top = Math.Max(sample.InRiver ? Math.Max(sample.Elevation, sample.RiverSurface) : sample.Elevation, GenerationConstants.WaterLevel);
-        return exaggeration == 1 ? top : exaggerationBase + ((top - exaggerationBase) * exaggeration);
-    }
-
-    /// <summary>
-    /// The backdrop's ground at a world point, as its visible tier draws it (a continent's region ground
-    /// inside the window), sunk as that is: where a place on the horizon stands.
-    /// </summary>
-    internal double GroundMetres(double worldX, double worldZ)
-    {
-        if (regions is not null && InRegion(worldX, worldZ)) return Top(RegionGround(worldX, worldZ)) - Sink(worldX, worldZ);
-        MapSample sample = map.Sample(worldX, worldZ);
-        return Top(sample with { Elevation = MidGround(worldX, worldZ, sample) }) - Sink(worldX, worldZ);
-    }
-
-    /// <summary>A continent's region ground: the region tiles' geography, easing onto the continent's across the window's outer band.</summary>
-    private MapSample RegionGround(double worldX, double worldZ)
-    {
-        if (!InRegion(worldX, worldZ)) return map.Sample(worldX, worldZ);
-        MapSample region = regions!.Sample(worldX, worldZ);
-        double fade = WorldMap.Smooth(Math.Clamp(Inset(worldX, worldZ) / RegionFadeMetres, 0, 1));
-        if (fade >= 1) return region;
-        // The window eases onto the ground the middle tier draws there (#9822), filter and all.
-        double broad = MidGround(worldX, worldZ, map.Sample(worldX, worldZ));
-        return region with { Elevation = broad + (fade * (region.Elevation - broad)) };
-    }
-
-    private double Inset(double worldX, double worldZ) =>
-        Math.Min(Math.Min(worldX - regionMinimum.X, regionMaximum.X - worldX), Math.Min(worldZ - regionMinimum.Y, regionMaximum.Y - worldZ));
-
-    /// <summary>Where the kilometre tier sinks: beneath region ground past the window's fade band.</summary>
-    private bool UnderRegion(double worldX, double worldZ) => HorizonTiers.UnderRegion(regionCovered, regionMinimum, regionMaximum, worldX, worldZ);
-
-    /// <summary>Where the kilometre tier sinks beneath the middle tier: inside its window past the fade band.</summary>
-    private bool UnderMid(double worldX, double worldZ) => InMid(worldX, worldZ) && MidInset(worldX, worldZ) >= MidFadeMetres;
-
-    private bool InRegion(double worldX, double worldZ) =>
-        regionCovered.Contains(((long)Math.Floor(worldX / CellChunkMetres), (long)Math.Floor(worldZ / CellChunkMetres)));
-
-    /// <summary>A window's chunk columns within the fade band inside its edges.</summary>
-    private static IEnumerable<(long X, long Z)> FadeBand(Vector2 minimum, Vector2 maximum, double chunkMetres, int fadeChunks)
-    {
-        long x0 = (long)Math.Floor(minimum.X / chunkMetres), x1 = (long)Math.Floor(maximum.X / chunkMetres) - 1;
-        long z0 = (long)Math.Floor(minimum.Y / chunkMetres), z1 = (long)Math.Floor(maximum.Y / chunkMetres) - 1;
-        return from cz in Range(z0, z1)
-               from cx in Range(x0, x1)
-               where cx < x0 + fadeChunks || cx > x1 - fadeChunks || cz < z0 + fadeChunks || cz > z1 - fadeChunks
-               select (cx, cz);
-    }
-
-    /// <summary>The middle tier's chunk columns within a window.</summary>
-    private static IEnumerable<(long X, long Z)> MidColumns(Vector2 minimum, Vector2 maximum)
-    {
-        long x0 = (long)Math.Floor(minimum.X / MidChunkMetres), x1 = (long)Math.Floor(maximum.X / MidChunkMetres) - 1;
-        long z0 = (long)Math.Floor(minimum.Y / MidChunkMetres), z1 = (long)Math.Floor(maximum.Y / MidChunkMetres) - 1;
-        return from cz in Range(z0, z1) from cx in Range(x0, x1) select (cx, cz);
-    }
-
-    /// <summary>
-    /// Keeps the middle tier's window about the player (#9822): new columns are wanted (and sampled within the
-    /// budget, nearest first), the fade bands at the old and new edges are sampled again, and the kilometre
-    /// tier beneath both windows is re-sunk.
-    /// </summary>
-    private void CoverMid(Vector3 at)
-    {
-        if (mid is null || continent is null) return;
-        long span = 2 * MidRadiusChunks;
-        long maximumStart = Math.Max(firstMidChunk, lastMidChunk - span + 1);
-        long x0 = Math.Clamp((long)Math.Floor(at.X / MidChunkMetres) - MidRadiusChunks, firstMidChunk, maximumStart);
-        long z0 = Math.Clamp((long)Math.Floor(at.Z / MidChunkMetres) - MidRadiusChunks, firstMidChunk, maximumStart);
-        long x1 = Math.Min(lastMidChunk, x0 + span - 1), z1 = Math.Min(lastMidChunk, z0 + span - 1);
-        Vector2 minimum = new((float)(x0 * MidChunkMetres), (float)(z0 * MidChunkMetres));
-        Vector2 maximum = new((float)((x1 + 1) * MidChunkMetres), (float)((z1 + 1) * MidChunkMetres));
-        if (minimum == midMinimum && maximum == midMaximum) return;
-        (Vector2 oldMinimum, Vector2 oldMaximum) = (midMinimum, midMaximum);
-        (midMinimum, midMaximum) = (minimum, maximum);
-        mid.Want(MidColumns(minimum, maximum));
-        mid.Invalidate(FadeBand(oldMinimum, oldMaximum, MidChunkMetres, MidFadeChunks).Concat(FadeBand(minimum, maximum, MidChunkMetres, MidFadeChunks)));
-        continent.Invalidate(MidColumns(oldMinimum, oldMaximum).Concat(MidColumns(minimum, maximum))
-            .Select(column => ((long)Math.Floor(column.X * MidChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * MidChunkMetres / ContinentChunkMetres))));
-    }
-
-    private bool InMid(double worldX, double worldZ) =>
-        mid is not null && worldX >= midMinimum.X && worldX < midMaximum.X && worldZ >= midMinimum.Y && worldZ < midMaximum.Y;
-
-    private double MidInset(double worldX, double worldZ) =>
-        Math.Min(Math.Min(worldX - midMinimum.X, midMaximum.X - worldX), Math.Min(worldZ - midMinimum.Y, midMaximum.Y - worldZ));
-
-    /// <summary>How much of the erosion filter the middle tier cuts in at a point: whole inside, easing out over its outer band.</summary>
-    private double MidFilter(double worldX, double worldZ) =>
-        InMid(worldX, worldZ) ? WorldMap.Smooth(Math.Clamp(MidInset(worldX, worldZ) / MidFadeMetres, 0, 1)) : 0;
-
-    /// <summary>The ground the middle tier draws at a point (the map's, with the filter as far as it reaches there), for the tiers that meet it.</summary>
-    private double MidGround(double worldX, double worldZ, MapSample sample)
-    {
-        double share = eroded is null ? 0 : MidFilter(worldX, worldZ);
-        return share <= 0 ? sample.Elevation : sample.Elevation + (share * (eroded!.Height(worldX, worldZ, sample) - sample.Elevation));
-    }
-
-    /// <summary>
-    /// The middle tier (#9822): the map's ground at 250 m with the erosion filter cut in, the slope taken from
-    /// this chunk's own lattice of samples; easing onto the kilometre tier over its window's outer band, and
-    /// sunk beneath the region window and about the player as the other tiers are.
-    /// </summary>
-    private void SampleMid(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
-    {
-        // The map's samples reach the slope's cells beyond the chunk, and one more, so the filtered ground's
-        // own slope can be read at the chunk's edge.
-        int border = SlopeCells + 1, side = EdgeLength + (2 * border);
-        MapSample[] lattice = new MapSample[side * side];
-        RiverInfluence?[] rivers = new RiverInfluence?[side * side];
-        double[] filtered = new double[side * side];
-        for (int z = 0; z < side; z++)
-        for (int x = 0; x < side; x++)
-        {
-            double worldX = ((chunkX * EdgeLength) + x - border) * MidCellMetres, worldZ = ((chunkZ * EdgeLength) + z - border) * MidCellMetres;
-            lattice[(z * side) + x] = map.Sample(worldX, worldZ);
-        }
-
-        for (int z = 1; z < side - 1; z++)
-        for (int x = 1; x < side - 1; x++)
-        {
-            int at = (z * side) + x;
-            double worldX = ((chunkX * EdgeLength) + x - border) * MidCellMetres, worldZ = ((chunkZ * EdgeLength) + z - border) * MidCellMetres;
-            MapSample sample = lattice[at];
-            filtered[at] = sample.Elevation;
-            if (x < SlopeCells || z < SlopeCells || x >= side - SlopeCells || z >= side - SlopeCells) continue;
-            rivers[at] = map.Rivers.Nearest(worldX, worldZ);
-            double share = MidFilter(worldX, worldZ);
-            if (share <= 0) continue;
-            double slopeX = (lattice[at + SlopeCells].Elevation - lattice[at - SlopeCells].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
-            double slopeZ = (lattice[at + (SlopeCells * side)].Elevation - lattice[at - (SlopeCells * side)].Elevation) / (2 * ErodedHeights.SlopeReachMetres);
-            filtered[at] = sample.Elevation + (share * (eroded!.Height(worldX, worldZ, sample, slopeX, slopeZ, rivers[at]) - sample.Elevation));
-        }
-
-        for (int z = 0; z < EdgeLength; z++)
-        for (int x = 0; x < EdgeLength; x++)
-        {
-            int i = (z * EdgeLength) + x;
-            double worldX = ((chunkX * EdgeLength) + x) * MidCellMetres, worldZ = ((chunkZ * EdgeLength) + z) * MidCellMetres;
-            if (Math.Abs(worldX) > map.Radius || Math.Abs(worldZ) > map.Radius)
-            {
-                surface[i] = double.NaN;
-                continue;
-            }
-
-            int at = ((z + border) * side) + x + border;
-            RiverInfluence? nearest = rivers[at];
-            // The ground as the filter leaves it: colder where it is lifted, bare where it is steep (#9813).
-            double steep = Math.Sqrt(Math.Pow((filtered[at + 1] - filtered[at - 1]) / (2 * MidCellMetres), 2)
-                + Math.Pow((filtered[at + side] - filtered[at - side]) / (2 * MidCellMetres), 2));
-            MapSample sample = lattice[at] with
-            {
-                Elevation = filtered[at],
-                Temperature = Math.Clamp(lattice[at].Temperature - MapClimate.Cooling(filtered[at] - lattice[at].Elevation), 0, 1),
-                Rock = Math.Max(lattice[at].Rock, Math.Clamp((steep - RockSlopeFrom) / (RockSlopeFull - RockSlopeFrom), 0, 1)),
-            };
-
-            double sink = Sink(worldX, worldZ) + (UnderRegion(worldX, worldZ) ? UnderRegionSinkMetres : 0);
-            surface[i] = (Top(sample) - sink) / MidCellMetres;
-            material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea, 0)
-                : nearest is RiverInfluence river && river.Distance < river.HalfWidth + (MidCellMetres * RiverReach) ? RiverSlot
-                : Ground(sample);
-        }
-    }
-
-    /// <summary>How far the backdrop is sunk at a world point: fully near the player, easing out inside what the far field always covers.</summary>
-    private double Sink(double worldX, double worldZ)
-    {
-        if (double.IsNaN(sinkCentre.X)) return 0;
-        double away = Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z));
-        return HorizonSink.At(away, reachMetres, FarField.ChunkMetres);
-    }
-
-    /// <summary>A tier's chunk columns the sunk zone about its centre touches.</summary>
-    private IEnumerable<(long X, long Z)> SunkColumns(double chunkMetres)
-    {
-        double extent = HorizonSink.CoveredMetres(reachMetres, FarField.ChunkMetres);
-        long minX = (long)Math.Floor((sinkCentre.X - extent) / chunkMetres), maxX = (long)Math.Floor((sinkCentre.X + extent) / chunkMetres);
-        long minZ = (long)Math.Floor((sinkCentre.Z - extent) / chunkMetres), maxZ = (long)Math.Floor((sinkCentre.Z + extent) / chunkMetres);
-        for (long z = minZ; z <= maxZ; z++)
-        for (long x = minX; x <= maxX; x++)
-            yield return (x, z);
-    }
-
-    private Material Flat(Color color) =>
-        engine.Graphics.CreateMaterial(new MaterialRequest(color, default, 1f, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
-
-    /// <summary>A slot's colour: a flat material for the voxel tiers and a vertex colour for the meshes.</summary>
-    private void Paint(uint slot, Color color)
-    {
-        materials[slot] = Flat(color);
-        paints[slot] = MapPalette.VertexColour(color);
-    }
-
-    private static readonly Color White = new(1, 1, 1, 1);
-
-    private static uint Slot(MapBiome biome, int rockStep) => FirstBiomeSlot + ((uint)biome * (RockSteps + 1)) + (uint)rockStep;
-
-    /// <summary>A land sample's material: its environment, with its rock share graded in <see cref="RockSteps"/> steps toward stone.</summary>
-    private static uint Ground(MapSample sample)
-    {
-        double share = Math.Clamp((sample.Rock - RockShowsFrom) / (RockWhole - RockShowsFrom), 0, 1);
-        return Slot(WorldMap.Biome(sample), (int)Math.Round(WorldMap.Smooth(share) * RockSteps));
-    }
-
-    private static Color Mix(Color from, Color to, float t) =>
-        new(from.R + ((to.R - from.R) * t), from.G + ((to.G - from.G) * t), from.B + ((to.B - from.B) * t), 1);
-
-    private static IEnumerable<long> Range(long first, long last)
-    {
-        for (long value = first; value <= last; value++) yield return value;
-    }
-}
-
-/// <summary>How the horizon's ground is drawn (#9839): dual-contoured voxel tiers, or heightfield grid meshes.</summary>
-internal enum HorizonGroundMode
-{
-    Voxel,
-    Mesh,
 }
