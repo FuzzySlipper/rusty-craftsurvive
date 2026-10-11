@@ -37,6 +37,10 @@ internal sealed class HorizonBackdrop : IProductModule
     private const double ContinentChunkMetres = EdgeLength * ContinentCellMetres;
     /// <summary>How many backdrop chunks each tier admits or replaces an update.</summary>
     private const int ChunksPerUpdate = 8;
+    /// <summary>How many ground tiles each tier meshes an update when the ground is drawn as meshes (#9839).</summary>
+    private const int TilesPerUpdate = 4;
+    /// <summary>How the ground is drawn until a comparison chooses otherwise (#9839).</summary>
+    internal const HorizonGroundMode DefaultMode = HorizonGroundMode.Voxel;
     /// <summary>Chunks farther than these from the backdrop camera, in metres, are drawn from coarse meshes.</summary>
     private const double CellCoarseBeyondMetres = 3_000, ContinentCoarseBeyondMetres = 60_000;
     /// <summary>A continent's region window: chunk columns of the fine tier each side of the player's (one is 512 m).</summary>
@@ -86,12 +90,18 @@ internal sealed class HorizonBackdrop : IProductModule
     private readonly Func<double> reach;
     private readonly Action<bool>? shownChanged;
     private readonly Dictionary<uint, Material> materials = [];
+    /// <summary>Each material slot's vertex colour when the ground is drawn as meshes.</summary>
+    private readonly Dictionary<uint, Color> paints = [];
+    /// <summary>The meshes' one material: matte white, tinted by the vertex colour.</summary>
+    private readonly Material meshMaterial;
     /// <summary>The 32 m tier: the whole of an ordinary map, or a continent's region window.</summary>
-    private MapVoxelLayer cells = null!;
+    private IMapLayer cells = null!;
     /// <summary>A continent's kilometre tier; null on an ordinary map.</summary>
-    private MapVoxelLayer? continent;
+    private IMapLayer? continent;
     /// <summary>A continent's middle tier about the player, with the erosion filter (#9822); null on an ordinary map.</summary>
-    private MapVoxelLayer? mid;
+    private IMapLayer? mid;
+    /// <summary>Mesh tiers released but not yet out of the published snapshot.</summary>
+    private readonly List<IMapLayer> withdrawn = [];
     private readonly ErodedHeights? eroded;
     private readonly long firstMidChunk, lastMidChunk;
     private Vector2 midMinimum, midMaximum;
@@ -130,12 +140,13 @@ internal sealed class HorizonBackdrop : IProductModule
         lastMidChunk = (long)Math.Floor((map.Radius - 1) / MidChunkMetres);
         if (map.Scale.Continental)
             eroded = new(map, new ErosionFilter(map.Configuration.Contract.GeographyNoiseSeed, ErosionFilterSettings.Continent), ContinentDesign.For(map.Configuration.Size));
+        meshMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(White, default, 1f, White, Vector3.Zero, 0f, true));
         try
         {
-            materials[RiverSlot] = Flat(MapPalette.River);
+            Paint(RiverSlot, MapPalette.River);
             foreach (MapBiome biome in Enum.GetValues<MapBiome>())
             for (int step = 0; step <= RockSteps; step++)
-                materials[Slot(biome, step)] = Flat(Mix(MapPalette.For(biome), MapPalette.Stone, (float)step / RockSteps));
+                Paint(Slot(biome, step), Mix(MapPalette.For(biome), MapPalette.Stone, (float)step / RockSteps));
             if (map.Scale.Continental) regions = MapRegions.For(map);
             BuildTiers();
         }
@@ -174,15 +185,12 @@ internal sealed class HorizonBackdrop : IProductModule
     /// <summary>Creates the tiers' sessions and asks for the ground they stream.</summary>
     private void BuildTiers()
     {
-        cells = new MapVoxelLayer(engine, CellMetres / Scale, SampleCells, materials,
-            coarseBeyond: CellCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
+        cells = Layer(CellMetres, SampleCells, CellCoarseBeyondMetres, tier: 0);
         if (map.Scale.Continental)
         {
-            continent = new MapVoxelLayer(engine, ContinentCellMetres / Scale, SampleContinent, materials,
-                coarseBeyond: ContinentCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
+            continent = Layer(ContinentCellMetres, SampleContinent, ContinentCoarseBeyondMetres, tier: 1);
             continent.Want(AllColumns(ContinentChunkMetres));
-            mid = new MapVoxelLayer(engine, MidCellMetres / Scale, SampleMid, materials,
-                coarseBeyond: MidCoarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
+            mid = Layer(MidCellMetres, SampleMid, MidCoarseBeyondMetres, tier: 2);
         }
         else
         {
@@ -193,6 +201,34 @@ internal sealed class HorizonBackdrop : IProductModule
         regionMinimum = regionMaximum = default;
         midMinimum = midMaximum = default;
         sinkCentre = (double.NaN, double.NaN);
+        // Each build starts a fresh join measurement, so a walk can be measured after a teleport.
+        sinkMoves = 0;
+        exposedChange = 0;
+    }
+
+    /// <summary>
+    /// One tier's ground in the current <see cref="Mode"/>: a dual-contoured voxel session, or heightfield
+    /// grid meshes from the same sampler (#9839), each tier with its own block of appearance ids.
+    /// </summary>
+    private IMapLayer Layer(double cellMetres, MapVoxelLayer.ColumnSampler sampler, double coarseBeyondMetres, int tier) => Mode == HorizonGroundMode.Mesh
+        ? new MapMeshLayer(engine, cellMetres / Scale, sampler, slot => paints.GetValueOrDefault(slot, White), meshMaterial,
+            ProductIds.HorizonGroundBase + ((ulong)tier * ProductIds.HorizonGroundTierLimit), ProductIds.HorizonGroundTierLimit, SampleBudgetMilliseconds)
+        : new MapVoxelLayer(engine, cellMetres / Scale, sampler, materials,
+            coarseBeyond: coarseBeyondMetres / Scale, layer: RenderLayer.Backdrop, sampleBudgetMilliseconds: SampleBudgetMilliseconds);
+
+    /// <summary>How the ground is drawn: dual-contoured voxel tiers, or heightfield grid meshes (#9839).</summary>
+    internal HorizonGroundMode Mode { get; private set; } = DefaultMode;
+
+    /// <summary>For the comparison (#9839): rebuilds every tier drawn the other way, from the same samplers.</summary>
+    internal string SetMode(string name)
+    {
+        if (!Enum.TryParse(name, ignoreCase: true, out HorizonGroundMode wanted) || !Enum.IsDefined(wanted))
+            return $"unknown mode '{name}': voxel or mesh";
+        if (wanted == Mode) return Readout();
+        bool wasHeld = !released;
+        if (wasHeld) Hold(false);
+        Mode = wanted;
+        return wasHeld ? Hold(true) : Readout();
     }
 
     /// <summary>
@@ -206,10 +242,10 @@ internal sealed class HorizonBackdrop : IProductModule
         if (!held)
         {
             Link(null);
-            cells.Dispose();
-            continent?.Dispose();
+            Withdraw(cells);
+            Withdraw(continent);
             continent = null;
-            mid?.Dispose();
+            Withdraw(mid);
             mid = null;
             released = true;
             return "horizon released";
@@ -220,6 +256,23 @@ internal sealed class HorizonBackdrop : IProductModule
         return Readout();
     }
 
+    /// <summary>
+    /// Releases a tier. A mesh tier's tiles may be in the published snapshot, and the Engine keeps an
+    /// appearance in use until a snapshot without it is published, so it waits for <see cref="AfterAppearanceSnapshot"/>.
+    /// </summary>
+    private void Withdraw(IMapLayer? layer)
+    {
+        if (layer is MapMeshLayer) withdrawn.Add(layer);
+        else layer?.Dispose();
+    }
+
+    /// <summary>Disposes the mesh tiers released before this snapshot, which no longer draws them.</summary>
+    internal void AfterAppearanceSnapshot()
+    {
+        foreach (IMapLayer layer in withdrawn) layer.Dispose();
+        withdrawn.Clear();
+    }
+
     /// <summary>Weather fronts on the horizon (H2 #9780), drawn while the backdrop is shown.</summary>
     internal HorizonWeather? Weather { get; set; }
 
@@ -227,7 +280,11 @@ internal sealed class HorizonBackdrop : IProductModule
     internal HorizonLandmarks? Landmarks { get; set; }
 
     /// <summary>The fronts' masses and the places' silhouettes for the appearance snapshot while the backdrop is shown.</summary>
-    internal IEnumerable<AppearanceFact> Facts => !shown ? [] : [.. Weather?.Facts(Scale) ?? [], .. Landmarks?.Facts() ?? []];
+    internal IEnumerable<AppearanceFact> Facts => !shown ? [] : [.. GroundFacts(), .. Weather?.Facts(Scale) ?? [], .. Landmarks?.Facts() ?? []];
+
+    /// <summary>The ground's tiles when it is drawn as meshes; a voxel tier draws through its own presentation.</summary>
+    private IEnumerable<AppearanceFact> GroundFacts() => released ? [] :
+        new[] { cells, mid, continent }.OfType<MapMeshLayer>().SelectMany(layer => layer.Facts(RenderLayer.Backdrop));
 
     /// <summary>For comparison captures: off unlinks the backdrop, leaving the far field over the panorama.</summary>
     internal bool Enabled { get; set; } = true;
@@ -281,9 +338,10 @@ internal sealed class HorizonBackdrop : IProductModule
             mid?.Invalidate(midChanged);
         }
 
-        cells.Advance(ChunksPerUpdate);
-        mid?.Advance(ChunksPerUpdate);
-        continent?.Advance(ChunksPerUpdate);
+        int budget = Mode == HorizonGroundMode.Mesh ? TilesPerUpdate : ChunksPerUpdate;
+        cells.Advance(budget);
+        mid?.Advance(budget);
+        continent?.Advance(budget);
         Link(inTheWorld() && Enabled ? camera() : null);
         shownChanged?.Invoke(shown);
         Weather?.Update(shown);
@@ -336,12 +394,25 @@ internal sealed class HorizonBackdrop : IProductModule
         $"cells={cells.Digest():x16} mid={mid?.Digest() ?? 0:x16} continent={continent?.Digest() ?? 0:x16} settled={cells.Settled && (continent?.Settled ?? true) && (mid?.Settled ?? true)}");
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"horizon shown={shown} scale={Scale:F0}m cells={cells.ResidentChunks}+{cells.PendingChunks}pending")
+        $"horizon mode={Mode.ToString().ToLowerInvariant()} shown={shown} scale={Scale:F0}m cells={cells.ResidentChunks}+{cells.PendingChunks}pending")
         + (continent is null ? "" : string.Create(CultureInfo.InvariantCulture,
             $" continent={continent.ResidentChunks}+{continent.PendingChunks}pending regionColumns={regionCovered.Count}"))
         + (mid is null ? "" : string.Create(CultureInfo.InvariantCulture, $" mid={mid.ResidentChunks}+{mid.PendingChunks}pending"))
+        + MeshGeometry()
         + string.Create(CultureInfo.InvariantCulture,
             $" {Weather?.Readout() ?? "fronts=off"} {Landmarks?.Readout() ?? "landmarks=off"} sinkMoves={sinkMoves} exposedChange={exposedChange:F3}m settled={cells.Settled && (continent?.Settled ?? true) && (mid?.Settled ?? true)} workMs={cells.WorkMilliseconds + (continent?.WorkMilliseconds ?? 0) + (mid?.WorkMilliseconds ?? 0):F0} (cells {cells.WorkMilliseconds:F0} mid {mid?.WorkMilliseconds ?? 0:F0} continent {continent?.WorkMilliseconds ?? 0:F0}) sink={sinkCentre.X:F0},{sinkCentre.Z:F0} reach={reachMetres:F0}m links={linkChanges}");
+
+    /// <summary>The meshes' tiles, vertices and index memory (#9839), when the ground is drawn as meshes.</summary>
+    private string MeshGeometry()
+    {
+        if (released || Mode != HorizonGroundMode.Mesh) return "";
+        (int Tiles, long Vertices, long Indices)[] tiers = [.. new[] { cells, mid, continent }.OfType<MapMeshLayer>().Select(layer => layer.Geometry())];
+        long vertices = tiers.Sum(tier => tier.Vertices), indices = tiers.Sum(tier => tier.Indices);
+        // Position, normal, uv and colour per vertex, as copied into the request.
+        const int VertexBytes = 12 + 12 + 8 + 16;
+        return string.Create(CultureInfo.InvariantCulture,
+            $" meshes={tiers.Sum(tier => tier.Tiles)} vertices={vertices} triangles={indices / 3} geometryMB={((vertices * VertexBytes) + (indices * sizeof(uint))) / 1048576.0:F1}");
+    }
 
     /// <summary>
     /// For aimed captures: the highest ground on the map within <paramref name="kilometres"/> of the player,
@@ -385,8 +456,11 @@ internal sealed class HorizonBackdrop : IProductModule
             continent?.Dispose();
             mid?.Dispose();
         }
+
+        AfterAppearanceSnapshot();
         foreach (Material material in materials.Values) material.Dispose();
         materials.Clear();
+        meshMaterial?.Dispose();
         Weather?.Dispose();
         Landmarks?.Dispose();
     }
@@ -664,6 +738,15 @@ internal sealed class HorizonBackdrop : IProductModule
     private Material Flat(Color color) =>
         engine.Graphics.CreateMaterial(new MaterialRequest(color, default, 1f, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
 
+    /// <summary>A slot's colour: a flat material for the voxel tiers and a vertex colour for the meshes.</summary>
+    private void Paint(uint slot, Color color)
+    {
+        materials[slot] = Flat(color);
+        paints[slot] = MapPalette.VertexColour(color);
+    }
+
+    private static readonly Color White = new(1, 1, 1, 1);
+
     private static uint Slot(MapBiome biome, int rockStep) => FirstBiomeSlot + ((uint)biome * (RockSteps + 1)) + (uint)rockStep;
 
     /// <summary>A land sample's material: its environment, with its rock share graded in <see cref="RockSteps"/> steps toward stone.</summary>
@@ -680,4 +763,11 @@ internal sealed class HorizonBackdrop : IProductModule
     {
         for (long value = first; value <= last; value++) yield return value;
     }
+}
+
+/// <summary>How the horizon's ground is drawn (#9839): dual-contoured voxel tiers, or heightfield grid meshes.</summary>
+internal enum HorizonGroundMode
+{
+    Voxel,
+    Mesh,
 }

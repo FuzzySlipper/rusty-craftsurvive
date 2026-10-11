@@ -11,7 +11,7 @@ namespace CraftSurvive.Game.Modules.World;
 /// the chunks to admit, replace and evict and applies a bounded number per update, refreshing the
 /// projected scene as it goes. Column contents come from the owner's sampler, in this layer's voxels.
 /// </summary>
-internal sealed class MapVoxelLayer : IDisposable
+internal sealed class MapVoxelLayer : IMapLayer
 {
     internal const int EdgeLength = TerrainConstants.ChunkEdgeLength;
     internal const int ColumnCount = EdgeLength * EdgeLength;
@@ -86,20 +86,20 @@ internal sealed class MapVoxelLayer : IDisposable
         VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(current, coarseBeyond));
         return (readout.ChunkCount, readout.CoarseChunkCount);
     }
-    internal int ResidentChunks => resident.Count;
-    internal int PendingChunks => pending.Count + unsampled.Count + stale.Count;
+    public int ResidentChunks => resident.Count;
+    public int PendingChunks => pending.Count + unsampled.Count + stale.Count;
     /// <summary>Whether the scene is projected and nothing waits to be sampled or applied.</summary>
-    internal bool Settled => projection is not null && pending.Count == 0 && unsampled.Count == 0 && stale.Count == 0;
+    public bool Settled => projection is not null && pending.Count == 0 && unsampled.Count == 0 && stale.Count == 0;
 
     /// <summary>With a sampling budget, the chunk column sampling works outward from.</summary>
-    internal (long X, long Z) Focus { get; set; }
-    internal double WorkMilliseconds => Stopwatch.GetElapsedTime(0, workTicks).TotalMilliseconds;
+    public (long X, long Z) Focus { get; set; }
+    public double WorkMilliseconds => Stopwatch.GetElapsedTime(0, workTicks).TotalMilliseconds;
 
     /// <summary>
     /// A digest of the sampled columns (keys, surfaces and materials, in key order), so two layers that should
     /// hold the same ground can be compared: one that followed the player there, one built fresh (R9822-1).
     /// </summary>
-    internal ulong Digest()
+    public ulong Digest()
     {
         ulong hash = 0xCBF29CE484222325UL;
         void Mix(ulong value) => hash = unchecked((hash ^ value) * 0x100000001B3UL);
@@ -118,7 +118,7 @@ internal sealed class MapVoxelLayer : IDisposable
     }
 
     /// <summary>Make exactly these chunk columns resident: new ones are admitted, dropped ones evicted.</summary>
-    internal void Want(IEnumerable<(long X, long Z)> chunkColumns)
+    public void Want(IEnumerable<(long X, long Z)> chunkColumns)
     {
         HashSet<(long X, long Z)> next = [.. chunkColumns];
         foreach ((long X, long Z) gone in wanted.Where(column => !next.Contains(column)).ToArray())
@@ -145,7 +145,7 @@ internal sealed class MapVoxelLayer : IDisposable
     }
 
     /// <summary>Resample these chunk columns; their resident chunks are replaced, and a changed band admits or evicts.</summary>
-    internal void Invalidate(IEnumerable<(long X, long Z)> chunkColumns)
+    public void Invalidate(IEnumerable<(long X, long Z)> chunkColumns)
     {
         foreach ((long X, long Z) key in chunkColumns.Distinct())
         {
@@ -178,7 +178,7 @@ internal sealed class MapVoxelLayer : IDisposable
     /// first) for up to that long; then apply up to <paramref name="budget"/> pending chunk operations, and
     /// project or refresh the scene.
     /// </summary>
-    internal void Advance(int budget)
+    public void Advance(int budget)
     {
         long started = Stopwatch.GetTimestamp();
         while ((stale.Count > 0 || unsampled.Count > 0) && Stopwatch.GetElapsedTime(started).TotalMilliseconds < sampleBudgetMilliseconds)

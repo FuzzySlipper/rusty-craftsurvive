@@ -56,6 +56,13 @@ internal static class ProductIds
     internal const ulong HorizonLandmarkBase = 0x8_1000UL;
     internal const int HorizonLandmarkLimit = 0x100;
 
+    /// <summary>
+    /// The horizon's ground tiles when drawn as meshes (#9839): each tier its own block of
+    /// <see cref="HorizonGroundTierLimit"/> ids from here.
+    /// </summary>
+    internal const ulong HorizonGroundBase = 0x9_0000UL;
+    internal const int HorizonGroundTierLimit = 0x1000;
+
     /// <summary>The overworld's drawn trees (TerrainTrees, #9665); up to 0x4000 of them.</summary>
     internal const ulong TreeObjectBase = 0x6_0000UL;
     internal const int TreeObjectLimit = 0x4000;

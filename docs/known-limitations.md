@@ -242,6 +242,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       exaggerates heights and draws textured ground. It is built only once the map screen is
       opened in faceted relief, then kept. The horizon needs true heights and flat colours, and
       must stand in first person from the start.
+  - **Heightfield meshes (#9839 prototype).** `craft.horizon.mode mesh` draws the same tiers from the same
+    samplers as heightfield grid meshes (`MapMeshLayer`, `HeightfieldTile`) in place of voxel sessions:
+    a vertex per sampled cell with its palette colour decoded to linear (the Engine takes vertex
+    colours as linear, material colours as sRGB), normals from the heights, 64-cell tiles that meet
+    exactly at their seams, and a one-cell skirt on each edge. Tier sinks and the far-field join are
+    unchanged. Voxel stays the default until the owner's verdict on #9839. A plain product mesh cannot
+    carry terrain-layer weights, so the mesh tiers draw vertex colour on a matte material, not the
+    walking ground's textures.
   - **Fog.** While it is shown, the open fog is exponential (0.0002 per metre since #9800, thickened by weather)
     instead of exponential squared, since the land now runs on past the far field.
   - **Cost.** A 10 km map streams 847 chunks in about 330 ms of work, a budget a frame. The backdrop

@@ -153,6 +153,7 @@ Check.Section("horizon sink", HorizonChecks.SinkMovesOnlyUnderTheFarField);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
 Check.Section("horizon middle tier follows the region window", HorizonChecks.MiddleTierFollowsTheRegionWindow);
+Check.Section("horizon heightfield tiles", HeightfieldTileChecks.Run);
 return Check.Finish("WorldMap");
 
 partial class Program

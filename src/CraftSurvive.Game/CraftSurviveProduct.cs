@@ -481,6 +481,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. TreeFacts(), .. horizon.Facts]
             : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
         creatures.AfterAppearanceSnapshot();
+        horizon.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
     }
 

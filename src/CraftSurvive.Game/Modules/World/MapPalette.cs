@@ -81,6 +81,15 @@ internal static class MapPalette
     /// <summary>A palette colour (sRGB hex, as the palette file writes it), used as the map's flat colours always have been.</summary>
     internal static Color Hex(int rgb) => new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1);
 
+    /// <summary>
+    /// A palette colour as a mesh's vertex colour: the Engine takes vertex colours as linear, where a
+    /// material's colour is sRGB, so the same palette entry is decoded first (#9839).
+    /// </summary>
+    internal static Color VertexColour(Color srgb) => new(Decode(srgb.R), Decode(srgb.G), Decode(srgb.B), srgb.A);
+
+    private static float Decode(float channel) =>
+        channel <= 0.04045f ? channel / 12.92f : MathF.Pow((channel + 0.055f) / 1.055f, 2.4f);
+
     /// <summary>A sample's environment colour, greyed toward stone as its rock is exposed.</summary>
     internal static Color Tint(MapSample sample)
     {
