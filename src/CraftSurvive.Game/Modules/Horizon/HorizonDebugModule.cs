@@ -32,6 +32,9 @@ public sealed class HorizonDebugModule : IDebugCommandModule
     [DebugCommand("craft.horizon.tune", Description = "Tuning (#9848): the middle and coarsest rings' reaches in kilometres and the tiles committed an update; the heightfield is made again.")]
     public string Tune(double midKilometres, double coarsestKilometres, long commits) => horizon().Tune(midKilometres, coarsestKilometres, commits);
 
+    [DebugCommand("craft.horizon.ground", Description = "Measuring (R9848-1): the backdrop's drawn ground at world x,z (morph included) and its ring, beside the sampler's ground there; landmarks stand on the drawn one.")]
+    public string Ground(double x, double z) => horizon().GroundReadout(x, z);
+
     [DebugCommand("craft.horizon.show", Description = "Assisted: shows (1) or hides (0) the horizon backdrop, for comparison captures.")]
     public string Show(long shown)
     {

@@ -35,6 +35,8 @@ internal sealed class HorizonBackdrop : IProductModule
     private static readonly Vector3 BackdropOrigin = Vector3.Zero;
     private static readonly Color White = new(1, 1, 1, 1);
     private const float GroundRoughness = 1f;
+    /// <summary>A placement ray starts this high: above the design's 9 km ceiling.</summary>
+    private const double PickFromMetres = 20_000;
 
     private readonly IEngineContext engine;
     private readonly WorldMap map;
@@ -352,11 +354,34 @@ internal sealed class HorizonBackdrop : IProductModule
             + string.Create(CultureInfo.InvariantCulture, $" | here {map.Sample(at.X, at.Z).Elevation:F0}m");
     }
 
-    /// <summary>The backdrop's ground at a world point, as the ring covering it there draws it, sunk as that is: where a place on the horizon stands.</summary>
-    internal double GroundMetres(double worldX, double worldZ)
+    /// <summary>
+    /// The backdrop's ground at a world point, where a place on the horizon stands: the surface the Engine
+    /// draws there now, morph and sink included (R9848-1), so a silhouette stays on the ground it is seen
+    /// on as rings blend; the sampler's own ground only where nothing is drawn there yet.
+    /// </summary>
+    internal double GroundMetres(double worldX, double worldZ) =>
+        DrawnGround(worldX, worldZ)?.Height ?? SampledGround(worldX, worldZ);
+
+    /// <summary>For checking placement: the drawn ground at a point and its ring, beside what the sampler gives there.</summary>
+    internal string GroundReadout(double worldX, double worldZ) =>
+        (DrawnGround(worldX, worldZ) is { } drawn
+            ? string.Create(CultureInfo.InvariantCulture, $"drawn={drawn.Height:F2}m ring={drawn.Ring}")
+            : "drawn=none")
+        + string.Create(CultureInfo.InvariantCulture, $" sampled={SampledGround(worldX, worldZ):F2}m");
+
+    private double SampledGround(double worldX, double worldZ)
     {
         Vector3 at = playerWorld();
         return ground.GroundMetres(worldX, worldZ, (at.X, at.Z));
+    }
+
+    /// <summary>A ray straight down through the backdrop at a world point, met with the heightfield as drawn now.</summary>
+    private (double Height, uint Ring)? DrawnGround(double worldX, double worldZ)
+    {
+        if (heightfield is null) return null;
+        HeightfieldPickResult hit = engine.Heightfield.Pick(new HeightfieldPickRequest(heightfield,
+            new Vector3((float)(worldX / Scale), (float)(PickFromMetres / Scale), (float)(worldZ / Scale)), -Vector3.UnitY, 0));
+        return hit.Hit ? (hit.Height, hit.Ring) : null;
     }
 
     public void Dispose()
