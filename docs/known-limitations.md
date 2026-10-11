@@ -188,24 +188,25 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   ground and landscape studies beyond 48 m (`TerrainPresentation.CoarseBeyondMetres`), the map's
   detail patch beyond 24 map units and the whole map beyond 160. Collision, picking and navigation
   keep full resolution. `craft.terrain.scene` and `craft.world.faceted` report how many chunks are coarse.
-- **The horizon is a far field, not the world (#9548).** Beyond the drawn chunks the first-person view
-  shows `FarField`: the same height function sampled at `FarField.VoxelMetres` (8 m) and streamed as
-  dual-contoured chunk columns in a session of its own out to `FarField.RadiusChunks` chunk columns
-  (about 1.5 km), drawn with the walking ground's four layers and one flat water colour. It has no
-  collision, trees, structures or rivers narrower than a voxel, it is sunk `SinkMetres` under the near
-  ground and rises to its true height short of the drawn chunks' edge, and the fog hides the join; a
-  hole dug deeper than the sink shows it. Its columns are addressed in world chunk coordinates, so a
-  world-origin rebase only moves its session's origin with the walking frame (`Align`) and samples
-  nothing; new columns are sampled when the player crosses into another far chunk column, and the sunk
-  zone is re-sampled every `SinkFollowStepMetres`. A new world grows the field from the player's column
-  by `GrowthPerUpdate` chunk columns an update until it reaches `RadiusChunks`, so the full field is
-  requested over the first six updates. Landscape studies and dungeons have no far field.
-  - **As a heightfield (#9850, comparison).** `craft.terrain.farfield heightfield` draws the same ground
-    (`FarGround`'s rules: the sink, the far material, water) as one 8 m ring of an Engine heightfield in
-    the scene, anchored in the walking session, sampled on workers (`FarFieldHeightfield`). Each vertex
-    weighs the far materials about it over the ground's transition reach, so patches blend as on the
-    voxel field, and water is its own hard-edged material. `voxel` stays the default until the owner's
-    verdict; `none` draws no far field, for measuring.
+- **The horizon is a far field, not the world (#9548, #9850).** Beyond the drawn chunks the first-person
+  view shows `FarField`: the same height function sampled every `FarGround.CellMetres` (8 m) as one ring
+  of an Engine heightfield in the scene, out to `FarField.RadiusChunks` far chunk columns (about 1.5 km,
+  the view distance), drawn with the walking ground's four layers and water as its own flat material.
+  - **Ground.** `FarGround` decides what a far cell is: rock where the map says so or the ground is
+    steep, snow or sand by climate, sand at the water, else grass; water where the sea or a river stands
+    over it. Each vertex weighs the materials about it over the ground's transition reach, so patches
+    blend as on the walking ground.
+  - **Join.** It is sunk `FarGround.SinkMetres` under the near ground and rises to its true height short
+    of the drawn chunks' edge, and the fog hides the join; a hole dug deeper than the sink shows it. The
+    sunk zone follows the player every `FarGround.SinkFollowStepMetres`, and the ground it moves over is
+    sampled again.
+  - **Limits.** It has no collision, trees of its own, structures or edits, and nothing lives on it.
+    Landscape studies and dungeons have no far field.
+  - **Streaming.** It stands in the walking session at the world's origin, so a rebase moves nothing.
+    Its tiles are sampled on the `HeightfieldStreamer`'s workers from the recipe's height and geography
+    (the map and the concurrent region cache), at most 64 committed an update. On the seed 4242
+    continent a 130 km teleport settles it in about 2 s. It replaced a dual-contoured voxel session
+    (#9548), which settled in about 20 s and drew alike (#9850).
 - **Past the far field, the map stands on the horizon (#9751, H1 #9779).** `HorizonBackdrop` draws the
   world map's ground in the Engine's backdrop layer behind the first-person world.
   - **Ground.** It is one Engine heightfield (#9848, rusty-engine #9842, `docs/heightfield-terrain.md`

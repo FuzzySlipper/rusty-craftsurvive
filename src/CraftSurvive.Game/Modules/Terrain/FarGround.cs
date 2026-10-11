@@ -4,9 +4,9 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// The far field's ground rules, shared by its voxel session (<see cref="FarField"/>) and its heightfield
-/// (<see cref="FarFieldHeightfield"/>, #9850): how deep it is sunk under the near ground about the player,
-/// what a far cell is made of, and where water stands over it. Pure, so the heightfield's workers may use them.
+/// The far field's ground rules (<see cref="FarField"/>, #9850): how deep it is sunk under the near ground
+/// about the player, what a far cell is made of, and where water stands over it. Pure, so the heightfield's
+/// workers may use them.
 /// </summary>
 internal static class FarGround
 {

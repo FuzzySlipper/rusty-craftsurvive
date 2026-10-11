@@ -4,277 +4,285 @@ using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
+using Rusty.Engine.Heightfields;
 
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// The land beyond the drawn chunks (#9548): the same height field the walking ground is
-/// generated from, sampled eight metres apart and streamed as dual-contoured chunk columns in a
-/// session of its own, drawn with the same ground layers. It has no collision and nothing lives
-/// on it; it is the horizon. Under the near ground it is sunk out of sight, rising to its true
-/// height short of the near ground's edge so the two meet under the fog. It follows the player
-/// a chunk column at a time and moves with the world origin.
+/// The land beyond the drawn chunks (#9548), as an Engine heightfield (#9850, rusty-engine #9842): the
+/// generated height every eight metres, sunk under the near ground about the player, made of what the far
+/// rules say (<see cref="FarGround"/>), drawn as one ring of grid tiles in the scene out to the view
+/// distance, with the walking ground's four terrain layers blended by per-vertex weights and water as its
+/// own hard-edged material. It has no collision and nothing lives on it. It stands in the walking session
+/// at the world's origin, so a rebase moves nothing, and its tiles are sampled on the streamer's workers.
 /// </summary>
-internal sealed class FarField : IFarField
+internal sealed class FarField : IDisposable
 {
-    /// <summary>One far voxel: a far cell (<see cref="FarGround.CellMetres"/>).</summary>
-    internal const double VoxelMetres = FarGround.CellMetres;
+    /// <summary>One far chunk column, in metres: a tile of sixteen far cells.</summary>
+    internal const int ChunkMetres = (int)FarGround.CellMetres * TerrainConstants.ChunkEdgeLength;
 
-    /// <summary>One far chunk column, in metres.</summary>
-    internal const int ChunkMetres = (int)VoxelMetres * TerrainConstants.ChunkEdgeLength;
-
-    /// <summary>How many far chunk columns are kept each way from the player's by default: a mile and a half.</summary>
+    /// <summary>How many far chunk columns it reaches each way from the player's by default: a mile and a half.</summary>
     internal const int DefaultRadiusChunks = 12;
-    private int radiusChunks = DefaultRadiusChunks;
-    private bool rewant;
-
-    /// <summary>How many far chunk columns are kept each way: the player's view distance (#9759), taken on the next follow.</summary>
-    public int RadiusChunks
-    {
-        get => radiusChunks;
-        set
-        {
-            radiusChunks = Math.Max(1, value);
-            grownRadius = Math.Min(grownRadius, radiusChunks);
-            rewant = true;
-        }
-    }
 
     /// <summary>
-    /// The farthest the far field draws from the player at a radius: whole chunk columns about the
-    /// player's, so up to one more column each way, to the corner of the square.
+    /// The farthest it draws from the player at a radius: whole chunk columns about the player's, so up
+    /// to one more column each way, to the corner of the square.
     /// </summary>
     internal static double FarthestMetres(int radiusChunks) => Math.Sqrt(2) * (Math.Max(1, radiusChunks) + 1) * ChunkMetres;
 
-    /// <summary>The far field grows out from the player this many chunk columns an update, so a new world starts drawing at once.</summary>
-    private const int GrowthPerUpdate = 2;
+    /// <summary>Cells along a tile's side: one far chunk column.</summary>
+    private const uint TileCells = (uint)TerrainConstants.ChunkEdgeLength;
+    private const uint GroundIndex = 0, WaterIndex = 1;
+    /// <summary>How many sampled tiles are committed to the Engine an update.</summary>
+    private const int CommitsPerUpdate = 64;
+    /// <summary>The ring's focus moves onto the player once they are this far from it.</summary>
+    private const double FocusStepMetres = FarGround.CellMetres;
+    /// <summary>The ground's textures repeat in metres (one heightfield unit), as on the walking ground.</summary>
+    private const double TextureUnitMetres = 1d;
 
-    /// <summary>Far chunks farther than this from the camera are drawn from the Engine's coarse meshes.</summary>
-    internal const double CoarseBeyondMetres = 400d;
-
-    /// <summary>How many far chunks are admitted or replaced an update.</summary>
-    private const int ChunksPerUpdate = 10;
-
-    private double sinkInnerMetres = FarGround.SinkBand(TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength).Inner;
-    private double sinkOuterMetres = FarGround.SinkBand(TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength).Outer;
-
-    /// <summary>
-    /// The near ground's edge, in metres from the player (its requested radius, #9759): the sunk zone
-    /// keeps short of it, so the join stays under the fog. A change re-samples the columns either touches.
-    /// </summary>
-    public double NearEdgeMetres
-    {
-        set
-        {
-            HashSet<(long X, long Z)> changed = double.IsNaN(sinkCentre.X) ? [] : [.. SunkColumns(sinkCentre)];
-            (sinkInnerMetres, sinkOuterMetres) = FarGround.SinkBand(value);
-            if (double.IsNaN(sinkCentre.X)) return;
-            changed.UnionWith(SunkColumns(sinkCentre));
-            layer.Invalidate(changed);
-        }
-    }
-
-    /// <summary>The sea and rivers in the far field, one flat colour.</summary>
-    private static readonly Color WaterColour = MapPalette.River;
-    private const uint WaterSlot = (uint)BlockId.Water;
+    /// <summary>What the workers sample by: the sunk zone, replaced before the tiles it changes are invalidated.</summary>
+    private sealed record Frame((double X, double Z) SinkCentre, double Inner, double Outer);
 
     private readonly IEngineContext engine;
-    private readonly TerrainRecipe recipe;
-    private readonly WorldFrame frame;
+    private readonly Func<SpatialSession> walking;
+    private readonly Sampler sampler;
     private readonly TerrainGroundMaterials ground;
     private readonly Material water;
-    private readonly MapVoxelLayer layer;
-    private readonly long radius;
-    private (long X, long Z)? centre;
-    private int grownRadius;
+    private Heightfield? heightfield;
+    private HeightfieldStreamer? streamer;
+    private int radiusChunks = DefaultRadiusChunks;
+    private double sinkInner, sinkOuter;
     private (double X, double Z) sinkCentre = (double.NaN, double.NaN);
-    private (long X, long Y, long Z) alignedOrigin;
-    private bool disposed;
+    private (double X, double Z) focus = (double.NaN, double.NaN);
 
-    internal FarField(IEngineContext engine, ProductContent content, TerrainRecipe recipe, WorldFrame frame)
+    /// <param name="walking">The walking session: the heightfield stands at the world's origin in its frame.</param>
+    internal FarField(IEngineContext engine, ProductContent content, TerrainRecipe recipe, Func<SpatialSession> walking)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
-        this.recipe = recipe ?? throw new ArgumentNullException(nameof(recipe));
-        this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
-        radius = recipe.Radius;
-        ground = new TerrainGroundMaterials(engine, content, VoxelMetres, GroundTextureSet.Walking);
+        this.walking = walking ?? throw new ArgumentNullException(nameof(walking));
+        ArgumentNullException.ThrowIfNull(recipe);
+        (sinkInner, sinkOuter) = FarGround.SinkBand(TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength);
+        ground = new TerrainGroundMaterials(engine, content, TextureUnitMetres, GroundTextureSet.Walking);
+        sampler = new Sampler(recipe, (int)ground.Settings.TransitionCells);
         try
         {
-            water = engine.Graphics.CreateMaterial(new MaterialRequest(WaterColour.Linear(), default, 1f, ColourSpace.White, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
-            Dictionary<uint, Material> bindings = [];
-            List<(uint Slot, uint Layer)> layered = [];
-            foreach (BlockDefinition block in BlockRegistry.MaterialBlocks)
-            {
-                int index = TerrainLayers.Layer(block.Id);
-                if (index < 0) continue;
-                bindings[(uint)block.Id] = ground.Layered;
-                layered.Add(((uint)block.Id, (uint)index));
-            }
-
-            bindings[WaterSlot] = water;
-            layer = new MapVoxelLayer(engine, VoxelMetres, Sample, bindings,
-                ([.. layered.Select(entry => entry.Slot)], [.. layered.Select(entry => entry.Layer)], ground.Settings.TransitionCells),
-                CoarseBeyondMetres);
+            water = engine.Graphics.CreateMaterial(new MaterialRequest(MapPalette.River.Linear(), default, 1f, ColourSpace.White,
+                Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
         }
         catch
         {
-            water?.Dispose();
             ground.Dispose();
             throw;
         }
 
-        frame.Rebased += OnRebased;
-        Align();
+        Publish();
     }
 
-    public string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"farField chunks={layer.ResidentChunks} pending={layer.PendingChunks} radius={grownRadius}/{RadiusChunks} sink={sinkInnerMetres:F0}-{sinkOuterMetres:F0}m centre={centre?.X ?? 0},{centre?.Z ?? 0} workMs={layer.WorkMilliseconds:F0}");
-
-    /// <summary>Keeps the far field centred on a world column, and the sunk zone under the player.</summary>
-    public void Follow(long worldX, long worldZ)
+    /// <summary>How many far chunk columns it reaches each way: the view distance (#9759), taken on the next follow.</summary>
+    internal int RadiusChunks
     {
-        if (disposed) return;
-        (long X, long Z) column = (GridMath.FloorDivide(worldX, ChunkMetres), GridMath.FloorDivide(worldZ, ChunkMetres));
-        bool moved = centre != column;
-        if (moved) centre = column;
-        if (grownRadius < RadiusChunks || moved || rewant)
+        get => radiusChunks;
+        set
         {
-            rewant = false;
-            grownRadius = Math.Min(RadiusChunks, grownRadius + GrowthPerUpdate);
-            layer.Want(from z in Range(column.Z - grownRadius, column.Z + grownRadius)
-                       from x in Range(column.X - grownRadius, column.X + grownRadius)
-                       select (x, z));
+            int next = Math.Max(1, value);
+            if (next == radiusChunks) return;
+            radiusChunks = next;
+            // The ring reaches the view distance: made again with the new reach on the next follow.
+            Release();
+        }
+    }
+
+    /// <summary>The near ground's edge, in metres from the player: the sunk zone keeps short of it, so the join stays under the fog.</summary>
+    internal double NearEdgeMetres
+    {
+        set
+        {
+            (double inner, double outer) = FarGround.SinkBand(value);
+            if (inner == sinkInner && outer == sinkOuter) return;
+            double before = sinkOuter;
+            (sinkInner, sinkOuter) = (inner, outer);
+            Publish();
+            InvalidateAround(sinkCentre, Math.Max(before, sinkOuter));
+        }
+    }
+
+    /// <summary>Keeps the ring centred on the player, and the sunk zone under them.</summary>
+    internal void Follow(long worldX, long worldZ)
+    {
+        if (heightfield is null) Build(worldX, worldZ);
+        if (Math.Max(Math.Abs(worldX - focus.X), Math.Abs(worldZ - focus.Z)) >= FocusStepMetres)
+        {
+            focus = (worldX, worldZ);
+            engine.Heightfield.SetFocus(new HeightfieldFocusRequest(heightfield!, HeightfieldFocus.At(worldX, worldZ)));
         }
 
-        FollowSink(worldX, worldZ);
+        if (!double.IsNaN(sinkCentre.X)
+            && Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z)) < FarGround.SinkFollowStepMetres) return;
+        (double X, double Z) previous = sinkCentre;
+        sinkCentre = (worldX, worldZ);
+        // The frame the workers sample by changes first, so nothing invalidated is sampled again by the old one.
+        Publish();
+        InvalidateAround(previous, sinkOuter);
+        InvalidateAround(sinkCentre, sinkOuter);
     }
 
-    /// <summary>Applies a bounded number of queued chunk operations and refreshes the drawn scene.</summary>
-    public void Advance()
+    /// <summary>Commits a bounded number of sampled tiles and starts sampling the next.</summary>
+    internal void Advance() => streamer?.Update();
+
+    internal string Readout()
     {
-        if (disposed) return;
-        layer.Advance(ChunksPerUpdate);
+        if (heightfield is null || streamer is null) return "farField=none";
+        HeightfieldReadout read = engine.Heightfield.Read(heightfield);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"farField tiles={read.DrawnTiles}/{read.ResidentTiles}+{read.PendingTiles}pending vertices={read.Vertices} sampleMB={read.SampleBytes / 1048576.0:F1} meshMB={read.MeshBytes / 1048576.0:F1} inFlight={streamer.InFlight} committed={streamer.Committed} ignored={streamer.Ignored} sampleMs={streamer.SampleMilliseconds:F0} settled={read.Settled && streamer.InFlight == 0} radius={radiusChunks} sink={sinkInner:F0}-{sinkOuter:F0}m centre={sinkCentre.X:F0},{sinkCentre.Z:F0}");
     }
 
     public void Dispose()
     {
-        if (disposed) return;
-        disposed = true;
-        // A far field let go (the world closing, or another one drawn in its place) follows no more rebases.
-        frame.Rebased -= OnRebased;
-        layer.Dispose();
+        Release();
         water.Dispose();
         ground.Dispose();
     }
 
-    /// <summary>Moves the sunk zone onto the player once they have walked a step from its centre, re-sampling the columns it changes.</summary>
-    private void FollowSink(long worldX, long worldZ)
+    private void Build(long worldX, long worldZ)
     {
-        if (!double.IsNaN(sinkCentre.X) && Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z)) < FarGround.SinkFollowStepMetres)
-        {
-            return;
-        }
-
-        (double X, double Z) previous = sinkCentre;
-        sinkCentre = (worldX, worldZ);
-        HashSet<(long X, long Z)> changed = [.. SunkColumns(sinkCentre)];
-        if (!double.IsNaN(previous.X)) changed.UnionWith(SunkColumns(previous));
-        layer.Invalidate(changed);
+        double reach = (radiusChunks + 1) * (double)ChunkMetres;
+        heightfield = engine.Heightfield.Create(new HeightfieldCreateRequest(TileCells,
+            new HeightfieldRing[] { new(FarGround.CellMetres, reach) },
+            new HeightfieldMaterial[] { new(GroundIndex, ground.Layered), new(WaterIndex, water) },
+            RenderLayer.Scene, Vector3.Zero, 1f, HeightfieldFocus.At(worldX, worldZ))
+            with { Session = walking(), Anchor = new WorldOriginGlobalPosition(0, 0, 0, 0, 0, 0) });
+        streamer = new HeightfieldStreamer(engine, heightfield, sampler, CommitsPerUpdate);
+        focus = (worldX, worldZ);
     }
 
-    /// <summary>The far chunk columns a sunk zone at a centre touches.</summary>
-    private IEnumerable<(long X, long Z)> SunkColumns((double X, double Z) at)
+    private void Release()
     {
-        long minX = GridMath.FloorDivide((long)Math.Floor(at.X - sinkOuterMetres), ChunkMetres);
-        long maxX = GridMath.FloorDivide((long)Math.Ceiling(at.X + sinkOuterMetres), ChunkMetres);
-        long minZ = GridMath.FloorDivide((long)Math.Floor(at.Z - sinkOuterMetres), ChunkMetres);
-        long maxZ = GridMath.FloorDivide((long)Math.Ceiling(at.Z + sinkOuterMetres), ChunkMetres);
-        for (long z = minZ; z <= maxZ; z++)
-        for (long x = minX; x <= maxX; x++)
-            yield return (x, z);
+        streamer?.Dispose();
+        streamer = null;
+        heightfield?.Dispose();
+        heightfield = null;
+        focus = (double.NaN, double.NaN);
     }
 
-    /// <summary>How far the far field is sunk at a world point: fully near the player, nothing past the outer edge.</summary>
-    private double Sink(double worldX, double worldZ)
-    {
-        if (double.IsNaN(sinkCentre.X)) return 0d;
-        double away = Math.Max(Math.Abs(worldX - sinkCentre.X), Math.Abs(worldZ - sinkCentre.Z));
-        return FarGround.Sink(away, sinkInnerMetres, sinkOuterMetres);
-    }
+    private void Publish() => sampler.Current = new Frame(sinkCentre, sinkInner, sinkOuter);
 
-    private void OnRebased(Vector3 shift) => Align();
-
-    /// <summary>The far field's session shares the walking session's world origin, so the two draw in one frame.</summary>
-    private void Align()
+    private void InvalidateAround((double X, double Z) centre, double extent)
     {
-        if (disposed) return;
-        (long X, long Y, long Z) origin = frame.Origin;
-        if (origin == alignedOrigin) return;
-        using WorldOriginPrepared prepared = engine.WorldOrigin.Prepare(new WorldOriginPrepareRequest(
-            layer.Session, origin.X, origin.Y, origin.Z, Array.Empty<WorldOriginEntityRow>()));
-        engine.WorldOrigin.Commit(new WorldOriginCommitRequest(prepared));
-        alignedOrigin = origin;
+        if (heightfield is null || double.IsNaN(centre.X)) return;
+        engine.Heightfield.Invalidate(new HeightfieldInvalidateRequest(heightfield,
+            centre.X - extent, centre.Z - extent, centre.X + extent, centre.Z + extent));
     }
 
     /// <summary>
-    /// One far chunk column: each far voxel column takes the generated height at its centre, in
-    /// far voxels, less the sink there, and the ground's natural material: rock where the map
-    /// says so or the ground is steep, snow or sand by climate, sand at the water, else grass;
-    /// water where the sea or a river stands above the ground. Columns beyond the world are empty.
+    /// One tile's samples on a worker: the generated height at every vertex and one more each side, less
+    /// the sink, with water's surface over it where water stands; per vertex the far rules' materials about
+    /// it, each a terrain layer, weighed by nearness over the ground's transition reach as a voxel chunk's
+    /// layer weights are (so patches blend over the same width), or the water index where water stands.
+    /// It reads only the recipe's height and geography (the map and region tiles, whose cache is
+    /// concurrent; not the recipe's memo tables for trees, column bands, chunk content or crossings,
+    /// which only the voxel chunk generator touches) and the published frame.
     /// </summary>
-    private void Sample(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
+    private sealed class Sampler(TerrainRecipe recipe, int transitionCells) : IHeightfieldSampler
     {
-        const int edge = MapVoxelLayer.EdgeLength;
-        Span<double> heights = stackalloc double[(edge + 2) * (edge + 2)];
-        // The height a voxel beyond each edge, so the slope at the edge is the same as its neighbour's.
-        for (int z = -1; z <= edge; z++)
-        for (int x = -1; x <= edge; x++)
+        private Frame frame = new((double.NaN, double.NaN), 0, 1);
+
+        internal Frame Current
         {
-            long worldX = ((chunkX * edge) + x) * (long)VoxelMetres + ((long)VoxelMetres / 2);
-            long worldZ = ((chunkZ * edge) + z) * (long)VoxelMetres + ((long)VoxelMetres / 2);
-            heights[((z + 1) * (edge + 2)) + x + 1] = Math.Abs(worldX) > radius || Math.Abs(worldZ) > radius
-                ? double.NaN
-                : recipe.ContinuousHeightAt(worldX, worldZ);
+            get => Volatile.Read(ref frame);
+            set => Volatile.Write(ref frame, value);
         }
 
-        for (int z = 0; z < edge; z++)
-        for (int x = 0; x < edge; x++)
+        public void Sample(HeightfieldTileRequest tile, HeightfieldTileSamples samples)
         {
-            int i = (z * edge) + x;
-            double height = heights[((z + 1) * (edge + 2)) + x + 1];
-            if (double.IsNaN(height))
+            Frame now = Current;
+            int side = tile.Side, reach = transitionCells;
+            // A lattice reaching the transition (for the weights) and a cell more (for each material's slope).
+            int border = reach + 1, span = side + (2 * border);
+            double[] ground = new double[span * span];
+            double[] waterTop = new double[span * span];
+            MapSample[] geography = new MapSample[span * span];
+            int At(int i, int j) => ((j + border) * span) + i + border;
+            for (int j = -border; j < side + border; j++)
+            for (int i = -border; i < side + border; i++)
             {
-                surface[i] = double.NaN;
-                material[i] = TerrainConstants.EmptyMaterial;
-                continue;
+                int at = At(i, j);
+                double x = tile.SampleX(i), z = tile.SampleZ(j);
+                if (Math.Abs(x) > recipe.Radius || Math.Abs(z) > recipe.Radius)
+                {
+                    ground[at] = double.NaN;
+                    continue;
+                }
+
+                ground[at] = recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
+                geography[at] = recipe.Geography(x, z);
+                waterTop[at] = FarGround.WaterTop(geography[at]);
             }
 
-            long worldX = ((chunkX * edge) + x) * (long)VoxelMetres + ((long)VoxelMetres / 2);
-            long worldZ = ((chunkZ * edge) + z) * (long)VoxelMetres + ((long)VoxelMetres / 2);
-            MapSample geography = recipe.Geography(worldX, worldZ);
-            double waterTop = FarGround.WaterTop(geography);
-            double top = Math.Max(height, waterTop);
-            surface[i] = (top - Sink(worldX, worldZ)) / VoxelMetres;
-            material[i] = waterTop > height ? WaterSlot : (uint)Natural(geography, heights, x, z, height);
+            for (int j = -1; j <= side; j++)
+            for (int i = -1; i <= side; i++)
+            {
+                int at = At(i, j);
+                if (double.IsNaN(ground[at]))
+                {
+                    samples.SetHeight(i, j, float.NaN);
+                    continue;
+                }
+
+                double x = tile.SampleX(i), z = tile.SampleZ(j);
+                double sink = double.IsNaN(now.SinkCentre.X) ? 0
+                    : FarGround.Sink(Math.Max(Math.Abs(x - now.SinkCentre.X), Math.Abs(z - now.SinkCentre.Z)), now.Inner, now.Outer);
+                samples.SetHeight(i, j, (float)(Math.Max(ground[at], waterTop[at]) - sink));
+            }
+
+            // Each land cell's layer within the transition reach of the tile (-1 for none or water).
+            int layerSpan = side + (2 * reach);
+            int[] layers = new int[layerSpan * layerSpan];
+            for (int j = -reach; j < side + reach; j++)
+            for (int i = -reach; i < side + reach; i++)
+            {
+                int at = At(i, j);
+                double height = ground[at];
+                int layer = -1;
+                if (!double.IsNaN(height) && waterTop[at] <= height)
+                {
+                    double rise = 0;
+                    foreach (int neighbour in (ReadOnlySpan<int>)[at - 1, at + 1, at - span, at + span])
+                    {
+                        if (!double.IsNaN(ground[neighbour])) rise = Math.Max(rise, Math.Abs(ground[neighbour] - height));
+                    }
+
+                    layer = Math.Max(0, TerrainLayers.Layer(FarGround.Natural(geography[at], rise, height, tile.CellSize)));
+                }
+
+                layers[((j + reach) * layerSpan) + i + reach] = layer;
+            }
+
+            for (int j = 0; j < side; j++)
+            for (int i = 0; i < side; i++)
+            {
+                int own = layers[((j + reach) * layerSpan) + i + reach];
+                if (own < 0)
+                {
+                    if (!double.IsNaN(ground[At(i, j)])) samples.SetMaterial(i, j, WaterIndex);
+                    samples.SetLayerWeights(i, j, Vector4.UnitX);
+                    continue;
+                }
+
+                // Nearer cells weigh more: reach + 1 at the vertex, falling by one a cell (Chebyshev).
+                Vector4 weights = Vector4.Zero;
+                for (int dz = -reach; dz <= reach; dz++)
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    int layer = layers[((j + dz + reach) * layerSpan) + i + dx + reach];
+                    if (layer < 0) continue;
+                    weights += Layer(layer) * (reach + 1 - Math.Max(Math.Abs(dx), Math.Abs(dz)));
+                }
+
+                samples.SetLayerWeights(i, j, weights / (weights.X + weights.Y + weights.Z + weights.W));
+            }
         }
-    }
 
-    private static BlockId Natural(MapSample geography, ReadOnlySpan<double> heights, int x, int z, double height)
-    {
-        const int stride = MapVoxelLayer.EdgeLength + 2;
-        int centre = ((z + 1) * stride) + x + 1;
-        double rise = 0d;
-        foreach (int neighbour in (ReadOnlySpan<int>)[centre - 1, centre + 1, centre - stride, centre + stride])
-        {
-            double other = heights[neighbour];
-            if (!double.IsNaN(other)) rise = Math.Max(rise, Math.Abs(other - height));
-        }
-
-        return FarGround.Natural(geography, rise, height, VoxelMetres);
-    }
-
-    private static IEnumerable<long> Range(long from, long to)
-    {
-        for (long value = from; value <= to; value++) yield return value;
+        private static Vector4 Layer(int layer) => layer switch { 0 => Vector4.UnitX, 1 => Vector4.UnitY, 2 => Vector4.UnitZ, _ => Vector4.UnitW };
     }
 }
