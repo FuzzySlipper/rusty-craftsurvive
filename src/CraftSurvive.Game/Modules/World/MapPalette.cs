@@ -82,8 +82,8 @@ internal static class MapPalette
     internal static Color Hex(int rgb) => new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1);
 
     /// <summary>
-    /// A palette colour as a mesh's vertex colour: the Engine takes vertex colours as linear, where a
-    /// material's colour is sRGB, so the same palette entry is decoded first (#9839).
+    /// A palette colour as a mesh's vertex colour: the palette is sRGB and the Engine takes vertex
+    /// colours as linear, so the entry is decoded first (#9839).
     /// </summary>
     internal static Color VertexColour(Color srgb) => new(Decode(srgb.R), Decode(srgb.G), Decode(srgb.B), srgb.A);
 

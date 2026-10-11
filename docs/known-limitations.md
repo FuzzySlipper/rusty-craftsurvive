@@ -245,7 +245,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Heightfield meshes (#9839 prototype).** `craft.horizon.mode mesh` draws the same tiers from the same
     samplers as heightfield grid meshes (`MapMeshLayer`, `HeightfieldTile`) in place of voxel sessions:
     a vertex per sampled cell with its palette colour decoded to linear (the Engine takes vertex
-    colours as linear, material colours as sRGB), normals from the heights, 64-cell tiles that meet
+    colours as linear; the voxel tiers' flat materials pass each colour as both colour and tint, which
+    the Engine multiplies, so they land near the same decoded value), normals from the heights, 64-cell tiles that meet
     exactly at their seams, and a one-cell skirt on each edge. Tier sinks and the far-field join are
     unchanged. Voxel stays the default until the owner's verdict on #9839. A plain product mesh cannot
     carry terrain-layer weights, so the mesh tiers draw vertex colour on a matte material, not the
