@@ -66,6 +66,9 @@ internal sealed class TravelCostModel
 
     /// <summary>The bounds the expedition is turned back at (#9817); null for a world without them.</summary>
     internal FrontierBound? Bound => bound;
+
+    /// <summary>Whether a world point lies inside the bounds (#9817); everywhere does in a world without them.</summary>
+    internal bool Allows(System.Numerics.Vector2 world) => bound?.Open(world.X, world.Y) ?? true;
     internal bool Transported { get; }
 
     /// <summary>The cost multiplier of a lattice node; infinity where the expedition cannot go.</summary>

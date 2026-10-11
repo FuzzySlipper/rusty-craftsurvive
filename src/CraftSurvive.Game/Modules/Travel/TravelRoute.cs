@@ -44,9 +44,10 @@ internal static class TravelRouter
         int start = Nearest(cost, from), goal = Nearest(cost, to);
         if (start < 0 || goal < 0) return null;
         if (Search(cost, start, goal, null) is not List<int> path) return null;
-        // An unreachable destination (at sea, on a cliff) resolves to the nearest ground the route reaches.
+        // An unreachable destination (at sea, on a cliff, past the world's bounds) resolves to the nearest
+        // ground the route reaches; one past the bounds does however near it lies (#9817, R9817-1).
         Vector2 goalGround = new((float)grid.X(goal), (float)grid.Z(goal));
-        if (Vector2.Distance(to, goalGround) > grid.Spacing) to = goalGround;
+        if (Vector2.Distance(to, goalGround) > grid.Spacing || !cost.Allows(to)) to = goalGround;
         TravelRoute coarse = Assemble(cost, path, Vector2.Zero, from, to, destination);
         return RefineHead(cost, coarse) ?? coarse;
     }

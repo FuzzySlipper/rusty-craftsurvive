@@ -89,7 +89,35 @@ internal static class FrontierChecks
         TravelRoute? beyond = TravelRouter.Plan(cost, home, new(0.5f * (float)map.Radius, -0.95f * (float)map.Radius), "the mainland");
         Check.That(beyond is null || beyond.Points.All(p => bound.Open(p.X, p.Y)),
             $"a route toward the mainland stops on the near side ({(beyond is null ? "no route" : $"ends at {beyond.Points[^1].X:F0},{beyond.Points[^1].Y:F0}")})");
+
+        // R9817-1: a destination just across the frontier, within a lattice step of ground the route may
+        // reach, is not kept as the route's end; every point and leg of the route stays inside.
+        List<Vector2> across = [];
+        for (int i = 0; i < map.Grid.Count && across.Count < NearBoundDestinations; i++)
+        {
+            Vector2 node = new((float)map.Grid.X(i), (float)map.Grid.Z(i));
+            Vector2 over = node - new Vector2(0, (float)JustAcrossMetres);
+            if (cost.Passable(i) && bound.At(over.X, over.Y) == BoundSide.BeyondFrontier
+                && across.All(other => Vector2.Distance(other, over) > NearBoundSpreadMetres)) across.Add(over);
+        }
+
+        PlacedSite start = bound.Sites[0];
+        int kept = 0, outside = 0;
+        foreach (Vector2 destination in across)
+        {
+            if (TravelRouter.Plan(cost, new((float)start.X, (float)start.Z), destination, "across the frontier") is not TravelRoute route) continue;
+            if (route.Points[^1] == destination) kept++;
+            for (int k = 0; k < route.Points.Length; k++)
+                if (!bound.Open(route.Points[k].X, route.Points[k].Y) || (k > 0 && !bound.Open((route.Points[k - 1].X + route.Points[k].X) / 2, (route.Points[k - 1].Y + route.Points[k].Y) / 2))) outside++;
+        }
+
+        Check.That(across.Count > 0 && kept == 0 && outside == 0,
+            $"routes to {across.Count} points {JustAcrossMetres:F0} m across the frontier end inside it (kept {kept}, points or legs outside {outside})");
     }
+
+    /// <summary>The near-bound route check: points this far north of passable ground, this many, this far apart.</summary>
+    private const double JustAcrossMetres = 300, NearBoundSpreadMetres = 20_000;
+    private const int NearBoundDestinations = 8;
 
     /// <summary>A land node with sea beside it, and that sea node, for the shore's swim.</summary>
     private static (Vector2 Shore, Vector2 Sea) ShoreAndSea(WorldMap map)

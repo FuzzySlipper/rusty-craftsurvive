@@ -321,6 +321,10 @@ public sealed partial class CraftSurviveProduct
     {
         conditions.Pass(0, save: true);
         if (party is null || player.InSeparateSpace) return false;
+        // The party settles inside the world's bounds (#9817, R9817-1): routes keep it there, and a token
+        // found past them stands on the nearest ground the expedition may cross.
+        if (BoundRefusal(party.Position.X, party.Position.Y) is not null && TravelRouter.Nearest(TravelCost, party.Position) is int inside and >= 0)
+            party.Relocate(new((float)worlds.Current.Map.Grid.X(inside), (float)worlds.Current.Map.Grid.Z(inside)));
         Vector3 feet = player.WorldFeetPosition;
         if (Vector2.Distance(party.Position, new(feet.X, feet.Z)) > PartyRelocateMetres
             && player.Teleport(party.Position.X, terrain.GroundAt(party.Position.X, party.Position.Y) + ArrivalClearance, party.Position.Y) is null)
