@@ -8,8 +8,9 @@ namespace CraftSurvive.Game.Modules.World;
 /// <summary>
 /// Map-scale clutter for the faceted map's detail patch: generated low-poly meshes (trees, rocks),
 /// not voxels, scattered deterministically by environment over a jittered grid and set on the
-/// drawn surface. Instances are appearance facts sharing one appearance per model. A model is a
-/// textured prop mesh (<see cref="PropMesh"/>, #9831) or a vertex-coloured static mesh, by its file's name.
+/// drawn surface. Instances are appearance facts sharing one appearance per model. Each model is a
+/// unit-height textured prop mesh (<see cref="PropMesh"/>, #9831): the rock and cactus are painted tiles
+/// over a generated shape, the trees the first-person trees' distant-band meshes (scripts/generate-tree.py).
 /// </summary>
 internal sealed class MapClutter : IDisposable
 {
@@ -24,8 +25,7 @@ internal sealed class MapClutter : IDisposable
     private const float RockHeight = 0.35f;
     private const float SizeVariation = 0.25f;
     private const ulong ScatterSalt = 0xA0761D6478BD642FUL;
-    private static readonly Color Untinted = new(1, 1, 1, 1);
-    /// <summary>Textured clutter is stone or wood: matt, and it holds still.</summary>
+    /// <summary>Stone, bark and leaves: matt, and at map scale nothing moves in the wind.</summary>
     private const float PropRoughness = 0.95f;
 
     private readonly Dictionary<Model, Appearance> appearances = [];
@@ -97,8 +97,6 @@ internal sealed class MapClutter : IDisposable
 
     private Appearance Create(IEngineContext engine, ProductContent content, string path)
     {
-        if (!path.EndsWith(PropMesh.Suffix, StringComparison.Ordinal))
-            return engine.Graphics.CreateStaticMeshFromContent(new(path, Untinted));
         MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, path,
             (role, texture) => materials.For(role, texture ?? throw new InvalidOperationException($"CraftSurvive map clutter '{path}' part '{role}' names no texture."))));
         meshes.Add(mesh);
@@ -107,12 +105,12 @@ internal sealed class MapClutter : IDisposable
 
     internal static string ContentPath(Model model) => model switch
     {
-        Model.Pine => "models/map/pine.static-mesh.json",
-        Model.Broadleaf => "models/map/broadleaf.static-mesh.json",
-        Model.Palm => "models/map/palm.static-mesh.json",
+        Model.Pine => "models/map/pine" + PropMesh.Suffix,
+        Model.Broadleaf => "models/map/broadleaf" + PropMesh.Suffix,
+        Model.Palm => "models/map/palm" + PropMesh.Suffix,
         Model.Rock => "models/map/rock" + PropMesh.Suffix,
-        Model.Cactus => "models/map/cactus.static-mesh.json",
-        _ => "models/map/deadtree.static-mesh.json",
+        Model.Cactus => "models/map/cactus" + PropMesh.Suffix,
+        _ => "models/map/deadtree" + PropMesh.Suffix,
     };
 
     /// <summary>What, if anything, grows or stands here: density and kind follow the environment.</summary>

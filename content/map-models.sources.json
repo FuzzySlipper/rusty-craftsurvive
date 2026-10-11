@@ -1,38 +1,33 @@
 {
-  "purpose": "World-map clutter meshes (#9437); generated 2026-10-05 with owner-authorised Tripo credits",
+  "purpose": "World-map clutter (#9437, #9831): the faceted map's trees, rocks and cacti, read by MapClutter as unit-height textured prop meshes. Originally Tripo meshes baked to per-face colour (retired by #9831: the models, their normalised GLBs and the baking scripts are gone).",
   "models": [
     {
-      "model": "content/game/models/map/pine.static-mesh.json",
-      "workbenchJob": "c7338ba3b792decc9cb0632e",
-      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-c7338ba3b792decc9cb0632e/generate-model.glb",
-      "tripoTask": "572d7014-c8c5-4f92-8833-e0aca018cfaf",
-      "credits": 110.0,
-      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
-      "prompt": "A single low-poly stylized pine tree for a strategy game world map: faceted flat-shaded conical evergreen with a short brown trunk, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
-      "normalized": "content/map-models/pine.glb"
+      "model": "content/game/models/map/pine.prop-mesh.json",
+      "sha256": "8b59a3561dd85dd51c0a338ed12bfb6f2c1058c5a4b0fc2ebfd7c0e4839c0700",
+      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-tree.py pine --seed 1 --name pine --height 1.0 --far-only --folder map --no-textures",
+      "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
-      "model": "content/game/models/map/broadleaf.static-mesh.json",
-      "workbenchJob": "43301e7bca63885bb6dc14b6",
-      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-43301e7bca63885bb6dc14b6/generate-model.glb",
-      "tripoTask": "713bf695-2ca2-4c12-8e75-16096ca3b9b8",
-      "credits": 110.0,
-      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
-      "prompt": "A single low-poly stylized broadleaf deciduous tree for a strategy game world map: faceted flat-shaded rounded green canopy, short brown trunk, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
-      "normalized": "content/map-models/broadleaf.glb"
+      "model": "content/game/models/map/broadleaf.prop-mesh.json",
+      "sha256": "1ea90fd51f0cc9ecae0fe5403038e9ce27413466e4819c32ca6acd23992ced73",
+      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-tree.py oak --seed 1 --name broadleaf --height 1.0 --far-only --folder map --no-textures",
+      "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
-      "model": "content/game/models/map/palm.static-mesh.json",
-      "workbenchJob": "8e33c38cac139dc1d91bb19b",
-      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-8e33c38cac139dc1d91bb19b/generate-model.glb",
-      "tripoTask": "a6167cf9-2b92-45d5-b34f-26926ce326b7",
-      "credits": 110.0,
-      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
-      "prompt": "A single low-poly stylized jungle palm tree for a strategy game world map: faceted flat-shaded, curved trunk, broad green fronds, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
-      "normalized": "content/map-models/palm.glb"
+      "model": "content/game/models/map/palm.prop-mesh.json",
+      "sha256": "a5e774d5d5f3749a9f3ecfaea60630c9aa8e469913d7df421b968b4a7d17561f",
+      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-tree.py palm --seed 1 --name palm --height 1.0 --frond-width 2.2 --folder map --no-textures",
+      "textures": "content/game/textures/trees/ (shared with the first-person trees)"
+    },
+    {
+      "model": "content/game/models/map/deadtree.prop-mesh.json",
+      "sha256": "966ffd11ea0127ec659b52ff228ac02913fd4e02f876872404ecc287e0bf5c24",
+      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-tree.py dead --seed 1 --name deadtree --height 1.0  --folder map --no-textures",
+      "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/rock.prop-mesh.json",
@@ -45,26 +40,17 @@
       "texture": "content/game/textures/scatter/stones.png"
     },
     {
-      "model": "content/game/models/map/cactus.static-mesh.json",
+      "model": "content/game/models/map/cactus.prop-mesh.json",
+      "sha256": "f59ea2985774aa24fac9b6bfb1c0d907d979af9972941e74799c23cfa54da23b",
       "workbenchJob": "fd766487c00eb93c039cbc34",
       "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-fd766487c00eb93c039cbc34/generate-model.glb",
+      "sourceSha256": "144a4d365d2f24a1b889342d15cc276520a4ce2499838be1cf2d7f3d35a7ff92",
       "tripoTask": "76f77d68-3cbb-447b-a34d-72aa9d050562",
       "credits": 110.0,
-      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
-      "prompt": "A single low-poly stylized desert cactus with two arms for a strategy game world map: faceted flat-shaded green, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
-      "normalized": "content/map-models/cactus.glb"
-    },
-    {
-      "model": "content/game/models/map/deadtree.static-mesh.json",
-      "workbenchJob": "ee769f89f5980a6474619dc5",
-      "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-ee769f89f5980a6474619dc5/generate-model.glb",
-      "tripoTask": "ed91242e-39bd-4904-8b25-02e197105fe8",
-      "credits": 110.0,
-      "provider": "Tripo P2-20260801, triangle topology, 1200-face target",
-      "prompt": "A single low-poly stylized bare leafless tundra tree for a strategy game world map: faceted flat-shaded twisted grey-brown trunk and branches, no leaves, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py (base at origin, unit height, 256 px textures) then scripts/bake-map-static-mesh.py (faceted triangles, texture colour per face as vertex colour, Engine StaticMeshAsset JSON)",
-      "normalized": "content/map-models/deadtree.glb"
+      "provider": "Tripo P2-20260801, triangle topology, 1200-face target (2026-10-05). Only the shape is used; the prompt that asked for faceted flat-shaded green is superseded by the texture.",
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <source> content/game/models/map/cactus.prop-mesh.json --height 1.0 --faces 1300 --texture-ref textures/props/cactus.png --tile-metres 0.5 (Smart UV charts, smooth normals, unit height); the skin tile is drawn by scripts/generate-cactus-skin.py and graded with scripts/stylise-texture.py --size 128 --brightness 1.35 --saturation 0.75 --tile. Tripo's own atlas is a per-facet patchwork and is not used; a Z-Image skin tile was tried and abandoned when den-m5 stalled.",
+      "texture": "content/game/textures/props/cactus.png",
+      "textureSha256": "dd16bc2d3993de1454bf9aa4a065d4569d9e53fed69f09dfe38e0a0964797982"
     },
     {
       "model": "content/game/models/sled.prop-mesh.json",

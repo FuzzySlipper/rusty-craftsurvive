@@ -77,8 +77,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     there is no player-facing style choice. A layer set takes at most 16 slots, so textured
     styles use one material per environment. Rivers are
     painted onto cells, not carved. Trees, cacti and rocks on the patch are generated low-poly
-    static meshes (vertex-coloured, provenance in `content/map-models.sources.json`) scattered
-    by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief
+    textured prop meshes (the first-person trees' distant-band meshes, the first-person stones'
+    shape and tile, a Tripo cactus on a drawn skin; provenance in `content/map-models.sources.json`)
+    scattered by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief
     fades out toward the patch edge so it meets the coarse map flush, but the change in
     surface detail still shows at mid zoom. The patch follows the party in whole 128 m chunks
     (#9468): each shift streams the entering and leaving strips, re-streams the strips whose

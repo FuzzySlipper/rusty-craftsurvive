@@ -214,6 +214,10 @@ def arguments():
     parser.add_argument("--height", type=float, help="metres to the crown's top (default the kind's)")
     parser.add_argument("--no-textures", action="store_true", help="leave the kind's textures as they are")
     parser.add_argument("--far", action="store_true", help="also write NAME-far, the distant-band variant")
+    parser.add_argument("--far-only", action="store_true", help="write only the distant-band variant, as NAME (the world map's clutter, #9831)")
+    parser.add_argument("--folder", help="models subfolder to write to (default the kind's: trees, or scatter)")
+    parser.add_argument("--frond-width", type=float, default=1.0,
+                        help="multiply a palm's or fern's frond width (the map's palms, seen from far, need broad fronds)")
     parser.add_argument("--cells", help="flowers: comma-separated atlas cells (0-3) the cards show (default the kind's)")
     return parser.parse_args()
 
@@ -448,7 +452,7 @@ def card_clump(rng, spec, cells):
     return positions, normals, uvs, colors, indices
 
 
-def build(kind_name, seed, height, far=False, scale=None, cells=None):
+def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_width=1.0):
     kind = KINDS[kind_name]
     rng = random.Random(f"{kind_name}-{seed}")
     trunk = kind["trunk"]
@@ -482,6 +486,7 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None):
     if kind.get("fronds"):
         fronds = kind["fronds"]
         origin = branches[0].points[-1] if fronds["at"] == "top" else np.array([0.0, -0.05, 0.0])
+        fronds = dict(fronds, width=tuple(w * frond_width for w in fronds["width"]))
         pieces.append(frond_strips(rng, dict(fronds, segments=FAR_FROND_SEGMENTS) if far else fronds, origin))
     if kind.get("clump"):
         pieces.append(card_clump(rng, kind["clump"], cells or kind["clump"]["cells"]))
@@ -796,15 +801,17 @@ def main():
     if not args.no_textures:
         write_textures(args.kind)
     cells = [int(c) for c in args.cells.split(",")] if args.cells else None
-    parts, low, high, scale = build(args.kind, args.seed, height, cells=cells)
-    write(kind, name, height, parts, low, high, args.seed)
-    if args.far:
+    parts, low, high, scale = build(args.kind, args.seed, height, cells=cells, frond_width=args.frond_width)
+    folder = args.folder or kind.get("folder", "trees")
+    if not args.far_only:
+        write(kind, name, height, parts, low, high, args.seed, folder)
+    if args.far or args.far_only:
         # Same skeleton and scale as the near tree; only what is drawn of it changes.
-        parts, low, high, _ = build(args.kind, args.seed, height, far=True, scale=scale)
-        write(kind, f"{name}-far", height, parts, low, high, args.seed)
+        parts, low, high, _ = build(args.kind, args.seed, height, far=True, scale=scale, frond_width=args.frond_width)
+        write(kind, name if args.far_only else f"{name}-far", height, parts, low, high, args.seed, folder)
 
 
-def write(kind, name, height, parts, low, high, seed):
+def write(kind, name, height, parts, low, high, seed, folder):
     asset = {
         "name": name,
         "height": height,
@@ -813,7 +820,7 @@ def write(kind, name, height, parts, low, high, seed):
                      if any(part["role"] == role for part in parts)},
         "parts": parts,
     }
-    output = MODELS / kind.get("folder", "trees") / f"{name}.prop-mesh.json"
+    output = MODELS / folder / f"{name}.prop-mesh.json"
     output.write_text(json.dumps(asset, separators=(",", ":")))
     counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in parts)
     print(f"generate-tree {output.name}: {counts} triangles; seed {seed}")
