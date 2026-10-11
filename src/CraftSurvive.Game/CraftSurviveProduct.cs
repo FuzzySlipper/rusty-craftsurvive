@@ -155,7 +155,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         survival.Slept += hours => party?.Rest(hours);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
-        sled = new SledStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
+        sled = new SledStore(context.Engine, context.Content, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         blast = new BlastModule(terrain, frame, entities, cues);
         blast.ChargeAdmitted += (centre, radius) => pieces.Blast(centre, radius);
         build = new BuildModule(terrain, entities, player.Occupies);

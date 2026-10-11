@@ -68,15 +68,19 @@
       "normalized": "content/map-models/deadtree.glb"
     },
     {
-      "model": "content/game/models/sled.static-mesh.json",
+      "model": "content/game/models/sled.prop-mesh.json",
       "workbenchJob": "d45845c6bc68bbfb025e95ca",
       "source": "/home/agent/dev/asset-pipeline/assets/tripo-generate-d45845c6bc68bbfb025e95ca/generate-model.glb",
       "tripoTask": "see workbench job",
       "credits": 110.0,
       "provider": "Tripo P2-20260801, triangle topology, 1500-face target",
       "prompt": "A single low-poly stylized wooden cargo sled for an expedition survival game: two long curved wooden runners turned up at the front, a slatted wooden deck, a canvas-covered bundle of supplies lashed on with rope, a short tow rope at the front, faceted flat-shaded, no ground base, no background, centered, game asset",
-      "derivation": "scripts/normalize-map-models.py --length (base at origin, unit length, 256 px textures) then scripts/bake-map-static-mesh.py; first-person sled (#9473)",
-      "normalized": "content/map-models/sled.glb"
+      "derivation": "blender -b --python scripts/stylise-mesh.py -- <source> content/game/models/sled.prop-mesh.json --height 0.857 --faces 1600 --texture-ref textures/props/sled.png --keep-uv <raw.png> (Tripo's UVs and all 1,502 triangles kept, smooth normals, metres: 2.4 m long), then scripts/stylise-texture.py <raw.png> content/game/textures/props/sled.png --size 512 --paint 1 --pull bark,sandstone,earth,stone,cloth --pull-strength 0.25 --saturation 0.85 --brightness 1.1 --sharpen 0.2; first-person sled (#9473, #9831), read by SledStore",
+      "sha256": "721ccba2a94c84c61198ad90acfbe7aa88296ee85130b789f4161c10b462772f",
+      "sourceSha256": "ca28b4e946d49a7553f21f98209c886baa88e42d21a343ec0decd5280ba6cb75",
+      "promptNote": "The prompt is kept as it was sent to Tripo. The model's surface is Tripo's own baked texture (2048 px), graded for the game, not faceted colour.",
+      "texture": "content/game/textures/props/sled.png",
+      "textureSha256": "b9d7293d43bf9d2bbe758dcd6d6d0b971bd1af195a3442e4491485581d43cbd4"
     }
   ]
 }
