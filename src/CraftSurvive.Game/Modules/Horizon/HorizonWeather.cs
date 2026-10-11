@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -236,6 +237,7 @@ internal sealed class HorizonWeather : IDisposable
     /// </summary>
     private const double HazeMetres = 45_000;
     private const float HazeFade = 0.6f;
+    /// <summary>The air's colour a far body hazes toward, sRGB as the body colours are.</summary>
     private static readonly Vector3 HazeColour = new(0.74f, 0.8f, 0.86f);
     /// <summary>A body's own colour, muted beside the map's markers: storm grey, snow white, the glass storm's pale rose.</summary>
     private static readonly Dictionary<string, Vector3> BodyColours = new()
@@ -320,7 +322,8 @@ internal sealed class HorizonWeather : IDisposable
         // One colour: a puff's age says nothing of its height, so the body is not shaded by it.
         float night = front.Kind.Arcane ? NightArcaneBody : NightBody;
         top *= night + ((1f - night) * (float)Math.Clamp(Daylight(), 0, 1));
-        Color pale = new(top.X, top.Y, top.Z, alpha);
+        // Mixed and dimmed as authored (sRGB), decoded once for the particle keys, which are linear (#9844).
+        Color pale = new Color(top.X, top.Y, top.Z, alpha).Linear();
         float puffSize = Math.Min(body * PuffSize, radius * PuffRadiusShare);
         return new PresentationParticleDescriptor
         {
@@ -381,7 +384,7 @@ internal sealed class HorizonWeather : IDisposable
         int step = Math.Clamp((int)Math.Ceiling(strength * StrengthSteps), 1, StrengthSteps);
         if (curtains.TryGetValue((kind.Id, step, fade), out var built)) return built.Look;
         Look look = Looks[kind.Id];
-        Color colour = MapPalette.Weather(kind.Id);
+        Color colour = MapPalette.Weather(kind.Id).Linear();
         float weight = (float)step / StrengthSteps * FadeShare(look, fade);
         // Rows up the sheet: (height share, opacity, shade). What falls hangs from its cloud, fading into
         // it at the top; what lies on the land fades upward.

@@ -40,6 +40,7 @@ internal sealed class LampLights : IProductModule
     /// it bloom to white.
     /// </summary>
     private const float LightAboveBlock = 1.2f;
+    /// <summary>A lamp's light, linear as the Engine draws it (#9844), tuned by eye.</summary>
     private static readonly Vector3 LampColour = new(1f, 0.72f, 0.38f);
 
     private readonly IEngineContext engine;

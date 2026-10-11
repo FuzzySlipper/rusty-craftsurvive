@@ -38,6 +38,7 @@ internal sealed class TerrainAtlasCatalog : IDisposable
     // scripts/generate-water-textures.py).
     private const string WaterFoamContentPath = "textures/water-foam.png";
     private const string WaterRipplesContentPath = "textures/water-ripples.png";
+    // The water's colours are linear as the Engine draws them (#9844), tuned by eye.
     private static readonly Color WaterShallowColor = new(0.22f, 0.5f, 0.45f, 1f);
     private static readonly Color WaterDeepColor = new(0.02f, 0.07f, 0.16f, 1f);
     private const float WaterDepthScale = 1.6f;

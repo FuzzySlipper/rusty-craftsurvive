@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -35,10 +36,11 @@ internal sealed class HorizonLandmarks : IDisposable
     private sealed record Shape(Block[] Blocks, float Height);
 
     // Darker than the map's stone and timber: a silhouette has to stand out of the pale haze it is seen through.
-    private static readonly Color Stone = new(0.3f, 0.29f, 0.28f, 1);
-    private static readonly Color DarkStone = new(0.2f, 0.19f, 0.19f, 1);
-    private static readonly Color Timber = new(0.27f, 0.19f, 0.12f, 1);
-    private static readonly Color Thatch = new(0.2f, 0.13f, 0.08f, 1);
+    // Authored as sRGB hex and decoded here, once: the blocks' vertex colours are linear (#9844).
+    private static readonly Color Stone = Color.FromSrgbHex(0x959390);
+    private static readonly Color DarkStone = Color.FromSrgbHex(0x7c7979);
+    private static readonly Color Timber = Color.FromSrgbHex(0x8e7961);
+    private static readonly Color Thatch = Color.FromSrgbHex(0x7c6550);
     /// <summary>Every silhouette reaches this far below its ground, so a coarse tier's ground never shows under it.</summary>
     private const float Foundation = 3f;
 
@@ -78,6 +80,7 @@ internal sealed class HorizonLandmarks : IDisposable
     private const double LightMinimumDegrees = 0.8;
     /// <summary>A light dims by <c>exp(-distance / LightHazeMetres)</c>: the air between, since particles take no fog.</summary>
     private const double LightHazeMetres = 40_000;
+    /// <summary>A lit window's glow, sRGB; decoded for the particle keys, which are linear (#9844).</summary>
     private static readonly Color LightColour = new(1f, 0.7f, 0.36f, 1f);
     /// <summary>
     /// Each light is several long-lived glows at one point, overlapping as they come and go, so it flickers a
@@ -283,7 +286,7 @@ internal sealed class HorizonLandmarks : IDisposable
         glow ??= engine.Graphics.OpenResource(new RenderResourceRequest(LightContentPath, TextureFilter.Linear, TextureWrap.Clamp)).Handle;
         Vector3 offset = HomeLights[window] * at.Scale;
         float size = LightMetres * at.LightScale;
-        Color lit = LightColour with { A = brightness };
+        Color lit = LightColour.Linear() with { A = brightness };
         return new PresentationParticleDescriptor
         {
             LogicalId = ProductIds.HorizonLandmarkBase + ProductIds.HorizonLandmarkLimit + (ulong)window,

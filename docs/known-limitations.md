@@ -217,8 +217,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     An ordinary map is one 32 m ring. Every ring's tile is 16 cells, so the continent's rings nest by
     tile (500 m, 4 km, 16 km), which the Engine requires (32 m would not). The Engine geomorphs each
     ring onto the next, so no tier is sunk beneath another and a ring shift does not pop. Vertex
-    colours are the palette decoded to linear (the Engine takes every non-particle colour as
-    linear), with rock graded smoothly toward stone. Colours are not morphed, so a ring edge can show
+    colours are the palette decoded to linear (the Engine takes every world colour as linear;
+    `ColourSpace.Linear`, #9844), with rock graded smoothly toward stone. Colours are not morphed, so a ring edge can show
     a slight change of tone. The sampler reads only the map, its rivers, the erosion filter and built
     region tiles, plus an immutable frame (the sink and any exaggeration) that the update replaces
     before invalidating what it changes.

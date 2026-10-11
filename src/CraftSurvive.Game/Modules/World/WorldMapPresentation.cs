@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
@@ -47,7 +48,7 @@ internal sealed class WorldMapPresentation : IDisposable
             MapSample sample = map.Node(node);
             positions[i] = Point(map.Coordinate(x * stride), sample.Elevation, map.Coordinate(z * stride));
             uvs[i] = new(x / (float)segments, z / (float)segments);
-            colors[i] = MapPalette.VertexColour(RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample));
+            colors[i] = (RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample)).Linear();
         }
         for (int z = 0; z < side; z++)
         for (int x = 0; x < side; x++)
@@ -69,7 +70,7 @@ internal sealed class WorldMapPresentation : IDisposable
             new MeshGroup[] { new(MaterialSlot, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(MaterialSlot, material) }));
         appearance = engine.Graphics.CreateMeshAppearance(mesh);
         foreach (KnownPlaceKind kind in Enum.GetValues<KnownPlaceKind>())
-            markers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind)));
+            markers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind).Linear()));
         camera = engine.CameraView.CreateCamera(new(new CameraPose(new(0, MapY + EyeHeight, EyeBack), Pitch, 0), CameraBasisMode.Derived, default,
             new(CameraProjectionKind.Perspective, FieldOfView, 0, Near, Far), CameraViewports.Full));
     }

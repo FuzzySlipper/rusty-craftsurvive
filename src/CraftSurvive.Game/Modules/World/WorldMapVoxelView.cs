@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -151,11 +152,11 @@ internal sealed class WorldMapVoxelView : IDisposable
                 if (map.Scale.Continental) continentGround = new TerrainGroundMaterials(engine, content, ContinentCellMetres, textures);
             }
             foreach (KnownPlaceKind kind in Enum.GetValues<KnownPlaceKind>())
-                placeMarkers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind)));
-            clusterMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.PlaceCluster));
-            party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor));
-            routeMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, RouteColor));
-            waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor));
+                placeMarkers[kind] = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Place(kind).Linear()));
+            clusterMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.PlaceCluster.Linear()));
+            party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor.Linear()));
+            routeMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, RouteColor.Linear()));
+            waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor.Linear()));
             weather = new MapWeather(engine, Surface, CellMetres, CellMetres / WorldMapPresentation.VerticalExaggeration);
             waypoint = new(partyWorldFeet.X, partyWorldFeet.Z);
 
@@ -187,7 +188,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             partyPosition = Surface(partyWorldFeet.X, partyWorldFeet.Z);
             if (FrontierBound.For(map) is FrontierBound bound)
             {
-                frontierMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Frontier));
+                frontierMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Frontier.Linear()));
                 frontierPosts = [.. bound.FrontierOnLand(FrontierPostSpacingMetres).Take(ProductIds.WorldMapFrontierLimit).Select(post => Surface(post.X, post.Y))];
             }
             rig = new MapCameraRig(engine, partyPosition, CloseDistance, cells * FramingDistance, cells);
@@ -676,8 +677,9 @@ internal sealed class WorldMapVoxelView : IDisposable
             (float)(worldZ / CellMetres));
     }
 
+    /// <summary>A flat palette colour, decoded once and given once (a white tint), so the Engine draws it as authored.</summary>
     private Material Flat(Color color) =>
-        engine.Graphics.CreateMaterial(new MaterialRequest(color, default, 1f, color, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
+        engine.Graphics.CreateMaterial(new MaterialRequest(color.Linear(), default, 1f, ColourSpace.White, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
 
     private static uint Slot(MapBiome biome, int tone = Tones / 2) => FirstBiomeSlot + (uint)((int)biome * Tones + tone);
 

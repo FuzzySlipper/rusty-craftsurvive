@@ -117,7 +117,7 @@ internal sealed class FarField : IDisposable
         ground = new TerrainGroundMaterials(engine, content, VoxelMetres, GroundTextureSet.Walking);
         try
         {
-            water = engine.Graphics.CreateMaterial(new MaterialRequest(WaterColour, default, 1f, WaterColour, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
+            water = engine.Graphics.CreateMaterial(new MaterialRequest(WaterColour.Linear(), default, 1f, ColourSpace.White, Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
             Dictionary<uint, Material> bindings = [];
             List<(uint Slot, uint Layer)> layered = [];
             foreach (BlockDefinition block in BlockRegistry.MaterialBlocks)

@@ -31,8 +31,9 @@ internal sealed class CreaturePresentation : IDisposable
     /// <summary>A creature's centre stands this far above the ground it is on: half its height.</summary>
     private const float BodyCentreHeight = 0.8f;
 
-    private static readonly Color HostileColor = new(0.55f, 0.12f, 0.12f, 1f);
-    private static readonly Color NeutralColor = new(0.45f, 0.38f, 0.22f, 1f);
+    // Authored as sRGB hex and decoded here, once: primitive colours are linear (#9844).
+    private static readonly Color HostileColor = Color.FromSrgbHex(0xc46161);
+    private static readonly Color NeutralColor = Color.FromSrgbHex(0xb3a681);
 
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;

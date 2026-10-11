@@ -47,6 +47,7 @@ internal sealed class DungeonModule : IProductModule
     private const float LightIntensity = 40f;
     private const float LightRange = 18f;
     private const float LightDecay = 2f;
+    /// <summary>A dungeon lamp's light, linear as the Engine draws it (#9844), tuned by eye.</summary>
     private static readonly Vector3 LightColour = new(1f, 0.7f, 0.4f);
 
     /// <summary>

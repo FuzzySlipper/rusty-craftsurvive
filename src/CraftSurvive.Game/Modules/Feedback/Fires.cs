@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Feedback;
@@ -75,7 +76,8 @@ internal static class Fires
         VelocityMax = velocityMax,
         Acceleration = acceleration,
         SizeCurve = size,
-        ColorCurve = colour,
+        // Authored sRGB; particle colour keys are linear (#9844).
+        ColorCurve = colour.Select(key => new PresentationParticleColorKey(key.Age, key.Color.Linear())).ToArray(),
     };
 }
 

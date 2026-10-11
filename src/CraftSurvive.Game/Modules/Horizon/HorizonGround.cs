@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
@@ -117,7 +118,7 @@ internal sealed class HorizonGround : IHeightfieldSampler
             double x = tile.SampleX(i), z = tile.SampleZ(j);
             if (float.IsNaN(samples.Height(i, j)))
             {
-                samples.SetColor(i, j, MapPalette.VertexColour(MapPalette.For(MapBiome.Sea)));
+                samples.SetColor(i, j, MapPalette.For(MapBiome.Sea).Linear());
                 continue;
             }
 
@@ -131,7 +132,7 @@ internal sealed class HorizonGround : IHeightfieldSampler
 
             RiverInfluence? river = regional ? regions!.RiverNear(x, z) : map.Rivers.Nearest(x, z);
             double reach = tile.Ring == RegionRing || !continental ? RiverReach : ContinentRiverReach;
-            samples.SetColor(i, j, MapPalette.VertexColour(Paint(sample, river, cell * reach)));
+            samples.SetColor(i, j, Paint(sample, river, cell * reach).Linear());
         }
     }
 

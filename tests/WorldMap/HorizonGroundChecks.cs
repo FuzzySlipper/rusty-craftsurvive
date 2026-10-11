@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Horizon;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -43,9 +44,9 @@ internal static class HorizonGroundChecks
 
         Check.That(largest > 0 && largest < SmoothStep, $"rock grades smoothly into the ground's colour (largest step {largest:F3})");
 
-        // Vertex colours are linear; the palette is sRGB, so a mid grey decodes darker and the ends stay put.
-        Color decoded = MapPalette.VertexColour(new Color(0.5f, 0, 1, 1));
+        // Colours are authored sRGB and the Engine draws linear (#9844): a mid grey decodes darker, the ends stay put, alpha is kept.
+        Color decoded = new Color(0.5f, 0, 1, 1).Linear();
         Check.That(Math.Abs(decoded.R - 0.214f) < 1e-3f && decoded.G == 0 && Math.Abs(decoded.B - 1) < 1e-6f && decoded.A == 1,
-            $"a palette colour is decoded from sRGB for a vertex ({decoded.R:F3},{decoded.G:F3},{decoded.B:F3})");
+            $"an authored colour is decoded from sRGB for the Engine ({decoded.R:F3},{decoded.G:F3},{decoded.B:F3})");
     }
 }

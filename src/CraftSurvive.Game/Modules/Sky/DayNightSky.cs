@@ -85,6 +85,7 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>The sun's strength ramps from nothing at the horizon to full by this elevation.</summary>
     private const double SunFullAbove = 0.3d;
 
+    // Light colours are linear, tuned by eye as the Engine draws them (#9844): not palette entries, so not decoded.
     private static readonly Vector3 SunColour = new(1f, 0.95f, 0.86f);
     private static readonly Vector3 DuskSunColour = new(1f, 0.5f, 0.24f);
     private static readonly Vector3 MoonColour = new(0.55f, 0.66f, 1f);

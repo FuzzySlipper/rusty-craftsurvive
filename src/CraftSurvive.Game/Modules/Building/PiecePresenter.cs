@@ -16,9 +16,14 @@ internal sealed class PiecePresenter : IDisposable
 {
     private const float Roughness = 0.9f;
     private const float GhostRoughness = 1f;
-    private static readonly Color GhostColour = new(0.75f, 0.92f, 1f, 0.45f);
+    /// <summary>
+    /// The ghost's colours (sRGB) and opacity. The opacity is what the material drew when it gave each
+    /// colour twice (as colour and tint, multiplied: 0.45²), kept now that it gives each once (#9844).
+    /// </summary>
+    private static readonly Color GhostColour = new(0.75f, 0.92f, 1f, GhostOpacity);
     /// <summary>The ghost where the piece may not stand (#9730).</summary>
-    private static readonly Color RefusedColour = new(1f, 0.45f, 0.38f, 0.45f);
+    private static readonly Color RefusedColour = new(1f, 0.45f, 0.38f, GhostOpacity);
+    private const float GhostOpacity = 0.2f;
     /// <summary>Vertex colours: white, the alpha a wind weight of zero for solid pieces (they hold still).</summary>
     private static readonly Color White = new(1, 1, 1, 0);
     /// <summary>The ghost's vertices keep full alpha, so its blended material shows at its own colour's alpha.</summary>
@@ -41,10 +46,10 @@ internal sealed class PiecePresenter : IDisposable
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.pieces = pieces ?? throw new ArgumentNullException(nameof(pieces));
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0f, 0f));
-        ghostMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(GhostColour, default(RenderResourceReference), GhostRoughness,
-            GhostColour, Vector3.Zero, 0, true) with { AlphaMode = MaterialAlphaMode.Blend });
-        refusedMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(RefusedColour, default(RenderResourceReference), GhostRoughness,
-            RefusedColour, Vector3.Zero, 0, true) with { AlphaMode = MaterialAlphaMode.Blend });
+        ghostMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(GhostColour.Linear(), default(RenderResourceReference), GhostRoughness,
+            ColourSpace.White, Vector3.Zero, 0, true) with { AlphaMode = MaterialAlphaMode.Blend });
+        refusedMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(RefusedColour.Linear(), default(RenderResourceReference), GhostRoughness,
+            ColourSpace.White, Vector3.Zero, 0, true) with { AlphaMode = MaterialAlphaMode.Blend });
     }
 
     /// <summary>Where the selected piece would go, drawn as a ghost; null hides it.</summary>

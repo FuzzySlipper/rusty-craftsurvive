@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.World;
@@ -98,7 +99,7 @@ internal sealed class MapWeather : IDisposable
     {
         int step = Math.Clamp((int)MathF.Ceiling(strength * StrengthSteps), 1, StrengthSteps);
         if (discs.TryGetValue((kind, step), out var built)) return built.Look;
-        Color colour = MapPalette.Weather(kind);
+        Color colour = MapPalette.Weather(kind).Linear();
         float alpha = CoreAlpha * step / StrengthSteps;
         // The top, then each ring outward: a dome h = DomeHeight (1 - r²), opaque to the core, clear at the rim.
         List<Vector3> positions = [new(0, DomeHeight, 0)];
@@ -142,7 +143,7 @@ internal sealed class MapWeather : IDisposable
         return look;
     }
 
-    /// <summary>A kind's cloud material: lit by the map's sun, with a faint glow of its own so a front still shows at night.</summary>
+    /// <summary>A kind's cloud material: lit by the map's sun, with a faint glow of its own (the decoded colour) so a front still shows at night.</summary>
     private Material Material(string kind, Color colour)
     {
         if (discMaterials.TryGetValue(kind, out Material? built)) return built;
@@ -156,7 +157,7 @@ internal sealed class MapWeather : IDisposable
     private Appearance Dot(string kind)
     {
         if (dots.TryGetValue(kind, out Appearance? built)) return built;
-        Appearance look = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Weather(kind)));
+        Appearance look = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, MapPalette.Weather(kind).Linear()));
         dots[kind] = look;
         return look;
     }

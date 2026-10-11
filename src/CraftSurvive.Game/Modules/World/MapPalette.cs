@@ -1,10 +1,15 @@
+using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Places;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.World;
 
-/// <summary>Flat overview colours for map environments, shared by every map presentation.</summary>
+/// <summary>
+/// Flat overview colours for map environments, shared by every map presentation. They are authored sRGB,
+/// and mixed and shaded as authored; each is decoded once where it is handed to the Engine
+/// (<see cref="ColourSpace.Linear"/>, #9844).
+/// </summary>
 internal static class MapPalette
 {
     /// <summary>Known-place markers: home is green, places reached orange, places only seen a duller tan, dungeon entrances violet, the sled where it was left wood brown, frontier towns banner red.</summary>
@@ -78,17 +83,8 @@ internal static class MapPalette
         _ => Hex(0x6f6a62),
     };
 
-    /// <summary>A palette colour (sRGB hex, as the palette file writes it), used as the map's flat colours always have been.</summary>
+    /// <summary>A palette colour as the palette file writes it: sRGB hex.</summary>
     internal static Color Hex(int rgb) => new(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1);
-
-    /// <summary>
-    /// A palette colour as a mesh's vertex colour: the palette is sRGB and the Engine takes vertex
-    /// colours as linear, so the entry is decoded first (#9839).
-    /// </summary>
-    internal static Color VertexColour(Color srgb) => new(Decode(srgb.R), Decode(srgb.G), Decode(srgb.B), srgb.A);
-
-    private static float Decode(float channel) =>
-        channel <= 0.04045f ? channel / 12.92f : MathF.Pow((channel + 0.055f) / 1.055f, 2.4f);
 
     /// <summary>A sample's environment colour, greyed toward stone as its rock is exposed.</summary>
     internal static Color Tint(MapSample sample)

@@ -1,4 +1,5 @@
 using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
 using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Feedback;
@@ -170,7 +171,8 @@ internal static class Bursts
             VelocityMax = style.VelocityMax,
             Acceleration = style.Acceleration,
             SizeCurve = style.Sizes.Select(key => new PresentationParticleScalarKey { Age = key.Age, Value = key.Size }).ToArray(),
-            ColorCurve = style.Colours.Select(key => new PresentationParticleColorKey { Age = key.Age, Color = key.Colour }).ToArray(),
+            // Styles are authored sRGB; particle colour keys are linear (#9844).
+            ColorCurve = style.Colours.Select(key => new PresentationParticleColorKey { Age = key.Age, Color = key.Colour.Linear() }).ToArray(),
             Seed = Seed(seed),
             HasCollision = chips && style.SettleRadius > 0f,
         };
