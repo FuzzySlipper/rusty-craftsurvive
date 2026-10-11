@@ -40,8 +40,8 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The horizon beyond the drawn chunks (#9548), drawn from the same height field.</summary>
     private IFarField? farField;
-    /// <summary>How the far field is drawn (#9850): voxel until the owner's verdict, heightfield, or none for measuring.</summary>
-    private string farFieldMode = VoxelFarField;
+    /// <summary>How the far field is drawn (#9850): an Engine heightfield (the owner's verdict), the voxel session, or none for measuring.</summary>
+    private string farFieldMode = HeightfieldFarField;
     private const string VoxelFarField = "voxel", HeightfieldFarField = "heightfield", NoFarField = "none";
     private long currentStep;
     private bool started;
