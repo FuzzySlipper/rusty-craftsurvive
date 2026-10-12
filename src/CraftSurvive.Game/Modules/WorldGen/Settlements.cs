@@ -8,8 +8,13 @@ internal enum SettlementKind { Port, Town, Hold }
 /// <summary>Why a site was chosen, for the census and the place's description.</summary>
 internal enum SettlementReason { Mouth, Harbour, Confluence, BoatHead, CanoeHead }
 
-/// <summary>A chosen settlement: where it stands (world metres), on which reach, and why.</summary>
-internal sealed record Settlement(string Name, SettlementKind Kind, double X, double Z, int Reach, SettlementReason Reason, double Score);
+/// <summary>
+/// A chosen settlement: where it stands (world metres), on which reach, why and its score. A port also
+/// carries its shelter from the open sea and the flat land about it (0 to 1), and whether its river is
+/// the largest of the harbours it was chosen from.
+/// </summary>
+internal sealed record Settlement(string Name, SettlementKind Kind, double X, double Z, int Reach, SettlementReason Reason, double Score,
+    double Shelter = 0, double Flat = 0, bool LargestFlow = true);
 
 /// <summary>
 /// Where the frontier's people live (#9875; owner direction 2026-10-12): civilisation follows the
@@ -32,6 +37,17 @@ internal static class Settlements
     /// <summary>Weights on a candidate's flow: the kind of place, and whether it can be reached from the sea by canoe.</summary>
     private const double ConfluenceWeight = 1, BoatHeadWeight = 0.8, CanoeHeadWeight = 0.5, HarbourWeight = 0.6;
     private const double FromSeaWeight = 1.5;
+
+    /// <summary>
+    /// A port's shelter: one less its exposure, the mean fetch of open water from its mouth over every
+    /// bearing as a share of this cap. Its
+    /// flat land: the share of land within a few cells no steeper than a gentle gradient. The score is the
+    /// flow, doubled at most for shelter, and taken down to a share of itself on broken ground.
+    /// </summary>
+    private const int ShelterBearings = 32;
+    private const double OpenSeaMetres = 40_000;
+    private const int FlatCells = 8;
+    private const double FlatGradient = 0.03, ShelterWeight = 1, FlatFloor = 0.4;
 
     /// <summary>A settlement stands on dry ground off the floodplain within this many lattice cells of its candidate.</summary>
     private const int StandSearchCells = 8;
@@ -66,11 +82,85 @@ internal static class Settlements
         // A reach's last land node: its outlet is the sea at a mouth, the confluence otherwise.
         int Shore(Reach reach) => reach.Nodes.Length > 1 && reach.Mouth ? reach.Nodes[^2] : reach.Outlet;
 
-        Reach? port = network.Mouths
+        bool Dry(int i) => drainage.ElevationAt(i) >= GenerationConstants.WaterLevel + DryMetres && !network.OnFloodplain(i);
+        // Exposure: the mean fetch (open water before land, up to a cap) over every bearing, as a share of
+        // the cap. An open coast is about a half; a bay, an estuary or water behind islands much less.
+        double Exposure(int node)
+        {
+            double fetch = 0;
+            for (int b = 0; b < ShelterBearings; b++)
+            {
+                double angle = 2 * Math.PI * b / ShelterBearings, dx = Math.Cos(angle), dz = Math.Sin(angle), d = grid.Spacing;
+                for (; d <= OpenSeaMetres; d += grid.Spacing)
+                {
+                    double x = grid.X(node) + (dx * d), z = grid.Z(node) + (dz * d);
+                    if (Math.Abs(x) > grid.Radius || Math.Abs(z) > grid.Radius) { d = OpenSeaMetres; break; }
+                    // The continent's broad sea, without river channels: the drainage lattice's heights carry local
+                    // relief over the water, and a sample's carved channel would wall the mouth in.
+                    if (continent.Broad(x, z).Elevation >= GenerationConstants.WaterLevel) break;
+                }
+
+                fetch += Math.Min(d, OpenSeaMetres);
+            }
+
+            return fetch / ShelterBearings / OpenSeaMetres;
+        }
+
+        double Flatness(int node)
+        {
+            int cx = node % grid.Side, cz = node / grid.Side, land = 0, flat = 0;
+            int[] offsets = grid.Offsets();
+            for (int dz = -FlatCells; dz <= FlatCells; dz++)
+            for (int dx = -FlatCells; dx <= FlatCells; dx++)
+            {
+                int x = cx + dx, z = cz + dz;
+                if (x <= 0 || z <= 0 || x >= grid.Segments || z >= grid.Segments || (dx * dx) + (dz * dz) > FlatCells * FlatCells) continue;
+                int i = (z * grid.Side) + x;
+                if (drainage.ElevationAt(i) < GenerationConstants.WaterLevel) continue;
+                land++;
+                double steepest = offsets.Max(o => Math.Abs(drainage.ElevationAt(i + o) - drainage.ElevationAt(i)));
+                if (steepest / grid.Spacing <= FlatGradient) flat++;
+            }
+
+            return land == 0 ? 0 : flat / (double)land;
+        }
+
+        // The port: a calm, playable river mouth, scored on its river's flow, its shelter from the open
+        // sea and the flat land about it for a city (#9875 review).
+        List<(Reach Reach, double Shelter, double Flat, double Score)> harbours = [.. network.Mouths
             .Where(reach => reach.Class >= Navigability.Canoe && Playable(grid.X(Shore(reach)), grid.Z(Shore(reach)))
                 && Temperature(Shore(reach)) is >= CalmCoolest and <= CalmWarmest)
-            .OrderByDescending(reach => reach.Flow).FirstOrDefault()
-            ?? network.Mouths.Where(reach => Playable(grid.X(Shore(reach)), grid.Z(Shore(reach)))).OrderByDescending(reach => reach.Flow).FirstOrDefault();
+            .Select(reach =>
+            {
+                double shelter = 1 - Exposure(reach.SeaNode), flat = Flatness(Shore(reach));
+                return (reach, shelter, flat, reach.Flow * (1 + (ShelterWeight * shelter)) * (FlatFloor + ((1 - FlatFloor) * flat)));
+            })
+            .OrderByDescending(h => h.Item4).ThenBy(h => h.reach.Id)];
+        if (harbours.Count == 0)
+            harbours = [.. network.Mouths.Where(reach => Playable(grid.X(Shore(reach)), grid.Z(Shore(reach))))
+                .OrderByDescending(reach => reach.Flow).Select(reach => (reach, 0.0, 0.0, reach.Flow))];
+        double largestFlow = harbours.Count == 0 ? 0 : harbours.Max(h => h.Reach.Flow);
+
+        ulong seed = continent.Configuration.Contract.GeographyNoiseSeed ^ NameSalt;
+        List<Settlement> chosen = [];
+        // The design's hold stands apart too: no river town crowds it.
+        (double X, double Z)[] holds = [.. (FrontierBound.For(continent)?.Sites ?? []).Where(site => site.Kind == nameof(SettlementKind.Hold)).Select(site => (site.X, site.Z))];
+        bool Crowded(double x, double z) =>
+            chosen.Any(s => Math.Sqrt(((s.X - x) * (s.X - x)) + ((s.Z - z) * (s.Z - z))) < SpacingMetres)
+            || holds.Any(h => Math.Sqrt(((h.X - x) * (h.X - x)) + ((h.Z - z) * (h.Z - z))) < SpacingMetres);
+        // Every rule holds where a settlement finally stands, not only at the river it was drawn to (#9875 review).
+        bool Usable(int i) => Dry(i) && Playable(grid.X(i), grid.Z(i)) && !Crowded(grid.X(i), grid.Z(i));
+
+        Reach? port = null;
+        foreach ((Reach reach, double shelter, double flat, double score) in harbours)
+        {
+            if (Stand(grid, Shore(reach), Usable) is not int site) continue;
+            chosen.Add(new(Pick(PortNames, seed, 0), SettlementKind.Port, grid.X(site), grid.Z(site), reach.Id, SettlementReason.Mouth, score,
+                shelter, flat, reach.Flow >= largestFlow));
+            port = reach;
+            break;
+        }
+
         if (port is null) return [];
 
         List<(int Node, int Reach, SettlementReason Reason, double Score)> candidates = [];
@@ -87,35 +177,22 @@ internal static class Settlements
             if (mouth.Id != port.Id && mouth.Class >= Navigability.Boat)
                 candidates.Add((Shore(mouth), mouth.Id, SettlementReason.Harbour, Weigh(mouth.Id, HarbourWeight)));
 
-        ulong seed = continent.Configuration.Contract.GeographyNoiseSeed ^ NameSalt;
-        List<Settlement> chosen = [];
-        // The design's hold stands apart too: no river town crowds it.
-        (double X, double Z)[] holds = [.. (FrontierBound.For(continent)?.Sites ?? []).Where(site => site.Kind == nameof(SettlementKind.Hold)).Select(site => (site.X, site.Z))];
-        bool Crowded(double x, double z) =>
-            chosen.Any(s => Math.Sqrt(((s.X - x) * (s.X - x)) + ((s.Z - z) * (s.Z - z))) < SpacingMetres)
-            || holds.Any(h => Math.Sqrt(((h.X - x) * (h.X - x)) + ((h.Z - z) * (h.Z - z))) < SpacingMetres);
-        if (Stand(network, drainage, Shore(port)) is int portSite)
-            chosen.Add(new(Pick(PortNames, seed, 0), SettlementKind.Port, grid.X(portSite), grid.Z(portSite), port.Id, SettlementReason.Mouth, port.Flow));
         int named = 0;
         // Towns spread up the port's own river first, as many as its spacing allows; only then elsewhere.
         foreach ((int node, int reach, SettlementReason reason, double score) in candidates
             .OrderByDescending(c => network.MouthOf(c.Reach) == port.Id).ThenByDescending(c => c.Score).ThenBy(c => c.Node))
         {
             if (chosen.Count >= TownCount + 1) break;
-            double x = grid.X(node), z = grid.Z(node);
-            if (!Playable(x, z) || Temperature(node) < TownCoolest) continue;
-            if (Crowded(x, z)) continue;
-            if (Stand(network, drainage, node) is not int site) continue;
+            if (Temperature(node) < TownCoolest || Stand(grid, node, Usable) is not int site) continue;
             chosen.Add(new(Pick(TownNames, seed, ++named), SettlementKind.Town, grid.X(site), grid.Z(site), reach, reason, score));
         }
 
         return chosen;
     }
 
-    /// <summary>The nearest dry lattice node off the floodplain to a candidate, or null if there is none near.</summary>
-    private static int? Stand(WaterNetwork network, MapDrainage drainage, int node)
+    /// <summary>The nearest lattice node to a candidate (within a few cells) where a settlement may stand, or null if none is near.</summary>
+    internal static int? Stand(MapGrid grid, int node, Func<int, bool> usable)
     {
-        MapGrid grid = network.Grid;
         int cx = node % grid.Side, cz = node / grid.Side, best = -1;
         int bestDistance = int.MaxValue;
         for (int dz = -StandSearchCells; dz <= StandSearchCells; dz++)
@@ -124,7 +201,7 @@ internal static class Settlements
             int x = cx + dx, z = cz + dz, distance = (dx * dx) + (dz * dz);
             if (x < 0 || z < 0 || x > grid.Segments || z > grid.Segments || distance >= bestDistance) continue;
             int i = (z * grid.Side) + x;
-            if (drainage.ElevationAt(i) < GenerationConstants.WaterLevel + DryMetres || network.OnFloodplain(i)) continue;
+            if (!usable(i)) continue;
             best = i;
             bestDistance = distance;
         }

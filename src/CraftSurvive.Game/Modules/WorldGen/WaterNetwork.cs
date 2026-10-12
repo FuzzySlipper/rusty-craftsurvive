@@ -11,8 +11,8 @@ internal enum ChannelType { Incised, Braided, Meandering, Estuary }
 /// <summary>
 /// One reach of the network, between confluences or from a source, upstream node first. Flows are
 /// mean (m³/s) at its outlet. The routing figures are what a reservoir routing of the stage needs
-/// (#9878): the bankfull flow, the bank it implies above the mean water, and the storage time (length
-/// over mean velocity).
+/// (#9878): the bankfull flow, the bank it implies above the mean water in this reach's own channel (its
+/// width and gradient, <see cref="RiverGeometry.Stage"/>), and the storage time (length over mean velocity).
 /// </summary>
 internal sealed record Reach(
     int Id,
@@ -30,7 +30,8 @@ internal sealed record Reach(
     double BankHeight,
     double Velocity,
     double StorageHours,
-    ChannelType Channel)
+    ChannelType Channel,
+    int SeaNode = -1)
 {
     internal int Source => Nodes[0];
     internal int Outlet => Nodes[^1];
@@ -121,8 +122,9 @@ internal sealed class WaterNetwork
 
     /// <param name="paths">The drainage's reaches as node paths (<see cref="MapRivers.Trace"/>).</param>
     /// <param name="moistureAt">The climate's moisture at a world point, for how much a river swells.</param>
+    /// <param name="sea">Whether a lattice node is the continent's sea (not a flooded lowland inland).</param>
     internal static WaterNetwork Build(MapGrid grid, MapFlow flow, float[] elevation, float[] discharge, IReadOnlyList<int[]> paths,
-        Func<double, double, double> moistureAt)
+        Func<double, double, double> moistureAt, Func<int, bool> sea)
     {
         Dictionary<int, int> startingAt = [];
         for (int r = 0; r < paths.Count; r++) startingAt[paths[r][0]] = r;
@@ -132,7 +134,13 @@ internal sealed class WaterNetwork
         {
             int[] nodes = paths[r];
             int outlet = nodes[^1];
-            bool mouth = elevation[outlet] < GenerationConstants.WaterLevel;
+            // Below its outlet the water may cross flooded lowland - a lagoon or an estuary - before the sea;
+            // it is a mouth only if that water reaches the continent's sea, and it meets it there.
+            int seaNode = outlet;
+            for (int guard = 0; guard < grid.Count && elevation[seaNode] < GenerationConstants.WaterLevel && !sea(seaNode)
+                && flow.Receiver[seaNode] != MapFlow.Base; guard++)
+                seaNode = flow.Receiver[seaNode];
+            bool mouth = elevation[outlet] < GenerationConstants.WaterLevel && sea(seaNode);
             int downstream = !mouth && startingAt.TryGetValue(outlet, out int next) && next != r ? next : -1;
             double length = 0, catchment = 0;
             for (int k = 0; k < nodes.Length - 1; k++)
@@ -157,8 +165,10 @@ internal sealed class WaterNetwork
                 : gradient > IncisedGradient ? ChannelType.Incised
                 : q > 0 && gradient > BraidCoefficient * Math.Pow(q, BraidExponent) ? ChannelType.Braided
                 : ChannelType.Meandering;
-            reaches[r] = new(r, nodes, downstream, mouth, length, catchment, q, gradient, 2 * RiverGeometry.HalfWidth(q), depth, navigability,
-                bankfull, Math.Max(0, RiverGeometry.Depth(bankfull) - depth), velocity, length / velocity / SecondsPerHour, channel);
+            double width = 2 * RiverGeometry.HalfWidth(q);
+            double bank = RiverGeometry.Stage(bankfull, width, gradient) - RiverGeometry.Stage(q, width, gradient);
+            reaches[r] = new(r, nodes, downstream, mouth, length, catchment, q, gradient, width, depth, navigability,
+                bankfull, bank, velocity, length / velocity / SecondsPerHour, channel, mouth ? seaNode : -1);
         }
 
         List<int>[] inflows = new List<int>[grid.Count];

@@ -9,6 +9,30 @@ using CraftSurvive.Game.Tests;
 /// </summary>
 internal static class NetworkChecks
 {
+    /// <summary>The bankfull stage and where a settlement stands, as pure rules (#9875 review).</summary>
+    internal static void Rules()
+    {
+        // A canoe river at the least depth the sizing allows still rises to its bank in a flood.
+        double canoe = WaterNetwork.CanoeFlow, width = 2 * RiverGeometry.HalfWidth(canoe);
+        double bank = RiverGeometry.Stage(3 * canoe, width, 0.001) - RiverGeometry.Stage(canoe, width, 0.001);
+        Check.That(RiverGeometry.Depth(canoe) == RiverGeometry.MinimumDepth && bank > 0.3,
+            $"a clamped-depth canoe river still has a bank to its bankfull stage ({bank:F2} m)");
+        double gentle = RiverGeometry.Stage(800, 64, 0.0003) - RiverGeometry.Stage(200, 64, 0.0003);
+        double steep = RiverGeometry.Stage(800, 64, 0.003) - RiverGeometry.Stage(200, 64, 0.003);
+        double wide = RiverGeometry.Stage(800, 128, 0.0003) - RiverGeometry.Stage(200, 128, 0.0003);
+        Check.That(steep < gentle && wide < gentle, $"a steeper or wider channel rises less to the same flood ({gentle:F2} m, steeper {steep:F2} m, wider {wide:F2} m)");
+
+        // A settlement moved off its river keeps every rule where it ends up: the nearest dry cell lies
+        // inside another settlement's spacing, so it stands on the nearest cell outside it instead.
+        MapGrid grid = new(20, 250, 2500);
+        int candidate = (10 * grid.Side) + 10;
+        double crowdX = grid.X(candidate) - 300, crowdZ = grid.Z(candidate);
+        bool Usable(int i) => i != candidate && Math.Sqrt(Math.Pow(grid.X(i) - crowdX, 2) + Math.Pow(grid.Z(i) - crowdZ, 2)) >= 500;
+        int? stood = Settlements.Stand(grid, candidate, Usable);
+        Check.That(stood is int site && Usable(site) && site == candidate + 1,
+            $"a relocated settlement stands on the nearest cell where every rule holds ({stood})");
+    }
+
     internal static void Run(WorldMap continent)
     {
         MapDrainage drainage = MapRegions.For(continent).Drainage;
@@ -49,7 +73,7 @@ internal static class NetworkChecks
         IReadOnlyList<Settlement> settlements = Settlements.For(continent);
         ContinentDesign design = ContinentDesign.For(continent.Configuration.Size)!;
         Settlement[] ports = [.. settlements.Where(s => s.Kind == SettlementKind.Port)], towns = [.. settlements.Where(s => s.Kind == SettlementKind.Town)];
-        Check.That(ports.Length == 1 && network.Reaches[ports[0].Reach].Mouth, "one sea port stands at a river's mouth");
+        Check.That(ports.Length == 1 && network.Reaches[ports[0].Reach].Mouth && network.Reaches[ports[0].Reach].SeaNode >= 0, "one sea port stands at a river's mouth on the open sea");
         Check.That(towns.Length == Settlements.TownCount, $"the continent has its {Settlements.TownCount} river towns ({towns.Length})");
         double radius = continent.Radius;
         Check.That(settlements.All(s => !design.InNeck(s.X / radius, s.Z / radius) && !design.BeyondFrontier(s.X / radius, s.Z / radius)
@@ -66,6 +90,7 @@ internal static class NetworkChecks
         Check.That(settlements.Select(s => s.Name).Distinct().Count() == settlements.Count, "every settlement has its own name");
         Check.That(Settlements.Choose(continent, design, drainage).SequenceEqual(settlements), "settlements are chosen the same way every time");
         Check.That(towns.Count(t => network.MouthOf(t.Reach) == ports[0].Reach) >= 1, "towns spread up the port's own river first");
+        Check.That(ports[0].Shelter is >= 0 and <= 1 && ports[0].Flat is >= 0 and <= 1 && ports[0].Score > 0, "the port is scored on its shelter and flat land as well as its flow");
         Console.WriteLine($"network: {network.Reaches.Count} reaches, {network.Mouths.Count()} mouths, {network.Confluences.Count} confluences, heads boat {network.BoatHeads.Count} canoe {network.CanoeHeads.Count}; "
             + string.Join("; ", settlements.Select(s => $"{s.Name} {s.Kind} {s.Reason} {network.Reaches[s.Reach].Flow:F0} m3/s at ({s.X / 1000:F0},{s.Z / 1000:F0}) km")));
     }

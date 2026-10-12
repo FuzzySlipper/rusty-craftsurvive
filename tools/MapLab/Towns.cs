@@ -34,7 +34,7 @@ internal static class TownCensus
         }
 
         Line(Invariant($"network and settlement census: size={size}m design={design?.Name ?? "none"} budget={WaterBudget.RunoffMetresPerYear * 1000:F0} mm; canoe>={WaterNetwork.CanoeFlow} boat>={WaterNetwork.BoatFlow} great>={WaterNetwork.GreatFlow} m3/s; {Settlements.TownCount} towns, {Settlements.SpacingMetres / 1000:F0} km apart"));
-        Line("seed   | s     | reaches | canoe/boat/great km | mouths c/b/g | confluences | heads boat/canoe | floodplain km2 | port m3/s @ km      | towns (reason, m3/s, up the port river?)");
+        Line("seed   | s     | reaches | canoe/boat/great km | mouths c/b/g | confluences | heads boat/canoe | floodplain km2 | port m3/s @ km, shelter, flat (* not the largest flow) | towns (reason, m3/s, up the port river?)");
         foreach (Row r in rows)
         {
             WaterNetwork n = r.Network;
@@ -44,9 +44,10 @@ internal static class TownCensus
             Settlement? port = r.Settlements.FirstOrDefault(s => s.Kind == SettlementKind.Port);
             string towns = string.Join("; ", r.Settlements.Where(s => s.Kind == SettlementKind.Town).Select(s =>
                 Invariant($"{s.Name} {Short(s.Reason)} {n.Reaches[s.Reach].Flow:F0}{(port is not null && n.MouthOf(s.Reach) == port.Reach ? " up" : "")}")));
-            Line(Invariant($"{r.Seed,-6} | {r.Seconds,5:F1} | {n.Reaches.Count,7} | {Km(Navigability.Canoe),5:F0}/{Km(Navigability.Boat),4:F0}/{Km(Navigability.Great),4:F0}      | {Mouths(Navigability.Canoe),3}/{Mouths(Navigability.Boat),2}/{Mouths(Navigability.Great),2}   | {confluences,11} | {n.BoatHeads.Count,4}/{n.CanoeHeads.Count,5}       | {r.FloodplainKm2,14:F0} | {(port is null ? "none" : Invariant($"{n.Reaches[port.Reach].Flow,4:F0} @ ({port.X / 1000,4:F0},{port.Z / 1000,4:F0})")),-19} | {towns}"));
+            Line(Invariant($"{r.Seed,-6} | {r.Seconds,5:F1} | {n.Reaches.Count,7} | {Km(Navigability.Canoe),5:F0}/{Km(Navigability.Boat),4:F0}/{Km(Navigability.Great),4:F0}      | {Mouths(Navigability.Canoe),3}/{Mouths(Navigability.Boat),2}/{Mouths(Navigability.Great),2}   | {confluences,11} | {n.BoatHeads.Count,4}/{n.CanoeHeads.Count,5}       | {r.FloodplainKm2,14:F0} | {(port is null ? "none" : Invariant($"{n.Reaches[port.Reach].Flow,4:F0} @ ({port.X / 1000,4:F0},{port.Z / 1000,4:F0}) sh {port.Shelter:F2} fl {port.Flat:F2}{(port.LargestFlow ? "" : " *")}")),-40} | {towns}"));
         }
 
+        Line(Invariant($"ports that shelter and flat land chose over a larger river: {rows.Count(r => r.Settlements.Any(s => s.Kind == SettlementKind.Port && !s.LargestFlow))}/{rows.Length}"));
         int full = rows.Count(r => r.Settlements.Count(s => s.Kind == SettlementKind.Town) == Settlements.TownCount);
         double upShare = rows.Average(r =>
         {

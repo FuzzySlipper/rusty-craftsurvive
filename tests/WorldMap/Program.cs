@@ -156,6 +156,7 @@ Check.Section("weather on a route", WeatherChecks.RouteForecastKeepsTheMarchPace
 Check.Section("weather arrivals", WeatherChecks.EachFrontArrivesOnce);
 Check.Section("horizon sink", HorizonChecks.SinkMovesOnlyUnderTheFarField);
 Check.Section("far field ground rules", FarGroundChecks.Run);
+Check.Section("bankfull stage and settlement standing", NetworkChecks.Rules);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
 return Check.Finish("WorldMap");

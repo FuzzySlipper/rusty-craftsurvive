@@ -55,7 +55,7 @@ internal sealed class MapDrainage
         MapFlow flow = MapFlow.Route(Grid, routed, outlet, rain, MapFlow.FillGradient);
         discharge = flow.Discharge.Select(v => (float)v).ToArray();
         paths = MapRivers.Trace(Grid, flow, elevation, discharge, MapRivers.SourceCatchment);
-        Network = WaterNetwork.Build(Grid, flow, elevation, discharge, paths, (x, z) => continent.Sample(x, z).Moisture);
+        Network = WaterNetwork.Build(Grid, flow, elevation, discharge, paths, (x, z) => continent.Sample(x, z).Moisture, i => sea[i]);
         for (int r = 0; r < paths.Count; r++)
         {
             HashSet<long> cells = [];
