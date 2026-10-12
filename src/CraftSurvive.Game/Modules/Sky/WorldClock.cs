@@ -68,8 +68,46 @@ internal static class WorldClock
 
     internal static bool IsNight(double dayFraction) => Daylight(dayFraction) < NightBelowDaylight;
 
-    /// <summary>The unit direction toward the sun; the moon stands opposite it.</summary>
-    internal static Vector3 TowardSun(double dayFraction)
+    /// <summary>The unit direction toward the sun.</summary>
+    internal static Vector3 TowardSun(double dayFraction) => OnArc(dayFraction);
+
+    /// <summary>
+    /// The moon's month (#9806): new to new in this many days. Half a real month, so a cycle passes in
+    /// about five hours of play and a long journey sees several.
+    /// </summary>
+    internal const double LunarMonthDays = 15d;
+
+    /// <summary>
+    /// How far through its month the moon is on the first day's noon: a waxing gibbous, so a new
+    /// world's first night has a bright moon up from dusk.
+    /// </summary>
+    internal const double FirstNoonAge = 0.4d;
+
+    /// <summary>
+    /// How far through its month the moon is, 0 to 1: 0 new (beside the sun), 0.25 first quarter,
+    /// 0.5 full (opposite the sun), 0.75 last quarter.
+    /// </summary>
+    internal static double MoonAge(WorldTime time)
+    {
+        double age = FirstNoonAge + ((time.Day + time.DayFraction - 0.5d) / LunarMonthDays);
+        return age - Math.Floor(age);
+    }
+
+    /// <summary>How much of the moon's face is lit: 0 new, 1 full.</summary>
+    internal static double MoonLit(WorldTime time) => (1d - Math.Cos(2d * Math.PI * MoonAge(time))) / 2d;
+
+    /// <summary>
+    /// The unit direction toward the moon: on the sun's arc, behind the sun by its age, so it rises
+    /// about an hour and a half later each day, a full moon rises at sunset, and a quarter moon is up
+    /// for half the day.
+    /// </summary>
+    internal static Vector3 TowardMoon(WorldTime time) => OnArc(time.DayFraction - MoonAge(time));
+
+    /// <summary>The moon's elevation as a sine.</summary>
+    internal static double MoonElevation(WorldTime time) => TowardMoon(time).Y;
+
+    /// <summary>A point of the sky's arc at a day fraction: rising toward +x at 0.25, highest at 0.5, setting toward -x at 0.75.</summary>
+    private static Vector3 OnArc(double dayFraction)
     {
         double angle = 2d * Math.PI * (dayFraction - 0.25d);
         return Vector3.Normalize(new Vector3((float)Math.Cos(angle), (float)Math.Sin(angle), ArcTilt));

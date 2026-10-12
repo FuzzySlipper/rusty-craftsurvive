@@ -59,7 +59,7 @@ save, then terrain's save, then one appearance snapshot.
 | Manipulation | `Modules/Manipulation`: blast charges, build stamps, block entities and their store, lamps' lights (`LampLights`) | Voxel edits through `TerrainWorld`, retained point lights |
 | Feedback | `Modules/Feedback`: `Cues` raised by gameplay, `FeedbackModule` over `BurstEmitter` (`Bursts`), `Fires` and the `FireEmitters` pool lamps and torches burn; `Modules/Audio`: `SoundPlayer` over `SoundCatalog` and the generated clips | One-shot particle emission, retained soft and additive emitters, audio clips, voices and buses |
 | UI actions | `Modules/Actions`: `PlayerAction` (the payload) and `PlayerActionModule` | Input intents (product payload) |
-| Sky | `Modules/Sky`: `WorldClock` and `Twilight` (rules) and `DayNightSky` (panorama blend, sun and ambient lights) | Camera view sky blend, retained lights |
+| Sky | `Modules/Sky`: `WorldClock`, `Twilight` and `Moon` (rules) and `DayNightSky` (panorama blend, sun, moon and ambient lights, exposure) | Camera view sky blend, retained lights |
 | World conditions | `Modules/Survival`: `WorldConditionsModule` (time of day and difficulty, saved) | Persistence |
 | Inventory | `Modules/Inventory`: `InventoryModule` over `ItemCatalog`, `Recipes`, `SupplyCache` (saved); takes creature drops and first-visit caches, crafts as one edit | Mechanics `InventoryStore` and `InventoryEdit`, persistence |
 | Dungeons | `Modules/Dungeons`: `DungeonModule` (enter, load, leave), `DungeonSpace` (one finite session), `DungeonVolume` and `DungeonLayout` | A second spatial session, voxel residency, voxel projection with the world's materials, retained lights |

@@ -48,6 +48,7 @@
     <Compile Include="$(ProductModules)Travel/TravelCalendar.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Twilight.cs" LinkBase="Product/Sky" />
+    <Compile Include="$(ProductModules)Sky/Moon.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product" />
   </ItemGroup>

@@ -415,8 +415,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   ambient occlusion is on; the distance-field mode was not chosen because lamps and clutter are
   meshes it would not see. Tone mapping is ACES filmic with bloom and a little grading, so every
   intensity in `DayNightSky`, `LampLights` and `DungeonModule` is tuned under that operator.
-- **Day and night are a sky blend, three lights and the air.** `DayNightSky` crossfades two neighbouring authored
-  panoramas, lights the world from them (the sky's light), and keeps a sun that becomes the moon, an
+- **Day and night are a sky blend, four lights and the air.** `DayNightSky` crossfades two neighbouring authored
+  panoramas, lights the world from them (the sky's light), and keeps a sun, a moon, an
   ambient light whose shadow is the open sky (its square follows the player in steps of
   `SkyFollowStepMetres`, so a cave mouth darkens about where the player can see it), and a hemisphere
   fill. Twilight keeps a warm glow from the sunset side for a while after the sun sets. The fog's
@@ -424,8 +424,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   disc and shafts follow the clock.
 - **The panoramas are plain gradients (#9804).** No landforms, clouds, stars, sun or moon are painted
   in (`scripts/make-sky-gradient.py`). What moves is drawn over them: the cloud layer, the sun's disc,
-  and the horizon terrain and weather. The night sky has no stars until #9807, and the moon is still
-  the sun's light opposite it, its disc the sun's dimmed (#9806).
+  and the horizon terrain and weather. The night sky has no stars until #9807.
 - **Sunrise and sunset are painted twilight panoramas (#9805).** The sun keeps one bearing all year,
   so `scripts/make-twilight-sky.py` paints each twilight onto world-fixed panoramas:
   - a glow (sun on the horizon) and an afterglow (sun a few degrees under) for dawn and for dusk;
@@ -444,7 +443,18 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - its disc sets behind the land and blooms (`SunRadiance`);
   - the clouds take it from under the horizon for `CloudTwilightDegrees`.
 
-  By night the sky sun is left to the light, so the moon's disc is as before.
+  By night the sky sun is the moon while it is up.
+- **The moon keeps its own month (#9806).** `WorldClock` runs a `LunarMonthDays` cycle:
+  - the moon lags behind the sun by its age, so it rises later each day;
+  - a quarter is up by day;
+  - some nights it is new.
+
+  `Moon` gives its light by phase and height, warm and large low, whitening as it climbs. It is its
+  own directional light and casts shadows only while the sun's light is off. Night has a starlight
+  fill, and the eyes adjust (auto exposure up to `NightMaxExposure`) while the grade cools and
+  desaturates. Until the Engine draws a moon of its own (rusty-engine #9866):
+  - the moon is the sky's sun at night, so its disc is always full;
+  - it is not drawn by day.
 - **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
   irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
   bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)

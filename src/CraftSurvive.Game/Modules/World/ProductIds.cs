@@ -69,12 +69,14 @@ internal static class ProductIds
     /// <summary>Placed build pieces (#9729); up to <see cref="Building.BuildPieceSet.MaximumPieces"/> of them.</summary>
     internal const ulong BuildPieceBase = 0x7_1000UL;
 
-    /// <summary>Retained light ids: the sky's sun (or moon), its occlusion layer (an ambient light) and its hemisphere fill.</summary>
+    /// <summary>Retained light ids: the sun, its occlusion layer (an ambient light), its hemisphere fill and the moon.</summary>
     internal const ulong SunLight = 1UL;
 
     internal const ulong AmbientLight = 2UL;
 
     internal const ulong FillLight = 3UL;
+
+    internal const ulong MoonLight = 4UL;
 
     /// <summary>Placed lamps' retained lights are this base plus their slot in the lamp pool.</summary>
     internal const ulong LampLightBase = 0x100UL;
