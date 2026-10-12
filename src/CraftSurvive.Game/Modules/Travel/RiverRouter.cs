@@ -24,6 +24,9 @@ internal static class RiverRouter
 {
     private static readonly double[] Steps = [1, 1, 1, 1, Math.Sqrt(2), Math.Sqrt(2), Math.Sqrt(2), Math.Sqrt(2)];
 
+    /// <summary>A journey by boat is taken only when it saves at least this share of the walk: launching and landing for a few minutes saved is not worth it.</summary>
+    private const double MinimumSaving = 0.05;
+
     /// <summary>The boat is put in at the network's node nearest it, within this distance.</summary>
     private const double PutInMetres = 600;
 
@@ -81,7 +84,7 @@ internal static class RiverRouter
         }
 
         if (landing < 0) return new(null, walking, double.PositiveInfinity, $"The {boat.Name} can go nowhere from here.");
-        if (river >= walking)
+        if (river >= walking * (1 - MinimumSaving))
             return new(null, walking, river, FormattableString.Invariant($"Walking is as quick ({walking:F0} h against {river:F0} h by {boat.Name})."));
 
         // The route: to the boat, the water from the put-in to the landing, ashore, then the land on.
