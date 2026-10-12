@@ -26,6 +26,7 @@ internal sealed class TerrainWorld : IDisposable
     private readonly IEngineContext engine;
     private readonly ProductContent content;
     private Manipulation.BuildStudy? study;
+    private WaterStudy? waterStudy;
     private readonly ProductUiPublisher ui;
     private readonly WorldFrame frame;
     private readonly TerrainTrees trees;
@@ -190,6 +191,7 @@ internal sealed class TerrainWorld : IDisposable
         farField = null;
         trees.Dispose();
         study?.Dispose();
+        waterStudy?.Dispose();
         presentation.Dispose();
         chunkCache.Dispose();
         session?.Dispose();
@@ -237,7 +239,105 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>The building look study's draw facts (#9684); empty unless one is built.</summary>
-    internal AppearanceFact[] StudyFacts => study?.Facts ?? [];
+    internal AppearanceFact[] StudyFacts => [.. study?.Facts ?? [], .. waterStudy?.Facts ?? []];
+
+    /// <summary>How many hollows the water study's search lists.</summary>
+    private const int WaterStudyHollows = 8;
+
+    /// <summary>
+    /// The water look study (#9819): floods the hollow at (x, z) to a level within a radius, as voxel
+    /// water cells ("voxel") or as one water surface mesh at the level ("surface"); draws a river reach
+    /// as a skin at its own surface ("river"); lists nearby closed hollows ("find"); or clears ("clear").
+    /// </summary>
+    internal string WaterStudy(string mode, double x, double z, double level, long radius)
+    {
+        waterStudy ??= new WaterStudy(engine, frame);
+        if (mode == "clear")
+        {
+            waterStudy.HideSurface();
+            IReadOnlyList<VoxelAddress> cells = waterStudy.PlacedCells;
+            for (int i = 0; i < cells.Count; i += TerrainBrushPolicy.MaximumTransactionCells)
+            {
+                TryEditCells([.. cells.Skip(i).Take(TerrainBrushPolicy.MaximumTransactionCells)], TerrainEditKind.Clear, TerrainConstants.EmptyMaterial);
+            }
+
+            waterStudy.ForgetPlaced();
+            waterStudy.Placed([], "cleared");
+            return waterStudy.Readout();
+        }
+
+        long cx = (long)Math.Floor(x), cz = (long)Math.Floor(z);
+        if (mode == "find")
+        {
+            // Here the level is how far to look (metres) and the radius bounds each hollow.
+            IReadOnlyList<Terrain.WaterStudy.Hollow> hollows = Terrain.WaterStudy.FindHollows(cx, cz, (long)level, radius, WaterStudyHollows, recipe.ContinuousHeightAt);
+            return string.Join(' ', hollows.Select(h => string.Create(CultureInfo.InvariantCulture,
+                $"[{h.X},{h.Z} floor={h.Floor:F1} spill={h.Spill:F1} depth={h.Spill - h.Floor:F1} columns={h.Columns}]")));
+        }
+
+        if (mode == "river")
+        {
+            // The river's own surface over its channel within the radius, its voxel water cleared there.
+            Dictionary<(long X, long Z), double> surfaces = [];
+            List<VoxelAddress> water = [];
+            for (long sz = cz - radius; sz <= cz + radius; sz++)
+            {
+                for (long sx = cx - radius; sx <= cx + radius; sx++)
+                {
+                    TerrainColumn column = recipe.ColumnAt(sx, sz);
+                    if (!column.Geography.InRiver || ((sx - cx) * (sx - cx)) + ((sz - cz) * (sz - cz)) > radius * radius)
+                    {
+                        continue;
+                    }
+
+                    surfaces[(sx, sz)] = column.Geography.RiverSurface;
+                    for (long y = column.Surface + 1; y <= column.WaterTop; y++)
+                    {
+                        water.Add(new VoxelAddress(sx, y, sz));
+                    }
+                }
+            }
+
+            for (int i = 0; i < water.Count; i += TerrainBrushPolicy.MaximumTransactionCells)
+            {
+                TryEditCells([.. water.Skip(i).Take(TerrainBrushPolicy.MaximumTransactionCells)], TerrainEditKind.Clear, TerrainConstants.EmptyMaterial);
+            }
+
+            waterStudy.ShowSkin(cx, cz, surfaces);
+            return string.Create(CultureInfo.InvariantCulture, $"{waterStudy.Readout()} clearedVoxelWater={water.Count}");
+        }
+
+        Terrain.WaterStudy.Flood flood = Terrain.WaterStudy.FloodFrom(cx, cz, level, radius, recipe.ContinuousHeightAt);
+        if (mode == "surface")
+        {
+            waterStudy.ShowSurface(cx, cz, level, flood);
+            return waterStudy.Readout();
+        }
+
+        if (mode != "voxel")
+        {
+            return $"refused: mode {mode} is not voxel, surface, river, find or clear";
+        }
+
+        List<VoxelAddress> fill = Terrain.WaterStudy.VoxelCells(level, flood, recipe.SurfaceAt);
+        int applied = 0;
+        string outcome = "none";
+        for (int i = 0; i < fill.Count; i += TerrainBrushPolicy.MaximumTransactionCells)
+        {
+            VoxelAddress[] batch = [.. fill.Skip(i).Take(TerrainBrushPolicy.MaximumTransactionCells)];
+            TerrainWorldEditResult result = TryEditCells(batch, TerrainEditKind.Set, (ushort)BlockId.Water);
+            outcome = TerrainWorldEditResult.Format(result);
+            if (result is TerrainWorldEditApplied or TerrainWorldEditNoChanges)
+            {
+                applied += batch.Length;
+                waterStudy.Placed(batch, "");
+            }
+        }
+
+        waterStudy.Placed([], string.Create(CultureInfo.InvariantCulture,
+            $"voxel to {Math.Floor(level):F0} m: {applied}/{fill.Count} cells over {flood.Columns.Count} columns{(flood.Spilled ? ", spills past the radius" : "")} last={outcome}"));
+        return waterStudy.Readout();
+    }
 
     /// <summary>Builds the building look study's cabins in a row from (x, z) (#9684), or clears it.</summary>
     internal string BuildStudy(double x, double z, bool clear, bool collide = false)

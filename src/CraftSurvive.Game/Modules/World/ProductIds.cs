@@ -63,6 +63,9 @@ internal static class ProductIds
     /// <summary>The building look study's mesh cabin (BuildStudy, #9684).</summary>
     internal const ulong BuildStudyObject = 0x7_0000UL;
 
+    /// <summary>The water look study's surface lake (WaterStudy, #9819).</summary>
+    internal const ulong WaterStudyObject = 0x7_0002UL;
+
     /// <summary>The placement ghost of the selected build piece (#9729).</summary>
     internal const ulong BuildPieceGhost = 0x7_0001UL;
 
