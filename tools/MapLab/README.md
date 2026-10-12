@@ -49,3 +49,26 @@ Output, in `--out` (default `maplab-out/`):
   peninsula meet the mainland, only through the neck; islands), each belt's crest against the height
   asked, each pass's saddle and each site's ground.
 - `recipe.json`: the recipe the run used, in full.
+
+## River census (#9874)
+
+```bash
+dotnet run --project tools/MapLab -c Release -- --rivers 1-24 --size 390000 --runoff 600 --out /tmp/rivers
+```
+
+Generates each seed (in parallel) and measures its rivers in real flow:
+- The map's discharge is rain-weighted area, and rain is relative (about 1 over land). `--runoff` (mm a
+  year per unit of rain, default 400) turns it into m³/s. That one figure is the world's water budget.
+- `--canoe`, `--boat` and `--great` are the least flows (m³/s) a canoe, a laden river boat and the start
+  port's great river use (defaults 5, 40, 150).
+- The port river is the largest river mouth on the playable peninsula, out of the neck, in calm climate.
+  Its shelter is the share of bearings from the mouth that reach open sea 60 km out.
+- For the port river's own basin it reports how far a canoe and a boat can go (network length and the
+  head of navigation, along the river) and the junctions of two canoe rivers on it (river-town sites).
+
+Output: `census.txt` (a row per seed and a summary) and `rivers-SEED.png`:
+- land by height, with the forbidden side dimmed;
+- boat rivers bright blue, canoe rivers pale blue, smaller streams grey;
+- port candidates ringed (yellow sheltered, red open);
+- the largest calm mouth ringed white, and the sheltered port green;
+- the neck outlined.

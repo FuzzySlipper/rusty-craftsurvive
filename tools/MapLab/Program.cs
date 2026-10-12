@@ -27,6 +27,12 @@ const string Usage = """
       --pixels     the map images' width and height (default 1024)
       --reach-km   how far a skyline looks (default 150, or the map's size)
       --erosion-filter  read every height through the horizon's erosion filter (#9822)
+
+    MapLab --rivers SEEDS --size METRES [--design ...] [--recipe ...] [--out DIR] [--runoff MM] [--canoe Q] [--boat Q] [--great Q]
+
+      --rivers     the river census (#9874) over seeds, e.g. 1-24 or 1,7,4242: real flow at a runoff (mm a year per
+                   unit of rain, default 400), mouths a canoe, a river boat and the start port's great river can use
+                   (m3/s, defaults 5, 40, 150), the best sheltered calm port river; writes census.txt and rivers-SEED.png
     """;
 
 JsonSerializerOptions json = new() { WriteIndented = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
@@ -38,6 +44,14 @@ if (options.TryGetValue("dump-recipe", out List<string>? dump))
     return 0;
 }
 
+if (options.ContainsKey("rivers") && options.ContainsKey("size"))
+{
+    // The river census (#9874): many seeds at once, so it takes its own seed list.
+    int censusSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
+    return RiverCensus.Run(options, censusSize, LoadRecipe(), LoadDesign(censusSize),
+        options.TryGetValue("out", out List<string>? censusOut) ? censusOut[0] : "maplab-out");
+}
+
 if (!options.ContainsKey("seed") || !options.ContainsKey("size"))
 {
     Console.Error.WriteLine(Usage);
@@ -46,14 +60,9 @@ if (!options.ContainsKey("seed") || !options.ContainsKey("size"))
 
 ulong seed = ParseSeed(options["seed"][0]);
 int size = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
-MapRecipe recipe = options.TryGetValue("recipe", out List<string>? recipePath)
-    ? JsonSerializer.Deserialize<MapRecipe>(File.ReadAllText(recipePath[0]), json) ?? MapRecipe.Default
-    : MapRecipe.Default;
-// By default, the design the game draws a world of this size to; "none" for the seeded generator alone.
-ContinentDesign? design = !options.TryGetValue("design", out List<string>? designArg) ? ContinentDesign.For(size)
-    : designArg[0] == "none" ? null
-    : designArg[0].StartsWith("builtin:", StringComparison.Ordinal) ? ContinentDesign.Builtin(designArg[0]["builtin:".Length..])
-    : ContinentDesign.Parse(File.ReadAllText(designArg[0]));
+options.TryGetValue("recipe", out List<string>? recipePath);
+MapRecipe recipe = LoadRecipe();
+ContinentDesign? design = LoadDesign(size);
 string output = options.TryGetValue("out", out List<string>? outPath) ? outPath[0] : "maplab-out";
 int pixels = options.TryGetValue("pixels", out List<string>? pixelArg) ? int.Parse(pixelArg[0], CultureInfo.InvariantCulture) : 1024;
 List<(double X, double Z)> views = options.TryGetValue("view", out List<string>? viewArgs)
@@ -357,6 +366,16 @@ static Vector3d Normalise(Vector3d v)
 }
 
 static double Dot(Vector3d a, Vector3d b) => (a.X * b.X) + (a.Y * b.Y) + (a.Z * b.Z);
+
+MapRecipe LoadRecipe() => options.TryGetValue("recipe", out List<string>? path)
+    ? JsonSerializer.Deserialize<MapRecipe>(File.ReadAllText(path[0]), json) ?? MapRecipe.Default
+    : MapRecipe.Default;
+
+// By default, the design the game draws a world of this size to; "none" for the seeded generator alone.
+ContinentDesign? LoadDesign(int worldSize) => !options.TryGetValue("design", out List<string>? designArg) ? ContinentDesign.For(worldSize)
+    : designArg[0] == "none" ? null
+    : designArg[0].StartsWith("builtin:", StringComparison.Ordinal) ? ContinentDesign.Builtin(designArg[0]["builtin:".Length..])
+    : ContinentDesign.Parse(File.ReadAllText(designArg[0]));
 
 static ulong ParseSeed(string text) => text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
     ? ulong.Parse(text[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture)
