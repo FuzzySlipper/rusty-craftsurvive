@@ -19,6 +19,7 @@ internal static class MapPalette
         KnownPlaceKind.Visited => new(1, 0.38f, 0.1f, 1),
         KnownPlaceKind.Entrance => new(0.62f, 0.32f, 0.95f, 1),
         KnownPlaceKind.Sled => new(0.55f, 0.36f, 0.18f, 1),
+        KnownPlaceKind.Boat => new(0.25f, 0.62f, 0.78f, 1),
         KnownPlaceKind.Town => Town,
         _ => new(0.78f, 0.6f, 0.42f, 1),
     };

@@ -12,7 +12,7 @@ public sealed partial class CraftSurviveProduct
 {
     private IReadOnlyList<KnownPlace> KnownPlacesNow() => KnownPlaces.List(home.Home, discovery.Entries,
         sledWithParty ? null : sled.Sled.Position, SettlementsNow(),
-        Bounds is FrontierBound bound ? at => bound.Open(at.X, at.Y) : null);
+        Bounds is FrontierBound bound ? at => bound.Open(at.X, at.Y) : null, BoatPlace());
 
     /// <summary>The kind of reserved site a design marks its mountain hold (#9875).</summary>
     private const string HoldKind = nameof(SettlementKind.Hold);
@@ -36,6 +36,7 @@ public sealed partial class CraftSurviveProduct
             KnownPlaceKind.Entrance => "dungeon entrance",
             KnownPlaceKind.Visited => "visited",
             KnownPlaceKind.Sled => "where the sled was left",
+            KnownPlaceKind.Boat => "where the boat is moored",
             KnownPlaceKind.Town => place.Role switch
             {
                 SettlementKind.Port => "sea port",

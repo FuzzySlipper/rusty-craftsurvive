@@ -23,6 +23,7 @@ internal sealed class TravelCostModel
 
     private readonly WorldMap map;
     private readonly double[] multiplier;
+    private readonly bool[] ford;
     private readonly Func<MapBiome, double>? transport;
     private readonly ConditionalWeakTable<WorldMap, TravelCostModel> regionCosts = [];
     private readonly FrontierBound? bound;
@@ -42,6 +43,7 @@ internal sealed class TravelCostModel
         MapGrid grid = map.Grid;
         double offsetX = map.RegionFrame?.X ?? 0, offsetZ = map.RegionFrame?.Z ?? 0;
         multiplier = new double[grid.Count];
+        ford = new bool[grid.Count];
         for (int i = 0; i < grid.Count; i++)
         {
             float elevation = map.Fields.Elevation[i];
@@ -51,7 +53,11 @@ internal sealed class TravelCostModel
             if (slope > ImpassableSlope) { multiplier[i] = double.PositiveInfinity; continue; }
             MapBiome biome = WorldMap.Biome(map.Node(i));
             double cost = (1 + SlopePenalty * WorldMap.Smooth(slope / ImpassableSlope)) * Environment(biome) * (transport?.Invoke(biome) ?? 1);
-            if (MapRivers.CatchmentSquareKilometres(grid, map.Fields.Discharge[i]) >= map.Scale.SourceCatchment) cost *= FordMultiplier;
+            if (MapRivers.CatchmentSquareKilometres(grid, map.Fields.Discharge[i]) >= map.Scale.SourceCatchment)
+            {
+                cost *= FordMultiplier;
+                ford[i] = true;
+            }
             multiplier[i] = cost;
         }
     }
@@ -75,6 +81,9 @@ internal sealed class TravelCostModel
     internal double Multiplier(int node) => multiplier[node];
 
     internal bool Passable(int node) => double.IsFinite(multiplier[node]);
+
+    /// <summary>A node's cost to walk along rather than across (#9879): without the ford a river cell charges a crossing.</summary>
+    internal double BankMultiplier(int node) => ford[node] ? multiplier[node] / FordMultiplier : multiplier[node];
 
     /// <summary>
     /// What the country under a world point costs, for fatigue on foot (#9553): the region tile's finer

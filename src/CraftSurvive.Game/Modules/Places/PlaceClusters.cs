@@ -24,7 +24,7 @@ internal static class PlaceClusters
         List<KnownPlace> loose = [];
         foreach (KnownPlace place in places)
         {
-            if (place.Kind is KnownPlaceKind.Home or KnownPlaceKind.Sled) result.Add(new(place.Position, 1, place));
+            if (place.Kind is KnownPlaceKind.Home or KnownPlaceKind.Sled or KnownPlaceKind.Boat) result.Add(new(place.Position, 1, place));
             else loose.Add(place);
         }
 

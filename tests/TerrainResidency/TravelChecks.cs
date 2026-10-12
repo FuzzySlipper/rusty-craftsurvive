@@ -246,6 +246,25 @@ internal static class TravelChecks
             && TravelEventDirector.DangerName(TravelEventDirector.Danger(20)) == "high"
             && TravelEventDirector.Danger(100) == TravelEventDirector.MaximumDanger, "the route preview names danger by distance from home, up to a ceiling");
 
+        // River travel (#9879): a route says how each leg is made; the water carries the load and rests the party.
+        TravelRoute mixed = new("the port", [Vector2.Zero, new(100, 0), new(1100, 0), new(1200, 0)], [1, 4, 1], 0, [LegMode.Walk, LegMode.Drift, LegMode.Walk]);
+        Check.That(mixed.ByBoat && !mixed.Afloat(0) && mixed.Afloat(1) && mixed.Mode(2) == LegMode.Walk && mixed.Mode(7) == LegMode.Walk
+            && !new TravelRoute("x", [Vector2.Zero, Vector2.One], [1]).ByBoat, "a route says how each leg is made, and a route without modes is walked");
+        TravelRoute rest = mixed.From(1, new(50, 0), 0.5);
+        Check.That(rest.Modes!.SequenceEqual([LegMode.Drift, LegMode.Walk]) && rest.LegHours[0] == 2 && rest.Points[0] == new Vector2(50, 0),
+            "the rest of a route from where the party stands keeps how its legs are made");
+        PartyTravel loaded = PartyTravel.Rehearsing(mixed, 0, loadMultiplier: 2);
+        double first = loaded.Advance(1.5, _ => false);
+        Check.That(Math.Abs(first - 1.5) < 1e-9 && loaded.Leg == 0, "a load slows the walked legs");
+        PartyTravel boating = PartyTravel.Rehearsing(mixed, 0, loadMultiplier: 2);
+        boating.Advance(2, _ => false);
+        Check.That(boating.Leg == 1 && boating.Afloat, "the party is afloat on a leg made by boat");
+        double fatigueAboard = boating.Fatigue;
+        double afloatHours = boating.Advance(2, _ => false);
+        Check.That(boating.Leg == 1 && Math.Abs(boating.Fatigue - fatigueAboard - (afloatHours * PartyTravel.FatiguePerHour * PartyTravel.Exertion(LegMode.Drift))) < 1e-9
+            && PartyTravel.Exertion(LegMode.Drift) < PartyTravel.Exertion(LegMode.Walk) && PartyTravel.Exertion(LegMode.Portage) > PartyTravel.Exertion(LegMode.Walk),
+            "on the water the load rides free and drifting rests the party; portaging tires it more than walking");
+
         // The sled (#9473): finite cargo, glides on snow and drags on rock, slower when loaded.
         Sled sled = new(Vector2.Zero);
         Check.That(sled.Stow(CraftSurvive.Game.Modules.Inventory.ItemCatalog.Ration, Sled.Capacity + 50) == Sled.Capacity && sled.Free == 0

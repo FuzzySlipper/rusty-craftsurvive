@@ -62,10 +62,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     hour by hour on a continent, so a river stands higher after rain, freezes in a long frost and a
     small dry-country stream runs dry. Its limits:
     - Only continents have a stage; regional worlds keep every river at its mean.
-    - A lake keeps its level; it freezes with its outflow. Water has no current, so a ford is
-      only deeper in first person, not faster; the map's travel events read its state.
-    - Route planning keeps a fixed cost for a ford and does not cross ice or close a flooded
-      crossing; on the map a lake costs the party no more than land, frozen or not.
+    - A lake keeps its level; it freezes with its outflow. A river's current (#9879) is its reach's
+      mean velocity along the channel, slack at the banks; it moves a boat, not a swimmer, so a ford
+      is only deeper in first person; the map's travel events read its state.
+    - Walking routes keep a fixed cost for a ford and do not cross ice or close a flooded crossing
+      (only a boat's routes read the stage); on the map a lake costs the party no more than land.
     - The far field shows ice and dry beds but not the stage's height; the horizon backdrop and the
       map view keep every river and lake open at its mean.
     - Ice is a plain pale surface with no texture, snow or cracks, and the seasons change only the
@@ -84,6 +85,12 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - A lake's shore follows its 1 km basin, so a lake can end in a straight edge where the basin does.
     - Smaller lakes (tarns, ponds, oxbows) are not generated, and regional worlds have none. The map
       view draws lakes (fresh, salt, playa); the faceted relief draws all of them as fresh water.
+  - River travel (#9879) is by a raft or a canoe the party builds at a bank (it cannot yet be bought
+    or found). On the map the route follows the 250 m network's nodes, so a stop afloat puts the boat
+    on the walked channel up to 160 m away. In first person a boat is a kinematic float: level, at
+    the surface, a little lower laden, with no tilt or tipping (rusty-engine #9883 if that reads
+    wrong); the canoe rides with its floor at the surface, because the water plane would show inside
+    a hull below it. Creatures do not yet avoid water.
   - Settlements (the sea port, river towns and the mountain hold) are map places only: there are no
     town scenes yet, and the expedition does not yet start at the port.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans

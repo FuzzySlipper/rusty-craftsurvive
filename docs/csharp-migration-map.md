@@ -231,7 +231,12 @@ Known places (`Modules/Places`) are home, owned by `HomeMarkerStore` under its o
 discovery journal; both map views draw them and the UI lists them as destinations. The sled is
 engine-free `Travel/Sled` (cargo, reach) and `SledTravel` (terrain and load), owned in the running
 product by `Places/SledStore` (its save key and first-person appearance); `MapSled` hitches it,
-feeds the party from it, and moves items between it and the pack through the world intent. The faceted view
+feeds the party from it, and moves items between it and the pack through the world intent. The boat
+(#9879) is engine-free `Travel/Boat` (a raft or a canoe and their rules) and `Water/BoatFloat` (its
+kinematic float), owned by `Places/BoatStore` (its save key, appearance, and the collider the player
+controller borrows each step as a ridden platform, `Player/IPlayerCarrier`); `RiverRouter` plans a
+journey over the water network and the land and keeps it if it beats walking, and `MapBoat` builds a
+boat, takes it with the party, and leaves it moored at the landing. The faceted view
 draws the token, the route ribbon and the waypoint, and turns a free-cursor click into a waypoint
 through `CameraQueries.Ray`. Closing the map explores at the token by teleporting the player there.
 See Den `design/overland-travel-mode`.

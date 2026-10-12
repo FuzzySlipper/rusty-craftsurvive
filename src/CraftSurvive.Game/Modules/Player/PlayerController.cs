@@ -74,6 +74,18 @@ internal sealed class PlayerController : IDisposable
     /// <summary>How much longer a climb action pressed while not holding on takes hold of a face the player reaches.</summary>
     private double takeHoldSeconds;
 
+    /// <summary>Whether the controller stood the player on the carrier last step (#9879).</summary>
+    private bool aboard;
+
+    /// <summary>Something the player can ride, a boat (#9879); null when there is none.</summary>
+    internal IPlayerCarrier? Carrier { get; set; }
+
+    /// <summary>Whether the player stands or sits on the carrier now.</summary>
+    internal bool Aboard => aboard;
+
+    /// <summary>The player's position in the session's local frame.</summary>
+    internal Vector3 LocalPosition => playerLocal;
+
     /// <summary>A climb action pressed while holding on, not yet acted on by a controller step: let go.</summary>
     private bool letGoPending;
     private bool started;
@@ -150,6 +162,8 @@ internal sealed class PlayerController : IDisposable
         rebaser = new WorldOriginRebaser(engine, frame);
         continuation = new PlayerContinuationStore(engine, store, terrain.SaveIdentity, Vitals.MaximumHealth);
         controllerConfig = PlayerBody.Configure(engine.Spatial.DefaultCharacterControllerConfig());
+        // A boat carries whoever stands on it, turning them with it (#9879).
+        controllerConfig = controllerConfig with { Platform = controllerConfig.Platform with { CarryTranslation = true, CarryRotation = true } };
         playerGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.SpawnColumn.X, 0d, PlayerConstants.SpawnColumn.Y);
         playerEntity = entityWorld.Create();
         PublishRuntimeComponent();
@@ -275,6 +289,14 @@ internal sealed class PlayerController : IDisposable
 
         jumpPending |= frame.JumpHeld && !jumpHeld;
         impulsePending |= frame.ImpulseHeld && !impulseHeld;
+        // The climb key boards a boat beside the player, or stands up from its seat (#9879), before it takes hold of a wall.
+        if (frame.ClimbRequested && away is null && !climbHeld && Carrier is IPlayerCarrier carrier && carrier.TryToggle(playerLocal, out Vector3? boardAt))
+        {
+            // With no room to stand aboard, the player stays where they are, and so does the seat.
+            if (boardAt is Vector3 at && Teleport(at.X, at.Y, at.Z) is null) carrier.TryToggle(playerLocal, out _);
+            frame = frame with { ClimbRequested = false };
+        }
+
         if (frame.ClimbRequested)
         {
             if (climbHeld)
@@ -439,7 +461,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};aboard={aboard};seated={Carrier?.Seated == true};platform=[{(lastStepReceipt is CharacterStepReceipt last ? string.Create(CultureInfo.InvariantCulture, $"{last.Platform.Present}:{last.Platform.Entity}:{PlayerInputDiagnostics.Format(last.Platform.CarriedDisplacement)}") : "none")}];stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -571,6 +593,14 @@ internal sealed class PlayerController : IDisposable
                 ? PlayerBody.WithSprintSpeed(controllerConfig)
                 : controllerConfig;
             commandSequence = checked(commandSequence + 1UL);
+            // A boat moves first, by this step's paddle, and stands in the step as a collider that carries whoever is on it (#9879).
+            IPlayerCarrier? carrier = away is null ? Carrier : null;
+            bool seated = carrier?.Seated == true;
+            CharacterObstacle? ride = carrier?.Step((float)PlayerConstants.ControllerStepSeconds, seated ? frame.PlanarIntent : Vector2.Zero, playerLocal, aboard);
+            CharacterSupport support = ride is CharacterObstacle on && aboard
+                ? new CharacterSupport(true, CharacterSupportLifecycle.Active, on.Entity, on.Transform)
+                : default;
+            PlayerInputFrame body = seated ? frame with { PlanarIntent = Vector2.Zero } : frame;
             CharacterStepReceipt receipt;
             try
             {
@@ -578,11 +608,11 @@ internal sealed class PlayerController : IDisposable
                     Session,
                     playerLocal,
                     motion,
-                    default,
-                    ReadOnlyMemory<CharacterObstacle>.Empty,
+                    support,
+                    ride is CharacterObstacle obstacle ? new[] { obstacle } : ReadOnlyMemory<CharacterObstacle>.Empty,
                     ReadOnlyMemory<CharacterMeshInstance>.Empty,
                     stepConfig,
-                    Command(frame, lookReceipt, commandSequence)));
+                    Command(body, lookReceipt, commandSequence)));
             }
             catch (EngineCallException refusal) when (PlayerRecovery.IsPenetration(refusal))
             {
@@ -594,6 +624,8 @@ internal sealed class PlayerController : IDisposable
 
             lastControllerStepCount = checked(lastControllerStepCount + 1U);
             lastStepReceipt = receipt;
+            aboard = ride is CharacterObstacle stood
+                && ((receipt.Platform.Present && receipt.Platform.Entity == stood.Entity) || (receipt.Ground.Present && receipt.Ground.SourceEntity == stood.Entity));
             Hear(receipt);
             climbHeld = receipt.Movement.ClimbAttached;
             headSubmerged = receipt.Movement.HeadSubmerged;

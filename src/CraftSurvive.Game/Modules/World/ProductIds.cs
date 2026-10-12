@@ -25,6 +25,10 @@ internal static class ProductIds
     /// <summary>The expedition's sled, standing where the party left it (#9473).</summary>
     internal const ulong SledObject = 0x3_1000UL;
 
+    /// <summary>The expedition's boat (#9879): its appearance, and the collider the player stands on aboard.</summary>
+    internal const ulong BoatObject = 0x3_1001UL;
+    internal const ulong BoatCarrier = 0x3_1002UL;
+
     internal const ulong WorldMapObject = 0x4_0000UL;
     internal const ulong WorldMapPartyObject = 0x4_0001UL;
     internal const ulong WorldMapWaypointObject = 0x4_0002UL;

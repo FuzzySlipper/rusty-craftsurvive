@@ -24,6 +24,7 @@ internal static class KnownPlaces
 {
     internal const string HomeKey = "home";
     internal const string SledKey = "sled";
+    internal const string BoatKey = "boat";
     private const string TownPrefix = "town:";
     private const string PlacePrefix = "poi:";
 
@@ -34,10 +35,12 @@ internal static class KnownPlaces
     /// <param name="towns">The settlements where they stand (#9875); none on a world without them.</param>
     /// <param name="inBounds">Whether a place lies inside the world's bounds (#9817); everything does when null.</param>
     internal static IReadOnlyList<KnownPlace> List(HomeMarker home, IEnumerable<DiscoveryEntry> journal, Vector2? sled = null,
-        IEnumerable<(string Name, SettlementKind Role, double X, double Z)>? towns = null, Func<Vector2, bool>? inBounds = null) =>
+        IEnumerable<(string Name, SettlementKind Role, double X, double Z)>? towns = null, Func<Vector2, bool>? inBounds = null,
+        (string Name, Vector2 At)? boat = null) =>
     [
         new(HomeKey, "Home", KnownPlaceKind.Home, new((float)home.X, (float)home.Z)),
         .. sled is Vector2 left ? [new KnownPlace(SledKey, "The sled", KnownPlaceKind.Sled, left)] : Array.Empty<KnownPlace>(),
+        .. boat is (string, Vector2) moored ? [new KnownPlace(BoatKey, moored.Name, KnownPlaceKind.Boat, moored.At)] : Array.Empty<KnownPlace>(),
         .. (towns ?? []).Select(town => new KnownPlace(TownPrefix + town.Name, town.Name, KnownPlaceKind.Town, new((float)town.X, (float)town.Z),
             Role: town.Role)),
         .. journal.Where(entry => IsMapSite(entry.Kind) && inBounds?.Invoke(new(entry.X, entry.Z)) != false)

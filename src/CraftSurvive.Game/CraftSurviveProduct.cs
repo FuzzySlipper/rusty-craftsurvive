@@ -160,6 +160,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
         home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
         sled = new SledStore(context.Engine, context.Content, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
+        boat = new BoatStore(context.Engine, context.Content, store, terrain.SaveIdentity, frame, terrain.Water);
+        player.Carrier = boat;
         blast = new BlastModule(terrain, frame, entities, cues);
         blast.ChargeAdmitted += (centre, radius) => pieces.Blast(centre, radius);
         build = new BuildModule(terrain, entities, player.Occupies);
@@ -233,6 +235,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             player.Start();
             home.Start();
             sled.Start();
+            boat.Start();
             foreach (IProductModule module in gameplay)
             {
                 module.Start();
@@ -259,6 +262,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         sled.Save();
         sled.Dispose();
+        boat.Save();
+        boat.Dispose();
         sky.Dispose();
         player.Dispose();
         terrain.Dispose();
@@ -279,6 +284,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
         RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather))));
+        RequireRegistration(registrar.Register(new Modules.Travel.BoatDebugModule(() => worldBuilt ? BoatReadout() : "no world",
+            kind => worldBuilt ? DebugBuildBoat(kind) : "no world",
+            (forward, turn, seconds) => worldBuilt ? DebugPaddle(forward, turn, seconds) : "no world",
+            () => worldBuilt ? DebugBoard() : "no world",
+            (action, speed) => worldBuilt ? DebugTravel(action, speed) : "no world")));
         RequireRegistration(registrar.Register(new Modules.Water.RiverStageDebugModule(() => Owner(riverStage), () => Owner(terrain).Water,
             (x, z) => Owner(terrain).Recipe.GroundAt((long)Math.Floor(x), (long)Math.Floor(z)).Geography.RiverReach)));
         RequireRegistration(registrar.Register(new HorizonDebugModule(() => Owner(horizon), () => Owner(sky))));
@@ -477,7 +487,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. TreeFacts(), .. horizon.Facts]
+        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. TreeFacts(), .. horizon.Facts]
             : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

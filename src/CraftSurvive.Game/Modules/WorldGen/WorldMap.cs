@@ -8,11 +8,13 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// RiverSurface is the water level of a channel covering the point, or negative infinity;
 /// LakeSurface the level of a lake whose basin covers it (#9877), or negative infinity - the
 /// point is under that lake where its ground lies below the level. RiverReach is the walked network's
-/// reach whose channel covers the point (#9878), or -1.
+/// reach whose channel covers the point (#9878), or -1; RiverFlowX/Z which way and how strongly the
+/// channel runs there (#9879): downstream, as a share of its reach's mean velocity - faster mid-stream
+/// and slack at the banks.
 /// </summary>
 internal readonly record struct MapSample(double Elevation, double Temperature, double Moisture,
     double Rock, double Detail, double Protection = 0, double RiverSurface = double.NegativeInfinity,
-    double LakeSurface = double.NegativeInfinity, int RiverReach = -1)
+    double LakeSurface = double.NegativeInfinity, int RiverReach = -1, double RiverFlowX = 0, double RiverFlowZ = 0)
 {
     internal bool InRiver => !double.IsNegativeInfinity(RiverSurface);
     internal bool InLake => !double.IsNegativeInfinity(LakeSurface);
@@ -245,6 +247,9 @@ internal sealed class WorldMap
     internal double HardnessAt(double x, double z) => Grid.Bilinear(hardness, x, z);
 
     /// <summary>A parabolic channel below the water surface, low soil banks, and quiet ground beyond.</summary>
+    /// <summary>A parabolic channel's current at its centre over its mean (the mean of 1 - x² across is two thirds).</summary>
+    private const double CentreCurrent = 1.5;
+
     internal static MapSample Channel(MapSample broad, RiverInfluence river)
     {
         double quiet = Ease(river.HalfWidth, MapRivers.QuietDistance(river.HalfWidth), river.Distance);
@@ -252,7 +257,12 @@ internal sealed class WorldMap
         {
             double across = river.Distance / river.HalfWidth;
             double bed = Math.Max(GenerationConstants.MinimumTerrainHeight, river.Surface - river.Depth * (1 - across * across));
-            return broad with { Elevation = Math.Min(broad.Elevation, bed), Rock = 0, Detail = 0, RiverSurface = river.Surface, RiverReach = river.Reach };
+            double share = CentreCurrent * (1 - across * across);
+            return broad with
+            {
+                Elevation = Math.Min(broad.Elevation, bed), Rock = 0, Detail = 0, RiverSurface = river.Surface, RiverReach = river.Reach,
+                RiverFlowX = river.DownX * share, RiverFlowZ = river.DownZ * share,
+            };
         }
         double bank = Ease(river.HalfWidth, river.HalfWidth + river.Bank, river.Distance);
         double shore = river.Surface + BankFreeboard;

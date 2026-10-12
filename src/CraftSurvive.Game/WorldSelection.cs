@@ -81,6 +81,10 @@ public sealed partial class CraftSurviveProduct
                             throw new FormatException("Choose one of the offered travel speeds.");
                         SetTravelSpeed(speed);
                         break;
+                    case "raft" or "canoe":
+                        if (!mapOpen) throw new FormatException("Open the world map to build a boat.");
+                        BuildBoat(action.GetString()!);
+                        break;
                     case "go" or "pause" or "halt" or "camp":
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
                         TravelAction(action.GetString()!);
@@ -235,9 +239,12 @@ public sealed partial class CraftSurviveProduct
         pendingEvent = null;
         sledTravelCost = null;
         sledWithParty = false;
+        boatWithParty = false;
         foreach (IProductModule module in gameplay.Reverse()) module.Dispose();
         sled.Save();
         sled.Dispose();
+        boat.Save();
+        boat.Dispose();
         sky.Dispose(); player.Dispose(); terrain.Dispose();
         frame = new(); cues = new Cues(); entities = new BlockEntityIndex();
         CreateWorld();

@@ -86,6 +86,8 @@ SavedForm[] forms =
         (left, right) => left == right, seed => new HomeMarkerCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.TravelSled, new SledCodec(identity), sledSave, SledCodec.RecordBytes,
         (left, right) => left.X == right.X && left.Z == right.Z && left.Cargo.SequenceEqual(right.Cargo), seed => new SledCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.TravelBoat, new BoatCodec(identity), new BoatSave(CraftSurvive.Game.Modules.Travel.BoatKind.Canoe, -1200.5, 3400.25, 1.25), BoatCodec.RecordBytes,
+        (left, right) => left == right, seed => new BoatCodec(identity with { Seed = seed })),
 ];
 
 // --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------

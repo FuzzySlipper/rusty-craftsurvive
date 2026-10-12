@@ -4,7 +4,7 @@ namespace CraftSurvive.Game.Modules.Water;
 
 /// <summary>
 /// The water at one place (#9877): its surface and the bed under it (metres), the horizontal current
-/// (m/s; still for now - the network's reach velocity later), which body it belongs to, the stage
+/// (m/s; a river's reach velocity along its channel, #9879), which body it belongs to, the stage
 /// offset over its usual surface (0 until the stage is routed, #9878) and whether it is frozen. The
 /// fields match what an Engine water field reports for a region (rusty-engine #9884), so a flood
 /// region can be composed over the static surfaces (#9880) without changing a consumer.
@@ -41,26 +41,38 @@ internal sealed class WaterModel(TerrainRecipe recipe)
     /// <summary>The routed stage, or null while every body stands at its usual surface.</summary>
     internal IWaterStage? Stages { get; set; }
 
+    /// <summary>A river's speed follows its flow to this power (Manning's velocity in a wide channel).</summary>
+    private const double VelocityExponent = 0.4;
+
     /// <summary>The water at a column (whole metres, as the ground is generated).</summary>
     internal WaterSample Sample(long x, long z)
     {
         (double ground, MapSample geography) = recipe.GroundAt(x, z);
         double surface = WaterRules.Surface(geography);
         WaterBody body = WaterRules.Body(geography, ground);
-        if (Stages is IWaterStage stages)
+        if (body == WaterBody.River)
         {
-            if (body == WaterBody.River && stages.At(geography.RiverReach) is ReachStage reach)
-            {
-                // A dry reach leaves its bed bare: the stage takes the water down to the ground.
-                double stage = reach.Dry ? ground - surface : reach.Stage;
-                return new(surface, ground, 0, 0, body, stage, reach.Ice && !reach.Dry);
-            }
-
-            if (body == WaterBody.Lake && recipe.Map.LakeAt(x + 0.5, z + 0.5) is Lake lake)
-                return new(surface, ground, 0, 0, body, 0, stages.LakeIce(lake));
+            ReachStage? reach = Stages?.At(geography.RiverReach);
+            // The current (#9879): the reach's mean velocity, faster as it carries more, along its channel.
+            double speed = MeanVelocity(geography.RiverReach) * Math.Pow(reach?.Ratio ?? 1, VelocityExponent);
+            if (reach is { Dry: true }) speed = 0;
+            (double currentX, double currentZ) = (geography.RiverFlowX * speed, geography.RiverFlowZ * speed);
+            // A dry reach leaves its bed bare: the stage takes the water down to the ground; ice stills the current.
+            if (reach is ReachStage now)
+                return new(surface, ground, now.Ice ? 0 : currentX, now.Ice ? 0 : currentZ, body, now.Dry ? ground - surface : now.Stage, now.Ice && !now.Dry);
+            return new(surface, ground, currentX, currentZ, body, 0, false);
         }
 
+        if (body == WaterBody.Lake && Stages is IWaterStage stages && recipe.Map.LakeAt(x + 0.5, z + 0.5) is Lake lake)
+            return new(surface, ground, 0, 0, body, 0, stages.LakeIce(lake));
         return new(surface, ground, 0, 0, body, 0, false);
+    }
+
+    /// <summary>A walked reach's mean velocity (m/s), or still water where there is no such reach.</summary>
+    private double MeanVelocity(int reach)
+    {
+        IReadOnlyList<Reach>? reaches = recipe.Regions?.Drainage.Network.Reaches;
+        return reaches is not null && reach >= 0 && reach < reaches.Count ? reaches[reach].Velocity : 0;
     }
 
     /// <summary>

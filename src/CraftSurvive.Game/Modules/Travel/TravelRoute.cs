@@ -3,14 +3,35 @@ using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Travel;
 
+/// <summary>How the party makes a leg (#9879): on foot, or on the water - paddled, drifting, lined from the bank, or carried round rapids.</summary>
+internal enum LegMode { Walk, Paddle, Drift, Line, Portage }
+
 /// <summary>
 /// A planned journey: world X/Z waypoints and the daylight travel hours of each leg. On a continent
 /// the first <see cref="RefinedLegs"/> legs follow a region tile's 32 m ground and the rest the
-/// kilometre lattice (#9552).
+/// kilometre lattice (#9552). <see cref="Modes"/> says how each leg is made (#9879); a route without
+/// them is walked.
 /// </summary>
-internal sealed record TravelRoute(string Destination, Vector2[] Points, double[] LegHours, int RefinedLegs = 0)
+internal sealed record TravelRoute(string Destination, Vector2[] Points, double[] LegHours, int RefinedLegs = 0, LegMode[]? Modes = null)
 {
     internal double Hours => LegHours.Sum();
+
+    internal LegMode Mode(int leg) => Modes is LegMode[] modes && leg >= 0 && leg < modes.Length ? modes[leg] : LegMode.Walk;
+
+    /// <summary>Whether a leg is made on the water (or carrying the boat round rapids).</summary>
+    internal bool Afloat(int leg) => Mode(leg) != LegMode.Walk;
+
+    /// <summary>Whether any leg is made by boat.</summary>
+    internal bool ByBoat => Modes?.Any(mode => mode != LegMode.Walk) == true;
+
+    /// <summary>The legs from one on, as a route of their own from a point.</summary>
+    internal TravelRoute From(int leg, Vector2 start, double firstLegShare)
+    {
+        Vector2[] points = [start, .. Points.Skip(leg + 1)];
+        double[] hours = [.. LegHours.Skip(leg)];
+        if (hours.Length > 0) hours[0] *= firstLegShare;
+        return new(Destination, points, hours, 0, Modes is null ? null : [.. Modes.Skip(leg)]);
+    }
     internal double Metres
     {
         get
@@ -59,7 +80,8 @@ internal static class TravelRouter
     /// </summary>
     internal static TravelRoute? RefineHead(TravelCostModel cost, TravelRoute route)
     {
-        if (cost.Regions is not MapRegions regions || route.Points.Length < 2) return null;
+        // Only the walked head is refined: a leg on the water already follows the 250 m network (#9879).
+        if (cost.Regions is not MapRegions regions || route.Points.Length < 2 || route.Afloat(0)) return null;
         Vector2 from = route.Points[0];
         (int X, int Z) key = MapRegions.TileAt(from.X, from.Y);
         if (!regions.IsReady(key))
@@ -73,7 +95,7 @@ internal static class TravelRouter
         for (int k = 1; k < route.Points.Length; k++)
         {
             along += Vector2.Distance(route.Points[k - 1], route.Points[k]);
-            if (along > RefineAheadMetres || Math.Abs(route.Points[k].X - cx) > usable || Math.Abs(route.Points[k].Y - cz) > usable) break;
+            if (along > RefineAheadMetres || Math.Abs(route.Points[k].X - cx) > usable || Math.Abs(route.Points[k].Y - cz) > usable || route.Afloat(k - 1)) break;
             target = k;
         }
         if (target == 0) return null;
@@ -87,7 +109,8 @@ internal static class TravelRouter
             Index(Math.Max(a.X, b.X) + RefineMarginMetres), Index(Math.Max(a.Y, b.Y) + RefineMarginMetres));
         if (Search(local, start, goal, bounds) is not List<int> path) return null;
         TravelRoute head = Assemble(local, path, offset, from, route.Points[target], route.Destination);
-        return new(route.Destination, [.. head.Points, .. route.Points.Skip(target + 1)], [.. head.LegHours, .. route.LegHours.Skip(target)], head.LegHours.Length);
+        LegMode[]? modes = route.Modes is null ? null : [.. Enumerable.Repeat(LegMode.Walk, head.LegHours.Length), .. route.Modes.Skip(target)];
+        return new(route.Destination, [.. head.Points, .. route.Points.Skip(target + 1)], [.. head.LegHours, .. route.LegHours.Skip(target)], head.LegHours.Length, modes);
     }
 
     /// <summary>The node path from start to goal, optionally within a box of node columns and rows; null when none joins them.</summary>

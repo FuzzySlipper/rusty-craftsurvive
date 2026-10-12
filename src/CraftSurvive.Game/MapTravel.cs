@@ -52,6 +52,7 @@ public sealed partial class CraftSurviveProduct
             party.Relocate(here);
         }
         HitchSledIfNear();
+        TakeBoatIfNear();
         if (resumed is not null && party.Plan(PartyCost, resumed.Points[^1], resumed.Destination) && party.Route is TravelRoute route)
             worldMessage = RoutePreview(route);
         facetedMap?.MoveParty(party.Position);
@@ -66,8 +67,12 @@ public sealed partial class CraftSurviveProduct
         party ??= new PartyTravel(destination);
         ApplySledLoad();
         bool planned = party.Plan(PartyCost, destination, name);
+        // With a boat, the river too (#9879): taken when it beats walking.
+        string? byBoat = PlanByBoat(destination, name);
+        planned |= party.Route?.ByBoat == true;
         facetedMap?.ShowRoute(party.Route?.Points);
         worldMessage = planned && party.Route is TravelRoute route ? RoutePreview(route) : party.Last;
+        if (byBoat is not null) worldMessage = $"{byBoat} {worldMessage}";
         if (RouteBoundNote(destination) is string bounded) worldMessage = $"{bounded} {worldMessage}";
     }
 
@@ -235,6 +240,7 @@ public sealed partial class CraftSurviveProduct
         EnvironmentSample sky = weather.Field.Sample(party.Position.X, party.Position.Y, weather.Hours);
         survival.Journey(spent / PlayHoursPerSecond, Meal, sky.Effects.SupplyUse);
         WoundInTheOpen(sky, spent);
+        FollowBoat();
         facetedMap?.MoveParty(party.Position);
         // On a continent, the country ahead is refined before the party could stop in it (#9550), and
         // the route's head follows region ground as the party reaches it (#9552).
@@ -326,6 +332,14 @@ public sealed partial class CraftSurviveProduct
         if (BoundRefusal(party.Position.X, party.Position.Y) is not null && TravelRouter.Nearest(TravelCost, party.Position) is int inside and >= 0)
             party.Relocate(new((float)worlds.Current.Map.Grid.X(inside), (float)worlds.Current.Map.Grid.Z(inside)));
         Vector3 feet = player.WorldFeetPosition;
+        // Stopped on the water, the player sits aboard the boat where the party is (#9879).
+        if (SettleAfloat())
+        {
+            player.SaveContinuationNow();
+            SaveJourney();
+            return true;
+        }
+
         if (Vector2.Distance(party.Position, new(feet.X, feet.Z)) > PartyRelocateMetres
             && player.Teleport(party.Position.X, terrain.GroundAt(party.Position.X, party.Position.Y) + ArrivalClearance, party.Position.Y) is null)
         {
@@ -344,6 +358,7 @@ public sealed partial class CraftSurviveProduct
         survival.SaveNow();
         inventory.SaveNow();
         if (sledWithParty) sled.Save();
+        if (boatWithParty) boat.Save();
     }
 
     private string TravelStatus()

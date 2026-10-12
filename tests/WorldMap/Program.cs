@@ -123,6 +123,7 @@ try
         Check.Section("lakes", () => LakeChecks.Run(continent.Map));
         TerrainRecipe continentRecipe = continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map);
         Check.Section("the river stage", () => StageChecks.Run(continent.Map, continentRecipe));
+        Check.Section("river travel", () => BoatChecks.Run(continent.Map, continentRecipe));
         ContinentalTerrainChecks(continentRecipe);
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
@@ -162,6 +163,7 @@ Check.Section("far field ground rules", FarGroundChecks.Run);
 Check.Section("bankfull stage and settlement standing", NetworkChecks.Rules);
 Check.Section("the water rule", WaterRuleChecks.Run);
 Check.Section("seasons", StageChecks.TheYearTurns);
+Check.Section("boats", BoatChecks.Rules);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
 return Check.Finish("WorldMap");

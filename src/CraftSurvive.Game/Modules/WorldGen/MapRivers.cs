@@ -4,7 +4,12 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 internal readonly record struct RiverPoint(double X, double Z, double Surface, double HalfWidth, double Depth);
 
 /// <summary>The river nearest a point, resolved for local terrain; Reach is its id in the drainage's water network (#9878), or -1.</summary>
-internal readonly record struct RiverInfluence(double Distance, double Surface, double HalfWidth, double Depth, double Bank, int Reach = -1)
+/// <summary>
+/// The nearest river to a point: how far its centre line is, its surface, half width, depth and bank there,
+/// the walked network's reach (#9878), and which way it runs (a unit vector downstream, #9879).
+/// </summary>
+internal readonly record struct RiverInfluence(double Distance, double Surface, double HalfWidth, double Depth, double Bank, int Reach = -1,
+    double DownX = 0, double DownZ = 0)
 {
     internal bool InChannel => Distance < HalfWidth;
 }
@@ -229,7 +234,10 @@ internal sealed class MapRivers
             double score = (distance - halfWidth) / bank;
             if (distance >= QuietDistance(halfWidth) || score >= bestScore) continue;
             bestScore = score;
-            best = new(distance, a.Surface + (b.Surface - a.Surface) * t, halfWidth, a.Depth + (b.Depth - a.Depth) * t, bank, ids[r]);
+            // Downstream is the way the surface falls; a level segment runs as traced, source to mouth.
+            double length = Math.Sqrt(lengthSquared), sign = b.Surface > a.Surface ? -1 : 1;
+            (double downX, double downZ) = length > 0 ? (sign * dx / length, sign * dz / length) : (0, 0);
+            best = new(distance, a.Surface + (b.Surface - a.Surface) * t, halfWidth, a.Depth + (b.Depth - a.Depth) * t, bank, ids[r], downX, downZ);
         }
         return best;
     }

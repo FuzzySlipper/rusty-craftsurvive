@@ -46,11 +46,15 @@
     <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelCostModel.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelCalendar.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Travel/Boat.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Travel/BoatKind.cs" LinkBase="Product/Travel" />
+    <Compile Include="$(ProductModules)Travel/RiverRouter.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Water/Seasons.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/RiverStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/WaterModel.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/BoatFloat.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Sky/Twilight.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Moon.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Stars.cs" LinkBase="Product/Sky" />

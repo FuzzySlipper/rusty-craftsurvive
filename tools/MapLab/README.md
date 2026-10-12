@@ -121,3 +121,17 @@ days, and the network's peak shares) and `stage-SEED.png`:
 - one panel per reach, flow over its mean on a log scale (the grey line is the mean), red in flood,
   shaded blue while frozen and brown while dry;
 - the network's daily share frozen (pale blue), dry (amber) and in flood (red, ten times).
+
+## River journeys (#9879)
+
+```bash
+dotnet run --project tools/MapLab -c Release -- --boats 1-6,19 --size 390000 --out /tmp/boats
+```
+
+For every river town, plans the journey down to the sea port by raft and by canoe and back up by
+canoe (`RiverRouter`, the rivers at their mean stage), each against the same journey on foot, with
+the boat waiting at the open water nearest the start.
+
+Output: `boats.txt` (each journey's hours, how much faster than walking, and the kilometres afloat,
+or why walking wins; the median gain per craft) and `boats-SEED.png` (land by height, canoe rivers
+blue and rapids red, each canoe journey with its water legs cyan and its walked legs orange).

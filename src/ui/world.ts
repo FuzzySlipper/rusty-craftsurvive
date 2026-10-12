@@ -6,8 +6,8 @@ export const WORLD_INTENT = 'craftsurvive.world';
 export const WORLD_CONTRACT = 'craftsurvive.world.action.v1';
 const INTENT = WORLD_INTENT;
 const CONTRACT = WORLD_CONTRACT;
-/** Matches the product's map markers: home, reached, seen from afar, dungeon entrance, the sled, a settlement (#9817, #9875). */
-const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2', sled: '#8c5c2e', town: '#a5463a' };
+/** Matches the product's map markers: home, reached, seen from afar, dungeon entrance, the sled, a settlement, the boat (#9817, #9875, #9879). */
+const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2', sled: '#8c5c2e', town: '#a5463a', boat: '#409ec7' };
 const PANEL = 'pointer-events:auto;background:rgb(20 24 27 / 94%);color:#eee7d5;padding:1rem;border:1px solid #84775c;border-radius:.4rem;';
 
 /** Controls and descriptions only. The geographic overview is an Engine mesh behind this UI. */
@@ -54,7 +54,8 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const journeySupplies = element('p', 'margin:0 0 .5rem;font-size:.85rem;opacity:.85;');
   const travelButtons: Record<string, HTMLButtonElement> = {};
   const journeyRow = element('div', 'display:flex;gap:.4rem;flex-wrap:wrap;');
-  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['camp', 'Camp'], ['waypoint', 'Route to waypoint'], ['home', 'Set home here']] as const) {
+  // A boat (#9879): the product decides where one can be built and what it costs.
+  for (const [action, label] of [['go', 'Set out'], ['pause', 'Pause'], ['halt', 'Halt'], ['camp', 'Camp'], ['waypoint', 'Route to waypoint'], ['home', 'Set home here'], ['raft', 'Build raft'], ['canoe', 'Build canoe']] as const) {
     const control = button(label);
     control.addEventListener('click', () => claim({ action }));
     travelButtons[action] = control; journeyRow.append(control);

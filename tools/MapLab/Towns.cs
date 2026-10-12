@@ -166,7 +166,7 @@ internal static class TownCensus
         _ => "mouth",
     };
 
-    private static IEnumerable<ulong> Seeds(string text)
+    internal static IEnumerable<ulong> Seeds(string text)
     {
         foreach (string part in text.Split(','))
         {

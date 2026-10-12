@@ -84,13 +84,20 @@ internal sealed class PartyTravel
             Last = $"No passable route to {name}.";
             return false;
         }
+        Take(route);
+        return true;
+    }
+
+    /// <summary>Take a route planned elsewhere (by boat, #9879) from where the token stands.</summary>
+    internal void Take(TravelRoute route)
+    {
+        if (State == TravelState.Travelling) Pause();
         Route = route;
         leg = 0;
         legProgress = 0;
         State = TravelState.Planned;
         refineTriedAt = -1;
-        Last = $"Route to {name}: {TravelCalendar.Describe(route.Metres, route.Hours)}.";
-        return true;
+        Last = $"Route to {route.Destination}: {TravelCalendar.Describe(route.Metres, route.Hours)}.";
     }
 
     /// <summary>
@@ -115,13 +122,13 @@ internal sealed class PartyTravel
     }
 
     /// <summary>The rest of a route from where the party stands.</summary>
-    private TravelRoute Remaining(TravelRoute route)
-    {
-        Vector2[] points = [Position, .. route.Points.Skip(leg + 1)];
-        double[] hours = [.. route.LegHours.Skip(leg)];
-        if (hours.Length > 0) hours[0] *= 1 - legProgress;
-        return new(route.Destination, points, hours);
-    }
+    private TravelRoute Remaining(TravelRoute route) => route.From(leg, Position, 1 - legProgress);
+
+    /// <summary>Whether the party is on the water now (#9879): on a leg made by boat.</summary>
+    internal bool Afloat => Route is TravelRoute route && State != TravelState.Arrived && leg < route.LegHours.Length && route.Afloat(leg);
+
+    /// <summary>The leg the party is on, and how far along it.</summary>
+    internal int Leg => leg;
 
     /// <summary>
     /// A copy of the party already on its way, to walk ahead of time (#9739): the forecast along a route
@@ -178,6 +185,20 @@ internal sealed class PartyTravel
     }
 
     /// <summary>
+    /// How tiring an hour of a leg is against an hour's march (#9879): drifting on a raft rests the party,
+    /// paddling is lighter than marching, lining and portaging are heavier.
+    /// </summary>
+    internal static double Exertion(LegMode mode) => mode switch
+    {
+        LegMode.Drift => DriftExertion,
+        LegMode.Paddle => PaddleExertion,
+        LegMode.Line or LegMode.Portage => HaulExertion,
+        _ => 1,
+    };
+
+    private const double DriftExertion = 0.3, PaddleExertion = 0.7, HaulExertion = 1.4;
+
+    /// <summary>
     /// Spend up to <paramref name="hours"/> of game time moving along the route. Night multiplies
     /// each leg's cost, and so does the weather where the party stands (#9739): <paramref name="environment"/>
     /// gives the multiplier after so many hours, read where the party then is. Returns the game hours
@@ -189,8 +210,10 @@ internal sealed class PartyTravel
         double spent = 0;
         while (spent < hours && leg < Route.LegHours.Length)
         {
+            // A load slows only the walking: on the water the boat carries it (#9879).
+            LegMode mode = Route.Mode(leg);
             double multiplier = (nightAfter(spent) ? TravelCostModel.NightMultiplier : 1) * (Exhausted ? ExhaustedMultiplier : 1)
-                * Math.Max(1, environment?.Invoke(spent) ?? 1) * LoadMultiplier;
+                * Math.Max(1, environment?.Invoke(spent) ?? 1) * (mode == LegMode.Walk ? LoadMultiplier : 1);
             double before = spent;
             double legHours = Math.Max(Route.LegHours[leg] * multiplier, 1e-9);
             double available = hours - spent;
@@ -209,7 +232,7 @@ internal sealed class PartyTravel
             Position = leg < Route.LegHours.Length
                 ? Vector2.Lerp(Route.Points[leg], Route.Points[leg + 1], (float)legProgress)
                 : Route.Points[^1];
-            Fatigue = Math.Min(MaximumFatigue, Fatigue + (spent - before) * FatiguePerHour);
+            Fatigue = Math.Min(MaximumFatigue, Fatigue + (spent - before) * FatiguePerHour * Exertion(mode));
         }
         if (leg >= Route.LegHours.Length)
         {
