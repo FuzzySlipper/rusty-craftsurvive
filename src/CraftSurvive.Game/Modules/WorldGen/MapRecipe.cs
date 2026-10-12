@@ -18,13 +18,13 @@ internal sealed record MapRecipe
 }
 
 /// <summary>
-/// Lakes (#9876): basins carved after erosion, which erosion itself never leaves. Off by default, so
-/// the generator's own world is unchanged while the experiment is judged; a design's own lakes are
-/// carved only when this is on. Lengths are metres.
+/// Lakes (#9876): basins carved after erosion, which erosion itself never leaves. On since generator 31
+/// (owner, 2026-10-12); a recipe may turn them off to compare. A design's own lakes are carved only when
+/// this is on. Lengths are metres.
 /// </summary>
 internal sealed record LakesRecipe
 {
-    public bool Enabled { get; init; }
+    public bool Enabled { get; init; } = true;
 
     /// <summary>Valley lakes behind a rock sill on a river: how many, on what river and rock, and how much valley they drown.</summary>
     public int ValleyLakes { get; init; } = 6;

@@ -3,8 +3,8 @@ using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
 
 /// <summary>
-/// Lakes (#9876): off by default, so the generator's own world holds none; with the recipe on, a
-/// continent holds open and closed lakes, found the same way from its saved fields every time - an
+/// Lakes (#9876): on since generator 31; with the recipe off a world holds none. With them, a continent
+/// holds open and closed lakes, found the same way from its saved fields every time - an
 /// open one full to its spill with an outlet, a closed one at the level where evaporation balances its
 /// inflow and a sink to routing - each a storage node of the water network.
 /// </summary>
@@ -14,10 +14,13 @@ internal static class LakeChecks
 
     internal static void Run(WorldMap defaultContinent)
     {
-        Check.That(defaultContinent.Lakes.Count == 0, "the generator's own continent holds no lakes (the recipe's lakes are off)");
+        Check.That(defaultContinent.Lakes.Count > 0, $"the generator's own continent holds lakes ({defaultContinent.Lakes.Count})");
 
         TerrainConfiguration configuration = new(Seed, MapScale.DefaultContinentalSize);
-        MapRecipe recipe = MapRecipe.Default with { Lakes = new LakesRecipe { Enabled = true } };
+        MapRecipe off = MapRecipe.Default with { Lakes = MapRecipe.Default.Lakes with { Enabled = false } };
+        Check.That(new WorldMap(configuration, MapSimulation.Run(configuration, off, ContinentDesign.For(configuration.Size))).Lakes.Count == 0,
+            "with the recipe's lakes off, erosion leaves no basin deep enough to hold one");
+        MapRecipe recipe = MapRecipe.Default;
         MapFields fields = MapSimulation.Run(configuration, recipe, ContinentDesign.For(configuration.Size));
         WorldMap map = new(configuration, fields);
         IReadOnlyList<Lake> lakes = map.Lakes;

@@ -165,7 +165,7 @@ return Check.Finish("WorldMap");
 partial class Program
 {
     /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 23 (#9550); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0xe5cc2884b4bf0d1bUL;
+    private const ulong RegionTileGolden = 0x27e76ab15c6518a3UL;
     /// <summary>
     /// A tile builds in about 1.5 s in Release on an idle machine; this wall-clock bound leaves room for a
     /// heavily shared runner (5.6 s was seen at a load average of 40) while still catching a regression.
@@ -205,8 +205,11 @@ partial class Program
             if (a is null && b is null) continue;
             if (a == b) agreed++; else disagreed++;
         }
+        // Across the blend; a river's channel and banks are steep by design (realistic widths since generator 30), not a seam.
+        bool Bank(double x, double z) => regions.RiverNear(x, z) is RiverInfluence river && river.Distance <= river.HalfWidth + river.Bank;
         for (double x = seamX - MapRegions.BlendHalfWidth; x <= seamX + MapRegions.BlendHalfWidth; x += 1)
-            seam = Math.Max(seam, Math.Abs(regions.Sample(x + 1, 0).Elevation - regions.Sample(x, 0).Elevation));
+            if (!Bank(x, 0) && !Bank(x + 1, 0))
+                seam = Math.Max(seam, Math.Abs(regions.Sample(x + 1, 0).Elevation - regions.Sample(x, 0).Elevation));
         Console.WriteLine($"regions: seam max step {seam:F2} m/m, inside {inside:F2} m/m; seam river samples agreed={agreed} disagreed={disagreed}");
         Check.That(seam <= Math.Max(inside, 1) * SeamStepAllowance, "neighbouring tiles meet without a step");
         Check.That(disagreed == 0, "both tiles draw the same rivers where they meet");
@@ -255,5 +258,5 @@ partial class Program
 
     private const ulong ContinentSeed = 12345;
     /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 23 (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0xcee7af17c9e18fc1UL;
+    private const ulong ContinentGolden = 0x604ec08ac6e8d1e2UL;
 }

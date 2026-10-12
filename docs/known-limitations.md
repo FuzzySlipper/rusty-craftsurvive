@@ -61,6 +61,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - The map view draws the continent's kilometre rivers, while walking terrain, the water network
     and the settlements follow the 250 m drainage; the two agree on the great rivers' layout but
     can place a lowland channel kilometres apart, and the walked flows run about a third lower.
+  - A continent's lakes (valley lakes, closed salt lakes and playas) are carved on the kilometre map,
+    but walking terrain does not yet hold their water: region tiles fill the hollow to dry ground, and
+    the map view does not draw them. Smaller lakes (tarns, ponds, oxbows) are not generated, and
+    regional worlds have none.
   - Settlements (the sea port, river towns and the mountain hold) are map places only: there are no
     town scenes yet, and the expedition does not yet start at the port.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans

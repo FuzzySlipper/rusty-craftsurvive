@@ -57,9 +57,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// at its real heights under a 9 km ceiling (#9816), its belts and areas calibrated by their higher
     /// ground, its passes to their saddles, and its belts broken as far as each is rugged; version 30 sizes
     /// rivers by their flow under a water budget, realistic widths and depths, and tilts the frontier
-    /// peninsula's interior west so its great river reaches the start's sea port on every seed (#9874).
+    /// peninsula's interior west so its great river reaches the start's sea port on every seed (#9874); version
+    /// 31 carves lakes after erosion - valleys behind rock sills, closed basins in dry country at their
+    /// evaporation balance - kept as hollows in the saved heights (#9876).
     /// </summary>
-    internal const uint CurrentVersion = 30;
+    internal const uint CurrentVersion = 31;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
