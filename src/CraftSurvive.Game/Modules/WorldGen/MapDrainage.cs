@@ -55,6 +55,7 @@ internal sealed class MapDrainage
         MapFlow flow = MapFlow.Route(Grid, routed, outlet, rain, MapFlow.FillGradient);
         discharge = flow.Discharge.Select(v => (float)v).ToArray();
         paths = MapRivers.Trace(Grid, flow, elevation, discharge, MapRivers.SourceCatchment);
+        Network = WaterNetwork.Build(Grid, flow, elevation, discharge, paths, (x, z) => continent.Sample(x, z).Moisture);
         for (int r = 0; r < paths.Count; r++)
         {
             HashSet<long> cells = [];
@@ -74,6 +75,12 @@ internal sealed class MapDrainage
     }
 
     internal MapGrid Grid { get; }
+
+    /// <summary>The same drainage as data (#9875): reaches with their flow and navigability, mouths, confluences and the floodplain.</summary>
+    internal WaterNetwork Network { get; }
+
+    /// <summary>The drainage's filled ground height at a lattice node (metres).</summary>
+    internal float ElevationAt(int node) => elevation[node];
     internal int ReachCount => paths.Count;
 
     /// <summary>The network's reaches near a rectangle of the world, shaped, in world metres.</summary>

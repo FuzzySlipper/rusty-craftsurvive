@@ -72,3 +72,28 @@ Output: `census.txt` (a row per seed and a summary) and `rivers-SEED.png`:
 - port candidates ringed (yellow sheltered, red open);
 - the largest calm mouth ringed white, and the sheltered port green;
 - the neck outlined.
+
+## Network and settlement census (#9875)
+
+```bash
+dotnet run --project tools/MapLab -c Release -- --towns 1-24 --size 390000 --out /tmp/towns
+```
+
+Builds each seed's continent and its walked drainage (`MapDrainage`), then reports the network as data
+(`WaterNetwork`) and the settlements chosen on it (`Settlements`).
+
+**Network:**
+- reaches, and kilometres a canoe, a boat and a great river's traffic can use;
+- mouths by class and confluences of two canoe rivers;
+- heads of navigation from the sea;
+- the floodplain's area.
+
+**Settlements:**
+- the port and its flow;
+- each river town with its reason (confluence, boat or canoe head, harbour), its river's flow, and
+  whether it stands up the port's own river.
+
+Output: `towns.txt` and `towns-SEED.png`:
+- land by height, with the floodplain tinted;
+- rivers by class, darker the larger;
+- the port ringed green and the towns yellow.

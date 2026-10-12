@@ -108,17 +108,18 @@ Check.That(known.Select(place => place.Key).Distinct().Count() == known.Count, "
 IReadOnlyList<KnownPlace> withSled = KnownPlaces.List(homeMarker, journal.Entries, new System.Numerics.Vector2(40, 50));
 Check.That(withSled[1].Key == KnownPlaces.SledKey && withSled[1].Kind == KnownPlaceKind.Sled && withSled.Count == journal.Entries.Count(entry => KnownPlaces.IsMapSite(entry.Kind)) + 2,
     "a sled left behind is a known place, after home");
-// A designed continent (#9817): the frontier towns are known from the start, after home and the sled, and
-// nothing past the world's bounds is listed.
+// A designed continent (#9817, #9875): its settlements are known from the start, after home and the sled, each
+// with its role, and nothing past the world's bounds is listed.
 IReadOnlyList<KnownPlace> bounded = KnownPlaces.List(homeMarker,
     [
         new DiscoveryEntry(7, 7, PoiKind.DungeonEntrance, 1792, 1792, DiscoveryStage.Seen, 50, 60),
         new DiscoveryEntry(9, 9, PoiKind.Ruin, 2304, -90_000, DiscoveryStage.Seen, 45, 55),
     ],
-    new System.Numerics.Vector2(40, 50), [new PlacedSite("Gatehold", "Town", 62_000, -129_000)], at => at.Y > -80_000);
-Check.That(bounded.Count == 4 && bounded[2].Kind == KnownPlaceKind.Town && bounded[2].Name == "Gatehold" && bounded[2].Position == new System.Numerics.Vector2(62_000, -129_000)
+    new System.Numerics.Vector2(40, 50), [("Saltmouth", SettlementKind.Port, 62_000, -129_000)], at => at.Y > -80_000);
+Check.That(bounded.Count == 4 && bounded[2].Kind == KnownPlaceKind.Town && bounded[2].Role == SettlementKind.Port && bounded[2].Name == "Saltmouth"
+    && bounded[2].Position == new System.Numerics.Vector2(62_000, -129_000)
     && bounded[3].Kind == KnownPlaceKind.Entrance && bounded.All(place => place.Site != PoiKind.Ruin),
-    "frontier towns are known places from the start, and a place past the bounds is not listed");
+    "settlements are known places from the start with their role, and a place past the bounds is not listed");
 // Crowded places draw as one marker at a zoom (#9553): grouped by how near they are, never home or the sled.
 KnownPlace[] crowd = [
     new(KnownPlaces.HomeKey, "Home", KnownPlaceKind.Home, new(10, 10)),

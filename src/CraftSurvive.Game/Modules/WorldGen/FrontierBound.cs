@@ -43,7 +43,7 @@ internal sealed class FrontierBound
     }
 
     /// <summary>
-    /// The design's reserved sites where they stand on this continent (the frontier towns, #9817): each on
+    /// The design's reserved sites where they stand on this continent (the mountain hold, #9817, #9875): each on
     /// the nearest dry, open ground to where it was drawn, since the seed may put a lake or a bay there.
     /// A site with no such ground near is left out.
     /// </summary>

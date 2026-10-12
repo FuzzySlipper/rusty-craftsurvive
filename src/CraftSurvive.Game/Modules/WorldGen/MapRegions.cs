@@ -79,6 +79,8 @@ internal sealed class MapRegions
         try
         {
             foreach ((int X, int Z) tile in TilesNear(0, 0, PrefetchRadius)) regions.Tile(tile);
+            // The settlements stand on the drainage, built for these tiles: choose them here too, off the update.
+            _ = Settlements.For(map);
         }
         finally { background = false; }
     }

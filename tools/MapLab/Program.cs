@@ -33,6 +33,12 @@ const string Usage = """
       --rivers     the river census (#9874) over seeds, e.g. 1-24 or 1,7,4242: real flow at a runoff (mm a year per
                    unit of rain, default the game's 600), mouths a canoe, a river boat and the start port's great river can use
                    (m3/s, defaults 5, 40, 150), the best sheltered calm port river; writes census.txt and rivers-SEED.png
+
+    MapLab --towns SEEDS --size METRES [--design ...] [--out DIR]
+
+      --towns      the network and settlement census (#9875) over seeds: the walked drainage as data (reaches by
+                   navigability, mouths, confluences, heads of navigation, floodplain) and the port and river towns
+                   chosen on it; writes towns.txt and towns-SEED.png
     """;
 
 JsonSerializerOptions json = new() { WriteIndented = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
@@ -42,6 +48,13 @@ if (options.TryGetValue("dump-recipe", out List<string>? dump))
     File.WriteAllText(dump[0], JsonSerializer.Serialize(MapRecipe.Default, json) + "\n");
     Console.WriteLine($"wrote the default recipe to {dump[0]}");
     return 0;
+}
+
+if (options.ContainsKey("towns") && options.ContainsKey("size"))
+{
+    // The network and settlement census (#9875): the walked drainage as data and the towns chosen on it.
+    int townSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
+    return TownCensus.Run(options, townSize, LoadDesign(townSize), options.TryGetValue("out", out List<string>? townOut) ? townOut[0] : "maplab-out");
 }
 
 if (options.ContainsKey("rivers") && options.ContainsKey("size"))

@@ -58,6 +58,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     Voxel river water steps a metre at a time on steep reaches; it does not flow.
     Rivers are sized by a fixed water budget, not by the season or the weather, and the
     great river can still be ruler-straight for hundreds of metres across its lowland.
+  - The map view draws the continent's kilometre rivers, while walking terrain, the water network
+    and the settlements follow the 250 m drainage; the two agree on the great rivers' layout but
+    can place a lowland channel kilometres apart, and the walked flows run about a third lower.
+  - Settlements (the sea port, river towns and the mountain hold) are map places only: there are no
+    town scenes yet, and the expedition does not yet start at the port.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans
     the whole map whatever its size. Local terrain still uses three blended relief families
     and three surface treatments (soil, sand, snow), so several biomes share a look;

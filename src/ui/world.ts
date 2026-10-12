@@ -6,7 +6,7 @@ export const WORLD_INTENT = 'craftsurvive.world';
 export const WORLD_CONTRACT = 'craftsurvive.world.action.v1';
 const INTENT = WORLD_INTENT;
 const CONTRACT = WORLD_CONTRACT;
-/** Matches the product's map markers: home, reached, seen from afar, dungeon entrance, the sled, a frontier town (#9817). */
+/** Matches the product's map markers: home, reached, seen from afar, dungeon entrance, the sled, a settlement (#9817, #9875). */
 const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2', sled: '#8c5c2e', town: '#a5463a' };
 const PANEL = 'pointer-events:auto;background:rgb(20 24 27 / 94%);color:#eee7d5;padding:1rem;border:1px solid #84775c;border-radius:.4rem;';
 

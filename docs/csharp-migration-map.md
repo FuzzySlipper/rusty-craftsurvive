@@ -158,6 +158,15 @@ local river queries bounded. The frontier peninsula's interior tilts west (its e
 western lowland areas), so its great river reaches a calm west-coast mouth for the start's sea port;
 `tools/MapLab --rivers` measures that over many seeds.
 
+The walked drainage (`MapDrainage`, 250 m) is also kept as data, `WaterNetwork`: reaches with
+their mean and bankfull flow, the bank height, width, depth, Manning velocity, storage time,
+channel form and navigability (canoe 5, boat 40, great 150 m³/s, broken by rapids), plus mouths,
+confluences, the heads of navigation from the sea and the floodplain. `Settlements` chooses a
+designed continent's sea port (the largest calm mouth on the playable peninsula) and its river
+towns on it - confluences and heads of navigation, up the port's own river first, 25 km apart and
+off the floodplain - and the design reserves only the mountain hold at the neck. They are known
+places from the start; `tools/MapLab --towns` measures both over many seeds.
+
 `MapBiomes` classifies samples into sea, ice field, tundra, boreal forest, cold
 steppe, temperate forest, grassland, shrubland, desert, rainforest and alpine
 heights. Sites are one representative interior place per environment present.

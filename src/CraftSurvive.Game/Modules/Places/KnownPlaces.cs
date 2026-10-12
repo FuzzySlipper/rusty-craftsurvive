@@ -6,14 +6,17 @@ namespace CraftSurvive.Game.Modules.Places;
 
 /// <summary>A place the expedition knows and can travel to; <see cref="Key"/> is stable across publishes.</summary>
 /// <param name="Site">What stands there, for a found site; <see cref="PoiKind.None"/> for home and the sled.</param>
-internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKind Kind, Vector2 Position, PoiKind Site = PoiKind.None);
+/// <param name="Role">For a settlement, what it is: a sea port, a river town or the mountain hold (#9875).</param>
+internal readonly record struct KnownPlace(string Key, string Name, KnownPlaceKind Kind, Vector2 Position, PoiKind Site = PoiKind.None,
+    SettlementKind Role = SettlementKind.Town);
 
 /// <summary>
 /// The places on the map (#9471). There is no fog of war: geography is all visible, and what is
 /// known is places. Home comes first, then what the discovery journal holds (reached, seen,
 /// revealed from a vantage point or by a travel event), most recently learned first.
 /// The map holds expedition-scale sites only (#9553): the way into a dungeon, ruins, vantage points,
-/// home and the sled, and on a designed continent the frontier towns, known from the start (#9817).
+/// home and the sled, and on a designed continent its settlements - the sea port, the river towns and the
+/// mountain hold - known from the start (#9817, #9875).
 /// Nothing past the world's bounds is listed: the expedition cannot go there. Walking landmarks (standing stones, cave mouths) on the 256 m site lattice stay
 /// in the journal and on the minimap, where a session on foot reads them.
 /// </summary>
@@ -28,14 +31,15 @@ internal static class KnownPlaces
     internal static bool IsMapSite(PoiKind kind) => kind is PoiKind.DungeonEntrance or PoiKind.Ruin or PoiKind.VantagePoint;
 
     /// <param name="sled">Where the sled was left, when it is not with the party (#9473).</param>
-    /// <param name="towns">The frontier towns where they stand (#9817); none on a world without them.</param>
+    /// <param name="towns">The settlements where they stand (#9875); none on a world without them.</param>
     /// <param name="inBounds">Whether a place lies inside the world's bounds (#9817); everything does when null.</param>
     internal static IReadOnlyList<KnownPlace> List(HomeMarker home, IEnumerable<DiscoveryEntry> journal, Vector2? sled = null,
-        IEnumerable<PlacedSite>? towns = null, Func<Vector2, bool>? inBounds = null) =>
+        IEnumerable<(string Name, SettlementKind Role, double X, double Z)>? towns = null, Func<Vector2, bool>? inBounds = null) =>
     [
         new(HomeKey, "Home", KnownPlaceKind.Home, new((float)home.X, (float)home.Z)),
         .. sled is Vector2 left ? [new KnownPlace(SledKey, "The sled", KnownPlaceKind.Sled, left)] : Array.Empty<KnownPlace>(),
-        .. (towns ?? []).Select(town => new KnownPlace(TownPrefix + town.Name, town.Name, KnownPlaceKind.Town, new((float)town.X, (float)town.Z))),
+        .. (towns ?? []).Select(town => new KnownPlace(TownPrefix + town.Name, town.Name, KnownPlaceKind.Town, new((float)town.X, (float)town.Z),
+            Role: town.Role)),
         .. journal.Where(entry => IsMapSite(entry.Kind) && inBounds?.Invoke(new(entry.X, entry.Z)) != false)
             .OrderByDescending(entry => entry.LastTick).Select(entry => new KnownPlace(
             PlacePrefix + entry.SiteId, DiscoveryRules.PlaceName(entry.Kind), Kind(entry), new(entry.X, entry.Z), entry.Kind)),

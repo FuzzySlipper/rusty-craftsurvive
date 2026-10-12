@@ -391,7 +391,7 @@ internal sealed record DesignClimate
     }
 }
 
-/// <summary>A reserved site: somewhere the design places a named thing, such as a frontier town (#9818).</summary>
+/// <summary>A reserved site: somewhere the design places a named thing, such as the mountain hold at the neck (#9818, #9875).</summary>
 internal sealed record DesignSite
 {
     public string Name { get; init; } = "";

@@ -1,6 +1,6 @@
 // The frontier peninsula (Den design/frontier-peninsula, #9815): an exaggerated Iberia. The playable
 // peninsula fills most of the map; across its north-east neck lies the forbidden mainland, behind a
-// Himalaya-scale wall crossed by two passes, where the frontier towns stand. A rugged massif fills the
+// Himalaya-scale wall crossed by two passes, where a grim mountain hold stands. A rugged massif fills the
 // north-west, catching the westerlies. Positions run -1 to 1
 // across the map (x east, z south); crest heights are metres.
 {
@@ -88,8 +88,7 @@
     { "Name": "The north-west massif", "At": [-0.55, -0.35], "Radius": 0.22, "Height": 5000, "Ruggedness": 0.85 }
   ],
   "Sites": [
-    { "Name": "Gatehold", "Kind": "Town", "At": [0.32, -0.66] },
-    { "Name": "Last Light", "Kind": "Town", "At": [0.56, -0.66] },
-    { "Name": "Cold Ford", "Kind": "Town", "At": [0.18, -0.64] }
+    // The towns follow the rivers up from the start's sea port (#9875, Settlements); the neck keeps only its hold.
+    { "Name": "Gatehold", "Kind": "Hold", "At": [0.32, -0.66] }
   ]
 }
