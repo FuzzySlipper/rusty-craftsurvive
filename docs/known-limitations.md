@@ -437,12 +437,14 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - tints the clouds gold, then pink.
 
   Heavy cloud mutes all of it. A sun with seasons would need a direction-driven twilight layer
-  from the Engine instead. Engine limits that remain:
-  - The disc and halo are display values that never bloom, dimmed with the light (rusty-engine #9858).
-  - Clouds take almost no light from a sun at or under the horizon (rusty-engine #9859). The ground's
-    twilight light is raised about 11° once the disc has set. While the disc is setting,
-    `SettingCloudLift` brightens the cloud tint in the sun's colour. Far front regions can still
-    read grey at the moment of sunset.
+  from the Engine instead.
+
+  The ground's twilight light rises about 11° above the horizon after sunset, so the land stays lit.
+  The atmosphere's sky sun (rusty-engine #9858, #9859) keeps the real sun apart from it:
+  - its disc sets behind the land and blooms (`SunRadiance`);
+  - the clouds take it from under the horizon for `CloudTwilightDegrees`.
+
+  By night the sky sun is left to the light, so the moon's disc is as before.
 - **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
   irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
   bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)

@@ -172,13 +172,24 @@ internal sealed class DayNightSky : IDisposable
     private const float LowSunHazeExponent = 2.5f;
 
     /// <summary>
-    /// The sun's disc sets: below the horizon by this much (as a sine, a little over the disc's
-    /// radius) the light still comes from the sun itself, so the disc sinks behind the land and the
-    /// halo fades. Past it the disc is put out and the twilight's light rises to its glow above the
-    /// horizon over this span, rather than leaving the disc hanging in the sky.
+    /// After sunset the ground's twilight light rises from the horizon to its glow above it over this
+    /// span (as a sine), so shadows swing up rather than jump. The sky's sun is placed apart from it
+    /// (rusty-engine #9858, #9859): the disc sets behind the land and the clouds take the real sun.
     /// </summary>
-    private const double SunSetsBelow = 0.035d;
     private const double GlowRisesOver = 0.03d;
+
+    /// <summary>
+    /// The sky's sun: the disc's own HDR radiance (it blooms), by day and as it warms toward the
+    /// horizon; and its light on the clouds and haze while low, whatever the ground's light is.
+    /// </summary>
+    private const float DaySunRadiance = 4f, LowSunRadiance = 12f;
+    private const float LowSkySunIntensity = 1.2f;
+
+    /// <summary>
+    /// The clouds keep the sun after sunset until it is this far under for a cloud at the layer's
+    /// altitude, reddening as it sinks: through the afterglow, gone before the moon takes the light.
+    /// </summary>
+    private const float CloudTwilightDegrees = 8f;
 
     /// <summary>
     /// The cloud layer lit by a low sun: tinted by the twilight toward gold while the sun is up, and
@@ -190,17 +201,6 @@ internal sealed class DayNightSky : IDisposable
     private const double CloudsPinkFrom = 0.08d, CloudsPinkTo = -0.02d;
     private const float MutedTwilight = 0.5f;
 
-    /// <summary>
-    /// Interim until the Engine lights clouds from a sun under the horizon (rusty-engine #9859): the
-    /// Engine lights the clouds with little of a light within a few degrees of the horizon, so while the
-    /// setting sun's light is that low (between these elevations, as sines) the layer's tint is lifted
-    /// by up to this much, rather than letting the clouds go dark exactly as the sun sets.
-    /// </summary>
-    private const float SettingCloudLift = 3f;
-
-    /// <summary>The lift is in the setting sun's colour: the clouds' own sunlight is what it stands in for.</summary>
-    private static readonly Vector3 SettingCloudColour = new(1f, 0.55f, 0.35f);
-    private const float SettingLightFrom = -0.05f, SettingLightTo = 0.15f;
     private const float OvercastFrom = 0.55f, OvercastTo = 0.95f;
 
     /// <summary>Light streams past what stands before a low sun; it fades by full day.</summary>
@@ -232,7 +232,6 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>How spectacular this twilight is (1 vivid, less muted), and how much its glow lights the clouds now.</summary>
     private float spectacle = 1f;
     private float cloudGlow;
-    private float cloudLift;
     private Vector3 cloudColour = TwilightCloudColour;
 
     /// <summary>A vividness held for captures instead of the day's own roll, or null.</summary>
@@ -604,12 +603,12 @@ internal sealed class DayNightSky : IDisposable
         float cover = Math.Max(w.Cloud, MurkCloud * w.Murk);
         Vector3 tint = Vector3.One * (1f - (CloudDarkening * w.Cloud));
         float glow = underground || onMap ? 0f : cloudGlow * (1f - (float)Smooth(cover, OvercastFrom, OvercastTo));
-        tint *= Vector3.Lerp(Vector3.One, cloudColour, glow) * (Vector3.One + (SettingCloudColour * (SettingCloudLift * cloudLift * (underground || onMap ? 0f : 1f))));
+        tint *= Vector3.Lerp(Vector3.One, cloudColour, glow);
         if (w.Air != Vector3.Zero) tint = Vector3.Lerp(tint, w.Air * MurkCloudBrightness, w.Murk);
         if (heldCloud is float held) cover = held;
         // A clear layer still carries the tint: the fronts' cloud regions take it.
         engine.CameraView.SetClouds(new CloudsRequest(cover > CloudAppearsAbove ? Math.Min(1f, CloudCoverageFloor + (CloudCoverageSpan * cover)) : 0f,
-            flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)), CloudAltitudeMetres, CloudScaleMetres, tint));
+            flow * (CloudDriftMetresPerSecond + (WindDriftMetresPerSecond * w.Wind)), CloudAltitudeMetres, CloudScaleMetres, tint, 0f, CloudKind.Cumulus, CloudTwilightDegrees));
     }
 
     /// <summary>A cloud cover held for captures instead of the weather's, or null.</summary>
@@ -663,8 +662,6 @@ internal sealed class DayNightSky : IDisposable
         double sunElevation = WorldClock.SunElevation(time.DayFraction);
         cloudGlow = (float)TwilightGlow(sunElevation) * spectacle;
         cloudColour = Vector3.Lerp(GoldenCloudColour, TwilightCloudColour, (float)Smooth(sunElevation, CloudsPinkFrom, CloudsPinkTo));
-        // The share of the light the Engine's clouds lose while the light is this low (#9859), during twilight only.
-        cloudLift = (1f - (float)Smooth(-sunlight.Direction.Y, SettingLightFrom, SettingLightTo)) * (float)TwilightGlow(WorldClock.SunElevation(time.DayFraction));
         if (!submerged)
         {
             Air(time.DayFraction, daylight, blend, eyes);
@@ -764,9 +761,11 @@ internal sealed class DayNightSky : IDisposable
         float low = (float)TwilightGlow(elevation) * spectacle;
         Vector3 haze = Vector3.Lerp(DayHazeColour, DuskHazeColour, warmth) * ((float)daylight + (LowSunHaze * low)) * (1f - w.Cloud);
         engine.CameraView.SetSkyLight(new SkyLightRequest((float)(NightSkyLightIntensity + ((DaySkyLightIntensity - NightSkyLightIntensity) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud))));
+        (Vector3 skySun, Vector3 skySunColour, float skySunIntensity) = SkySun(dayFraction);
         engine.CameraView.SetAtmosphere(new AtmosphereRequest(
             eyes.Y - FogBaseBelowEyesMetres, FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk),
-            new Color(haze.X, haze.Y, haze.Z, 1f), HazeExponent + ((LowSunHazeExponent - HazeExponent) * low), SunDisc(elevation), SunHaloFor(elevation) * (1f - w.Cloud)));
+            new Color(haze.X, haze.Y, haze.Z, 1f), HazeExponent + ((LowSunHazeExponent - HazeExponent) * low), SunDisc(elevation), SunHaloFor(elevation) * (1f - w.Cloud),
+            SunRadianceFor(elevation) * (1f - w.Cloud), skySun, new Color(skySunColour.X, skySunColour.Y, skySunColour.Z, 1f), skySunIntensity));
         float shafts = elevation > 0d
             ? SunShaftIntensity * (1f - (float)Smooth(elevation, 0d, SunShaftsFadeAbove)) * (1f - w.Cloud)
             : 0f;
@@ -790,8 +789,8 @@ internal sealed class DayNightSky : IDisposable
         if (elevation > TwilightBelow)
         {
             // The glow comes from where the sun went down, a little above the horizon so the ground
-            // still catches it; while the disc is still sinking, it comes from the sun itself.
-            float rise = (float)Smooth(elevation, -SunSetsBelow, -SunSetsBelow - GlowRisesOver);
+            // still catches it, rising there from the sun's own direction as it sets.
+            float rise = (float)Smooth(elevation, 0d, -GlowRisesOver);
             Vector3 alongHorizon = Vector3.Normalize(new Vector3(toward.X, toward.Y + ((TwilightGlowElevation - toward.Y) * rise), toward.Z));
             float intensity = TwilightSunIntensity * (float)Smooth(elevation, TwilightBelow, 0d);
             return Directional(DuskSunColour, intensity, -alongHorizon);
@@ -800,16 +799,32 @@ internal sealed class DayNightSky : IDisposable
         return Directional(MoonColour, MoonIntensity * (float)(1d - daylight), toward);
     }
 
-    /// <summary>
-    /// The sun's disc in degrees: larger as it warms toward the horizon, and none once it has set and
-    /// the light has left it for the glow above the horizon.
-    /// </summary>
-    private static float SunDisc(double elevation) =>
-        elevation <= -SunSetsBelow ? 0f : SunRadiusDegrees + ((LowSunRadiusDegrees - SunRadiusDegrees) * Warmth(elevation));
+    /// <summary>Whether the sky shows the sun (by day and through twilight) rather than the moon the light becomes by night.</summary>
+    private static bool SunInSky(double elevation) => elevation > TwilightBelow;
 
-    /// <summary>The sun's halo: stronger as it warms, fading as the disc sinks below the horizon.</summary>
+    /// <summary>The disc in degrees: the sun's larger as it warms toward the horizon; the moon's as it always was.</summary>
+    private static float SunDisc(double elevation) =>
+        SunInSky(elevation) ? SunRadiusDegrees + ((LowSunRadiusDegrees - SunRadiusDegrees) * Warmth(elevation)) : SunRadiusDegrees;
+
+    /// <summary>The halo: the sun's stronger as it warms; the moon's as it always was.</summary>
     private static float SunHaloFor(double elevation) =>
-        (SunHalo + (LowSunHalo * Warmth(elevation))) * (float)Smooth(elevation, -SunSetsBelow, 0d);
+        SunInSky(elevation) ? SunHalo + (LowSunHalo * Warmth(elevation)) : SunHalo;
+
+    /// <summary>The disc's own radiance: the sun's blooms, brighter low; the moon keeps none (the light's dimmed colour).</summary>
+    private static float SunRadianceFor(double elevation) =>
+        SunInSky(elevation) ? DaySunRadiance + ((LowSunRadiance - DaySunRadiance) * Warmth(elevation)) : 0f;
+
+    /// <summary>
+    /// The sky's sun: the real sun, set apart from the ground's twilight light, by day and through
+    /// twilight; none (the light itself, the moon) by night.
+    /// </summary>
+    private static (Vector3 Toward, Vector3 Colour, float Intensity) SkySun(double dayFraction)
+    {
+        double elevation = WorldClock.SunElevation(dayFraction);
+        if (!SunInSky(elevation)) return (Vector3.Zero, Vector3.Zero, 0f);
+        float intensity = LowSkySunIntensity + ((DaySunIntensity - LowSkySunIntensity) * (float)Smooth(elevation, 0d, SunFullAbove));
+        return (WorldClock.TowardSun(dayFraction), Vector3.Lerp(SunColour, DuskSunColour, Warmth(elevation)), intensity);
+    }
 
     /// <summary>How much of the twilight glow there is: full with the sun just under the horizon, none by day or deep night.</summary>
     private static double TwilightGlow(double elevation) =>
