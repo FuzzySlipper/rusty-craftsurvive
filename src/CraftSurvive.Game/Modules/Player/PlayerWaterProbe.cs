@@ -36,6 +36,9 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
     /// <summary>The swim volume reaches this far below the bed, so a body standing on it is wholly inside.</summary>
     private const float BelowBed = 2f;
 
+    /// <summary>Feet this close under a frozen surface are on the ice, not in the water below it.</summary>
+    private const double IceThickness = 0.3;
+
     internal PlayerWaterCheck LastCheck { get; private set; }
 
     /// <param name="waters">The overworld's water owner; null in a separate space, which reads water cells.</param>
@@ -49,7 +52,9 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
         if (waters is not null)
         {
             WaterSample sample = waters.Sample(world.WorldX, world.WorldZ);
-            bool feetIn = sample.Wet && feetY < sample.Top, eyesIn = sample.Wet && world.WorldY < sample.Top;
+            // On ice (#9878) the player stands on the ice's collision; only one already under it swims.
+            bool onIce = sample.Ice && feetY >= sample.Top - IceThickness;
+            bool feetIn = sample.Wet && !onIce && feetY < sample.Top, eyesIn = sample.Wet && !onIce && world.WorldY < sample.Top;
             LastCheck = new PlayerWaterCheck(feet, false, 0, eyes, feetIn, eyesIn, sample.Top, sample.Body);
             if (!LastCheck.InWater) return false;
 

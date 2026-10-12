@@ -17,6 +17,14 @@ public sealed class WorldConditionsDebugModule : IDebugCommandModule
     [DebugCommand("craft.world.hour", Description = "Sets the hour of the current day (0 to below 24), to check night and day live.")]
     public string Hour(double hour) => conditions.SetHour(hour);
 
+    [DebugCommand("craft.world.pass", Description = "Assisted (#9878): lets days of the clock pass at once (0 to 120), with nothing else of play - for checking the seasons and the river stage live.")]
+    public string Pass(double days)
+    {
+        if (!double.IsFinite(days) || days <= 0 || days > Sky.WorldClock.StarYearDays) return $"refused: days must be above 0 and at most {Sky.WorldClock.StarYearDays}, not {days}";
+        conditions.Pass(days * Sky.WorldClock.DaySeconds);
+        return conditions.Readout();
+    }
+
     [DebugCommand("craft.world.wind", Description = "Sets the wind's strength over the open world (0 stills grass and trees; 1 is the product's breeze).")]
     public string Wind(float strength) => conditions.SetWindStrength(strength);
 

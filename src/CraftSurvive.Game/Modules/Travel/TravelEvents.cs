@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Water;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Travel;
@@ -13,7 +14,8 @@ internal sealed record TravelEvent(TravelEventKind Kind, string Title, string Te
 /// <summary>What the roll reads about where and how the expedition travels.</summary>
 /// <param name="Risk">The expedition's own factor, <see cref="PartyTravel.EventRisk"/>: exhaustion raises it.</param>
 /// <param name="HomeKilometres">Distance from home: the farther out, the more dangerous the country.</param>
-internal readonly record struct TravelEventFacts(MapBiome Biome, bool Night, bool River, double HomeKilometres, double Risk);
+/// <param name="River">The river the party is at, as its stage has it (#9878): none, running, high, in flood, frozen or dry.</param>
+internal readonly record struct TravelEventFacts(MapBiome Biome, bool Night, RiverState River, double HomeKilometres, double Risk);
 
 /// <summary>
 /// Rolls travel events (#9470, Den design/overland-travel-mode): a chance per travel hour from
@@ -32,7 +34,16 @@ internal sealed class TravelEventDirector(ulong seed)
     /// <summary>At night encounters are likelier and discoveries rarer.</summary>
     internal const double NightEncounterFactor = 1.5;
     internal const double NightDiscoveryFactor = 0.5;
-    internal const double RiverHazardFactor = 2;
+    /// <summary>How much likelier a hazard is at a river as its stage stands: a ford as usual, running high, in flood. Ice and a dry bed are no ford at all.</summary>
+    internal const double RunningHazardFactor = 1.5, HighHazardFactor = 2.5, FloodHazardFactor = 4;
+
+    internal static double RiverHazardFactor(RiverState river) => river switch
+    {
+        RiverState.Running => RunningHazardFactor,
+        RiverState.High => HighHazardFactor,
+        RiverState.Flood => FloodHazardFactor,
+        _ => 1,
+    };
 
     private double sinceLast = CooldownHours;
     private ulong draws;
@@ -90,7 +101,7 @@ internal sealed class TravelEventDirector(ulong seed)
             encounter *= NightEncounterFactor;
             discovery *= NightDiscoveryFactor;
         }
-        if (facts.River) hazard *= RiverHazardFactor;
+        hazard *= RiverHazardFactor(facts.River);
         return [encounter, discovery, weather, hazard];
     }
 
@@ -116,6 +127,8 @@ internal static class TravelEvents
     /// <summary>Hours lost slipping away from an encounter, or going round a hazard.</summary>
     internal const double EvadeHours = 2;
     internal const double DetourHours = 3;
+    /// <summary>A river in flood has no ford: going round means a long way up to a crossing that holds.</summary>
+    internal const double FloodDetourHours = 8;
     /// <summary>Sheltering from a front camps until it has passed, but never longer than this at one time.</summary>
     internal const double LongestShelterHours = 48;
     /// <summary>Pushing through a hazard costs a ration, or this much health with none to spare.</summary>
@@ -144,8 +157,20 @@ internal static class TravelEvents
         [new(Shelter, FormattableString.Invariant($"Make camp until it passes ({Math.Min(shelterHours, LongestShelterHours):F0} h)")),
             new(Press, wounds ? "Press on (it wounds)" : "Press on (slow going)")]);
 
-    internal static TravelEvent Hazard(MapBiome biome, bool river) => new(TravelEventKind.Hazard,
-        river ? "Swollen ford" : biome == MapBiome.Alpine ? "Rockslide" : "Broken ground",
-        river ? "The crossing ahead runs high and fast." : "The way ahead is blocked by treacherous ground.",
-        [new(Detour, FormattableString.Invariant($"Find a way round ({DetourHours:F0} h)")), new(Push, "Push through (costs a ration or health)")]);
+    /// <summary>Hours a detour round a hazard costs: a flooded river's is long.</summary>
+    internal static double DetourFor(RiverState river) => river == RiverState.Flood ? FloodDetourHours : DetourHours;
+
+    /// <summary>A hazard: at a river, its ford as the stage stands (#9878); elsewhere, or where the river is frozen or dry, the ground.</summary>
+    internal static TravelEvent Hazard(MapBiome biome, RiverState river)
+    {
+        (string title, string text) = river switch
+        {
+            RiverState.Running => ("Cold ford", "The crossing ahead runs chest-deep and cold."),
+            RiverState.High => ("Swollen ford", "The crossing ahead runs high and fast."),
+            RiverState.Flood => ("River in flood", "The river is over its banks; no ford holds."),
+            _ => (biome == MapBiome.Alpine ? "Rockslide" : "Broken ground", "The way ahead is blocked by treacherous ground."),
+        };
+        return new(TravelEventKind.Hazard, title, text,
+            [new(Detour, FormattableString.Invariant($"Find a way round ({DetourFor(river):F0} h)")), new(Push, "Push through (costs a ration or health)")]);
+    }
 }

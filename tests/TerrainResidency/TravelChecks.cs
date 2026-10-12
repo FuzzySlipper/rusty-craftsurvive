@@ -1,6 +1,7 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Travel;
+using CraftSurvive.Game.Modules.Water;
 using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Tests;
@@ -183,7 +184,7 @@ internal static class TravelChecks
         int west = Enumerable.Range(0, grid.Side).Select(x => (grid.Side / 2) * grid.Side + x).First(cost.Passable);
         // Travel events (#9470): deterministic per seed, with a cooldown, likelier for a tired party
         // and far from home, encounters likelier at night.
-        TravelEventFacts open = new(MapBiome.Grassland, Night: false, River: false, HomeKilometres: 0, Risk: 1);
+        TravelEventFacts open = new(MapBiome.Grassland, Night: false, River: RiverState.None, HomeKilometres: 0, Risk: 1);
         (int Count, double MinimumGap, int Encounters) Simulate(TravelEventFacts facts, ulong seed)
         {
             TravelEventDirector director = new(seed);
@@ -211,14 +212,32 @@ internal static class TravelChecks
         Check.That(Simulate(open with { HomeKilometres = 8 }, 7).Count > calm.Count, "the country far from home is more dangerous");
         var dark = Simulate(open with { Night = true }, 7);
         Check.That(dark.Encounters * calm.Count > calm.Encounters * dark.Count, "encounters make up more of the night's events");
-        double[] alpine = TravelEventDirector.Weights(open with { Biome = MapBiome.Alpine, River = true });
+        double[] alpine = TravelEventDirector.Weights(open with { Biome = MapBiome.Alpine, River = RiverState.High });
         double[] meadow = TravelEventDirector.Weights(open);
         Check.That(alpine[(int)TravelEventKind.Hazard] > meadow[(int)TravelEventKind.Hazard], "mountains and fords bring more hazards");
+        // A ford follows its river's stage (#9878): likelier trouble as it rises and floods, none over ice or a dry bed.
+        double Hazard(RiverState river) => TravelEventDirector.Weights(open with { River = river })[(int)TravelEventKind.Hazard];
+        Check.That(Hazard(RiverState.None) < Hazard(RiverState.Running) && Hazard(RiverState.Running) < Hazard(RiverState.High) && Hazard(RiverState.High) < Hazard(RiverState.Flood),
+            "a ford's hazard rises with its river: running, high, in flood");
+        Check.That(Hazard(RiverState.Frozen) == Hazard(RiverState.None) && Hazard(RiverState.Dry) == Hazard(RiverState.None),
+            "a frozen or dry river is no ford: crossing it is as the open ground");
+        TravelEvent swollen = TravelEvents.Hazard(MapBiome.Grassland, RiverState.High), flooded = TravelEvents.Hazard(MapBiome.Grassland, RiverState.Flood);
+        Check.That(swollen.Title == "Swollen ford" && flooded.Title == "River in flood" && TravelEvents.Hazard(MapBiome.Grassland, RiverState.Frozen).Title == "Broken ground"
+            && TravelEvents.Hazard(MapBiome.Grassland, RiverState.Running).Title == "Cold ford",
+            "a hazard at a river names its ford as the stage has it, and ice or a dry bed is no ford");
+        Check.That(TravelEvents.DetourFor(RiverState.Flood) > TravelEvents.DetourFor(RiverState.High) && flooded.Choices[0].Label.Contains($"{TravelEvents.FloodDetourHours:F0} h", StringComparison.Ordinal),
+            "a river in flood has no ford: going round it is a long way");
+        Check.That(RiverStates.Of(null) == RiverState.Running && RiverStates.Of(new(1, 1, 0.3, 0, false, false)) == RiverState.Running
+            && RiverStates.Of(new(9, 2, RiverStates.HighFullness, 0.4, false, false)) == RiverState.High
+            && RiverStates.Of(new(90, 4, 1.2, 2, false, false)) == RiverState.Flood
+            && RiverStates.Of(new(9, 4, 1.2, 1, true, false)) == RiverState.Frozen
+            && RiverStates.Of(new(0.01, 0.01, 0.002, -0.3, false, true)) == RiverState.Dry,
+            "a reach's stage reads as a crossing: dry before frozen before flood before high");
         Check.That(alpine[(int)TravelEventKind.Weather] == 0 && meadow[(int)TravelEventKind.Weather] == 0, "weather is never rolled: it comes with the fronts (#9739)");
         TravelEvent glass = TravelEvents.Weather("Glass storm", "The air rings.", 100, wounds: true);
         Check.That(glass.Choices[0].Label.Contains($"{TravelEvents.LongestShelterHours:F0} h", StringComparison.Ordinal) && glass.Choices[1].Label.Contains("wounds", StringComparison.Ordinal),
             "a front's event offers to camp until it passes, at most two days at a time, and says when pressing on wounds");
-        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather("Rain front", "Rain sweeps in.", 6, wounds: false), TravelEvents.Hazard(MapBiome.Alpine, true) })
+        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather("Rain front", "Rain sweeps in.", 6, wounds: false), TravelEvents.Hazard(MapBiome.Alpine, RiverState.High) })
             Check.That(shown.Choices.Count == 2 && shown.Choices.All(c => !c.Label.Contains(',') && !c.Label.Contains('|') && !c.Id.Contains(':'))
                 && !shown.Title.Contains('|') && !shown.Text.Contains('|'), $"{shown.Kind} offers two answers that publish cleanly");
 

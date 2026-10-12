@@ -91,7 +91,17 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>The near water surfaces' draw facts (#9877).</summary>
     internal AppearanceFact[] WaterFacts => waterSurfaces.Facts;
 
-    internal string WaterReadout() => waterSurfaces.Readout();
+    internal string WaterReadout() => string.Create(CultureInfo.InvariantCulture, $"{waterSurfaces.Readout()} icePatches={IcePatches}");
+
+    /// <summary>
+    /// The water's stage moved on (#9878): the near water is sampled again as updates allow, and the far
+    /// field where water froze, thawed, ran dry or came back.
+    /// </summary>
+    internal void RefreshWater(IReadOnlyList<Water.WaterBounds> changed)
+    {
+        waterSurfaces.Refresh();
+        farField?.InvalidateWater(changed);
+    }
 
     /// <summary>After an appearance snapshot is published: retired water tiles may now be disposed.</summary>
     internal void AfterAppearanceSnapshot() => waterSurfaces.AfterAppearanceSnapshot();
@@ -166,7 +176,7 @@ internal sealed class TerrainWorld : IDisposable
             overlayStore.Restore();
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
-            farField = new FarField(engine, content, recipe, () => Session) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
+            farField = new FarField(engine, content, recipe, () => Session, Water) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
             ui.Publish();
             started = true;
         }
@@ -239,6 +249,9 @@ internal sealed class TerrainWorld : IDisposable
         {
             waterSurfaces.Follow((centerVoxel.X + 0.5, centerVoxel.Z + 0.5), NearEdgeMetres);
         }
+
+        // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
+        if (waterSurfaces.IceRevision != composedIce || (composedIceAny && composedOrigin != frame.Origin)) ComposeStaticCollision();
     }
 
     /// <summary>The trees drawn around the player (#9665), for the appearance snapshot.</summary>
@@ -252,12 +265,52 @@ internal sealed class TerrainWorld : IDisposable
     /// </summary>
     internal long StaticCollisionRevision { get; private set; }
 
-    /// <summary>Replaces the walking session's static collision (built work is its only owner) and moves the revision.</summary>
+    /// <summary>
+    /// Replaces the built work's part of the walking session's static collision and moves the revision. The
+    /// session's collision is that part with the river and lake ice drawn about the player (#9878).
+    /// </summary>
     internal void ReplaceStaticCollision(CollisionReplaceRequest request)
     {
+        builtCollision = request;
+        ComposeStaticCollision();
+    }
+
+    /// <summary>The ice's collision ids, clear of the built work's.</summary>
+    private const ulong IceAssetBase = 0x4000_0000UL, IceInstanceBase = 0x4000_0000UL;
+
+    private CollisionReplaceRequest? builtCollision;
+    private long composedIce;
+    private bool composedIceAny;
+    private (long X, long Y, long Z) composedOrigin;
+
+    /// <summary>How many ice patches the walking collision holds, for the readout.</summary>
+    internal int IcePatches { get; private set; }
+
+    private void ComposeStaticCollision()
+    {
         EnsureStarted();
-        engine.Spatial.ReplaceCollision(request);
+        List<StaticMeshAsset> assets = [.. (builtCollision?.Assets ?? default).ToArray()];
+        List<Vector3> vertices = [.. (builtCollision?.Vertices ?? default).ToArray()];
+        List<Triangle> triangles = [.. (builtCollision?.Triangles ?? default).ToArray()];
+        List<StaticMeshInstance> instances = [.. (builtCollision?.Instances ?? default).ToArray()];
+        ulong patch = 0;
+        foreach ((Vector3 corner, Vector3[] iceVertices, Triangle[] iceTriangles) in waterSurfaces.Ice)
+        {
+            ulong asset = IceAssetBase + patch;
+            assets.Add(new StaticMeshAsset(asset, (uint)vertices.Count, (uint)iceVertices.Length, (uint)triangles.Count, (uint)iceTriangles.Length));
+            vertices.AddRange(iceVertices);
+            triangles.AddRange(iceTriangles);
+            instances.Add(new StaticMeshInstance(IceInstanceBase + patch, asset,
+                new Transform(frame.ToLocal(corner.X, corner.Y, corner.Z), Quaternion.Identity, Vector3.One)));
+            patch++;
+        }
+
+        engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(Session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray()));
         StaticCollisionRevision++;
+        IcePatches = (int)patch;
+        composedIce = waterSurfaces.IceRevision;
+        composedIceAny = patch > 0;
+        composedOrigin = frame.Origin;
     }
 
     /// <summary>The building look study's draw facts (#9684); empty unless one is built.</summary>

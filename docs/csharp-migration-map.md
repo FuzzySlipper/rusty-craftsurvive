@@ -52,7 +52,7 @@ save, then terrain's save, then one appearance snapshot.
 | Generation | `Modules/WorldGen`: `WorldMapGenerator`, immutable `WorldMap`, `TerrainRecipe`, continuous samples in `TerrainDensity`, the contract, point-of-interest and crossing placement and structures | Keyed random draws |
 | Terrain | `Modules/Terrain`: `TerrainWorld`, `TerrainSurfaces`, `TerrainBlendSettings`, the residency streamer, edit service and transaction, overlay and its store, chunk cache and presentation | Spatial sessions, density-bearing voxel residency, per-material surfaces, aliased terrain layers and their interpolation, edits and scene reads, collision queries, authored content, directional voxel presentation |
 | Blocks and atlas | `Modules/Content`: `BlockRegistry`, `TerrainAtlasLayout` | Authored materials |
-| Water | `Modules/Water`: `WaterModel` (where water stands: a typed sample of surface, bed, current, body, stage and ice, from `WorldGen/WaterRules`) and `WaterSurfaces` (the near water meshes, squared to the far field's sunk band) | Water material look (`MaterialWater`) on product meshes; swim volumes measured against the product's box |
+| Water | `Modules/Water`: `WaterModel` (where water stands: a typed sample of surface, bed, current, body, stage and ice, from `WorldGen/WaterRules`), `WaterSurfaces` (the near water meshes, squared to the far field's sunk band, with ice drawn and collided) and `RiverStage`/`RiverStageModule` (the stage routed from the weather and the seasons, stepped off the update) | Water material look (`MaterialWater`) on product meshes; swim volumes measured against the product's box |
 | Player | `Modules/Player`: `PlayerController` over input, camera, water and climb probes, body, origin rebasing, vitals, progress and continuation | Character controller (walking, swimming, climbing), look, camera view, world origin |
 | RPG rules | `Modules/Rpg`: combat, loot, progression, encounters, creature kinds, character sheet | none (pure rules) |
 | Creatures | `Modules/Creatures`: `CreatureModule` over the roster, simulation, spawn plan and presentation | Perception, appearance, entity store; collision navigation while pursuing |
@@ -167,6 +167,16 @@ designed continent's sea port (the largest calm mouth on the playable peninsula)
 towns on it - confluences and heads of navigation, up the port's own river first, 25 km apart and
 off the floodplain - and the design reserves only the mountain hold at the neck. They are known
 places from the start; `tools/MapLab --towns` measures both over many seeds.
+
+`RiverStage` routes that network's water through time (#9878). Fronts' precipitation falls on 4 km
+cells as snow or rain by the season's air (`Seasons`: a swing about each place's climate over the
+sky's 120-day year); each cell keeps snow, a quick share and a slow ground store, calibrated against
+its neighbourhood's year so the long-run runoff is the water budget's mean; each reach is a linear
+reservoir passing its water downstream, upstream first, a lake on it adding its storage. Ice follows
+the frost, and a small stream far under its mean runs dry. Nothing is saved: `RiverStageModule`
+rebuilds it from the seed, the map and the clock off the update, steps it off the update each game
+hour, and publishes a read-only view that the water owner, the far field and the travel events
+read. `tools/MapLab --stage` charts a year.
 
 `MapBiomes` classifies samples into sea, ice field, tundra, boreal forest, cold
 steppe, temperate forest, grassland, shrubland, desert, rainforest and alpine

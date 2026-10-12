@@ -7,11 +7,12 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// local relief the place may carry; Protection is a policy core local relief must leave alone;
 /// RiverSurface is the water level of a channel covering the point, or negative infinity;
 /// LakeSurface the level of a lake whose basin covers it (#9877), or negative infinity - the
-/// point is under that lake where its ground lies below the level.
+/// point is under that lake where its ground lies below the level. RiverReach is the walked network's
+/// reach whose channel covers the point (#9878), or -1.
 /// </summary>
 internal readonly record struct MapSample(double Elevation, double Temperature, double Moisture,
     double Rock, double Detail, double Protection = 0, double RiverSurface = double.NegativeInfinity,
-    double LakeSurface = double.NegativeInfinity)
+    double LakeSurface = double.NegativeInfinity, int RiverReach = -1)
 {
     internal bool InRiver => !double.IsNegativeInfinity(RiverSurface);
     internal bool InLake => !double.IsNegativeInfinity(LakeSurface);
@@ -126,7 +127,9 @@ internal sealed class WorldMap
         foreach (Lake lake in Lakes)
             foreach (int node in lake.Basin)
             {
-                basinLevel[node] = Math.Max(basinLevel.GetValueOrDefault(node, double.NegativeInfinity), lake.Level);
+                // Where two basins share a node, the higher lake holds it, its level and its name alike.
+                if (lake.Level <= basinLevel.GetValueOrDefault(node, double.NegativeInfinity)) continue;
+                basinLevel[node] = lake.Level;
                 basinLake[node] = lake;
             }
         Fingerprint = ComputeFingerprint();
@@ -171,9 +174,26 @@ internal sealed class WorldMap
     /// <summary>The lake whose basin holds a lattice node, if any (#9877).</summary>
     internal Lake? LakeAtNode(int node) => basinLake.GetValueOrDefault(node);
 
-    /// <summary>The lake whose basin covers a point (the nearest lattice node's), if any.</summary>
-    internal Lake? LakeAt(double x, double z) =>
-        basinLake.Count == 0 || !double.IsFinite(x) || !double.IsFinite(z) ? null : LakeAtNode(Grid.Nearest(x, z));
+    /// <summary>
+    /// The lake whose basin covers a point, if any: of the four lattice nodes about it in a basin, the one
+    /// whose level stands highest - the lake <see cref="LakeLevelAt"/> takes the level from, so its shore is its own.
+    /// </summary>
+    internal Lake? LakeAt(double x, double z)
+    {
+        if (basinLake.Count == 0 || !double.IsFinite(x) || !double.IsFinite(z)) return null;
+        double gx = (Math.Clamp(x, -Radius, Radius) + Radius) / Spacing, gz = (Math.Clamp(z, -Radius, Radius) + Radius) / Spacing;
+        int ix = Math.Min((int)gx, Segments - 1), iz = Math.Min((int)gz, Segments - 1);
+        Lake? lake = null;
+        double level = double.NegativeInfinity;
+        for (int dz = 0; dz <= 1; dz++)
+        for (int dx = 0; dx <= 1; dx++)
+        {
+            int node = ((iz + dz) * Side) + ix + dx;
+            if (basinLevel.TryGetValue(node, out double l) && l > level && basinLake.TryGetValue(node, out Lake? found)) { level = l; lake = found; }
+        }
+
+        return lake;
+    }
 
     /// <summary>
     /// The level of the lake whose basin covers a point (#9877): any of the four lattice nodes about it
@@ -232,7 +252,7 @@ internal sealed class WorldMap
         {
             double across = river.Distance / river.HalfWidth;
             double bed = Math.Max(GenerationConstants.MinimumTerrainHeight, river.Surface - river.Depth * (1 - across * across));
-            return broad with { Elevation = Math.Min(broad.Elevation, bed), Rock = 0, Detail = 0, RiverSurface = river.Surface };
+            return broad with { Elevation = Math.Min(broad.Elevation, bed), Rock = 0, Detail = 0, RiverSurface = river.Surface, RiverReach = river.Reach };
         }
         double bank = Ease(river.HalfWidth, river.HalfWidth + river.Bank, river.Distance);
         double shore = river.Surface + BankFreeboard;

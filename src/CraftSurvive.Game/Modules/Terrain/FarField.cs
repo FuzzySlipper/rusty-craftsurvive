@@ -32,7 +32,7 @@ internal sealed class FarField : IDisposable
 
     /// <summary>Cells along a tile's side: one far chunk column.</summary>
     private const uint TileCells = (uint)TerrainConstants.ChunkEdgeLength;
-    private const uint GroundIndex = 0, WaterIndex = 1;
+    private const uint GroundIndex = 0, WaterIndex = 1, IceIndex = 2;
     /// <summary>How many sampled tiles are committed to the Engine an update.</summary>
     private const int CommitsPerUpdate = 64;
     /// <summary>The ring's focus moves onto the player once they are this far from it.</summary>
@@ -47,7 +47,7 @@ internal sealed class FarField : IDisposable
     private readonly Func<SpatialSession> walking;
     private readonly Sampler sampler;
     private readonly TerrainGroundMaterials ground;
-    private readonly Material water;
+    private readonly Material water, ice;
     private Heightfield? heightfield;
     private HeightfieldStreamer? streamer;
     private int radiusChunks = DefaultRadiusChunks;
@@ -56,21 +56,28 @@ internal sealed class FarField : IDisposable
     private (double X, double Z) focus = (double.NaN, double.NaN);
 
     /// <param name="walking">The walking session: the heightfield stands at the world's origin in its frame.</param>
-    internal FarField(IEngineContext engine, ProductContent content, TerrainRecipe recipe, Func<SpatialSession> walking)
+    /// <param name="waters">The water owner: where its stage has frozen water or left a bed dry (#9878), the far field shows it.</param>
+    internal FarField(IEngineContext engine, ProductContent content, TerrainRecipe recipe, Func<SpatialSession> walking, Water.WaterModel waters)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.walking = walking ?? throw new ArgumentNullException(nameof(walking));
         ArgumentNullException.ThrowIfNull(recipe);
+        ArgumentNullException.ThrowIfNull(waters);
         (sinkInner, sinkOuter) = FarGround.SinkBand(TerrainConstants.RequestedChunkRadius * TerrainConstants.ChunkEdgeLength);
         ground = new TerrainGroundMaterials(engine, content, TextureUnitMetres, GroundTextureSet.Walking);
-        sampler = new Sampler(recipe, (int)ground.Settings.TransitionCells);
+        sampler = new Sampler(recipe, waters, (int)ground.Settings.TransitionCells);
+        Material? madeWater = null;
         try
         {
-            water = engine.Graphics.CreateMaterial(new MaterialRequest(MapPalette.FarWater.Linear(), default, 1f, ColourSpace.White,
+            madeWater = engine.Graphics.CreateMaterial(new MaterialRequest(MapPalette.FarWater.Linear(), default, 1f, ColourSpace.White,
                 Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
+            ice = engine.Graphics.CreateMaterial(new MaterialRequest(Water.WaterSurfaces.IceColour, default, Water.WaterSurfaces.IceRoughness, ColourSpace.White,
+                Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
+            water = madeWater;
         }
         catch
         {
+            madeWater?.Dispose();
             ground.Dispose();
             throw;
         }
@@ -150,6 +157,7 @@ internal sealed class FarField : IDisposable
     {
         Release();
         water.Dispose();
+        ice.Dispose();
         ground.Dispose();
     }
 
@@ -158,7 +166,7 @@ internal sealed class FarField : IDisposable
         double reach = (radiusChunks + 1) * (double)ChunkMetres;
         heightfield = engine.Heightfield.Create(new HeightfieldCreateRequest(TileCells,
             new HeightfieldRing[] { new(FarGround.CellMetres, reach) },
-            new HeightfieldMaterial[] { new(GroundIndex, ground.Layered), new(WaterIndex, water) },
+            new HeightfieldMaterial[] { new(GroundIndex, ground.Layered), new(WaterIndex, water), new(IceIndex, ice) },
             RenderLayer.Scene, Vector3.Zero, 1f, HeightfieldFocus.At(worldX, worldZ))
             with { Session = walking(), Anchor = new WorldOriginGlobalPosition(0, 0, 0, 0, 0, 0) });
         streamer = new HeightfieldStreamer(engine, heightfield, sampler, CommitsPerUpdate);
@@ -176,6 +184,21 @@ internal sealed class FarField : IDisposable
 
     private void Publish() => sampler.Current = new Frame(sinkCentre, sinkInner, sinkOuter);
 
+    /// <summary>
+    /// The water froze, thawed, ran dry or came back over these areas (#9878): the tiles under them that
+    /// the ring holds are sampled again.
+    /// </summary>
+    internal void InvalidateWater(IReadOnlyList<Water.WaterBounds> changed)
+    {
+        if (heightfield is null || double.IsNaN(focus.X)) return;
+        double reach = (radiusChunks + 1) * (double)ChunkMetres;
+        foreach (Water.WaterBounds area in changed)
+        {
+            if (area.MaxX < focus.X - reach || area.MinX > focus.X + reach || area.MaxZ < focus.Z - reach || area.MinZ > focus.Z + reach) continue;
+            engine.Heightfield.Invalidate(new HeightfieldInvalidateRequest(heightfield, area.MinX, area.MinZ, area.MaxX, area.MaxZ));
+        }
+    }
+
     private void InvalidateAround((double X, double Z) centre, double extent)
     {
         if (heightfield is null || double.IsNaN(centre.X)) return;
@@ -192,7 +215,7 @@ internal sealed class FarField : IDisposable
     /// concurrent; not the recipe's memo tables for trees, column bands, chunk content or crossings,
     /// which only the voxel chunk generator touches) and the published frame.
     /// </summary>
-    private sealed class Sampler(TerrainRecipe recipe, int transitionCells) : IHeightfieldSampler
+    private sealed class Sampler(TerrainRecipe recipe, Water.WaterModel waters, int transitionCells) : IHeightfieldSampler
     {
         private Frame frame = new((double.NaN, double.NaN), 0, 1);
 
@@ -210,6 +233,7 @@ internal sealed class FarField : IDisposable
             int border = reach + 1, span = side + (2 * border);
             double[] ground = new double[span * span];
             double[] waterTop = new double[span * span];
+            bool[] frozen = new bool[span * span];
             MapSample[] geography = new MapSample[span * span];
             int At(int i, int j) => ((j + border) * span) + i + border;
             for (int j = -border; j < side + border; j++)
@@ -228,6 +252,13 @@ internal sealed class FarField : IDisposable
                 // Inside the near water's square the near surfaces draw the water (#9877): here only the bed.
                 waterTop[at] = !double.IsNaN(now.SinkCentre.X) && Water.WaterSurfaces.Covers(now.SinkCentre, now.Outer, x, z)
                     ? double.NegativeInfinity : FarGround.WaterTop(geography[at]);
+                // The stage's ice and dry beds (#9878): a dry bed draws as ground, frozen water as ice.
+                if (waterTop[at] > ground[at])
+                {
+                    (bool ice, bool dry) = waters.State(geography[at], x, z);
+                    if (dry) waterTop[at] = double.NegativeInfinity;
+                    frozen[at] = ice;
+                }
             }
 
             for (int j = -1; j <= side; j++)
@@ -275,7 +306,7 @@ internal sealed class FarField : IDisposable
                 int own = layers[((j + reach) * layerSpan) + i + reach];
                 if (own < 0)
                 {
-                    if (!double.IsNaN(ground[At(i, j)])) samples.SetMaterial(i, j, WaterIndex);
+                    if (!double.IsNaN(ground[At(i, j)])) samples.SetMaterial(i, j, frozen[At(i, j)] ? IceIndex : WaterIndex);
                     samples.SetLayerWeights(i, j, Vector4.UnitX);
                     continue;
                 }

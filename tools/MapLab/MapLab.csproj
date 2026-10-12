@@ -30,5 +30,13 @@
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product" />
     <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Weather/WeatherKind.cs" LinkBase="Product/Weather" />
+    <Compile Include="$(ProductModules)Weather/WeatherKinds.cs" LinkBase="Product/Weather" />
+    <Compile Include="$(ProductModules)Weather/WeatherFront.cs" LinkBase="Product/Weather" />
+    <Compile Include="$(ProductModules)Weather/WeatherField.cs" LinkBase="Product/Weather" />
+    <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
+    <Compile Include="$(ProductModules)Water/Seasons.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/RiverStage.cs" LinkBase="Product/Water" />
   </ItemGroup>
 </Project>

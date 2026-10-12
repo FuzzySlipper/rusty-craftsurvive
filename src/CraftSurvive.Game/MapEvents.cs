@@ -4,6 +4,7 @@ using CraftSurvive.Game.Modules.Discovery;
 using CraftSurvive.Game.Modules.Inventory;
 using CraftSurvive.Game.Modules.Sky;
 using CraftSurvive.Game.Modules.Travel;
+using CraftSurvive.Game.Modules.Water;
 using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.WorldGen;
 
@@ -25,6 +26,8 @@ public sealed partial class CraftSurviveProduct
     private TravelEvent? pendingEvent;
     /// <summary>Where a discovery event's place stands, for its Divert choice.</summary>
     private (Vector2 Position, string Name)? discoveredPlace;
+    /// <summary>What going round the pending hazard costs: longer round a river in flood.</summary>
+    private double hazardDetourHours = TravelEvents.DetourHours;
 
     private TravelEventDirector TravelEventRolls => travelEvents ??= new TravelEventDirector(worlds.Current.Map.Configuration.Seed ^ TravelEventSeedSalt);
 
@@ -44,7 +47,7 @@ public sealed partial class CraftSurviveProduct
         WorldMap map = worlds.Current.Map;
         MapSample here = map.Sample(party.Position.X, party.Position.Y);
         MapBiome biome = WorldMap.Biome(here);
-        bool river = double.IsFinite(here.RiverSurface);
+        RiverState river = RiverAtParty(here);
         TravelEventFacts facts = new(biome, conditions.IsNight, river,
             Vector2.Distance(party.Position, new((float)home.Home.X, (float)home.Home.Z)) / 1000, party.EventRisk * sky.Effects.EventRisk);
         if (TravelEventRolls.Roll(hours, facts) is TravelEventKind kind) Raise(kind, biome, river);
@@ -67,9 +70,18 @@ public sealed partial class CraftSurviveProduct
         SettleParty();
     }
 
-    /// <summary>Present an event: the journey pauses and the map screen offers its choices.</summary>
-    private void Raise(TravelEventKind kind, MapBiome biome, bool river)
+    /// <summary>The map's river where the party stands, read as its walked reach's stage has it now (#9878).</summary>
+    private RiverState RiverAtParty(MapSample here)
     {
+        if (party is null || !double.IsFinite(here.RiverSurface)) return RiverState.None;
+        riverStage.Follow();
+        return riverStage.CrossingAt(party.Position.X, party.Position.Y);
+    }
+
+    /// <summary>Present an event: the journey pauses and the map screen offers its choices.</summary>
+    private void Raise(TravelEventKind kind, MapBiome biome, RiverState river)
+    {
+        hazardDetourHours = TravelEvents.DetourFor(river);
         TravelEvent? raised = kind switch
         {
             TravelEventKind.Encounter => TravelEvents.Encounter(biome),
@@ -130,8 +142,8 @@ public sealed partial class CraftSurviveProduct
                 worldMessage = "Pressing on through the weather.";
                 break;
             case TravelEvents.Detour:
-                LoseHours(TravelEvents.DetourHours);
-                worldMessage = FormattableString.Invariant($"Went round, losing {TravelEvents.DetourHours:F0} hours.");
+                LoseHours(hazardDetourHours);
+                worldMessage = FormattableString.Invariant($"Went round, losing {hazardDetourHours:F0} hours.");
                 break;
             case TravelEvents.Push:
                 if (inventory.Spend(ItemCatalog.Ration)) worldMessage = "Pushed through; a ration was lost.";
@@ -179,11 +191,11 @@ public sealed partial class CraftSurviveProduct
         }
 
         MapSample here = worlds.Current.Map.Sample(party.Position.X, party.Position.Y);
-        Raise(parsed, WorldMap.Biome(here), double.IsFinite(here.RiverSurface));
+        Raise(parsed, WorldMap.Biome(here), RiverAtParty(here));
         PublishWorld();
         return pendingEvent is null ? "no event: nothing to find nearby" : TravelEventFacts();
     }
 
     internal string TravelReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
+        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} river={(party is null ? RiverState.None : RiverAtParty(worlds.Current.Map.Sample(party.Position.X, party.Position.Y)))} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
 }

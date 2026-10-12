@@ -55,10 +55,21 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     at sea level.
   - River courses follow 8-direction drainage on the 32 m lattice. Smoothing and meanders
     break up the lattice, but long reaches across filled plains can still read as straight.
-    Water is drawn as surfaces at its own height (#9877), but it does not flow, and its
-    stage does not yet change with weather or season.
-    Rivers are sized by a fixed water budget, not by the season or the weather, and the
-    great river can still be ruler-straight for hundreds of metres across its lowland.
+    Water is drawn as surfaces at its own height (#9877), but it does not flow. Rivers are
+    sized by a fixed water budget, and the great river can still be ruler-straight for
+    hundreds of metres across its lowland.
+  - The river stage (#9878) routes the weather's rain and snowmelt through the walked network
+    hour by hour on a continent, so a river stands higher after rain, freezes in a long frost and a
+    small dry-country stream runs dry. Its limits:
+    - Only continents have a stage; regional worlds keep every river at its mean.
+    - A lake keeps its level; it freezes with its outflow. Water has no current, so a ford is
+      only deeper in first person, not faster; the map's travel events read its state.
+    - Route planning keeps a fixed cost for a ford and does not cross ice or close a flooded
+      crossing; on the map a lake costs the party no more than land, frozen or not.
+    - The far field shows ice and dry beds but not the stage's height; the horizon backdrop and the
+      map view keep every river and lake open at its mean.
+    - Ice is a plain pale surface with no texture, snow or cracks, and the seasons change only the
+      water: ground, snow cover and the weather's kinds do not follow them.
   - The map view draws the continent's kilometre rivers, while walking terrain, the water network
     and the settlements follow the 250 m drainage; the two agree on the great rivers' layout but
     can place a lowland channel kilometres apart, and the walked flows run about a third lower.
@@ -175,7 +186,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
           raining, so a wet player under cover dries at the covered rate.
         - Wetness has no other effect yet: fire, stamina and visibility are untouched.
         - Fronts are circles, without shape or rain bands.
-        - Seasons do not exist (#9554).
+        - Seasons exist only for the river stage (#9878): the air swings about each place's climate
+          over the 120-day year. Nothing else reads them yet (#9554).
       - **First-person look (#9740):** the weather over the player eases in over game minutes. Its
         cloud channel raises a drifting cloud layer (along the flow) and dims the sun, sky light and
         shafts, cools and greys the grade; murk and rain thicken the fog toward the front's air

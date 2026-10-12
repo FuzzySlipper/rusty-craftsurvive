@@ -96,7 +96,7 @@ internal sealed class MapDrainage
         for (long cz = Cell(minZ); cz <= Cell(maxZ); cz++)
         for (long cx = Cell(minX); cx <= Cell(maxX); cx++)
             if (index.TryGetValue(Key(cx, cz), out List<int>? list)) found.UnionWith(list);
-        return MapRivers.FromReaches(found.Select(r => MapRivers.Shape(Grid, paths[r], elevation, discharge, seed, r)));
+        return MapRivers.FromReaches([.. found.Select(r => (r, MapRivers.Shape(Grid, paths[r], elevation, discharge, seed, r)))]);
     }
 
     private static long Cell(double v) => (long)Math.Floor(v / IndexCell);

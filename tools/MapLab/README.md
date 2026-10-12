@@ -102,3 +102,22 @@ Output: `towns.txt` and `towns-SEED.png`:
 - land by height, with the floodplain tinted;
 - rivers by class, darker the larger;
 - the port ringed green and the towns yellow.
+
+## River stage over a year (#9878)
+
+```bash
+dotnet run --project tools/MapLab -c Release -- --stage 19 --size 390000 --out /tmp/stage
+dotnet run --project tools/MapLab -c Release -- --stage 19 --size 390000 --days 30 --from-day 90 --out /tmp/stage
+```
+
+Routes one continent's walked network through the weather and the seasons (`RiverStage`), hour by hour,
+for `--days` (a year by default) from `--from-day` (a year in by default), and charts four telling reaches
+against their means: the port's great river, the coldest mountain stream, the driest small stream and a
+lake's outflow.
+
+Output: `stage-SEED.txt` (the start and per-hour cost, each reach's place, flow range, flood, ice and dry
+days, and the network's peak shares) and `stage-SEED.png`:
+- the season band along the top (blue winter, green spring, gold summer, rust autumn);
+- one panel per reach, flow over its mean on a log scale (the grey line is the mean), red in flood,
+  shaded blue while frozen and brown while dry;
+- the network's daily share frozen (pale blue), dry (amber) and in flood (red, ten times).

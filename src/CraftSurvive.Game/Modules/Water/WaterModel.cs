@@ -19,18 +19,63 @@ internal readonly record struct WaterSample(double Surface, double Bed, double C
     internal bool Wet => Depth > 0;
 }
 
+/// <summary>The water's state now as the stage owner routes it (#9878): a reach's stage, and whether a lake is frozen.</summary>
+internal interface IWaterStage
+{
+    /// <summary>A reach's water now, or null where the reach stands at its mean (no stage yet, or no such reach).</summary>
+    ReachStage? At(int reach);
+
+    /// <summary>Whether a lake is frozen now.</summary>
+    bool LakeIce(Lake lake);
+}
+
 /// <summary>
 /// The one owner of where water stands in the walking world (#9877): the sea, rivers and lakes as
 /// surfaces over the generated ground, from <see cref="WaterRules"/>. It answers a point or a batch;
-/// the near water surfaces, the swim volume and anything else that asks read it, never voxels.
+/// the near water surfaces, the swim volume and anything else that asks read it, never voxels. Given a
+/// stage (#9878), a river stands at its reach's stage over its usual surface - none at all when the
+/// reach has run dry - and a river or lake is frozen as the stage says; the sea keeps its level.
 /// </summary>
 internal sealed class WaterModel(TerrainRecipe recipe)
 {
+    /// <summary>The routed stage, or null while every body stands at its usual surface.</summary>
+    internal IWaterStage? Stages { get; set; }
+
     /// <summary>The water at a column (whole metres, as the ground is generated).</summary>
     internal WaterSample Sample(long x, long z)
     {
         (double ground, MapSample geography) = recipe.GroundAt(x, z);
-        return new(WaterRules.Surface(geography), ground, 0, 0, WaterRules.Body(geography, ground), 0, false);
+        double surface = WaterRules.Surface(geography);
+        WaterBody body = WaterRules.Body(geography, ground);
+        if (Stages is IWaterStage stages)
+        {
+            if (body == WaterBody.River && stages.At(geography.RiverReach) is ReachStage reach)
+            {
+                // A dry reach leaves its bed bare: the stage takes the water down to the ground.
+                double stage = reach.Dry ? ground - surface : reach.Stage;
+                return new(surface, ground, 0, 0, body, stage, reach.Ice && !reach.Dry);
+            }
+
+            if (body == WaterBody.Lake && recipe.Map.LakeAt(x + 0.5, z + 0.5) is Lake lake)
+                return new(surface, ground, 0, 0, body, 0, stages.LakeIce(lake));
+        }
+
+        return new(surface, ground, 0, 0, body, 0, false);
+    }
+
+    /// <summary>
+    /// Whether the water a place's geography stands under is frozen, or has run dry, now - for what draws
+    /// water from geography alone (the far field) rather than from a column's sample.
+    /// </summary>
+    internal (bool Ice, bool Dry) State(MapSample geography, double x, double z)
+    {
+        if (Stages is not IWaterStage stages) return (false, false);
+        double surface = WaterRules.Surface(geography);
+        if (geography.InLake && geography.LakeSurface >= surface)
+            return (recipe.Map.LakeAt(x, z) is Lake lake && stages.LakeIce(lake), false);
+        if (geography.InRiver && geography.RiverSurface >= surface && stages.At(geography.RiverReach) is ReachStage reach)
+            return (reach.Ice && !reach.Dry, reach.Dry);
+        return (false, false);
     }
 
     /// <summary>The water at a point: the column it lies in.</summary>

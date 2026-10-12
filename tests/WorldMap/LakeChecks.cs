@@ -16,6 +16,21 @@ internal static class LakeChecks
     {
         Check.That(defaultContinent.Lakes.Count > 0, $"the generator's own continent holds lakes ({defaultContinent.Lakes.Count})");
 
+        // A point's lake is the one its level comes from, out to the shore (#9878: a lake freezes whole, with no unfrozen ring).
+        int sampled = 0, disowned = 0;
+        foreach (Lake lake in defaultContinent.Lakes)
+            foreach (int node in lake.Basin)
+                for (double fx = -0.45; fx <= 0.45; fx += 0.3)
+                for (double fz = -0.45; fz <= 0.45; fz += 0.3)
+                {
+                    double x = defaultContinent.Grid.X(node) + (fx * defaultContinent.Spacing), z = defaultContinent.Grid.Z(node) + (fz * defaultContinent.Spacing);
+                    double level = defaultContinent.LakeLevelAt(x, z);
+                    if (double.IsNegativeInfinity(level)) continue;
+                    sampled++;
+                    if (defaultContinent.LakeAt(x, z) is not Lake owner || owner.Level != level) disowned++;
+                }
+        Check.That(sampled > 0 && disowned == 0, $"every point under a lake's level belongs to that lake ({disowned} of {sampled} not)");
+
         TerrainConfiguration configuration = new(Seed, MapScale.DefaultContinentalSize);
         MapRecipe off = MapRecipe.Default with { Lakes = MapRecipe.Default.Lakes with { Enabled = false } };
         Check.That(new WorldMap(configuration, MapSimulation.Run(configuration, off, ContinentDesign.For(configuration.Size))).Lakes.Count == 0,

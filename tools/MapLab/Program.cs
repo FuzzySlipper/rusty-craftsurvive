@@ -50,6 +50,13 @@ if (options.TryGetValue("dump-recipe", out List<string>? dump))
     return 0;
 }
 
+if (options.ContainsKey("stage") && options.ContainsKey("size"))
+{
+    // The river stage over a year (#9878).
+    int stageSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
+    return StageRun.Run(options, stageSize, LoadDesign(stageSize), options.TryGetValue("out", out List<string>? stageOut) ? stageOut[0] : "maplab-out");
+}
+
 if (options.ContainsKey("towns") && options.ContainsKey("size"))
 {
     // The network and settlement census (#9875): the walked drainage as data and the towns chosen on it.

@@ -3,8 +3,8 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// <summary>One vertex of a river centreline; the water surface never rises downstream.</summary>
 internal readonly record struct RiverPoint(double X, double Z, double Surface, double HalfWidth, double Depth);
 
-/// <summary>The river nearest a point, resolved for local terrain.</summary>
-internal readonly record struct RiverInfluence(double Distance, double Surface, double HalfWidth, double Depth, double Bank)
+/// <summary>The river nearest a point, resolved for local terrain; Reach is its id in the drainage's water network (#9878), or -1.</summary>
+internal readonly record struct RiverInfluence(double Distance, double Surface, double HalfWidth, double Depth, double Bank, int Reach = -1)
 {
     internal bool InChannel => Distance < HalfWidth;
 }
@@ -44,12 +44,14 @@ internal sealed class MapRivers
     private const ulong MeanderSalt = 0x8CB92BA72F3D8DD7UL;
 
     private readonly RiverPoint[][] reaches;
+    private readonly int[] ids;
     private readonly (int Reach, int Segment)[] entries;
     private readonly Dictionary<long, (int Start, int Count)> buckets;
 
-    private MapRivers(RiverPoint[][] reaches)
+    private MapRivers(RiverPoint[][] reaches, int[]? ids = null)
     {
         this.reaches = reaches;
+        this.ids = ids ?? [.. Enumerable.Repeat(-1, reaches.Length)];
         Dictionary<long, List<(int, int)>> lists = [];
         for (int r = 0; r < reaches.Length; r++)
         for (int s = 0; s + 1 < reaches[r].Length; s++)
@@ -93,6 +95,10 @@ internal sealed class MapRivers
 
     /// <summary>Rivers from already-shaped reaches, such as a region's share of a continent's drainage (#9550).</summary>
     internal static MapRivers FromReaches(IEnumerable<RiverPoint[]> reaches) => new([.. reaches]);
+
+    /// <summary>Rivers from shaped reaches that keep their ids in the drainage's water network (#9878).</summary>
+    internal static MapRivers FromReaches(IReadOnlyList<(int Id, RiverPoint[] Points)> reaches) =>
+        new([.. reaches.Select(r => r.Points)], [.. reaches.Select(r => r.Id)]);
 
     /// <summary>
     /// The node paths of every reach, between confluences, in a stable upstream-first order: a reach's
@@ -223,7 +229,7 @@ internal sealed class MapRivers
             double score = (distance - halfWidth) / bank;
             if (distance >= QuietDistance(halfWidth) || score >= bestScore) continue;
             bestScore = score;
-            best = new(distance, a.Surface + (b.Surface - a.Surface) * t, halfWidth, a.Depth + (b.Depth - a.Depth) * t, bank);
+            best = new(distance, a.Surface + (b.Surface - a.Surface) * t, halfWidth, a.Depth + (b.Depth - a.Depth) * t, bank, ids[r]);
         }
         return best;
     }

@@ -71,6 +71,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private SurvivalModule survival = null!;
     private WeatherModule weather = null!;
 
+    /// <summary>The rivers' stage from the weather and the seasons (#9878): fords, ice and dry beds.</summary>
+    private Modules.Water.RiverStageModule riverStage = null!;
+
     /// <summary>What the player carries: drops and caches in, crafting and use out.</summary>
     private InventoryModule inventory = null!;
     private HomeMarkerStore home = null!;
@@ -148,6 +151,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         weather = new WeatherModule(worlds.Current.Map, sky, () => conditions.Time, () => player.WorldPosition,
             () => !player.InSeparateSpace && !player.HeadSubmerged,
             () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
+        riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater);
+        terrain.Water.Stages = riverStage;
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition), () => weather.Exposure, () => weather.Here.Dominant?.Front.Kind.Name ?? "");
@@ -184,7 +189,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
             },
         };
-        gameplay = [conditions, weather, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
+        gameplay = [conditions, weather, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
         ApplyOptions();
@@ -274,6 +279,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
         RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather))));
+        RequireRegistration(registrar.Register(new Modules.Water.RiverStageDebugModule(() => Owner(riverStage), () => Owner(terrain).Water,
+            (x, z) => Owner(terrain).Recipe.GroundAt((long)Math.Floor(x), (long)Math.Floor(z)).Geography.RiverReach)));
         RequireRegistration(registrar.Register(new HorizonDebugModule(() => Owner(horizon), () => Owner(sky))));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
         RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
