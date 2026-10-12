@@ -63,8 +63,15 @@ internal sealed class DayNightSky : IDisposable
     private const float CloudMoonDim = 0.85f;
     private const float MoonFillIntensity = 0.06f, MoonSkyLight = 0.4f;
 
-    /// <summary>The moon's disc glows at this radiance when full (it blooms), less as it wanes, and its halo at this strength.</summary>
-    private const float FullMoonRadiance = 2.5f, MoonHalo = 0.25f;
+    /// <summary>
+    /// The moon in the sky (rusty-engine #9866): its lit part glows at this radiance by night (it
+    /// blooms) and this by day (a pale disc over the blue); by night its dark part shows this share as
+    /// earthshine (by day it is the sky); a full moon has this halo by night, a crescent less.
+    /// </summary>
+    private const float NightMoonRadiance = 2.5f, DayMoonRadiance = 0.45f, Earthshine = 0.04f, MoonHalo = 0.25f;
+
+    /// <summary>The moon is drawn from this far under the horizon (a sine), so it rises through the land rather than appearing on it.</summary>
+    private const double MoonDrawnAbove = -0.05d;
 
     /// <summary>
     /// Eyes adjust to the dark: by night the exposure may rise to this, closing on its target at this
@@ -508,6 +515,7 @@ internal sealed class DayNightSky : IDisposable
 
         engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
         engine.CameraView.SetAtmosphere(default);
+        engine.CameraView.SetMoon(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         Eyes(0f);
         Relight(
@@ -557,6 +565,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(panoramas[SkyPanorama.Day], panoramas[SkyPanorama.Night], 0f));
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetAtmosphere(default);
+        engine.CameraView.SetMoon(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetSkyLight(new SkyLightRequest(DaySkyLightIntensity));
         Eyes(0f);
@@ -731,6 +740,7 @@ internal sealed class DayNightSky : IDisposable
         if (disposed) return;
         engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
         engine.CameraView.SetAtmosphere(default);
+        engine.CameraView.SetMoon(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
@@ -810,6 +820,7 @@ internal sealed class DayNightSky : IDisposable
             engine.CameraView.SetFog(new(FogMode.ExponentialSquared, WaterMurk, 0f, 0f, WaterFogDensity));
             engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
             engine.CameraView.SetAtmosphere(default);
+            engine.CameraView.SetMoon(default);
             engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         }
         else if (underground)
@@ -842,18 +853,16 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetSkyLight(new SkyLightRequest((float)(nightSkyLight + ((DaySkyLightIntensity - nightSkyLight) * daylight)) * (1f - (CloudSkyLightDim * w.Cloud))));
         Vector3 hazeColour = new(haze.X, haze.Y, haze.Z);
         float hazeExponent = HazeExponent + ((LowSunHazeExponent - HazeExponent) * low);
-        AtmosphereRequest air = SunInSky(elevation)
-            ? new(0f, 0f, default, hazeExponent, SunDisc(elevation), (SunHalo + (LowSunHalo * warmth)) * (1f - w.Cloud),
-                (DaySunRadiance + ((LowSunRadiance - DaySunRadiance) * warmth)) * (1f - w.Cloud), WorldClock.TowardSun(dayFraction),
-                ToColor(Vector3.Lerp(SunColour, DuskSunColour, warmth)), LowSkySunIntensity + ((DaySunIntensity - LowSkySunIntensity) * (float)Smooth(elevation, 0d, SunFullAbove)))
-            : MoonInSky(time, moonShare, w.Cloud);
-        engine.CameraView.SetAtmosphere(air with
-        {
-            FogBaseHeight = eyes.Y - FogBaseBelowEyesMetres,
-            FogFalloffHeight = FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk),
-            HazeColor = ToColor(hazeColour),
-            HazeExponent = hazeExponent,
-        });
+        // The sky's sun is always the real sun, so the moon's lit limb faces it; by night it shows no disc.
+        bool sunUp = SunInSky(elevation);
+        engine.CameraView.SetAtmosphere(new AtmosphereRequest(
+            eyes.Y - FogBaseBelowEyesMetres, FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk), ToColor(hazeColour), hazeExponent,
+            sunUp ? SunDisc(elevation) : 0f,
+            sunUp ? (SunHalo + (LowSunHalo * warmth)) * (1f - w.Cloud) : 0f,
+            sunUp ? (DaySunRadiance + ((LowSunRadiance - DaySunRadiance) * warmth)) * (1f - w.Cloud) : 0f,
+            WorldClock.TowardSun(dayFraction), ToColor(Vector3.Lerp(SunColour, DuskSunColour, warmth)),
+            LowSkySunIntensity + ((DaySunIntensity - LowSkySunIntensity) * (float)Smooth(elevation, 0d, SunFullAbove))));
+        engine.CameraView.SetMoon(MoonInSky(time, daylight, w.Cloud));
         float shafts = elevation > 0d
             ? SunShaftIntensity * (1f - (float)Smooth(elevation, 0d, SunShaftsFadeAbove)) * (1f - w.Cloud)
             : 0f;
@@ -887,25 +896,25 @@ internal sealed class DayNightSky : IDisposable
         return Off;
     }
 
-    /// <summary>Whether the sky's sun is the sun (by day and through twilight) rather than the moon by night.</summary>
+    /// <summary>Whether the sun shows in the sky: by day and through twilight, while its light is on.</summary>
     private static bool SunInSky(double elevation) => elevation > TwilightBelow;
 
     /// <summary>The sun's disc in degrees: larger as it warms toward the horizon.</summary>
     private static float SunDisc(double elevation) => SunRadiusDegrees + ((LowSunRadiusDegrees - SunRadiusDegrees) * Warmth(elevation));
 
     /// <summary>
-    /// By night the sky's sun is the moon while it is up (until the Engine draws a moon of its own,
-    /// rusty-engine #9866): its disc warm and large low, glowing by its phase, and its light on the
-    /// clouds. With no moon up there is no sky sun and no disc.
+    /// The moon in the sky, by day and by night: its phase (the Engine turns the lit limb toward the
+    /// sun), warm and large low, a pale disc by day and a glowing one by night with a halo as full as
+    /// it is; none while it is well under the horizon or new.
     /// </summary>
-    private static AtmosphereRequest MoonInSky(WorldTime time, float share, float cloud)
+    private static MoonRequest MoonInSky(WorldTime time, double daylight, float cloud)
     {
         double elevation = WorldClock.MoonElevation(time);
         float lit = (float)WorldClock.MoonLit(time);
-        if (share <= 0f) return default;
-        Vector3 colour = Moon.Colour(elevation);
-        return new(0f, 0f, default, 0f, Moon.Disc(elevation), MoonHalo * lit * (1f - cloud), FullMoonRadiance * lit * (1f - cloud),
-            WorldClock.TowardMoon(time), ToColor(colour), Moon.FullIntensity * share);
+        if (elevation < MoonDrawnAbove || lit <= 0f) return default;
+        float night = 1f - (float)daylight;
+        return new MoonRequest(WorldClock.TowardMoon(time), Moon.Disc(elevation), Moon.Colour(elevation),
+            DayMoonRadiance + ((NightMoonRadiance - DayMoonRadiance) * night), lit, Earthshine * night, MoonHalo * lit * night * (1f - cloud));
     }
 
     private static Color ToColor(Vector3 colour) => new(colour.X, colour.Y, colour.Z, 1f);

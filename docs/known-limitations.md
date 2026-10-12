@@ -465,9 +465,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   `Moon` gives its light by phase and height, warm and large low, whitening as it climbs. It is its
   own directional light and casts shadows only while the sun's light is off. Night has a starlight
   fill, and the eyes adjust (auto exposure up to `NightMaxExposure`) while the grade cools and
-  desaturates. Until the Engine draws a moon of its own (rusty-engine #9866):
-  - the moon is the sky's sun at night, so its disc is always full;
-  - it is not drawn by day.
+  desaturates.
+
+  The Engine draws the moon with its phase (rusty-engine #9866): its lit limb turns toward the real
+  sun, which stays the atmosphere's sky sun all night, though with no disc. By day it is a pale disc.
+  The clouds take only the sky's sun, so at night they are no longer moonlit (rusty-engine #9871).
 - **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
   irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
   bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)
