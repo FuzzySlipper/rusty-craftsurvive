@@ -201,7 +201,9 @@ internal static class GenerationChecks
             long basinX = (long)mapped.Map.Coordinate(lowest % mapped.Map.Side);
             long basinZ = (long)mapped.Map.Coordinate(lowest / mapped.Map.Side);
             TerrainChunk basinChunk = generator.Generate(new VoxelAddress(basinX, GenerationConstants.WaterLevel, basinZ).Chunk, overlay.Snapshot());
-            Check.That(basinChunk.Materials.Span.Contains((ushort)BlockId.Water), "the map basin must contain real water voxels");
+            // Water is a surface over the ground, not voxels (#9877): the basin is under it, and no water cell is generated.
+            Check.That(mapped.ColumnAt(basinX, basinZ).Submerged, "the map basin stands under water");
+            Check.That(!basinChunk.Materials.Span.Contains((ushort)BlockId.Water), "generation makes no water voxels");
             Check.That(bedrockVoxels > 0, "the world has no authored bedrock floor");
         }
 

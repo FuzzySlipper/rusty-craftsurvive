@@ -236,7 +236,7 @@ internal sealed class MapRegions
             h += w * s.Elevation; t += w * s.Temperature; m += w * s.Moisture;
             r += w * s.Rock; d += w * s.Detail; p += w * s.Protection;
         }
-        MapSample blended = new(h, t, m, r, d, p);
+        MapSample blended = new(h, t, m, r, d, p, LakeSurface: continent.LakeLevelAt(x, z));
         // Every tile shapes the network's reaches identically, so the owning tile's share answers for all.
         return Tile(own).Rivers.Nearest(x, z) is RiverInfluence river ? WorldMap.Channel(blended, river) : blended;
     }
@@ -367,6 +367,14 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
             surface[i] = broad.Elevation;
             incision[i] = cut;
             sea[i] = broad.Elevation < GenerationConstants.WaterLevel;
+            // A lake's bed is the continent's, below its level, and a sink like the sea (#9877): the tile's
+            // own fill would otherwise raise it to the level and leave dry ground where the lake stands.
+            if (continent.LakeLevelAt(x, z) is double lake && broad.Elevation < lake)
+            {
+                height[i] = broad.Elevation;
+                outlet[i] = true;
+            }
+
             // Base level: the sea, the network's rivers at their surface, and the tile's own border.
             if (rivers.Nearest(x, z) is RiverInfluence river && river.Distance < Math.Max(river.HalfWidth, RiverHoldMetres))
             {

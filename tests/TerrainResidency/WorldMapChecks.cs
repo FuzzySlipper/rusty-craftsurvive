@@ -38,7 +38,8 @@ internal static class WorldMapChecks
             long edge = config.Size / 2;
             foreach ((long wx, long wz) in new[] { (edge, 0L), (0L, -edge) })
             {
-                long guard = Math.Max(recipe.SurfaceAt(wx, wz), GenerationConstants.WaterLevel) + GenerationConstants.WorldWallRise;
+                TerrainColumn wall = recipe.ColumnAt(wx, wz);
+                long guard = Math.Max(wall.Surface, wall.WaterTop) + GenerationConstants.WorldWallRise;
                 Check.That(recipe.MaterialAt(new(wx, guard, wz)) == (ushort)BlockId.Bedrock,
                     "the authored border rises its stated height above the ground it stands on");
                 Check.That(guard <= recipe.MaximumMaterialY, "the border wall fits the terrain's vertical bounds");

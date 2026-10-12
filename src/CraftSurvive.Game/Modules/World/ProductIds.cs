@@ -66,6 +66,10 @@ internal static class ProductIds
     /// <summary>The water look study's surface lake (WaterStudy, #9819).</summary>
     internal const ulong WaterStudyObject = 0x7_0002UL;
 
+    /// <summary>The near water surfaces, one object per tile (WaterSurfaces, #9877).</summary>
+    internal const ulong WaterSurfaceBase = 0x7_8000UL;
+    internal const int WaterSurfaceLimit = 0x2000;
+
     /// <summary>The placement ghost of the selected build piece (#9729).</summary>
     internal const ulong BuildPieceGhost = 0x7_0001UL;
 

@@ -137,6 +137,16 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.build.studyclear", Description = "Assisted (#9684): removes the building look study.")]
     public string ClearBuildStudy() => terrain.BuildStudy(0, 0, clear: true);
 
+    [DebugCommand("craft.water.readout", Description = "Reads the near water surfaces (#9877): tiles held and drawn, quads, built and retired, and their reach.")]
+    public string WaterReadout() => terrain.WaterReadout();
+
+    [DebugCommand("craft.water.at", Description = "Reads the water owner's sample at a world column (#9877): surface, bed, depth, body, stage and ice.")]
+    public string WaterAt(double x, double z)
+    {
+        Water.WaterSample s = terrain.Water.Sample(x, z);
+        return FormattableString.Invariant($"surface={s.Surface:F2};bed={s.Bed:F2};depth={s.Depth:F2};body={s.Body};stage={s.Stage:F2};ice={s.Ice}");
+    }
+
     [DebugCommand("craft.water.study", Description = "Assisted (#9819): floods the hollow at x,z to a level (metres) within a radius, as voxel water cells (mode voxel) or one water surface mesh at the level (mode surface); mode river clears a river's voxel water within the radius (for good) and draws it as a skin at its unfloored surface (level unused); mode clear removes both; mode find lists the deepest closed hollows within level metres of x,z, each bounded by the radius.")]
     public string WaterStudy(string mode, double x, double z, double level, long radius) => terrain.WaterStudy(mode, x, z, level, radius);
 

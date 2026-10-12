@@ -59,9 +59,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// rivers by their flow under a water budget, realistic widths and depths, and tilts the frontier
     /// peninsula's interior west so its great river reaches the start's sea port on every seed (#9874); version
     /// 31 carves lakes after erosion - valleys behind rock sills, closed basins in dry country at their
-    /// evaporation balance - kept as hollows in the saved heights (#9876).
+    /// evaporation balance - kept as hollows in the saved heights (#9876); version 32 takes water out of the
+    /// voxels: the sea, rivers and lakes are surfaces at their own heights (WaterRules), region tiles hold
+    /// lake beds below their level, and the air over a submerged column stays air (#9877).
     /// </summary>
-    internal const uint CurrentVersion = 31;
+    internal const uint CurrentVersion = 32;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

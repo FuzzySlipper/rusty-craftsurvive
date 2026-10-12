@@ -66,7 +66,7 @@ internal sealed class FarField : IDisposable
         sampler = new Sampler(recipe, (int)ground.Settings.TransitionCells);
         try
         {
-            water = engine.Graphics.CreateMaterial(new MaterialRequest(MapPalette.River.Linear(), default, 1f, ColourSpace.White,
+            water = engine.Graphics.CreateMaterial(new MaterialRequest(MapPalette.FarWater.Linear(), default, 1f, ColourSpace.White,
                 Vector3.Zero, 0f, false, MaterialAlphaMode.Opaque, 0f));
         }
         catch
@@ -102,9 +102,18 @@ internal sealed class FarField : IDisposable
             double before = sinkOuter;
             (sinkInner, sinkOuter) = (inner, outer);
             Publish();
-            InvalidateAround(sinkCentre, Math.Max(before, sinkOuter));
+            InvalidateAround(sinkCentre, Math.Max(Changed(before), Changed(sinkOuter)));
         }
     }
+
+    /// <summary>Where the sunk zone is centred, and how far its band reaches (Chebyshev metres): the near water squares to it (#9877).</summary>
+    internal (double X, double Z) SinkCentre => sinkCentre;
+
+    internal double SinkOuter => sinkOuter;
+
+    /// <summary>How far a move of the sunk zone changes the far field: its band, or the near water's square, whichever reaches farther.</summary>
+    private static double Changed(double outer) =>
+        Math.Max(outer, (Water.WaterSurfaces.TileRadius(outer) + 1.0) * Water.WaterSurfaces.TileMetres);
 
     /// <summary>Keeps the ring centred on the player, and the sunk zone under them.</summary>
     internal void Follow(long worldX, long worldZ)
@@ -122,8 +131,8 @@ internal sealed class FarField : IDisposable
         sinkCentre = (worldX, worldZ);
         // The frame the workers sample by changes first, so nothing invalidated is sampled again by the old one.
         Publish();
-        InvalidateAround(previous, sinkOuter);
-        InvalidateAround(sinkCentre, sinkOuter);
+        InvalidateAround(previous, Changed(sinkOuter));
+        InvalidateAround(sinkCentre, Changed(sinkOuter));
     }
 
     /// <summary>Commits a bounded number of sampled tiles and starts sampling the next.</summary>
@@ -216,7 +225,9 @@ internal sealed class FarField : IDisposable
 
                 ground[at] = recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
                 geography[at] = recipe.Geography(x, z);
-                waterTop[at] = FarGround.WaterTop(geography[at]);
+                // Inside the near water's square the near surfaces draw the water (#9877): here only the bed.
+                waterTop[at] = !double.IsNaN(now.SinkCentre.X) && Water.WaterSurfaces.Covers(now.SinkCentre, now.Outer, x, z)
+                    ? double.NegativeInfinity : FarGround.WaterTop(geography[at]);
             }
 
             for (int j = -1; j <= side; j++)

@@ -63,10 +63,13 @@ internal static class ErosionChecks
             MapSample centre = map.Sample(wide.X, wide.Z);
             Check.That(centre.InRiver && centre.Detail == 0 && centre.Elevation < centre.RiverSurface,
                 "a river centreline is a quiet channel below its water surface");
-            TerrainChunkGenerator generator = new(recipe);
-            long waterTop = (long)Math.Floor(centre.RiverSurface);
-            TerrainChunk chunk = generator.Generate(new VoxelAddress((long)wide.X, waterTop, (long)wide.Z).Chunk, new(seed, []));
-            Check.That(chunk.Materials.Span.Contains((ushort)BlockId.Water), "local terrain holds water in an inland river above the sea");
+            // Water is a surface, not voxels (#9877): the column's water stands at the river's own surface over its ground.
+            long cx = (long)Math.Round(wide.X), cz = (long)Math.Round(wide.Z);
+            TerrainColumn column = recipe.ColumnAt(cx, cz);
+            MapSample here = recipe.Geography(cx, cz);
+            Check.That(here.InRiver && column.WaterSurface == here.RiverSurface && column.WaterSurface > recipe.ContinuousHeightAt(cx, cz)
+                && column.WaterSurface > GenerationConstants.WaterLevel,
+                $"local terrain holds water in an inland river above the sea, at the river's own surface ({column.WaterSurface:F2} over {recipe.ContinuousHeightAt(cx, cz):F2})");
 
             // Climate follows terrain: the wettest and driest land differ, and both extremes exist.
             Check.That(biomes.Contains(MapBiome.Desert) || biomes.Contains(MapBiome.Shrubland) || biomes.Contains(MapBiome.ColdSteppe),

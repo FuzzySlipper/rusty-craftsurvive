@@ -5,12 +5,16 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// <summary>
 /// Geography at one point. Rock is exposed bedrock (0 soil .. 1 bare stone); Detail is how much
 /// local relief the place may carry; Protection is a policy core local relief must leave alone;
-/// RiverSurface is the water level of a channel covering the point, or negative infinity.
+/// RiverSurface is the water level of a channel covering the point, or negative infinity;
+/// LakeSurface the level of a lake whose basin covers it (#9877), or negative infinity - the
+/// point is under that lake where its ground lies below the level.
 /// </summary>
 internal readonly record struct MapSample(double Elevation, double Temperature, double Moisture,
-    double Rock, double Detail, double Protection = 0, double RiverSurface = double.NegativeInfinity)
+    double Rock, double Detail, double Protection = 0, double RiverSurface = double.NegativeInfinity,
+    double LakeSurface = double.NegativeInfinity)
 {
     internal bool InRiver => !double.IsNegativeInfinity(RiverSurface);
+    internal bool InLake => !double.IsNegativeInfinity(LakeSurface);
 }
 
 /// <summary>
@@ -119,6 +123,12 @@ internal sealed class WorldMap
         }
         // A region tile's rivers are its continent's drainage, which the regions draw over every tile alike.
         else Rivers = MapRivers.Empty;
+        foreach (Lake lake in Lakes)
+            foreach (int node in lake.Basin)
+            {
+                basinLevel[node] = Math.Max(basinLevel.GetValueOrDefault(node, double.NegativeInfinity), lake.Level);
+                basinLake[node] = lake;
+            }
         Fingerprint = ComputeFingerprint();
         Sites = region is null ? FindSites() : [];
     }
@@ -151,8 +161,35 @@ internal sealed class WorldMap
     /// </summary>
     internal MapSample Sample(double x, double z)
     {
-        MapSample broad = Broad(x, z);
+        MapSample broad = Broad(x, z) with { LakeSurface = LakeLevelAt(x, z) };
         return Rivers.Nearest(Math.Clamp(x, -Radius, Radius), Math.Clamp(z, -Radius, Radius)) is RiverInfluence river ? Channel(broad, river) : broad;
+    }
+
+    private readonly Dictionary<int, double> basinLevel = [];
+    private readonly Dictionary<int, Lake> basinLake = [];
+
+    /// <summary>The lake whose basin holds a lattice node, if any (#9877).</summary>
+    internal Lake? LakeAtNode(int node) => basinLake.GetValueOrDefault(node);
+
+    /// <summary>The lake whose basin covers a point (the nearest lattice node's), if any.</summary>
+    internal Lake? LakeAt(double x, double z) =>
+        basinLake.Count == 0 || !double.IsFinite(x) || !double.IsFinite(z) ? null : LakeAtNode(Grid.Nearest(x, z));
+
+    /// <summary>
+    /// The level of the lake whose basin covers a point (#9877): any of the four lattice nodes about it
+    /// in a basin, the highest such level; negative infinity where there is none. Where the ground lies
+    /// below it, the point is under the lake.
+    /// </summary>
+    internal double LakeLevelAt(double x, double z)
+    {
+        if (basinLevel.Count == 0 || !double.IsFinite(x) || !double.IsFinite(z)) return double.NegativeInfinity;
+        double gx = (Math.Clamp(x, -Radius, Radius) + Radius) / Spacing, gz = (Math.Clamp(z, -Radius, Radius) + Radius) / Spacing;
+        int ix = Math.Min((int)gx, Segments - 1), iz = Math.Min((int)gz, Segments - 1);
+        double level = double.NegativeInfinity;
+        for (int dz = 0; dz <= 1; dz++)
+        for (int dx = 0; dx <= 1; dx++)
+            if (basinLevel.TryGetValue(((iz + dz) * Side) + ix + dx, out double l)) level = Math.Max(level, l);
+        return level;
     }
 
     /// <summary>The smooth geography at a point without river channels: what a region tile refines (#9550).</summary>

@@ -168,7 +168,7 @@ internal sealed class HorizonGround : IHeightfieldSampler
     /// <summary>The top of a map sample as the horizon draws it: water's surface over the ground, and any exaggeration.</summary>
     private static double Top(MapSample sample, Frame now)
     {
-        double top = Math.Max(sample.InRiver ? Math.Max(sample.Elevation, sample.RiverSurface) : sample.Elevation, GenerationConstants.WaterLevel);
+        double top = Math.Max(sample.Elevation, WaterRules.Surface(sample));
         return now.Exaggeration == 1 ? top : now.ExaggerationBase + ((top - now.ExaggerationBase) * now.Exaggeration);
     }
 
@@ -184,6 +184,7 @@ internal sealed class HorizonGround : IHeightfieldSampler
     internal static Color Paint(MapSample sample, RiverInfluence? river, double riverReach)
     {
         if (sample.Elevation < GenerationConstants.WaterLevel) return MapPalette.For(MapBiome.Sea);
+        if (sample.InLake && sample.Elevation < sample.LakeSurface) return MapPalette.Lake;
         if (river is RiverInfluence near && near.Distance < near.HalfWidth + riverReach) return MapPalette.River;
         double share = WorldMap.Smooth(Math.Clamp((sample.Rock - RockShowsFrom) / (RockWhole - RockShowsFrom), 0, 1));
         // The environment under the rock, not the biome the rock itself makes: rocky ground classifies as

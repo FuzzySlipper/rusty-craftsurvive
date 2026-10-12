@@ -617,6 +617,7 @@ internal sealed class WorldMapVoxelView : IDisposable
                 // The detail patch carries the same regional relief walking terrain adds to the map.
                 surface[i] = origin + Top(sample, worldX, worldZ, localRelief) / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
                 material[i] = sample.Elevation < GenerationConstants.WaterLevel ? Slot(MapBiome.Sea)
+                    : sample.InLake && sample.Elevation < sample.LakeSurface ? RiverSlot
                     : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + cellMetres * riverReach ? RiverSlot
                     : sample.Rock >= ExposedRock ? RockSlot
                     : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
@@ -651,7 +652,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         double ground = localRelief
             ? sample.Elevation + EdgeFade(worldX, worldZ) * RegionalTerrain.Relief(map.Configuration.Contract.GeographyNoiseSeed, sample, worldX, worldZ)
             : sample.Elevation;
-        return Math.Max(sample.InRiver ? Math.Max(ground, sample.RiverSurface) : ground, GenerationConstants.WaterLevel);
+        return Math.Max(ground, WaterRules.Surface(sample));
     }
 
     /// <summary>1 inside the patch, easing to 0 at its edge.</summary>

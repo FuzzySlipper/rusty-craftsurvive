@@ -46,9 +46,12 @@ internal sealed class WorldMapPresentation : IDisposable
         {
             int i = z * side + x, node = z * stride * map.Side + x * stride;
             MapSample sample = map.Node(node);
-            positions[i] = Point(map.Coordinate(x * stride), sample.Elevation, map.Coordinate(z * stride));
+            // A lake stands at its level over its bed, in its kind's colour (#9877).
+            Lake? lake = map.LakeAtNode(node) is Lake l && sample.Elevation < l.Level ? l : null;
+            positions[i] = Point(map.Coordinate(x * stride), lake?.Level ?? sample.Elevation, map.Coordinate(z * stride));
             uvs[i] = new(x / (float)segments, z / (float)segments);
-            colors[i] = (RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample)).Linear();
+            colors[i] = (lake is not null ? MapPalette.LakeColour(lake.Kind)
+                : RiverIn(map, x * stride, z * stride, stride) ? MapPalette.River : MapPalette.Tint(sample)).Linear();
         }
         for (int z = 0; z < side; z++)
         for (int x = 0; x < side; x++)

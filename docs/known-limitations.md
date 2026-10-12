@@ -55,16 +55,24 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     at sea level.
   - River courses follow 8-direction drainage on the 32 m lattice. Smoothing and meanders
     break up the lattice, but long reaches across filled plains can still read as straight.
-    Voxel river water steps a metre at a time on steep reaches; it does not flow.
+    Water is drawn as surfaces at its own height (#9877), but it does not flow, and its
+    stage does not yet change with weather or season.
     Rivers are sized by a fixed water budget, not by the season or the weather, and the
     great river can still be ruler-straight for hundreds of metres across its lowland.
   - The map view draws the continent's kilometre rivers, while walking terrain, the water network
     and the settlements follow the 250 m drainage; the two agree on the great rivers' layout but
     can place a lowland channel kilometres apart, and the walked flows run about a third lower.
-  - A continent's lakes (valley lakes, closed salt lakes and playas) are carved on the kilometre map,
-    but walking terrain does not yet hold their water: region tiles fill the hollow to dry ground, and
-    the map view does not draw them. Smaller lakes (tarns, ponds, oxbows) are not generated, and
-    regional worlds have none.
+  - Water is not voxels (#9877). One rule (`WaterRules`) gives the sea, a river's surface over its
+    channel and a lake's level over its basin, and the water owner (`Modules/Water/WaterModel`) answers
+    it for the walking world. Near the player, water is drawn as meshes in 64 m tiles with the Engine's
+    water look, in a square matched to the far field's sunk band. The far field draws water as one flat
+    colour beyond that square, so from high up the near square reads darker over deep water.
+    - Building under the waterline does not displace water: the surface shows through a built room or
+      basement below it.
+    - Narrow streams (about 3 m) can hide under their dual-contoured banks at a grazing view.
+    - A lake's shore follows its 1 km basin, so a lake can end in a straight edge where the basin does.
+    - Smaller lakes (tarns, ponds, oxbows) are not generated, and regional worlds have none. The map
+      view draws lakes (fresh, salt, playa); the faceted relief draws all of them as fresh water.
   - Settlements (the sea port, river towns and the mountain hold) are map places only: there are no
     town scenes yet, and the expedition does not yet start at the port.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans

@@ -43,10 +43,8 @@ internal static class FarGround
         return SinkMetres * (1d - (t * t * (3d - (2d * t))));
     }
 
-    /// <summary>Where water stands at a place: a river's surface over its channel, else the sea.</summary>
-    internal static double WaterTop(MapSample geography) => geography.InRiver
-        ? Math.Max(GenerationConstants.WaterLevel, Math.Floor(geography.RiverSurface))
-        : GenerationConstants.WaterLevel;
+    /// <summary>Where water stands at a place (<see cref="WaterRules"/>): the sea, a river's surface or a lake's level, unfloored (#9877).</summary>
+    internal static double WaterTop(MapSample geography) => WaterRules.Surface(geography);
 
     /// <summary>
     /// A far cell's natural material: rock where the map says so or the ground is steep (<paramref name="rise"/>,

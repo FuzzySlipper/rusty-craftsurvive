@@ -45,6 +45,25 @@ internal static class MapPalette
     internal static readonly (string Ramp, int Step) StoneSource = ("stone", 2), RiverSource = ("water", 2);
     internal static readonly Color Stone = Hex(0x6f6a62);
     internal static readonly Color River = Hex(0x3f7378);
+
+    /// <summary>
+    /// The far field's water (#9877): matched by eye to the near water surfaces seen at the far field's edge
+    /// (their depth colour and sky), so the hand-over reads as one water.
+    /// </summary>
+    internal static readonly Color FarWater = Hex(0x3b6683);
+
+    /// <summary>Lakes (#9877): fresh water as deep as a river's, a salt lake pale and milky, a playa a dry salt-crusted tan.</summary>
+    internal static readonly Color Lake = Hex(0x335f74);
+    internal static readonly Color SaltLake = Hex(0x9fbcc0);
+    internal static readonly Color Playa = Hex(0xcdbf9c);
+
+    /// <summary>The colour a lake of a kind is drawn in on the map and the horizon.</summary>
+    internal static Color LakeColour(LakeKind kind) => kind switch
+    {
+        LakeKind.Salt => SaltLake,
+        LakeKind.Playa => Playa,
+        _ => Lake,
+    };
     /// <summary>A settlement's marker (#9817, #9875): a banner red from the cloth ramp.</summary>
     internal static readonly (string Ramp, int Step) TownSource = ("cloth", 2);
     internal static readonly Color Town = Hex(0xa5463a);

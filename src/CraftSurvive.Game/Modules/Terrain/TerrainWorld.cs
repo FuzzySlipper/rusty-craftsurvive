@@ -71,6 +71,8 @@ internal sealed class TerrainWorld : IDisposable
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
         presentation = new TerrainPresentation(engine, content);
         trees = new TerrainTrees(engine, content, frame);
+        Water = new Water.WaterModel(recipe);
+        waterSurfaces = new Water.WaterSurfaces(engine, frame, Water);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
             committed => Edited?.Invoke(committed), requested => TreeFelling.Dependents(requested, recipe, MaterialAt));
     }
@@ -80,6 +82,19 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The generation recipe, for the modules that reason about the generated world.</summary>
     internal TerrainRecipe Recipe => recipe;
+
+    /// <summary>Where water stands in the walking world (#9877): the one owner every water question asks.</summary>
+    internal Water.WaterModel Water { get; }
+
+    private readonly Water.WaterSurfaces waterSurfaces;
+
+    /// <summary>The near water surfaces' draw facts (#9877).</summary>
+    internal AppearanceFact[] WaterFacts => waterSurfaces.Facts;
+
+    internal string WaterReadout() => waterSurfaces.Readout();
+
+    /// <summary>After an appearance snapshot is published: retired water tiles may now be disposed.</summary>
+    internal void AfterAppearanceSnapshot() => waterSurfaces.AfterAppearanceSnapshot();
 
     internal LandscapeSampleSpace CreateLandscapeStudy(LandscapeStudy study) =>
         new(engine, content, study);
@@ -190,6 +205,7 @@ internal sealed class TerrainWorld : IDisposable
         farField?.Dispose();
         farField = null;
         trees.Dispose();
+        waterSurfaces.Dispose();
         study?.Dispose();
         waterStudy?.Dispose();
         presentation.Dispose();
@@ -216,6 +232,12 @@ internal sealed class TerrainWorld : IDisposable
         {
             far.Follow(centerVoxel.X, centerVoxel.Z);
             far.Advance();
+            // The near water squares to the far field's sunk zone, which leaves its water out there.
+            waterSurfaces.Follow(far.SinkCentre, far.SinkOuter);
+        }
+        else
+        {
+            waterSurfaces.Follow((centerVoxel.X + 0.5, centerVoxel.Z + 0.5), NearEdgeMetres);
         }
     }
 

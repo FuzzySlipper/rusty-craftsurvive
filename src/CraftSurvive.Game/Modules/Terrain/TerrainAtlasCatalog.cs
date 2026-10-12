@@ -46,7 +46,8 @@ internal sealed class TerrainAtlasCatalog : IDisposable
     private const float WaterFoamThreshold = 0.55f;
     private static readonly Vector2 WaterFoamScroll = new(0.03f, 0.02f);
     private static readonly Vector2 WaterRippleScroll = new(-0.025f, 0.035f);
-    private const float WaterWaveScale = 2.5f;
+    // Ripples repeat every this many metres; at 2.5 the pattern read as a grid at eye level (#9877).
+    private const float WaterWaveScale = 7f;
 
     private readonly AuthoredCatalog catalog;
     private readonly TerrainAtlasLayout layout;

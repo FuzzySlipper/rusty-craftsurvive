@@ -690,7 +690,7 @@ internal sealed class PlayerController : IDisposable
         ClimbGrip grip = climbHeld
             ? letGoPending || Stamina.Exhausted ? ClimbGrip.None : ClimbGrip.Holding
             : takeHoldSeconds > 0d && Stamina.CanTakeHold ? ClimbGrip.Taking : ClimbGrip.None;
-        if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement)
+        if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement, away is null ? terrain.Water : null)
             || (!jumpPending && climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance,
                 lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)))
         {

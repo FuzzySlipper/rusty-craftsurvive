@@ -79,8 +79,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
     internal TerrainColumn ColumnAt(long x, long z)
     {
         if (x < -radius || x > radius || z < -radius || z > radius) return default;
-        (long surface, long waterTop, MapSample geography) = Ground(x, z);
-        return new TerrainColumn(surface, CardinalSlope(x, z, surface), waterTop, geography);
+        (long surface, double waterSurface, MapSample geography) = Ground(x, z);
+        return new TerrainColumn(surface, CardinalSlope(x, z, surface), waterSurface, geography);
     }
 
     /// <summary>
@@ -123,16 +123,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         ushort material = NaturalMaterialAt(address, column);
 
-        // Water fills open air up to the column's water top: the sea along coasts and in
-        // basins, and a river's surface inside its channel. It deliberately does not flood
-        // enclosed space below the ground - a cave under the sea stays a cave - because it
-        // only fills where the column's own surface is below the water line.
-        if (material == TerrainConstants.EmptyMaterial
-            && address.Y <= column.WaterTop
-            && address.Y > column.Surface)
-        {
-            return (ushort)BlockId.Water;
-        }
+        // Water is not voxels (#9877): the air over a submerged column stays air, and the water
+        // surfaces, the swim volume and every view read where water stands from WaterRules.
 
         // Features only fill air, so they never displace terrain: a canopy that
         // meets a slope loses to the slope rather than leaving a floating leaf.
@@ -154,6 +146,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     private bool IsWorldWall(long x, long z, long y, TerrainColumn column) =>
         y >= MinimumMaterialYValue && y <= WallTop(column) && IsWallColumn(x, z);
+
+    /// <summary>The highest cell any part of which lies under a water surface.</summary>
+    private static long CellUnder(double surface) => (long)Math.Ceiling(surface) - 1;
 
     private static long WallTop(TerrainColumn column) =>
         Math.Max(column.Surface, column.WaterTop) + GenerationConstants.WorldWallRise;
@@ -301,22 +296,22 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private long TerrainSurface(long x, long z) => Ground(x, z).Surface;
 
-    /// <summary>The rounded surface, its water top, and the geography both came from.</summary>
-    private (long Surface, long WaterTop, MapSample Geography) Ground(long x, long z)
+    /// <summary>The rounded surface, the water surface over it (<see cref="WaterRules"/>), and the geography both came from.</summary>
+    private (long Surface, double WaterSurface, MapSample Geography) Ground(long x, long z)
     {
         MapSample geography = Geography(x, z);
         long surface = (long)Math.Round(ContinuousHeight(geography, x, z), MidpointRounding.AwayFromZero);
-        long waterTop = geography.InRiver
-            ? Math.Max(GenerationConstants.WaterLevel, (long)Math.Floor(geography.RiverSurface))
-            : GenerationConstants.WaterLevel;
-        return (surface, waterTop, geography);
+        return (surface, WaterRules.Surface(geography), geography);
     }
 
     /// <summary>The generated surface height at a column, for callers that must reason about the world.</summary>
     internal long SurfaceAt(long x, long z) => TerrainSurface(x, z);
 
-    /// <summary>The highest water voxel over a column: the sea's level, or a river's surface in its channel.</summary>
-    internal long WaterTopAt(long x, long z) => Ground(x, z).WaterTop;
+    /// <summary>The highest cell under water over a column (<see cref="TerrainColumn.WaterTop"/>).</summary>
+    internal long WaterTopAt(long x, long z) => ColumnAt(x, z).WaterTop;
+
+    /// <summary>The water surface over a column, in fractional metres: the sea, a river's surface or a lake's level.</summary>
+    internal double WaterSurfaceAt(long x, long z) => Ground(x, z).WaterSurface;
 
     /// <summary>The half-extent of the finite world this recipe generates.</summary>
     internal long Radius => radius;
@@ -335,10 +330,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
         for (long z = chunkZ * edge; z < chunkZ * edge + edge; z++)
         {
             if (x < -radius || x > radius || z < -radius || z > radius) continue;
-            (long surface, long waterTop, _) = Ground(x, z);
+            (long surface, double water, _) = Ground(x, z);
             lowest = Math.Min(lowest, surface);
-            long top = Math.Max(surface, waterTop);
-            highest = Math.Max(highest, IsWallColumn(x, z) ? top + GenerationConstants.WorldWallRise : top);
+            // Water is not voxels (#9877): only the wall stands to the water's height.
+            highest = Math.Max(highest, IsWallColumn(x, z) ? Math.Max(surface, CellUnder(water)) + GenerationConstants.WorldWallRise : surface);
         }
         (long, long) band = lowest == long.MaxValue
             ? (1, 0)
@@ -395,18 +390,13 @@ internal sealed class TerrainRecipe : ITerrainColumns
                     continue;
                 }
 
-                (long surface, long waterTop, _) = Ground(x, z);
+                (long surface, double water, _) = Ground(x, z);
                 if (surface >= yMinimum)
                 {
                     return true;
                 }
 
-                if (surface < waterTop && yMinimum <= waterTop)
-                {
-                    return true;
-                }
-
-                if (IsWallColumn(x, z) && yMinimum <= Math.Max(surface, waterTop) + GenerationConstants.WorldWallRise)
+                if (IsWallColumn(x, z) && yMinimum <= Math.Max(surface, CellUnder(water)) + GenerationConstants.WorldWallRise)
                 {
                     return true;
                 }
@@ -573,6 +563,13 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>Whether the chunk overlaps the authored border wall's band.</summary>
     /// <summary>The unquantized height at a column's sample centre; DC receives this shape instead of stair steps.</summary>
     internal double ContinuousHeightAt(long x, long z) => ContinuousHeight(Geography(x, z), x, z);
+
+    /// <summary>The ground's continuous height at a column and the geography it came from, in one sampling (#9877).</summary>
+    internal (double Ground, MapSample Geography) GroundAt(long x, long z)
+    {
+        MapSample geography = Geography(x, z);
+        return (ContinuousHeight(geography, x, z), geography);
+    }
 
     private double ContinuousHeight(MapSample geography, long x, long z) =>
         Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
