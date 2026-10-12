@@ -120,6 +120,7 @@ try
         Check.Section("the continent's bounds", () => FrontierChecks.Continent(continent.Map));
         Check.Section("the horizon's heightfield ground", () => HorizonGroundChecks.Run(continent.Map));
         Check.Section("the water network and its settlements", () => NetworkChecks.Run(continent.Map));
+        Check.Section("lakes", () => LakeChecks.Run(continent.Map));
         ContinentalTerrainChecks(continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map));
     });
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))

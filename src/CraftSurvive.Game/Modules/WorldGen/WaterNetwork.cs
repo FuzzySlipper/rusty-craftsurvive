@@ -37,6 +37,12 @@ internal sealed record Reach(
     internal int Outlet => Nodes[^1];
 }
 
+/// <summary>
+/// A lake in the network (#9876), as storage: its lattice nodes, the reaches that flow into it and the one
+/// that flows on from it (none for a closed lake), with the map's lake for its level, spill and level-area.
+/// </summary>
+internal sealed record LakeNode(int Id, Lake Lake, int[] Nodes, int[] Inflows, int Outflow);
+
 /// <summary>Where reaches join: the node, the reaches flowing in and the one flowing on.</summary>
 internal sealed record Confluence(int Node, int[] Inflows, int Outflow);
 
@@ -74,8 +80,9 @@ internal sealed class WaterNetwork
     private const double SecondsPerHour = 3600;
 
     private WaterNetwork(MapGrid grid, IReadOnlyList<Reach> reaches, IReadOnlyList<Confluence> confluences, BitArray floodplain,
-        IReadOnlyList<int> boatHeads, IReadOnlyList<int> canoeHeads, bool[] boatToSea, bool[] canoeToSea)
+        IReadOnlyList<int> boatHeads, IReadOnlyList<int> canoeHeads, bool[] boatToSea, bool[] canoeToSea, IReadOnlyList<LakeNode> lakes)
     {
+        Lakes = lakes;
         Grid = grid;
         Reaches = reaches;
         Confluences = confluences;
@@ -92,6 +99,9 @@ internal sealed class WaterNetwork
     internal MapGrid Grid { get; }
     internal IReadOnlyList<Reach> Reaches { get; }
     internal IReadOnlyList<Confluence> Confluences { get; }
+
+    /// <summary>The lakes as storage nodes (#9876).</summary>
+    internal IReadOnlyList<LakeNode> Lakes { get; }
 
     /// <summary>Reaches that reach the sea.</summary>
     internal IEnumerable<Reach> Mouths => Reaches.Where(reach => reach.Mouth);
@@ -123,8 +133,9 @@ internal sealed class WaterNetwork
     /// <param name="paths">The drainage's reaches as node paths (<see cref="MapRivers.Trace"/>).</param>
     /// <param name="moistureAt">The climate's moisture at a world point, for how much a river swells.</param>
     /// <param name="sea">Whether a lattice node is the continent's sea (not a flooded lowland inland).</param>
+    /// <param name="lakes">The continent's lakes, and which of them (by id) covers a lattice node, or -1.</param>
     internal static WaterNetwork Build(MapGrid grid, MapFlow flow, float[] elevation, float[] discharge, IReadOnlyList<int[]> paths,
-        Func<double, double, double> moistureAt, Func<int, bool> sea)
+        Func<double, double, double> moistureAt, Func<int, bool> sea, IReadOnlyList<Lake>? lakes = null, Func<int, int>? lakeAt = null)
     {
         Dictionary<int, int> startingAt = [];
         for (int r = 0; r < paths.Count; r++) startingAt[paths[r][0]] = r;
@@ -181,7 +192,33 @@ internal sealed class WaterNetwork
 
         bool[] boatToSea = FromSea(reaches, Navigability.Boat), canoeToSea = FromSea(reaches, Navigability.Canoe);
         return new(grid, reaches, confluences, Floodplain(grid, elevation, reaches),
-            Heads(reaches, boatToSea), Heads(reaches, canoeToSea), boatToSea, canoeToSea);
+            Heads(reaches, boatToSea), Heads(reaches, canoeToSea), boatToSea, canoeToSea, LakeNodes(grid, reaches, lakes ?? [], lakeAt));
+    }
+
+    /// <summary>
+    /// Each lake's lattice nodes and the reaches that enter it (a node outside, then one inside) and leave it
+    /// (a node inside, then one outside: the largest such reach is its outflow).
+    /// </summary>
+    private static LakeNode[] LakeNodes(MapGrid grid, Reach[] reaches, IReadOnlyList<Lake> lakes, Func<int, int>? lakeAt)
+    {
+        if (lakes.Count == 0 || lakeAt is null) return [];
+        List<int>[] nodes = [.. lakes.Select(_ => new List<int>())];
+        for (int i = 0; i < grid.Count; i++)
+            if (lakeAt(i) is int lake and >= 0) nodes[lake].Add(i);
+        List<int>[] inflows = [.. lakes.Select(_ => new List<int>())];
+        int[] outflow = [.. lakes.Select(_ => -1)];
+        foreach (Reach reach in reaches)
+        {
+            for (int k = 1; k < reach.Nodes.Length; k++)
+            {
+                int before = lakeAt(reach.Nodes[k - 1]), after = lakeAt(reach.Nodes[k]);
+                if (after >= 0 && before != after && !inflows[after].Contains(reach.Id)) inflows[after].Add(reach.Id);
+                if (before >= 0 && before != after && !lakes[before].Closed
+                    && (outflow[before] < 0 || reaches[outflow[before]].Flow < reach.Flow)) outflow[before] = reach.Id;
+            }
+        }
+
+        return [.. lakes.Select(lake => new LakeNode(lake.Id, lake, [.. nodes[lake.Id]], [.. inflows[lake.Id]], outflow[lake.Id]))];
     }
 
     /// <summary>Which reaches a craft can reach from the sea: navigable all the way down to a mouth.</summary>

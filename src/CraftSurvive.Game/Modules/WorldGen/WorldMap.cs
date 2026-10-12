@@ -107,7 +107,9 @@ internal sealed class WorldMap
 
         if (region is null)
         {
-            bool[] outlet = MapFlow.Outlets(Grid, elevation);
+            // Lakes are found again from the saved fields (#9876); a closed one is a sink, as generation routed it.
+            Lakes = MapLakes.Find(Grid, fields.Elevation, fields.Discharge, fields.Temperature, ContinentDesign.For(configuration.Size));
+            bool[] outlet = MapLakes.Outlets(Grid, elevation, Lakes);
             if (!outlet.Any(o => o)) throw new ArgumentException("Map has nowhere to drain.");
             double[] filled = (double[])elevation.Clone();
             double[] ones = new double[count];
@@ -128,6 +130,9 @@ internal sealed class WorldMap
     internal MapGrid Grid { get; }
     internal MapFields Fields => fields;
     internal MapRivers Rivers { get; }
+
+    /// <summary>The map's lakes (#9876), found from its saved fields; none on a region tile, whose continent holds them.</summary>
+    internal IReadOnlyList<Lake> Lakes { get; } = [];
     internal int Segments => Grid.Segments;
     internal int Side => Grid.Side;
     internal double Spacing => Grid.Spacing;

@@ -15,16 +15,16 @@ internal static class TownCensus
 {
     private const int Scale = 2;
 
-    private sealed record Row(ulong Seed, double Seconds, WaterNetwork Network, IReadOnlyList<Settlement> Settlements, double FloodplainKm2);
+    private sealed record Row(ulong Seed, double Seconds, WaterNetwork Network, IReadOnlyList<Settlement> Settlements, double FloodplainKm2, IReadOnlyList<Lake> Lakes);
 
-    internal static int Run(Dictionary<string, List<string>> options, int size, ContinentDesign? design, string output)
+    internal static int Run(Dictionary<string, List<string>> options, int size, MapRecipe recipe, ContinentDesign? design, string output)
     {
         ulong[] seeds = [.. options["towns"].SelectMany(Seeds)];
         Directory.CreateDirectory(output);
         Row[] rows = new Row[seeds.Length];
         // Each seed's drainage is itself parallel; a few seeds at once keep the machine busy without thrashing.
         Parallel.For(0, seeds.Length, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 6) }, k =>
-            rows[k] = Census(seeds[k], size, design, output));
+            rows[k] = Census(seeds[k], size, recipe, design, output));
 
         StringBuilder table = new();
         void Line(string text)
@@ -48,6 +48,19 @@ internal static class TownCensus
         }
 
         Line(Invariant($"ports that shelter and flat land chose over a larger river: {rows.Count(r => r.Settlements.Any(s => s.Kind == SettlementKind.Port && !s.LargestFlow))}/{rows.Length}"));
+        if (rows.Any(r => r.Lakes.Count > 0))
+        {
+            Line("lakes (kind: area km2, depth m, closed, inflow m3/s, evaporation m/yr; outflow reach flow):");
+            foreach (Row r in rows)
+                Line(Invariant($"  {r.Seed,-6} {string.Join("; ", r.Lakes.Select(l => Invariant($"{l.Kind} {l.AreaSquareKilometres:F0} km2 {l.MaximumDepth:F0} m{(l.Closed ? " closed" : "")} in {l.InflowFlow:F0} ev {l.EvaporationMetres:F1}{(r.Network.Lakes.FirstOrDefault(n => n.Id == l.Id) is { Outflow: >= 0 } node ? Invariant($" out {r.Network.Reaches[node.Outflow].Flow:F0}") : "")}")))}"));
+            foreach (LakeKind kind in Enum.GetValues<LakeKind>())
+            {
+                Lake[] all = [.. rows.SelectMany(r => r.Lakes).Where(l => l.Kind == kind)];
+                if (all.Length > 0)
+                    Line(Invariant($"  {kind}: {all.Length} over {rows.Length} seeds; area {all.Min(l => l.AreaSquareKilometres):F0}-{all.Max(l => l.AreaSquareKilometres):F0} km2 (median {all.Select(l => l.AreaSquareKilometres).Order().ElementAt(all.Length / 2):F0}), depth up to {all.Max(l => l.MaximumDepth):F0} m"));
+            }
+        }
+
         int full = rows.Count(r => r.Settlements.Count(s => s.Kind == SettlementKind.Town) == Settlements.TownCount);
         double upShare = rows.Average(r =>
         {
@@ -62,11 +75,11 @@ internal static class TownCensus
         return 0;
     }
 
-    private static Row Census(ulong seed, int size, ContinentDesign? design, string output)
+    private static Row Census(ulong seed, int size, MapRecipe recipe, ContinentDesign? design, string output)
     {
         TerrainConfiguration configuration = new(seed, size);
         Stopwatch clock = Stopwatch.StartNew();
-        WorldMap map = new(configuration, MapSimulation.Run(configuration, MapRecipe.Default, design));
+        WorldMap map = new(configuration, MapSimulation.Run(configuration, recipe, design));
         MapDrainage drainage = new(map);
         IReadOnlyList<Settlement> settlements = Settlements.Choose(map, design, drainage);
         double seconds = clock.Elapsed.TotalSeconds;
@@ -75,7 +88,7 @@ internal static class TownCensus
         int plain = 0;
         for (int i = 0; i < grid.Count; i++) if (network.OnFloodplain(i)) plain++;
         Draw(map, drainage, settlements, design).Save(Path.Combine(output, $"towns-{seed}.png"));
-        return new(seed, seconds, network, settlements, plain * grid.Spacing * grid.Spacing / 1e6);
+        return new(seed, seconds, network, settlements, plain * grid.Spacing * grid.Spacing / 1e6, map.Lakes);
     }
 
     /// <summary>The map at half the drainage lattice: land by height, floodplain tinted, rivers by class, settlements ringed.</summary>
@@ -97,6 +110,17 @@ internal static class TownCensus
             (double R, double G, double B) colour = ((0.3 + (0.6 * v)) * dim, (0.42 + (0.5 * v)) * dim, (0.25 + (0.6 * v)) * dim);
             if (network.OnFloodplain(i)) colour = (colour.R * 0.75, colour.G * 0.85, colour.B * 1.1 + 0.08);
             image.Set(x, y, colour);
+        }
+
+        foreach (LakeNode lake in network.Lakes)
+        {
+            (double, double, double) water = lake.Lake.Kind switch
+            {
+                LakeKind.Salt => (0.75, 0.85, 0.9),
+                LakeKind.Playa => (0.85, 0.8, 0.68),
+                _ => (0.2, 0.45, 0.8),
+            };
+            foreach (int node in lake.Nodes) image.Set(node % grid.Side / Scale, node / grid.Side / Scale, water);
         }
 
         foreach (Reach reach in network.Reaches)
@@ -138,6 +162,7 @@ internal static class TownCensus
         SettlementReason.BoatHead => "boathead",
         SettlementReason.CanoeHead => "canoehead",
         SettlementReason.Harbour => "harbour",
+        SettlementReason.LakeOutlet => "lake",
         _ => "mouth",
     };
 

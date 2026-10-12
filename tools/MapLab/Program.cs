@@ -34,7 +34,7 @@ const string Usage = """
                    unit of rain, default the game's 600), mouths a canoe, a river boat and the start port's great river can use
                    (m3/s, defaults 5, 40, 150), the best sheltered calm port river; writes census.txt and rivers-SEED.png
 
-    MapLab --towns SEEDS --size METRES [--design ...] [--out DIR]
+    MapLab --towns SEEDS --size METRES [--design ...] [--recipe ...] [--out DIR]
 
       --towns      the network and settlement census (#9875) over seeds: the walked drainage as data (reaches by
                    navigability, mouths, confluences, heads of navigation, floodplain) and the port and river towns
@@ -54,7 +54,7 @@ if (options.ContainsKey("towns") && options.ContainsKey("size"))
 {
     // The network and settlement census (#9875): the walked drainage as data and the towns chosen on it.
     int townSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
-    return TownCensus.Run(options, townSize, LoadDesign(townSize), options.TryGetValue("out", out List<string>? townOut) ? townOut[0] : "maplab-out");
+    return TownCensus.Run(options, townSize, LoadRecipe(), LoadDesign(townSize), options.TryGetValue("out", out List<string>? townOut) ? townOut[0] : "maplab-out");
 }
 
 if (options.ContainsKey("rivers") && options.ContainsKey("size"))

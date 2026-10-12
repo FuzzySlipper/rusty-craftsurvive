@@ -76,6 +76,9 @@ internal sealed record ContinentDesign
 
     public IReadOnlyList<DesignSite> Sites { get; init; } = [];
 
+    /// <summary>Lakes the design asks for (#9876): a basin carved at each, which fills or finds its own level.</summary>
+    public IReadOnlyList<DesignLake> Lakes { get; init; } = [];
+
     /// <summary>The highest crest any belt asks for, in metres.</summary>
     internal double HighestCrest => Belts.SelectMany(belt => belt.Points).Select(point => point.Length > 2 ? point[2] : 0).DefaultIfEmpty(0).Max();
 
@@ -399,6 +402,18 @@ internal sealed record DesignSite
     public string Kind { get; init; } = "";
 
     public double[] At { get; init; } = [0, 0];
+}
+
+/// <summary>A designed lake (#9876): a basin of this radius (map units) and depth (metres) carved at a point.</summary>
+internal sealed record DesignLake
+{
+    public string Name { get; init; } = "";
+
+    public double[] At { get; init; } = [0, 0];
+
+    public double Radius { get; init; } = 0.03;
+
+    public double Depth { get; init; } = 40;
 }
 
 internal static class DesignGeometry

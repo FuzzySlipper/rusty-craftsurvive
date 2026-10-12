@@ -84,19 +84,47 @@ internal static class MapSimulation
         MapErosion.Relax(grid, h, relief.Sea, tuning.TalusSlope, tuning.TalusIterations);
 
         double[] rain = climate.Rainfall(grid, h, relief.Sea, metres: true);
+        // Lakes (#9876, off unless the recipe asks): carved now, after erosion, and kept as hollows in the
+        // saved heights; everything else about them is found again from the saved fields.
+        MapLakes.Carve(grid, h, relief.Sea, rain, relief.Hardness, recipe.Lakes, design, seed);
+        double[] carved = (double[])h.Clone();
         // Save filled heights, then route exactly as a restored map will: from the rounded
         // single-precision heights alone, so saved discharge always matches rebuilt drainage.
         MapFlow.Fill(grid, h, MapFlow.Outlets(grid, h), MapFlow.FillGradient);
+        if (recipe.Lakes.Enabled) MapLakes.KeepHollows(grid, carved, h);
         float[] elevation = Round(h);
-        double[] routed = elevation.Select(v => (double)v).ToArray();
-        MapFlow flow = MapFlow.Route(grid, routed, MapFlow.Outlets(grid, routed), rain, MapFlow.FillGradient);
         double[] temperature = new double[grid.Count];
         for (int i = 0; i < grid.Count; i++) temperature[i] = climate.Temperature(grid.X(i), grid.Z(i), grid.Radius, h[i], peakElevation);
+        MapFlow flow = Route(grid, elevation, rain, Round(temperature), design, recipe.Lakes.Enabled);
         double[] moisture = climate.Moisture(rain, relief.Sea, temperature);
         for (int i = 0; i < grid.Count; i++)
             if (!relief.Sea[i]) moisture[i] = Math.Min(1, moisture[i] + RiparianMoisture * WorldMap.Smooth(Math.Clamp(flow.Discharge[i] / RiparianDischarge, 0, 1)));
 
         return new(grid, elevation, Round(temperature), Round(moisture), Round(relief.Hardness), Round(flow.Discharge));
+    }
+
+    /// <summary>The most times routing and a restored map's finding of closed lakes are brought to agree.</summary>
+    private const int LakeRoutingPasses = 4;
+
+    /// <summary>
+    /// Routes the saved heights as a restored map will. With lakes, a closed lake is a sink; which lakes
+    /// are closed depends on the discharge into them, so routing and <see cref="MapLakes.Find"/> are run
+    /// until they agree, as a restored map finds them from the saved discharge.
+    /// </summary>
+    private static MapFlow Route(MapGrid grid, float[] elevation, double[] rain, float[] temperature, ContinentDesign? design, bool lakes)
+    {
+        double[] heights = elevation.Select(v => (double)v).ToArray();
+        IReadOnlyList<Lake> found = [];
+        MapFlow flow = MapFlow.Route(grid, (double[])heights.Clone(), MapFlow.Outlets(grid, heights), rain, MapFlow.FillGradient);
+        for (int pass = 0; lakes && pass < LakeRoutingPasses; pass++)
+        {
+            IReadOnlyList<Lake> next = MapLakes.Find(grid, elevation, Round(flow.Discharge), temperature, design);
+            if (pass > 0 && MapLakes.ClosedNodes(next).SetEquals(MapLakes.ClosedNodes(found))) break;
+            found = next;
+            flow = MapFlow.Route(grid, (double[])heights.Clone(), MapLakes.Outlets(grid, heights, found), rain, MapFlow.FillGradient);
+        }
+
+        return flow;
     }
 
     /// <summary>Erosion over a starting relief: most of it on the coarse lattice, a short refinement on the full one.</summary>

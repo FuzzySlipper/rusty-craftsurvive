@@ -31,7 +31,12 @@ internal sealed class MapDrainage
         int count = Grid.Count, octaves = RegionRelief.ResolvedOctaves(Grid.Spacing);
         double[] height = new double[count], surface = new double[count], incision = new double[count], hardness = new double[count], rain = new double[count];
         bool[] sea = new bool[count], outlet = new bool[count];
-        MapGrid grid = Grid;
+        MapGrid grid = Grid, coarse = continent.Grid;
+        // A closed lake is a sink here as on the continent (#9876): its water goes no farther.
+        HashSet<int> closed = MapLakes.ClosedNodes(continent.Lakes);
+        Dictionary<int, int> lakeOf = [];
+        foreach (Lake lake in continent.Lakes)
+            foreach (int node in lake.Nodes) lakeOf[node] = lake.Id;
         Parallel.For(0, count, i =>
         {
             double x = grid.X(i), z = grid.Z(i);
@@ -40,7 +45,7 @@ internal sealed class MapDrainage
             surface[i] = broad.Elevation;
             incision[i] = cut;
             sea[i] = broad.Elevation < GenerationConstants.WaterLevel;
-            outlet[i] = sea[i] || grid.IsEdge(i);
+            outlet[i] = sea[i] || grid.IsEdge(i) || (closed.Count > 0 && closed.Contains(coarse.Nearest(x, z)));
             hardness[i] = Math.Clamp(continent.HardnessAt(x, z), 0, 1);
             rain[i] = RegionRelief.Rain(broad);
         });
@@ -55,7 +60,8 @@ internal sealed class MapDrainage
         MapFlow flow = MapFlow.Route(Grid, routed, outlet, rain, MapFlow.FillGradient);
         discharge = flow.Discharge.Select(v => (float)v).ToArray();
         paths = MapRivers.Trace(Grid, flow, elevation, discharge, MapRivers.SourceCatchment);
-        Network = WaterNetwork.Build(Grid, flow, elevation, discharge, paths, (x, z) => continent.Sample(x, z).Moisture, i => sea[i]);
+        Network = WaterNetwork.Build(Grid, flow, elevation, discharge, paths, (x, z) => continent.Sample(x, z).Moisture, i => sea[i],
+            continent.Lakes, i => lakeOf.Count > 0 && lakeOf.TryGetValue(coarse.Nearest(grid.X(i), grid.Z(i)), out int lake) ? lake : -1);
         for (int r = 0; r < paths.Count; r++)
         {
             HashSet<long> cells = [];

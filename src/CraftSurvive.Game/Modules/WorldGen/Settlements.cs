@@ -6,7 +6,7 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 internal enum SettlementKind { Port, Town, Hold }
 
 /// <summary>Why a site was chosen, for the census and the place's description.</summary>
-internal enum SettlementReason { Mouth, Harbour, Confluence, BoatHead, CanoeHead }
+internal enum SettlementReason { Mouth, Harbour, Confluence, BoatHead, CanoeHead, LakeOutlet }
 
 /// <summary>
 /// A chosen settlement: where it stands (world metres), on which reach, why and its score. A port also
@@ -35,7 +35,7 @@ internal static class Settlements
     private const double CalmCoolest = 0.4, CalmWarmest = 0.9, TownCoolest = 0.2;
 
     /// <summary>Weights on a candidate's flow: the kind of place, and whether it can be reached from the sea by canoe.</summary>
-    private const double ConfluenceWeight = 1, BoatHeadWeight = 0.8, CanoeHeadWeight = 0.5, HarbourWeight = 0.6;
+    private const double ConfluenceWeight = 1, BoatHeadWeight = 0.8, CanoeHeadWeight = 0.5, HarbourWeight = 0.6, LakeOutletWeight = 1.2;
     private const double FromSeaWeight = 1.5;
 
     /// <summary>
@@ -173,6 +173,16 @@ internal static class Settlements
             candidates.Add((network.Reaches[head].Source, head, SettlementReason.BoatHead, Weigh(head, BoatHeadWeight)));
         foreach (int head in network.CanoeHeads.Except(network.BoatHeads))
             candidates.Add((network.Reaches[head].Source, head, SettlementReason.CanoeHead, Weigh(head, CanoeHeadWeight)));
+        // Where a lake spills into its river (#9876): the outflow's first node below the lake.
+        foreach (LakeNode lake in network.Lakes)
+        {
+            if (lake.Outflow < 0) continue;
+            HashSet<int> under = [.. lake.Nodes];
+            int[] course = network.Reaches[lake.Outflow].Nodes;
+            int last = Array.FindLastIndex(course, under.Contains);
+            if (last >= 0 && last + 1 < course.Length)
+                candidates.Add((course[last + 1], lake.Outflow, SettlementReason.LakeOutlet, Weigh(lake.Outflow, LakeOutletWeight)));
+        }
         foreach (Reach mouth in network.Mouths)
             if (mouth.Id != port.Id && mouth.Class >= Navigability.Boat)
                 candidates.Add((Shore(mouth), mouth.Id, SettlementReason.Harbour, Weigh(mouth.Id, HarbourWeight)));

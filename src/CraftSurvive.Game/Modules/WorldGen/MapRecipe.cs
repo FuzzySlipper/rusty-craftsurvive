@@ -13,6 +13,42 @@ internal sealed record MapRecipe
     public ReliefRecipe Relief { get; init; } = new();
 
     public SimulationRecipe Simulation { get; init; } = new();
+
+    public LakesRecipe Lakes { get; init; } = new();
+}
+
+/// <summary>
+/// Lakes (#9876): basins carved after erosion, which erosion itself never leaves. Off by default, so
+/// the generator's own world is unchanged while the experiment is judged; a design's own lakes are
+/// carved only when this is on. Lengths are metres.
+/// </summary>
+internal sealed record LakesRecipe
+{
+    public bool Enabled { get; init; }
+
+    /// <summary>Valley lakes behind a rock sill on a river: how many, on what river and rock, and how much valley they drown.</summary>
+    public int ValleyLakes { get; init; } = 6;
+    public double ValleyCatchment { get; init; } = 150;
+    public double ValleyHardness { get; init; } = 0.45;
+    public double ValleyLowest { get; init; } = 60;
+    public double ValleyLength { get; init; } = 9000;
+    public double ValleyHalfWidth { get; init; } = 2200;
+    public double ValleyRise { get; init; } = 45;
+    public double ValleyDepth { get; init; } = 35;
+
+    /// <summary>
+    /// Closed basins in dry country: how many, how dry (relative rain), off any river (the most catchment
+    /// at the centre, km²), their size, and how far from the sea.
+    /// </summary>
+    public int ClosedBasins { get; init; } = 3;
+    public double ClosedRain { get; init; } = 0.6;
+    public double ClosedCatchment { get; init; } = 40;
+    public double ClosedRadius { get; init; } = 14000;
+    public double ClosedDepth { get; init; } = 60;
+    public double SeaDistance { get; init; } = 30000;
+
+    /// <summary>The least distance between two carved lakes.</summary>
+    public double Spacing { get; init; } = 40000;
 }
 
 /// <summary>
