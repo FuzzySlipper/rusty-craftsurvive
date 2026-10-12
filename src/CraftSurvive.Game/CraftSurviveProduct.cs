@@ -47,7 +47,6 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// simulated; until an update admits that world, no terrain, player or gameplay state exists.
     /// </summary>
     private bool worldBuilt;
-    private bool worldStoresRegistered;
     private string worldMessage = "";
     private ProductLifecycleState lifecycle = ProductLifecycleState.Created;
 
@@ -189,17 +188,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
         ApplyOptions();
-        if (worldStoresRegistered)
-        {
-            entityDebug.ReplaceStore("craft", player.EntityStore);
-            entityDebug.ReplaceStore("creatures", creatures.EntityStore);
-        }
-        else
-        {
-            entityDebug.RegisterStore("craft", player.EntityStore);
-            entityDebug.RegisterStore("creatures", creatures.EntityStore);
-            worldStoresRegistered = true;
-        }
+        // Registering again replaces the earlier store (rusty-engine #9868): last write wins.
+        entityDebug.RegisterStore("craft", player.EntityStore);
+        entityDebug.RegisterStore("creatures", creatures.EntityStore);
     }
 
     /// <summary>

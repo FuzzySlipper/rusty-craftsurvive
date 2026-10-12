@@ -241,8 +241,8 @@ public sealed partial class CraftSurviveProduct
         sky.Dispose(); player.Dispose(); terrain.Dispose();
         frame = new(); cues = new Cues(); entities = new BlockEntityIndex();
         CreateWorld();
-        entityDebug.ReplaceStore("craft", player.EntityStore);
-        entityDebug.ReplaceStore("creatures", creatures.EntityStore);
+        entityDebug.RegisterStore("craft", player.EntityStore);
+        entityDebug.RegisterStore("creatures", creatures.EntityStore);
         terrain.Start(); player.Start();
         foreach (IProductModule module in gameplay) module.Start();
         worldMessage = "New world ready. Choose a place to explore, or return to the starting area.";
