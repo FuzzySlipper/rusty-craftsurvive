@@ -256,6 +256,24 @@ internal sealed class DayNightSky : IDisposable
     private readonly IEngineContext engine;
     private readonly Func<Vector3> observer;
     private readonly Dictionary<SkyPanorama, RenderResource> panoramas = [];
+
+    /// <summary>
+    /// The night sky (#9807): the star catalogue and the Milky Way (<c>scripts/make-stars.py</c>), drawn
+    /// by the Engine's star field (rusty-engine #9867). <see cref="Stars"/> decides which show; the field
+    /// turns with the sky every update.
+    /// </summary>
+    internal const string StarCatalogueContentPath = "sky/sky.stars.json";
+    internal const string MilkyWayContentPath = "sky/milky-way.png";
+    private readonly RenderResource starCatalogue;
+    private readonly RenderResource milkyWay;
+
+    /// <summary>The stars' brightness, how much they twinkle, and the Milky Way's strength on a fully dark night.</summary>
+    private const float StarBrightness = 1f, StarTwinkle = 0.25f, MilkyWayStrength = 0.8f;
+
+    /// <summary>Below this limiting magnitude no star in the catalogue shows (its brightest is about 0), so the field is put away.</summary>
+    private const double NoStarsBelow = -1d;
+
+    private float starLimit = float.NegativeInfinity, starBand;
     private Light? sun;
     private Light? skyShadow;
     private Light? fill;
@@ -466,6 +484,14 @@ internal sealed class DayNightSky : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.observer = observer ?? throw new ArgumentNullException(nameof(observer));
         foreach ((SkyPanorama key, (string path, _)) in Panoramas) panoramas[key] = Panorama(path);
+        RenderResourceInfo catalogue = engine.Graphics.OpenResource(new RenderResourceRequest(StarCatalogueContentPath, TextureFilter.Linear, TextureWrap.Clamp));
+        if (catalogue.Kind != RenderResourceKind.StarCatalogue)
+        {
+            throw new InvalidOperationException($"CraftSurvive star catalogue '{StarCatalogueContentPath}' must be an Engine star catalogue.");
+        }
+
+        starCatalogue = catalogue.Handle;
+        milkyWay = engine.Graphics.OpenResource(new RenderResourceRequest(MilkyWayContentPath, TextureFilter.Linear, TextureWrap.Repeat)).Handle;
         engine.CameraView.SetBloom(new BloomRequest(BloomThreshold, BloomIntensity));
         Eyes(0f);
         Weathered();
@@ -516,6 +542,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
         engine.CameraView.SetAtmosphere(default);
         engine.CameraView.SetMoon(default);
+        engine.CameraView.SetStars(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         Eyes(0f);
         Relight(
@@ -566,6 +593,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetAtmosphere(default);
         engine.CameraView.SetMoon(default);
+        engine.CameraView.SetStars(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetSkyLight(new SkyLightRequest(DaySkyLightIntensity));
         Eyes(0f);
@@ -689,6 +717,7 @@ internal sealed class DayNightSky : IDisposable
         if (!submerged)
         {
             engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(panoramas[blend.From], panoramas[blend.To], blend.Amount));
+            ShowStars(time);
         }
 
         Vector3 eyes = observer();
@@ -741,6 +770,7 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
         engine.CameraView.SetAtmosphere(default);
         engine.CameraView.SetMoon(default);
+        engine.CameraView.SetStars(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         engine.CameraView.SetFog(new(FogMode.Off, default, 0f, 0f, 0f));
         engine.CameraView.SetWind(new(WindDirection, 0f, 0f));
@@ -759,6 +789,8 @@ internal sealed class DayNightSky : IDisposable
         fill?.Dispose();
         moon?.Dispose();
         moon = null;
+        starCatalogue.Dispose();
+        milkyWay.Dispose();
         foreach (RenderResource panorama in panoramas.Values) panorama.Dispose();
         panoramas.Clear();
         disposed = true;
@@ -821,6 +853,7 @@ internal sealed class DayNightSky : IDisposable
             engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
             engine.CameraView.SetAtmosphere(default);
             engine.CameraView.SetMoon(default);
+            engine.CameraView.SetStars(default);
             engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         }
         else if (underground)
@@ -863,6 +896,9 @@ internal sealed class DayNightSky : IDisposable
             WorldClock.TowardSun(dayFraction), ToColor(Vector3.Lerp(SunColour, DuskSunColour, warmth)),
             LowSkySunIntensity + ((DaySunIntensity - LowSkySunIntensity) * (float)Smooth(elevation, 0d, SunFullAbove))));
         engine.CameraView.SetMoon(MoonInSky(time, daylight, w.Cloud));
+        starLimit = (float)Stars.LimitingMagnitude(elevation, moonShare, w.Murk);
+        starBand = (float)Stars.Band(starLimit) * MilkyWayStrength;
+        ShowStars(time);
         float shafts = elevation > 0d
             ? SunShaftIntensity * (1f - (float)Smooth(elevation, 0d, SunShaftsFadeAbove)) * (1f - w.Cloud)
             : 0f;
@@ -955,6 +991,18 @@ internal sealed class DayNightSky : IDisposable
         LightShadowIntent.Requested, SunShadowResolution, 0, false);
 
     private static LightRequest Request(ulong id, LightDescriptor descriptor) => new(id, false, 0UL, descriptor);
+
+    /// <summary>The star field turned to the moment, showing the stars the last relight chose; put away while none would show.</summary>
+    private void ShowStars(WorldTime time)
+    {
+        if (starLimit < NoStarsBelow)
+        {
+            engine.CameraView.SetStars(default);
+            return;
+        }
+
+        engine.CameraView.SetStars(new StarsRequest(starCatalogue, milkyWay, WorldClock.StarOrientation(time), starLimit, StarBrightness, starBand, StarTwinkle));
+    }
 
     private RenderResource Panorama(string path)
     {

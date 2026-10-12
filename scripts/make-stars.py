@@ -10,12 +10,15 @@ WorldClock.StarOrientation turns it into the world.
 - A pole star of magnitude 1.5 at the pole, so a player can find north.
 - Authored asterisms of bright stars, compass-true and stable in every world. The Sled's two pointer
   stars line up on the pole star.
-- The Milky Way: a 2:1 equirectangular band in the same frame (u along atan2(y, x), v from +Z down),
-  clumped, with a dark rift along its middle and a brighter core.
+- The Milky Way: a 2:1 equirectangular band in the same frame, laid out as the Engine samples it
+  (as a sky panorama: u along atan2(z, x), v from the frame's +Y down), clumped, with a dark rift
+  along its middle and a brighter core.
 
     python3 scripts/make-stars.py content/game/sky
 
-It writes stars.json and milky-way.png, and prints the count by magnitude.
+It writes the catalogue in the Engine's format (sky.stars.json, rusty.stars.v1: the pole star first),
+the asterisms by catalogue index (asterisms.json, the product's own) and milky-way.png, and prints
+the count by magnitude.
 """
 import argparse
 import json
@@ -120,9 +123,10 @@ def band(width=2048):
     rng = np.random.default_rng(SEED + 1)
     u = (np.arange(width) + 0.5) / width
     v = (np.arange(height) + 0.5) / height
-    ra = 2 * np.pi * (u - 0.5)
-    dec = np.pi / 2 - np.pi * v
-    d = np.stack([np.cos(dec)[:, None] * np.cos(ra)[None, :], np.cos(dec)[:, None] * np.sin(ra)[None, :], np.repeat(np.sin(dec)[:, None], width, 1)], -1)
+    # The Engine reads the band as a sky panorama in the catalogue's frame: u = atan2(z, x), v from +Y.
+    around = 2 * np.pi * (u - 0.5)
+    up = np.pi / 2 - np.pi * v
+    d = np.stack([np.cos(up)[:, None] * np.cos(around)[None, :], np.repeat(np.sin(up)[:, None], width, 1), np.cos(up)[:, None] * np.sin(around)[None, :]], -1)
     pole = direction(*BAND_POLE)
     latitude = np.degrees(np.arcsin(np.clip(d @ pole, -1, 1)))
     # Longitude along the band, for the brighter core and the clumps.
@@ -132,19 +136,22 @@ def band(width=2048):
     longitude = np.arctan2(d @ across, d @ seed_axis)
     glow = np.exp(-((latitude / BAND_WIDTH_DEGREES) ** 2))
     core = 0.55 + 0.45 * np.exp(-(((longitude - 0.6 + np.pi) % (2 * np.pi) - np.pi) / 0.9) ** 2)
-    # Clumps: a few octaves of smooth noise over the sphere, sampled from a coarse random grid.
+    # Clumps: a few octaves of smooth 3D value noise over the direction itself, so the texture's poles
+    # (where the panorama layout pinches) show no seam or streaks.
     clumps = np.zeros_like(glow)
-    for octave, weight in ((8, 0.5), (16, 0.3), (32, 0.2)):
-        grid = rng.uniform(0, 1, (octave + 1, octave * 2 + 1))
-        gy = np.clip(v * octave, 0, octave - 1e-6)
-        gx = u * octave * 2
-        y0, x0 = gy.astype(int), gx.astype(int)
-        fy, fx = (gy - y0)[:, None], (gx - x0)[None, :]
-        fy, fx = fy * fy * (3 - 2 * fy), fx * fx * (3 - 2 * fx)
-        g = grid
-        top = g[y0][:, x0] * (1 - fx) + g[y0][:, x0 + 1] * fx
-        bottom = g[y0 + 1][:, x0] * (1 - fx) + g[y0 + 1][:, x0 + 1] * fx
-        clumps += weight * (top * (1 - fy) + bottom * fy)
+    for cells, weight in ((6, 0.5), (12, 0.3), (24, 0.2)):
+        grid = rng.uniform(0, 1, (cells + 2, cells + 2, cells + 2))
+        p = (d + 1) * 0.5 * cells
+        i = np.floor(p).astype(int)
+        f = p - i
+        f = f * f * (3 - 2 * f)
+        value = np.zeros_like(glow)
+        for dx in (0, 1):
+            for dy in (0, 1):
+                for dz in (0, 1):
+                    w = (f[..., 0] if dx else 1 - f[..., 0]) * (f[..., 1] if dy else 1 - f[..., 1]) * (f[..., 2] if dz else 1 - f[..., 2])
+                    value += w * grid[i[..., 0] + dx, i[..., 1] + dy, i[..., 2] + dz]
+        clumps += weight * value
     mottle = np.clip((clumps - 0.3) / 0.5, 0, 1) ** 1.5
     rift = 1 - 0.6 * np.exp(-(((latitude + 1.2) / 1.8) ** 2)) * np.clip((clumps - 0.35) / 0.3, 0, 1)
     light = glow * core * (0.2 + 0.8 * mottle) * rift
@@ -172,14 +179,13 @@ def main():
         figure["lines"] = [[a + 1, b + 1] for a, b in figure["lines"]]
     stars = [[round(float(x), 6) for x in d] + [round(float(m), 2)] + [round(float(c), 3) for c in col]
              for d, m, col in zip(all_directions, all_magnitudes, colours)]
-    catalogue = {
+    (args.directory / "sky.stars.json").write_text(json.dumps({"format": "rusty.stars.v1", "stars": stars}, separators=(",", ":")))
+    asterisms_file = {
         "frame": "+Z toward the celestial pole, +X toward the meridian at the first midnight (WorldClock.StarOrientation)",
-        "fields": ["x", "y", "z", "magnitude", "r", "g", "b"],
         "poleStar": 0,
-        "stars": stars,
         "asterisms": figures,
     }
-    (args.directory / "stars.json").write_text(json.dumps(catalogue, separators=(",", ":")))
+    (args.directory / "asterisms.json").write_text(json.dumps(asterisms_file, indent=1))
     Image.fromarray(band(), "RGB").convert("RGBA").save(args.directory / "milky-way.png")
     counts = np.histogram(all_magnitudes, bins=np.arange(-1.5, 7.0, 1.0))[0]
     print("stars:", len(stars), "by magnitude from -1.5:", " ".join(str(c) for c in counts))

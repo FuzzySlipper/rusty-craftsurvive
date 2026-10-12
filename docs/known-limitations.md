@@ -425,19 +425,23 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **The panoramas are plain gradients (#9804).** No landforms, clouds, stars, sun or moon are painted
   in (`scripts/make-sky-gradient.py`). What moves is drawn over them: the cloud layer, the sun's disc,
   and the horizon terrain and weather.
-- **The sky turns at a latitude, and its stars wait on the Engine (#9807).** `WorldClock` turns the
+- **The sky turns at a latitude, under stars that develop through the night (#9807).** `WorldClock` turns the
   sky about a pole `LatitudeDegrees` (20°) above the north horizon (north is -Z):
   - The sun keeps to the celestial equator: it rises due east, stands 70° up in the south at noon,
     sets due west, and every day is twelve hours.
   - The stars turn a little faster than the sun (`StarYearDays`), and `StarOrientation` places the
     catalogue in the world.
-  - `scripts/make-stars.py` writes the catalogue (`content/game/sky/stars.json`): about 5,300 stars,
-    a pole star, and named asterisms. The Sled's two pointer stars line up on the pole star.
-  - It also writes the Milky Way band (`milky-way.png`).
+  - `scripts/make-stars.py` writes the catalogue in the Engine's format
+    (`content/game/sky/sky.stars.json`): about 5,300 stars with the pole star first. It writes the
+    named asterisms by catalogue index into `asterisms.json`. The Sled's two pointer stars line up
+    on the pole star.
+  - It also writes the Milky Way band (`milky-way.png`), laid out as the Engine samples it (a sky
+    panorama in the catalogue's frame, +Y up).
   - `Stars` decides the faintest star that shows (from twilight, the moon and murk) and the Milky
     Way's strength.
 
-  No stars are drawn until the Engine's star layer (rusty-engine #9867) lands.
+  `DayNightSky` draws the Engine's star field (rusty-engine #9867), turned every update; the clouds
+  cover it.
 - **Sunrise and sunset are painted twilight panoramas (#9805).** The sun keeps one bearing all year,
   so `scripts/make-twilight-sky.py` paints each twilight onto world-fixed panoramas:
   - a glow (sun on the horizon) and an afterglow (sun a few degrees under) for dawn and for dusk;
