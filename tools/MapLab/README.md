@@ -77,7 +77,12 @@ Output: `census.txt` (a row per seed and a summary) and `rivers-SEED.png`:
 
 ```bash
 dotnet run --project tools/MapLab -c Release -- --towns 1-24 --size 390000 --out /tmp/towns
+dotnet run --project tools/MapLab -c Release -- --towns 1-24 --size 390000 --recipe lakes-on.json --out /tmp/lakes
 ```
+
+`--recipe` with `{ "Lakes": { "Enabled": true } }` turns on the lakes experiment (#9876). The census then
+lists each seed's lakes (kind, area, depth, whether closed, inflow, evaporation, the outflow's flow) and a
+summary by kind, and the map draws them: fresh water blue, salt lakes pale, playas tan.
 
 Builds each seed's continent and its walked drainage (`MapDrainage`), then reports the network as data
 (`WaterNetwork`) and the settlements chosen on it (`Settlements`).
