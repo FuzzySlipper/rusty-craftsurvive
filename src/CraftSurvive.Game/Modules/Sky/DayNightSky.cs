@@ -941,7 +941,7 @@ internal sealed class DayNightSky : IDisposable
     /// <summary>
     /// The moon in the sky, by day and by night: its phase (the Engine turns the lit limb toward the
     /// sun), warm and large low, a pale disc by day and a glowing one by night with a halo as full as
-    /// it is; none while it is well under the horizon or new.
+    /// it is, and its light on the clouds; none while it is well under the horizon or new.
     /// </summary>
     private static MoonRequest MoonInSky(WorldTime time, double daylight, float cloud)
     {
@@ -949,8 +949,10 @@ internal sealed class DayNightSky : IDisposable
         float lit = (float)WorldClock.MoonLit(time);
         if (elevation < MoonDrawnAbove || lit <= 0f) return default;
         float night = 1f - (float)daylight;
+        // Its light on the clouds is its light on the ground (phase and height), so a full moon silvers them (rusty-engine #9871).
         return new MoonRequest(WorldClock.TowardMoon(time), Moon.Disc(elevation), Moon.Colour(elevation),
-            DayMoonRadiance + ((NightMoonRadiance - DayMoonRadiance) * night), lit, Earthshine * night, MoonHalo * lit * night * (1f - cloud));
+            DayMoonRadiance + ((NightMoonRadiance - DayMoonRadiance) * night), lit, Earthshine * night, MoonHalo * lit * night * (1f - cloud),
+            Moon.Intensity(time));
     }
 
     private static Color ToColor(Vector3 colour) => new(colour.X, colour.Y, colour.Z, 1f);

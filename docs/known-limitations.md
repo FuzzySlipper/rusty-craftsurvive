@@ -440,8 +440,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - `Stars` decides the faintest star that shows (from twilight, the moon and murk) and the Milky
     Way's strength.
 
-  `DayNightSky` draws the Engine's star field (rusty-engine #9867), turned every update; the clouds
-  cover it.
+  `DayNightSky` draws the Engine's star field (rusty-engine #9867), turned every update. The clouds
+  cover it, and so does the moon's disc.
 - **Sunrise and sunset are painted twilight panoramas (#9805).** The sun keeps one bearing all year,
   so `scripts/make-twilight-sky.py` paints each twilight onto world-fixed panoramas:
   - a glow (sun on the horizon) and an afterglow (sun a few degrees under) for dawn and for dusk;
@@ -473,7 +473,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 
   The Engine draws the moon with its phase (rusty-engine #9866): its lit limb turns toward the real
   sun, which stays the atmosphere's sky sun all night, though with no disc. By day it is a pale disc.
-  The clouds take only the sky's sun, so at night they are no longer moonlit (rusty-engine #9871).
+  The clouds take the moon's light as a second light (rusty-engine #9871), as strong as its light
+  on the ground.
 - **Dungeons are lit by their torches over a faint fill.** Entering a dungeon asks for the Engine's
   irradiance probe volume over its whole space (`DungeonModule.ProbeSpacingMetres`), so torchlight
   bounces off the walls around it; the fill is an ambient light (`DayNightSky.UndergroundFillIntensity`)
