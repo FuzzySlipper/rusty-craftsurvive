@@ -20,12 +20,16 @@ internal sealed class MapRivers
 {
     /// <summary>Rain-weighted catchment, in square kilometres, at which a channel appears.</summary>
     internal const double SourceCatchment = 1.0;
+    /// <summary>
+    /// A channel's size from its mean flow Q (m³/s; <see cref="WaterBudget"/>), by hydraulic geometry
+    /// (#9874): width 4.5·Q^0.5 and depth 0.35·Q^0.4 metres, so a canoe river of 5 m³/s is about 10 m
+    /// wide and a great river of 250 m³/s about 70 m. Every channel is at least a stream's size.
+    /// </summary>
+    private const double WidthPerRootFlow = 4.5;
+    private const double DepthPerFlow = 0.35;
+    private const double DepthFlowExponent = 0.4;
     private const double MinimumHalfWidth = 1.6;
-    private const double MaximumHalfWidth = 16;
-    private const double HalfWidthPerRootArea = 1.8;
     private const double MinimumDepth = 1.2;
-    private const double MaximumDepth = 3.5;
-    private const double DepthPerRootArea = 0.3;
     private const double MinimumBank = 5;
     private const double BankPerHalfWidth = 2;
     private const double QuietBanks = 2.5;
@@ -138,10 +142,10 @@ internal sealed class MapRivers
     {
         List<RiverPoint> points = path.Select(i =>
         {
-            double area = Math.Sqrt(CatchmentSquareKilometres(grid, discharge[i]));
+            double flow = WaterBudget.Flow(CatchmentSquareKilometres(grid, discharge[i]));
             return new RiverPoint(grid.X(i), grid.Z(i), Math.Max(GenerationConstants.WaterLevel, elevation[i]),
-                Math.Clamp(HalfWidthPerRootArea * area, MinimumHalfWidth, MaximumHalfWidth),
-                Math.Clamp(MinimumDepth + DepthPerRootArea * area, MinimumDepth, MaximumDepth));
+                Math.Max(MinimumHalfWidth, WidthPerRootFlow * Math.Sqrt(flow) / 2),
+                Math.Max(MinimumDepth, DepthPerFlow * Math.Pow(flow, DepthFlowExponent)));
         }).ToList();
         // A sea node closes the reach at the coast; its surface is the sea's.
         for (int pass = 0; pass < SmoothingPasses; pass++) points = Chaikin(points);

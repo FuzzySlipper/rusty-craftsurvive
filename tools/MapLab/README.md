@@ -58,7 +58,7 @@ dotnet run --project tools/MapLab -c Release -- --rivers 1-24 --size 390000 --ru
 
 Generates each seed (in parallel) and measures its rivers in real flow:
 - The map's discharge is rain-weighted area, and rain is relative (about 1 over land). `--runoff` (mm a
-  year per unit of rain, default 400) turns it into m³/s. That one figure is the world's water budget.
+  year per unit of rain, default the game's `WaterBudget`, 600) turns it into m³/s. That one figure is the world's water budget.
 - `--canoe`, `--boat` and `--great` are the least flows (m³/s) a canoe, a laden river boat and the start
   port's great river use (defaults 5, 40, 150).
 - The port river is the largest river mouth on the playable peninsula, out of the neck, in calm climate.

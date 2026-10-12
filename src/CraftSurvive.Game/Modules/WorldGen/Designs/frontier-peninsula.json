@@ -79,6 +79,11 @@
   ],
   "Areas": [
     { "Name": "The central plateau", "At": [0.0, 0.15], "Radius": 0.35, "Lift": 0.25 },
+    // The interior tilts west, as Iberia's meseta does (#9874): an eastern upland and a western lowland
+    // send the plateau's rivers to the calm west coast, where the start's sea port stands, rather than
+    // north to the neck. Without them a fifth of seeds lose the great port river.
+    { "Name": "The eastern upland", "At": [0.45, -0.15], "Radius": 0.35, "Lift": 0.35 },
+    { "Name": "The western lowland", "At": [-0.55, 0.25], "Radius": 0.3, "Lift": -0.3 },
     { "Name": "The western basin", "At": [-0.5, 0.3], "Radius": 0.15, "Lift": -0.3 },
     { "Name": "The north-west massif", "At": [-0.55, -0.35], "Radius": 0.22, "Height": 5000, "Ruggedness": 0.85 }
   ],

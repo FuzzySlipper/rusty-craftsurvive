@@ -56,6 +56,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - River courses follow 8-direction drainage on the 32 m lattice. Smoothing and meanders
     break up the lattice, but long reaches across filled plains can still read as straight.
     Voxel river water steps a metre at a time on steep reaches; it does not flow.
+    Rivers are sized by a fixed water budget, not by the season or the weather, and the
+    great river can still be ruler-straight for hundreds of metres across its lowland.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans
     the whole map whatever its size. Local terrain still uses three blended relief families
     and three surface treatments (soil, sand, snow), so several biomes share a look;

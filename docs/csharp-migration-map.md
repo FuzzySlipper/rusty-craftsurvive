@@ -151,8 +151,12 @@ deterministically from those fields when a `WorldMap` is constructed.
 reaches one square kilometre, smooths them, and adds a seeded meander and a slower
 valley-floor wander. Both fade toward reach ends so confluences and mouths stay
 joined. The water surface interpolates filled node heights and never rises
-downstream. Width and depth grow with catchment. A spatial bucket index keeps
-local river queries bounded.
+downstream. A channel's size comes from its mean flow: `WaterBudget` turns rain-weighted
+catchment into m³/s (600 mm a year of runoff per unit of rain), and hydraulic geometry gives
+width 4.5·Q^0.5 and depth 0.35·Q^0.4 metres, at least a stream's size. A spatial bucket index keeps
+local river queries bounded. The frontier peninsula's interior tilts west (its eastern upland and
+western lowland areas), so its great river reaches a calm west-coast mouth for the start's sea port;
+`tools/MapLab --rivers` measures that over many seeds.
 
 `MapBiomes` classifies samples into sea, ice field, tundra, boreal forest, cold
 steppe, temperate forest, grassland, shrubland, desert, rainforest and alpine

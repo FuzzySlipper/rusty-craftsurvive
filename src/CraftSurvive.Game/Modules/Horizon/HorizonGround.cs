@@ -186,7 +186,9 @@ internal sealed class HorizonGround : IHeightfieldSampler
         if (sample.Elevation < GenerationConstants.WaterLevel) return MapPalette.For(MapBiome.Sea);
         if (river is RiverInfluence near && near.Distance < near.HalfWidth + riverReach) return MapPalette.River;
         double share = WorldMap.Smooth(Math.Clamp((sample.Rock - RockShowsFrom) / (RockWhole - RockShowsFrom), 0, 1));
-        Color from = MapPalette.For(WorldMap.Biome(sample)), to = MapPalette.Stone;
+        // The environment under the rock, not the biome the rock itself makes: rocky ground classifies as
+        // alpine part way up, which would step the colour mid-blend; stone at the top stands for it.
+        Color from = MapPalette.For(WorldMap.Biome(sample with { Rock = 0 })), to = MapPalette.Stone;
         float t = (float)share;
         return new(from.R + ((to.R - from.R) * t), from.G + ((to.G - from.G) * t), from.B + ((to.B - from.B) * t), 1);
     }

@@ -55,9 +55,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// every continent to a design (#9815): the frontier peninsula, its coast resolved in a band, its ranges
     /// and massif calibrated under erosion, and an absolute climate; version 29 stands a designed continent
     /// at its real heights under a 9 km ceiling (#9816), its belts and areas calibrated by their higher
-    /// ground, its passes to their saddles, and its belts broken as far as each is rugged.
+    /// ground, its passes to their saddles, and its belts broken as far as each is rugged; version 30 sizes
+    /// rivers by their flow under a water budget, realistic widths and depths, and tilts the frontier
+    /// peninsula's interior west so its great river reaches the start's sea port on every seed (#9874).
     /// </summary>
-    internal const uint CurrentVersion = 29;
+    internal const uint CurrentVersion = 30;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

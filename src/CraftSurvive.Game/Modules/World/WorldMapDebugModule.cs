@@ -28,6 +28,19 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
         this.showMap = showMap;
     }
 
+    [DebugCommand("craft.world.create", Description = "Assisted (#9874): opens the world map and starts generating a new world of a seed and size, as the map's New world does; it is admitted on a later update (craft.world.map reads it).")]
+    public string Create(string seed, long size)
+    {
+        if (!ulong.TryParse(seed, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out ulong parsed))
+            return "refused: the seed must be a whole number";
+        if (catalog().Preparing) return "refused: a world is already being generated";
+        // A new world replaces the old one's owners while the map is the published scene, as the map's own
+        // New world requires: with first person still published, its meshes would be disposed while drawn.
+        showMap?.Invoke("smooth");
+        catalog().BeginPrepare(parsed, checked((int)size));
+        return $"preparing seed={parsed} size={size}";
+    }
+
     [DebugCommand("craft.world.view", Description = "Assisted (#9841): opens the world map in its smooth or faceted view, or closes it, as the HUD's World and view buttons do.")]
     public string ShowMap(string view) => showMap?.Invoke(view) ?? "map=none";
 

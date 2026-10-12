@@ -31,7 +31,7 @@ const string Usage = """
     MapLab --rivers SEEDS --size METRES [--design ...] [--recipe ...] [--out DIR] [--runoff MM] [--canoe Q] [--boat Q] [--great Q]
 
       --rivers     the river census (#9874) over seeds, e.g. 1-24 or 1,7,4242: real flow at a runoff (mm a year per
-                   unit of rain, default 400), mouths a canoe, a river boat and the start port's great river can use
+                   unit of rain, default the game's 600), mouths a canoe, a river boat and the start port's great river can use
                    (m3/s, defaults 5, 40, 150), the best sheltered calm port river; writes census.txt and rivers-SEED.png
     """;
 

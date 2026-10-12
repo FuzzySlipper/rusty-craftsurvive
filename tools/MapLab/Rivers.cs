@@ -22,8 +22,8 @@ internal static class RiverCensus
 {
     private const double SecondsPerYear = 365.25 * 24 * 3600;
 
-    /// <summary>Runoff per unit of relative rain (mm a year): a temperate maritime climate's, near half of 900 mm of rain.</summary>
-    private const double DefaultRunoffMillimetres = 400;
+    /// <summary>Runoff per unit of relative rain (mm a year): the game's own water budget unless asked otherwise.</summary>
+    private const double DefaultRunoffMillimetres = WaterBudget.RunoffMetresPerYear * 1000;
 
     /// <summary>Least flows (m³/s): a canoe most of the year, a laden river boat, and the start port's great river.</summary>
     private const double DefaultCanoeFlow = 5, DefaultBoatFlow = 40, DefaultGreatFlow = 150;
