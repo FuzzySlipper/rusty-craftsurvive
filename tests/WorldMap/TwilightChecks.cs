@@ -25,7 +25,7 @@ internal static class TwilightChecks
             Check.Equal(SkyPanorama.Night, Shown(Twilight.Blend(0.0, vividness)), "midnight shows the night panorama alone");
             Check.Equal(Twilight.Panorama(dawn: false, afterglow: false, mood), Shown(Twilight.Blend(0.75, vividness)), "sunset shows the dusk's glow alone");
             Check.Equal(Twilight.Panorama(dawn: true, afterglow: false, mood), Shown(Twilight.Blend(0.25, vividness)), "sunrise shows the dawn's glow alone");
-            double afterglow = 0.75 + (Math.Asin(-Twilight.AfterglowAt) / (2 * Math.PI));
+            double afterglow = 0.75 + (Math.Asin(-Twilight.AfterglowAt / Math.Cos(WorldClock.LatitudeDegrees * Math.PI / 180d)) / (2 * Math.PI));
             Check.Equal(Twilight.Panorama(dawn: false, afterglow: true, mood), Shown(Twilight.Blend(afterglow, vividness)), "the sun under the horizon shows the dusk's afterglow alone");
 
             // Continuity: what is shown, as a weight on each panorama, never jumps between steps.

@@ -1,7 +1,7 @@
 """Write CraftSurvive's twilight panoramas for dawn and dusk (#9805).
 
-The sun keeps one bearing all year (WorldClock has no seasons): it rises toward +x and sets toward -x,
-both tilted toward +z. So the twilight can be painted onto world-fixed panoramas, as the sky's base
+The sun keeps one bearing all year (WorldClock has no seasons, and the sun keeps to the celestial
+equator): it rises due east (+x) and sets due west (-x). So the twilight can be painted onto world-fixed panoramas, as the sky's base
 already is (#9804).
 
 DayNightSky steps from the day through two twilight panoramas to the night, blending each
@@ -35,9 +35,8 @@ WIDTH = 1024
 SEED = 9805
 DITHER = 0.5 / 255
 
-# Unit directions toward the rising and the setting sun on the horizon, as WorldClock.TowardSun has them.
-ARC_TILT = 0.35
-BEARINGS = {"dawn": (1.0, ARC_TILT), "dusk": (-1.0, ARC_TILT)}
+# Directions (x, z) toward the rising and the setting sun on the horizon, as WorldClock.TowardSun has them.
+BEARINGS = {"dawn": (1.0, 0.0), "dusk": (-1.0, 0.0)}
 
 # Colours in linear light.
 ORANGE = np.array([1.0, 0.36, 0.09])

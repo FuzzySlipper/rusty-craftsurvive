@@ -29,8 +29,17 @@ internal static class WorldClock
     internal const double TwilightStartsAt = -0.25d;
     internal const double FullDayAt = 0.35d;
 
-    /// <summary>How far the sun's arc leans off the east-west line, so noon light is not straight down.</summary>
-    private const float ArcTilt = 0.35f;
+    /// <summary>
+    /// The world's latitude (#9807): the sky turns about a pole this far above the north horizon (north
+    /// is -Z, east +X). The sun keeps to the celestial equator, so it rises due east, stands this far
+    /// short of the zenith in the south at noon, sets due west, and every day is twelve hours.
+    /// </summary>
+    internal const double LatitudeDegrees = 20d;
+
+    private static readonly double Latitude = LatitudeDegrees * Math.PI / 180d;
+
+    /// <summary>The celestial pole: north, the latitude above the horizon. The pole star stands here and the sky turns about it.</summary>
+    internal static readonly Vector3 CelestialPole = new(0f, (float)Math.Sin(Latitude), -(float)Math.Cos(Latitude));
 
     private const int HoursPerDay = 24;
     private const int MinutesPerHour = 60;
@@ -56,8 +65,8 @@ internal static class WorldClock
         return (ahead <= 0d ? ahead + 1d : ahead) * DaySeconds;
     }
 
-    /// <summary>The sun's elevation as a sine: 1 at noon, 0 at dawn and dusk, -1 at midnight.</summary>
-    internal static double SunElevation(double dayFraction) => Math.Sin(2d * Math.PI * (dayFraction - 0.25d));
+    /// <summary>The sun's elevation as a sine: its noon height (the latitude's cosine) at noon, 0 at dawn and dusk, the same below at midnight.</summary>
+    internal static double SunElevation(double dayFraction) => Math.Sin(2d * Math.PI * (dayFraction - 0.25d)) * Math.Cos(Latitude);
 
     /// <summary>How much of the day's light there is, from 0 at night to 1 in full day, eased through twilight.</summary>
     internal static double Daylight(double dayFraction)
@@ -106,11 +115,52 @@ internal static class WorldClock
     /// <summary>The moon's elevation as a sine.</summary>
     internal static double MoonElevation(WorldTime time) => TowardMoon(time).Y;
 
-    /// <summary>A point of the sky's arc at a day fraction: rising toward +x at 0.25, highest at 0.5, setting toward -x at 0.75.</summary>
+    /// <summary>
+    /// A point of the celestial equator at a day fraction: rising due east at 0.25, highest in the south
+    /// at 0.5, setting due west at 0.75.
+    /// </summary>
     private static Vector3 OnArc(double dayFraction)
     {
         double angle = 2d * Math.PI * (dayFraction - 0.25d);
-        return Vector3.Normalize(new Vector3((float)Math.Cos(angle), (float)Math.Sin(angle), ArcTilt));
+        double up = Math.Sin(angle);
+        return new Vector3((float)Math.Cos(angle), (float)(up * Math.Cos(Latitude)), (float)(up * Math.Sin(Latitude)));
+    }
+
+    /// <summary>
+    /// The stars' year: they turn about the pole once more than the sun in this many days, so the stars
+    /// up at midnight drift through the year while every day stays twelve hours.
+    /// </summary>
+    internal const double StarYearDays = 120d;
+
+    /// <summary>
+    /// How far the stars have turned about the pole since the first midnight, as a share of a turn (0 to
+    /// 1): a day's turn, and a year's share more.
+    /// </summary>
+    internal static double StarTurn(WorldTime time)
+    {
+        double days = time.Day + time.DayFraction;
+        double turn = days * (1d + (1d / StarYearDays));
+        return turn - Math.Floor(turn);
+    }
+
+    /// <summary>
+    /// The rotation from the star catalogue's frame (+Z toward the celestial pole, +X toward the stars on
+    /// the meridian at the first midnight, +Y completing it) into the world, at a moment.
+    /// </summary>
+    internal static Quaternion StarOrientation(WorldTime time)
+    {
+        // At the first midnight the catalogue's +X stands on the meridian, due south and as high as the
+        // equator goes (where the sun stands at noon); the sky then turns westward about the pole.
+        Vector3 pole = CelestialPole;
+        Vector3 meridian = OnArc(0.5d);
+        Matrix4x4 frame = new(
+            meridian.X, meridian.Y, meridian.Z, 0f,
+            Vector3.Cross(pole, meridian).X, Vector3.Cross(pole, meridian).Y, Vector3.Cross(pole, meridian).Z, 0f,
+            pole.X, pole.Y, pole.Z, 0f,
+            0f, 0f, 0f, 1f);
+        Quaternion atFirstMidnight = Quaternion.CreateFromRotationMatrix(frame);
+        Quaternion turning = Quaternion.CreateFromAxisAngle(pole, -(float)(2d * Math.PI * StarTurn(time)));
+        return Quaternion.Normalize(turning * atFirstMidnight);
     }
 
     /// <summary>The day and the hour as a player reads them, for example "Day 3, 07:12".</summary>
