@@ -89,26 +89,21 @@ public sealed partial class CraftSurviveProduct
         SettleParty();
     }
 
-    /// <summary>The lake the party was last held at, or answered for, so each crossing stops the journey once.</summary>
-    private int windboundLake = -1;
+    /// <summary>The lake crossing the party pressed on into, which the wind no longer stops.</summary>
+    private readonly WindboundCrossings windbound = new();
 
     /// <summary>
     /// Windbound (#9902): the party afloat on open lake water whose waves the wind raises past its boat's
-    /// limit stops ashore, offering to wait until the wind drops or to press on. Once a crossing is answered
-    /// it is not raised again until the party has left that lake.
+    /// limit stops ashore, offering to wait until the wind drops or to press on. Only pressing on lets it
+    /// across; after a wait - however it ended - the lake is judged again in the wind of the moment.
     /// </summary>
     private bool RaiseWindbound(EnvironmentSample sky)
     {
         if (party is null) return false;
         Lake? lake = party.Afloat ? worlds.Current.Map.LakeAt(party.Position.X, party.Position.Y) : null;
-        if (lake is null || riverStage.LakeIce(lake))
-        {
-            windboundLake = -1;
-            return false;
-        }
-
-        if (lake.Id == windboundLake || boat.Boat is not Boat held || !Windbound.Holds(held.Spec, lake, sky.Channels.Wind)) return false;
-        windboundLake = lake.Id;
+        if (!windbound.Holds(lake, lake is not null && riverStage.LakeIce(lake), boat.Boat?.Spec, sky.Channels.Wind)
+            || lake is null || boat.Boat is not Boat held) return false;
+        windbound.Raised(lake);
         (double x, double z, double now) = (party.Position.X, party.Position.Y, weather.Hours);
         double? wait = Windbound.Wait(held.Spec, lake, hours => weather.Field.Sample(x, z, now + hours).Channels.Wind, TravelEvents.LongestShelterHours);
         shelterHours = wait ?? TravelEvents.LongestShelterHours;
@@ -166,6 +161,7 @@ public sealed partial class CraftSurviveProduct
         if (pendingEvent is not TravelEvent current || party is null) throw new FormatException("No event is waiting.");
         if (!current.Choices.Any(offered => offered.Id == choice)) throw new FormatException("Choose one of the event's answers.");
         pendingEvent = null;
+        windbound.Answered(pressedOn: choice == TravelEvents.Push);
         switch (choice)
         {
             case TravelEvents.Fight:

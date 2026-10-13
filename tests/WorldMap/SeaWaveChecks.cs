@@ -185,6 +185,21 @@ internal static class SeaWaveChecks
         Check.That(Boats.Raft.WaveLimit > Boats.Canoe.WaveLimit, "a raft rides higher waves than a canoe");
         Check.That(Windbound.Wait(Boats.Canoe, great, h => h < 6 ? 0.8 : 0.05, 48) == 6 && Windbound.Wait(Boats.Canoe, great, _ => 1, 48) is null,
             "the party waits until the wind drops, or is told it holds");
+        // Only pressing on lets the party across (#9902 review): a wait, cut short or refused, is judged again.
+        WindboundCrossings crossings = new();
+        Check.That(crossings.Holds(great, false, Boats.Canoe, 1), "a gale holds a canoe at a great lake");
+        crossings.Raised(great);
+        crossings.Answered(pressedOn: false);
+        Check.That(crossings.Holds(great, false, Boats.Canoe, 1), "after a wait that ends - or is refused - in the same gale, it is held again");
+        Check.That(!crossings.Holds(great, false, Boats.Canoe, 0), "after a wait into calm, it crosses");
+        crossings.Raised(great);
+        crossings.Answered(pressedOn: true);
+        Check.That(!crossings.Holds(great, false, Boats.Canoe, 1), "pressing on lets it across that lake in the gale");
+        crossings.Answered(pressedOn: false);
+        Check.That(!crossings.Holds(great, false, Boats.Canoe, 1), "another event answered on the way does not undo the crossing");
+        Check.That(!crossings.Holds(null, false, Boats.Canoe, 1) && crossings.Holds(great, false, Boats.Canoe, 1),
+            "leaving the lake ends the crossing: the next time it is judged again");
+        Check.That(!crossings.Holds(great, true, Boats.Canoe, 1) && !crossings.Holds(great, false, null, 1), "a frozen lake, or no boat, holds no one");
         Check.That(Windbound.Name(small) == "the lake" && Windbound.Name(great with { Name = "Greatwater" }) == "Greatwater", "a lake is named to the party");
     }
 
