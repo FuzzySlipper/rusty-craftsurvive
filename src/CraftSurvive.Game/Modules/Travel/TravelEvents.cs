@@ -11,11 +11,16 @@ internal readonly record struct TravelEventChoice(string Id, string Label);
 /// <summary>An event that has stopped the journey, waiting for the player's choice.</summary>
 internal sealed record TravelEvent(TravelEventKind Kind, string Title, string Text, IReadOnlyList<TravelEventChoice> Choices);
 
+/// <summary>Where the party is on the water when an event is rolled (#9904): ashore (walking, or carrying the canoe round rapids), or afloat on a river or a lake.</summary>
+internal enum TravelWater { Ashore, River, Lake }
+
 /// <summary>What the roll reads about where and how the expedition travels.</summary>
 /// <param name="Risk">The expedition's own factor, <see cref="PartyTravel.EventRisk"/>: exhaustion raises it.</param>
 /// <param name="HomeKilometres">Distance from home: the farther out, the more dangerous the country.</param>
 /// <param name="River">The river the party is at, as its stage has it (#9878): none, running, high, in flood, frozen or dry.</param>
-internal readonly record struct TravelEventFacts(MapBiome Biome, bool Night, RiverState River, double HomeKilometres, double Risk);
+/// <param name="Water">Whether the party is afloat, and on what (#9904): afloat, the river is the one it rides, not a ford.</param>
+internal readonly record struct TravelEventFacts(MapBiome Biome, bool Night, RiverState River, double HomeKilometres, double Risk,
+    TravelWater Water = TravelWater.Ashore);
 
 /// <summary>
 /// Rolls travel events (#9470, Den design/overland-travel-mode): a chance per travel hour from
@@ -42,6 +47,26 @@ internal sealed class TravelEventDirector(ulong seed)
         RiverState.Running => RunningHazardFactor,
         RiverState.High => HighHazardFactor,
         RiverState.Flood => FloodHazardFactor,
+        _ => 1,
+    };
+
+    /// <summary>
+    /// Afloat (#9904) the water keeps most hostile things off: encounters are this much rarer, and none is
+    /// fought from the boat (an ambush needs ground with a way to the player, who sits aboard).
+    /// </summary>
+    internal const double AfloatEncounterFactor = 0.3;
+    /// <summary>
+    /// Afloat, how likely trouble on the water is, whatever the country's ground: on a river snags and
+    /// shallows before its stage; on a lake only shoals, its waves being the wind's (#9902, windbound).
+    /// </summary>
+    internal const double RiverWaterHazard = 1, LakeWaterHazard = 0.4;
+    /// <summary>How much likelier trouble is on a river running high (rapids) or in flood (sweepers).</summary>
+    internal const double HighWaterHazardFactor = 1.8, FloodWaterHazardFactor = 3;
+
+    internal static double WaterHazardFactor(RiverState river) => river switch
+    {
+        RiverState.High => HighWaterHazardFactor,
+        RiverState.Flood => FloodWaterHazardFactor,
         _ => 1,
     };
 
@@ -101,7 +126,21 @@ internal sealed class TravelEventDirector(ulong seed)
             encounter *= NightEncounterFactor;
             discovery *= NightDiscoveryFactor;
         }
-        hazard *= RiverHazardFactor(facts.River);
+        switch (facts.Water)
+        {
+            // Afloat, the trouble is the water's, not the ground's or a ford's; a discovery is as likely.
+            case TravelWater.River:
+                encounter *= AfloatEncounterFactor;
+                hazard = RiverWaterHazard * WaterHazardFactor(facts.River);
+                break;
+            case TravelWater.Lake:
+                encounter *= AfloatEncounterFactor;
+                hazard = LakeWaterHazard;
+                break;
+            default:
+                hazard *= RiverHazardFactor(facts.River);
+                break;
+        }
         return [encounter, discovery, weather, hazard];
     }
 
@@ -115,6 +154,12 @@ internal sealed class TravelEventDirector(ulong seed)
         return (z >> 11) * (1d / (1UL << 53));
     }
 }
+
+/// <summary>
+/// Trouble on the water (#9904): what it is, how going round it is put and what that costs in hours, and
+/// how running it is put (it costs what pushing through a hazard ashore does).
+/// </summary>
+internal sealed record WaterHazard(string Title, string Text, string Round, double RoundHours, string Through);
 
 /// <summary>What each kind of event says and offers. The product applies the chosen outcome.</summary>
 internal static class TravelEvents
@@ -134,6 +179,41 @@ internal static class TravelEvents
     /// <summary>Pushing through a hazard costs a ration, or this much health with none to spare.</summary>
     internal const int HazardDamage = 4;
     internal const int AmbushSize = 3;
+
+    /// <summary>Hours lining or carrying the boat round trouble on the water (#9904).</summary>
+    internal const double SnagHours = 2, ShallowsHours = 2, RapidsHours = 3, SweepersHours = 5, ShoalsHours = 2;
+
+    internal static readonly WaterHazard Snag = new("Snag", "A fallen tree lies across the channel ahead.", "Line the boat round it", SnagHours, "Shoot the gap");
+    internal static readonly WaterHazard Shallows = new("Shallows", "The channel runs too shallow to float the loaded boat.", "Unload and walk it over", ShallowsHours, "Drag it over loaded");
+    internal static readonly WaterHazard Rapids = new("Rapids ahead", "White water runs ahead, wilder than the river's usual.", "Line the boat down the bank", RapidsHours, "Run them");
+    internal static readonly WaterHazard Sweepers = new("Sweepers", "The flood has torn trees from the banks; they rake the channel ahead.", "Land and line it past", SweepersHours, "Run the channel");
+    internal static readonly WaterHazard Shoals = new("Shoals", "Rocks lie just under the surface across the way ahead.", "Feel a way round", ShoalsHours, "Run over them");
+
+    /// <summary>
+    /// The trouble afloat (#9904): on a lake, shoals; on a river, rapids when it runs high and sweepers in
+    /// flood, otherwise a snag across the channel, or shallows for a drifting raft's deeper draught.
+    /// </summary>
+    internal static WaterHazard WaterHazardAt(TravelWater water, RiverState river, LegMode mode) => water == TravelWater.Lake ? Shoals : river switch
+    {
+        RiverState.High => Rapids,
+        RiverState.Flood => Sweepers,
+        _ => mode == LegMode.Drift ? Shallows : Snag,
+    };
+
+    /// <summary>A hazard on the water: go round it, lining or carrying the boat, or run it and risk the load.</summary>
+    internal static TravelEvent Hazard(WaterHazard hazard) => new(TravelEventKind.Hazard, hazard.Title, hazard.Text,
+        [new(Detour, FormattableString.Invariant($"{hazard.Round} ({hazard.RoundHours:F0} h)")), new(Push, hazard.Through + " (risk the load: costs a ration or health)")]);
+
+    /// <summary>
+    /// Hostile creatures afloat (#9904): they keep pace along the bank or shore, and the party, aboard, does
+    /// not fight them; it stands off from the bank and loses hours, or runs past and risks a hit or the load.
+    /// </summary>
+    internal static TravelEvent EncounterAfloat(TravelWater water)
+    {
+        string edge = water == TravelWater.Lake ? "shore" : "bank";
+        return new(TravelEventKind.Encounter, "Hostile creatures", $"Something hostile is keeping pace with the boat along the {edge}.",
+            [new(Evade, FormattableString.Invariant($"Stand off from the {edge} ({EvadeHours:F0} h)")), new(Push, "Run past them (costs a ration or health)")]);
+    }
 
     internal static TravelEvent Encounter(MapBiome biome) => new(TravelEventKind.Encounter,
         "Hostile creatures",

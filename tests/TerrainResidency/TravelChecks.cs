@@ -265,11 +265,50 @@ internal static class TravelChecks
             && RiverStates.Of(new(9, 4, 1.2, 1, true, false)) == RiverState.Frozen
             && RiverStates.Of(new(0.01, 0.01, 0.002, -0.3, false, true)) == RiverState.Dry,
             "a reach's stage reads as a crossing: dry before frozen before flood before high");
+        // Afloat (#9904): the trouble is the water's, not the ground's or a ford's; encounters are rarer and never fought from the boat.
+        TravelEventFacts river = open with { Water = TravelWater.River, River = RiverState.Running }, lake = open with { Water = TravelWater.Lake };
+        double Afloat(TravelEventFacts facts, TravelEventKind kind) => TravelEventDirector.Weights(facts)[(int)kind];
+        Check.That(Afloat(river with { Biome = MapBiome.Alpine }, TravelEventKind.Hazard) == Afloat(river, TravelEventKind.Hazard)
+            && Afloat(river, TravelEventKind.Hazard) == TravelEventDirector.RiverWaterHazard && Afloat(lake, TravelEventKind.Hazard) < Afloat(river, TravelEventKind.Hazard),
+            "afloat, the country's ground and the ford bring no hazards; a lake (its waves the wind's) fewer than a river");
+        Check.That(Afloat(river, TravelEventKind.Hazard) < Afloat(river with { River = RiverState.High }, TravelEventKind.Hazard)
+            && Afloat(river with { River = RiverState.High }, TravelEventKind.Hazard) < Afloat(river with { River = RiverState.Flood }, TravelEventKind.Hazard),
+            "afloat, a river's trouble rises with its stage");
+        Check.That(Afloat(river, TravelEventKind.Encounter) < Afloat(open, TravelEventKind.Encounter) && Afloat(lake, TravelEventKind.Encounter) < Afloat(open, TravelEventKind.Encounter)
+            && Afloat(river, TravelEventKind.Discovery) == Afloat(open, TravelEventKind.Discovery),
+            "afloat, encounters are rarer and discoveries as likely");
+        var paddling = Simulate(river, 7);
+        Check.That(paddling.Encounters * calm.Count < calm.Encounters * paddling.Count && paddling.Count > 0,
+            $"encounters make up less of the events afloat ({paddling.Encounters} of {paddling.Count} vs {calm.Encounters} of {calm.Count})");
+        string[] landTitles = ["Broken ground", "Rockslide", "Cold ford", "Swollen ford", "River in flood"];
+        WaterHazard[] afloatHazards = [.. new[] { RiverState.None, RiverState.Running, RiverState.High, RiverState.Flood }
+            .SelectMany(stage => new[] { LegMode.Paddle, LegMode.Drift, LegMode.Line }.SelectMany(mode => new[] { TravelWater.River, TravelWater.Lake }
+            .Select(water => TravelEvents.WaterHazardAt(water, stage, mode))))];
+        Check.That(afloatHazards.All(h => !landTitles.Contains(h.Title)) && afloatHazards.Distinct().Count() == 5,
+            "afloat, every hazard is the water's: snag, shallows, rapids, sweepers and shoals, never ground or a ford");
+        Check.That(TravelEvents.WaterHazardAt(TravelWater.Lake, RiverState.Flood, LegMode.Paddle) == TravelEvents.Shoals
+            && TravelEvents.WaterHazardAt(TravelWater.River, RiverState.High, LegMode.Paddle) == TravelEvents.Rapids
+            && TravelEvents.WaterHazardAt(TravelWater.River, RiverState.Flood, LegMode.Drift) == TravelEvents.Sweepers
+            && TravelEvents.WaterHazardAt(TravelWater.River, RiverState.Running, LegMode.Drift) == TravelEvents.Shallows
+            && TravelEvents.WaterHazardAt(TravelWater.River, RiverState.Running, LegMode.Paddle) == TravelEvents.Snag,
+            "a lake has shoals; a river rapids when high, sweepers in flood, else a snag, or shallows for a drifting raft");
+        TravelEvent rapids = TravelEvents.Hazard(TravelEvents.Rapids);
+        Check.That(rapids.Choices[0].Id == TravelEvents.Detour && rapids.Choices[0].Label.Contains($"{TravelEvents.RapidsHours:F0} h", StringComparison.Ordinal)
+            && rapids.Choices[1].Id == TravelEvents.Push && TravelEvents.SweepersHours > TravelEvents.RapidsHours,
+            "a hazard afloat offers to line the boat round it for hours, or to run it and risk the load");
+        TravelEvent shadowed = TravelEvents.EncounterAfloat(TravelWater.River);
+        Check.That(shadowed.Kind == TravelEventKind.Encounter && shadowed.Choices.All(c => c.Id != TravelEvents.Fight)
+            && TravelEvents.EncounterAfloat(TravelWater.Lake).Text.Contains("shore", StringComparison.Ordinal),
+            "an encounter afloat is not fought from the boat: the party stands off or runs past");
+        Check.That(TravelEvents.Hazard(MapBiome.Grassland, RiverState.High).Title == "Swollen ford" && Afloat(open with { River = RiverState.Flood }, TravelEventKind.Hazard) == Hazard(RiverState.Flood),
+            "walked, a river still brings its ford's hazards as its stage stands");
         Check.That(alpine[(int)TravelEventKind.Weather] == 0 && meadow[(int)TravelEventKind.Weather] == 0, "weather is never rolled: it comes with the fronts (#9739)");
         TravelEvent glass = TravelEvents.Weather("Glass storm", "The air rings.", 100, wounds: true);
         Check.That(glass.Choices[0].Label.Contains($"{TravelEvents.LongestShelterHours:F0} h", StringComparison.Ordinal) && glass.Choices[1].Label.Contains("wounds", StringComparison.Ordinal),
             "a front's event offers to camp until it passes, at most two days at a time, and says when pressing on wounds");
-        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather("Rain front", "Rain sweeps in.", 6, wounds: false), TravelEvents.Hazard(MapBiome.Alpine, RiverState.High) })
+        foreach (TravelEvent shown in new[] { TravelEvents.Encounter(MapBiome.Grassland), TravelEvents.Discovery("Ruin", 1.2), TravelEvents.Weather("Rain front", "Rain sweeps in.", 6, wounds: false), TravelEvents.Hazard(MapBiome.Alpine, RiverState.High),
+            TravelEvents.EncounterAfloat(TravelWater.Lake), TravelEvents.Hazard(TravelEvents.Snag), TravelEvents.Hazard(TravelEvents.Shallows), TravelEvents.Hazard(TravelEvents.Rapids),
+            TravelEvents.Hazard(TravelEvents.Sweepers), TravelEvents.Hazard(TravelEvents.Shoals) })
             Check.That(shown.Choices.Count == 2 && shown.Choices.All(c => !c.Label.Contains(',') && !c.Label.Contains('|') && !c.Id.Contains(':'))
                 && !shown.Title.Contains('|') && !shown.Text.Contains('|'), $"{shown.Kind} offers two answers that publish cleanly");
 

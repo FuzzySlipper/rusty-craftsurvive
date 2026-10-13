@@ -49,13 +49,27 @@ public sealed partial class CraftSurviveProduct
 
         if (RaiseWindbound(sky)) return;
 
+        EventPlace place = EventPlaceOfParty(party);
+        TravelEventFacts facts = new(place.Biome, conditions.IsNight, place.River,
+            Vector2.Distance(party.Position, new((float)home.Home.X, (float)home.Home.Z)) / 1000, party.EventRisk * sky.Effects.EventRisk, place.Water);
+        if (TravelEventRolls.Roll(hours, facts) is TravelEventKind kind) Raise(kind, place);
+    }
+
+    /// <summary>Where an event finds the party: its country, its river as the stage has it, whether it is afloat and how its leg is made.</summary>
+    private readonly record struct EventPlace(MapBiome Biome, RiverState River, TravelWater Water, LegMode Mode);
+
+    /// <summary>
+    /// Where the party is for a travel event (#9904). Afloat it is on a lake or a river; carrying the canoe
+    /// round rapids it is ashore on the bank, crossing no ford.
+    /// </summary>
+    private EventPlace EventPlaceOfParty(PartyTravel at)
+    {
         WorldMap map = worlds.Current.Map;
-        MapSample here = map.Sample(party.Position.X, party.Position.Y);
-        MapBiome biome = WorldMap.Biome(here);
-        RiverState river = RiverAtParty(here);
-        TravelEventFacts facts = new(biome, conditions.IsNight, river,
-            Vector2.Distance(party.Position, new((float)home.Home.X, (float)home.Home.Z)) / 1000, party.EventRisk * sky.Effects.EventRisk);
-        if (TravelEventRolls.Roll(hours, facts) is TravelEventKind kind) Raise(kind, biome, river);
+        MapSample here = map.Sample(at.Position.X, at.Position.Y);
+        LegMode mode = at.Afloat && at.Route is TravelRoute route ? route.Mode(at.Leg) : LegMode.Walk;
+        if (mode == LegMode.Portage) return new(WorldMap.Biome(here), RiverState.None, TravelWater.Ashore, mode);
+        TravelWater water = mode == LegMode.Walk ? TravelWater.Ashore : map.LakeAt(at.Position.X, at.Position.Y) is null ? TravelWater.River : TravelWater.Lake;
+        return new(WorldMap.Biome(here), RiverAtParty(here), water, mode);
     }
 
     /// <summary>The fronts already announced to the party, so each stops the journey once; and how long sheltering from the last takes.</summary>
@@ -116,14 +130,17 @@ public sealed partial class CraftSurviveProduct
     }
 
     /// <summary>Present an event: the journey pauses and the map screen offers its choices.</summary>
-    private void Raise(TravelEventKind kind, MapBiome biome, RiverState river)
+    private void Raise(TravelEventKind kind, EventPlace place)
     {
-        hazardDetourHours = TravelEvents.DetourFor(river);
+        // Afloat (#9904) the trouble is the water's, and creatures keep to the bank.
+        bool afloat = place.Water != TravelWater.Ashore;
+        WaterHazard water = TravelEvents.WaterHazardAt(place.Water, place.River, place.Mode);
+        hazardDetourHours = afloat ? water.RoundHours : TravelEvents.DetourFor(place.River);
         TravelEvent? raised = kind switch
         {
-            TravelEventKind.Encounter => TravelEvents.Encounter(biome),
+            TravelEventKind.Encounter => afloat ? TravelEvents.EncounterAfloat(place.Water) : TravelEvents.Encounter(place.Biome),
             TravelEventKind.Discovery => DiscoverNearParty(),
-            _ => TravelEvents.Hazard(biome, river),
+            _ => afloat ? TravelEvents.Hazard(water) : TravelEvents.Hazard(place.Biome, place.River),
         };
         // A discovery with nothing left to find nearby is no event at all.
         if (raised is null || party is null) return;
@@ -183,11 +200,13 @@ public sealed partial class CraftSurviveProduct
                 worldMessage = FormattableString.Invariant($"Went round, losing {hazardDetourHours:F0} hours.");
                 break;
             case TravelEvents.Push:
-                if (inventory.Spend(ItemCatalog.Ration)) worldMessage = "Pushed through; a ration was lost.";
+                // Afloat (#9904), what is lost goes over the side.
+                bool afloat = party.Afloat;
+                if (inventory.Spend(ItemCatalog.Ration)) worldMessage = afloat ? "Ran it; a ration went over the side." : "Pushed through; a ration was lost.";
                 else
                 {
                     player.Vitals.TakeHit(TravelEvents.HazardDamage, 0);
-                    worldMessage = string.Create(CultureInfo.InvariantCulture, $"Pushed through and took {TravelEvents.HazardDamage} damage.");
+                    worldMessage = string.Create(CultureInfo.InvariantCulture, $"{(afloat ? "Ran it" : "Pushed through")} and took {TravelEvents.HazardDamage} damage.");
                 }
                 SaveJourney();
                 break;
@@ -227,12 +246,11 @@ public sealed partial class CraftSurviveProduct
             return TravelEventFacts();
         }
 
-        MapSample here = worlds.Current.Map.Sample(party.Position.X, party.Position.Y);
-        Raise(parsed, WorldMap.Biome(here), RiverAtParty(here));
+        Raise(parsed, EventPlaceOfParty(party));
         PublishWorld();
         return pendingEvent is null ? "no event: nothing to find nearby" : TravelEventFacts();
     }
 
     internal string TravelReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} river={(party is null ? RiverState.None : RiverAtParty(worlds.Current.Map.Sample(party.Position.X, party.Position.Y)))} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
+        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} river={(party is null ? RiverState.None : RiverAtParty(worlds.Current.Map.Sample(party.Position.X, party.Position.Y)))} water={(party is null ? TravelWater.Ashore : EventPlaceOfParty(party).Water)} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
 }
