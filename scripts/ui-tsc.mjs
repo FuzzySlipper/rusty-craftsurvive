@@ -5,7 +5,7 @@
 // usage: node scripts/ui-tsc.mjs --types <rusty-engine-product-ui.d.ts> [--check]
 import { execFile } from 'node:child_process';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -26,8 +26,7 @@ export async function compileUi(types, { check = false } = {}) {
   await writeFile(project, JSON.stringify({ extends: '../tsconfig.json', include: ['../*.ts'], files: [types] }, null, 2));
   // The repository's own TypeScript, run by this Node: no shell or package-manager shim, so the
   // same call works on Windows and Linux.
-  const tsc = createRequire(join(repositoryRoot, 'package.json')).resolve('typescript/bin/tsc');
-  const args = [tsc, '--project', project];
+  const args = [typescriptCompiler(), '--project', project];
   if (check) {
     args.push('--noEmit');
   } else {
@@ -35,6 +34,22 @@ export async function compileUi(types, { check = false } = {}) {
     await rm(join(generated, 'source'), { recursive: true, force: true });
   }
   await promisify(execFile)(process.execPath, args, { cwd: repositoryRoot });
+}
+
+// The compiler's entry point. Resolved through node_modules as usual; where pnpm's link there cannot be
+// read - a checkout installed on Linux and opened from Windows over a network share, whose Linux
+// symbolic links Windows Node cannot follow (EINVAL on readlink) - from the package's own directory in
+// pnpm's store beneath it, which holds no link.
+export function typescriptCompiler() {
+  try {
+    return createRequire(join(repositoryRoot, 'package.json')).resolve('typescript/bin/tsc');
+  } catch (error) {
+    const manifest = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8'));
+    const version = manifest.devDependencies?.typescript;
+    const stored = join(repositoryRoot, 'node_modules', '.pnpm', `typescript@${version}`, 'node_modules', 'typescript', 'bin', 'tsc');
+    if (version && existsSync(stored)) return stored;
+    throw error;
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
