@@ -30,8 +30,6 @@ internal sealed class WaterSurfaces : IDisposable
     /// <summary>Tiles sampled again per update after the stage moved on; only a changed one is rebuilt.</summary>
     private const int RefreshesPerUpdate = 4;
 
-    private const float Roughness = 0.1f;
-
     /// <summary>The ice's look: a pale, cold blue (linear), matte, opaque; the far field's ice is the same (#9878).</summary>
     internal static readonly Color IceColour = new(0.62f, 0.72f, 0.8f, 1);
     internal const float IceRoughness = 0.45f;
@@ -44,11 +42,12 @@ internal sealed class WaterSurfaces : IDisposable
     private readonly WaterModel model;
     private readonly Dictionary<(long X, long Z), Tile?> tiles = [];
     /// <summary>Each tile's water as it was last sampled, and the stage revision it was sampled at.</summary>
-    private readonly Dictionary<(long X, long Z), (ulong Signature, bool Staged, long Revision)> sampled = [];
+    private readonly Dictionary<(long X, long Z), (ulong Signature, bool Staged, long Revision, Vector2[] Flow)> sampled = [];
     private readonly List<Tile> retiring = [];
     private readonly HashSet<ulong> usedIds = [];
-    private RenderResource? foam, ripples;
-    private Material? material, iceMaterial;
+    private WaterVisualMaterial? visual;
+    private Material? iceMaterial;
+    private readonly WaterFlowStudy flowStudy;
     private int built, retired, refreshed;
     private long revision;
 
@@ -60,6 +59,7 @@ internal sealed class WaterSurfaces : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.model = model ?? throw new ArgumentNullException(nameof(model));
+        flowStudy = new(engine, frame, model);
     }
 
     /// <summary>The square of tiles the near water covers about a centre (<see cref="NearWaterSquare"/>).</summary>
@@ -73,7 +73,37 @@ internal sealed class WaterSurfaces : IDisposable
             tile.Look, true, RenderLayer.Scene, ShadowCasting.None))];
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)}");
+        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "flow"} {flowStudy.Readout()}");
+
+    internal string SetVisual(string mode) => (visual ??= new(engine, frame)).SetMode(mode);
+
+    internal string StartFlow(SpatialSession session, double x, double z)
+    {
+        MarkFlowTiles();
+        string result = flowStudy.Start(session, x, z);
+        MarkFlowTiles();
+        return result;
+    }
+
+    internal string StopFlow()
+    {
+        MarkFlowTiles();
+        flowStudy.Dispose();
+        return flowStudy.Readout();
+    }
+
+    internal string FlowAt(double x, double z) => flowStudy.At(x, z);
+
+    internal void UpdateFlow(long step)
+    {
+        if (flowStudy.Update(step)) MarkFlowTiles();
+    }
+
+    private void MarkFlowTiles()
+    {
+        foreach (var key in sampled.Keys.Where(key => flowStudy.Overlaps(key.X * TileMetres, key.Z * TileMetres, TileMetres)).ToArray())
+            sampled[key] = sampled[key] with { Staged = true, Revision = -1 };
+    }
 
     /// <summary>Moves on whenever the drawn ice changes, so the walking session's collision can follow.</summary>
     internal long IceRevision { get; private set; }
@@ -118,7 +148,8 @@ internal sealed class WaterSurfaces : IDisposable
         foreach ((long X, long Z) key in stale.ToArray())
         {
             TileSamples samples = Sample(key);
-            if (samples.Signature == sampled[key].Signature) { sampled[key] = sampled[key] with { Revision = revision }; continue; }
+            if (samples.Signature == sampled[key].Signature && samples.Flow.AsSpan().SequenceEqual(sampled[key].Flow))
+            { sampled[key] = sampled[key] with { Revision = revision }; continue; }
             if (tiles[key] is Tile old) Retire(old);
             Place(key, samples);
             refreshed++;
@@ -129,7 +160,7 @@ internal sealed class WaterSurfaces : IDisposable
     {
         Tile? tile = Build(key, samples);
         tiles[key] = tile;
-        sampled[key] = (samples.Signature, samples.Staged, revision);
+        sampled[key] = (samples.Signature, samples.Staged, revision, samples.Flow);
         if (tile is { IceTriangles.Length: > 0 }) IceRevision++;
     }
 
@@ -166,12 +197,11 @@ internal sealed class WaterSurfaces : IDisposable
         tiles.Clear();
         sampled.Clear();
         retiring.Clear();
-        material?.Dispose();
+        flowStudy.Dispose();
+        visual?.Dispose();
         iceMaterial?.Dispose();
-        foam?.Dispose();
-        ripples?.Dispose();
-        material = iceMaterial = null;
-        foam = ripples = null;
+        visual = null;
+        iceMaterial = null;
     }
 
     private static double Distance((long X, long Z) key, double x, double z)
@@ -184,7 +214,7 @@ internal sealed class WaterSurfaces : IDisposable
     /// A tile's water samples; whether any is a river or lake (which the stage can change), and a signature
     /// of what would be drawn - each wet vertex's top to a resolution, and its ice.
     /// </summary>
-    private readonly record struct TileSamples(WaterSample[] Samples, bool AnyWet, bool Staged, ulong Signature);
+    private readonly record struct TileSamples(WaterSample[] Samples, Vector2[] Flow, bool AnyWet, bool Staged, ulong Signature);
 
     private const int Side = Cells + 1;
 
@@ -192,6 +222,7 @@ internal sealed class WaterSurfaces : IDisposable
     {
         long x0 = key.X * TileMetres, z0 = key.Z * TileMetres;
         WaterSample[] samples = new WaterSample[Side * Side];
+        Vector2[] flow = new Vector2[samples.Length];
         bool anyWet = false, staged = false;
         ulong signature = 14695981039346656037UL;
         for (int j = 0; j < Side; j++)
@@ -199,13 +230,17 @@ internal sealed class WaterSurfaces : IDisposable
         {
             WaterSample sample = model.Sample(x0 + (i * Step), z0 + (j * Step));
             samples[(j * Side) + i] = sample;
+            flow[(j * Side) + i] = sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ);
             anyWet |= sample.Wet;
             staged |= sample.Body is WaterBody.River or WaterBody.Lake;
             long drawn = sample.Wet ? (long)Math.Round(sample.Top / TopResolution) * 2 + (sample.Ice ? 1 : 0) : long.MinValue;
             signature = (signature ^ (ulong)drawn) * 1099511628211UL;
         }
 
-        return new(samples, anyWet, staged, signature);
+        flowStudy.Apply(x0, z0, Side, Step, flow);
+        // Frozen cells must remain still even when the neighbouring study field is wet.
+        for (int i = 0; i < samples.Length; i++) if (samples[i].Ice) flow[i] = Vector2.Zero;
+        return new(samples, flow, anyWet, staged || flowStudy.Overlaps(x0, z0, TileMetres), signature);
     }
 
     /// <summary>One tile's water as a mesh, or null where it holds none.</summary>
@@ -253,7 +288,8 @@ internal sealed class WaterSurfaces : IDisposable
             index[v] = at;
             positions.Add(new(i * Step, (float)top[v], j * Step));
             normals.Add(Vector3.UnitY);
-            uvs.Add(new((x0 + (i * Step)) / (float)TileMetres, (z0 + (j * Step)) / (float)TileMetres));
+            // Engine WATER textures use world coordinates, leaving mesh UV free for the current.
+            uvs.Add(sampledTile.Flow[v]);
             colours.Add(white);
             return at;
         }
@@ -270,13 +306,10 @@ internal sealed class WaterSurfaces : IDisposable
         }
 
         if (indices.Count + iceIndices.Count == 0) return null;
-        foam ??= TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterFoamContentPath);
-        ripples ??= TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterRipplesContentPath);
-        material ??= engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), Roughness, white, Vector3.Zero, 0f, false)
-            with { AlphaMode = MaterialAlphaMode.Blend, Water = TerrainAtlasCatalog.WaterLook(foam, ripples) });
+        visual ??= new(engine, frame);
         List<MeshGroup> groups = [];
         List<MeshMaterialBinding> bindings = [];
-        if (indices.Count > 0) { groups.Add(new(WaterSlot, 0, (uint)indices.Count)); bindings.Add(new(WaterSlot, material)); }
+        if (indices.Count > 0) { groups.Add(new(WaterSlot, 0, (uint)indices.Count)); bindings.Add(new(WaterSlot, visual.Material)); }
         Vector3[] iceVertices = [];
         Triangle[] iceTriangles = [];
         if (iceIndices.Count > 0)
