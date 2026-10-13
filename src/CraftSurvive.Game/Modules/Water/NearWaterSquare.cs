@@ -39,4 +39,14 @@ internal static class NearWaterSquare
         double minZ = (cz - radius) * (double)TileMetres, maxZ = (cz + radius + 1) * (double)TileMetres;
         return x > minX && x < maxX && z > minZ && z < maxZ;
     }
+
+    /// <summary>
+    /// Whether a flood may reach a tile (#9880 review): whether any of its corners lies by a floodplain. A tile
+    /// is smaller than a cell of the floodplain's lattice, so the cells its corners lie in are every cell it touches.
+    /// </summary>
+    internal static bool Floodable(Func<double, double, bool> floodable, (long X, long Z) tile)
+    {
+        double x0 = tile.X * (double)TileMetres, z0 = tile.Z * (double)TileMetres;
+        return floodable(x0, z0) || floodable(x0 + TileMetres, z0) || floodable(x0, z0 + TileMetres) || floodable(x0 + TileMetres, z0 + TileMetres);
+    }
 }

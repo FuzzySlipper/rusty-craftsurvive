@@ -193,3 +193,36 @@ internal sealed class FloodLevels(FloodPlains plains, float[] level, int flooded
     /// <summary>Whether the nearest node to a world point is under water: flooded ground, as the map judges it.</summary>
     internal bool Flooded(double x, double z) => flooded > 0 && !double.IsNaN(level[plains.Network.Grid.Nearest(x, z)]);
 }
+
+/// <summary>
+/// Where floods must be drawn again (#9880 review): a reach's floodplain once its flood comes or goes, or
+/// its highest water has moved more than <see cref="RedrawMetres"/> from the level last drawn - so a flood
+/// creeping up a little each step is still drawn again once it has crept far enough. Engine-free.
+/// </summary>
+internal sealed class FloodRedraws(FloodPlains plains)
+{
+    /// <summary>A flood is drawn again once its level has moved this far (metres) since it last was.</summary>
+    internal const double RedrawMetres = 0.05;
+
+    private readonly Dictionary<int, double> drawn = [];
+
+    /// <summary>The floodplains to draw again for the floods now; remembers each as drawn at its level now.</summary>
+    internal List<WaterBounds> Changes(FloodLevels now)
+    {
+        List<WaterBounds> changed = [];
+        foreach (int r in drawn.Keys.Where(r => !now.Reaches.ContainsKey(r)).ToArray())
+        {
+            drawn.Remove(r);
+            changed.Add(plains.Bounds[r]);
+        }
+
+        foreach ((int r, double level) in now.Reaches)
+        {
+            if (drawn.TryGetValue(r, out double was) && Math.Abs(level - was) <= RedrawMetres) continue;
+            drawn[r] = level;
+            changed.Add(plains.Bounds[r]);
+        }
+
+        return changed;
+    }
+}

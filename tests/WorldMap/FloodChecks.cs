@@ -55,6 +55,28 @@ internal static class FloodChecks
             && flood.Flooded(x, z) && flood.Floodable(x, z), "at a flooded node the flood reads its level and reach, and its ground is flooded");
         Check.That(flood.At(x + (10 * network.Grid.Spacing * network.Grid.Side), z) is null, "far from any flood there is none");
 
+        // A tile is known to be floodable from its corners exactly as from every one of its samples (#9880 review).
+        bool exact = true;
+        for (long tz = (long)Math.Floor((z - 600) / NearWaterSquare.TileMetres); tz <= (long)Math.Floor((z + 600) / NearWaterSquare.TileMetres); tz++)
+        for (long tx = (long)Math.Floor((x - 600) / NearWaterSquare.TileMetres); tx <= (long)Math.Floor((x + 600) / NearWaterSquare.TileMetres); tx++)
+        {
+            bool anySample = false;
+            for (int j = 0; j <= NearWaterSquare.TileMetres && !anySample; j++)
+            for (int i = 0; i <= NearWaterSquare.TileMetres && !anySample; i++)
+                anySample = flood.Floodable((tx * NearWaterSquare.TileMetres) + i, (tz * NearWaterSquare.TileMetres) + j);
+            exact &= anySample == NearWaterSquare.Floodable(flood.Floodable, (tx, tz));
+        }
+
+        Check.That(exact, "a tile's corners tell whether any of it lies by a floodplain, as its every sample would");
+
+        // Redraws follow the level last drawn (#9880 review): a flood creeping up 4 cm a step is drawn again once it has crept 5 cm.
+        FloodRedraws redraws = new(plains);
+        FloodLevels Highest(double level) => new(plains, [], 0, new Dictionary<int, double> { [reach.Id] = level });
+        int[] drawnAt = [.. Enumerable.Range(0, 11).Where(k => redraws.Changes(Highest(100 + (0.04 * k))).Count > 0)];
+        Check.That(drawnAt.SequenceEqual([0, 2, 4, 6, 8, 10]), $"a flood creeping up is drawn again each time it has moved past the tolerance (steps {string.Join(",", drawnAt)})");
+        Check.That(redraws.Changes(new FloodLevels(plains, [], 0, new Dictionary<int, double>())).SequenceEqual([plains.Bounds[reach.Id]])
+            && redraws.Changes(new FloodLevels(plains, [], 0, new Dictionary<int, double>())).Count == 0, "a flood that goes is drawn away once");
+
         // The water owner: where the flood stands over a column's ground, the column is under it.
         WaterModel water = new(recipe);
         StubFloods stub = new(flood);

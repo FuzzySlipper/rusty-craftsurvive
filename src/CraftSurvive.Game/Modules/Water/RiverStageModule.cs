@@ -42,9 +42,8 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
     /// <summary>The floodplains (#9880), and the floods as last published with the stage.</summary>
     private FloodPlains? plains;
     private FloodLevels? floods;
-
-    /// <summary>A flood whose level moves by more than this (metres) since it was last drawn is drawn again.</summary>
-    private const double FloodRedrawMetres = 0.05;
+    /// <summary>The level each flood was last drawn at, so one creeping up is drawn again once it has crept far enough.</summary>
+    private FloodRedraws? redraws;
     private WaterNetwork? network;
     private Dictionary<int, int> lakeReach = [];
     /// <summary>For each node of the network's grid, the largest reach through it, or -1.</summary>
@@ -174,7 +173,8 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
                 foreach (int node in reach.Nodes)
                     if (nodeReach[node] < 0 || network.Reaches[nodeReach[node]].Flow < reach.Flow) nodeReach[node] = reach.Id;
             // Everything already frozen, dry or in flood is news to what draws water.
-            advanced(Changed(null, stage, plains, null, firstFloods));
+            redraws = new FloodRedraws(plains);
+            advanced([.. Changed(null, stage), .. redraws.Changes(firstFloods)]);
             Save(stepper.Capture());
         }
 
@@ -186,6 +186,7 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
             FloodLevels nowFlooded;
             (stage, nowFlooded, lastAdvanceMs, changed, due) = stepped.GetAwaiter().GetResult();
             Volatile.Write(ref floods, nowFlooded);
+            changed = [.. changed, .. redraws!.Changes(nowFlooded)];
             steps++;
             changedAreas += changed.Length;
             advanced(changed);
@@ -207,7 +208,7 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
             FloodLevels flooded = floodPlains.Levels(after.At, floodsBefore, after.Hours - before.Hours);
             // The stores are copied here, where the stage is still, when a save is due.
             RiverStageState? save = double.IsNaN(lastSaved) || moving.Hours - lastSaved >= SaveEveryHours ? moving.Capture() : null;
-            return (after, flooded, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Changed(before, after, floodPlains, floodsBefore, flooded), save);
+            return (after, flooded, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Changed(before, after), save);
         });
     }
 
@@ -232,32 +233,17 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         savedHours = state.Hours;
     }
 
-    /// <summary>
-    /// Where water froze, thawed, ran dry or came back between two stages (from none: where it is frozen or
-    /// dry), and where a flood rose, fell or receded (#9880): a reach's whole floodplain.
-    /// </summary>
-    private WaterBounds[] Changed(RiverStageView? before, RiverStageView after, FloodPlains floodPlains, FloodLevels? floodsBefore, FloodLevels floodsAfter)
+    /// <summary>Where water froze, thawed, ran dry or came back between two stages (from none: where it is frozen or dry).</summary>
+    private WaterBounds[] Changed(RiverStageView? before, RiverStageView after)
     {
         List<WaterBounds> changed = [];
         for (int r = 0; r < after.Count; r++)
         {
             ReachStage now = after.At(r);
-            ReachStage? then = before?.At(r);
-            bool was = then is { } prior && (prior.Ice != now.Ice || prior.Dry != now.Dry);
-            if (before is null ? now.Ice || now.Dry : was)
-            {
-                changed.Add(reachBounds[r]);
-                if (reachLakes.TryGetValue(r, out List<WaterBounds>? lakes)) changed.AddRange(lakes);
-            }
-
-        }
-
-        // A flood that came, went, or rose or fell by more than a little since it was last drawn.
-        foreach (int r in floodsAfter.Reaches.Keys.Union(floodsBefore?.Reaches.Keys ?? []))
-        {
-            bool had = floodsBefore is not null && floodsBefore.Reaches.TryGetValue(r, out double was);
-            bool has = floodsAfter.Reaches.TryGetValue(r, out double now);
-            if (had != has || (has && Math.Abs(now - floodsBefore!.Reaches[r]) > FloodRedrawMetres)) changed.Add(floodPlains.Bounds[r]);
+            bool was = before is not null && before.At(r) is { } then && (then.Ice != now.Ice || then.Dry != now.Dry);
+            if (!(before is null ? now.Ice || now.Dry : was)) continue;
+            changed.Add(reachBounds[r]);
+            if (reachLakes.TryGetValue(r, out List<WaterBounds>? lakes)) changed.AddRange(lakes);
         }
 
         return [.. changed];

@@ -131,7 +131,14 @@ internal sealed class WaterSurfaces : IDisposable
         tiles.Values.OfType<Tile>().Where(tile => tile.IceTriangles.Length > 0).Select(tile => (tile.Corner, tile.IceVertices, tile.IceTriangles));
 
     /// <summary>The water's stage moved on: tiles holding a river or lake are sampled again as the player's updates allow.</summary>
-    internal void Refresh() => revision++;
+    internal void Refresh()
+    {
+        revision++;
+        // A dry tile sampled before the floodplains were known (#9880 review) is taken up as one the stage
+        // may change, so a flood reaching it is drawn without the tile having to be built again.
+        foreach ((long X, long Z) key in sampled.Keys.Where(key => !sampled[key].Staged && NearWaterSquare.Floodable(model.Floodable, key)).ToArray())
+            sampled[key] = sampled[key] with { Staged = true, Revision = -1 };
+    }
 
     /// <summary>
     /// Keeps the square of tiles about a centre (the far field's sink centre, so both agree): retires those
@@ -253,12 +260,13 @@ internal sealed class WaterSurfaces : IDisposable
             samples[(j * Side) + i] = sample;
             flow[(j * Side) + i] = sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ);
             anyWet |= sample.Wet;
-            // A river or lake moves with the stage; a floodplain's dry ground may flood (#9880).
-            staged |= sample.Body is WaterBody.River or WaterBody.Lake || model.Floodable(x0 + (i * Step), z0 + (j * Step));
+            // A river or lake moves with the stage; so may a floodplain's dry ground (#9880), below.
+            staged |= sample.Body is WaterBody.River or WaterBody.Lake;
             long drawn = sample.Wet ? (long)Math.Round(sample.Top / TopResolution) * 2 + (sample.Ice ? 1 : 0) : long.MinValue;
             signature = (signature ^ (ulong)drawn) * 1099511628211UL;
         }
 
+        staged |= NearWaterSquare.Floodable(model.Floodable, key);
         flowStudy.Apply(x0, z0, Side, Step, flow);
         // Frozen cells must remain still even when the neighbouring study field is wet.
         for (int i = 0; i < samples.Length; i++) if (samples[i].Ice) flow[i] = Vector2.Zero;
