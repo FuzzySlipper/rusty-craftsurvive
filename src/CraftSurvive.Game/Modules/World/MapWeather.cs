@@ -11,7 +11,7 @@ namespace CraftSurvive.Game.Modules.World;
 internal readonly record struct WeatherMarker(string Kind, Vector2 Centre, float RadiusMetres, float Strength, Vector2[] Track);
 
 /// <summary>
-/// Weather fronts on the faceted map (#9739, Den <c>design/weather-and-environment</c>): each a soft,
+/// Weather fronts on the map (#9739, Den <c>design/weather-and-environment</c>): each a soft,
 /// translucent disc at cloud height over the relief, sized to the front and denser as it strengthens,
 /// with a trail of dots where it is heading, so a player can see a storm coming and judge its path.
 /// </summary>

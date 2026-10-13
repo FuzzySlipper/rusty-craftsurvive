@@ -13,17 +13,17 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
     [DebugCommand("craft.world.map", Description = "Reads active generated map identity, size, generation cost, persistence and representative sites.")]
     public string ReadMap() => Read();
 
-    private readonly Func<WorldMapVoxelView?>? faceted;
+    private readonly Func<WorldMapVoxelView?>? mapView;
 
     private readonly Action<string>? requestStyle;
 
     private readonly Func<string, string>? showMap;
 
-    internal WorldMapDebugModule(Func<WorldCatalog> catalog, Func<TerrainWorld> terrain, Func<WorldMapVoxelView?> faceted,
+    internal WorldMapDebugModule(Func<WorldCatalog> catalog, Func<TerrainWorld> terrain, Func<WorldMapVoxelView?> mapView,
         Action<string> requestStyle, Func<string, string> showMap)
         : this(catalog, terrain)
     {
-        this.faceted = faceted;
+        this.mapView = mapView;
         this.requestStyle = requestStyle;
         this.showMap = showMap;
     }
@@ -36,29 +36,29 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
         if (catalog().Preparing) return "refused: a world is already being generated";
         // A new world replaces the old one's owners while the map is the published scene, as the map's own
         // New world requires: with first person still published, its meshes would be disposed while drawn.
-        showMap?.Invoke("smooth");
+        showMap?.Invoke("open");
         catalog().BeginPrepare(parsed, checked((int)size));
         return $"preparing seed={parsed} size={size}";
     }
 
-    [DebugCommand("craft.world.view", Description = "Assisted (#9841): opens the world map in its smooth or faceted view, or closes it, as the HUD's World and view buttons do.")]
+    [DebugCommand("craft.world.view", Description = "Assisted (#9841): opens the world map (open) or closes it (close), as the HUD's World and Explore here buttons do.")]
     public string ShowMap(string view) => showMap?.Invoke(view) ?? "map=none";
 
-    [DebugCommand("craft.world.mapstyle", Description = "Experiment (#9464): rebuilds the faceted map with ground style flat, ground or painted on the next update.")]
+    [DebugCommand("craft.world.mapstyle", Description = "Experiment (#9464): rebuilds the map with ground style flat, ground or painted on the next update.")]
     public string SetMapStyle(string style)
     {
         requestStyle?.Invoke(style);
         return "requested=" + style;
     }
 
-    [DebugCommand("craft.world.faceted", Description = "Reads the prototype faceted map view's load progress and cost, if it has been built.")]
-    public string ReadFaceted() => faceted?.Invoke()?.Readout ?? "faceted=none";
+    [DebugCommand("craft.world.faceted", Description = "Reads the world map view's load progress and cost, if it has been built (named for the faceted view it once was).")]
+    public string ReadFaceted() => mapView?.Invoke()?.Readout ?? "map=none";
 
-    [DebugCommand("craft.world.mapcamera", Description = "Assisted: sets the faceted map camera's distance (coarse cells), yaw and pitch in degrees, as wheel and orbit input would.")]
+    [DebugCommand("craft.world.mapcamera", Description = "Assisted: sets the map camera's distance (coarse cells), yaw and pitch in degrees, as wheel and orbit input would.")]
     public string SetMapCamera(double distance, double yawDegrees, double pitchDegrees)
     {
-        WorldMapVoxelView? view = faceted?.Invoke();
-        if (view is null) return "faceted=none";
+        WorldMapVoxelView? view = mapView?.Invoke();
+        if (view is null) return "map=none";
         view.SetCamera((float)distance, (float)yawDegrees, (float)pitchDegrees);
         return view.Readout;
     }

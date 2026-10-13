@@ -240,7 +240,7 @@ feeds the party from it, and moves items between it and the pack through the wor
 kinematic float), owned by `Places/BoatStore` (its save key, appearance, and the collider the player
 controller borrows each step as a ridden platform, `Player/IPlayerCarrier`); `RiverRouter` plans a
 journey over the water network and the land and keeps it if it beats walking, and `MapBoat` builds a
-boat, takes it with the party, and leaves it moored at the landing. The faceted view
+boat, takes it with the party, and leaves it moored at the landing. The map view
 draws the token, the route ribbon and the waypoint, and turns a free-cursor click into a waypoint
 through `CameraQueries.Ray`. Closing the map explores at the token by teleporting the player there.
 See Den `design/overland-travel-mode`.

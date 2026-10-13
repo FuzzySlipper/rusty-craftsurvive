@@ -32,23 +32,23 @@ internal static class ProductIds
     internal const ulong WorldMapObject = 0x4_0000UL;
     internal const ulong WorldMapPartyObject = 0x4_0001UL;
     internal const ulong WorldMapWaypointObject = 0x4_0002UL;
-    /// <summary>Route ribbon markers on the faceted map; up to 0xF00 of them.</summary>
+    /// <summary>Route ribbon markers on the map; up to 0xF00 of them.</summary>
     internal const ulong WorldMapRouteBase = 0x4_0100UL;
     internal const int WorldMapRouteLimit = 0xF00;
-    /// <summary>Map clutter instances (trees, rocks) on the faceted map's detail patch; up to 0xF000 of them.</summary>
+    /// <summary>Map clutter instances (trees, rocks) on the map's detail patch; up to 0xF000 of them.</summary>
     internal const ulong WorldMapClutterBase = 0x4_1000UL;
     internal const int WorldMapClutterLimit = 0xF000;
-    /// <summary>Known-place markers on the faceted map: home and every journal place.</summary>
+    /// <summary>Known-place markers on the map: home and every journal place.</summary>
     internal const ulong WorldMapPlaceBase = 0x5_0000UL;
     internal const int WorldMapPlaceLimit = 0x2000;
 
-    /// <summary>Weather fronts on the faceted map (#9739): a disc each, and a trail of dots where each is heading.</summary>
+    /// <summary>Weather fronts on the map (#9739): a disc each, and a trail of dots where each is heading.</summary>
     internal const ulong WorldMapWeatherBase = 0x5_2000UL;
     internal const int WorldMapWeatherLimit = 0x400;
     internal const ulong WorldMapWeatherTrackBase = 0x5_2400UL;
     internal const int WorldMapWeatherTrackLimit = 0x1000;
 
-    /// <summary>The frontier's posts on the faceted map (#9817), where it crosses land.</summary>
+    /// <summary>The frontier's posts on the map (#9817), where it crosses land.</summary>
     internal const ulong WorldMapFrontierBase = 0x5_3400UL;
     internal const int WorldMapFrontierLimit = 0x400;
 

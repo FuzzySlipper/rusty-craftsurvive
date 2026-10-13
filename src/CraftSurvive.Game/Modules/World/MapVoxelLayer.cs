@@ -6,7 +6,7 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// One resolution of the faceted map, streamed as chunk columns in its own dual-contoured spatial
+/// One resolution of the map, streamed as chunk columns in its own dual-contoured spatial
 /// session. The owner says which chunk columns it wants and which have changed; the layer works out
 /// the chunks to admit, replace and evict and applies a bounded number per update, refreshing the
 /// projected scene as it goes. Column contents come from the owner's sampler, in this layer's voxels.
@@ -16,7 +16,12 @@ internal sealed class MapVoxelLayer : IDisposable
     internal const int EdgeLength = TerrainConstants.ChunkEdgeLength;
     internal const int ColumnCount = EdgeLength * EdgeLength;
     private const float MinimumDensity = 0.001f;
-    private const float CreaseDegrees = 40f;
+    /// <summary>
+    /// The map's ground is rounded (#9946): vertices at the mean of their crossings and every face shaded
+    /// smooth, rather than the faceted ridges and creases it was first drawn with (#9436).
+    /// </summary>
+    private const VertexPlacement Placement = VertexPlacement.Smooth;
+    private const float CreaseDegrees = 180f;
     private const float Roughness = 0f;
 
     /// <summary>Fill a chunk column's surfaces (absolute, in voxels; NaN for none) and materials, z-major then x.</summary>
@@ -66,7 +71,7 @@ internal sealed class MapVoxelLayer : IDisposable
             uint[] slots = [.. materials.Keys];
             engine.Voxel.ConfigureMaterialSurfaces(new VoxelMaterialSurfaceRequest(Session, VoxelSurfaceMode.DualContouring,
                 slots.Select(slot => new VoxelMaterialSurface(slot, VoxelSurfaceMode.DualContouring,
-                    new SurfaceCharacter(VertexPlacement.Sharp, CreaseDegrees, Roughness))).ToArray()));
+                    new SurfaceCharacter(Placement, CreaseDegrees, Roughness))).ToArray()));
             engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(Session,
                 slots.Select(slot => new VoxelMaterialCollision(slot, false)).ToArray()));
             engine.Voxel.ConfigureMaterialOcclusion(new VoxelMaterialOcclusionRequest(Session,

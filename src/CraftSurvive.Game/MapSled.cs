@@ -56,8 +56,7 @@ public sealed partial class CraftSurviveProduct
     private void RefreshPlaces()
     {
         IReadOnlyList<KnownPlace> known = KnownPlacesNow();
-        overview?.ShowPlaces(known);
-        facetedMap?.ShowPlaces(known);
+        mapView?.ShowPlaces(known);
     }
 
     private void ApplySledLoad()

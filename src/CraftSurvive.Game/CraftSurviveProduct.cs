@@ -32,12 +32,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private readonly IEngineContext engine;
     private readonly ProductCreateContext context;
     private readonly WorldCatalog worlds;
-    private WorldMapPresentation? overview;
-
-    /// <summary>The prototype faceted map view (#9436), built on first request and kept for this world.</summary>
-    private WorldMapVoxelView? facetedMap;
-    private bool facetedMapShown;
-    /// <summary>The faceted map's ground style (#9464), and one requested for the next update.</summary>
+    /// <summary>The world map (#9436, #9946), built when it first opens and kept for this world.</summary>
+    private WorldMapVoxelView? mapView;
+    /// <summary>The map's ground style (#9464), and one requested for the next update.</summary>
     private MapSurfaceStyle mapStyle = MapSurfaceStyle.Painted;
     private MapSurfaceStyle? requestedMapStyle;
     private bool mapOpen;
@@ -275,7 +272,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         RequireRegistration(registrar.Register(new TravelDebugModule(() => worldBuilt ? TravelReadout() : "no world", kind => worldBuilt ? ForceTravelEvent(kind) : "no world",
             (x, z) => worldBuilt ? BoundReadout(x, z) : "no world", (x, z) => worldBuilt ? PlanReadout(x, z) : "no world")));
-        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style),
+        RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => mapView, style => requestedMapStyle = MapSurfaceStyle.Named(style),
             view => worldBuilt ? MapViewReadout(view) : "no world")));
         RequireRegistration(registrar.Register(new MenuDebugModule(PauseReadout)));
         RequireRegistration(registrar.Register(entityDebug));
@@ -353,18 +350,18 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (mapOpen)
         {
             ApplyRequestedMapStyle();
-            if (facetedMapShown && facetedMap is not null && facetedMap.SteerWaypoint(update.Input))
+            if (mapView is not null && mapView.SteerWaypoint(update.Input))
             {
-                try { PlanTravel(facetedMap.Waypoint, "the waypoint"); }
+                try { PlanTravel(mapView.Waypoint, "the waypoint"); }
                 catch (FormatException refused) { worldMessage = refused.Message; }
                 PublishWorld();
             }
             AdvanceTravel(ProductStep.From(update.Facts).ElapsedSeconds);
             // The walking modules rest while the map is open; the river stage follows the clock regardless (#9878 review).
             riverStage.Follow();
-            if (facetedMapShown) ShowWeatherOnMap();
-            if (facetedMapShown && facetedMap is not null && (facetedMap.Steer(update.Input) | facetedMap.MarkersStale)) PublishAppearanceSnapshot();
-            AdvanceFacetedMap();
+            ShowWeatherOnMap();
+            if (mapView is not null && (mapView.Steer(update.Input) | mapView.MarkersStale)) PublishAppearanceSnapshot();
+            AdvanceMapView();
             return ProductUpdateResult.None;
         }
         ProductStep step = ProductStep.From(update.Facts);
@@ -455,8 +452,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             Shutdown();
         }
 
-        overview?.Dispose();
-        facetedMap?.Dispose();
+        mapView?.Dispose();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         if (worldBuilt)
         {
@@ -508,8 +504,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(!mapOpen || overview is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. TreeFacts(), .. horizon.Facts]
-            : facetedMapShown && facetedMap is not null ? facetedMap.Facts : overview.Facts);
+        engine.Graphics.PublishSnapshot(!mapOpen || mapView is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. TreeFacts(), .. horizon.Facts]
+            : mapView.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();

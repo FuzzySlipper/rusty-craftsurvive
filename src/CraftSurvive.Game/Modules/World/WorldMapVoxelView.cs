@@ -8,8 +8,7 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// Prototype faceted map view (#9436, #9437): the generated map voxelized as dual-contoured
-/// terrain, sampling the same <see cref="WorldMap"/> walking terrain does. A coarse layer covers
+/// The world map (#9436, #9437, #9946): the generated map voxelized as dual-contoured terrain, sampling the same <see cref="WorldMap"/> walking terrain does. A coarse layer covers
 /// the whole map; a finer patch around the party carries close-range detail, and the coarse
 /// ground beneath that patch is lowered so the two never fight. The patch follows the party in
 /// whole-chunk steps (#9468): only the strips that enter, leave or change their edge fade are
@@ -22,6 +21,8 @@ namespace CraftSurvive.Game.Modules.World;
 internal sealed class WorldMapVoxelView : IDisposable
 {
     internal const double CellMetres = 32;
+    /// <summary>Relief is drawn taller than true scale so a 300 m range reads on a map kilometres across.</summary>
+    internal const double VerticalExaggeration = 3;
     private const int DetailPerCell = 4;
     private const double DetailMetres = CellMetres / DetailPerCell;
     /// <summary>Detail chunks on each side of the party's chunk covered by the patch (one chunk is 128 m).</summary>
@@ -157,7 +158,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             party = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, PartyColor.Linear()));
             routeMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, RouteColor.Linear()));
             waypointMarker = engine.Graphics.CreatePrimitive(new(PrimitiveGeometry.Sphere, false, WaypointColor.Linear()));
-            weather = new MapWeather(engine, Surface, CellMetres, CellMetres / WorldMapPresentation.VerticalExaggeration);
+            weather = new MapWeather(engine, Surface, CellMetres, CellMetres / VerticalExaggeration);
             waypoint = new(partyWorldFeet.X, partyWorldFeet.Z);
 
             firstDetailChunk = (long)Math.Floor(-map.Radius / DetailChunkMetres);
@@ -221,7 +222,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     internal void SetCamera(float distance, float yawDegrees, float pitchDegrees) => rig.Set(distance, yawDegrees, pitchDegrees);
 
-    /// <summary>Site markers and the party token, placed on the faceted relief.</summary>
+    /// <summary>Site markers and the party token, placed on the relief.</summary>
     internal AppearanceFact[] Facts => [
         .. clutter.Facts(rig.Distance <= ClutterDistance),
         Marker(ProductIds.WorldMapPartyObject, partyPosition, PartyScalePerDistance, party),
@@ -603,7 +604,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, MapSample> geography, Func<double, double, RiverInfluence?> rivers, double riverReach,
         Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground, double coarseBeyond)
     {
-        double metresPerVoxel = cellMetres / WorldMapPresentation.VerticalExaggeration;
+        double metresPerVoxel = cellMetres / VerticalExaggeration;
         double origin = OriginY / voxelSize;
         void Sample(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
         {
@@ -662,7 +663,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         return WorldMap.Smooth(Math.Clamp(inset / EdgeFadeMetres, 0, 1));
     }
 
-    /// <summary>A point on the faceted surface as drawn: the detail patch where it covers, else the coarse map.</summary>
+    /// <summary>A point on the surface as drawn: the detail patch where it covers, else the coarse map.</summary>
     private Vector3 Surface(double worldX, double worldZ)
     {
         bool inDetail = InDetail(worldX, worldZ);
@@ -673,7 +674,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     private Vector3 Position(double worldX, double elevation, double worldZ)
     {
-        double metresPerUnit = CellMetres / WorldMapPresentation.VerticalExaggeration;
+        double metresPerUnit = CellMetres / VerticalExaggeration;
         return new((float)(worldX / CellMetres), (float)(OriginY + Math.Max(elevation, GenerationConstants.WaterLevel) / metresPerUnit),
             (float)(worldZ / CellMetres));
     }

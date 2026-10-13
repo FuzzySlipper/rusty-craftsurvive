@@ -22,9 +22,10 @@ public sealed partial class CraftSurviveProduct
     private const double ArrivalClearance = 4;
     private static readonly int[] NewWorldSizes = [4096, 8192, 16384, MapScale.DefaultContinentalSize];
     private const int MetresPerKilometre = 1024;
-    private const string BuildingFacetedMessage = "Building the faceted relief...";
-    private const string SmoothMapView = "smooth";
-    private const string FacetedMapView = "faceted";
+    private const string BuildingMapMessage = "Drawing the map...";
+    private const string OpenMapView = "open";
+    /// <summary>The two views the map once had (#9841) still open it, for older lane scripts.</summary>
+    private static readonly string[] FormerMapViews = ["smooth", "faceted"];
     private const string CloseMapView = "close";
     private const string FirstWorldMessage ="Generating your first world: raising ranges, running rivers and settling climate...";
 
@@ -82,8 +83,8 @@ public sealed partial class CraftSurviveProduct
                         break;
                     case "waypoint":
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
-                        if (!facetedMapShown || facetedMap is null) ShowFacetedMap(true);
-                        PlanTravel(facetedMap!.Waypoint, "the waypoint");
+                        ShowMapView();
+                        PlanTravel(mapView!.Waypoint, "the waypoint");
                         break;
                     case "speed":
                         if (!root.TryGetProperty("speed", out JsonElement speedElement) || speedElement.ValueKind != JsonValueKind.Number || !speedElement.TryGetInt32(out int speed))
@@ -97,10 +98,6 @@ public sealed partial class CraftSurviveProduct
                     case "go" or "pause" or "halt" or "camp":
                         if (!mapOpen) throw new FormatException("Open the world map to travel.");
                         TravelAction(action.GetString()!);
-                        break;
-                    case "style":
-                        if (!mapOpen) throw new FormatException("Open the world map to change its view.");
-                        ShowFacetedMap(!facetedMapShown);
                         break;
                     case "create":
                         if (!mapOpen && !paused) throw new FormatException("Open the world map or the menu to start a new world.");
@@ -143,17 +140,14 @@ public sealed partial class CraftSurviveProduct
 
     private void OpenMap()
     {
-        overview ??= new(engine, worlds.Current.Map);
         player.ClearInput();
         sky.Submerged(false);
         sky.Underground(false, WorldConditionsState.Fresh.Time);
         sky.Map(true);
         mapOpen = true;
-        // The party and the sled's hitch are settled first, so both views draw the places as they now stand.
+        // The party and the sled's hitch are settled first, so the map draws the places as they now stand.
         SyncPartyToPlayer();
-        if (facetedMapShown) ShowFacetedMap(true);
-        else overview.Activate();
-        PublishAppearanceSnapshot();
+        ShowMapView();
     }
 
     private void CloseMap()
@@ -167,15 +161,14 @@ public sealed partial class CraftSurviveProduct
         PublishAppearanceSnapshot();
     }
 
-    /// <summary>Open the map in a named view, or close it, as the World action's open, style and close do (craft.world.view, #9841).</summary>
+    /// <summary>Open the map or close it, as the World button and Explore here do (craft.world.view, #9841).</summary>
     private string MapViewReadout(string view)
     {
         switch (view)
         {
-            case SmoothMapView or FacetedMapView:
+            case OpenMapView:
+            case var former when FormerMapViews.Contains(former):
                 if (!mapOpen) OpenMap();
-                bool faceted = view == FacetedMapView;
-                if (faceted != facetedMapShown) ShowFacetedMap(faceted);
                 break;
             case CloseMapView:
                 if (mapOpen)
@@ -184,10 +177,10 @@ public sealed partial class CraftSurviveProduct
                     CloseMap();
                 }
                 break;
-            default: return $"refused: {SmoothMapView}, {FacetedMapView} or {CloseMapView}";
+            default: return $"refused: {OpenMapView} or {CloseMapView}";
         }
         PublishWorld();
-        return $"open={mapOpen};view={(facetedMapShown ? FacetedMapView : SmoothMapView)};message={worldMessage}";
+        return $"open={mapOpen};message={worldMessage}";
     }
 
     /// <summary>Admit a finished world simulation from the update thread; true when the world changed hands this update.</summary>
@@ -240,11 +233,8 @@ public sealed partial class CraftSurviveProduct
         ui.ResetWorld();
         mapOpen = false;
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
-        overview?.Dispose();
-        overview = null;
-        facetedMap?.Dispose();
-        facetedMap = null;
-        facetedMapShown = false;
+        mapView?.Dispose();
+        mapView = null;
         travelCost = null;
         party = null;
         travelEvents = null;
@@ -268,56 +258,46 @@ public sealed partial class CraftSurviveProduct
         OpenMap();
     }
 
-    /// <summary>Switch the open map between the smooth mesh and the prototype faceted relief.</summary>
-    private void ShowFacetedMap(bool faceted)
+    /// <summary>Show the map: built once per world and style, its detail patch then following the party.</summary>
+    private void ShowMapView()
     {
-        facetedMapShown = faceted;
-        if (faceted)
-        {
-            // Built once per world and style; its detail patch then follows the party.
-            Vector3 partyFeet = player.WorldFeetPosition;
-            facetedMap ??= new(engine, context.Content, worlds.Current.Map, partyFeet, mapStyle);
-            facetedMap.MoveParty(party?.Position ?? new(partyFeet.X, partyFeet.Z));
-            facetedMap.ShowRoute(party?.Route?.Points);
-            facetedMap.ShowPlaces(KnownPlacesNow());
-            facetedMap.Activate();
-            if (!facetedMap.Loaded) worldMessage = BuildingFacetedMessage;
-        }
-        else
-        {
-            overview!.Activate();
-            worldMessage = "";
-        }
+        Vector3 partyFeet = player.WorldFeetPosition;
+        mapView ??= new(engine, context.Content, worlds.Current.Map, partyFeet, mapStyle);
+        mapView.MoveParty(party?.Position ?? new(partyFeet.X, partyFeet.Z));
+        mapView.ShowRoute(party?.Route?.Points);
+        mapView.ShowPlaces(KnownPlacesNow());
+        mapView.Activate();
+        if (!mapView.Loaded) worldMessage = BuildingMapMessage;
         PublishAppearanceSnapshot();
     }
 
-    /// <summary>Rebuild the faceted map in a newly requested ground style, from an update.</summary>
+    /// <summary>Rebuild the map in a newly requested ground style, from an update.</summary>
     private void ApplyRequestedMapStyle()
     {
         if (requestedMapStyle is not MapSurfaceStyle style) return;
         requestedMapStyle = null;
         mapStyle = style;
-        DisposeFacetedMap();
-        if (facetedMapShown) ShowFacetedMap(true);
+        DisposeMapView();
+        if (mapOpen) ShowMapView();
     }
 
-    /// <summary>Retire the faceted map: its markers and clutter leave the published snapshot before their appearances go.</summary>
-    private void DisposeFacetedMap()
+    /// <summary>Retire the map view: its markers and clutter leave the published snapshot before their appearances go.</summary>
+    private void DisposeMapView()
     {
-        if (facetedMap is null) return;
-        engine.Graphics.PublishSnapshot(overview is not null && mapOpen ? overview.Facts : ReadOnlySpan<AppearanceFact>.Empty);
-        facetedMap.Dispose();
-        facetedMap = null;
+        if (mapView is null) return;
+        engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+        mapView.Dispose();
+        mapView = null;
     }
 
-    /// <summary>Feed the faceted relief a bounded batch per update while the map is open.</summary>
-    private void AdvanceFacetedMap()
+    /// <summary>Feed the map a bounded batch per update while it is open.</summary>
+    private void AdvanceMapView()
     {
-        if (facetedMap is null) return;
-        bool wasLoaded = facetedMap.Loaded;
-        facetedMap.Advance();
-        if (wasLoaded || !facetedMap.Loaded) return;
-        if (facetedMapShown && worldMessage == BuildingFacetedMessage) worldMessage = "";
+        if (mapView is null) return;
+        bool wasLoaded = mapView.Loaded;
+        mapView.Advance();
+        if (wasLoaded || !mapView.Loaded) return;
+        if (worldMessage == BuildingMapMessage) worldMessage = "";
         PublishWorld();
     }
 
@@ -326,17 +306,16 @@ public sealed partial class CraftSurviveProduct
         if (!worlds.HasWorld)
         {
             TerrainConfiguration first = TerrainConfiguration.Default;
-            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, false, "", "idle", "", "", travelSpeed));
+            ui.PublishMap(new(true, first.Seed.ToString(CultureInfo.InvariantCulture), first.Size, "", worldMessage, 0, "", "idle", "", "", travelSpeed));
             return;
         }
         WorldMap map = worlds.Current.Map;
         IReadOnlyList<KnownPlace> known = KnownPlacesNow();
-        facetedMap?.ShowPlaces(known);
-        overview?.ShowPlaces(known);
+        mapView?.ShowPlaces(known);
         Vector2 from = party?.Position ?? new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z);
         string sites = string.Join(';', known.Select(place => FormattableString.Invariant(
             $"{place.Key}|{place.Name}|{PlaceDetail(place, map)}|{place.Position.X:F0}|{place.Position.Y:F0}|{Vector2.Distance(from, place.Position) / 1000:F1}|{place.Kind.ToString().ToLowerInvariant()}")));
         ui.PublishMap(new(mapOpen, map.Configuration.Seed.ToString(CultureInfo.InvariantCulture), map.Configuration.Size,
-            sites, worldMessage, worlds.Current.Generation, facetedMapShown, TravelStatus(), TravelPhase, TravelSupplies(), TravelEventFacts(), travelSpeed));
+            sites, worldMessage, worlds.Current.Generation, TravelStatus(), TravelPhase, TravelSupplies(), TravelEventFacts(), travelSpeed));
     }
 }

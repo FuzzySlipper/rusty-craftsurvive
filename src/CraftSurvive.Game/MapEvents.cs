@@ -180,7 +180,7 @@ public sealed partial class CraftSurviveProduct
         Vector2 at = new(site.X, site.Z);
         string name = DiscoveryRules.PlaceName(site.Kind);
         discoveredPlace = (at, name);
-        facetedMap?.ShowPlaces(KnownPlacesNow());
+        mapView?.ShowPlaces(KnownPlacesNow());
         return TravelEvents.Discovery(name, Vector2.Distance(party.Position, at) / 1000);
     }
 
@@ -277,5 +277,5 @@ public sealed partial class CraftSurviveProduct
     }
 
     internal string TravelReadout() => string.Create(CultureInfo.InvariantCulture,
-        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} river={(party is null ? RiverState.None : RiverAtParty(worlds.Current.Map.Sample(party.Position.X, party.Position.Y)))} water={(party is null ? TravelWater.Ashore : EventPlaceOfParty(party).Water)} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker=faceted:{facetedMap?.ShowsSled.ToString() ?? "none"},overview:{overview?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
+        $"state={party?.State.ToString() ?? "none"} speed=x{travelSpeed} at={party?.Position.X ?? 0:F0},{party?.Position.Y ?? 0:F0} legs={party?.Route?.LegHours.Length ?? 0} refinedLegs={party?.Route?.RefinedLegs ?? 0} remainingHours={party?.RemainingHours ?? 0:F1} fatigue={party?.Fatigue ?? 0:F2} risk={party?.EventRisk ?? 1:F2} river={(party is null ? RiverState.None : RiverAtParty(worlds.Current.Map.Sample(party.Position.X, party.Position.Y)))} water={(party is null ? TravelWater.Ashore : EventPlaceOfParty(party).Water)} weather={weather.Field.Sample(party?.Position.X ?? 0, party?.Position.Y ?? 0, weather.Hours).Describe()} event={(pendingEvent is null ? "none" : TravelEventFacts())} rolls={travelEvents?.Rolled ?? 0} sinceLastEvent={travelEvents?.HoursSinceLast ?? 0:F1}h {home.Readout} places={KnownPlacesNow().Count} sledWithParty={sledWithParty} sledMarker={mapView?.ShowsSled.ToString() ?? "none"} {sled.Readout}");
 }

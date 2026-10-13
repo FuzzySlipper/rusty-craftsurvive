@@ -38,7 +38,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - Play at ±190 km behaves as at the centre (#9551): walking, collision, edits, saves and
       dungeons. The generation fingerprint and cache identity probe only the arrival tile, plus
       the continent's map fingerprint.
-    - The faceted map draws a continent in three tiers (#9552):
+    - The map draws a continent in three tiers (#9552):
       - the whole continent at 1 km;
       - an 8 km window of region tiles at 32 m around the party, easing onto the continent at its edge;
       - the 8 m patch.
@@ -103,7 +103,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - Narrow streams (about 3 m) can hide under their dual-contoured banks at a grazing view.
     - A lake's shore follows its 1 km basin, so a lake can end in a straight edge where the basin does.
     - Smaller lakes (tarns, ponds, oxbows) are not generated, and regional worlds have none. The map
-      view draws lakes (fresh, salt, playa); the faceted relief draws all of them as fresh water.
+      draws every lake (fresh, salt, playa) as fresh water.
   - River travel (#9879) is by a raft or a canoe the party builds at a bank (it cannot yet be bought
     or found). On the map the route follows the 250 m network's nodes, so a stop afloat puts the boat
     on the walked channel up to 160 m away. In first person a boat is a kinematic float at the
@@ -142,8 +142,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     only the map view's generating message; there is no progress estimate.
   - The bedrock perimeter rises a fixed height above local ground; it is not final
     geographic edge art.
-  - The map view's **Faceted relief** toggle is a prototype (#9436, #9437). It voxelizes the
-    map as dual-contoured terrain: one voxel per 32 m for the whole map, and an 8 m patch with
+  - The world map (#9436, #9437; the only map since #9946, which retired the fixed overview) voxelizes
+    the generated map as rounded dual-contoured terrain (smooth vertex placement and shading): one voxel per 32 m for the whole map, and an 8 m patch with
     regional relief about 2 km across around the party, where the coarse ground is sunk out of
     sight. A camera locked to the party zooms (wheel, or Z/X) and orbits (right-drag, Q/E;
     R/F tilt); there is no free pan. The ground uses generated painterly map textures (meadow,
@@ -167,7 +167,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     #9493). With the free cursor the Engine reports motion as cursor positions, so the orbit follows
     those; it takes the wheel only while the canvas has focus, so the map's own buttons hand focus
     back to it.
-  - **Overland travel (#9467–#9471).** On the faceted map the party token plans A* routes over
+  - **Overland travel (#9467–#9471).** On the map the party token plans A* routes over
     the 32 m lattice, priced by slope, environment, fords and the sea, and travels them while the
     clock fast-forwards (`TravelCostModel.JourneyScale`). Night travel is three times slower.
     - **Destinations:** click the faceted relief (the map screen frees the cursor; the click's
@@ -195,7 +195,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       expedition by map; nothing stops the walker. Route previews give both paces: by map, and on
       foot at walking speed whatever the country.
     - Places crowding within 5% of the camera distance draw as one cluster marker on the
-      faceted map (home and the sled never cluster). The smooth overview draws every place.
+      map (home and the sled never cluster).
     - **Events (#9470)** are rolled per travel hour (`TravelEventDirector`): weighted by environment,
       night, fords and distance from home, raised by exhaustion, with a four-hour cooldown. One
       stops the journey and the map screen offers two answers. An encounter is fought in first

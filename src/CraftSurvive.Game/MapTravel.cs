@@ -60,19 +60,19 @@ public sealed partial class CraftSurviveProduct
             (bool planned, string? byBoat) = PlanForParty(resumed.Points[^1], resumed.Destination);
             if (planned && party.Route is TravelRoute route) worldMessage = byBoat is null ? RoutePreview(route) : $"{byBoat} {RoutePreview(route)}";
         }
-        facetedMap?.MoveParty(party.Position);
-        facetedMap?.ShowRoute(party.Route?.Points);
+        mapView?.MoveParty(party.Position);
+        mapView?.ShowRoute(party.Route?.Points);
     }
 
-    /// <summary>Plan a route to a destination; travel happens on the faceted map.</summary>
+    /// <summary>Plan a route to a destination; travel happens on the map.</summary>
     private void PlanTravel(Vector2 destination, string name)
     {
         if (player.InSeparateSpace) throw new FormatException("Leave this place before planning overland travel.");
-        if (!facetedMapShown) ShowFacetedMap(true);
+        ShowMapView();
         party ??= new PartyTravel(destination);
         ApplySledLoad();
         (bool planned, string? byBoat) = PlanForParty(destination, name);
-        facetedMap?.ShowRoute(party.Route?.Points);
+        mapView?.ShowRoute(party.Route?.Points);
         worldMessage = planned && party.Route is TravelRoute route ? RoutePreview(route) : party.Last;
         if (byBoat is not null) worldMessage = $"{byBoat} {worldMessage}";
         if (RouteBoundNote(destination) is string bounded) worldMessage = $"{bounded} {worldMessage}";
@@ -128,12 +128,12 @@ public sealed partial class CraftSurviveProduct
     private const double WeatherShownStrength = 0.15;
     private const int WeatherTrailFronts = 6;
 
-    /// <summary>Draws the fronts near the party on the faceted map (#9739), again whenever the clock has moved on.</summary>
+    /// <summary>Draws the fronts near the party on the map (#9739), again whenever the clock has moved on.</summary>
     private void ShowWeatherOnMap()
     {
-        if (facetedMap is null) return;
+        if (mapView is null) return;
         double hours = weather.Hours;
-        if (ReferenceEquals(weatherDrawnOn, facetedMap) && weatherDrawnRevision == weather.Field.Revision && Math.Abs(hours - weatherDrawnHours) < WeatherRedrawHours) return;
+        if (ReferenceEquals(weatherDrawnOn, mapView) && weatherDrawnRevision == weather.Field.Revision && Math.Abs(hours - weatherDrawnHours) < WeatherRedrawHours) return;
         Vector2 at = party?.Position ?? new(player.WorldFeetPosition.X, player.WorldFeetPosition.Z);
         List<WeatherMarker> fronts = [];
         double edge = worlds.Current.Map.Radius;
@@ -149,9 +149,9 @@ public sealed partial class CraftSurviveProduct
             fronts.Add(new WeatherMarker(front.Kind.Id, front.Centre(hours), (float)front.RadiusMetres, (float)front.Strength(hours), [.. track]));
         }
 
-        facetedMap.ShowWeather(fronts);
+        mapView.ShowWeather(fronts);
         weatherDrawnHours = hours;
-        weatherDrawnOn = facetedMap;
+        weatherDrawnOn = mapView;
         weatherDrawnRevision = weather.Field.Revision;
     }
 
@@ -191,8 +191,8 @@ public sealed partial class CraftSurviveProduct
                     SettleParty();
                 }
 
-                facetedMap?.ShowRoute(null);
-                facetedMap?.MoveParty(party.Position);
+                mapView?.ShowRoute(null);
+                mapView?.MoveParty(party.Position);
                 break;
             case "camp":
                 Camp();
@@ -256,13 +256,13 @@ public sealed partial class CraftSurviveProduct
         survival.Journey(spent / PlayHoursPerSecond, Meal, sky.Effects.SupplyUse);
         WoundInTheOpen(sky, spent);
         FollowBoat();
-        facetedMap?.MoveParty(party.Position);
+        mapView?.MoveParty(party.Position);
         // On a continent, the country ahead is refined before the party could stop in it (#9550), and
         // the route's head follows region ground as the party reaches it (#9552).
         if (worlds.Current.Map.Scale.Continental)
         {
             MapRegions.For(worlds.Current.Map).PrefetchAhead(party.Position, party.Route?.Points);
-            if (party.Refine(PartyCost)) facetedMap?.ShowRoute(party.Route?.Points);
+            if (party.Refine(PartyCost)) mapView?.ShowRoute(party.Route?.Points);
         }
         unpublishedTravelHours += spent;
         // An event settles the party itself and keeps the route for after the choice.
@@ -271,7 +271,7 @@ public sealed partial class CraftSurviveProduct
         if (arrived)
         {
             worldMessage = party.Last;
-            facetedMap?.ShowRoute(null);
+            mapView?.ShowRoute(null);
             SettleParty();
         }
         if (stopped || unpublishedTravelHours >= TravelPublishHours)

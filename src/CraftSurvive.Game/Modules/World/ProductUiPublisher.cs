@@ -102,7 +102,7 @@ internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, stri
 /// <summary>The pause menu (#9916): whether the game is held under it, and whether the host can quit from it.</summary>
 internal readonly record struct GameMenuUiFacts(bool Paused, bool QuitAvailable);
 
-internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted,
+internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation,
     string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);
 
 /// <summary>

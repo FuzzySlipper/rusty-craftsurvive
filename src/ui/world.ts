@@ -10,7 +10,7 @@ const CONTRACT = WORLD_CONTRACT;
 const PLACE_COLOURS: Readonly<Record<string, string>> = { home: '#59e673', visited: '#ff611a', seen: '#c79a6b', entrance: '#9e52f2', sled: '#8c5c2e', town: '#a5463a', boat: '#409ec7' };
 const PANEL = 'pointer-events:auto;background:rgb(20 24 27 / 94%);color:#eee7d5;padding:1rem;border:1px solid #84775c;border-radius:.4rem;';
 
-/** Controls and descriptions only. The geographic overview is an Engine mesh behind this UI. */
+/** Controls and descriptions only. The map itself is Engine terrain behind this UI. */
 export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicationUiPort, intents: RustyApplicationUiIntentsPort | undefined,
   projection: RustyApplicationUiProjectionView | undefined): () => void {
   // The map is a free-cursor screen: clicks on it carry the cursor position to the product.
@@ -38,10 +38,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const identity = element('span', 'flex:1;opacity:.8;');
   const close = button('Explore here');
   close.addEventListener('click', () => claim({ action: 'close' }));
-  // Prototype comparison (#9436): the product switches between its smooth and faceted relief.
-  const style = button('Faceted relief');
-  style.addEventListener('click', () => claim({ action: 'style' }));
-  heading.append(identity, style, close);
+  heading.append(identity, close);
   const destinations = element('nav', PANEL + 'position:absolute;left:1rem;bottom:1rem;width:19rem;max-height:42vh;overflow:auto;');
   destinations.setAttribute('aria-label', 'Known places');
   const sites = element('div');
@@ -96,8 +93,6 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
     freeCursor(visible);
     identity.textContent = `Seed ${text(values, 'worldSeed') ?? ''} · ${((number(values, 'worldSize') ?? 0) / 1000).toFixed(1)} km across`;
     status.textContent = text(values, 'worldMessage') ?? ''; status.hidden = status.textContent.length === 0;
-    style.textContent = number(values, 'worldMapFaceted') === 1 ? 'Smooth relief' : 'Faceted relief';
-    style.hidden = (text(values, 'worldSites') ?? '') === '';
     const phase = text(values, 'worldTravelPhase') ?? 'idle';
     journeyStatus.textContent = text(values, 'worldTravel') ?? '';
     journeySupplies.textContent = text(values, 'worldTravelSupplies') ?? '';
@@ -116,7 +111,7 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
         return answer;
       }));
     }
-    journey.hidden = style.hidden;
+    journey.hidden = (text(values, 'worldSites') ?? '') === '';
     const go = travelButtons['go'], pause = travelButtons['pause'], halt = travelButtons['halt'];
     if (go) { go.disabled = eventSource !== '' || !(phase === 'planned' || phase === 'paused'); go.textContent = phase === 'paused' ? 'Resume' : 'Set out'; }
     if (pause) pause.disabled = phase !== 'travelling';

@@ -4,7 +4,7 @@ using CraftSurvive.Game.Modules.WorldGen;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// How the faceted map's ground is drawn (#9464). Flat uses one colour per environment; the
+/// How the map's ground is drawn (#9464). Flat uses one colour per environment; the
 /// textured styles map environments onto four terrain layers the Engine blends across cell edges,
 /// with exposed rock either blended as a layer or drawn on its own.
 /// </summary>

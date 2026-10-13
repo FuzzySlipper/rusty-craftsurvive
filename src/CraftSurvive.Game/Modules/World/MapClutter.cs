@@ -6,7 +6,7 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.World;
 
 /// <summary>
-/// Map-scale clutter for the faceted map's detail patch: generated low-poly meshes (trees, rocks),
+/// Map-scale clutter for the map's detail patch: generated low-poly meshes (trees, rocks),
 /// not voxels, scattered deterministically by environment over a jittered grid and set on the
 /// drawn surface. Instances are appearance facts sharing one appearance per model. Each model is a
 /// unit-height textured prop mesh (<see cref="PropMesh"/>, #9831): the rock and cactus are painted tiles
