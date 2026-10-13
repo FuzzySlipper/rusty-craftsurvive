@@ -7,9 +7,10 @@ that would have been out of reach for that era. Think of an impossibly expansive
 distance, atmosphere, weather, and light.
 
 This is art guidance, not a claim about the renderer's implemented features.
-The gameplay relationship is in [survival-direction.md](survival-direction.md).
-Reference-image discussion and unresolved art choices belong in Den; an
-individual reference image does not establish every detail of the style.
+Evolving design and thematic development live in the
+[Wandering Year Design Atlas](https://github.com/FuzzySlipper/docs/blob/main/wandering-year/readme.md).
+Den holds task and technical records. An individual reference image does not
+establish every detail of the style.
 
 ## Approved visual references
 
@@ -31,6 +32,14 @@ The ancient openings, tapered ribs, and ceramic-like insets provide an approved
 architectural vocabulary to develop. They do not require every ruin to repeat
 the same doorway or settle the civilization's lore. These are concept references;
 retro texture density and filtering still need to be judged in a moving game.
+
+The [town reference set](style-references/town/README.md) adds eight positive
+references for warm, inhabited sanctuaries: a lowland port, a rainy upriver town
+and a small high-country refuge. Paired establishing and closer views support
+testing a composed 3D scene that moves closer when a building is selected.
+Portrait and shop studies show how an interaction can retain the surrounding
+town's atmosphere. Use these for mood, spatial composition and hospitality;
+their example names, UI copy and individual details remain illustrative.
 
 ## Tone and references
 
