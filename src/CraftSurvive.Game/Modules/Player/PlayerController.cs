@@ -74,6 +74,9 @@ internal sealed class PlayerController : IDisposable
     /// <summary>How much longer a climb action pressed while not holding on takes hold of a face the player reaches.</summary>
     private double takeHoldSeconds;
 
+    /// <summary>A river's current on the swimming player (#9879).</summary>
+    private readonly SwimCurrent swimCurrent = new();
+
     /// <summary>Whether the controller stood the player on the carrier last step (#9879).</summary>
     private bool aboard;
 
@@ -461,7 +464,7 @@ internal sealed class PlayerController : IDisposable
             $"intent={PlayerInputDiagnostics.Format(lastInputFrame.PlanarIntent)};lookDelta={PlayerInputDiagnostics.Format(lastInputFrame.LookDelta)};jump={lastInputFrame.JumpHeld};crouch={lastInputFrame.CrouchRequested};sprint={lastInputFrame.SprintRequested};")
             + string.Create(CultureInfo.InvariantCulture,
             $"before={PlayerInputDiagnostics.Format(lastUpdatePositionBefore)};after={PlayerInputDiagnostics.Format(lastUpdatePositionAfter)};yaw={Angles.ToDegrees(look.YawRadians):F2};pitch={Angles.ToDegrees(look.PitchRadians):F2};grounded={motion.Grounded};stance={motion.Stance};")
-            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};aboard={aboard};seated={Carrier?.Seated == true};platform=[{(lastStepReceipt is CharacterStepReceipt last ? string.Create(CultureInfo.InvariantCulture, $"{last.Platform.Present}:{last.Platform.Entity}:{PlayerInputDiagnostics.Format(last.Platform.CarriedDisplacement)}") : "none")}];stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
+            + $"{camera.Readout()};cameraPosition={PlayerInputDiagnostics.Format(EyePosition())};step=[{stepReadout}];lastMovement=[{diagnostics.MovementReadout()}];water=[{water.LastCheck}];climb=[{climb.LastRail?.ToString() ?? "none"}];climbHeld={climbHeld};swim=[current={swimCurrent.Current.X:F2},{swimCurrent.Current.Y:F2} exposure={swimCurrent.Exposure:F2}s share={swimCurrent.Share:F2} push={swimCurrent.Push.X:F2},{swimCurrent.Push.Y:F2} stroke={swimCurrent.Stroke:F2}];aboard={aboard};seated={Carrier?.Seated == true};platform=[{(lastStepReceipt is CharacterStepReceipt last ? string.Create(CultureInfo.InvariantCulture, $"{last.Platform.Present}:{last.Platform.Entity}:{PlayerInputDiagnostics.Format(last.Platform.CarriedDisplacement)}") : "none")}];stamina={Stamina.Current.ToString("F1", CultureInfo.InvariantCulture)}/{Stamina.Maximum};recoveries={recoveries};lastRecovery=[{lastRecovery}];landscape=[{landscapeSpace?.Readout ?? "overworld"}];bounds=[{(Bound is null ? "none" : string.Create(CultureInfo.InvariantCulture, $"turnBacks={TurnBacks};last={TurnedBack?.Side.ToString() ?? "none"}@{TurnedBack?.Step ?? -1}"))}]";
     }
 
     /// <summary>Returns the latest product interaction outcome without retaining Engine gameplay state.</summary>
@@ -722,9 +725,19 @@ internal sealed class PlayerController : IDisposable
         ClimbGrip grip = climbHeld
             ? letGoPending || Stamina.Exhausted ? ClimbGrip.None : ClimbGrip.Holding
             : takeHoldSeconds > 0d && Stamina.CanTakeHold ? ClimbGrip.Taking : ClimbGrip.None;
-        if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement, away is null ? terrain.Water : null)
-            || (!jumpPending && climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance,
-                lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)))
+        if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement, away is null ? terrain.Water : null))
+        {
+            // A river's current carries the swimmer and, as it takes hold, weakens their stroke to their own (#9879).
+            Vector2? current = water.LastSample is Water.WaterSample here ? new((float)here.CurrentX, (float)here.CurrentZ) : null;
+            swimCurrent.Step(stepSeconds, current, Rpg.CharacterRules.SwimStroke(Sheet.Attributes));
+            return new CharacterControllerCommand(
+                movement with { Speed = swimCurrent.Stroke }, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,
+                frame.CrouchRequested, new Vector3(swimCurrent.Push.X, 0, swimCurrent.Push.Y), impulse, stepSeconds, sequence);
+        }
+
+        swimCurrent.Step(stepSeconds, null, Rpg.CharacterRules.SwimStroke(Sheet.Attributes));
+        if (!jumpPending && climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance,
+                lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement))
         {
             return new CharacterControllerCommand(
                 movement, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,

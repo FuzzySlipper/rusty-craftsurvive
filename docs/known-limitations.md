@@ -63,8 +63,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     small dry-country stream runs dry. Its limits:
     - Only continents have a stage; regional worlds keep every river at its mean.
     - A lake keeps its level; it freezes with its outflow. A river's current (#9879) is its reach's
-      mean velocity along the channel, slack at the banks; it moves a boat, not a swimmer, so a ford
-      is only deeper in first person; the map's travel events read its state.
+      mean velocity along the channel (never faster than its flow fills its channel), slack at the
+      banks; the map's travel events read its state.
+    - The current carries boats and swimmers. On a swimmer it builds: a fifth of it for the first
+      second in moving water, full force 2.5 s later, draining twice as fast out of it; and as it takes
+      hold the stroke falls from the body's 4 m/s to the sheet's stroke (1.2 m/s for a starting
+      adventurer, more with might and vitality), so a current stronger than that sweeps the swimmer
+      downstream. The tuning is provisional: stamina is not spent swimming, nothing drowns a swimmer
+      swept along, and where a small reach claims a column of a larger river its current is the
+      small reach's.
     - Walking routes keep a fixed cost for a ford and do not cross ice or close a flooded crossing
       (only a boat's routes read the stage); on the map a lake costs the party no more than land.
     - The far field shows ice and dry beds but not the stage's height; the horizon backdrop and the

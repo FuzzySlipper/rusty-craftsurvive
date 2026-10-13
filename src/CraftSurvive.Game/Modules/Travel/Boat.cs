@@ -60,7 +60,7 @@ internal static class Boats
     internal const double VelocityExponent = 0.4;
 
     /// <summary>A reach's current now (m/s): its mean velocity, faster as it carries more than its mean.</summary>
-    internal static double Current(Reach reach, double flowRatio) => reach.Velocity * Math.Pow(Math.Max(0, flowRatio), VelocityExponent);
+    internal static double Current(Reach reach, double flowRatio) => reach.Current * Math.Pow(Math.Max(0, flowRatio), VelocityExponent);
 
     /// <summary>
     /// Going up, a canoe keeps to the slack water by the banks and the eddies behind bends, where the

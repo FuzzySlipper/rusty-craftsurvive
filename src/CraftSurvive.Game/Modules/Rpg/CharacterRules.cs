@@ -24,6 +24,18 @@ internal static class CharacterRules
     internal const int MeleePowerPerMight = 2;
     internal const int CarryCapacityPerMight = 5;
 
+    /// <summary>
+    /// How fast a swimmer strokes against a river's full current (m/s): might and vitality together, from a
+    /// starting adventurer's 1.2 (a strong swimmer's pace) by a tenth a point, between a floor and a
+    /// ceiling. In still water everyone swims at the body's own swimming speed; in a current this is what
+    /// holds a swimmer against it, so a weaker one is swept away where a stronger one crosses (#9879).
+    /// </summary>
+    internal static double SwimStroke(CharacterAttributes attributes) =>
+        Math.Clamp(SwimStrokeBase + ((attributes.Might + attributes.Vitality - SwimStrokeBaseline) * SwimStrokePerPoint), SwimStrokeFloor, SwimStrokeCeiling);
+
+    internal const double SwimStrokeBase = 1.2, SwimStrokePerPoint = 0.1, SwimStrokeFloor = 0.6, SwimStrokeCeiling = 3;
+    private const int SwimStrokeBaseline = 10;
+
     internal static DerivedStatistics Derive(CharacterAttributes attributes, int level)
     {
         if (level < MinimumLevel || level > MaximumLevel)

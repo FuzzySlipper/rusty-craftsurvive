@@ -35,6 +35,13 @@ internal sealed record Reach(
 {
     internal int Source => Nodes[0];
     internal int Outlet => Nodes[^1];
+
+    /// <summary>
+    /// The water's mean speed through the reach (m/s) as a swimmer or a boat feels it (#9879): its Manning
+    /// velocity, but never faster than its flow can fill its channel (flow over width and depth) - a
+    /// trickle in a channel kept at the minimum depth does not run like a torrent.
+    /// </summary>
+    internal double Current => Width * Depth > 0 ? Math.Min(Velocity, Flow / (Width * Depth)) : Velocity;
 }
 
 /// <summary>

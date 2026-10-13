@@ -101,6 +101,21 @@ internal static class PlayerBody
         localPosition.Y,
         0UL,
         0UL);
+
+    /// <summary>The swim movement in a volume about the player's column, from a floor to a top (the swim probe's, and the checks').</summary>
+    internal static CharacterMovementRequest Swim(Vector3 floor, Vector3 top) => new()
+    {
+        Mode = CharacterMovementMode.Swimming,
+        VerticalIntent = PlayerConstants.WaterVerticalNeutral,
+        Speed = PlayerConstants.WaterSpeed,
+        Acceleration = PlayerConstants.WaterAcceleration,
+        Drag = PlayerConstants.WaterDrag,
+        Minimum = floor - new Vector3(PlayerConstants.WaterExtent, 0f, PlayerConstants.WaterExtent),
+        Maximum = top + new Vector3(PlayerConstants.WaterExtent, 0f, PlayerConstants.WaterExtent),
+        GravityScale = PlayerConstants.WaterGravityScale,
+        Buoyancy = PlayerConstants.WaterBuoyancy,
+        ClimbReach = PlayerConstants.NoClimbReach,
+    };
 }
 
 internal static class Angles

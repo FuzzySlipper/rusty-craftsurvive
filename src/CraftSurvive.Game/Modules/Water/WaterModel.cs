@@ -72,7 +72,7 @@ internal sealed class WaterModel(TerrainRecipe recipe)
     private double MeanVelocity(int reach)
     {
         IReadOnlyList<Reach>? reaches = recipe.Regions?.Drainage.Network.Reaches;
-        return reaches is not null && reach >= 0 && reach < reaches.Count ? reaches[reach].Velocity : 0;
+        return reaches is not null && reach >= 0 && reach < reaches.Count ? reaches[reach].Current : 0;
     }
 
     /// <summary>
