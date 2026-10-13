@@ -52,6 +52,10 @@ internal static class ProductIds
     internal const ulong WorldMapFrontierBase = 0x5_3400UL;
     internal const int WorldMapFrontierLimit = 0x400;
 
+    /// <summary>River ribbons on the map (#9948): one per tier tile that a river crosses.</summary>
+    internal const ulong WorldMapRiverBase = 0x5_4000UL;
+    internal const int WorldMapRiverLimit = 0x2000;
+
     /// <summary>Weather fronts standing on the horizon, in the backdrop (HorizonWeather, #9780).</summary>
     internal const ulong HorizonFrontBase = 0x8_0000UL;
     internal const int HorizonFrontLimit = 0x100;

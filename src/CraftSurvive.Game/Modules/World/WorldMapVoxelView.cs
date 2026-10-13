@@ -64,10 +64,18 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// <summary>Region chunks over which the window's ground eases onto the continent's, so the tiers meet flush.</summary>
     private const int RegionFadeChunks = 2;
     private const double RegionFadeMetres = RegionFadeChunks * RegionChunkMetres;
-    /// <summary>A continental river paints the kilometre cells its channel passes within half a diagonal of, so its cells join.</summary>
-    private const double ContinentRiverReach = 0.71;
     /// <summary>A river paints a finer tier's cells its channel passes within half a cell of.</summary>
     private const double RiverReach = 0.5;
+    /// <summary>
+    /// The coarser tiers draw their rivers as ribbons (#9948): the region or regional map's at 32 m,
+    /// and a continent's own beyond the region window. The detail patch still paints its own 8 m cells.
+    /// </summary>
+    private const int RegionRiverTier = 0, ContinentRiverTier = 1;
+    private static readonly RiverRibbonShape RegionRivers = new(SpacingMetres: CellMetres / 2, MinimumHalfWidthMetres: CellMetres * 0.3);
+    private static readonly RiverRibbonShape ContinentRivers = new(SpacingMetres: ContinentCellMetres, MinimumHalfWidthMetres: ContinentCellMetres * 0.3);
+    /// <summary>How far a ribbon floats over its tier's interpolated ground (map units), so the ground's mesh between columns does not cover it.</summary>
+    private const float RegionRiverLift = 0.15f;
+    private const float ContinentRiverLift = (float)(0.1 * ContinentVoxel);
     /// <summary>Picking marches in steps that grow with the camera distance, so a continent-wide view stays quick.</summary>
     private const float PickStepPerDistance = 0.002f;
     private const double ExposedRock = 0.6;
@@ -124,6 +132,11 @@ internal sealed class WorldMapVoxelView : IDisposable
     private const double FrontierPostSpacingMetres = 1500;
     private const float FrontierPostScalePerDistance = 0.006f;
     private readonly MapWeather weather;
+    private readonly MapRiverRibbons riverRibbons;
+    /// <summary>The ground the coarse and detail tiers sample: a continent's region ground, or the map's.</summary>
+    private readonly Func<double, double, MapSample> fineGround;
+    /// <summary>A continent's network reaches shaped for the region window, by id, so a window change shapes only new ones.</summary>
+    private readonly Dictionary<int, RiverPoint[]> regionReaches = [];
     private int factsVersion, publishedVersion = -1;
     private bool waypointForward, waypointBack, waypointLeft, waypointRight;
     // The waypoint moves at a fixed fraction of the camera distance per update, so it suits any zoom.
@@ -174,16 +187,20 @@ internal sealed class WorldMapVoxelView : IDisposable
             firstRegionChunk = (long)Math.Floor(-map.Radius / RegionChunkMetres);
             lastRegionChunk = (long)Math.Floor((map.Radius - 1) / RegionChunkMetres);
             regions = map.Scale.Continental ? MapRegions.For(map) : null;
-            Func<double, double, MapSample> fine = regions is null ? map.Sample : RegionGround;
+            Func<double, double, MapSample> fine = fineGround = regions is null ? map.Sample : RegionGround;
             Func<double, double, RiverInfluence?> fineRivers = regions is null ? map.Rivers.Nearest : regions.RiverNear;
+            // The coarser tiers leave rivers to the ribbons; lakes and the sea they still paint.
             if (regions is not null)
-                continent = Layer(ContinentVoxel, ContinentCellMetres, map.Sample, map.Rivers.Nearest, ContinentRiverReach, (x, z) => UnderRegion(x, z) ? PatchSink * ContinentVoxel : 0,
+                continent = Layer(ContinentVoxel, ContinentCellMetres, map.Sample, NoRiver, 0, (x, z) => UnderRegion(x, z) ? PatchSink * ContinentVoxel : 0,
                     false, continentGround, ContinentLayerCoarseBeyond);
-            coarse = Layer(1, CellMetres, fine, fineRivers, RiverReach, (x, z) => InDetail(x, z) ? UnderDetail(fine, x, z) : 0, false, coarseGround, CoarseLayerCoarseBeyond);
+            coarse = Layer(1, CellMetres, fine, NoRiver, 0, (x, z) => InDetail(x, z) ? UnderDetail(fine, x, z) : 0, false, coarseGround, CoarseLayerCoarseBeyond);
             detail = Layer(1d / DetailPerCell, DetailMetres, fine, fineRivers, RiverReach, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond);
             clutter = new MapClutter(engine, content, map, fine);
+            riverRibbons = new MapRiverRibbons(engine, materials[RiverSlot]);
             // The windows come first: the ground beneath samples them to sink under each finer tier.
             Follow(new(partyWorldFeet.X, partyWorldFeet.Z));
+            if (regions is null) RebuildRegionRivers(null);
+            else RebuildContinentRivers(null);
             if (continent is not null)
             {
                 long firstContinent = (long)Math.Floor(-map.Radius / ContinentChunkMetres), lastContinent = (long)Math.Floor((map.Radius - 1) / ContinentChunkMetres);
@@ -240,6 +257,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             ? frontierPosts.Select((point, i) => Marker(ProductIds.WorldMapFrontierBase + (ulong)i, point, FrontierPostScalePerDistance, post))
             : [],
         .. weather.Facts(rig.Distance),
+        .. riverRibbons.Facts,
         .. PlaceClusters.Group(places, (float)(rig.Distance * CellMetres * ClusterPerDistance)).Take(ProductIds.WorldMapPlaceLimit).Select((cluster, i) =>
             Marker(ProductIds.WorldMapPlaceBase + (ulong)i, Surface(cluster.Position.X, cluster.Position.Y),
                 cluster.Single ? (cluster.First.Kind == KnownPlaceKind.Home ? PartyScalePerDistance : MarkerScalePerDistance)
@@ -542,6 +560,10 @@ internal sealed class WorldMapVoxelView : IDisposable
         regionCovered.Clear();
         regionCovered.UnionWith(covered);
         coarse.Want(covered);
+        HashSet<(long X, long Z)> changedChunks = [.. changed];
+        RebuildRegionRivers(changedChunks);
+        RebuildContinentRivers(new HashSet<(long X, long Z)>(changed.Select(column => (
+            (long)Math.Floor(column.X * RegionChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * RegionChunkMetres / ContinentChunkMetres)))));
         continent!.Invalidate(changed.Select(column => (
             (long)Math.Floor(column.X * RegionChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * RegionChunkMetres / ContinentChunkMetres))));
         factsVersion++;
@@ -585,8 +607,70 @@ internal sealed class WorldMapVoxelView : IDisposable
     private bool InDetail(double worldX, double worldZ) =>
         worldX >= detailMinimum.X && worldZ >= detailMinimum.Y && worldX < detailMaximum.X && worldZ < detailMaximum.Y;
 
+    /// <summary>
+    /// The region tier's ribbons (the whole map's on a regional map) in the named tiles, or all: a
+    /// continent's from its network reaches in the region window, where it is built.
+    /// </summary>
+    private void RebuildRegionRivers(IReadOnlySet<(long X, long Z)>? tiles)
+    {
+        IEnumerable<RiverPoint[]> reaches;
+        if (regions is null) reaches = map.Rivers.Reaches;
+        else
+        {
+            if (regionCovered.Count == 0 && regionReaches.Count == 0) return;
+            MapDrainage drainage = regions.Drainage;
+            SortedSet<int> ids = drainage.ReachesWithin(regionMinimum.X, regionMinimum.Y, regionMaximum.X, regionMaximum.Y);
+            foreach (int gone in regionReaches.Keys.Where(id => !ids.Contains(id)).ToArray()) regionReaches.Remove(gone);
+            foreach (int id in ids)
+                if (!regionReaches.ContainsKey(id)) regionReaches[id] = drainage.Shaped(id);
+            reaches = regionReaches.Values;
+        }
+
+        Dictionary<(long, long), double> tops = [];
+        riverRibbons?.Rebuild(RegionRiverTier, RegionChunkMetres, reaches, RegionRivers, InRegion,
+            (x, z, water) => Position(x, Math.Max(water, Interpolated(x, z, CellMetres, (cx, cz) => Top(fineGround(cx, cz), 0), tops)), z) + (Vector3.UnitY * RegionRiverLift),
+            tiles);
+        factsVersion++;
+    }
+
+    /// <summary>A continent's own ribbons in the named continent tiles, or all, wherever the region window does not draw its rivers.</summary>
+    private void RebuildContinentRivers(IReadOnlySet<(long X, long Z)>? tiles)
+    {
+        if (regions is null) return;
+        Dictionary<(long, long), double> tops = [];
+        riverRibbons?.Rebuild(ContinentRiverTier, ContinentChunkMetres, map.Rivers.Reaches, ContinentRivers, (x, z) => !InRegion(x, z),
+            (x, z, water) => Position(x, Math.Max(water, Interpolated(x, z, ContinentCellMetres, (cx, cz) => Top(map.Sample(cx, cz), 0), tops)), z) + (Vector3.UnitY * ContinentRiverLift),
+            tiles);
+        factsVersion++;
+    }
+
+    /// <summary>
+    /// A tier's ground at a world point as its columns draw it between them: the tops at the four
+    /// nearest column centres, blended. Tops are kept in <paramref name="tops"/> for the build.
+    /// </summary>
+    private static double Interpolated(double worldX, double worldZ, double cellMetres, Func<double, double, double> top, Dictionary<(long, long), double> tops)
+    {
+        double fx = (worldX / cellMetres) - 0.5, fz = (worldZ / cellMetres) - 0.5;
+        long ix = (long)Math.Floor(fx), iz = (long)Math.Floor(fz);
+        double tx = fx - ix, tz = fz - iz;
+        double At(long cx, long cz)
+        {
+            if (!tops.TryGetValue((cx, cz), out double height)) tops[(cx, cz)] = height = top((cx + 0.5) * cellMetres, (cz + 0.5) * cellMetres);
+            return height;
+        }
+
+        double near = At(ix, iz) + ((At(ix + 1, iz) - At(ix, iz)) * tx), far = At(ix, iz + 1) + ((At(ix + 1, iz + 1) - At(ix, iz + 1)) * tx);
+        return near + ((far - near) * tz);
+    }
+
+    private static RiverInfluence? NoRiver(double worldX, double worldZ) => null;
+
+    /// <summary>Lets go of what the snapshot just published no longer names.</summary>
+    internal void AfterAppearanceSnapshot() => riverRibbons.AfterSnapshot();
+
     public void Dispose()
     {
+        riverRibbons?.Dispose();
         clutter?.Dispose();
         detail?.Dispose();
         coarse?.Dispose();

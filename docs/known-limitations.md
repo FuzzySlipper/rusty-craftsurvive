@@ -153,8 +153,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     on four Engine terrain layers that blend across cell edges; rock and water are drawn
     unblended. `craft.world.mapstyle flat|ground|painted` switches styles for comparison (#9464);
     there is no player-facing style choice. A layer set takes at most 16 slots, so textured
-    styles use one material per environment. Rivers are
-    painted onto cells, not carved. Trees, cacti and rocks on the patch are generated low-poly
+    styles use one material per environment. Rivers are drawn as flat ribbons along their
+    centrelines (#9948), lifted a little over their tier's interpolated ground, no narrower than
+    about a third of a cell, and smoothed to the tier's spacing: a regional map's or a continent's
+    region window rivers at 32 m, a continent's own beyond the window at 1 km. The detail patch still
+    paints its own 8 m river cells beneath. Lakes and the sea are still painted onto cells, so on a
+    continent's kilometre tier their shores step. The detail patch's edge shows as a faint line where
+    its surface ends against the coarser ground. Trees, cacti and rocks on the patch are generated low-poly
     textured prop meshes (the first-person trees' distant-band meshes, the first-person stones'
     shape and tile, a Tripo cactus on a drawn skin; provenance in `content/map-models.sources.json`)
     scattered by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief

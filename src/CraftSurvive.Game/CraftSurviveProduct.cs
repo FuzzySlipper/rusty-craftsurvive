@@ -512,6 +512,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();
+        if (mapOpen) mapView?.AfterAppearanceSnapshot();
     }
 
     private enum ProductLifecycleState

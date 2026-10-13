@@ -118,14 +118,21 @@ internal sealed class MapDrainage
     internal int ReachCount => paths.Count;
 
     /// <summary>The network's reaches near a rectangle of the world, shaped, in world metres.</summary>
-    internal MapRivers Within(double minX, double minZ, double maxX, double maxZ)
+    internal MapRivers Within(double minX, double minZ, double maxX, double maxZ) =>
+        MapRivers.FromReaches([.. ReachesWithin(minX, minZ, maxX, maxZ).Select(r => (r, Shaped(r)))]);
+
+    /// <summary>The ids of the network's reaches near a rectangle of the world, in order.</summary>
+    internal SortedSet<int> ReachesWithin(double minX, double minZ, double maxX, double maxZ)
     {
         SortedSet<int> found = [];
         for (long cz = Cell(minZ); cz <= Cell(maxZ); cz++)
         for (long cx = Cell(minX); cx <= Cell(maxX); cx++)
             if (index.TryGetValue(Key(cx, cz), out List<int>? list)) found.UnionWith(list);
-        return MapRivers.FromReaches([.. found.Select(r => (r, MapRivers.Shape(Grid, paths[r], elevation, discharge, seed, r)))]);
+        return found;
     }
+
+    /// <summary>One reach's centreline, shaped as region sampling draws it, in world metres.</summary>
+    internal RiverPoint[] Shaped(int reach) => MapRivers.Shape(Grid, paths[reach], elevation, discharge, seed, reach);
 
     private static long Cell(double v) => (long)Math.Floor(v / IndexCell);
     private static long Key(long x, long z) => unchecked((x << 32) ^ (z & 0xFFFF_FFFFL));
