@@ -19,9 +19,8 @@ internal sealed class RiverStage
     /// <summary>Precipitation cells (metres a side): coarse enough to be cheap, fine enough for a front.</summary>
     internal const double CellMetres = 4000;
 
-    /// <summary>The routing step (game hours), and how many steps one advance takes before it strides.</summary>
+    /// <summary>The routing step (game hours): the stage steps on this grid of absolute hours and on no other.</summary>
     internal const double StepHours = 1;
-    private const int MostSteps = 12;
 
     /// <summary>The climate run that calibrates the cells takes steps this long (game hours).</summary>
     private const double CalibrationStepHours = 12;
@@ -102,13 +101,16 @@ internal sealed class RiverStage
             storageHours[reach.Id] = Math.Max(reach.StorageHours, 1e-3);
         }
 
-        // A lake on a reach holds a metre over its area per its outflow's mean.
+        // A lake holds a metre over its area per the mean flowing through it, on the reaches under it - between
+        // its inflows and its outflow (#9876 review) - shared among them; a lake no reach runs under holds it on its outflow.
         foreach (LakeNode lake in network.Lakes)
-            if (lake.Outflow >= 0 && mean[lake.Outflow] > 0)
-            {
-                double hours = lake.Lake.AreaSquareKilometres * 1e6 * LakeStorageMetres / mean[lake.Outflow] / 3600;
-                storageHours[lake.Outflow] += Math.Clamp(hours, LeastLakeHours, MostLakeHours);
-            }
+        {
+            int[] holders = lake.Interior.Length > 0 ? lake.Interior : lake.Outflow >= 0 ? [lake.Outflow] : [];
+            double through = lake.Outflow >= 0 ? mean[lake.Outflow] : holders.Select(r => mean[r]).DefaultIfEmpty(0).Max();
+            if (holders.Length == 0 || through <= 0) continue;
+            double hours = Math.Clamp(lake.Lake.AreaSquareKilometres * 1e6 * LakeStorageMetres / through / 3600, LeastLakeHours, MostLakeHours);
+            foreach (int r in holders) storageHours[r] += hours / holders.Length;
+        }
 
         Dictionary<(long, long), int> cellIndex = [];
         List<(double, double, double, double)> cellList = [];
@@ -144,30 +146,67 @@ internal sealed class RiverStage
 
     internal int CellCount => cells.Length;
 
+    /// <summary>The first hour of the climate year every stage calibrates against: the world's own, whenever it starts.</summary>
+    private const double CalibrationFromHours = 0;
+
     /// <summary>
-    /// Sets the stage at a time: calibrates the precipitation so the long-run runoff is the water budget's
-    /// mean, starts every store at its mean, and runs from a warm-up before the time so the stage carries
-    /// the recent weather. Deterministic for a seed, a map and a time.
+    /// A new stage at a time (a world's first): calibrates the precipitation against the world's first year
+    /// so the long-run runoff is the water budget's mean, starts every store at its mean, and runs from a
+    /// warm-up before the time so the stage carries the recent weather. It stands on the hour at or before
+    /// the time. Afterwards the stage is carried on (<see cref="AdvanceTo"/>) and saved (<see cref="Capture"/>),
+    /// not made again: a stage's stores remember months (snow, frost, a lake), which no warm-up recovers.
     /// </summary>
     internal void Start(double hours, double warmupDays = 30, double climateDays = Seasons.YearDays, double coarseHours = 6)
     {
-        Calibrate(hours - (climateDays * 24), climateDays * 24, CalibrationStepHours);
-        double start = hours - (warmupDays * 24);
+        Calibrate(CalibrationFromHours, climateDays * 24, CalibrationStepHours);
+        double target = Grid(hours);
         // The cells keep the snow and ground water the calibration year ended with, scaled to their calibrated rain.
         for (int c = 0; c < cells.Length; c++) { snow[c] *= cellScale[c]; ground[c] *= cellScale[c]; }
         for (int r = 0; r < storage.Length; r++) { storage[r] = mean[r] * storageHours[r] * 3600; flow[r] = mean[r]; cold[r] = 0; }
-        Hours = start;
-        while (Hours < hours) Step(Math.Min(coarseHours, hours - Hours));
+        Hours = target - (warmupDays * 24);
+        while (Hours < target) Step(Math.Min(coarseHours, target - Hours));
+        Hours = target;
     }
 
-    /// <summary>Advances to a time a step at a time; when far behind (map travel), it strides in fewer, longer steps.</summary>
+    /// <summary>
+    /// A stage carried on from a saved one (#9878 review): calibrated as every stage is, its stores as they
+    /// were saved. False, and nothing changed, when the save does not fit this network (another world or generator).
+    /// </summary>
+    internal bool StartFrom(RiverStageState saved, double climateDays = Seasons.YearDays)
+    {
+        if (!Fits(saved)) return false;
+        Calibrate(CalibrationFromHours, climateDays * 24, CalibrationStepHours);
+        Array.Copy(saved.Storage, storage, storage.Length);
+        Array.Copy(saved.Frost, cold, cold.Length);
+        Array.Copy(saved.Snow, snow, snow.Length);
+        Array.Copy(saved.Ground, ground, ground.Length);
+        for (int r = 0; r < storage.Length; r++) flow[r] = storage[r] / (storageHours[r] * 3600);
+        Hours = saved.Hours;
+        return true;
+    }
+
+    /// <summary>Whether a saved stage is this network's: as many reaches and cells, on the hour, every store sane.</summary>
+    internal bool Fits(RiverStageState saved) =>
+        saved.Storage.Length == storage.Length && saved.Frost.Length == cold.Length && saved.Snow.Length == snow.Length && saved.Ground.Length == ground.Length
+        && double.IsFinite(saved.Hours) && saved.Hours == Grid(saved.Hours);
+
+    /// <summary>The stage's stores now, copied, for saving.</summary>
+    internal RiverStageState Capture() => new(Hours, (double[])storage.Clone(), (double[])cold.Clone(), (double[])snow.Clone(), (double[])ground.Clone());
+
+    /// <summary>
+    /// Advances to a time on the hour grid, one hour at a time, however far behind it is (#9878 review): the
+    /// stage at an hour is the same whatever the calls that brought it there. It stands on the last whole
+    /// hour at or before the time.
+    /// </summary>
     internal void AdvanceTo(double hours)
     {
-        if (double.IsNaN(Hours) || hours <= Hours) return;
-        double behind = hours - Hours;
-        double step = Math.Max(StepHours, behind / MostSteps);
-        while (Hours < hours) Step(Math.Min(step, hours - Hours));
+        if (double.IsNaN(Hours)) return;
+        double target = Grid(hours);
+        while (Hours < target) Step(StepHours);
     }
+
+    /// <summary>The whole step at or before a time.</summary>
+    private static double Grid(double hours) => Math.Floor(hours / StepHours) * StepHours;
 
     private static (long X, long Z) Cell(double x, double z) => ((long)Math.Floor(x / CellMetres), (long)Math.Floor(z / CellMetres));
 

@@ -170,13 +170,17 @@ places from the start; `tools/MapLab --towns` measures both over many seeds.
 
 `RiverStage` routes that network's water through time (#9878). Fronts' precipitation falls on 4 km
 cells as snow or rain by the season's air (`Seasons`: a swing about each place's climate over the
-sky's 120-day year); each cell keeps snow, a quick share and a slow ground store, calibrated against
-its neighbourhood's year so the long-run runoff is the water budget's mean; each reach is a linear
-reservoir passing its water downstream, upstream first, a lake on it adding its storage. Ice follows
-the frost, and a small stream far under its mean runs dry. Nothing is saved: `RiverStageModule`
-rebuilds it from the seed, the map and the clock off the update, steps it off the update each game
-hour, and publishes a read-only view that the water owner, the far field and the travel events
-read. `tools/MapLab --stage` charts a year.
+sky's 120-day year); each cell keeps snow, a quick share and a slow ground store, calibrated against its
+neighbourhood over the world's first year so the long-run runoff is the water budget's mean; each reach is a linear
+reservoir passing its water downstream, upstream first, a lake's storage on the reaches under it
+(the walked rivers are split where they enter and leave a lake). Ice follows the frost, and a small
+stream far under its mean runs dry. The stage steps on an absolute hourly grid, so its state at an
+hour does not depend on how it was brought there. `RiverStageModule` builds a world's first stage
+off the update, then carries it: it steps it off the update each game hour (the map's updates follow
+it too, and a ford's state waits for it to be within hours of the clock), saves its stores under
+`water/stage` (`RiverStageStore`) every six game hours and when the world closes, restores them when
+the world opens, and publishes a read-only view that the water owner, the far field and the travel
+events read. `tools/MapLab --stage` charts a year.
 
 `MapBiomes` classifies samples into sea, ice field, tundra, boreal forest, cold
 steppe, temperate forest, grassland, shrubland, desert, rainforest and alpine

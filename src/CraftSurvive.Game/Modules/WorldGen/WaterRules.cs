@@ -4,6 +4,13 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 internal enum WaterBody { None, Sea, River, Lake }
 
 /// <summary>
+/// Which body of water, exactly (#9877 review): its kind and a stable id within the kind - the walked
+/// network's reach, the lake's id, 0 for the one sea, -1 for none - so a consumer can tell two lakes or
+/// two reaches apart and compose a region's water over them later.
+/// </summary>
+internal readonly record struct WaterBodyId(WaterBody Kind, int Id);
+
+/// <summary>
 /// The one rule for where water stands (#9877), so every view - walking terrain, the swim volume, the
 /// near water surfaces, the far field, the horizon and the map - agrees: the sea's level everywhere
 /// (ground below it floods), raised by a river's surface over its channel or a lake's level over its

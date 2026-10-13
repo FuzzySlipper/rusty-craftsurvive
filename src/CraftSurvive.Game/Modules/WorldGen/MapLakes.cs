@@ -136,9 +136,14 @@ internal static class MapLakes
     /// The lakes a map holds, from its saved fields: each hollow deep enough to be a basin, filled to its
     /// spill unless its inflow (the saved discharge into it) is less than evaporation from its surface,
     /// when it stands at the level where they balance.
+    /// <para>
+    /// <paramref name="sinks"/> are the nodes the discharge was routed into and stopped at (the closed lakes'
+    /// nodes, #9876 review): a basin holding some takes in the sum of their discharges - each its own
+    /// catchment, none counted twice - while one holding none drains through its largest.
+    /// </para>
     /// </summary>
     internal static IReadOnlyList<Lake> Find(MapGrid grid, IReadOnlyList<float> elevation, IReadOnlyList<float> discharge,
-        IReadOnlyList<float> temperature, ContinentDesign? design)
+        IReadOnlyList<float> temperature, ContinentDesign? design, IReadOnlySet<int>? sinks = null)
     {
         double[] raw = new double[grid.Count];
         for (int i = 0; i < grid.Count; i++) raw[i] = elevation[i];
@@ -150,7 +155,8 @@ internal static class MapLakes
         {
             double spill = basin.Max(n => filled[n]);
             double Area(double level) => basin.Count(n => raw[n] < level) * cellKm2;
-            double catchment = basin.Max(n => discharge[n]) * cellKm2;
+            int[] stopped = sinks is null ? [] : [.. basin.Where(sinks.Contains)];
+            double catchment = (stopped.Length > 0 ? stopped.Sum(n => (double)discharge[n]) : basin.Max(n => discharge[n])) * cellKm2;
             double inflow = WaterBudget.Flow(catchment);
             double evaporation = EvaporationBase + (EvaporationHeat * basin.Average(n => temperature[n]));
             double Loss(double level) => evaporation * Area(level) * 1e6 / SecondsPerYear;
@@ -188,6 +194,29 @@ internal static class MapLakes
 
         return lakes;
     }
+
+    /// <summary>
+    /// The lakes as a restored map finds them from its saved discharge (#9876 review): that discharge was
+    /// routed with the closed lakes' nodes as sinks, so the lakes are found again until the closed nodes
+    /// they take as sinks are the ones they find - as generation routed and found them until they agreed.
+    /// </summary>
+    internal static IReadOnlyList<Lake> FindRouted(MapGrid grid, IReadOnlyList<float> elevation, IReadOnlyList<float> discharge,
+        IReadOnlyList<float> temperature, ContinentDesign? design)
+    {
+        IReadOnlyList<Lake> lakes = Find(grid, elevation, discharge, temperature, design);
+        for (int pass = 0; pass < RestorePasses; pass++)
+        {
+            HashSet<int> sinks = ClosedNodes(lakes);
+            IReadOnlyList<Lake> next = Find(grid, elevation, discharge, temperature, design, sinks);
+            if (ClosedNodes(next).SetEquals(sinks)) return next;
+            lakes = next;
+        }
+
+        return lakes;
+    }
+
+    /// <summary>The most times a restored map finds its lakes again to agree with the sinks its discharge was routed into.</summary>
+    private const int RestorePasses = 6;
 
     /// <summary>Routing outlets with the closed lakes as sinks: their water goes no farther.</summary>
     internal static bool[] Outlets(MapGrid grid, IReadOnlyList<double> height, IReadOnlyList<Lake> lakes)

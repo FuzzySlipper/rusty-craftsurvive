@@ -75,6 +75,21 @@ internal static class TravelChecks
         Console.WriteLine($"continental journey: state={party.State} refinements={refinements} synchronousBuilds={regions.SynchronousBuilds - synchronousBefore} ms={clock.ElapsedMilliseconds}");
         Check.That(party.State == TravelState.Arrived && refinements >= 1, $"the party arrives, refining its route as it travels ({refinements})");
         Check.That(regions.SynchronousBuilds == synchronousBefore, "ordinary travel never waits on a region tile: every tile it reads was built ahead");
+        // A walk down to the water is refined once, and the party reaches the water (#9879): refining the same short
+        // walk again at its last leg would set the party back to its nearest region node, over and over.
+        TravelRoute toWater = new("downriver", [new(0, 0), new(400, 0), new(1400, 0), new(2400, 0)], [0.8, 1, 1], 0,
+            [LegMode.Walk, LegMode.Drift, LegMode.Drift]);
+        PartyTravel boating = new(new(0, 0));
+        boating.Take(toWater);
+        Check.That(boating.Begin(), "a party sets out for the water");
+        int walkRefinements = 0;
+        for (int tick = 0; tick < 400 && !boating.Afloat && boating.State == TravelState.Travelling; tick++)
+        {
+            boating.Advance(PartyTravel.HoursPerSecond * TickSeconds, _ => false);
+            if (boating.Refine(cost)) walkRefinements++;
+        }
+
+        Check.That(boating.Afloat && walkRefinements <= 1, $"a party walking to its boat reaches the water, its walk refined once ({walkRefinements})");
     }
 
     /// <summary>

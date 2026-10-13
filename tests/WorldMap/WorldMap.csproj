@@ -55,6 +55,10 @@
     <Compile Include="$(ProductModules)Water/RiverStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/WaterModel.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/BoatFloat.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/NearWaterSquare.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/RiverStageModule.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/RiverStageState.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)World/ProductStep.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)Sky/Twilight.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Moon.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Stars.cs" LinkBase="Product/Sky" />

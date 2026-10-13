@@ -118,7 +118,8 @@ internal static class MapSimulation
         MapFlow flow = MapFlow.Route(grid, (double[])heights.Clone(), MapFlow.Outlets(grid, heights), rain, MapFlow.FillGradient);
         for (int pass = 0; lakes && pass < LakeRoutingPasses; pass++)
         {
-            IReadOnlyList<Lake> next = MapLakes.Find(grid, elevation, Round(flow.Discharge), temperature, design);
+            // The discharge was routed with the closed lakes found so far as sinks; their inflow is summed over them.
+            IReadOnlyList<Lake> next = MapLakes.Find(grid, elevation, Round(flow.Discharge), temperature, design, MapLakes.ClosedNodes(found));
             if (pass > 0 && MapLakes.ClosedNodes(next).SetEquals(MapLakes.ClosedNodes(found))) break;
             found = next;
             flow = MapFlow.Route(grid, (double[])heights.Clone(), MapLakes.Outlets(grid, heights, found), rain, MapFlow.FillGradient);

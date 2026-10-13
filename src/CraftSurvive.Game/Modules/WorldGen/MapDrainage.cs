@@ -59,9 +59,10 @@ internal sealed class MapDrainage
         double[] routed = elevation.Select(v => (double)v).ToArray();
         MapFlow flow = MapFlow.Route(Grid, routed, outlet, rain, MapFlow.FillGradient);
         discharge = flow.Discharge.Select(v => (float)v).ToArray();
-        paths = MapRivers.Trace(Grid, flow, elevation, discharge, MapRivers.SourceCatchment);
+        int LakeAt(int i) => lakeOf.Count > 0 && lakeOf.TryGetValue(coarse.Nearest(grid.X(i), grid.Z(i)), out int lake) ? lake : -1;
+        paths = SplitAtLakes(MapRivers.Trace(Grid, flow, elevation, discharge, MapRivers.SourceCatchment), LakeAt);
         Network = WaterNetwork.Build(Grid, flow, elevation, discharge, paths, (x, z) => continent.Sample(x, z).Moisture, i => sea[i],
-            continent.Lakes, i => lakeOf.Count > 0 && lakeOf.TryGetValue(coarse.Nearest(grid.X(i), grid.Z(i)), out int lake) ? lake : -1);
+            continent.Lakes, LakeAt);
         for (int r = 0; r < paths.Count; r++)
         {
             HashSet<long> cells = [];
@@ -78,6 +79,33 @@ internal sealed class MapDrainage
                 list.Add(r);
             }
         }
+    }
+
+    /// <summary>
+    /// Reaches split where they enter and leave a lake (#9876 review), so a lake sits between the reaches
+    /// that flow into it and the one that flows on: a river entering ends at the lake's first node, one
+    /// inside runs between its first and last, one leaving starts at its last. Each split node is shared by
+    /// the reaches either side of it, so they stay joined downstream.
+    /// </summary>
+    internal static List<int[]> SplitAtLakes(List<int[]> paths, Func<int, int> lakeAt)
+    {
+        List<int[]> split = [];
+        foreach (int[] path in paths)
+        {
+            int start = 0;
+            for (int k = 1; k < path.Length; k++)
+            {
+                int before = lakeAt(path[k - 1]), after = lakeAt(path[k]);
+                if (before == after) continue;
+                // Leaving: the last node inside closes the reach; entering: the first node inside does.
+                if (before >= 0 && k - 1 > start) { split.Add(path[start..k]); start = k - 1; }
+                if (after >= 0 && k > start) { split.Add(path[start..(k + 1)]); start = k; }
+            }
+
+            if (path.Length - start >= 2) split.Add(path[start..]);
+        }
+
+        return split;
     }
 
     internal MapGrid Grid { get; }

@@ -51,10 +51,15 @@ public sealed partial class CraftSurviveProduct
             resumed = party.State is TravelState.Planned or TravelState.Paused ? party.Route : null;
             party.Relocate(here);
         }
-        HitchSledIfNear();
+        // Who travels is settled first - the boat, then the sled - so a resumed journey is planned for them,
+        // by water too when the boat is beside the party (#9879 review).
         TakeBoatIfNear();
-        if (resumed is not null && party.Plan(PartyCost, resumed.Points[^1], resumed.Destination) && party.Route is TravelRoute route)
-            worldMessage = RoutePreview(route);
+        HitchSledIfNear();
+        if (resumed is not null)
+        {
+            (bool planned, string? byBoat) = PlanForParty(resumed.Points[^1], resumed.Destination);
+            if (planned && party.Route is TravelRoute route) worldMessage = byBoat is null ? RoutePreview(route) : $"{byBoat} {RoutePreview(route)}";
+        }
         facetedMap?.MoveParty(party.Position);
         facetedMap?.ShowRoute(party.Route?.Points);
     }
@@ -66,10 +71,7 @@ public sealed partial class CraftSurviveProduct
         if (!facetedMapShown) ShowFacetedMap(true);
         party ??= new PartyTravel(destination);
         ApplySledLoad();
-        bool planned = party.Plan(PartyCost, destination, name);
-        // With a boat, the river too (#9879): taken when it beats walking.
-        string? byBoat = PlanByBoat(destination, name);
-        planned |= party.Route?.ByBoat == true;
+        (bool planned, string? byBoat) = PlanForParty(destination, name);
         facetedMap?.ShowRoute(party.Route?.Points);
         worldMessage = planned && party.Route is TravelRoute route ? RoutePreview(route) : party.Last;
         if (byBoat is not null) worldMessage = $"{byBoat} {worldMessage}";
@@ -175,9 +177,22 @@ public sealed partial class CraftSurviveProduct
                 SettleParty();
                 break;
             case "halt":
-                party.Stop();
+                // On the water the player is seated in the boat first, while the route still says so (#9879 review);
+                // the token then stands at the boat.
+                if (party.Afloat)
+                {
+                    SettleParty();
+                    if (boat.Boat is Boat craft) party.Relocate(craft.Position);
+                    party.Stop();
+                }
+                else
+                {
+                    party.Stop();
+                    SettleParty();
+                }
+
                 facetedMap?.ShowRoute(null);
-                SettleParty();
+                facetedMap?.MoveParty(party.Position);
                 break;
             case "camp":
                 Camp();

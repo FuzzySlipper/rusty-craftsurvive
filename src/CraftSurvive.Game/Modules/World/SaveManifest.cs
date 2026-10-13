@@ -70,6 +70,10 @@ internal static class SaveManifest
     internal static SaveKey TravelBoat { get; } =
         new("travel/boat", "travel/boat.backup", "BoatStore", 0x5441_4F42, 1);
 
+    /// <summary>The river stage's stores (#9878 review): carried between sessions, as no warm-up recovers them.</summary>
+    internal static SaveKey WaterStage { get; } =
+        new("water/stage", "water/stage.backup", "RiverStageStore", 0x4754_5357, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat, WaterStage];
 }

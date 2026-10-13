@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Water;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
 
@@ -21,5 +22,18 @@ internal static class WaterRuleChecks
             "a lake stands at its level over its basin, and its shore above the level is dry");
         MapSample both = land with { RiverSurface = 50.2, LakeSurface = 50.8 };
         Check.That(WaterRules.Surface(both) == 50.8 && WaterRules.Body(both, 49) == WaterBody.Lake, "where a river enters a lake, the lake's level stands over it");
+
+        // The near water's square and the far field's water meet at the waterline on every edge (#9877 review): the far
+        // field leaves its water out only strictly inside, so its vertices on any edge keep the water's height.
+        (double X, double Z) centre = (10, 10);
+        const double Outer = 112;
+        int radius = NearWaterSquare.TileRadius(Outer);
+        double low = -radius * NearWaterSquare.TileMetres, high = (radius + 1) * NearWaterSquare.TileMetres;
+        bool edges = true;
+        foreach ((double x, double z) in new[] { (low, 30.0), (high, 30.0), (30.0, low), (30.0, high) })
+            edges &= !NearWaterSquare.CoversInside(centre, Outer, x, z);
+        Check.That(edges && NearWaterSquare.Covers(centre, Outer, low, 30) && NearWaterSquare.CoversInside(centre, Outer, low + 0.01, 30)
+            && NearWaterSquare.CoversInside(centre, Outer, high - 0.01, 30) && !NearWaterSquare.Covers(centre, Outer, high, 30),
+            "the far field keeps its water on all four edges of the near square and leaves it out only inside");
     }
 }

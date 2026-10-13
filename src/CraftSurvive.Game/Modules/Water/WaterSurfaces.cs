@@ -21,7 +21,7 @@ namespace CraftSurvive.Game.Modules.Water;
 internal sealed class WaterSurfaces : IDisposable
 {
     /// <summary>A tile's edge and the spacing of its vertices (metres).</summary>
-    internal const int TileMetres = 64, Step = 2;
+    internal const int TileMetres = NearWaterSquare.TileMetres, Step = 2;
     private const int Cells = TileMetres / Step;
 
     /// <summary>Tiles built per update, so a walk into new water never stalls an update.</summary>
@@ -62,21 +62,8 @@ internal sealed class WaterSurfaces : IDisposable
         this.model = model ?? throw new ArgumentNullException(nameof(model));
     }
 
-    /// <summary>
-    /// The square of tiles the near water covers: those within this many tiles (Chebyshev) of the tile
-    /// holding the centre, enough to reach past the far field's sunk band (<paramref name="outer"/>, metres).
-    /// The far field draws no water inside the same square (<see cref="Covers"/>), so the two meet edge to
-    /// edge at the same level.
-    /// </summary>
-    internal static int TileRadius(double outer) => Math.Max(1, (int)Math.Ceiling((outer - (TileMetres / 2.0)) / TileMetres));
-
-    /// <summary>Whether the near water's square about a centre covers a point (the rule the far field leaves its water out by).</summary>
-    internal static bool Covers((double X, double Z) centre, double outer, double x, double z)
-    {
-        int radius = TileRadius(outer);
-        long cx = (long)Math.Floor(centre.X / TileMetres), cz = (long)Math.Floor(centre.Z / TileMetres);
-        return Math.Abs((long)Math.Floor(x / TileMetres) - cx) <= radius && Math.Abs((long)Math.Floor(z / TileMetres) - cz) <= radius;
-    }
+    /// <summary>The square of tiles the near water covers about a centre (<see cref="NearWaterSquare"/>).</summary>
+    internal static int TileRadius(double outer) => NearWaterSquare.TileRadius(outer);
 
     private double outerMetres;
 

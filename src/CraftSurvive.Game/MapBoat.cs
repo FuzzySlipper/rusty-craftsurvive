@@ -92,6 +92,19 @@ public sealed partial class CraftSurviveProduct
     }
 
     /// <summary>
+    /// Plans the party's route to a destination as it now travels (#9879 review): on foot, and by water too
+    /// when its boat is with it, taking whichever is quicker. Every plan - chosen, resumed, or redone because
+    /// the sled joined or left - comes through here. Returns whether a route was planned, and the boat's verdict.
+    /// </summary>
+    private (bool Planned, string? ByBoat) PlanForParty(Vector2 destination, string name)
+    {
+        if (party is null) return (false, null);
+        bool planned = party.Plan(PartyCost, destination, name);
+        string? byBoat = PlanByBoat(destination, name);
+        return (planned || party.Route?.ByBoat == true, byBoat);
+    }
+
+    /// <summary>
     /// The plan by boat, when the party has one (#9879): taken if the river beats walking. A canoe leaves
     /// the sled where it is; a raft carries it, so walking is weighed with the sled's load.
     /// </summary>
@@ -159,6 +172,13 @@ public sealed partial class CraftSurviveProduct
         if (boat.Seat() is not Vector3 deck) return false;
         if (player.Teleport(deck.X, deck.Y, deck.Z) is null) return false;
         boat.Save();
+        // A raft carries the sled: it stops where the raft does, so it stays with the expedition (#9879 review).
+        if (sledWithParty)
+        {
+            sled.Sled.MoveTo(afloat);
+            sled.Save();
+        }
+
         return true;
     }
 

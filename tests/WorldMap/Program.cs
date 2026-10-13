@@ -164,6 +164,7 @@ Check.Section("bankfull stage and settlement standing", NetworkChecks.Rules);
 Check.Section("the water rule", WaterRuleChecks.Run);
 Check.Section("seasons", StageChecks.TheYearTurns);
 Check.Section("boats", BoatChecks.Rules);
+Check.Section("lake rules", LakeChecks.Rules);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);
 Check.Section("horizon landmarks on visible ground", HorizonChecks.LandmarksStandOnVisibleGround);
 return Check.Finish("WorldMap");
@@ -171,7 +172,7 @@ return Check.Finish("WorldMap");
 partial class Program
 {
     /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 23 (#9550); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0x1edacc55280c22a6UL;
+    private const ulong RegionTileGolden = 0x900790117a2b2f90UL;
     /// <summary>
     /// A tile builds in about 1.5 s in Release on an idle machine; this wall-clock bound leaves room for a
     /// heavily shared runner (5.6 s was seen at a load average of 40) while still catching a regression.
@@ -264,5 +265,5 @@ partial class Program
 
     private const ulong ContinentSeed = 12345;
     /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 23 (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0xabf966a036830cefUL;
+    private const ulong ContinentGolden = 0xdfd28b4af1cb775dUL;
 }

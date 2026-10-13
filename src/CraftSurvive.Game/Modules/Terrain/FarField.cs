@@ -120,7 +120,7 @@ internal sealed class FarField : IDisposable
 
     /// <summary>How far a move of the sunk zone changes the far field: its band, or the near water's square, whichever reaches farther.</summary>
     private static double Changed(double outer) =>
-        Math.Max(outer, (Water.WaterSurfaces.TileRadius(outer) + 1.0) * Water.WaterSurfaces.TileMetres);
+        Math.Max(outer, (Water.NearWaterSquare.TileRadius(outer) + 1.0) * Water.NearWaterSquare.TileMetres);
 
     /// <summary>Keeps the ring centred on the player, and the sunk zone under them.</summary>
     internal void Follow(long worldX, long worldZ)
@@ -250,7 +250,7 @@ internal sealed class FarField : IDisposable
                 ground[at] = recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
                 geography[at] = recipe.Geography(x, z);
                 // Inside the near water's square the near surfaces draw the water (#9877): here only the bed.
-                waterTop[at] = !double.IsNaN(now.SinkCentre.X) && Water.WaterSurfaces.Covers(now.SinkCentre, now.Outer, x, z)
+                waterTop[at] = !double.IsNaN(now.SinkCentre.X) && Water.NearWaterSquare.CoversInside(now.SinkCentre, now.Outer, x, z)
                     ? double.NegativeInfinity : FarGround.WaterTop(geography[at]);
                 // The stage's ice and dry beds (#9878): a dry bed draws as ground, frozen water as ice.
                 if (waterTop[at] > ground[at])

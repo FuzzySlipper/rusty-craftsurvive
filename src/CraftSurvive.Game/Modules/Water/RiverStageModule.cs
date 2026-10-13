@@ -14,8 +14,13 @@ internal readonly record struct WaterBounds(double MinX, double MinZ, double Max
 /// passes each game hour, it steps the stage on off the update too and, once a step is done, publishes
 /// the stage it reached and tells the water surfaces to redraw. Play reads only the published stage
 /// (<see cref="RiverStageView"/>), so a step never stalls an update. Before it is ready, and on a world
-/// without a water network, every reach stands at its mean. Nothing is saved: the stage is rebuilt
-/// from the seed, the map and the clock.
+/// without a water network, every reach stands at its mean.
+/// <para>
+/// The stage is carried, not rebuilt (#9878 review): its stores remember months - snow, frost, a lake - so
+/// it is saved (<see cref="IRiverStageArchive"/>) every <see cref="SaveEveryHours"/> game hours and when the
+/// world closes, restored when the world opens, and carried on to the clock hour by hour on the absolute
+/// grid. A stage that was never saved, or does not fit, starts afresh at the clock.
+/// </para>
 /// </summary>
 internal sealed class RiverStageModule : IProductModule, IWaterStage
 {
@@ -25,7 +30,13 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
     private Task<RiverStage>? building;
     /// <summary>The stage that steps; only the stepping task touches it once adopted.</summary>
     private RiverStage? stepper;
-    private Task<(RiverStageView View, double Milliseconds, WaterBounds[] Changed)>? stepping;
+    private Task<(RiverStageView View, double Milliseconds, WaterBounds[] Changed, RiverStageState? Save)>? stepping;
+    private readonly IRiverStageArchive? archive;
+    private double savedHours = double.NaN;
+    private string restoreOutcome = "none";
+
+    /// <summary>The stage is saved when it has moved on this many game hours since it last was.</summary>
+    internal const double SaveEveryHours = 6;
     /// <summary>Each reach's area, and the areas of the lakes it freezes, for what must redraw when it changes.</summary>
     private WaterBounds[] reachBounds = [];
     private Dictionary<int, List<WaterBounds>> reachLakes = [];
@@ -43,14 +54,19 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
 
     /// <param name="hours">The clock as absolute game hours.</param>
     /// <param name="advanced">Called once the stage has moved on, with where water froze, thawed, ran dry or came back, so what draws water can redraw.</param>
-    internal RiverStageModule(WorldMap map, Func<double> hours, Action<IReadOnlyList<WaterBounds>> advanced)
+    /// <param name="archive">Where the stage is saved and restored from; null keeps it for the session only.</param>
+    internal RiverStageModule(WorldMap map, Func<double> hours, Action<IReadOnlyList<WaterBounds>> advanced, IRiverStageArchive? archive = null)
     {
+        this.archive = archive;
         this.map = map ?? throw new ArgumentNullException(nameof(map));
         this.hours = hours ?? throw new ArgumentNullException(nameof(hours));
         this.advanced = advanced ?? throw new ArgumentNullException(nameof(advanced));
     }
 
     internal bool Ready => stage is not null;
+
+    /// <summary>The hour the published stage stands at; NaN before it is ready.</summary>
+    internal double PublishedHours => stage?.Hours ?? double.NaN;
 
     /// <summary>A reach's water now, or null before the stage is ready (it stands at its mean).</summary>
     public ReachStage? At(int reach) => stage is not null && reach >= 0 && reach < stage.Count ? stage.At(reach) : null;
@@ -84,12 +100,24 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         if (!map.Scale.Continental || map.RegionFrame is not null || building is not null) return;
         double now = hours();
         WorldMap continent = map;
+        RiverStageState? saved = archive?.Restore();
         // Off the update: its own weather field (the live one is the update's), the drainage built with the world.
         building = Task.Run(() =>
         {
             WaterNetwork built = MapRegions.For(continent).Drainage.Network;
             RiverStage fresh = new(built, continent, WeatherField.For(continent));
-            fresh.Start(now);
+            // A saved stage no later than the clock is carried on to it; any other starts afresh.
+            if (saved is not null && saved.Hours <= now && fresh.StartFrom(saved))
+            {
+                restoreOutcome = string.Create(CultureInfo.InvariantCulture, $"restored@{saved.Hours:F0}");
+                fresh.AdvanceTo(now);
+            }
+            else
+            {
+                restoreOutcome = saved is null ? "fresh" : "fresh (save did not fit)";
+                fresh.Start(now);
+            }
+
             return fresh;
         });
     }
@@ -97,8 +125,8 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
     public void Update(ProductStep step) => Follow();
 
     /// <summary>
-    /// Adopts the stage once built and brings it to the clock. Map travel calls it too, since the walking
-    /// updates stop while the map is open; a long gap is crossed in a few long steps.
+    /// Adopts the stage once built and brings it to the clock. The map's updates call it too, since the
+    /// walking updates stop while the map is open (#9878 review); a long gap is crossed hour by hour.
     /// </summary>
     internal void Follow()
     {
@@ -127,29 +155,56 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
                     if (nodeReach[node] < 0 || network.Reaches[nodeReach[node]].Flow < reach.Flow) nodeReach[node] = reach.Id;
             // Everything already frozen or dry is news to what draws water.
             advanced(Changed(null, stage));
+            Save(stepper.Capture());
         }
 
         if (stepping is { IsCompleted: true } stepped)
         {
             stepping = null;
             WaterBounds[] changed;
-            (stage, lastAdvanceMs, changed) = stepped.GetAwaiter().GetResult();
+            RiverStageState? due;
+            (stage, lastAdvanceMs, changed, due) = stepped.GetAwaiter().GetResult();
             steps++;
             changedAreas += changed.Length;
             advanced(changed);
+            if (due is not null) Save(due);
         }
 
         double now = hours();
         if (stepping is not null || stage is null || now - stage.Hours < RiverStage.StepHours) return;
         RiverStage moving = stepper;
         RiverStageView before = stage;
+        double lastSaved = savedHours;
         stepping = Task.Run(() =>
         {
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
             moving.AdvanceTo(now);
             RiverStageView after = moving.View();
-            return (after, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Changed(before, after));
+            // The stores are copied here, where the stage is still, when a save is due.
+            RiverStageState? save = double.IsNaN(lastSaved) || moving.Hours - lastSaved >= SaveEveryHours ? moving.Capture() : null;
+            return (after, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Changed(before, after), save);
         });
+    }
+
+    /// <summary>
+    /// Brings the published stage within so many game hours of the clock before something decides by it
+    /// (a ford's state on the map, #9878 review), waiting on the steps off the update if it must.
+    /// </summary>
+    internal void CatchUp(double withinHours)
+    {
+        Follow();
+        while (stage is not null && hours() - stage.Hours > withinHours)
+        {
+            stepping?.Wait();
+            Follow();
+        }
+    }
+
+    private void Save(RiverStageState state)
+    {
+        if (archive is null) return;
+        archive.Save(state);
+        savedHours = state.Hours;
     }
 
     /// <summary>Where water froze, thawed, ran dry or came back between two stages (from none: where it is frozen or dry).</summary>
@@ -189,6 +244,9 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
 
     public void Dispose()
     {
+        // The stage is saved as it stands when the world closes; a step still running is finished first.
+        stepping?.Wait();
+        if (stepper is not null) Save(stepper.Capture());
         // A step still running finishes on its own; nothing reads it after this.
         stage = null;
         stepper = null;
@@ -223,6 +281,6 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
             ? string.Create(CultureInfo.InvariantCulture, $" reach={reach} flow={s.Flow:F2} ratio={s.Ratio:F2} fullness={s.Fullness:F2} stage={s.Stage:+0.00;-0.00;0.00} overbank={s.Overbank} ice={s.Ice} dry={s.Dry} air={stage.AirTemperature(reach):F2}")
             : "";
         return string.Create(CultureInfo.InvariantCulture,
-            $"stage=ready hours={stage.Hours:F1} season={Seasons.At(stage.Hours)} cells={stepper?.CellCount ?? 0} steps={steps} stepping={stepping is not null} lastStepMs={lastAdvanceMs:F1} (off the update) changedAreas={changedAreas}{here}");
+            $"stage=ready restore={restoreOutcome} saved={savedHours:F0} hours={stage.Hours:F1} season={Seasons.At(stage.Hours)} cells={stepper?.CellCount ?? 0} steps={steps} stepping={stepping is not null} lastStepMs={lastAdvanceMs:F1} (off the update) changedAreas={changedAreas}{here}");
     }
 }

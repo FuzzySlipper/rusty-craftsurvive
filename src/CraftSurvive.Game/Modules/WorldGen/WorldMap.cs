@@ -115,7 +115,7 @@ internal sealed class WorldMap
         if (region is null)
         {
             // Lakes are found again from the saved fields (#9876); a closed one is a sink, as generation routed it.
-            Lakes = MapLakes.Find(Grid, fields.Elevation, fields.Discharge, fields.Temperature, ContinentDesign.For(configuration.Size));
+            Lakes = MapLakes.FindRouted(Grid, fields.Elevation, fields.Discharge, fields.Temperature, ContinentDesign.For(configuration.Size));
             bool[] outlet = MapLakes.Outlets(Grid, elevation, Lakes);
             if (!outlet.Any(o => o)) throw new ArgumentException("Map has nowhere to drain.");
             double[] filled = (double[])elevation.Clone();

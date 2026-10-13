@@ -151,7 +151,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         weather = new WeatherModule(worlds.Current.Map, sky, () => conditions.Time, () => player.WorldPosition,
             () => !player.InSeparateSpace && !player.HeadSubmerged,
             () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
-        riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater);
+        riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater,
+            new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));
         terrain.Water.Stages = riverStage;
         creatures = new CreatureModule(context.Engine, terrain, player, frame, () => conditions.IsNight, cues);
         survival = new SurvivalModule(context.Engine, store, terrain.SaveIdentity, player, conditions, ui,
@@ -347,6 +348,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 PublishWorld();
             }
             AdvanceTravel(ProductStep.From(update.Facts).ElapsedSeconds);
+            // The walking modules rest while the map is open; the river stage follows the clock regardless (#9878 review).
+            riverStage.Follow();
             if (facetedMapShown) ShowWeatherOnMap();
             if (facetedMapShown && facetedMap is not null && (facetedMap.Steer(update.Input) | facetedMap.MarkersStale)) PublishAppearanceSnapshot();
             AdvanceFacetedMap();

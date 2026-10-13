@@ -23,6 +23,9 @@ public sealed partial class CraftSurviveProduct
     private const ulong TravelEventSeedSalt = 0x7472_6176_656C_6576UL;
 
     private TravelEventDirector? travelEvents;
+
+    /// <summary>A ford is judged by a river stage at most this many game hours behind the clock.</summary>
+    private const double CrossingLagHours = 3;
     private TravelEvent? pendingEvent;
     /// <summary>Where a discovery event's place stands, for its Divert choice.</summary>
     private (Vector2 Position, string Name)? discoveredPlace;
@@ -74,7 +77,9 @@ public sealed partial class CraftSurviveProduct
     private RiverState RiverAtParty(MapSample here)
     {
         if (party is null || !double.IsFinite(here.RiverSurface)) return RiverState.None;
-        riverStage.Follow();
+        // A crossing is judged by a stage no more than a few hours behind the clock: after a long camp or a
+        // journey over land the stage is brought up first (#9878 review).
+        riverStage.CatchUp(CrossingLagHours);
         return riverStage.CrossingAt(party.Position.X, party.Position.Y);
     }
 

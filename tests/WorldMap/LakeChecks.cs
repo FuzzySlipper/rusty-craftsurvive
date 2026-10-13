@@ -12,6 +12,46 @@ internal static class LakeChecks
 {
     private const ulong Seed = 13;
 
+    /// <summary>
+    /// The lake rules by themselves (#9876 review): a river crossing a lake is split into the reach that
+    /// enters it, the one under it and the one that leaves; a closed lake fed at two separate sinks takes in
+    /// both, and stands where evaporation from it balances their sum.
+    /// </summary>
+    internal static void Rules()
+    {
+        List<int[]> crossing = MapDrainage.SplitAtLakes([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]], n => n is >= 3 and <= 6 ? 0 : -1);
+        Check.That(crossing.Count == 3 && crossing[0].SequenceEqual([0, 1, 2, 3]) && crossing[1].SequenceEqual([3, 4, 5, 6]) && crossing[2].SequenceEqual([6, 7, 8, 9]),
+            $"a river crossing a lake becomes the reach in, the reach under it and the reach out, joined at its shores ({string.Join(" | ", crossing.Select(p => string.Join(",", p)))})");
+        Check.That(MapDrainage.SplitAtLakes([[0, 1, 2]], _ => -1).Single().SequenceEqual([0, 1, 2])
+            && MapDrainage.SplitAtLakes([[0, 1, 2, 3]], n => n >= 2 ? 0 : -1).Select(p => p.Length).SequenceEqual([3, 2]),
+            "a river clear of lakes is unchanged, and one ending in a lake ends under it");
+
+        // A bowl with a high rim, fed at two separate sink cells of ten nodes' discharge each.
+        MapGrid grid = new(16, 1000, 8000);
+        float[] elevation = new float[grid.Count], discharge = new float[grid.Count], temperature = new float[grid.Count];
+        for (int i = 0; i < grid.Count; i++)
+        {
+            double r = Math.Sqrt((grid.X(i) * grid.X(i)) + (grid.Z(i) * grid.Z(i)));
+            // The sea around the edge drains everything outside the rim.
+            elevation[i] = grid.IsEdge(i) ? 0 : (float)(50 + (450 * Math.Min(1, r / 6000 * (r / 6000))));
+            discharge[i] = 1;
+            temperature[i] = 1;
+        }
+
+        int a = grid.Nearest(-1000, 0), b = grid.Nearest(1000, 0);
+        discharge[a] = discharge[b] = 10;
+        HashSet<int> sinks = [a, b];
+        Lake both = MapLakes.Find(grid, elevation, discharge, temperature, null, sinks).Single();
+        Lake larger = MapLakes.Find(grid, elevation, discharge, temperature, null).Single();
+        double cellKm2 = grid.Spacing * grid.Spacing / 1e6;
+        Check.That(both.Closed && Math.Abs(both.InflowFlow - WaterBudget.Flow(20 * cellKm2)) < 1e-9 && Math.Abs(larger.InflowFlow - WaterBudget.Flow(10 * cellKm2)) < 1e-9,
+            $"a closed lake takes in every sink its water stops at ({both.InflowFlow:F3} m3/s), not just the largest ({larger.InflowFlow:F3})");
+        double Loss(double area) => both.EvaporationMetres * area * 1e6 / (365.25 * 24 * 3600);
+        Check.That(Loss(both.AreaSquareKilometres) <= both.InflowFlow + Loss(cellKm2) && Loss(both.AreaSquareKilometres + cellKm2) >= both.InflowFlow - Loss(cellKm2)
+            && both.AreaSquareKilometres > larger.AreaSquareKilometres,
+            $"it stands where evaporation from it balances both ({both.AreaSquareKilometres:F0} km2 against {larger.AreaSquareKilometres:F0} km2 for one)");
+    }
+
     internal static void Run(WorldMap defaultContinent)
     {
         Check.That(defaultContinent.Lakes.Count > 0, $"the generator's own continent holds lakes ({defaultContinent.Lakes.Count})");
@@ -73,6 +113,23 @@ internal static class LakeChecks
             "every lake is a storage node of the water network, on the drainage lattice");
         Check.That(network.Lakes.Where(n => n.Lake.Closed).All(n => n.Outflow < 0) && network.Lakes.Any(n => n.Inflows.Length > 0),
             "rivers flow into lakes, and a closed lake has no river flowing on");
+        // The lake as storage between its rivers (#9876 review): what flows in, what lies under it and what flows on are separate reaches.
+        Check.That(network.Lakes.All(n => !n.Inflows.Contains(n.Outflow) && !n.Interior.Contains(n.Outflow) && !n.Inflows.Intersect(n.Interior).Any()),
+            "no reach is both a lake's inflow and its outflow, or under it and either");
+        bool joined = true;
+        int crossed = 0;
+        foreach (LakeNode lake in network.Lakes.Where(n => n.Outflow >= 0 && n.Interior.Length > 0))
+            foreach (int inflow in lake.Inflows)
+            {
+                // Down from where a river enters, the lake's own reaches come before the one that flows on.
+                List<int> chain = [];
+                for (int r = network.Reaches[inflow].Downstream; r >= 0 && chain.Count < network.Reaches.Count && r != lake.Outflow; r = network.Reaches[r].Downstream) chain.Add(r);
+                if (chain.Count == 0 || !chain.All(lake.Interior.Contains)) continue;
+                crossed++;
+                joined &= network.Reaches[chain[^1]].Downstream == lake.Outflow;
+            }
+
+        Check.That(crossed > 0 && joined, $"a river entering a lake runs through the reaches under it to the one flowing on ({crossed} crossings)");
         Console.WriteLine($"lakes (seed {Seed}): " + string.Join("; ", lakes.Select(l =>
             $"{l.Kind} {l.AreaSquareKilometres:F0} km2 {l.MaximumDepth:F0} m{(l.Closed ? " closed" : "")}")));
     }

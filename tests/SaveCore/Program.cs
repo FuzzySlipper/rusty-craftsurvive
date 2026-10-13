@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Water;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Numerics;
@@ -88,6 +89,11 @@ SavedForm[] forms =
         (left, right) => left.X == right.X && left.Z == right.Z && left.Cargo.SequenceEqual(right.Cargo), seed => new SledCodec(identity with { Seed = seed })),
     SavedForm.For(SaveManifest.TravelBoat, new BoatCodec(identity), new BoatSave(CraftSurvive.Game.Modules.Travel.BoatKind.Canoe, -1200.5, 3400.25, 1.25), BoatCodec.RecordBytes,
         (left, right) => left == right, seed => new BoatCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.WaterStage, new RiverStageCodec(identity),
+        new RiverStageState(2884, [12.5, 0, 3e6], [0, 1250.5, 3], [0.25, 0], [1.5, 0.75]), RiverStageCodec.RecordBytes,
+        (left, right) => left.Hours == right.Hours && left.Storage.SequenceEqual(right.Storage) && left.Frost.SequenceEqual(right.Frost)
+            && left.Snow.SequenceEqual(right.Snow) && left.Ground.SequenceEqual(right.Ground),
+        seed => new RiverStageCodec(identity with { Seed = seed })),
 ];
 
 // --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------

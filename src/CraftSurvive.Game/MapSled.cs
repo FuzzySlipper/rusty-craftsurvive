@@ -46,8 +46,8 @@ public sealed partial class CraftSurviveProduct
         ApplySledLoad();
         if (changed && party is { State: TravelState.Planned or TravelState.Paused, Route: TravelRoute route })
         {
-            party.Plan(PartyCost, route.Points[^1], route.Destination);
-            worldMessage = party.Route is TravelRoute replanned ? RoutePreview(replanned) : party.Last;
+            (_, string? byBoat) = PlanForParty(route.Points[^1], route.Destination);
+            worldMessage = party.Route is TravelRoute replanned ? $"{(byBoat is null ? "" : byBoat + " ")}{RoutePreview(replanned)}" : party.Last;
         }
         RefreshPlaces();
     }

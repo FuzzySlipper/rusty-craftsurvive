@@ -4,13 +4,18 @@ namespace CraftSurvive.Game.Modules.Water;
 
 /// <summary>
 /// The water at one place (#9877): its surface and the bed under it (metres), the horizontal current
-/// (m/s; a river's reach velocity along its channel, #9879), which body it belongs to, the stage
+/// (m/s; a river's reach velocity along its channel, #9879), which body it belongs to (its kind, and
+/// <see cref="BodyId"/>: the walked network's reach, the lake's id, or 0 for the one sea), the stage
 /// offset over its usual surface (0 until the stage is routed, #9878) and whether it is frozen. The
 /// fields match what an Engine water field reports for a region (rusty-engine #9884), so a flood
 /// region can be composed over the static surfaces (#9880) without changing a consumer.
 /// </summary>
-internal readonly record struct WaterSample(double Surface, double Bed, double CurrentX, double CurrentZ, WaterBody Body, double Stage, bool Ice)
+internal readonly record struct WaterSample(double Surface, double Bed, double CurrentX, double CurrentZ, WaterBody Body, double Stage, bool Ice,
+    int BodyId = WaterModel.NoBody)
 {
+    /// <summary>Which body this is: its kind and its id, so two lakes or two reaches are told apart.</summary>
+    internal WaterBodyId Identity => new(Body, BodyId);
+
     /// <summary>The water's top with its stage.</summary>
     internal double Top => Surface + Stage;
 
@@ -38,6 +43,9 @@ internal interface IWaterStage
 /// </summary>
 internal sealed class WaterModel(TerrainRecipe recipe)
 {
+    /// <summary>The body id of no water, and of the one sea.</summary>
+    internal const int NoBody = -1, TheSea = 0;
+
     /// <summary>The routed stage, or null while every body stands at its usual surface.</summary>
     internal IWaterStage? Stages { get; set; }
 
@@ -50,6 +58,9 @@ internal sealed class WaterModel(TerrainRecipe recipe)
         (double ground, MapSample geography) = recipe.GroundAt(x, z);
         double surface = WaterRules.Surface(geography);
         WaterBody body = WaterRules.Body(geography, ground);
+        // The lake is the one whose level the surface came from (WorldMap.LakeAt follows LakeLevelAt).
+        Lake? lake = body == WaterBody.Lake ? recipe.Map.LakeAt(x + 0.5, z + 0.5) : null;
+        int id = body switch { WaterBody.River => geography.RiverReach, WaterBody.Lake => lake?.Id ?? NoBody, WaterBody.Sea => TheSea, _ => NoBody };
         if (body == WaterBody.River)
         {
             ReachStage? reach = Stages?.At(geography.RiverReach);
@@ -59,13 +70,13 @@ internal sealed class WaterModel(TerrainRecipe recipe)
             (double currentX, double currentZ) = (geography.RiverFlowX * speed, geography.RiverFlowZ * speed);
             // A dry reach leaves its bed bare: the stage takes the water down to the ground; ice stills the current.
             if (reach is ReachStage now)
-                return new(surface, ground, now.Ice ? 0 : currentX, now.Ice ? 0 : currentZ, body, now.Dry ? ground - surface : now.Stage, now.Ice && !now.Dry);
-            return new(surface, ground, currentX, currentZ, body, 0, false);
+                return new(surface, ground, now.Ice ? 0 : currentX, now.Ice ? 0 : currentZ, body, now.Dry ? ground - surface : now.Stage, now.Ice && !now.Dry, id);
+            return new(surface, ground, currentX, currentZ, body, 0, false, id);
         }
 
-        if (body == WaterBody.Lake && Stages is IWaterStage stages && recipe.Map.LakeAt(x + 0.5, z + 0.5) is Lake lake)
-            return new(surface, ground, 0, 0, body, 0, stages.LakeIce(lake));
-        return new(surface, ground, 0, 0, body, 0, false);
+        if (lake is not null && Stages is IWaterStage stages)
+            return new(surface, ground, 0, 0, body, 0, stages.LakeIce(lake), id);
+        return new(surface, ground, 0, 0, body, 0, false, id);
     }
 
     /// <summary>A walked reach's mean velocity (m/s), or still water where there is no such reach.</summary>

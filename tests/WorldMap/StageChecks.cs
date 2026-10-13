@@ -41,6 +41,18 @@ internal static class StageChecks
         again.Start(StartHours);
         Check.That(Enumerable.Range(0, network.Reaches.Count).All(r => stage.At(r) == again.At(r)), "the stage is the same for the same world and time");
 
+        // Carried, not rebuilt (#9878 review): a stage saved and restored, then brought on in ragged steps, stands
+        // where one carried on in a single call does - flow, stage, frost and ice alike.
+        const double CarriedHours = 100;
+        RiverStage restored = new(network, continent, WeatherField.For(continent));
+        Check.That(restored.StartFrom(stage.Capture()) && restored.Hours == StartHours, "a saved stage restores at its hour");
+        again.AdvanceTo(StartHours + CarriedHours);
+        int[] ragged = [1, 2, 3, 5, 7, 11, 13];
+        for (int i = 0; restored.Hours < StartHours + CarriedHours; i++) restored.AdvanceTo(Math.Min(StartHours + CarriedHours, restored.Hours + ragged[i % ragged.Length] + 0.37));
+        Check.That(restored.Hours == again.Hours && Enumerable.Range(0, network.Reaches.Count).All(r => restored.At(r) == again.At(r)),
+            "a stage restored from a save and carried on in ragged steps matches one carried on in one call");
+        Check.That(!restored.StartFrom(stage.Capture() with { Storage = [1, 2, 3] }), "a save that does not fit the network is refused");
+
         Reach great = network.Reaches.MaxBy(r => r.Flow)!;
         int count = network.Reaches.Count, steps = (int)(Seasons.YearDays * 24 / YearStepHours);
         double greatMean = 0, mostFlood = 0;
@@ -81,6 +93,100 @@ internal static class StageChecks
         Check.That(stageFollowsFlow, "a reach stands above its usual surface when it runs above its mean, and below when below");
 
         WaterOwnerFollowsTheStage(network, recipe);
+        BodiesAreTold(network, recipe);
+        ModuleFollowsTheClock(continent);
+    }
+
+    /// <summary>
+    /// The water owner says which body it sampled (#9877 review): a river's reach, a lake's id, the sea; two
+    /// reaches or two lakes are told apart, and a batch query says what point queries do.
+    /// </summary>
+    private static void BodiesAreTold(WaterNetwork network, TerrainRecipe recipe)
+    {
+        WaterModel water = new(recipe);
+        List<(long X, long Z)> columns = [];
+        List<WaterBodyId> found = [];
+        void Look(double cx, double cz, WaterBody kind, int span)
+        {
+            for (int d = 0; d < span * span; d++)
+            {
+                long x = (long)cx + (d % span) - (span / 2), z = (long)cz + (d / span) - (span / 2);
+                WaterSample sample = water.Sample(x, z);
+                if (sample.Body != kind || found.Contains(sample.Identity)) continue;
+                columns.Add((x, z));
+                found.Add(sample.Identity);
+                return;
+            }
+        }
+
+        foreach (Reach reach in network.Reaches.Where(r => r.Flow > WaterNetwork.CanoeFlow).OrderByDescending(r => r.Flow).Take(12))
+        {
+            int node = reach.Nodes[reach.Nodes.Length / 2];
+            Look(network.Grid.X(node), network.Grid.Z(node), WaterBody.River, 24);
+        }
+
+        foreach (Lake lake in recipe.Map.Lakes.Take(12))
+        {
+            int node = lake.Nodes[lake.Nodes.Length / 2];
+            Look(recipe.Map.Grid.X(node), recipe.Map.Grid.Z(node), WaterBody.Lake, 24);
+        }
+
+        int rivers = found.Count(id => id.Kind == WaterBody.River), lakes = found.Count(id => id.Kind == WaterBody.Lake);
+        bool resolved = columns.Zip(found).All(pair => pair.Second.Kind == WaterBody.River
+            ? recipe.GroundAt(pair.First.X, pair.First.Z).Geography.RiverReach == pair.Second.Id
+            : recipe.Map.LakeAt(pair.First.X + 0.5, pair.First.Z + 0.5)?.Id == pair.Second.Id);
+        Check.That(rivers >= 2 && lakes >= 2 && resolved, $"two reaches and two lakes are told apart, each by its own id ({rivers} reaches, {lakes} lakes)");
+        WaterSample[] batch = new WaterSample[columns.Count];
+        water.Sample([.. columns], batch);
+        Check.That(batch.Select(b => b.Identity).SequenceEqual(found), "a batch query names the same bodies as point queries");
+    }
+
+    /// <summary>
+    /// The module in play (#9878 review): after a long gap - a camp, a journey over land - a crossing's
+    /// catch-up brings the published stage to within hours of the clock; the stage is saved when the world
+    /// closes and carried on, not rebuilt, when it opens again.
+    /// </summary>
+    private static void ModuleFollowsTheClock(WorldMap continent)
+    {
+        const double GapHours = 200, CrossingLagHours = 3;
+        double clockHours = StartHours + 500;
+        MemoryArchive archive = new();
+        RiverStageModule module = new(continent, () => clockHours, _ => { }, archive);
+        module.Start();
+        Ready(module);
+        clockHours += GapHours;
+        module.CatchUp(CrossingLagHours);
+        Check.That(clockHours - module.PublishedHours <= CrossingLagHours, $"a crossing's catch-up brings the stage near the clock after a long gap ({clockHours - module.PublishedHours:F1} h behind)");
+        RiverStageState? before = null;
+        module.Dispose();
+        before = archive.Saved;
+        Check.That(before is not null && before.Hours == Math.Floor(clockHours), "closing the world saves the stage where it stands");
+
+        RiverStageModule reopened = new(continent, () => clockHours, _ => { }, archive);
+        reopened.Start();
+        Ready(reopened);
+        Check.That(reopened.Readout().Contains("restore=restored@", StringComparison.Ordinal) && reopened.PublishedHours == before!.Hours,
+            $"opening the world again carries the saved stage on ({reopened.Readout()})");
+        reopened.Dispose();
+    }
+
+    private static void Ready(RiverStageModule module)
+    {
+        System.Diagnostics.Stopwatch waited = System.Diagnostics.Stopwatch.StartNew();
+        while (!module.Ready && waited.Elapsed.TotalSeconds < 120)
+        {
+            module.Follow();
+            Thread.Sleep(20);
+        }
+    }
+
+    private sealed class MemoryArchive : IRiverStageArchive
+    {
+        internal RiverStageState? Saved { get; private set; }
+
+        public RiverStageState? Restore() => Saved;
+
+        public void Save(RiverStageState state) => Saved = state;
     }
 
     /// <summary>The water owner puts a river at its reach's stage, bares it when dry and freezes it when iced.</summary>

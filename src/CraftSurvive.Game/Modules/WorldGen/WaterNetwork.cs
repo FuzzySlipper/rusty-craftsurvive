@@ -45,10 +45,13 @@ internal sealed record Reach(
 }
 
 /// <summary>
-/// A lake in the network (#9876), as storage: its lattice nodes, the reaches that flow into it and the one
-/// that flows on from it (none for a closed lake), with the map's lake for its level, spill and level-area.
+/// A lake in the network (#9876), as storage: its lattice nodes, the reaches that flow into it, the one
+/// that flows on from it (none for a closed lake), and the reaches wholly inside it - where the river runs
+/// under the lake, split from those either side (<see cref="MapDrainage.SplitAtLakes"/>), so the lake's
+/// storage sits between its inflows and its outflow (#9876 review) - with the map's lake for its level,
+/// spill and level-area.
 /// </summary>
-internal sealed record LakeNode(int Id, Lake Lake, int[] Nodes, int[] Inflows, int Outflow);
+internal sealed record LakeNode(int Id, Lake Lake, int[] Nodes, int[] Inflows, int Outflow, int[] Interior);
 
 /// <summary>Where reaches join: the node, the reaches flowing in and the one flowing on.</summary>
 internal sealed record Confluence(int Node, int[] Inflows, int Outflow);
@@ -203,8 +206,8 @@ internal sealed class WaterNetwork
     }
 
     /// <summary>
-    /// Each lake's lattice nodes and the reaches that enter it (a node outside, then one inside) and leave it
-    /// (a node inside, then one outside: the largest such reach is its outflow).
+    /// Each lake's lattice nodes and the reaches that enter it (a node outside, then one inside), leave it
+    /// (a node inside, then one outside: the largest such reach is its outflow), and lie wholly inside it.
     /// </summary>
     private static LakeNode[] LakeNodes(MapGrid grid, Reach[] reaches, IReadOnlyList<Lake> lakes, Func<int, int>? lakeAt)
     {
@@ -213,9 +216,12 @@ internal sealed class WaterNetwork
         for (int i = 0; i < grid.Count; i++)
             if (lakeAt(i) is int lake and >= 0) nodes[lake].Add(i);
         List<int>[] inflows = [.. lakes.Select(_ => new List<int>())];
+        List<int>[] interior = [.. lakes.Select(_ => new List<int>())];
         int[] outflow = [.. lakes.Select(_ => -1)];
         foreach (Reach reach in reaches)
         {
+            int first = lakeAt(reach.Source);
+            if (first >= 0 && reach.Nodes.All(node => lakeAt(node) == first)) interior[first].Add(reach.Id);
             for (int k = 1; k < reach.Nodes.Length; k++)
             {
                 int before = lakeAt(reach.Nodes[k - 1]), after = lakeAt(reach.Nodes[k]);
@@ -225,7 +231,7 @@ internal sealed class WaterNetwork
             }
         }
 
-        return [.. lakes.Select(lake => new LakeNode(lake.Id, lake, [.. nodes[lake.Id]], [.. inflows[lake.Id]], outflow[lake.Id]))];
+        return [.. lakes.Select(lake => new LakeNode(lake.Id, lake, [.. nodes[lake.Id]], [.. inflows[lake.Id]], outflow[lake.Id], [.. interior[lake.Id]]))];
     }
 
     /// <summary>Which reaches a craft can reach from the sea: navigable all the way down to a mouth.</summary>

@@ -108,6 +108,9 @@ internal sealed class PartyTravel
     internal bool Refine(TravelCostModel cost)
     {
         if (cost.Regions is null || Route is null || State != TravelState.Travelling || leg < Route.RefinedLegs - 1 || leg == refineTriedAt) return false;
+        // A walk already refined up to the water has nothing more to refine until the party is ashore again:
+        // refining it once more would set the party back to its nearest lattice node, over and over (#9879).
+        if (Route.RefinedLegs > 0 && Route.RefinedLegs < Route.LegHours.Length && Route.Afloat(Route.RefinedLegs)) return false;
         if (TravelRouter.RefineHead(cost, Remaining(Route)) is not TravelRoute refined)
         {
             // A tile still building is retried on the next leg; the route is followed meanwhile.
