@@ -90,6 +90,13 @@ internal static class PlayerInputChecks
             && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Earthworks, TerrainEditKind.Clear, false) == Modules.Building.BuildEditOutcome.Terrain
             && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Earthworks, TerrainEditKind.Set, true) == Modules.Building.BuildEditOutcome.Refused,
             "the terrain brush places and digs the ground, but not through a piece");
+        Check.That(!Modules.Building.BuildModes.Places(Modules.Building.BuildMode.Off) && Modules.Building.BuildModes.Places(Modules.Building.BuildMode.Pieces)
+            && Modules.Building.BuildModes.Places(Modules.Building.BuildMode.Earthworks), "only building places anything");
+        Check.That(new[] { Modules.Actions.PlayerActionKind.Plate, Modules.Actions.PlayerActionKind.Wall, Modules.Actions.PlayerActionKind.Door, Modules.Actions.PlayerActionKind.Container }
+                .All(Modules.Actions.PlayerActions.Builds)
+            && !new[] { Modules.Actions.PlayerActionKind.Blast, Modules.Actions.PlayerActionKind.Light, Modules.Actions.PlayerActionKind.Undo, Modules.Actions.PlayerActionKind.Craft }
+                .Any(Modules.Actions.PlayerActions.Builds),
+            "the menu's floor, wall, door and chest build; a charge, a torch's light and undo do not");
 
         input.Reset();
         frame = input.Consume([], 1f / 60f);

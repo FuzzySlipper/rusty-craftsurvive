@@ -200,6 +200,13 @@ internal sealed class PlayerActionModule
             return;
         }
 
+        // Building is a mode (#9811): out of it the menu builds nothing, as G places nothing.
+        if (PlayerActions.Builds(action.Kind) && !Building.BuildModes.Places(player.Pieces?.Mode ?? Building.BuildMode.Off))
+        {
+            Refuse($"{name}: not building (T builds)");
+            return;
+        }
+
         if (action.Kind == PlayerActionKind.Light && inventory.Count(ItemCatalog.Torch) <= 0)
         {
             Refuse("light: carrying no torch");

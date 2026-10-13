@@ -26,6 +26,14 @@ internal enum PlayerActionKind
     Option,
 }
 
+/// <summary>Which actions build (#9811 review): they are taken only while the player is building.</summary>
+internal static class PlayerActions
+{
+    /// <summary>A floor, a wall, a door or a chest: construction, as a piece is. A charge, a torch's light and undoing are not.</summary>
+    internal static bool Builds(PlayerActionKind kind) => kind is PlayerActionKind.Plate or PlayerActionKind.Wall
+        or PlayerActionKind.Door or PlayerActionKind.Container;
+}
+
 /// <summary>
 /// One request from the player-facing UI, decoded from the product payload it arrives in. A blast
 /// breaks the aimed block; everything else is placed on the aimed block's open face. A floor or wall

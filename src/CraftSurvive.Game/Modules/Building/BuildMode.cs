@@ -23,6 +23,9 @@ internal static class BuildModes
         _ => BuildMode.Off,
     };
 
+    /// <summary>Whether anything may be built: pieces, the terrain brush's blocks, or a floor, wall, door or chest from the menu.</summary>
+    internal static bool Places(BuildMode mode) => mode != BuildMode.Off;
+
     /// <summary>Whether the selected piece's ghost shows where the player looks.</summary>
     internal static bool ShowsGhost(BuildMode mode) => mode == BuildMode.Pieces;
 
@@ -37,7 +40,7 @@ internal static class BuildModes
     {
         (BuildMode.Pieces, TerrainEditKind.Set) => BuildEditOutcome.Pieces,
         (BuildMode.Pieces, _) => pieceFirst ? BuildEditOutcome.Pieces : BuildEditOutcome.Terrain,
-        (_, TerrainEditKind.Set) when mode == BuildMode.Off => BuildEditOutcome.Refused,
+        (_, TerrainEditKind.Set) when !Places(mode) => BuildEditOutcome.Refused,
         _ => pieceFirst ? BuildEditOutcome.Refused : BuildEditOutcome.Terrain,
     };
 
