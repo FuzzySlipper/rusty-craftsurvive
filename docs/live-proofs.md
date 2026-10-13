@@ -97,21 +97,24 @@ with it.
 
 **Water appearance comparison.**
 
-At a river or lake, use `craft.water.visual baseline` and `craft.water.visual flow` to compare
-the original material with the layered surface at the same camera pose and held time.
-`craft.water.visual waves` adds four Gerstner waves to that surface. Compare from a low view over
-deep water so changing crests and occlusion establish geometric motion, then inspect a shallow
-bank and an internal tile join. `craft.water.waves <amplitude-metres> <choppiness>` sets the total
-vertical amplitude (0–0.6 m) and horizontal motion scale (0–1.1); an amplitude of zero is a useful
-control. One-metre mesh spacing resolves the shortest 8.4 m wave. Shore coverage fades both water
-opacity and displacement into the bed, and motion fades across the last 24 m of the near-water
-square to meet the flat distant water. Ice stays on its ordinary material.
+At a river or lake, `craft.water.visual waves` (the default) draws the sea state's waves (#9902);
+`flow` draws the same flowing surface without them, and `baseline` the Engine's water alone, at the
+same camera pose and held time. The waves follow the weather's wind; `craft.water.wind <m/s>` holds a
+wind (2 calm, 9 a fresh breeze, 20 a gale; a negative speed follows the weather again), and
+`craft.water.waves.at <x> <z>` reads a column's fetch, swell share, shore coverage, significant
+height in the wind now, and how far the drawn surface stands over the rest level. Compare a calm
+pond, a great lake in a gale (whitecaps on the downwind faces), and a river in the same gale (only a
+chop). `craft.water.lakes <x> <z> <count>` lists the nearest lakes with the waves a gale raises on each.
 
-These waves are shader displacement, separate from the mean water level used by gameplay. The
-installed shader hook returns positions only; this study derives lighting normals from the
-displaced triangles and adds the fine ripple normals. Look for faceting in highlights. Culling
-still uses the undisplaced mesh bounds: keep the bounded study amplitudes, inspect grazing views,
-and request an Engine displacement-bounds contract before extending it to large storm waves.
+Boats and swimmers ride what is drawn: `craft.boat.readout` gives the boat's pitch, roll, heave and the
+waves' lift under it. Board in deep water in a gale and paddle: the player stays aboard, rising and
+falling with the hull. Shore coverage fades both opacity and displacement into the bed, and motion
+fades across the last 24 m of the near-water square to meet the flat distant water. Ice stays still.
+
+The waves are shader displacement on the product's clock, separate from the rest level used for
+depth, fords and wading. The installed shader hook returns positions only, so lighting normals come
+from the displaced 1 m triangles: look for faceting in highlights and in whitecaps close to the
+camera. Culling still uses the undisplaced mesh bounds, so the waves are capped to stay within a metre.
 
 `craft.water.visual velocity` displays the mesh's current: red increases toward +X, green
 toward +Z, and blue means slow flow. Resume time to judge motion as well as the still image.

@@ -94,10 +94,24 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       view draws lakes (fresh, salt, playa); the faceted relief draws all of them as fresh water.
   - River travel (#9879) is by a raft or a canoe the party builds at a bank (it cannot yet be bought
     or found). On the map the route follows the 250 m network's nodes, so a stop afloat puts the boat
-    on the walked channel up to 160 m away. In first person a boat is a kinematic float: level, at
-    the surface, a little lower laden, with no tilt or tipping (rusty-engine #9883 if that reads
-    wrong); the canoe rides with its floor at the surface, because the water plane would show inside
-    a hull below it.
+    on the walked channel up to 160 m away. In first person a boat is a kinematic float at the
+    surface, a little lower laden; on waves it heaves with them and is drawn pitching and rolling, while
+    what the player stands on stays level. There is no buoyancy, settling or tipping (rusty-engine #9883
+    if that reads wrong); the canoe rides with its floor at the surface, because the water plane would
+    show inside a hull below it, and a player standing in a boat does not swim when a trough takes the
+    water below their feet.
+  - Waves (#9902) come from the wind over the water's fetch: one definition (`SeaWaves`) drawn by the
+    water shader and ridden by boats and swimmers (`SeaState`). Their limits:
+    - The trains keep one direction near the player; it turns to the local wind only after a move of
+      2 km or a reload, so a change of wind changes the waves' height, not their heading.
+    - A lake's fetch is from its area, the same whichever way the wind blows, and a river's is a few
+      of its channel's widths; the waves do not grow across a lake from its upwind shore.
+    - Beyond the near-water square the water is flat, and waves shorter than 4 m are only lighting.
+    - Lighting normals come from the displaced 1 m triangles (the Engine's displacement hook gives
+      positions only), so highlights and close whitecaps are faceted.
+    - On the map a canoe or raft at a lake whose waves pass its limit is windbound: wait ashore until
+      the wind drops, or press on at a cost. The wind on the map is the weather's at once; the first
+      person's builds over an hour.
   - Creatures keep out of water deeper than they wade (0.7 m over their feet): their navigation is
     overlaid with the deep cells closed and fords costed, but they cannot swim, so a river with no ford
     parts them from the player, and one already in deep water closes on the player directly. Their step

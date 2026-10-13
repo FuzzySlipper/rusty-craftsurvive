@@ -13,16 +13,18 @@ namespace CraftSurvive.Game.Modules.Travel;
 /// <param name="CarriesSled">Whether the sled rides on it; a canoe leaves the sled at the landing.</param>
 /// <param name="BuildHours">Daylight hours of work to make one at a river bank.</param>
 /// <param name="ModelPath">Its prop mesh (scripts/generate-boats.py), waterline at its origin.</param>
-internal sealed record BoatSpec(BoatKind Kind, string Name, double Paddle, bool Upstream, bool Portages, bool CarriesSled, double BuildHours, string ModelPath);
+/// <param name="WaveLimit">The highest waves (significant height, metres) it crosses open water in (#9902); past it the party is windbound.</param>
+internal sealed record BoatSpec(BoatKind Kind, string Name, double Paddle, bool Upstream, bool Portages, bool CarriesSled, double BuildHours, string ModelPath,
+    double WaveLimit);
 
 /// <summary>The craft and their rules for the river (#9879).</summary>
 internal static class Boats
 {
     internal static BoatSpec Raft { get; } = new(BoatKind.Raft, "raft", Paddle: 0.3, Upstream: false, Portages: false, CarriesSled: true, BuildHours: 8,
-        "models/raft.prop-mesh.json");
+        "models/raft.prop-mesh.json", WaveLimit: 0.5);
 
     internal static BoatSpec Canoe { get; } = new(BoatKind.Canoe, "canoe", Paddle: 1.3, Upstream: true, Portages: true, CarriesSled: false, BuildHours: 20,
-        "models/canoe.prop-mesh.json");
+        "models/canoe.prop-mesh.json", WaveLimit: 0.4);
 
     internal static BoatSpec For(BoatKind kind) => kind == BoatKind.Raft ? Raft : Canoe;
 

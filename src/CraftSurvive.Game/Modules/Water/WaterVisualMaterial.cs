@@ -5,21 +5,28 @@ using Rusty.Engine;
 
 namespace CraftSurvive.Game.Modules.Water;
 
-/// <summary>CraftSurvive's experimental surface look, including a live comparison with the original.</summary>
+/// <summary>
+/// The near water's look: a flowing surface displaced by the sea state's waves (#9902), with keyword
+/// variants of the same shader to compare - flat flowing water, the current as colour, and the Engine's
+/// water alone. Each update hands the shader the sea state (<see cref="Follow"/>): its wind and the
+/// trains' phases, which the product's clock drives, so what rides the water reads the same surface.
+/// </summary>
 internal sealed class WaterVisualMaterial : IDisposable
 {
     private const string ShaderPath = "shaders/water-flow.wgsl";
     private const float OriginalRoughness = 0.1f, FlowRoughness = 0.18f, ShallowOpacity = 0.48f;
-    private const float RippleStrength = 0.24f, FoamStrength = 0.45f, FlowCycleSeconds = 5;
     private const float FlowShorelineWidth = 0.14f, FlowFoamThreshold = 0.75f;
     private static readonly Color White = new(1, 1, 1, 1);
+
+    /// <summary>The comparison modes, each a keyword variant of the one shader (none for the waves).</summary>
+    private static readonly (string Name, string Keyword)[] Modes = [("waves", ""), ("flow", "FLAT"), ("velocity", "VELOCITY"), ("baseline", "BASELINE")];
+
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
-    private readonly RenderResource foam, ripples, shader;
-    private int mode = 3;
-    private float amplitude = WaterWaveSettings.DefaultAmplitude;
-    private float choppiness = WaterWaveSettings.DefaultChoppiness;
-    private Vector4 waveBounds;
+    private readonly RenderResource foam, ripples;
+    private RenderResource shader;
+    private int mode;
+    private Vector4 waveBounds, wind, phasesLow, phasesHigh;
 
     internal WaterVisualMaterial(IEngineContext engine, WorldFrame frame, Vector4 waveBounds)
     {
@@ -28,33 +35,30 @@ internal sealed class WaterVisualMaterial : IDisposable
         this.waveBounds = waveBounds;
         foam = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterFoamContentPath);
         ripples = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterRipplesContentPath);
-        shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        shader = Open(mode);
         Material = engine.Graphics.CreateMaterial(Request());
-        frame.Rebased += Rebased;
     }
 
     internal Material Material { get; }
-    internal string Mode => mode switch { 0 => "baseline", 1 => "flow", 2 => "velocity", _ => "waves" };
-    internal string WaveReadout => FormattableString.Invariant($"waveAmplitude={amplitude:F2}m choppiness={choppiness:F2} meshSpacing={WaterWaveSettings.MeshSpacingMetres}m");
+    internal string Mode => Modes[mode].Name;
+
+    /// <summary>Whether the drawn water waves: the comparisons without waves leave it at rest.</summary>
+    internal bool Displaces => Modes[mode].Keyword.Length == 0;
 
     internal string SetMode(string value)
     {
-        int selected = value.ToLowerInvariant() switch { "baseline" => 0, "flow" => 1, "velocity" => 2, "waves" or "gerstner" => 3, _ => -1 };
-        if (selected < 0) return "Choose baseline, flow, waves or velocity.";
-        mode = selected;
-        Refresh();
-        return $"waterVisual={Mode} {WaveReadout}";
-    }
+        int selected = Array.FindIndex(Modes, m => m.Name == value.ToLowerInvariant() || (value == "gerstner" && m.Name == "waves"));
+        if (selected < 0) return "Choose waves, flow, velocity or baseline.";
+        if (selected != mode)
+        {
+            RenderResource old = shader;
+            shader = Open(selected);
+            mode = selected;
+            Refresh();
+            old.Dispose();
+        }
 
-    internal string SetWaves(float amplitudeMetres, float horizontalScale)
-    {
-        // The installed hook culls with the original mesh bounds. Keep this study's displacement
-        // below a metre, rather than offering storm-sized waves whose bounds the SDK cannot name.
-        amplitude = Math.Clamp(amplitudeMetres, 0, WaterWaveSettings.MaximumAmplitude);
-        choppiness = Math.Clamp(horizontalScale, 0, WaterWaveSettings.MaximumChoppiness);
-        mode = 3;
-        Refresh();
-        return $"waterVisual={Mode} {WaveReadout}";
+        return $"waterVisual={Mode}";
     }
 
     internal void SetBounds(Vector4 bounds)
@@ -64,27 +68,39 @@ internal sealed class WaterVisualMaterial : IDisposable
         Refresh();
     }
 
-    private MaterialRequest Request() => new(White with { A = mode == 0 ? 1 : ShallowOpacity },
-        default(RenderResourceReference), mode == 0 ? OriginalRoughness : FlowRoughness, White, Vector3.Zero, 0, false)
+    /// <summary>Hands the shader the sea state now: its wind and the trains' phases, measured from the frame's origin.</summary>
+    internal void Follow(SeaState sea)
+    {
+        (long ox, _, long oz) = frame.Origin;
+        wind = new((float)ox, (float)oz, (float)(sea.Wind.X * sea.WindSpeed), (float)(sea.Wind.Y * sea.WindSpeed));
+        phasesLow = sea.ShaderPhases(0, ox, oz);
+        phasesHigh = sea.ShaderPhases(4, ox, oz);
+        Refresh();
+    }
+
+    private RenderResource Open(int index) => engine.Graphics.OpenResource(Modes[index].Keyword.Length == 0
+        ? new RenderResourceRequest(ShaderPath)
+        : new RenderResourceRequest(ShaderPath) { ShaderKeywords = Modes[index].Keyword }).Handle;
+
+    private bool Baseline => Modes[mode].Keyword == "BASELINE";
+
+    private MaterialRequest Request() => new(White with { A = Baseline ? 1 : ShallowOpacity },
+        default(RenderResourceReference), Baseline ? OriginalRoughness : FlowRoughness, White, Vector3.Zero, 0, false)
     {
         AlphaMode = MaterialAlphaMode.Blend,
-        Water = mode == 0 ? TerrainAtlasCatalog.WaterLook(foam, ripples)
+        Water = Baseline ? TerrainAtlasCatalog.WaterLook(foam, ripples)
             : TerrainAtlasCatalog.WaterLook(foam, ripples) with
             {
                 ShorelineWidth = FlowShorelineWidth,
                 FoamThreshold = FlowFoamThreshold,
             },
-        Shader = new MaterialShader(shader, new Vector4(mode, RippleStrength, FoamStrength, FlowCycleSeconds),
-            new Vector4(frame.Origin.X, frame.Origin.Z, 0, 0),
-            new Vector4(amplitude, choppiness, WaterWaveSettings.EdgeFadeMetres, 0), waveBounds),
+        Shader = new MaterialShader(shader, wind, phasesLow, phasesHigh, waveBounds),
     };
 
-    private void Rebased(Vector3 translation) => Refresh();
     private void Refresh() => engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(Material, Request()));
 
     public void Dispose()
     {
-        frame.Rebased -= Rebased;
         Material.Dispose();
         shader.Dispose();
         ripples.Dispose();

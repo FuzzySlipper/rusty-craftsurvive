@@ -157,6 +157,18 @@ internal static class TravelEvents
         [new(Shelter, FormattableString.Invariant($"Make camp until it passes ({Math.Min(shelterHours, LongestShelterHours):F0} h)")),
             new(Press, wounds ? "Press on (it wounds)" : "Press on (slow going)")]);
 
+    /// <summary>
+    /// Windbound (#9902): the wind raises waves on the lake ahead past what the boat crosses in. Waiting ashore
+    /// takes until the wind drops (up to <see cref="LongestShelterHours"/>); pressing on risks swamping.
+    /// </summary>
+    internal static TravelEvent Windbound(string lake, string boat, double waves, double? waitHours) => new(TravelEventKind.Weather,
+        "Windbound",
+        FormattableString.Invariant($"The wind whips {lake} into waves of {waves:F1} m, too much for the {boat}."),
+        [new(Shelter, waitHours is double wait
+                ? FormattableString.Invariant($"Wait ashore for the wind to drop ({wait:F0} h)")
+                : FormattableString.Invariant($"Wait ashore ({LongestShelterHours:F0} h; the wind holds)")),
+            new(Push, "Press on (risk swamping: costs a ration or health)")]);
+
     /// <summary>Hours a detour round a hazard costs: a flooded river's is long.</summary>
     internal static double DetourFor(RiverState river) => river == RiverState.Flood ? FloodDetourHours : DetourHours;
 

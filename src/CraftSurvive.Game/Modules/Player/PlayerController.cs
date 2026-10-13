@@ -725,7 +725,10 @@ internal sealed class PlayerController : IDisposable
         ClimbGrip grip = climbHeld
             ? letGoPending || Stamina.Exhausted ? ClimbGrip.None : ClimbGrip.Holding
             : takeHoldSeconds > 0d && Stamina.CanTakeHold ? ClimbGrip.Taking : ClimbGrip.None;
-        if (water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out CharacterMovementRequest movement, away is null ? terrain.Water : null))
+        // Standing in a boat is not swimming (#9902): its floor rides at the waterline, and in a trough the
+        // feet dip below the water's rest level while the hull still carries them.
+        CharacterMovementRequest movement;
+        if (!aboard && water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out movement, away is null ? terrain.Water : null, terrain.WaveLift))
         {
             // A river's current carries the swimmer and, as it takes hold, weakens their stroke to their own (#9879).
             Vector2? current = water.LastSample is Water.WaterSample here ? new((float)here.CurrentX, (float)here.CurrentZ) : null;

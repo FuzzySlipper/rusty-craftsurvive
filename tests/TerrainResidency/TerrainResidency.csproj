@@ -21,6 +21,9 @@
     <Compile Include="$(ProductModules)Travel/*.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/BoatFloat.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/SeaWaves.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/SeaState.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/WaterWaveSettings.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Sky/WorldClock.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Terrain/TerrainChunkCache.cs" LinkBase="Product/Terrain" />
     <Compile Include="$(ProductModules)Terrain/TerrainGenerationFingerprint.cs" LinkBase="Product/Terrain" />

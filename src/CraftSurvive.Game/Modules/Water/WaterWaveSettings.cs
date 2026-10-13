@@ -1,12 +1,10 @@
 namespace CraftSurvive.Game.Modules.Water;
 
-/// <summary>Visual wave limits and shore coverage; neither changes the gameplay water surface.</summary>
+/// <summary>The near water's mesh spacing and how waves fade into the shore; the waves themselves are <see cref="SeaWaves"/>.</summary>
 internal static class WaterWaveSettings
 {
     internal const int MeshSpacingMetres = 1;
-    internal const float DefaultAmplitude = 0.45f, MaximumAmplitude = 0.6f;
-    internal const float DefaultChoppiness = 0.9f, MaximumChoppiness = 1.1f;
-    internal const float ShoreClearance = 0.15f, FullDepth = 2f, EdgeFadeMetres = 24f;
+    internal const float ShoreClearance = 0.15f, FullDepth = 2f;
 
     /// <summary>Pin dry and frozen vertices; ease in waves and opacity over the shallow bed.</summary>
     internal static float Coverage(double depth, bool ice)

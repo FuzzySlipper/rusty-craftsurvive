@@ -41,6 +41,7 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
     private readonly ProductContent content;
     private readonly WorldFrame frame;
     private readonly WaterModel water;
+    private readonly Func<double, double, WaterSample, double> lift;
     private readonly ProductSaveSlot<BoatSave> slot;
     private readonly PropMaterials materials;
     private readonly Dictionary<BoatKind, (MeshResource Mesh, Appearance Look)> looks = [];
@@ -57,8 +58,11 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
         assistedSteps = (int)Math.Ceiling(seconds / stepSeconds);
     }
 
-    internal BoatStore(IEngineContext engine, ProductContent content, ProductStore store, SaveIdentity identity, WorldFrame frame, WaterModel water)
+    /// <param name="lift">How far the drawn waves stand over the water's rest level at a point now (#9902).</param>
+    internal BoatStore(IEngineContext engine, ProductContent content, ProductStore store, SaveIdentity identity, WorldFrame frame, WaterModel water,
+        Func<double, double, WaterSample, double> lift)
     {
+        this.lift = lift ?? throw new ArgumentNullException(nameof(lift));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
@@ -111,7 +115,7 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
     internal FloatWater WaterAt(double x, double z)
     {
         WaterSample sample = water.Sample(x, z);
-        return new(sample.Top, sample.Depth, sample.CurrentX, sample.CurrentZ, sample.Ice);
+        return new(sample.Top, sample.Depth, sample.CurrentX, sample.CurrentZ, sample.Ice, lift(x, z, sample));
     }
 
     public bool TryToggle(Vector3 playerLocal, out Vector3? boardAt)
@@ -131,7 +135,7 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
         Seated = true;
         Float.Moored = false;
         float deck = Hull(Float.Spec.Kind).Max.Y;
-        boardAt = new Vector3((float)Float.X, (float)(here.Top + deck + StandClearance), (float)Float.Z);
+        boardAt = new Vector3((float)Float.X, (float)(here.Surface + deck + StandClearance), (float)Float.Z);
         return true;
     }
 
@@ -142,7 +146,7 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
         FloatWater here = WaterAt(Float.X, Float.Z);
         Seated = true;
         Float.Moored = false;
-        return new Vector3((float)Float.X, (float)(here.Top + Hull(Float.Spec.Kind).Max.Y + StandClearance), (float)Float.Z);
+        return new Vector3((float)Float.X, (float)(here.Surface + Hull(Float.Spec.Kind).Max.Y + StandClearance), (float)Float.Z);
     }
 
     public CharacterObstacle? Step(float seconds, Vector2 paddle, Vector3 playerLocal, bool aboard)
@@ -169,9 +173,12 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
         if (Float.Grounded && !Float.Moored) groundings++;
         Boat.MoveTo(new((float)Float.X, (float)Float.Z));
         (Vector3 min, Vector3 max) = Hull(Float.Spec.Kind);
+        // The collider heaves with the waves, and says how fast, so the platform carry takes whoever stands on
+        // it up and down (#9902); it stays level (a tilting floor under a seated character buys nothing) while
+        // the drawn hull pitches and rolls.
         Transform pose = new(frame.ToLocal(Float.X, Float.Y, Float.Z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)Float.Heading), Vector3.One);
         return new CharacterObstacle(Entity, pose, min, max, CollisionEnabled: true,
-            new Vector3(Float.Velocity.X, 0, Float.Velocity.Y), new Vector3(0, (float)-Float.TurnRate, 0));
+            new Vector3(Float.Velocity.X, (float)Float.Heave, Float.Velocity.Y), new Vector3(0, (float)-Float.TurnRate, 0));
     }
 
     private void Moor()
@@ -188,9 +195,12 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
     {
         if (Boat is null || Float is null || Vector2.Distance(player, new((float)Float.X, (float)Float.Z)) > DrawMetres) return [];
         FloatWater here = WaterAt(Float.X, Float.Z);
-        double y = here.Depth > 0 ? (double.IsNaN(Float.Y) ? here.Top : Float.Y) : ground(Float.X, Float.Z) - Hull(Boat.Spec.Kind).Min.Y;
+        bool afloat = here.Depth > 0;
+        double y = afloat ? (double.IsNaN(Float.Y) ? here.Surface : Float.Y) : ground(Float.X, Float.Z) - Hull(Boat.Spec.Kind).Min.Y;
+        // Afloat it is drawn pitched and rolled on the waves it rides; drawn up on the bank, level.
+        Quaternion attitude = afloat ? Float.Attitude : Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)Float.Heading);
         return [new(ProductIds.BoatObject, false, 0,
-            new Transform(frame.ToLocal(Float.X, y, Float.Z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)Float.Heading), Vector3.One),
+            new Transform(frame.ToLocal(Float.X, y, Float.Z), attitude, Vector3.One),
             Look(Boat.Spec), Visible: true, RenderLayer.Scene)];
     }
 
@@ -207,10 +217,10 @@ internal sealed class BoatStore : IPlayerCarrier, IDisposable
     internal string Readout => Boat is null || Float is null
         ? $"boat=none restore={slot.RestoreOutcome}"
         : string.Create(CultureInfo.InvariantCulture,
-            $"boat={Boat.Spec.Name} at={Float.X:F1},{Float.Z:F1} y={Float.Y:F2} heading={Float.Heading:F2} velocity={Float.Velocity.X:F2},{Float.Velocity.Y:F2} turn={Float.TurnRate:F2} moored={Float.Moored} seated={Seated} grounded={Float.Grounded} water=[{Describe(WaterAt(Float.X, Float.Z))}] steps={steps} groundings={groundings} restore={slot.RestoreOutcome} saves={slot.Saves}");
+            $"boat={Boat.Spec.Name} at={Float.X:F1},{Float.Z:F1} y={Float.Y:F2} heading={Float.Heading:F2} pitch={Float.Pitch * 180 / Math.PI:F1}deg roll={Float.Roll * 180 / Math.PI:F1}deg heave={Float.Heave:F2}m/s velocity={Float.Velocity.X:F2},{Float.Velocity.Y:F2} turn={Float.TurnRate:F2} moored={Float.Moored} seated={Seated} grounded={Float.Grounded} water=[{Describe(WaterAt(Float.X, Float.Z))}] steps={steps} groundings={groundings} restore={slot.RestoreOutcome} saves={slot.Saves}");
 
     private static string Describe(FloatWater w) => string.Create(CultureInfo.InvariantCulture,
-        $"top={w.Top:F2} depth={w.Depth:F2} current={w.CurrentX:F2},{w.CurrentZ:F2} ice={w.Ice}");
+        $"top={w.Top:F2} lift={w.Lift:F2} depth={w.Depth:F2} current={w.CurrentX:F2},{w.CurrentZ:F2} ice={w.Ice}");
 
     public void Dispose()
     {

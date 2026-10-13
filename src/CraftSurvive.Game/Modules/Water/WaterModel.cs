@@ -79,6 +79,39 @@ internal sealed class WaterModel(TerrainRecipe recipe)
         return new(surface, ground, 0, 0, body, 0, false, id);
     }
 
+    /// <summary>The open sea's fetch (metres): long enough that its waves are as high as the wind can raise.</summary>
+    internal const double SeaFetchMetres = 100_000;
+
+    /// <summary>A river's fetch is this many of its widths (a wind finds a reach of open channel), but never less than <see cref="LeastRiverFetchMetres"/>.</summary>
+    internal const double RiverFetchWidths = 4, LeastRiverFetchMetres = 20;
+
+    /// <summary>
+    /// What the waves (#9902) make of a sampled point whatever the wind: a lake's fetch from its area, a
+    /// river's from its channel, the sea's long and swept by swell; none where there is no water or it is
+    /// frozen, and less toward a shore (<see cref="WaterWaveSettings.Coverage"/>).
+    /// </summary>
+    internal WaveExposure Exposure(WaterSample sample)
+    {
+        double coverage = WaterWaveSettings.Coverage(sample.Depth, sample.Ice);
+        if (coverage <= 0) return WaveExposure.Still;
+        IReadOnlyList<Lake> lakes = recipe.Map.Lakes;
+        return sample.Body switch
+        {
+            WaterBody.Sea => new(SeaFetchMetres, 1, coverage),
+            WaterBody.Lake when sample.BodyId >= 0 && sample.BodyId < lakes.Count
+                => new(SeaWaves.LakeFetchMetres(lakes[sample.BodyId].AreaSquareKilometres), 0, coverage),
+            WaterBody.River => new(Math.Max(LeastRiverFetchMetres, RiverFetchWidths * Width(sample.BodyId)), 0, coverage),
+            _ => WaveExposure.Still,
+        };
+    }
+
+    /// <summary>A walked reach's channel width (metres), or none where there is no such reach.</summary>
+    private double Width(int reach)
+    {
+        IReadOnlyList<Reach>? reaches = recipe.Regions?.Drainage.Network.Reaches;
+        return reaches is not null && reach >= 0 && reach < reaches.Count ? reaches[reach].Width : 0;
+    }
+
     /// <summary>A walked reach's mean velocity (m/s), or still water where there is no such reach.</summary>
     private double MeanVelocity(int reach)
     {

@@ -162,6 +162,7 @@ Check.Section("horizon sink", HorizonChecks.SinkMovesOnlyUnderTheFarField);
 Check.Section("far field ground rules", FarGroundChecks.Run);
 Check.Section("bankfull stage and settlement standing", NetworkChecks.Rules);
 Check.Section("the water rule", WaterRuleChecks.Run);
+Check.Section("sea state", SeaWaveChecks.Run);
 Check.Section("seasons", StageChecks.TheYearTurns);
 Check.Section("boats", BoatChecks.Rules);
 Check.Section("lake rules", LakeChecks.Rules);

@@ -94,7 +94,22 @@ internal sealed class TerrainWorld : IDisposable
     internal string WaterReadout() => string.Create(CultureInfo.InvariantCulture, $"{waterSurfaces.Readout()} icePatches={IcePatches}");
 
     internal string WaterVisual(string mode) => waterSurfaces.SetVisual(mode);
-    internal string WaterWaves(float amplitude, float choppiness) => waterSurfaces.SetWaves(amplitude, choppiness);
+
+    /// <summary>The waves over the near water (#9902).</summary>
+    internal Water.SeaState Sea => waterSurfaces.Sea;
+
+    /// <summary>
+    /// Moves the waves on (#9902) by the simulation seconds this update, toward the weather's wind (its
+    /// channel and flow) by the game hours, and hands the drawn water the result - before anything rides it.
+    /// </summary>
+    internal void AdvanceSea(double seconds, double gameHours, double windChannel, Vector2 flow, Vector3 playerWorld)
+    {
+        waterSurfaces.Sea.Advance(seconds, gameHours, windChannel, flow, playerWorld.X, playerWorld.Z);
+        waterSurfaces.FollowSea();
+    }
+
+    /// <summary>How far the drawn waves stand over the water's rest level at a point now (#9902), given its sample.</summary>
+    internal double WaveLift(double x, double z, Water.WaterSample sample) => waterSurfaces.Lift(x, z, sample);
     internal string StartWaterFlow(double x, double z) => waterSurfaces.StartFlow(Session, x, z);
     internal string StopWaterFlow() => waterSurfaces.StopFlow();
     internal string WaterFlowAt(double x, double z) => waterSurfaces.FlowAt(x, z);

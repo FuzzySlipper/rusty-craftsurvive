@@ -48,6 +48,7 @@ internal sealed class WaterSurfaces : IDisposable
     private WaterVisualMaterial? visual;
     private Material? iceMaterial;
     private readonly WaterFlowStudy flowStudy;
+    private readonly SeaState sea = new();
     private int built, retired, refreshed;
     private long revision;
 
@@ -74,10 +75,25 @@ internal sealed class WaterSurfaces : IDisposable
             tile.Look, true, RenderLayer.Scene, ShadowCasting.None))];
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} {visual?.WaveReadout} {flowStudy.Readout()}");
+        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} sea=[{sea.Readout()}] {flowStudy.Readout()}");
 
     internal string SetVisual(string mode) => (visual ??= new(engine, frame, waveBounds)).SetMode(mode);
-    internal string SetWaves(float amplitude, float choppiness) => (visual ??= new(engine, frame, waveBounds)).SetWaves(amplitude, choppiness);
+
+    /// <summary>The waves over the near water (#9902): what the shader draws and boats and swimmers ride.</summary>
+    internal SeaState Sea => sea;
+
+    /// <summary>The near water's bounds (world min x, min z, max x, max z), inside which the waves fade to the flat distant water.</summary>
+    internal Vector4 WaveBounds => waveBounds;
+
+    /// <summary>Hands the drawn water the sea state as it stands this update.</summary>
+    internal void FollowSea() => visual?.Follow(sea);
+
+    /// <summary>
+    /// How far the drawn surface stands over the water's rest level at a point now, given the point's sample:
+    /// none where the drawn water does not wave (a comparison without waves, or beyond the near water).
+    /// </summary>
+    internal double Lift(double x, double z, WaterSample sample) =>
+        visual is { Displaces: false } ? 0 : sea.Lift(x, z, model.Exposure(sample), SeaWaves.EdgeFade(x, z, waveBounds));
 
     internal string StartFlow(SpatialSession session, double x, double z)
     {
@@ -292,12 +308,15 @@ internal sealed class WaterSurfaces : IDisposable
             at = (uint)positions.Count;
             index[v] = at;
             positions.Add(new(i * Step, (float)top[v], j * Step));
-            normals.Add(Vector3.UnitY);
+            // The mesh normal carries what the waves (#9902) make of the point whatever the wind: its fetch
+            // in kilometres and its sea swell share. The shader lights the water by the displaced triangles.
+            WaveExposure exposure = model.Exposure(samples[v]);
+            normals.Add(new((float)(exposure.FetchMetres / MetresPerKilometre), 1, (float)exposure.Swell));
             // Engine WATER textures use world coordinates, leaving mesh UV free for the current.
             uvs.Add(sampledTile.Flow[v]);
             // Alpha is shore coverage: it fades both translucency and visual displacement. Dry
             // corners under the bank stay pinned; adjacent tiles evaluate the same world column.
-            colours.Add(white with { A = WaterWaveSettings.Coverage(samples[v].Depth, samples[v].Ice) });
+            colours.Add(white with { A = (float)exposure.Coverage });
             return at;
         }
 
@@ -334,6 +353,7 @@ internal sealed class WaterSurfaces : IDisposable
     }
 
     private const ushort WaterSlot = 0, IceSlot = 1;
+    private const double MetresPerKilometre = 1000;
 
     /// <summary>The ice's triangles over just the vertices they use, wound as drawn, facing up.</summary>
     private static (Vector3[] Vertices, Triangle[] Triangles) Collision(List<Vector3> positions, List<uint> ice)

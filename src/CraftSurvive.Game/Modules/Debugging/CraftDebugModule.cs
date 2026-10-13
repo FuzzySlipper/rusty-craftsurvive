@@ -150,11 +150,36 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.water.study", Description = "Assisted (#9819): floods the hollow at x,z to a level (metres) within a radius, as voxel water cells (mode voxel) or one water surface mesh at the level (mode surface); mode river clears a river's voxel water within the radius (for good) and draws it as a skin at its unfloored surface (level unused); mode clear removes both; mode find lists the deepest closed hollows within level metres of x,z, each bounded by the radius.")]
     public string WaterStudy(string mode, double x, double z, double level, long radius) => terrain.WaterStudy(mode, x, z, level, radius);
 
-    [DebugCommand("craft.water.visual", Description = "Water appearance comparison: baseline, flat flow, Gerstner waves, or velocity (red +X, green +Z, blue slow).")]
+    [DebugCommand("craft.water.visual", Description = "Water appearance comparison: waves (the sea state's, #9902), flow (flat flowing water), velocity (red +X, green +Z, blue slow) or baseline (the Engine's water alone).")]
     public string WaterVisual(string mode) => terrain.WaterVisual(mode);
 
-    [DebugCommand("craft.water.waves", Description = "Gerstner appearance only: total vertical amplitude in metres (0–0.6) and horizontal choppiness (0–1.1). Sets waves mode. Water physics keeps its mean level.")]
-    public string WaterWaves(float amplitude, float choppiness) => terrain.WaterWaves(amplitude, choppiness);
+    [DebugCommand("craft.water.wind", Description = "Assisted (#9902): holds the waves' wind at a speed in m/s (2 calm, 20 a gale) whatever the weather; a negative speed follows the weather again. Boats and swimmers ride what is drawn.")]
+    public string WaterWind(double speed)
+    {
+        terrain.Sea.HeldWind = speed < 0 ? null : speed;
+        return terrain.Sea.Readout();
+    }
+
+    [DebugCommand("craft.water.lakes", Description = "Lists the continent's lakes (#9876) nearest a world point, up to a count: id, name, kind, area, where the deepest node lies, level, and whether closed - with the waves a gale raises on each (#9902).")]
+    public string WaterLakes(double x, double z, int count)
+    {
+        WorldGen.WorldMap map = terrain.Recipe.Map;
+        return string.Join(" | ", map.Lakes
+            .Select(lake => (lake, node: lake.Nodes.MinBy(n => map.Fields.Elevation[n])))
+            .OrderBy(l => Math.Pow(map.Grid.X(l.node) - x, 2) + Math.Pow(map.Grid.Z(l.node) - z, 2))
+            .Take(Math.Max(1, count))
+            .Select(l => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"{l.lake.Id} {(l.lake.Name.Length > 0 ? l.lake.Name : "-")} {l.lake.Kind} {l.lake.AreaSquareKilometres:F0}km2 at={map.Grid.X(l.node):F0},{map.Grid.Z(l.node):F0} level={l.lake.Level:F1}{(l.lake.Closed ? " closed" : "")} gale={Water.SeaWaves.SignificantHeight(Water.SeaState.WindFor(1), Water.SeaWaves.LakeFetchMetres(l.lake.AreaSquareKilometres)):F2}m")));
+    }
+
+    [DebugCommand("craft.water.waves.at", Description = "Reads the waves at a world column (#9902): the water's exposure (fetch, swell, coverage), its significant height in the wind now, and how far the drawn surface stands over the rest level.")]
+    public string WaterWavesAt(double x, double z)
+    {
+        Water.WaterSample s = terrain.Water.Sample(x, z);
+        Water.WaveExposure e = terrain.Water.Exposure(s);
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"body={s.Body} fetch={e.FetchMetres:F0}m swell={e.Swell:F2} coverage={e.Coverage:F2} height={terrain.Sea.Height(e.FetchMetres):F2}m lift={terrain.WaveLift(x, z, s):F3}m {terrain.Sea.Readout()}");
+    }
 
     [DebugCommand("craft.water.flow", Description = "Starts a 128 m Engine WaterField around world x,z, using the terrain bed and boundary stages. Its current drives appearance only; gameplay water is unchanged.")]
     public string WaterFlow(double x, double z) => terrain.StartWaterFlow(x, z);

@@ -45,8 +45,9 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
     internal WaterSample? LastSample { get; private set; }
 
     /// <param name="waters">The overworld's water owner; null in a separate space, which reads water cells.</param>
+    /// <param name="lift">How far the drawn waves stand over the water's rest level at a point (#9902): a swimmer floats on them.</param>
     internal bool TrySwim(SpatialSession session, PlayerWorldPosition world, Vector3 local, CharacterStance stance,
-        out CharacterMovementRequest movement, WaterModel? waters = null)
+        out CharacterMovementRequest movement, WaterModel? waters = null, Func<double, double, WaterSample, double>? lift = null)
     {
         movement = default;
         double feetY = world.WorldY - PlayerBody.EyeOffset(stance);
@@ -62,8 +63,11 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
             LastCheck = new PlayerWaterCheck(feet, false, 0, eyes, feetIn, eyesIn, sample.Top, sample.Body);
             if (!LastCheck.InWater) return false;
 
-            // The volume's top is the water's surface, carried into the local frame by the eye's offset.
-            float top = local.Y + (float)(sample.Top - world.WorldY);
+            // The volume's top is the water's surface - with the waves on it, which a swimmer rides - carried
+            // into the local frame by the eye's offset. Whether the player is in the water at all is judged
+            // at the rest level, so a passing trough does not drop a wader out of the swim.
+            double waves = lift?.Invoke(world.WorldX, world.WorldZ, sample) ?? 0;
+            float top = local.Y + (float)(sample.Top + waves - world.WorldY);
             float bottom = top - (float)sample.Depth - BelowBed;
             movement = PlayerBody.Swim(new Vector3(local.X, bottom, local.Z), new Vector3(local.X, top, local.Z));
             return true;

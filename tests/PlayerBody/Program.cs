@@ -195,6 +195,53 @@ host.Call(engine =>
         Check.That(avoidance.Apply(engine.Spatial, session, (0, 0), (Edge, Edge), (x, z) => River(x, z, ford: false) is ColumnWater frozen ? frozen with { Ice = true } : null, 2)
             && avoidance.Closed == 0 && Route(west, east).Outcome == NavigationPathOutcome.Reached, "a frozen river is ground");
     });
+
+    // A boat on waves (#9902): the Engine's platform carry takes a character along on a level collider, and
+    // on one that rises and falls under them, so BoatStore heaves the boat's collider with the waves.
+    Check.Section("a character rides a platform: level, and heaving", () =>
+    {
+        const ulong Raft = 9902;
+        const float Speed = 1, Seconds = 4, PlatformY = StoneTop + 2f, HeaveAmplitude = 0.3f, HeavePeriod = 2.5f;
+        Vector3 hullMin = new(-2.0f, -0.16f, -1.15f), hullMax = new(2.0f, 0.18f, 1.15f);
+        (float Carried, float Moved, int Aboard, int Steps) Ride(bool heave, bool reportVertical)
+        {
+            const float Step = (float)PlayerConstants.ControllerStepSeconds;
+            float startX = 4;
+            Vector3 at = new(startX, PlatformY + hullMax.Y + (height / 2f) + 0.02f, 8.5f);
+            CharacterMotion motion = PlayerBody.AtRest(at);
+            bool aboard = false;
+            int on = 0, steps = (int)(Seconds / Step);
+            float platformX = startX;
+            for (int i = 0; i < steps; i++)
+            {
+                float t = i * Step, omega = 2 * MathF.PI / HeavePeriod;
+                platformX = startX + (Speed * t);
+                float y = PlatformY + (heave ? HeaveAmplitude * MathF.Sin(omega * t) : 0);
+                float vy = heave && reportVertical ? HeaveAmplitude * omega * MathF.Cos(omega * t) : 0;
+                Transform pose = new(new Vector3(platformX, y, 8.5f), Quaternion.Identity, Vector3.One);
+                CharacterObstacle hull = new(Raft, pose, hullMin, hullMax, CollisionEnabled: true, new Vector3(Speed, vy, 0), Vector3.Zero);
+                CharacterSupport support = aboard ? new CharacterSupport(true, CharacterSupportLifecycle.Active, Raft, pose) : default;
+                CharacterStepReceipt receipt = engine.Spatial.ProposeCharacterStep(new CharacterStepRequest(
+                    session, at, motion, support, new[] { hull }, ReadOnlyMemory<CharacterMeshInstance>.Empty, body,
+                    default(CharacterControllerCommand) with { StepSeconds = Step, Sequence = (ulong)i + 1 }));
+                aboard = (receipt.Platform.Present && receipt.Platform.Entity == Raft) || (receipt.Ground.Present && receipt.Ground.SourceEntity == Raft);
+                if (aboard) on++;
+                at = receipt.Transform.Translation;
+                motion = receipt.Motion;
+            }
+
+            return (at.X - startX, platformX - startX, on, steps);
+        }
+
+        var level = Ride(heave: false, reportVertical: false);
+        var heaved = Ride(heave: true, reportVertical: false);
+        var told = Ride(heave: true, reportVertical: true);
+        string Say((float Carried, float Moved, int Aboard, int Steps) r) => $"carried {r.Carried:F2} of {r.Moved:F2} m, aboard {r.Aboard}/{r.Steps} steps";
+        Console.WriteLine($"platform carry: level {Say(level)}; heaving {HeaveAmplitude} m, pose only {Say(heaved)}; heaving with its vertical velocity {Say(told)}");
+        Check.That(level.Aboard >= level.Steps - 2 && Math.Abs(level.Carried - level.Moved) < 0.2f, $"a level platform carries the character ({Say(level)})");
+        Check.That(told.Aboard >= told.Steps - 2 && Math.Abs(told.Carried - told.Moved) < 0.2f,
+            $"one heaving with the waves, and saying how fast, carries them up and down as well ({Say(told)})");
+    });
 });
 
 return Check.Finish("PlayerBody");

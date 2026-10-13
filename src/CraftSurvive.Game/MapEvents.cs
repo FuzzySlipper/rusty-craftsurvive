@@ -47,6 +47,8 @@ public sealed partial class CraftSurviveProduct
             return;
         }
 
+        if (RaiseWindbound(sky)) return;
+
         WorldMap map = worlds.Current.Map;
         MapSample here = map.Sample(party.Position.X, party.Position.Y);
         MapBiome biome = WorldMap.Biome(here);
@@ -71,6 +73,36 @@ public sealed partial class CraftSurviveProduct
         pendingEvent = TravelEvents.Weather(front.Kind.Name, front.Kind.Arrival, passed - now, front.Kind.Effects.Harm > 0);
         worldMessage = pendingEvent.Title + ": " + pendingEvent.Text;
         SettleParty();
+    }
+
+    /// <summary>The lake the party was last held at, or answered for, so each crossing stops the journey once.</summary>
+    private int windboundLake = -1;
+
+    /// <summary>
+    /// Windbound (#9902): the party afloat on open lake water whose waves the wind raises past its boat's
+    /// limit stops ashore, offering to wait until the wind drops or to press on. Once a crossing is answered
+    /// it is not raised again until the party has left that lake.
+    /// </summary>
+    private bool RaiseWindbound(EnvironmentSample sky)
+    {
+        if (party is null) return false;
+        Lake? lake = party.Afloat ? worlds.Current.Map.LakeAt(party.Position.X, party.Position.Y) : null;
+        if (lake is null || riverStage.LakeIce(lake))
+        {
+            windboundLake = -1;
+            return false;
+        }
+
+        if (lake.Id == windboundLake || boat.Boat is not Boat held || !Windbound.Holds(held.Spec, lake, sky.Channels.Wind)) return false;
+        windboundLake = lake.Id;
+        (double x, double z, double now) = (party.Position.X, party.Position.Y, weather.Hours);
+        double? wait = Windbound.Wait(held.Spec, lake, hours => weather.Field.Sample(x, z, now + hours).Channels.Wind, TravelEvents.LongestShelterHours);
+        shelterHours = wait ?? TravelEvents.LongestShelterHours;
+        party.Pause();
+        pendingEvent = TravelEvents.Windbound(Windbound.Name(lake), held.Spec.Name, Windbound.Waves(lake, sky.Channels.Wind), wait);
+        worldMessage = pendingEvent.Title + ": " + pendingEvent.Text;
+        SettleParty();
+        return true;
     }
 
     /// <summary>The map's river where the party stands, read as its walked reach's stage has it now (#9878).</summary>

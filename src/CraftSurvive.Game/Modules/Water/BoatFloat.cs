@@ -3,15 +3,24 @@ using CraftSurvive.Game.Modules.Travel;
 
 namespace CraftSurvive.Game.Modules.Water;
 
-/// <summary>What a boat floats on at a point: the water's top and depth there, and its current (m/s).</summary>
-internal readonly record struct FloatWater(double Top, double Depth, double CurrentX, double CurrentZ, bool Ice);
+/// <summary>
+/// What a boat floats on at a point: the water's top and depth there, its current (m/s), and how far the
+/// drawn waves stand over that top now (#9902; depth is measured from the rest level, not the waves).
+/// </summary>
+internal readonly record struct FloatWater(double Top, double Depth, double CurrentX, double CurrentZ, bool Ice, double Lift = 0)
+{
+    /// <summary>The surface the hull rides: the rest level and the waves on it.</summary>
+    internal double Surface => Top + Lift;
+}
 
 /// <summary>
 /// A boat afloat in first person (#9879), kinematic: it stands at the water owner's surface (lower by a
 /// little with someone aboard), eases toward the current's velocity with the water's drag, and the
 /// paddler drives it along its bow and turns it. It will not go where the water is shallower than its
-/// draft, nor onto ice; moored, it stays put. No buoyancy, tilt or tipping: that is the Engine's Dynamics
-/// request (rusty-engine #9883) if a kinematic float reads wrong. Engine-free.
+/// draft, nor onto ice; moored, it stays put. On waves (#9902) it rides the surface under its ends and
+/// sides: heaving with their mean, pitching bow to stern and rolling side to side, so waves shorter than
+/// the hull pass under it. Kinematic height and tilt only - buoyancy, settling under a load and tipping
+/// are the Engine's Dynamics (rusty-engine #9883). Engine-free.
 /// </summary>
 internal sealed class BoatFloat
 {
@@ -26,6 +35,15 @@ internal sealed class BoatFloat
 
     /// <summary>How deep each hull reaches below the waterline (m), and how much lower someone aboard sets it.</summary>
     private const double RaftDraft = 0.16, CanoeDraft = 0.2, LadenSink = 0.04;
+
+    /// <summary>How quickly the hull leans to the water under it (seconds): a heavy raft slowly, a canoe quicker, neither at once.</summary>
+    private const double RaftLeanSeconds = 0.6, CanoeLeanSeconds = 0.3;
+
+    /// <summary>The fastest the waterline under it is taken to rise or fall (m/s): the drawn waves' own stay well within it.</summary>
+    private const double MaximumHeave = 1.5;
+
+    /// <summary>Where each hull meets the water: its length and beam (m), the models' waterline bounds.</summary>
+    private const double RaftLength = 4.0, RaftBeam = 2.3, CanoeLength = 4.6, CanoeBeam = 0.78;
 
     internal BoatFloat(BoatSpec spec, double x, double z, double heading)
     {
@@ -51,6 +69,15 @@ internal sealed class BoatFloat
 
     internal double TurnRate { get; private set; }
 
+    /// <summary>The bow's rise over the stern (radians; positive bow up), from the waves under its ends.</summary>
+    internal double Pitch { get; private set; }
+
+    /// <summary>The roll (radians about the bow line; positive lifts the side to the bow's left, the model's +Z).</summary>
+    internal double Roll { get; private set; }
+
+    /// <summary>How fast the waterline under it rose on the last step (m/s), so what stands aboard is carried up and down.</summary>
+    internal double Heave { get; private set; }
+
     /// <summary>Tied up: it holds its place whatever the current.</summary>
     internal bool Moored { get; set; } = true;
 
@@ -62,6 +89,15 @@ internal sealed class BoatFloat
     private double DragSeconds => Spec.Kind == BoatKind.Raft ? RaftDragSeconds : CanoeDragSeconds;
 
     private double MaximumTurn => Spec.Kind == BoatKind.Raft ? RaftTurnRate : CanoeTurnRate;
+
+    private double Length => Spec.Kind == BoatKind.Raft ? RaftLength : CanoeLength;
+
+    private double LeanSeconds => Spec.Kind == BoatKind.Raft ? RaftLeanSeconds : CanoeLeanSeconds;
+
+    private double Beam => Spec.Kind == BoatKind.Raft ? RaftBeam : CanoeBeam;
+
+    /// <summary>The side to the bow's left on the ground plane (the model's +Z turned by the heading).</summary>
+    private Vector2 Side => new((float)Math.Sin(Heading), (float)Math.Cos(Heading));
 
     /// <summary>The bow's direction on the ground plane.</summary>
     internal Vector2 Bow => new((float)Math.Cos(Heading), (float)-Math.Sin(Heading));
@@ -76,12 +112,12 @@ internal sealed class BoatFloat
     internal void Step(double seconds, Func<double, double, FloatWater> water, Vector2 paddle, bool laden)
     {
         FloatWater here = water(X, Z);
-        Y = here.Top - (laden ? LadenSink : 0);
         if (Moored || seconds <= 0)
         {
             Velocity = Vector2.Zero;
             TurnRate = 0;
             Grounded = !Floats(here);
+            Ride(seconds, water, here, laden);
             return;
         }
 
@@ -103,12 +139,45 @@ internal sealed class BoatFloat
             Grounded = attempt != velocity;
             Velocity = attempt;
             (X, Z) = (nextX, nextZ);
-            Y = there.Top - (laden ? LadenSink : 0);
+            Ride(seconds, water, there, laden);
             return;
         }
 
         Velocity = Vector2.Zero;
+        Ride(seconds, water, here, laden);
     }
+
+    /// <summary>Stands the hull on the surface under its bow, stern and sides: their mean is its waterline, their differences its pitch and roll.</summary>
+    private void Ride(double seconds, Func<double, double, FloatWater> water, FloatWater middle, bool laden)
+    {
+        Vector2 bow = Bow * (float)(Length / 2), side = Side * (float)(Beam / 2);
+        double Surface(Vector2 offset)
+        {
+            FloatWater at = water(X + offset.X, Z + offset.Y);
+            // Off the water's edge the hull end rests on the water under its middle.
+            return at.Depth > 0 && !at.Ice ? at.Surface : middle.Surface;
+        }
+
+        double fore = Surface(bow), aft = Surface(-bow), left = Surface(side), right = Surface(-side);
+        double waterline = (fore + aft + left + right) / 4;
+        // The heave is the waves' alone: settling under a load as someone boards is not the water moving.
+        Heave = seconds > 0 && double.IsFinite(rode) ? Math.Clamp((waterline - rode) / seconds, -MaximumHeave, MaximumHeave) : 0;
+        rode = waterline;
+        Y = waterline - (laden ? LadenSink : 0);
+        // It leans toward the water's slope under it with a little inertia, rather than snapping to each wave.
+        double lean = seconds > 0 ? 1 - Math.Exp(-seconds / LeanSeconds) : 1;
+        Pitch += (Math.Atan2(fore - aft, Length) - Pitch) * lean;
+        Roll += (Math.Atan2(left - right, Beam) - Roll) * lean;
+    }
+
+    /// <summary>The waterline under the hull on the last step, before any load set it lower.</summary>
+    private double rode = double.NaN;
+
+    /// <summary>The hull's attitude: turned to its heading, pitched and rolled on the waves.</summary>
+    internal Quaternion Attitude =>
+        Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)Heading)
+        * Quaternion.CreateFromAxisAngle(Vector3.UnitZ, (float)Pitch)
+        * Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)-Roll);
 
     /// <summary>Puts the boat at a place, at rest (the map moved it, or a load put it there).</summary>
     internal void Place(double x, double z, double heading)
@@ -116,6 +185,7 @@ internal sealed class BoatFloat
         (X, Z, Heading) = (x, z, Normalise(heading));
         Velocity = Vector2.Zero;
         TurnRate = 0;
+        rode = double.NaN;
     }
 
     internal static double Normalise(double angle) => Math.IEEERemainder(angle, 2 * Math.PI);
