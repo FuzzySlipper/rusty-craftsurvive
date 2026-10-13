@@ -402,7 +402,7 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
         double[] routed = elevation.Select(v => (double)v).ToArray();
         MapFlow flow = MapFlow.Route(grid, routed, outlet, rain, MapFlow.FillGradient);
         MapFields fields = new(grid, elevation, temperature, moisture, hardness.Select(v => (float)v).ToArray(),
-            flow.Discharge.Select(v => (float)v).ToArray());
+            flow.Discharge.Select(v => (float)v).ToArray(), new bool[grid.Count]);
         return new(new WorldMap(configuration, fields, new MapRegionFrame(centre.X, centre.Z, scale, grid)), rivers);
     }
 }

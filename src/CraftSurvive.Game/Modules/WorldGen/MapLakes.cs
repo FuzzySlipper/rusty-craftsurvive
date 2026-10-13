@@ -195,36 +195,11 @@ internal static class MapLakes
         return lakes;
     }
 
-    /// <summary>
-    /// The lakes as a restored map finds them from its saved discharge (#9876 review): that discharge was
-    /// routed with the closed lakes' nodes as sinks, so the lakes are found again until the closed nodes
-    /// they take as sinks are the ones they find - as generation routed and found them until they agreed.
-    /// </summary>
-    internal static IReadOnlyList<Lake> FindRouted(MapGrid grid, IReadOnlyList<float> elevation, IReadOnlyList<float> discharge,
-        IReadOnlyList<float> temperature, ContinentDesign? design)
-    {
-        IReadOnlyList<Lake> lakes = Find(grid, elevation, discharge, temperature, design);
-        for (int pass = 0; pass < RestorePasses; pass++)
-        {
-            HashSet<int> sinks = ClosedNodes(lakes);
-            IReadOnlyList<Lake> next = Find(grid, elevation, discharge, temperature, design, sinks);
-            if (ClosedNodes(next).SetEquals(sinks)) return next;
-            lakes = next;
-        }
-
-        return lakes;
-    }
-
-    /// <summary>The most times a restored map finds its lakes again to agree with the sinks its discharge was routed into.</summary>
-    private const int RestorePasses = 6;
-
-    /// <summary>Routing outlets with the closed lakes as sinks: their water goes no farther.</summary>
-    internal static bool[] Outlets(MapGrid grid, IReadOnlyList<double> height, IReadOnlyList<Lake> lakes)
+    /// <summary>Routing outlets with the given sinks (the closed lakes' nodes): their water goes no farther.</summary>
+    internal static bool[] Outlets(MapGrid grid, IReadOnlyList<double> height, IEnumerable<int> sinks)
     {
         bool[] outlet = MapFlow.Outlets(grid, height);
-        foreach (Lake lake in lakes)
-            if (lake.Closed)
-                foreach (int node in lake.Nodes) outlet[node] = true;
+        foreach (int node in sinks) outlet[node] = true;
         return outlet;
     }
 

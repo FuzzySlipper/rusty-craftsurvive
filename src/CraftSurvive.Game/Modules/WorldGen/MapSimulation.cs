@@ -5,12 +5,17 @@ namespace CraftSurvive.Game.Modules.WorldGen;
 /// <summary>
 /// The saved geography: per-node fields in metres and product units, stored at single
 /// precision. Generation rounds to the same precision before building a map, so a fresh map
-/// and one restored from its save derive identical rivers and fingerprints.
+/// and one restored from its save derive identical rivers and fingerprints. <see cref="Sinks"/> are the
+/// nodes the discharge was routed into and stopped at - the closed lakes' (#9876 review) - kept so a
+/// restored map sums each closed lake's inflow over the same sinks generation did.
 /// </summary>
 internal sealed record MapFields(MapGrid Grid, float[] Elevation, float[] Temperature, float[] Moisture,
-    float[] Hardness, float[] Discharge)
+    float[] Hardness, float[] Discharge, bool[] Sinks)
 {
-    internal const int FieldCount = 5;
+    internal const int FieldCount = 6;
+
+    /// <summary>The sink nodes, as a set.</summary>
+    internal HashSet<int> SinkNodes() => [.. Enumerable.Range(0, Sinks.Length).Where(i => Sinks[i])];
 }
 
 /// <summary>
@@ -95,12 +100,14 @@ internal static class MapSimulation
         float[] elevation = Round(h);
         double[] temperature = new double[grid.Count];
         for (int i = 0; i < grid.Count; i++) temperature[i] = climate.Temperature(grid.X(i), grid.Z(i), grid.Radius, h[i], peakElevation);
-        MapFlow flow = Route(grid, elevation, rain, Round(temperature), design, recipe.Lakes.Enabled);
+        (MapFlow flow, HashSet<int> sinks) = Route(grid, elevation, rain, Round(temperature), design, recipe.Lakes.Enabled);
         double[] moisture = climate.Moisture(rain, relief.Sea, temperature);
         for (int i = 0; i < grid.Count; i++)
             if (!relief.Sea[i]) moisture[i] = Math.Min(1, moisture[i] + RiparianMoisture * WorldMap.Smooth(Math.Clamp(flow.Discharge[i] / RiparianDischarge, 0, 1)));
 
-        return new(grid, elevation, Round(temperature), Round(moisture), Round(relief.Hardness), Round(flow.Discharge));
+        bool[] sunk = new bool[grid.Count];
+        foreach (int node in sinks) sunk[node] = true;
+        return new(grid, elevation, Round(temperature), Round(moisture), Round(relief.Hardness), Round(flow.Discharge), sunk);
     }
 
     /// <summary>The most times routing and a restored map's finding of closed lakes are brought to agree.</summary>
@@ -109,23 +116,25 @@ internal static class MapSimulation
     /// <summary>
     /// Routes the saved heights as a restored map will. With lakes, a closed lake is a sink; which lakes
     /// are closed depends on the discharge into them, so routing and <see cref="MapLakes.Find"/> are run
-    /// until they agree, as a restored map finds them from the saved discharge.
+    /// until they agree. The sinks the final discharge was routed into are returned to be saved with it.
     /// </summary>
-    private static MapFlow Route(MapGrid grid, float[] elevation, double[] rain, float[] temperature, ContinentDesign? design, bool lakes)
+    private static (MapFlow Flow, HashSet<int> Sinks) Route(MapGrid grid, float[] elevation, double[] rain, float[] temperature, ContinentDesign? design, bool lakes)
     {
         double[] heights = elevation.Select(v => (double)v).ToArray();
         IReadOnlyList<Lake> found = [];
+        HashSet<int> sinks = [];
         MapFlow flow = MapFlow.Route(grid, (double[])heights.Clone(), MapFlow.Outlets(grid, heights), rain, MapFlow.FillGradient);
         for (int pass = 0; lakes && pass < LakeRoutingPasses; pass++)
         {
             // The discharge was routed with the closed lakes found so far as sinks; their inflow is summed over them.
-            IReadOnlyList<Lake> next = MapLakes.Find(grid, elevation, Round(flow.Discharge), temperature, design, MapLakes.ClosedNodes(found));
-            if (pass > 0 && MapLakes.ClosedNodes(next).SetEquals(MapLakes.ClosedNodes(found))) break;
+            IReadOnlyList<Lake> next = MapLakes.Find(grid, elevation, Round(flow.Discharge), temperature, design, sinks);
+            if (pass > 0 && MapLakes.ClosedNodes(next).SetEquals(sinks)) break;
             found = next;
-            flow = MapFlow.Route(grid, (double[])heights.Clone(), MapLakes.Outlets(grid, heights, found), rain, MapFlow.FillGradient);
+            sinks = MapLakes.ClosedNodes(found);
+            flow = MapFlow.Route(grid, (double[])heights.Clone(), MapLakes.Outlets(grid, heights, sinks), rain, MapFlow.FillGradient);
         }
 
-        return flow;
+        return (flow, sinks);
     }
 
     /// <summary>Erosion over a starting relief: most of it on the coarse lattice, a short refinement on the full one.</summary>

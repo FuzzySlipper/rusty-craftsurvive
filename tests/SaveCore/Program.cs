@@ -63,6 +63,7 @@ SavedForm[] forms =
         (left, right) => left.Generation == right.Generation && left.Map.Fingerprint == right.Map.Fingerprint
             && left.Map.Fields.Elevation.SequenceEqual(right.Map.Fields.Elevation)
             && left.Map.Fields.Discharge.SequenceEqual(right.Map.Fields.Discharge)
+            && left.Map.Fields.Sinks.SequenceEqual(right.Map.Fields.Sinks)
             && left.Map.Rivers.Reaches.Count == right.Map.Rivers.Reaches.Count, null),
     SavedForm.For(SaveManifest.TerrainOverlay, new TerrainOverlayCodec(identity), overlay, TerrainOverlayCodec.RecordBytes,
         (left, right) => left.Entries.SequenceEqual(right.Entries), seed => new TerrainOverlayCodec(identity with { Seed = seed })),

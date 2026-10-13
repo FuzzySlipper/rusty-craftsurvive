@@ -1,4 +1,5 @@
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
 
@@ -104,8 +105,22 @@ internal static class LakeChecks
         Check.That(levels, "a lake's area grows with its level");
         Check.That(open, "an open lake stands full to its spill and has an outlet");
         Check.That(closed, "a closed lake stands below its spill where evaporation from it takes its inflow, with no outlet");
-        bool[] outlets = MapLakes.Outlets(map.Grid, fields.Elevation.Select(v => (double)v).ToArray(), lakes);
+        bool[] outlets = MapLakes.Outlets(map.Grid, fields.Elevation.Select(v => (double)v).ToArray(), fields.SinkNodes());
         Check.That(lakes.Where(l => l.Closed).All(l => l.Nodes.All(n => outlets[n])), "a closed lake is a sink to routing");
+        // The sinks generation routed into are saved with the discharge (#9876 review, R9876-3): a map built from the
+        // fields, fresh or restored from a save, sums each closed lake's inflow over every one of them, not a guess.
+        Check.That(fields.SinkNodes().SetEquals(MapLakes.ClosedNodes(lakes)), "the saved sinks are the closed lakes' nodes the map finds");
+        bool summed = lakes.Where(l => l.Closed).All(l =>
+            Math.Abs(l.InflowFlow - WaterBudget.Flow(l.Basin.Where(n => fields.Sinks[n]).Sum(n => (double)fields.Discharge[n]) * cellKm2)) < 1e-9);
+        int multiSink = lakes.Count(l => l.Closed && l.Basin.Count(n => fields.Sinks[n] && fields.Discharge[n] > 0) > 1);
+        Check.That(summed && multiSink > 0, $"a closed lake's inflow is the sum over its saved sinks ({multiSink} closed lakes fed at several)");
+        WorldMapCodec codec = new();
+        System.Buffers.ArrayBufferWriter<byte> saved = new();
+        codec.Encode(new WorldMapSave(1, map), saved);
+        WorldMap restored = codec.Decode(saved.WrittenSpan).Map;
+        Check.That(restored.Lakes.Select(l => (l.Kind, l.Level, l.InflowFlow, l.AreaSquareKilometres))
+                .SequenceEqual(lakes.Select(l => (l.Kind, l.Level, l.InflowFlow, l.AreaSquareKilometres))),
+            "a map restored from its save finds every lake at the same level on the same inflow");
 
         MapDrainage drainage = new(map);
         WaterNetwork network = drainage.Network;

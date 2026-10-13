@@ -114,9 +114,11 @@ internal sealed class WorldMap
 
         if (region is null)
         {
-            // Lakes are found again from the saved fields (#9876); a closed one is a sink, as generation routed it.
-            Lakes = MapLakes.FindRouted(Grid, fields.Elevation, fields.Discharge, fields.Temperature, ContinentDesign.For(configuration.Size));
-            bool[] outlet = MapLakes.Outlets(Grid, elevation, Lakes);
+            // Lakes are found again from the saved fields (#9876), each closed one's inflow summed over the
+            // sinks generation routed its discharge into, which drain nowhere here either.
+            HashSet<int> sinks = fields.SinkNodes();
+            Lakes = MapLakes.Find(Grid, fields.Elevation, fields.Discharge, fields.Temperature, ContinentDesign.For(configuration.Size), sinks);
+            bool[] outlet = MapLakes.Outlets(Grid, elevation, sinks);
             if (!outlet.Any(o => o)) throw new ArgumentException("Map has nowhere to drain.");
             double[] filled = (double[])elevation.Clone();
             double[] ones = new double[count];
@@ -349,6 +351,7 @@ internal sealed class WorldMap
         Mix(Configuration.Seed); Mix(Configuration.GeneratorVersion); Mix((ulong)Configuration.Size);
         foreach (float[] field in (float[][])[fields.Elevation, fields.Temperature, fields.Moisture, fields.Hardness, fields.Discharge])
             foreach (float value in field) Mix(BitConverter.SingleToUInt32Bits(value));
+        foreach (bool sink in fields.Sinks) Mix(sink ? 1UL : 0UL);
         return hash;
     }
 }

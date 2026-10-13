@@ -32,7 +32,7 @@ internal sealed class WorldMapCodec : IProductStateCodec<WorldMapSave>
         for (int i = 0; i < count; i++)
         {
             writer.Single(fields.Elevation[i]); writer.Single(fields.Temperature[i]); writer.Single(fields.Moisture[i]);
-            writer.Single(fields.Hardness[i]); writer.Single(fields.Discharge[i]);
+            writer.Single(fields.Hardness[i]); writer.Single(fields.Discharge[i]); writer.Single(fields.Sinks[i] ? 1 : 0);
         }
         SaveEnvelope.Seal(bytes, Fingerprint(state));
         destination.Write(bytes);
@@ -56,12 +56,19 @@ internal sealed class WorldMapCodec : IProductStateCodec<WorldMapSave>
         if (count - 1 != grid.Count) throw new InvalidOperationException("World map node count does not match its extent.");
         float[] elevation = new float[grid.Count], temperature = new float[grid.Count], moisture = new float[grid.Count];
         float[] hardness = new float[grid.Count], discharge = new float[grid.Count];
+        bool[] sinks = new bool[grid.Count];
         for (int i = 0; i < grid.Count; i++)
         {
             elevation[i] = reader.Single(); temperature[i] = reader.Single(); moisture[i] = reader.Single();
             hardness[i] = reader.Single(); discharge[i] = reader.Single();
+            sinks[i] = reader.Single() switch
+            {
+                0 => false,
+                1 => true,
+                _ => throw new InvalidOperationException("World map has a sink flag that is neither set nor clear."),
+            };
         }
-        WorldMapSave state = new(generation, new(configuration, new MapFields(grid, elevation, temperature, moisture, hardness, discharge)));
+        WorldMapSave state = new(generation, new(configuration, new MapFields(grid, elevation, temperature, moisture, hardness, discharge, sinks)));
         SaveEnvelope.Verify(Key, payload, Fingerprint(state));
         return state;
     }

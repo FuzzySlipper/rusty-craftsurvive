@@ -77,8 +77,8 @@ internal static class TravelChecks
         Check.That(regions.SynchronousBuilds == synchronousBefore, "ordinary travel never waits on a region tile: every tile it reads was built ahead");
         // A walk down to the water is refined once, and the party reaches the water (#9879): refining the same short
         // walk again at its last leg would set the party back to its nearest region node, over and over.
-        TravelRoute toWater = new("downriver", [new(0, 0), new(400, 0), new(1400, 0), new(2400, 0)], [0.8, 1, 1], 0,
-            [LegMode.Walk, LegMode.Drift, LegMode.Drift]);
+        TravelRoute toWater = new("downriver", [new(0, 0), new(400, 0), new(1400, 0), new(2400, 0), new(2700, 0), new(3000, 0)], [0.8, 1, 1, 0.6, 0.6], 0,
+            [LegMode.Walk, LegMode.Drift, LegMode.Drift, LegMode.Walk, LegMode.Walk]);
         PartyTravel boating = new(new(0, 0));
         boating.Take(toWater);
         Check.That(boating.Begin(), "a party sets out for the water");
@@ -90,6 +90,23 @@ internal static class TravelChecks
         }
 
         Check.That(boating.Afloat && walkRefinements <= 1, $"a party walking to its boat reaches the water, its walk refined once ({walkRefinements})");
+        // Ashore again, the walk on is refined over region ground as any walk is (R9879-4).
+        regions.Prefetch(3000, 0, TravelRouter.RefineAheadMetres);
+        bool landed = false, tailRefined = false;
+        clock.Restart();
+        while (boating.State == TravelState.Travelling && clock.ElapsedMilliseconds < RefineWaitMs)
+        {
+            boating.Advance(PartyTravel.HoursPerSecond * TickSeconds, _ => false);
+            landed |= !boating.Afloat;
+            if (landed && boating.Refine(cost))
+            {
+                tailRefined = boating.Route is { RefinedLegs: > 0 } tail && !tail.Afloat(0);
+                break;
+            }
+            Thread.Sleep((int)(TickSeconds * 1000));
+        }
+
+        Check.That(landed && tailRefined, $"a party ashore past the water has its walk on refined again (landed={landed}, refined={tailRefined})");
     }
 
     /// <summary>
