@@ -420,8 +420,16 @@ internal sealed class DayNightSky : IDisposable
     {
         if (disposed) return;
         wetGround = (Math.Clamp(wetness, 0f, 1f), Math.Clamp(puddles, 0f, 1f));
-        engine.CameraView.SetWetness(underground ? new WetnessRequest(0f, 0f) : new WetnessRequest(wetGround.Wetness, wetGround.Puddles));
+        ShowWetness();
     }
+
+    /// <summary>
+    /// The ground is wet only in the open world. Underground stays dry, and so does the map (#9946): its
+    /// puddles and sheen are sized for walking ground, so on relief one unit to 32 m they drew as large
+    /// glossy blotches whose reflections swam as the camera orbited.
+    /// </summary>
+    private void ShowWetness() =>
+        engine.CameraView.SetWetness(underground || onMap ? new WetnessRequest(0f, 0f) : new WetnessRequest(wetGround.Wetness, wetGround.Puddles));
 
     private (float Wetness, float Puddles) wetGround;
 
@@ -539,6 +547,7 @@ internal sealed class DayNightSky : IDisposable
         underground = below;
         litDaylight = double.NaN;
         skyShadowAround = null;
+        ShowWetness();
         PlaceRegions();
         Veil();
         Weathered();
@@ -595,6 +604,7 @@ internal sealed class DayNightSky : IDisposable
         onMap = open;
         litDaylight = double.NaN;
         skyShadowAround = null;
+        ShowWetness();
         PlaceRegions();
         Weathered();
         if (!open) return;

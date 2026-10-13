@@ -29,8 +29,16 @@ internal sealed class WorldMapVoxelView : IDisposable
     private const int DetailRadiusChunks = 8;
     private const int EdgeLength = MapVoxelLayer.EdgeLength;
     private const double DetailChunkMetres = EdgeLength * DetailMetres;
-    /// <summary>Coarse voxels the coarse ground sinks under the detail patch, hiding it there.</summary>
+    /// <summary>Coarse voxels a tier sinks under the finer tier that covers it (the continent under the region window).</summary>
     private const double PatchSink = 1.5;
+    /// <summary>
+    /// Under the detail patch each coarse column sinks below the lowest detail ground within a cell of it,
+    /// sampled at this many points a cell, by this margin (coarse voxels; #9946). A coarse surface spans a
+    /// whole cell between its columns and does not follow a valley the patch draws between them; a fixed
+    /// sink left it standing through the patch there, and nearly level with it elsewhere, where the two fought.
+    /// </summary>
+    private const int SinkSamplesPerCell = 2;
+    private const double SinkMargin = 0.35;
     /// <summary>
     /// Metres over which regional relief fades out toward the patch edge, so it meets the coarse map
     /// flush. One chunk wide, so a one-chunk shift re-streams only the strips beside each edge.
@@ -171,7 +179,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             if (regions is not null)
                 continent = Layer(ContinentVoxel, ContinentCellMetres, map.Sample, map.Rivers.Nearest, ContinentRiverReach, (x, z) => UnderRegion(x, z) ? PatchSink * ContinentVoxel : 0,
                     false, continentGround, ContinentLayerCoarseBeyond);
-            coarse = Layer(1, CellMetres, fine, fineRivers, RiverReach, (x, z) => InDetail(x, z) ? PatchSink : 0, false, coarseGround, CoarseLayerCoarseBeyond);
+            coarse = Layer(1, CellMetres, fine, fineRivers, RiverReach, (x, z) => InDetail(x, z) ? UnderDetail(fine, x, z) : 0, false, coarseGround, CoarseLayerCoarseBeyond);
             detail = Layer(1d / DetailPerCell, DetailMetres, fine, fineRivers, RiverReach, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond);
             clutter = new MapClutter(engine, content, map, fine);
             // The windows come first: the ground beneath samples them to sink under each finer tier.
@@ -648,12 +656,31 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// The drawn top at a point: ground (with regional relief where the detail patch carries it),
     /// raised to a river's surface or the sea. Markers and the party stand on exactly this.
     /// </summary>
-    private double Top(MapSample sample, double worldX, double worldZ, bool localRelief)
+    private double Top(MapSample sample, double worldX, double worldZ, bool localRelief) =>
+        Top(sample, localRelief ? EdgeFade(worldX, worldZ) * Relief(sample, worldX, worldZ) : 0);
+
+    private static double Top(MapSample sample, double relief) => Math.Max(sample.Elevation + relief, WaterRules.Surface(sample));
+
+    private double Relief(MapSample sample, double worldX, double worldZ) =>
+        RegionalTerrain.Relief(map.Configuration.Contract.GeographyNoiseSeed, sample, worldX, worldZ);
+
+    /// <summary>
+    /// How far a coarse column under the detail patch sinks, in coarse voxels: below the lowest the patch
+    /// can draw within a cell of it, with or without its regional relief - the edge fade lies between - so
+    /// the sink does not change as the patch moves.
+    /// </summary>
+    private double UnderDetail(Func<double, double, MapSample> geography, double worldX, double worldZ)
     {
-        double ground = localRelief
-            ? sample.Elevation + EdgeFade(worldX, worldZ) * RegionalTerrain.Relief(map.Configuration.Contract.GeographyNoiseSeed, sample, worldX, worldZ)
-            : sample.Elevation;
-        return Math.Max(ground, WaterRules.Surface(sample));
+        double top = Top(geography(worldX, worldZ), 0), lowest = top;
+        for (int j = -SinkSamplesPerCell; j <= SinkSamplesPerCell; j++)
+        for (int i = -SinkSamplesPerCell; i <= SinkSamplesPerCell; i++)
+        {
+            double x = worldX + i * CellMetres / SinkSamplesPerCell, z = worldZ + j * CellMetres / SinkSamplesPerCell;
+            MapSample sample = geography(x, z);
+            lowest = Math.Min(lowest, Math.Min(Top(sample, 0), Top(sample, Relief(sample, x, z))));
+        }
+
+        return (top - lowest) * VerticalExaggeration / CellMetres + SinkMargin;
     }
 
     /// <summary>1 inside the patch, easing to 0 at its edge.</summary>

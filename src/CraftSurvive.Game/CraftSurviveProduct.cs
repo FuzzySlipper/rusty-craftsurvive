@@ -452,8 +452,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             Shutdown();
         }
 
-        mapView?.Dispose();
+        // The snapshot lets go of the map's appearances before they are disposed.
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+        mapView?.Dispose();
         if (worldBuilt)
         {
             foreach (IProductModule module in gameplay.Reverse())

@@ -143,9 +143,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - The bedrock perimeter rises a fixed height above local ground; it is not final
     geographic edge art.
   - The world map (#9436, #9437; the only map since #9946, which retired the fixed overview) voxelizes
-    the generated map as rounded dual-contoured terrain (smooth vertex placement and shading): one voxel per 32 m for the whole map, and an 8 m patch with
-    regional relief about 2 km across around the party, where the coarse ground is sunk out of
-    sight. A camera locked to the party zooms (wheel, or Z/X) and orbits (right-drag, Q/E;
+    the generated map as rounded dual-contoured terrain (smooth vertex placement and shading): one
+    voxel per 32 m for the whole map, and an 8 m patch with regional relief about 2 km across around
+    the party, where each coarse column is sunk below the lowest ground the patch draws within a cell
+    of it. The map's ground is always dry: the open world's wetness and puddles are lifted while it
+    is open, since at map scale they drew as large glossy blotches. A camera locked to the party zooms (wheel, or Z/X) and orbits (right-drag, Q/E;
     R/F tilt); there is no free pan. The ground uses generated painterly map textures (meadow,
     forest floor, sand, snow, rock; provenance in `content/map-painted-textures.sources.json`)
     on four Engine terrain layers that blend across cell edges; rock and water are drawn
