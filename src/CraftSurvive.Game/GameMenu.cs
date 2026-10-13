@@ -14,6 +14,9 @@ public sealed partial class CraftSurviveProduct
     /// <summary>The controller's Start button (the standard gamepad's button 9) opens and closes the menu.</summary>
     private const ControllerButton MenuButton = ControllerButton.Button9;
 
+    /// <summary>The world actions that hold the game under the menu and let it run again; "pause" is the journey's.</summary>
+    private const string MenuPauseAction = "menu-pause", MenuResumeAction = "menu-resume";
+
     private const string QuitUnavailable = "Close the browser tab to quit; the world saves as you play.";
 
     private bool paused;

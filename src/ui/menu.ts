@@ -7,6 +7,9 @@ import { WORLD_CONTRACT, WORLD_INTENT } from './world.js';
 
 /** Esc opens the menu, steps back out of its pages and closes it. */
 const MENU_KEY = 'Escape';
+/** The world actions that hold the game and let it run again; the journey's own "pause" is apart (#9916 review). */
+const MENU_PAUSE = 'menu-pause';
+const MENU_RESUME = 'menu-resume';
 
 /** The new world's choices, as the product offers them (WorldSelection's NewWorldSizes). */
 const WORLD_SIZES = [[4096, '4 km'], [8192, '8 km'], [16384, '16 km'], [390000, '390 km continent (experimental)']] as const;
@@ -61,7 +64,7 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
     main.append(control);
     return control;
   };
-  entry('Continue', () => claim({ action: 'resume' }));
+  entry('Continue', () => claim({ action: MENU_RESUME }));
   entry('New world', () => show('world'));
   const load = entry('Load', () => {});
   load.disabled = true; load.title = LOAD_LATER; load.style.cssText = ENTRY + UNOFFERED;
@@ -147,9 +150,9 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
     // The pack or journal takes its own Esc first.
     if (event.code !== MENU_KEY || event.repeat || event.defaultPrevented || layers.screen) return;
     event.preventDefault();
-    if (!paused) claim({ action: 'pause' });
+    if (!paused) claim({ action: MENU_PAUSE });
     else if (page !== 'main') show('main');
-    else claim({ action: 'resume' });
+    else claim({ action: MENU_RESUME });
   };
 
   // A browser takes the Esc that frees a held pointer for itself, so losing the pointer while
@@ -160,7 +163,7 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
     const lost = locked && !now;
     locked = now;
     if (!lost || paused || layers.screen || mapOpen(projectionValues(projection?.current() ?? null))) return;
-    claim({ action: 'pause' });
+    claim({ action: MENU_PAUSE });
   };
 
   window.addEventListener('keydown', onKey, true);

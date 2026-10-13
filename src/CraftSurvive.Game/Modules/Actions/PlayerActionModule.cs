@@ -69,18 +69,31 @@ internal sealed class PlayerActionModule
 
     /// <summary>
     /// Applies the player's hotbar keys - a slot picked or stepped to, and the use of what it holds -
-    /// then every action the UI claimed in this update, in the order it claimed them.
+    /// then every action the UI claimed in this update, in the order it claimed them. The game's
+    /// options are not among them: <see cref="UpdateOptions"/> takes those on every update.
     /// </summary>
     internal void Update(ProductUpdate update)
     {
         (int pick, int steps, bool use) = player.HotbarRequests;
         inventory.Select(pick, steps);
-        bool claimed = use;
         if (use)
         {
             UseSelected();
         }
 
+        Claimed(update, options: false, use);
+    }
+
+    /// <summary>
+    /// Applies the option changes the UI claimed in this update (#9916 review). They are the install's,
+    /// not play, so they apply while the game is held under the pause menu or the map is open, where
+    /// the rest of the actions wait.
+    /// </summary>
+    internal void UpdateOptions(ProductUpdate update) => Claimed(update, options: true, false);
+
+    /// <summary>Applies the claimed actions of one kind - the options, or every other - and publishes the outcome.</summary>
+    private void Claimed(ProductUpdate update, bool options, bool claimed)
+    {
         foreach (ProductInputEvent input in update.Input)
         {
             if (input.ValueKind != InputValueKind.ProductPayload || !input.PayloadContract.Span.SequenceEqual(ContractUtf8))
@@ -88,16 +101,28 @@ internal sealed class PlayerActionModule
                 continue;
             }
 
-            claimed = true;
             try
             {
-                Apply(PlayerAction.Parse(input.PayloadData.Span));
+                PlayerAction action = PlayerAction.Parse(input.PayloadData.Span);
+                if ((action.Kind == PlayerActionKind.Option) != options)
+                {
+                    continue;
+                }
+
+                claimed = true;
+                Apply(action);
             }
 
             // Browser payloads are untrusted input: a bad one is refused and shown, never thrown
-            // out of the update.
+            // out of the update. The pass for every other action reports it, once.
             catch (Exception malformed) when (malformed is FormatException or JsonException)
             {
+                if (options)
+                {
+                    continue;
+                }
+
+                claimed = true;
                 Refuse($"refused: {malformed.Message}");
             }
         }

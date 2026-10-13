@@ -340,6 +340,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
         if (AdmitPreparedWorld() || !worldBuilt) return ProductUpdateResult.None;
         if (MenuButtonPressed(update)) SetPaused(!paused);
+        // Options apply in every state, the pause menu and the map included; play's own actions wait below.
+        actions.UpdateOptions(update);
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (paused)
         {

@@ -44,10 +44,11 @@ public sealed partial class CraftSurviveProduct
                     throw new FormatException("Choose a world action.");
                 switch (action.GetString())
                 {
-                    case "pause":
+                    // The pause menu's hold, apart from the journey's own pause (#9916 review).
+                    case MenuPauseAction:
                         SetPaused(true);
                         break;
-                    case "resume":
+                    case MenuResumeAction:
                         SetPaused(false);
                         break;
                     case "quit":
