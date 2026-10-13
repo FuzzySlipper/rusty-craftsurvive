@@ -103,7 +103,7 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     - Narrow streams (about 3 m) can hide under their dual-contoured banks at a grazing view.
     - A lake's shore follows its 1 km basin, so a lake can end in a straight edge where the basin does.
     - Smaller lakes (tarns, ponds, oxbows) are not generated, and regional worlds have none. The map
-      draws every lake (fresh, salt, playa) as fresh water.
+      draws each lake in its kind's colour (fresh, salt, playa).
   - River travel (#9879) is by a raft or a canoe the party builds at a bank (it cannot yet be bought
     or found). On the map the route follows the 250 m network's nodes, so a stop afloat puts the boat
     on the walked channel up to 160 m away. In first person a boat is a kinematic float at the
@@ -157,9 +157,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     centrelines (#9948), lifted a little over their tier's interpolated ground, no narrower than
     about a third of a cell, and smoothed to the tier's spacing: a regional map's or a continent's
     region window rivers at 32 m, a continent's own beyond the window at 1 km. The detail patch still
-    paints its own 8 m river cells beneath. Lakes and the sea are still painted onto cells, so on a
-    continent's kilometre tier their shores step. The detail patch's edge shows as a faint line where
-    its surface ends against the coarser ground. Trees, cacti and rocks on the patch are generated low-poly
+    paints its own 8 m river cells beneath. The sea and the lakes are flat surfaces at their levels
+    (#9952), a little over the ground the tiers flatten there: the sea a plane over the whole map,
+    each lake cut along where the smoothed ground meets its level and thinning away beyond its basin,
+    in its kind's colour. Ground under water draws as sand, so shores show a beach. The detail patch's
+    outer band is lowered a little under the coarser ground, which keeps its true height there, and its
+    clutter thins toward the edge; close in the patch meets the coarse ground without a line, but from
+    mid zoom a faint rectangle still shows where its finer relief begins. Trees, cacti and rocks on the patch are generated low-poly
     textured prop meshes (the first-person trees' distant-band meshes, the first-person stones'
     shape and tile, a Tripo cactus on a drawn skin; provenance in `content/map-models.sources.json`)
     scattered by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief

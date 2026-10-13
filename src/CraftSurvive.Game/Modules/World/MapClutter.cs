@@ -25,6 +25,8 @@ internal sealed class MapClutter : IDisposable
     private const float RockHeight = 0.35f;
     private const float SizeVariation = 0.25f;
     private const ulong ScatterSalt = 0xA0761D6478BD642FUL;
+    /// <summary>Salts the draw that thins clutter toward the patch's edge, apart from the draws that place and choose it.</summary>
+    private const ulong ThinSalt = 6;
     /// <summary>Stone, bark and leaves: matt, and at map scale nothing moves in the wind.</summary>
     private const float PropRoughness = 0.95f;
 
@@ -58,7 +60,8 @@ internal sealed class MapClutter : IDisposable
     /// so a moved rectangle keeps every instance it still covers exactly where it was.
     /// </summary>
     /// <param name="surface">The drawn surface in presentation space at a world X/Z, in metres.</param>
-    internal void Scatter(Vector2 minimum, Vector2 maximum, Func<double, double, Vector3> surface)
+    /// <param name="density">The share of the clutter kept at a point (0 to 1): the patch thins it toward its edge (#9952), so the trees do not stop in a straight line.</param>
+    internal void Scatter(Vector2 minimum, Vector2 maximum, Func<double, double, Vector3> surface, Func<double, double, double> density)
     {
         ulong seed = map.Configuration.Contract.GeographyNoiseSeed ^ ScatterSalt;
         List<AppearanceFact> facts = [];
@@ -70,6 +73,7 @@ internal sealed class MapClutter : IDisposable
             double x = (gx + 0.5 + (MapNoise.Unit(seed, gx, gz) - 0.5) * JitterFraction) * SpacingMetres;
             double z = (gz + 0.5 + (MapNoise.Unit(seed ^ 1, gx, gz) - 0.5) * JitterFraction) * SpacingMetres;
             if (x < minimum.X || z < minimum.Y || x >= maximum.X || z >= maximum.Y) continue;
+            if (MapNoise.Unit(seed ^ ThinSalt, gx, gz) >= density(x, z)) continue;
             MapSample sample = geography(x, z);
             if (sample.InRiver || sample.Elevation < GenerationConstants.WaterLevel || sample.Protection > 0.5) continue;
             if (Choose(sample, MapNoise.Unit(seed ^ 2, gx, gz), MapNoise.Unit(seed ^ 3, gx, gz)) is not Model model) continue;

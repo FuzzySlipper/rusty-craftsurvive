@@ -56,6 +56,10 @@ internal static class ProductIds
     internal const ulong WorldMapRiverBase = 0x5_4000UL;
     internal const int WorldMapRiverLimit = 0x2000;
 
+    /// <summary>The sea and lake surfaces on the map (#9952): the sea's plane, then one a lake.</summary>
+    internal const ulong WorldMapWaterBase = 0x5_6000UL;
+    internal const int WorldMapWaterLimit = 0x400;
+
     /// <summary>Weather fronts standing on the horizon, in the backdrop (HorizonWeather, #9780).</summary>
     internal const ulong HorizonFrontBase = 0x8_0000UL;
     internal const int HorizonFrontLimit = 0x100;
