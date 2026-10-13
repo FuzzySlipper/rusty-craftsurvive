@@ -8,17 +8,22 @@ internal sealed record GameOptionSpec(string Id, string Label, string Descriptio
 
 /// <summary>
 /// The game's own video options (#9759), beside the Engine's renderer settings in the options panel:
-/// how far the land is drawn, the field of view, and how strong weather effects are on the screen.
-/// They are the player's for the install, not a world's.
+/// how far the land is drawn, how far grass and flowers grow, the field of view, and how strong weather
+/// effects are on the screen. They are the player's for the install, not a world's.
 /// </summary>
-internal readonly record struct GameOptions(int ViewDistanceChunks, int FieldOfViewDegrees, int WeatherEffectsPercent)
+internal readonly record struct GameOptions(int ViewDistanceChunks, int FieldOfViewDegrees, int WeatherEffectsPercent, int GroundCoverMetres)
 {
-    internal const string ViewDistance = "viewdistance", FieldOfView = "fieldofview", WeatherEffects = "weathereffects";
+    internal const string ViewDistance = "viewdistance", FieldOfView = "fieldofview", WeatherEffects = "weathereffects", GroundCover = "groundcover";
 
     /// <summary>The far field's reach in its chunk columns (128 m each): twelve, a mile and a half, is the game's own.</summary>
     internal static GameOptionSpec ViewDistanceSpec { get; } = new(ViewDistance, "View distance",
         "How far the land is drawn beyond the near ground, in 128 m steps. The haze closes in to match a shorter reach.",
         Minimum: 6, Maximum: 16, Step: 1, Unit: "× 128 m", Default: 12);
+
+    /// <summary>How far ground cover grows: it thins toward its edge, and its reach draws as much of the near ground at full detail.</summary>
+    internal static GameOptionSpec GroundCoverSpec { get; } = new(GroundCover, "Ground cover",
+        "How far grass, flowers, bushes and stones grow, thinning toward the edge. Farther draws more of the near ground at full detail, which costs more.",
+        Minimum: 32, Maximum: 96, Step: 8, Unit: "m", Default: 64);
 
     internal static GameOptionSpec FieldOfViewSpec { get; } = new(FieldOfView, "Field of view",
         "The vertical field of view in first person.", Minimum: 55, Maximum: 100, Step: 1, Unit: "°", Default: 70);
@@ -27,15 +32,16 @@ internal readonly record struct GameOptions(int ViewDistanceChunks, int FieldOfV
         "How much rain, snow, dust and glass falls on screen, and how strongly the glass storm ripples the view. Weather still acts on the game.",
         Minimum: 0, Maximum: 100, Step: 5, Unit: "%", Default: 100);
 
-    internal static IReadOnlyList<GameOptionSpec> Specs { get; } = [ViewDistanceSpec, FieldOfViewSpec, WeatherEffectsSpec];
+    internal static IReadOnlyList<GameOptionSpec> Specs { get; } = [ViewDistanceSpec, GroundCoverSpec, FieldOfViewSpec, WeatherEffectsSpec];
 
-    internal static GameOptions Defaults { get; } = new(ViewDistanceSpec.Default, FieldOfViewSpec.Default, WeatherEffectsSpec.Default);
+    internal static GameOptions Defaults { get; } = new(ViewDistanceSpec.Default, FieldOfViewSpec.Default, WeatherEffectsSpec.Default, GroundCoverSpec.Default);
 
     internal int ValueOf(string id) => id switch
     {
         ViewDistance => ViewDistanceChunks,
         FieldOfView => FieldOfViewDegrees,
         WeatherEffects => WeatherEffectsPercent,
+        GroundCover => GroundCoverMetres,
         _ => throw new FormatException($"\"{id}\" is not one of the game's options."),
     };
 
@@ -48,6 +54,7 @@ internal readonly record struct GameOptions(int ViewDistanceChunks, int FieldOfV
         {
             ViewDistance => this with { ViewDistanceChunks = value },
             FieldOfView => this with { FieldOfViewDegrees = value },
+            GroundCover => this with { GroundCoverMetres = value },
             _ => this with { WeatherEffectsPercent = value },
         };
     }

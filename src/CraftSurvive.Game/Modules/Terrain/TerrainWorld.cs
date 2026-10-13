@@ -485,6 +485,26 @@ internal sealed class TerrainWorld : IDisposable
             }
 
             trees.FarReach = Math.Min(TerrainTrees.FarMetres, TerrainTrees.FarMetres * value / FarField.DefaultRadiusChunks);
+            GroundCoverMetres = groundCoverMetres;
+        }
+    }
+
+    /// <summary>The near ground's last chunk of reach grows no ground cover, so copies never stand at its ragged edge.</summary>
+    private const double GroundCoverEdgeMetres = TerrainConstants.ChunkEdgeLength;
+
+    private double groundCoverMetres = TerrainScatter.DefaultReachMetres;
+
+    /// <summary>
+    /// How far grass, flowers, bushes and stones grow (the player's option): kept a chunk inside the near
+    /// ground, which a short view distance draws nearer.
+    /// </summary>
+    internal double GroundCoverMetres
+    {
+        get => groundCoverMetres;
+        set
+        {
+            groundCoverMetres = value;
+            presentation.GroundCover = Math.Min(value, NearEdgeMetres - GroundCoverEdgeMetres);
         }
     }
 

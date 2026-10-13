@@ -463,7 +463,8 @@ Check.That(continued.ResumeTick == 41, $"a restored journal resumes after its la
 Console.WriteLine($"Save checks: {SaveManifest.All.Count} manifest keys, each codec's round trip and tamper matrix, the restore rule, "
     + "the overlay's unchanged layout, block-entity reload, and journal ticks resuming across sessions.");
 // The game's own options (#9759): kept for the install as a small JSON object, read back leniently.
-GameOptions chosenOptions = GameOptions.Defaults.With(GameOptions.ViewDistance, 8).With(GameOptions.FieldOfView, 90).With(GameOptions.WeatherEffects, 25);
+GameOptions chosenOptions = GameOptions.Defaults.With(GameOptions.ViewDistance, 8).With(GameOptions.FieldOfView, 90).With(GameOptions.WeatherEffects, 25)
+    .With(GameOptions.GroundCover, 88);
 Check.That(GameOptions.Decode(chosenOptions.Encode()) == chosenOptions, "the game's options round-trip through their stored form");
 Check.That(GameOptions.Decode("{}"u8) == GameOptions.Defaults, "options missing from the stored form keep their defaults");
 Check.That(GameOptions.Decode("""{"fieldofview":400,"viewdistance":"far","weathereffects":40}"""u8) == GameOptions.Defaults.With(GameOptions.WeatherEffects, 40),

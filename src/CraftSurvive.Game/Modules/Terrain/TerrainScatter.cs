@@ -9,6 +9,10 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// bushes, ferns, flowers and field stones (#9668)
 /// the Engine scatters on the grass block's ground around the camera. The product decides what
 /// grows, where and how densely; the Engine places, draws, fades and re-places the copies.
+/// Ground cover thins toward the edge of its reach (the player's option): each kind grows as
+/// <see cref="Tiers"/> nested scatters, reaching a third, two thirds and all of the way, each with a
+/// third of the density and each fading out at its own edge - full density near the player, two
+/// thirds and then a third farther out, with no single line where it all stops.
 /// </summary>
 internal sealed class TerrainScatter : IDisposable
 {
@@ -32,9 +36,17 @@ internal sealed class TerrainScatter : IDisposable
     internal const float DefaultGrassDensity = 2.5f;
     internal const float DefaultBushDensity = 0.03f;
     internal const string PropFolder = "models/scatter/";
-    /// <summary>Inside the coarse distance (<see cref="TerrainPresentation.CoarseBeyondMetres"/>): coarse chunks grow nothing.</summary>
-    private const float Reach = 44f;
-    private const float FadeMetres = 12f;
+    /// <summary>How far ground cover grows by default (metres); the full-detail ground reaches past it (<see cref="TerrainPresentation.CoarseDistance"/>).</summary>
+    internal const float DefaultReachMetres = 64f;
+
+    /// <summary>How many nested scatters each kind grows as, thinning toward the edge.</summary>
+    internal const int Tiers = 3;
+
+    /// <summary>Each tier fades out over this share of the step between tiers, so the steps blend into one another.</summary>
+    private const float TierFadeShare = 0.75f;
+
+    /// <summary>A tier's scatter key and seed are its kind's offset by these, so the tiers are separate scatters with their own placements.</summary>
+    private const uint TierKeyStride = 16, TierSeedStride = 7919;
     private const float GrassSlopeDegrees = 38f;
     private const float GrassLean = 0.35f;
     private const float GrassScaleMin = 0.75f, GrassScaleMax = 1.3f;
@@ -94,6 +106,9 @@ internal sealed class TerrainScatter : IDisposable
     private readonly Dictionary<uint, Appearance> looks = [];
     private float grassDensity = DefaultGrassDensity, bushDensity = DefaultBushDensity;
 
+    /// <summary>How far ground cover grows (metres); grow again to apply a change.</summary>
+    internal float ReachMetres { get; set; } = DefaultReachMetres;
+
     internal TerrainScatter(IEngineContext engine, ProductContent content)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -143,45 +158,52 @@ internal sealed class TerrainScatter : IDisposable
         }
     }
 
-    /// <summary>Grows grass and bushes on the projection's grass ground at the current densities.</summary>
+    /// <summary>Grows grass and bushes on the projection's grass ground at the current densities and reach, in thinning tiers.</summary>
     internal void Grow(VoxelScenePresentation projection)
     {
         ReadOnlyMemory<uint> onGrass = new uint[] { BlockRegistry.Get(BlockId.Grass).Slot };
-        foreach (GrassVariant variant in GrassVariants)
+        float step = ReachMetres / Tiers, fade = step * TierFadeShare;
+        for (uint tier = 0; tier < Tiers; tier++)
         {
-            float density = grassDensity * variant.Share;
-            Set(projection, variant.Id, density, new VoxelSceneScatterRequest(projection, variant.Id, grassLooks[variant.Id], grass, onGrass, density, Reach) with
+            float reach = step * (tier + 1);
+            foreach (GrassVariant variant in GrassVariants)
             {
-                Fade = FadeMetres,
-                ScaleMin = GrassScaleMin,
-                ScaleMax = GrassScaleMax,
-                TintLow = GrassTintLow,
-                TintHigh = GrassTintHigh,
-                SlopeLimitDegrees = GrassSlopeDegrees,
-                Align = GrassLean,
-                MaximumInstances = (uint)(MaximumGrass * variant.Share),
-                Seed = variant.Id + GrassSeedOffset,
-            });
-        }
+                float density = grassDensity * variant.Share / Tiers;
+                uint key = variant.Id + (tier * TierKeyStride);
+                Set(projection, key, density, new VoxelSceneScatterRequest(projection, key, grassLooks[variant.Id], grass, onGrass, density, reach) with
+                {
+                    Fade = fade,
+                    ScaleMin = GrassScaleMin,
+                    ScaleMax = GrassScaleMax,
+                    TintLow = GrassTintLow,
+                    TintHigh = GrassTintHigh,
+                    SlopeLimitDegrees = GrassSlopeDegrees,
+                    Align = GrassLean,
+                    MaximumInstances = (uint)(MaximumGrass * variant.Share),
+                    Seed = variant.Id + GrassSeedOffset + (tier * TierSeedStride),
+                });
+            }
 
-        foreach (Layer layer in Layers)
-        {
-            float density = layer.Bush ? bushDensity / 2 : layer.Density * (grassDensity > 0 ? 1 : 0);
-            ReadOnlyMemory<uint> ground = layer.Ground.Select(block => (uint)BlockRegistry.Get(block).Slot).ToArray();
-            Set(projection, layer.Id, density, new VoxelSceneScatterRequest(projection, layer.Id, looks[layer.Id], layerMaterials[layer.Id],
-                ground, density, Reach) with
+            foreach (Layer layer in Layers)
             {
-                Fade = FadeMetres,
-                ScaleMin = layer.ScaleMin,
-                ScaleMax = layer.ScaleMax,
-                TintLow = layer.TintLow,
-                TintHigh = layer.TintHigh,
-                SlopeLimitDegrees = layer.SlopeDegrees,
-                Align = layer.Align,
-                CastsShadows = layer.CastsShadows,
-                MaximumInstances = layer.Maximum,
-                Seed = layer.Id,
-            });
+                float density = (layer.Bush ? bushDensity / 2 : layer.Density * (grassDensity > 0 ? 1 : 0)) / Tiers;
+                uint key = layer.Id + (tier * TierKeyStride);
+                ReadOnlyMemory<uint> ground = layer.Ground.Select(block => (uint)BlockRegistry.Get(block).Slot).ToArray();
+                Set(projection, key, density, new VoxelSceneScatterRequest(projection, key, looks[layer.Id], layerMaterials[layer.Id],
+                    ground, density, reach) with
+                {
+                    Fade = fade,
+                    ScaleMin = layer.ScaleMin,
+                    ScaleMax = layer.ScaleMax,
+                    TintLow = layer.TintLow,
+                    TintHigh = layer.TintHigh,
+                    SlopeLimitDegrees = layer.SlopeDegrees,
+                    Align = layer.Align,
+                    CastsShadows = layer.CastsShadows,
+                    MaximumInstances = layer.Maximum,
+                    Seed = layer.Id + (tier * TierSeedStride),
+                });
+            }
         }
     }
 
@@ -194,7 +216,7 @@ internal sealed class TerrainScatter : IDisposable
     }
 
     internal string Readout(VoxelScenePresentationReadout current) => FormattableString.Invariant(
-        $"scatter grass={grassDensity} bushes={bushDensity} patches={current.ScatterPatchCount} copies={current.ScatterInstanceCount} overBudget={current.ScatterOverBudgetCount}");
+        $"scatter grass={grassDensity} bushes={bushDensity} reach={ReachMetres}m tiers={Tiers} patches={current.ScatterPatchCount} copies={current.ScatterInstanceCount} overBudget={current.ScatterOverBudgetCount}");
 
     private void Set(VoxelScenePresentation projection, uint scatter, float density, VoxelSceneScatterRequest request)
     {

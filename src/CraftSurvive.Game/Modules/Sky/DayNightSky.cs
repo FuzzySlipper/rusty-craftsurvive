@@ -358,7 +358,11 @@ internal sealed class DayNightSky : IDisposable
     private const float WindStrengthening = 3f, WindGusting = 0.4f;
     /// <summary>The cloud layer: coverage from fair to full with the cloud channel, drifting with the flow faster as the wind rises.</summary>
     private const float CloudCoverageFloor = 0.25f, CloudCoverageSpan = 0.7f, CloudAppearsAbove = 0.02f;
-    private const float CloudDriftMetresPerSecond = 6f, WindDriftMetresPerSecond = 18f;
+    /// <summary>
+    /// How fast the layer drifts (m/s): slow in still air, and a gale adds the rest. Kept well under real
+    /// winds aloft, which read as racing across a game sky watched from the ground.
+    /// </summary>
+    private const float CloudDriftMetresPerSecond = 2.5f, WindDriftMetresPerSecond = 8f;
     private const float CloudAltitudeMetres = 1500f, CloudScaleMetres = 600f, CloudDarkening = 0.4f;
     /// <summary>Murk covers the sky like cloud, this much of it, tinted by the air at this brightness.</summary>
     private const float MurkCloud = 1f, MurkCloudBrightness = 1.6f;

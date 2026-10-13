@@ -44,9 +44,33 @@ internal sealed class TerrainPresentation : IDisposable
     /// <summary>
     /// Ground farther than this from the camera is drawn from the Engine's coarse meshes (#9563):
     /// at the first-person view distance this halves the triangles with no visible change (Engine
-    /// #9498's trial); collision, picking and navigation keep full resolution.
+    /// #9498's trial); collision, picking and navigation keep full resolution. Coarse chunks grow no
+    /// ground cover, so ground cover reaching farther pushes it out (<see cref="CoarseDistance"/>).
     /// </summary>
     internal const double CoarseBeyondMetres = 48;
+
+    /// <summary>The full-detail ground reaches this far past the ground cover, so its last copies stand on fine chunks.</summary>
+    private const double CoarseMarginMetres = 4;
+
+    private double groundCover = TerrainScatter.DefaultReachMetres;
+
+    /// <summary>Where the coarse meshes begin: at the usual distance, or past the ground cover's reach.</summary>
+    internal double CoarseDistance => Math.Max(CoarseBeyondMetres, groundCover + CoarseMarginMetres);
+
+    /// <summary>How far ground cover grows (metres): it thins toward that edge, and the full-detail ground reaches past it.</summary>
+    internal double GroundCover
+    {
+        get => groundCover;
+        set
+        {
+            if (value == groundCover) return;
+            groundCover = value;
+            if (scatter is not null) scatter.ReachMetres = (float)value;
+            if (projection is not VoxelScenePresentation current) return;
+            engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(current, CoarseDistance));
+            scatter?.Grow(current);
+        }
+    }
 
     internal void Project(SpatialSession session)
     {
@@ -54,7 +78,7 @@ internal sealed class TerrainPresentation : IDisposable
             session,
             MaterialBindings(),
             FaceMaterialBindings()));
-        engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, CoarseBeyondMetres));
+        engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, CoarseDistance));
         scatter?.Grow(projection);
     }
 
@@ -75,8 +99,8 @@ internal sealed class TerrainPresentation : IDisposable
     internal string LevelOfDetailReadout()
     {
         if (projection is not VoxelScenePresentation current) return "lod=none";
-        VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(current, CoarseBeyondMetres));
-        return FormattableString.Invariant($"lod coarseBeyond={CoarseBeyondMetres}m chunks={readout.ChunkCount} coarse={readout.CoarseChunkCount}");
+        VoxelScenePresentationReadout readout = engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(current, CoarseDistance));
+        return FormattableString.Invariant($"lod coarseBeyond={CoarseDistance}m chunks={readout.ChunkCount} coarse={readout.CoarseChunkCount}");
     }
 
     /// <summary>

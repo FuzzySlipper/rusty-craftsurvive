@@ -68,6 +68,13 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"health={state.Health}/{state.MaximumHealth} defeats={state.Defeats} respawnStep={state.RespawnTick} outcome={player.Vitals.Outcome(player.CurrentStep)}");
     }
 
+    [DebugCommand("craft.terrain.groundcover", Description = "Assisted (#9911): sets how far ground cover grows (metres), as the Ground cover option does for the session, and reads the scatter and the coarse distance.")]
+    public string TerrainGroundCover(double metres)
+    {
+        terrain.GroundCoverMetres = metres;
+        return $"{terrain.ScatterReadout()} {terrain.LevelOfDetailReadout()}";
+    }
+
     [DebugCommand("craft.terrain.scene", Description = "Reads the current Engine-owned voxel scene facts.")]
     public string ReadTerrainScene()
     {
