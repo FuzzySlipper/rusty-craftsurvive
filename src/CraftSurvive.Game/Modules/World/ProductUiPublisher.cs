@@ -99,6 +99,9 @@ internal readonly record struct WorldUiFacts(VoxelSceneReadout Scene, int Overla
 /// <summary>The sled for the pack screen (#9473): whether it is within reach, its load, and its cargo as <c>id|name|count;...</c>.</summary>
 internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, string Cargo, double DistanceMetres, string ExpeditionPrompt = "");
 
+/// <summary>The pause menu (#9916): whether the game is held under it, and whether the host can quit from it.</summary>
+internal readonly record struct GameMenuUiFacts(bool Paused, bool QuitAvailable);
+
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation, bool Faceted,
     string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);
 
@@ -164,6 +167,16 @@ internal sealed class ProductUiPublisher : IDisposable
 
     private string? gameOptions;
 
+    /// <summary>The pause menu (#9916): the install's, so a world's reset keeps it.</summary>
+    internal void PublishMenu(GameMenuUiFacts facts)
+    {
+        if (menu == facts) return;
+        menu = facts;
+        Publish();
+    }
+
+    private GameMenuUiFacts? menu;
+
     internal void PublishSled(SledUiFacts facts)
     {
         if (sled == facts) return;
@@ -223,7 +236,7 @@ internal sealed class ProductUiPublisher : IDisposable
         // Without a world there is no scene; the map and its generating message still publish.
         WorldUiFacts? facts = world?.Invoke();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions)));
+            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions, menu)));
     }
 
     public void Dispose()

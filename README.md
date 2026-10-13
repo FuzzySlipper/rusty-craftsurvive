@@ -43,12 +43,16 @@ Those generated artifacts are not checked projects and must not be edited.
 Only `content/game/` is staged into the product. `content/animations/` and
 `content/voxels/` are preserved user-owned assets that the product does not load.
 
-Open **World** to inspect the generated geography, visit a representative region,
-or create a fresh world from a seed and width. The map pauses local gameplay;
+Press **Esc** (or Start on a controller) to pause under the menu: Continue, New world
+(a fresh world from a seed and width), Load (waiting on save slots), Options and Quit
+(where the host has a window to close).
+
+Open **World** to inspect the generated geography or visit a representative region.
+The map pauses local gameplay;
 **Return to exploration** returns to the place you left. Region visits are a
 prototype inspection affordance, not the proposed overland travel system.
 
-For terrain appearance comparisons, open **Menu**, choose **Landscape study**, and
+For terrain appearance comparisons, open **Details**, choose **Landscape study**, and
 press **Visit landscape**. Ochre canyon, Sage uplands and Frost ridge are authored,
 separately loaded spaces with ordinary walking and collision.
 Their natural surfaces use the generated maps and exact prompts in

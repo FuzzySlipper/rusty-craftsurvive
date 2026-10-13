@@ -773,12 +773,22 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   again. Items are drawn as a coloured block by use and an initial: there is no item art. The journal lists
   the 48 places most recently learned (`DiscoveryModule.JournalShown`), not every place found.
   Everything else - the published facts, the building actions, rest, difficulty, the controls - is
-  the Menu drawer, closed by default. The UI holds no game state, only what it last drew and which
+  the Details drawer, closed by default. The UI holds no game state, only what it last drew and which
   screen is open; the screens' keys are read by the page, so a controller cannot open them yet. The
   projection is the product's one UI channel, stream `craftsurvive.game` and contract
   `craftsurvive.game.v1` (`ProductUiPublisher.StreamName`); kind and stage enums travel as
   numbers and may be appended to but never renumbered.
-- **Options (#9759)** in the Menu drawer mount the Engine's video options panel when opened. It
+- **The pause menu (#9916)** is a centred column over the game: Continue, New world, Load, Options
+  and Quit. Whether the game is paused is C#'s fact: it holds the Engine's gameplay time at zero,
+  drops the player's input and advances nothing until Continue. Esc claims the pause (after a pack
+  or journal takes its own Esc), and so does losing the pointer while playing, since a browser keeps
+  the Esc that frees a held pointer for itself; the controller's Start button toggles it in C#.
+  New world validates the seed and width, then runs the game again on the map, where the world
+  arrives. Load is shown but disabled until there are save slots: there is one active world, saved
+  as it is played. Quit closes the window through the Engine host where the host has one
+  (`HostReadout.ExitAvailable`); in a browser tab it is disabled. The menu is not yet driven by a
+  controller's stick and buttons beyond Start.
+- **Options (#9759)** in the pause menu mount the Engine's video options panel when first opened. It
   holds every renderer setting the pinned pair has, with presets, and the Engine keeps the player's
   choices for the install over the project's manifest values. The game adds three options of its
   own, owned in C# (`GameOptions`) and kept for the install in the `craftsurvive.options` scope,

@@ -6,19 +6,20 @@ import { element, isolateEvents } from './dom.js';
 import { mountHud } from './hud.js';
 import { mountLoading } from './loading.js';
 import { mountOverlay } from './overlay.js';
-import { mountOptions } from './options.js';
+import { mountMenu } from './menu.js';
 import { mountScreens } from './screens.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
   + '(and lets go); J attacks; F digs; T starts building, where G places and F removes a piece (Q steps the piece, Z its material), T again switches to the terrain brush (G places, F clears, B changes the brush) and T a third time stops building; 1-9 or the wheel select a hotbar slot and R uses it; '
-  + 'I opens the pack, M the journal of places, Esc closes them. '
-  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, D-pad down steps building as T does, LB and RB step the hotbar, D-pad up uses.';
+  + 'I opens the pack, M the journal of places, Esc closes them. Esc otherwise pauses the game under the menu (Continue, New world, Options, Quit). '
+  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, D-pad down steps building as T does, LB and RB step the hotbar, D-pad up uses, Start pauses.';
 
 /**
  * The DOM companion. It shows what the product publishes through the projection and claims the
  * product's action intent; C# owns every game fact and decides what each request does. The game's
- * HUD sits over the view, with the pack and journal screens opened over it; the menu - every
- * published fact, the building actions and the tools - is a drawer, closed until the player opens it.
+ * HUD sits over the view, with the pack and journal screens opened over it and the pause menu (new
+ * world, options, quit) over everything; the drawer - every published fact, the building actions and
+ * the tools - stays closed until the player opens it.
  */
 export function mountProductUi(root: Element, context: RustyApplicationUiContext): Readonly<{ dispose(): void }> {
   const gameUi = element('div');
@@ -31,7 +32,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   isolateEvents(panel);
 
   const drawer = element('details', '');
-  drawer.append(element('summary', 'cursor:pointer;font-weight:700;', 'Menu'));
+  drawer.append(element('summary', 'cursor:pointer;font-weight:700;', 'Details'));
   const contents = element('div', '');
   drawer.append(contents);
   panel.append(drawer);
@@ -43,12 +44,13 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const unsubscribe = mountHud(contents, context.projection);
   const unsubscribeActions = mountActions(contents, context.intents, context.projection);
   contents.append(element('p', 'margin:.35rem 0 0;opacity:.75;', CONTROLS_HELP));
-  const disposeOptions = mountOptions(contents, context.intents, context.projection, status);
   const disposeDeveloperTools = mountDeveloperTools(contents, status);
   gameUi.append(panel);
   const disposeOverlay = mountOverlay(gameUi, context.projection);
   const disposeLoading = mountLoading(gameUi, context.projection);
   const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
+  // After the screens, so the pack or journal takes its own Esc first.
+  const disposeMenu = mountMenu(root, context.ui, context.intents, context.projection);
 
   const disposeWorld = mountWorld(root, gameUi, context.ui, context.intents, context.projection);
 
@@ -56,7 +58,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
     dispose: () => {
       unsubscribe();
       unsubscribeActions();
-      disposeOptions();
+      disposeMenu();
       disposeOverlay();
       disposeLoading();
       disposeScreens();

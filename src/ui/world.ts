@@ -81,28 +81,12 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const eventChoices = element('div', 'display:flex;gap:.4rem;flex-wrap:wrap;');
   travelEvent.append(eventTitle, eventText, eventChoices);
   let renderedEvent = '';
-  const form = element('form', PANEL + 'position:absolute;right:1rem;bottom:1rem;width:18rem;');
-  form.append(element('h3', 'margin:0 0 .5rem;', 'Begin a new world'));
-  const seedLabel = element('label', 'display:block;', 'World seed');
-  const seed = element('input', 'box-sizing:border-box;width:100%;margin:.3rem 0 .7rem;');
-  seed.name = 'seed'; seed.inputMode = 'numeric'; seed.pattern = '[0-9]+'; seed.required = true; seed.maxLength = 20;
-  seed.value = '12345'; seedLabel.append(seed);
-  const sizeLabel = element('label', 'display:block;', 'World width');
-  const size = element('select', 'margin:.3rem 0 .7rem;width:100%;');
-  size.name = 'size';
-  for (const [value, label] of [[4096, '4 km'], [8192, '8 km'], [16384, '16 km'], [390000, '390 km continent (experimental)']] as const) {
-    const option = element('option', '', label); option.value = String(value); size.append(option);
-  }
-  size.value = '8192'; sizeLabel.append(size);
-  const create = button('Create new world'); create.type = 'submit';
-  form.append(seedLabel, sizeLabel, element('p', 'font-size:.85rem;opacity:.75;', 'Starts a fresh expedition and replaces your active world.'), create);
-  form.addEventListener('submit', event => { event.preventDefault(); claim({ action: 'create', seed: seed.value, size: Number(size.value) }); });
   const status = element('p', PANEL + 'position:absolute;top:5rem;left:50%;transform:translateX(-50%);max-width:40rem;');
   status.setAttribute('role', 'status');
-  for (const panel of [heading, destinations, form, status, journey, travelEvent]) {
+  for (const panel of [heading, destinations, status, journey, travelEvent]) {
     panel.setAttribute('data-rusty-ui-interactive', ''); isolateEvents(panel);
   }
-  screen.append(heading, destinations, form, status, journey, travelEvent); host.append(open, screen);
+  screen.append(heading, destinations, status, journey, travelEvent); host.append(open, screen);
   let renderedSites = '';
   const render = (): void => {
     const values = projectionValues(projection?.current() ?? null);

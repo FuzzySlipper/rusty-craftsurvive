@@ -41,21 +41,19 @@ const gameOptions = (values: Values): GameOption[] => (text(values, 'gameOptions
   });
 
 /**
- * The options menu (#9759): the Engine's video options panel - every renderer setting this pair has,
+ * The options (#9759): the Engine's video options panel - every renderer setting this pair has,
  * kept for the install by the Engine - with the game's own options beside them. The game's options
  * are what C# publishes; a change is a claim on the product's action intent, and C# applies and keeps
- * it and publishes them again. Nothing is mounted or fetched until the player opens it.
+ * it and publishes them again. The pause menu shows them (#9916); nothing is mounted or fetched until
+ * the player first opens them there.
  */
 export function mountOptions(host: HTMLElement, intents: RustyApplicationUiIntentsPort | undefined,
-  projection: RustyApplicationUiProjectionView | undefined, status: HTMLElement): () => void {
-  const details = element('details', 'margin-top:.35rem;');
-  details.append(element('summary', 'cursor:pointer;font-weight:700;', 'Options'));
-  const holder = element('div', 'margin-top:.3rem;');
+  projection: RustyApplicationUiProjectionView | undefined, status: HTMLElement): Readonly<{ show(): void; dispose(): void }> {
+  const holder = element('div', '');
   holder.className = HOLDER_CLASS;
   const theme = element('style');
   theme.textContent = `.${HOLDER_CLASS} .rusty-video-options { ${Object.entries(PANEL_STYLE).map(([name, value]) => `${name}: ${value};`).join(' ')} padding: .35rem .2rem; }`;
-  details.append(theme, holder);
-  host.append(details);
+  host.append(theme, holder);
 
   let published: GameOption[] = [];
   let panel: VideoOptionsMount | null = null;
@@ -99,8 +97,8 @@ export function mountOptions(host: HTMLElement, intents: RustyApplicationUiInten
     show();
   };
 
-  details.addEventListener('toggle', () => {
-    if (!details.open || panel !== null || mounting) return;
+  const open = (): void => {
+    if (panel !== null || mounting) return;
     mounting = true;
     status.hidden = true;
     void import('@rusty-engine/video-options').then(async ({ mountVideoOptions }) => {
@@ -112,15 +110,19 @@ export function mountOptions(host: HTMLElement, intents: RustyApplicationUiInten
       status.textContent = message(error, 'The options could not open.');
       status.hidden = false;
     }).finally(() => { mounting = false; });
-  });
+  };
 
   if (projection !== undefined) read(projectionValues(projection.current()));
   const unsubscribe = projection?.subscribe((envelope) => read(projectionValues(envelope))) ?? ((): void => {});
-  return () => {
-    disposed = true;
-    clearTimeout(settle);
-    unsubscribe();
-    panel?.dispose();
-    details.remove();
-  };
+  return Object.freeze({
+    show: open,
+    dispose: () => {
+      disposed = true;
+      clearTimeout(settle);
+      unsubscribe();
+      panel?.dispose();
+      theme.remove();
+      holder.remove();
+    },
+  });
 }

@@ -4,6 +4,7 @@ import { button, element, isolateEvents } from './dom.js';
 import { number, projectionValues, text, type Values } from './hud.js';
 import { drawMap, mark, places, standing } from './map.js';
 import { WORLD_CONTRACT, WORLD_INTENT } from './world.js';
+import { layers } from './layers.js';
 import { EQUIPMENT, hotbarSlots, packSlots, selectedSlot, SLOT_PIXELS, SlotDrag, slotItems } from './slots.js';
 
 /** The keys that open each screen; Escape closes whichever is open. */
@@ -191,6 +192,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
 
   const show = (which: 'pack' | 'journal' | null): void => {
     open = open === which ? null : which;
+    layers.screen = open !== null;
     // The pointer is the player's again while a screen is open, so its slots and buttons can be used.
     if (open !== null && document.pointerLockElement !== null) document.exitPointerLock();
     draw(true);
@@ -321,10 +323,15 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
   };
 
   const onKey = (event: KeyboardEvent): void => {
-    if (event.repeat) return;
+    // Under the pause menu the screens wait (#9916).
+    if (event.repeat || layers.menu) return;
     if (event.code === PACK_KEY) show('pack');
     else if (event.code === JOURNAL_KEY) show('journal');
-    else if (event.code === CLOSE_KEY && open !== null) show(null);
+    else if (event.code === CLOSE_KEY && open !== null) {
+      // Esc closed this screen, so the pause menu does not open on the same press.
+      event.preventDefault();
+      show(null);
+    }
   };
   packTab.addEventListener('click', () => show('pack'));
   journalTab.addEventListener('click', () => show('journal'));
@@ -343,6 +350,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
     unsubscribe?.();
     window.removeEventListener('keydown', onKey, true);
     window.clearTimeout(refusalTimer);
+    layers.screen = false;
     drag.dispose();
     corner.remove();
     hotbar.remove();

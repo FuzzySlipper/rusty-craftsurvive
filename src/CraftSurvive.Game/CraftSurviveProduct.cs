@@ -277,6 +277,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             (x, z) => worldBuilt ? BoundReadout(x, z) : "no world", (x, z) => worldBuilt ? PlanReadout(x, z) : "no world")));
         RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => facetedMap, style => requestedMapStyle = MapSurfaceStyle.Named(style),
             view => worldBuilt ? MapViewReadout(view) : "no world")));
+        RequireRegistration(registrar.Register(new MenuDebugModule(PauseReadout)));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
@@ -307,6 +308,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         try
         {
             ui.OpenStream();
+            PublishMenu();
             if (worldBuilt) StartWorld();
             else worldMessage = FirstWorldMessage;
             lifecycle = ProductLifecycleState.Running;
@@ -327,8 +329,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
         bool watching = engine.CameraView.ReadSurface().Watching;
-        if (!update.Facts.GameplayTimeSelected || (update.Facts.GameplayRate > 0) != watching)
-            engine.GameplayTime.SetRate(watching ? 1 : 0);
+        // The clock runs while someone watches and the game is not held under the menu (#9916).
+        bool running = watching && !paused;
+        if (!update.Facts.GameplayTimeSelected || (update.Facts.GameplayRate > 0) != running)
+            engine.GameplayTime.SetRate(running ? 1 : 0);
         if (!watching)
         {
             if (worldBuilt) player.ClearInput();
@@ -338,7 +342,14 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             if (update.Facts.AdmittedStepCount == 0) return ProductUpdateResult.None;
         }
         if (AdmitPreparedWorld() || !worldBuilt) return ProductUpdateResult.None;
+        if (MenuButtonPressed(update)) SetPaused(!paused);
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
+        if (paused)
+        {
+            // As when nobody watches: the steps the Engine already admitted finish, then everything waits.
+            player.ClearInput();
+            if (update.Facts.AdmittedStepCount == 0) return ProductUpdateResult.None;
+        }
         if (mapOpen)
         {
             ApplyRequestedMapStyle();

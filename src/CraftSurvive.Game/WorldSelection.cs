@@ -43,6 +43,15 @@ public sealed partial class CraftSurviveProduct
                     throw new FormatException("Choose a world action.");
                 switch (action.GetString())
                 {
+                    case "pause":
+                        SetPaused(true);
+                        break;
+                    case "resume":
+                        SetPaused(false);
+                        break;
+                    case "quit":
+                        Quit();
+                        break;
                     case "open":
                         OpenMap();
                         break;
@@ -94,7 +103,7 @@ public sealed partial class CraftSurviveProduct
                         ShowFacetedMap(!facetedMapShown);
                         break;
                     case "create":
-                        if (!mapOpen) throw new FormatException("Open the world map to start a new world.");
+                        if (!mapOpen && !paused) throw new FormatException("Open the world map or the menu to start a new world.");
                         if (!root.TryGetProperty("seed", out JsonElement seedElement) || seedElement.ValueKind != JsonValueKind.String
                             || !ulong.TryParse(seedElement.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out ulong seed))
                             throw new FormatException("Use a whole-number seed between 0 and 18446744073709551615.");
@@ -102,6 +111,9 @@ public sealed partial class CraftSurviveProduct
                             throw new FormatException("Choose one of the offered world sizes.");
                         if (worlds.Preparing) throw new FormatException("A world is already being generated.");
                         worlds.BeginPrepare(seed, size);
+                        // From the menu the game runs again on the map, where the new world arrives.
+                        SetPaused(false);
+                        if (!mapOpen) OpenMap();
                         worldMessage = MapScale.IsContinental(size)
                             ? FormattableString.Invariant($"Generating a {size / 1000} km continent: raising ranges, running rivers and settling climate (this takes a little while)...")
                             : FormattableString.Invariant($"Generating a {size / MetresPerKilometre} km world: raising ranges, running rivers and settling climate...");
