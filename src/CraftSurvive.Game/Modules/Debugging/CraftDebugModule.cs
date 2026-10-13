@@ -150,6 +150,18 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.water.study", Description = "Assisted (#9819): floods the hollow at x,z to a level (metres) within a radius, as voxel water cells (mode voxel) or one water surface mesh at the level (mode surface); mode river clears a river's voxel water within the radius (for good) and draws it as a skin at its unfloored surface (level unused); mode clear removes both; mode find lists the deepest closed hollows within level metres of x,z, each bounded by the radius.")]
     public string WaterStudy(string mode, double x, double z, double level, long radius) => terrain.WaterStudy(mode, x, z, level, radius);
 
+    [DebugCommand("craft.water.visual", Description = "Water appearance comparison: baseline, flow, or velocity (red +X, green +Z, blue slow).")]
+    public string WaterVisual(string mode) => terrain.WaterVisual(mode);
+
+    [DebugCommand("craft.water.flow", Description = "Starts a 128 m Engine WaterField around world x,z, using the terrain bed and boundary stages. Its current drives appearance only; gameplay water is unchanged.")]
+    public string WaterFlow(double x, double z) => terrain.StartWaterFlow(x, z);
+
+    [DebugCommand("craft.water.flow.stop", Description = "Stops the local visual flow study and restores regional current inputs.")]
+    public string StopWaterFlow() => terrain.StopWaterFlow();
+
+    [DebugCommand("craft.water.flow.at", Description = "Compares the Engine field's current and depth with the regional water at world x,z.")]
+    public string WaterFlowAt(double x, double z) => terrain.WaterFlowAt(x, z);
+
     [DebugCommand("craft.terrain.fartrees", Description = "Assisted (#9677): how far the distant trees reach in metres (0 off, up to 400), for measuring their cost.")]
     public string SetFarTrees(long metres) => terrain.SetFarTrees(metres);
 

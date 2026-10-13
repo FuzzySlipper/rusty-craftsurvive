@@ -93,6 +93,11 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string WaterReadout() => string.Create(CultureInfo.InvariantCulture, $"{waterSurfaces.Readout()} icePatches={IcePatches}");
 
+    internal string WaterVisual(string mode) => waterSurfaces.SetVisual(mode);
+    internal string StartWaterFlow(double x, double z) => waterSurfaces.StartFlow(Session, x, z);
+    internal string StopWaterFlow() => waterSurfaces.StopFlow();
+    internal string WaterFlowAt(double x, double z) => waterSurfaces.FlowAt(x, z);
+
     /// <summary>Moves on whenever the water's stage does, so what keeps water samples knows to take them again.</summary>
     internal long WaterRevision { get; private set; }
 
@@ -195,6 +200,7 @@ internal sealed class TerrainWorld : IDisposable
     internal void Update(ProductStep step)
     {
         currentStep = step.Step;
+        waterSurfaces.UpdateFlow(step.Step);
         overlayStore.SaveIfDue(step.Step);
     }
 

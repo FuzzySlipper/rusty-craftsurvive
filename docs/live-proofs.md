@@ -95,6 +95,23 @@ are for the lane:
 A command earns its place by serving one of these; one whose experiment has ended is retired
 with it.
 
+**Water appearance comparison.**
+
+At a river or lake, use `craft.water.visual baseline` and `craft.water.visual flow` to compare
+the original material with the layered surface at the same camera pose and held time.
+`craft.water.visual velocity` displays the mesh's current: red increases toward +X, green
+toward +Z, and blue means slow flow. Resume time to judge motion as well as the still image.
+
+`craft.water.flow <world-x> <world-z>` starts a 128 m Engine WaterField over the generated bed,
+with fixed stages on wet boundary cells. Its sampled current drives the appearance, blending
+back to regional current near the edge. This study does not change water levels, swimming,
+boats or terrain; it is a visual consumer of the field. `craft.water.flow.at <x> <z>` compares
+field depth/current with the regional current, and `craft.water.readout` includes snapshot age
+and worker cost. Check movement both inside the field and across its edge.
+`craft.water.flow.stop` restores regional flow. The study's bed and boundary stages are captured
+when started; restart it after terrain or river-stage changes. Compare in the overworld:
+separate landscape studies and distant map water use their own materials.
+
 **How input reaches the product.** `walk` does not use a page. It claims input through the
 host's harness lane (`control/claim`, `runtime/input`, `control/release`), which delivers key facts to
 the product's ordinary mappings exactly as a page would; an attached page shows the input as held
