@@ -317,6 +317,10 @@ internal sealed class PlayerInputState
             case ControllerButton.Button12:
                 usePending = true;
                 break;
+            case ControllerButton.Button13:
+                // D-pad down steps building, as T does (#9811).
+                buildModeToggle = !buildModeToggle;
+                break;
         }
 
         pendingEdit = button switch

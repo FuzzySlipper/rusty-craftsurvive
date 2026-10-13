@@ -112,6 +112,22 @@ public sealed class CraftDebugModule : IDebugCommandModule
         : !Building.PieceCatalog.TryParse(material, out Building.PieceMaterial pieceMaterial) ? $"refused: no material {material}"
         : pieces.PlaceAt(pieceKind, pieceMaterial, x, y, z, (int)turn);
 
+    [DebugCommand("craft.build.mode", Description = "Assisted (#9811): sets building to off, pieces or terrain (the brush), as T steps it; out of building no ghost shows and nothing is placed.")]
+    public string BuildMode(string mode)
+    {
+        if (player.Pieces is not Building.BuildPieceModule pieces) return "refused: no building here";
+        Building.BuildMode? chosen = mode.ToLowerInvariant() switch
+        {
+            "off" => Building.BuildMode.Off,
+            "pieces" => Building.BuildMode.Pieces,
+            "terrain" or "earthworks" => Building.BuildMode.Earthworks,
+            _ => null,
+        };
+        if (chosen is not Building.BuildMode set) return "refused: choose off, pieces or terrain";
+        pieces.SetMode(set);
+        return pieces.Readout();
+    }
+
     [DebugCommand("craft.build.pieces", Description = "Reads the build pieces: how many stand, the selection, the ghost's anchor and the save.")]
     public string ReadPieces() => player.Pieces?.Readout() ?? "no pieces";
 

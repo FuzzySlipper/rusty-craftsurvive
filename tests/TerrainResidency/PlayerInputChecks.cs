@@ -63,6 +63,34 @@ internal static class PlayerInputChecks
         frame = input.Consume([Button(ControllerButton.Button6, InputEdge.Pressed)], 1f / 60f);
         Check.That(frame.Edit == TerrainEditKind.Set, "left trigger did not queue a set edit");
 
+        // Building is a mode the player steps through (#9811): T, or D-pad down on a controller.
+        frame = input.Consume([Key(KeyboardControl.KeyT, InputEdge.Pressed)], 1f / 60f);
+        Check.That(frame.BuildModeToggle, "T did not step building");
+        frame = input.Consume([Button(ControllerButton.Button13, InputEdge.Pressed)], 1f / 60f);
+        Check.That(frame.BuildModeToggle, "D-pad down did not step building");
+        frame = input.Consume([], 1f / 60f);
+        Check.That(!frame.BuildModeToggle, "a build step is taken once, not held");
+        Check.That(Modules.Building.BuildModes.Next(Modules.Building.BuildMode.Off) == Modules.Building.BuildMode.Pieces
+            && Modules.Building.BuildModes.Next(Modules.Building.BuildMode.Pieces) == Modules.Building.BuildMode.Earthworks
+            && Modules.Building.BuildModes.Next(Modules.Building.BuildMode.Earthworks) == Modules.Building.BuildMode.Off,
+            "the build key steps off, pieces, the terrain brush and off again");
+        Check.That(!Modules.Building.BuildModes.ShowsGhost(Modules.Building.BuildMode.Off) && Modules.Building.BuildModes.ShowsGhost(Modules.Building.BuildMode.Pieces)
+            && !Modules.Building.BuildModes.ShowsGhost(Modules.Building.BuildMode.Earthworks), "the ghost shows only while building with pieces");
+        Check.That(Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Off, TerrainEditKind.Set, false) == Modules.Building.BuildEditOutcome.Refused
+            && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Off, TerrainEditKind.Set, true) == Modules.Building.BuildEditOutcome.Refused,
+            "out of building nothing is placed");
+        Check.That(Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Off, TerrainEditKind.Clear, false) == Modules.Building.BuildEditOutcome.Terrain
+            && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Off, TerrainEditKind.Clear, true) == Modules.Building.BuildEditOutcome.Refused,
+            "out of building digging works, but stops at a piece rather than taking it down");
+        Check.That(Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Pieces, TerrainEditKind.Set, false) == Modules.Building.BuildEditOutcome.Pieces
+            && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Pieces, TerrainEditKind.Clear, true) == Modules.Building.BuildEditOutcome.Pieces
+            && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Pieces, TerrainEditKind.Clear, false) == Modules.Building.BuildEditOutcome.Terrain,
+            "building with pieces places them and takes them down, and digs past none");
+        Check.That(Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Earthworks, TerrainEditKind.Set, false) == Modules.Building.BuildEditOutcome.Terrain
+            && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Earthworks, TerrainEditKind.Clear, false) == Modules.Building.BuildEditOutcome.Terrain
+            && Modules.Building.BuildModes.Edit(Modules.Building.BuildMode.Earthworks, TerrainEditKind.Set, true) == Modules.Building.BuildEditOutcome.Refused,
+            "the terrain brush places and digs the ground, but not through a piece");
+
         input.Reset();
         frame = input.Consume([], 1f / 60f);
         Check.That(frame.PlanarIntent == Vector2.Zero && frame.LookDelta == Vector2.Zero

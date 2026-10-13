@@ -22,7 +22,9 @@ namespace CraftSurvive.Game.Modules.Building;
 /// (<see cref="PiecePresenter"/>), their collision as the walking session's (<see cref="PieceColliders"/>), the place and
 /// break cues, the save, and a line for the HUD.</item>
 /// </list>
-/// T switches placing between pieces and the terrain brush (earthworks); Q steps the piece, Z its material.
+/// Building is a mode (#9811, <see cref="BuildModes"/>): T steps it from off to pieces to the terrain brush
+/// (earthworks) and off again; Q steps the piece, Z its material. Out of it no ghost shows and nothing is
+/// placed. It starts off in every session.
 /// </summary>
 internal sealed class BuildPieceModule : IProductModule
 {
@@ -75,8 +77,8 @@ internal sealed class BuildPieceModule : IProductModule
 
     internal RemnantSet Remnants => remnants;
 
-    /// <summary>Whether placing builds pieces (true) or works the terrain with the brush.</summary>
-    internal bool PiecesMode { get; private set; } = true;
+    /// <summary>Whether the player is building, and with what. Off at the start of every session, so a loaded world shows no ghost.</summary>
+    internal BuildMode Mode { get; private set; } = BuildMode.Off;
 
     internal PieceKind Kind => kind;
 
@@ -84,10 +86,20 @@ internal sealed class BuildPieceModule : IProductModule
 
     internal BuildPieceSet Set => set;
 
-    /// <summary>The HUD's line: what placing does now, and the keys that change it.</summary>
-    internal string HudLine => PiecesMode
-        ? $"{PieceCatalog.Name(kind)} in {PieceCatalog.Name(Material)} (G places, F removes, Q piece, Z material, T terrain)"
-        : "terrain brush (G places, F digs, T pieces)";
+    /// <summary>The HUD's line: what placing does now, and the keys that change it; none out of building.</summary>
+    internal string HudLine => Mode switch
+    {
+        BuildMode.Pieces => $"{PieceCatalog.Name(kind)} in {PieceCatalog.Name(Material)} (G places, F removes, Q piece, Z material, T terrain)",
+        BuildMode.Earthworks => "terrain brush (G places, F digs, B brush, T stops building)",
+        _ => string.Empty,
+    };
+
+    /// <summary>Sets the mode outright (assisted building and captures); the build key steps it.</summary>
+    internal void SetMode(BuildMode mode)
+    {
+        Mode = mode;
+        if (!BuildModes.ShowsGhost(mode)) presenter.Ghost = null;
+    }
 
     public void Start()
     {
@@ -143,7 +155,7 @@ internal sealed class BuildPieceModule : IProductModule
     /// </summary>
     internal void Steer(Vector3 eye, Vector3 forward, int kindSteps, int materialSteps, bool toggleMode, bool active)
     {
-        if (toggleMode) PiecesMode = !PiecesMode;
+        if (toggleMode) Mode = BuildModes.Next(Mode);
         if (kindSteps != 0)
         {
             int count = PieceCatalog.Kinds.Count;
@@ -157,7 +169,7 @@ internal sealed class BuildPieceModule : IProductModule
             materialIndex = ((materialIndex + materialSteps) % count + count) % count;
         }
 
-        if (active && PiecesMode && Candidate(eye, forward) is { } candidate)
+        if (active && BuildModes.ShowsGhost(Mode) && Candidate(eye, forward) is { } candidate)
         {
             presenter.Ghost = candidate.Piece;
             presenter.GhostValid = Verdict(candidate.Piece, eye) is null;
@@ -181,6 +193,16 @@ internal sealed class BuildPieceModule : IProductModule
         PieceHit? remnantHit = CastRemnants(origin, forward);
         bool remnantFirst = remnantHit is PieceHit r && (!ground.Present || r.Distance <= ground.Distance)
             && (pieceHit is not PieceHit p || r.Distance < p.Distance);
+        switch (BuildModes.Edit(Mode, edit, pieceFirst || remnantFirst))
+        {
+            case BuildEditOutcome.Terrain:
+                return false;
+            case BuildEditOutcome.Refused:
+                // Out of building nothing is placed, and digging stops at a piece rather than taking it down.
+                last = edit == TerrainEditKind.Set ? "not building (T builds)" : "a piece is in the way (T builds, to take it down)";
+                return true;
+        }
+
         if (edit == TerrainEditKind.Clear && remnantFirst)
         {
             // Taking down what is left of a bitten piece takes all of it.
@@ -205,7 +227,6 @@ internal sealed class BuildPieceModule : IProductModule
             return true;
         }
 
-        if (!PiecesMode) return false;
         if (Candidate(eye, forward) is not { } candidate)
         {
             Refuse("nothing within reach to build on");
@@ -306,7 +327,7 @@ internal sealed class BuildPieceModule : IProductModule
         $"{PieceCatalog.Name(remnant.Piece.Kind)}@{remnant.Piece.Anchor.X:F2},{remnant.Piece.Anchor.Y:F2},{remnant.Piece.Anchor.Z:F2}/t{remnant.Piece.Turn} craters={remnant.Craters.Count} boxes={RemnantBoxes()[index].Count}")));
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={(PiecesMode ? "pieces" : "terrain")} remnants={remnants.Count} fell={fell} chunks={remnantVoxels.ResidentChunks} colliders={colliders.Instances} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
+        $"pieces count={set.Count} placed={placed} removed={removed} refused={refused} mode={BuildModes.Name(Mode)} remnants={remnants.Count} fell={fell} chunks={remnantVoxels.ResidentChunks} colliders={colliders.Instances} destroyed={destroyed} broken={bitten} collapsed={collapsed} selected={PieceCatalog.Name(kind)}/{PieceCatalog.Name(Material)} ghost={(presenter.Ghost is PlacedPiece g ? $"{g.X * PlacedPiece.GridMetres:F2},{g.Y * PlacedPiece.GridMetres:F2},{g.Z * PlacedPiece.GridMetres:F2}/t{g.Turn}" : "none")} last={last} restore={slot.RestoreOutcome} saves={slot.Saves}");
 
     /// <summary>What this view meets: the nearest piece and the ground, with their distances, for diagnosis.</summary>
     internal string AimReadout(Vector3 eye, Vector3 forward)

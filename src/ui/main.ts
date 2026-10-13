@@ -10,9 +10,9 @@ import { mountOptions } from './options.js';
 import { mountScreens } from './screens.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
-  + '(and lets go); J attacks; G places and F removes a building piece (Q steps the piece, Z its material; T switches to the terrain brush, where F clears, G places and B changes the brush); 1-9 or the wheel select a hotbar slot and R uses it; '
+  + '(and lets go); J attacks; F digs; T starts building, where G places and F removes a piece (Q steps the piece, Z its material), T again switches to the terrain brush (G places, F clears, B changes the brush) and T a third time stops building; 1-9 or the wheel select a hotbar slot and R uses it; '
   + 'I opens the pack, M the journal of places, Esc closes them. '
-  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, LB and RB step the hotbar, D-pad up uses.';
+  + 'Controller: left stick moves, right stick looks, A jumps, B crouches, Y climbs, RT clears, LT places, D-pad down steps building as T does, LB and RB step the hotbar, D-pad up uses.';
 
 /**
  * The DOM companion. It shows what the product publishes through the projection and claims the

@@ -21,6 +21,7 @@
     <Compile Include="$(ProductModules)Travel/*.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/BoatFloat.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Building/BuildMode.cs" LinkBase="Product/Building" />
     <Compile Include="$(ProductModules)Water/SeaWaves.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/SeaState.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/WaterWaveSettings.cs" LinkBase="Product/Water" />

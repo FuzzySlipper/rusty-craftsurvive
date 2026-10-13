@@ -456,7 +456,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   takes one voxel session. Remnants collide as their solid cells merged into world-axis boxes. F
   takes a whole remnant away. Remnants offer no sockets, nothing falls when what held it up is
   gone, and the triplanar maps on a remnant do not line up with its intact piece's planar ones.
-- **Cube building remains for earthworks.** T switches placing to the terrain brush, and the UI still
+- **Cube building remains for earthworks.** Building is a mode (#9811): T steps it from off to pieces to
+  the terrain brush and off again, and out of it nothing is placed and no ghost shows. The UI still
   builds floors and walls from `BuildPalette` blocks, laid relative to where the player faces, and
   only over replaceable cells (air, water), so a floor across a slope fills the gaps and leaves the
   hill. Undo takes back the last floor or wall only, and leaves empty what it clears rather than
