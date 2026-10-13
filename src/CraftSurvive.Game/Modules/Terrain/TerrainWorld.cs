@@ -93,12 +93,16 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string WaterReadout() => string.Create(CultureInfo.InvariantCulture, $"{waterSurfaces.Readout()} icePatches={IcePatches}");
 
+    /// <summary>Moves on whenever the water's stage does, so what keeps water samples knows to take them again.</summary>
+    internal long WaterRevision { get; private set; }
+
     /// <summary>
     /// The water's stage moved on (#9878): the near water is sampled again as updates allow, and the far
     /// field where water froze, thawed, ran dry or came back.
     /// </summary>
     internal void RefreshWater(IReadOnlyList<Water.WaterBounds> changed)
     {
+        WaterRevision++;
         waterSurfaces.Refresh();
         farField?.InvalidateWater(changed);
     }

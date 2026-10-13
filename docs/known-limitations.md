@@ -90,7 +90,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     on the walked channel up to 160 m away. In first person a boat is a kinematic float: level, at
     the surface, a little lower laden, with no tilt or tipping (rusty-engine #9883 if that reads
     wrong); the canoe rides with its floor at the surface, because the water plane would show inside
-    a hull below it. Creatures do not yet avoid water.
+    a hull below it.
+  - Creatures keep out of water deeper than they wade (0.7 m over their feet): their navigation is
+    overlaid with the deep cells closed and fords costed, but they cannot swim, so a river with no ford
+    parts them from the player, and one already in deep water closes on the player directly. Their step
+    query honours a closed cell but not a ford's cost (only the Engine's weighted full-path query
+    does). The overlay is laid when navigation is published, so a river rising afterwards is read at
+    the next publication. The first publication beside water explains each wet column, about 60 ms.
   - Settlements (the sea port, river towns and the mountain hold) are map places only: there are no
     town scenes yet, and the expedition does not yet start at the port.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans

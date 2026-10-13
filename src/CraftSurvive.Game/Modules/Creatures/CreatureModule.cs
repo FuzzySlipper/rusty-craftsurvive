@@ -439,6 +439,17 @@ internal sealed class CreatureModule : IProductModule
         creature.WaypointStep = step;
         creature.StuckSteps = 0;
         creature.WaypointDistance = float.MaxValue;
+        if (result.Outcome == NavigationPathOutcome.StartBlocked)
+        {
+            // A creature already in deep water has no route out by the map: it wades straight for the player
+            // until it stands where routes start again.
+            creature.Path = [];
+            creature.PathIndex = 0;
+            creature.PathGoal = playerGround;
+            creature.PathRevision = navigation.Publishes;
+            return true;
+        }
+
         if (result.Outcome != NavigationPathOutcome.Reached)
         {
             creature.Path = null;

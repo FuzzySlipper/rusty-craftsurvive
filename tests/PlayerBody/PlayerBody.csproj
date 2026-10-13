@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
     <Compile Include="$(ProductModules)Player/PlayerRecovery.cs" LinkBase="Product/Player" />
+    <Compile Include="$(ProductModules)Creatures/WaterAvoidance.cs" LinkBase="Product/Creatures" />
     <Compile Include="$(ProductModules)Player/PlayerBody.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product/World" />

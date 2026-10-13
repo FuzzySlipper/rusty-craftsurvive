@@ -78,6 +78,14 @@ internal sealed class CreatureNavigation
     private readonly CollisionNavigationConfig config;
     private readonly TerrainWorld terrain;
     private readonly WorldFrame frame;
+    /// <summary>Deep water closed to creatures, laid over each publication (#9879 follow-up).</summary>
+    private readonly WaterAvoidance water = new();
+    /// <summary>The water over each world column as last sampled, kept until the water's stage moves on.</summary>
+    private readonly Dictionary<(long X, long Z), Water.WaterSample> waterSamples = [];
+    private long sampledWaterRevision = -1;
+
+    /// <summary>Kept water samples past this many are dropped together (the box moves with the player).</summary>
+    private const int MostWaterSamples = 65_536;
     private Vector3? publishedAround;
     private ulong publishedEditRevision;
     /// <summary>The built pieces' collision revision the publication saw (#9734): built work changes what is walkable.</summary>
@@ -156,6 +164,11 @@ internal sealed class CreatureNavigation
             new Vector3(cellX - HalfExtent, bottom, cellZ - HalfExtent),
             new Vector3(cellX + HalfExtent, bottom + DepthBelow + HeightAbove + VerticalSlackMetres, cellZ + HalfExtent),
             config));
+        // Creatures keep out of deep water: the overlay goes on after every publication, which clears it.
+        (long X, long Z) minCell = ((long)MathF.Floor((cellX - HalfExtent) / cell), (long)MathF.Floor((cellZ - HalfExtent) / cell));
+        (long X, long Z) maxCell = ((long)MathF.Floor((cellX + HalfExtent) / cell), (long)MathF.Floor((cellZ + HalfExtent) / cell));
+        water.Apply(engine.Spatial, terrain.Session, minCell, maxCell, WaterAt,
+            (terrain.EditRevision, terrain.StaticCollisionRevision, frame.Origin, bottom));
         lastPublishMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         worstPublishMilliseconds = Math.Max(worstPublishMilliseconds, lastPublishMilliseconds);
         totalPublishMilliseconds += lastPublishMilliseconds;
@@ -164,6 +177,23 @@ internal sealed class CreatureNavigation
         publishedBottom = bottom;
         publishedEditRevision = terrain.EditRevision;
         publishedStaticRevision = terrain.StaticCollisionRevision;
+    }
+
+    /// <summary>The water over a local cell column, in the local frame, or null where it is dry.</summary>
+    private ColumnWater? WaterAt(long x, long z)
+    {
+        const double cell = TerrainConstants.VoxelSize;
+        Vector3 world = frame.ToWorld(new Vector3((float)((x + 0.5) * cell), 0f, (float)((z + 0.5) * cell)));
+        if (sampledWaterRevision != terrain.WaterRevision || waterSamples.Count > MostWaterSamples)
+        {
+            waterSamples.Clear();
+            sampledWaterRevision = terrain.WaterRevision;
+        }
+
+        (long X, long Z) column = ((long)Math.Floor(world.X), (long)Math.Floor(world.Z));
+        if (!waterSamples.TryGetValue(column, out Water.WaterSample sample)) waterSamples[column] = sample = terrain.Water.Sample(column.X, column.Z);
+        if (!sample.Wet) return null;
+        return new ColumnWater(frame.ToLocal(world.X, sample.Top, world.Z).Y, sample.Depth, sample.Ice);
     }
 
     /// <summary>One bounded step of the route from a creature's feet to the player's, in world coordinates.</summary>
@@ -211,7 +241,7 @@ internal sealed class CreatureNavigation
     internal void ResetQueries() { Queries = NoPathQueries = 0; queryMilliseconds = worstQueryMilliseconds = 0; }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"navigation publishes={publishes} walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} lastMs={lastPublishMilliseconds:F2} worstMs={worstPublishMilliseconds:F2} meanMs={(publishes == 0 ? 0 : totalPublishMilliseconds / publishes):F2}");
+        $"navigation publishes={publishes} walkable={lastPublished.WalkableCellCount} derived={lastPublished.DerivedColumnCount} reused={lastPublished.ReusedColumnCount} lastMs={lastPublishMilliseconds:F2} worstMs={worstPublishMilliseconds:F2} meanMs={(publishes == 0 ? 0 : totalPublishMilliseconds / publishes):F2} {water.Readout()}");
 
     /// <summary>Publishes around the player now, whatever is stale, and reports what that cost.</summary>
     internal string Publish(Vector3 playerFeetWorld)

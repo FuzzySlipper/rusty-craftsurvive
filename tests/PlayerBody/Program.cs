@@ -1,5 +1,6 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Creatures;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Tests;
@@ -93,6 +94,48 @@ host.Call(engine =>
         Vector3? clear = PlayerRecovery.FirstClear(engine.Spatial, session, PlayerRecovery.Candidates(buried, buried),
             height, body.Shape.Radius, body.Shape.ContactSkin);
         Check.Equal<Vector3?>(null, clear, "no place inside the stone may be called clear");
+    });
+
+    // Creatures keep out of deep water (#9879 follow-up): a river across the floor, too deep to wade but
+    // for a ford at its far end, laid over the Engine's collision-derived navigation as its overlay.
+    Check.Section("creatures route round deep water, through a ford, and not at all with none", () =>
+    {
+        const long RiverFrom = 6, RiverTo = 10, FordFrom = 12;
+        const double Deep = 1.2, Shallow = 0.5;
+        CollisionNavigationConfig defaults = engine.Spatial.DefaultCollisionNavigationConfig();
+        CollisionNavigationConfig navigation = defaults with
+        {
+            GridId = 1, CellSize = TerrainConstants.VoxelSize, ChunkSize = (uint)Edge, MaximumCells = 65_536,
+            Character = defaults.Character with { Shape = defaults.Character.Shape with { Radius = 0.3f, StandingHeight = 1.8f } },
+        };
+        void Publish() => engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
+            session, new Vector3(0, StoneTop - 4, 0), new Vector3(Edge, StoneTop + 8, Edge), navigation));
+        ColumnWater? River(long x, long z, bool ford) =>
+            x >= RiverFrom && x < RiverTo ? new ColumnWater(StoneTop + (ford && z >= FordFrom ? Shallow : Deep), ford && z >= FordFrom ? Shallow : Deep, false) : null;
+        NavigationStepResult Route(Vector3 from, Vector3 to) =>
+            engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, from, to, 64f, 4096U));
+        Vector3 west = new(2.5f, StoneTop, 2.5f), east = new(13.5f, StoneTop, 2.5f), midstream = new(8.5f, StoneTop, 2.5f);
+        bool InRiver(PlanarNavCell cell) => cell.X >= RiverFrom && cell.X < RiverTo;
+
+        Publish();
+        NavigationStepResult open = Route(west, east);
+        Check.That(open.Outcome == NavigationPathOutcome.Reached && open.Path.ToArray().Any(cell => InRiver(cell) && cell.Z < FordFrom),
+            $"with no water laid over it the route goes straight across ({open.Outcome})");
+
+        WaterAvoidance avoidance = new();
+        Check.That(avoidance.Apply(engine.Spatial, session, (0, 0), (Edge, Edge), (x, z) => River(x, z, ford: true), 1)
+            && avoidance.Closed == (RiverTo - RiverFrom) * FordFrom && avoidance.Fords == (RiverTo - RiverFrom) * (Edge - FordFrom),
+            $"the river's deep cells are closed and its ford's cells cost more ({avoidance.Readout()})");
+        NavigationStepResult forded = Route(west, east);
+        Check.That(forded.Outcome == NavigationPathOutcome.Reached && forded.Path.ToArray().Where(InRiver).All(cell => cell.Z >= FordFrom),
+            $"with the river laid over it the route crosses at the ford ({forded.Outcome}, {forded.Path.Length} cells)");
+        Check.That(Route(midstream, east).Outcome == NavigationPathOutcome.StartBlocked, "a creature standing in deep water has no route by the map");
+
+        Publish();
+        Check.That(avoidance.Apply(engine.Spatial, session, (0, 0), (Edge, Edge), (x, z) => River(x, z, ford: false), 2)
+            && Route(west, east).Outcome is not NavigationPathOutcome.Reached, "a river with no ford parts a creature from the far bank");
+        Check.That(avoidance.Apply(engine.Spatial, session, (0, 0), (Edge, Edge), (x, z) => River(x, z, ford: false) is ColumnWater frozen ? frozen with { Ice = true } : null, 2)
+            && avoidance.Closed == 0 && Route(west, east).Outcome == NavigationPathOutcome.Reached, "a frozen river is ground");
     });
 });
 
