@@ -27,7 +27,7 @@ internal sealed class TerrainResidencyStreamer(
     internal bool IsResident(TerrainChunkAddress chunk) => resident.ContainsKey(chunk);
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"cached={cache.Count} pendingWrites={pendingCacheWrites.Count} resident={resident.Count} admissions={admissions} evictions={evictions} staleDropped={cache.StaleDropped} cacheHits={generator.CacheHits}");
+        $"cached={cache.Count} pendingWrites={pendingCacheWrites.Count} resident={resident.Count} admissions={admissions} evictions={evictions} staleDropped={cache.StaleDropped} cacheHits={generator.CacheHits} cacheWrites={(cache.Failure is null ? "on" : "off")}{(cache.Failure is null ? "" : $" cacheFailure=\"{cache.Failure}\"")}");
 
     /// <summary>Moves residency one bounded step toward the plan for the centre; true when anything changed.</summary>
     internal bool Synchronize(SpatialSession session, TerrainChunkAddress center)

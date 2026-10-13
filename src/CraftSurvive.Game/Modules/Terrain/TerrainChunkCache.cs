@@ -196,6 +196,9 @@ internal static class TerrainChunkCachePayload
 /// in about 0.03 ms, so a read is cheap enough to sit on the path of a chunk becoming visible
 /// while a write is not. This type offers both and leaves the policy to its caller - nothing
 /// here writes on a read. At start it deletes whatever another generator left behind.
+///
+/// A cache is an optimisation, so a store that refuses a write or a delete does not stop the
+/// world: the cache stops writing for the session and keeps the store's reason for readouts.
 /// </summary>
 internal sealed class TerrainChunkCache : IDisposable
 {
@@ -223,20 +226,26 @@ internal sealed class TerrainChunkCache : IDisposable
         }
 
         IReadOnlyList<string> stale = index.RetainOnly(TerrainChunkCacheKey.GeneratorPrefix(contract, identity));
-        foreach (string key in stale)
-        {
-            engine.Persistence.Delete(new PersistenceDeleteRequest(store, key, PersistenceRevisionGuard.Any, 0));
-        }
-
         StaleDropped = stale.Count;
         if (stale.Count > 0)
         {
-            SaveIndex();
+            Store(() =>
+            {
+                foreach (string key in stale)
+                {
+                    Delete(key);
+                }
+
+                SaveIndex();
+            });
         }
     }
 
     /// <summary>How many chunks another generator had left, deleted at start.</summary>
     internal int StaleDropped { get; }
+
+    /// <summary>Why the store refused the cache this session, after which it writes nothing; null while it writes.</summary>
+    internal string? Failure { get; private set; }
 
     internal int Count => index.Keys.Count;
 
@@ -271,33 +280,57 @@ internal sealed class TerrainChunkCache : IDisposable
     /// <summary>Writes one generated chunk, evicting the oldest when the cache is full.</summary>
     internal void Write(TerrainChunkAddress address, ReadOnlySpan<ushort> materials)
     {
-        string key = TerrainChunkCacheKey.For(contract, identity, address);
-        foreach (string evicted in index.Add(key))
+        if (Failure is not null)
         {
-            engine.Persistence.Delete(new PersistenceDeleteRequest(store, evicted, PersistenceRevisionGuard.Any, 0));
+            return;
         }
 
-        engine.Persistence.Save(new PersistenceSaveRequest(
-            store,
-            key,
-            PersistenceRevisionGuard.Any,
-            0,
-            TerrainChunkCachePayload.Encode(materials)));
-        if (++unsavedWrites >= IndexSaveInterval)
+        string key = TerrainChunkCacheKey.For(contract, identity, address);
+        byte[] payload = TerrainChunkCachePayload.Encode(materials);
+        Store(() =>
         {
-            SaveIndex();
-        }
+            foreach (string evicted in index.Add(key))
+            {
+                Delete(evicted);
+            }
+
+            engine.Persistence.Save(new PersistenceSaveRequest(store, key, PersistenceRevisionGuard.Any, 0, payload));
+            if (++unsavedWrites >= IndexSaveInterval)
+            {
+                SaveIndex();
+            }
+        });
     }
 
     public void Dispose()
     {
-        if (unsavedWrites > 0)
+        if (unsavedWrites > 0 && Failure is null)
         {
-            SaveIndex();
+            Store(SaveIndex);
         }
 
         store.Dispose();
     }
+
+    /// <summary>
+    /// Runs one change to the store. A refusal stops the cache writing for the session: what it
+    /// already holds is still read, and a key the index lost or a file it left behind is only a
+    /// miss or a little disk, never a wrong chunk, because every key names the generator that wrote it.
+    /// </summary>
+    private void Store(Action change)
+    {
+        try
+        {
+            change();
+        }
+        catch (EngineCallException refused)
+        {
+            Failure = refused.Message;
+        }
+    }
+
+    private void Delete(string key) =>
+        engine.Persistence.Delete(new PersistenceDeleteRequest(store, key, PersistenceRevisionGuard.Any, 0));
 
     private void SaveIndex()
     {
