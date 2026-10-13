@@ -160,15 +160,24 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     paints its own 8 m river cells beneath. The sea and the lakes are flat surfaces at their levels
     (#9952), a little over the ground the tiers flatten there: the sea a plane over the whole map,
     each lake cut along where the smoothed ground meets its level and thinning away beyond its basin,
-    in its kind's colour. Ground under water draws as sand, so shores show a beach. The detail patch's
-    outer band is lowered a little under the coarser ground, which keeps its true height there, and its
-    clutter thins toward the edge; close in the patch meets the coarse ground without a line, but from
-    mid zoom a faint rectangle still shows where its finer relief begins. Trees, cacti and rocks on the patch are generated low-poly
+    in its kind's colour. Ground under water draws a few metres under its level, as sand, so shores show
+    a beach and the water's surface stands clear of it.
+    - **Tier edges (#9952).** The detail patch meets the 32 m ground, and a continent's region window the
+      1 km ground, the same way. By its edge the finer tier draws the coarser tier's own surface (its
+      column tops averaged at each cell corner and blended between, as smooth vertex placement spans
+      them), a little under it: 1.5 m for the patch, 12 m for the window. Its own relief eases in past
+      a margin across a band whose corners are rounded and whose line low noise moves. The coarser
+      columns within two cells of the edge never sink; further in they sink only as deep as the relief
+      drawn within a cell needs. Toward the edge each finer column takes the coarser tier's environments
+      in the shares its terrain layers blend there, chosen by an ordered threshold that each block turns
+      and mirrors its own way, so environment edges keep the coarser tier's softness. Clutter thins
+      toward the patch's edge. The patch and the window's 32 m ground are always drawn at full
+      resolution: their coarse meshes stood off the surface the edge is matched to. From close in the
+      window's band reads as a mottled transition rather than a line. The region window's own relief
+      shows within about 1.2 km of its centre. Trees, cacti and rocks on the patch are generated low-poly
     textured prop meshes (the first-person trees' distant-band meshes, the first-person stones'
     shape and tile, a Tripo cactus on a drawn skin; provenance in `content/map-models.sources.json`)
-    scattered by environment, shown only at closer zoom; beyond the patch there is no clutter. Relief
-    fades out toward the patch edge so it meets the coarse map flush, but the change in
-    surface detail still shows at mid zoom. The patch follows the party in whole 128 m chunks
+    scattered by environment, shown only at closer zoom; beyond the patch there is no clutter. The patch follows the party in whole 128 m chunks
     (#9468): each shift streams the entering and leaving strips, re-streams the strips whose
     edge fade changed, re-sinks the coarse cells it uncovers or covers and re-scatters clutter,
     with a bounded number of chunk operations per update. At full travel speed the patch can lag
