@@ -11,6 +11,7 @@ internal sealed class WaterVisualMaterial : IDisposable
     private const string ShaderPath = "shaders/water-flow.wgsl";
     private const float OriginalRoughness = 0.1f, FlowRoughness = 0.18f, ShallowOpacity = 0.48f;
     private const float RippleStrength = 0.24f, FoamStrength = 0.45f, FlowCycleSeconds = 5;
+    private const float FlowShorelineWidth = 0.14f, FlowFoamThreshold = 0.75f;
     private static readonly Color White = new(1, 1, 1, 1);
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
@@ -44,7 +45,12 @@ internal sealed class WaterVisualMaterial : IDisposable
         default(RenderResourceReference), mode == 0 ? OriginalRoughness : FlowRoughness, White, Vector3.Zero, 0, false)
     {
         AlphaMode = MaterialAlphaMode.Blend,
-        Water = TerrainAtlasCatalog.WaterLook(foam, ripples),
+        Water = mode == 0 ? TerrainAtlasCatalog.WaterLook(foam, ripples)
+            : TerrainAtlasCatalog.WaterLook(foam, ripples) with
+            {
+                ShorelineWidth = FlowShorelineWidth,
+                FoamThreshold = FlowFoamThreshold,
+            },
         Shader = new MaterialShader(shader, new Vector4(mode, RippleStrength, FoamStrength, FlowCycleSeconds),
             new Vector4(frame.Origin.X, frame.Origin.Z, 0, 0), Vector4.Zero, Vector4.Zero),
     };
