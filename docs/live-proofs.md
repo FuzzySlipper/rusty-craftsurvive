@@ -116,6 +116,12 @@ depth, fords and wading. The installed shader hook returns positions only, so li
 from the displaced 1 m triangles: look for faceting in highlights and in whitecaps close to the
 camera. Culling still uses the undisplaced mesh bounds, so the waves are capped to stay within a metre.
 
+Floods (#9880): `craft.water.floods <x> <z>` gives the area under water now and the flooded floodplain
+nodes nearest a point (level, depth over the lattice's ground, reach). Stand on a bank beside one and look
+at the water in the river's valley; on the map, a walk across it stops at Floodwater.
+`MapLab --floods SEED --size METRES [--from-day D --days N]` draws the worst flood of a stretch of the year
+from before the storm to the plain draining.
+
 `craft.water.visual velocity` displays the mesh's current: red increases toward +X, green
 toward +Z, and blue means slow flow. Resume time to judge motion as well as the still image.
 

@@ -28,4 +28,7 @@ public sealed class RiverStageDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.water.reaches", Description = "Lists the walked reaches with a mean flow between least and most (m³/s) passing within metres of a world point (#9878), largest first: where, mean and bankfull flow, flow and stage now, and the crossing's state.")]
     public string Reaches(double x, double z, double metres, double leastFlow, double mostFlow) => stageSource().NearbyReadout(x, z, metres, leastFlow, mostFlow, MostListed);
+
+    [DebugCommand("craft.water.floods", Description = "Reads the floods (#9880): the area under water now, and the flooded floodplain nodes nearest a world point - where, the water's level, its depth over the lattice's ground, and the reach it comes from.")]
+    public string Floods(double x, double z) => stageSource().FloodReadout(x, z, MostListed);
 }

@@ -34,6 +34,12 @@ const string Usage = """
                    unit of rain, default the game's 600), mouths a canoe, a river boat and the start port's great river can use
                    (m3/s, defaults 5, 40, 150), the best sheltered calm port river; writes census.txt and rivers-SEED.png
 
+    MapLab --floods SEED --size METRES [--days N] [--from-day D] [--out DIR]
+
+      --floods     floods over a stretch of the year (#9880, default a year from the first's end): the area under
+                   water, the worst flood and its floodplain drawn from before the storm to the water going down;
+                   writes floods-SEED.txt and floods-SEED.png
+
     MapLab --towns SEEDS --size METRES [--design ...] [--recipe ...] [--out DIR]
 
       --towns      the network and settlement census (#9875) over seeds: the walked drainage as data (reaches by
@@ -55,6 +61,13 @@ if (options.ContainsKey("stage") && options.ContainsKey("size"))
     // The river stage over a year (#9878).
     int stageSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
     return StageRun.Run(options, stageSize, LoadDesign(stageSize), options.TryGetValue("out", out List<string>? stageOut) ? stageOut[0] : "maplab-out");
+}
+
+if (options.ContainsKey("floods") && options.ContainsKey("size"))
+{
+    // Floods over the year (#9880): the worst flood's floodplain from before the storm to the water going down.
+    int floodSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
+    return FloodRun.Run(options, floodSize, LoadDesign(floodSize), options.TryGetValue("out", out List<string>? floodOut) ? floodOut[0] : "maplab-out");
 }
 
 if (options.ContainsKey("boats") && options.ContainsKey("size"))

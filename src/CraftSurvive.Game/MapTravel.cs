@@ -33,7 +33,7 @@ public sealed partial class CraftSurviveProduct
     private PartyTravel? party;
     private double unpublishedTravelHours;
 
-    private TravelCostModel TravelCost => travelCost ??= new TravelCostModel(worlds.Current.Map);
+    private TravelCostModel TravelCost => travelCost ??= new TravelCostModel(worlds.Current.Map) { Flooded = riverStage.Flooded };
 
 
     /// <summary>

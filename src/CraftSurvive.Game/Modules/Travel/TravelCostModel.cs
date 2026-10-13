@@ -21,6 +21,9 @@ internal sealed class TravelCostModel
     private const double SlopePenalty = 3;
     private const double FordMultiplier = 3;
 
+    /// <summary>Flooded ground (#9880) is waded at this many times the cost: routes go round a flood where they can.</summary>
+    internal const double FloodMultiplier = 6;
+
     private readonly WorldMap map;
     private readonly double[] multiplier;
     private readonly bool[] ford;
@@ -68,7 +71,7 @@ internal sealed class TravelCostModel
     internal MapRegions? Regions { get; }
 
     /// <summary>The same costs, for the same party, over one region tile's 32 m lattice; built once per tile.</summary>
-    internal TravelCostModel RegionCost(WorldMap tile) => regionCosts.GetValue(tile, map => new TravelCostModel(map, transport, bound));
+    internal TravelCostModel RegionCost(WorldMap tile) => regionCosts.GetValue(tile, map => new TravelCostModel(map, transport, bound) { Flooded = Flooded });
 
     /// <summary>The bounds the expedition is turned back at (#9817); null for a world without them.</summary>
     internal FrontierBound? Bound => bound;
@@ -77,13 +80,27 @@ internal sealed class TravelCostModel
     internal bool Allows(System.Numerics.Vector2 world) => bound?.Open(world.X, world.Y) ?? true;
     internal bool Transported { get; }
 
+    /// <summary>
+    /// Whether the ground at a world point is under a flood now (#9880); null where nothing floods. It is the
+    /// river stage's, read as the routes are planned, so a flood risen since is met on the way.
+    /// </summary>
+    internal Func<double, double, bool>? Flooded { get; init; }
+
     /// <summary>The cost multiplier of a lattice node; infinity where the expedition cannot go.</summary>
-    internal double Multiplier(int node) => multiplier[node];
+    internal double Multiplier(int node) => Flood(node, multiplier[node]);
 
     internal bool Passable(int node) => double.IsFinite(multiplier[node]);
 
     /// <summary>A node's cost to walk along rather than across (#9879): without the ford a river cell charges a crossing.</summary>
-    internal double BankMultiplier(int node) => ford[node] ? multiplier[node] / FordMultiplier : multiplier[node];
+    internal double BankMultiplier(int node) => Flood(node, ford[node] ? multiplier[node] / FordMultiplier : multiplier[node]);
+
+    /// <summary>A node's cost with any flood over it.</summary>
+    private double Flood(int node, double cost)
+    {
+        if (Flooded is null || !double.IsFinite(cost)) return cost;
+        MapGrid grid = map.Grid;
+        return Flooded(grid.X(node) + (map.RegionFrame?.X ?? 0), grid.Z(node) + (map.RegionFrame?.Z ?? 0)) ? cost * FloodMultiplier : cost;
+    }
 
     /// <summary>
     /// What the country under a world point costs, for fatigue on foot (#9553): the region tile's finer
@@ -101,7 +118,7 @@ internal sealed class TravelCostModel
         MapGrid grid = map.Grid;
         int x = Math.Clamp((int)Math.Round((world.X + grid.Radius) / grid.Spacing), 0, grid.Segments);
         int z = Math.Clamp((int)Math.Round((world.Y + grid.Radius) / grid.Spacing), 0, grid.Segments);
-        double cost = multiplier[z * grid.Side + x];
+        double cost = Multiplier(z * grid.Side + x);
         return double.IsFinite(cost) ? cost : FordMultiplier;
     }
 

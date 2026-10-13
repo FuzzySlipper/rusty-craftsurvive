@@ -74,6 +74,18 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       small reach's.
     - Walking routes keep a fixed cost for a ford and do not cross ice or close a flooded crossing
       (only a boat's routes read the stage); on the map a lake costs the party no more than land.
+    - Floods (#9880): a reach over its banks puts water over its own floodplain (#9875's), level, at
+      its bank over the channel's mean surface beside it plus its overflow spread across the plain, and
+      the plain drains at most 0.1 m a game hour once the river falls. Nothing flows: water stands over
+      any floodplain ground below the level, joined to the river or not, and never beyond the mapped
+      floodplain. Its limits:
+      - The level is taken from the 250 m drainage lattice, so it stands true to the river only where
+        the walking ground follows that lattice; in an incised valley a flood keeps to the channel.
+      - On the map a node of that lattice is flooded or not: a party stops at floodwater when it stands
+        within its 250 m, even on a dry bank, and a route's cost counts a flooded node six times over.
+      - The far field draws a flood at its own coarse cells, so where it meets the near water the shore is
+        saw-toothed.
+      - The drainage of the plain is not saved: after a reload a receding flood goes as its river does.
     - The far field shows ice and dry beds but not the stage's height; the horizon backdrop and the
       map view keep every river and lake open at its mean.
     - Ice is a plain pale surface with no texture, snow or cracks, and the seasons change only the

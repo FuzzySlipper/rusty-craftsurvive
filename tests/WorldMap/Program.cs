@@ -123,6 +123,7 @@ try
         Check.Section("lakes", () => LakeChecks.Run(continent.Map));
         TerrainRecipe continentRecipe = continent.Map.Configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), continent.Map);
         Check.Section("the river stage", () => StageChecks.Run(continent.Map, continentRecipe));
+        Check.Section("floods", () => FloodChecks.Run(continent.Map, continentRecipe));
         Check.Section("river travel", () => BoatChecks.Run(continent.Map, continentRecipe));
         ContinentalTerrainChecks(continentRecipe);
     });

@@ -252,6 +252,15 @@ internal static class TravelEvents
     /// <summary>Hours a detour round a hazard costs: a flooded river's is long.</summary>
     internal static double DetourFor(RiverState river) => river == RiverState.Flood ? FloodDetourHours : DetourHours;
 
+    /// <summary>
+    /// Floodwater (#9880): a river over its banks has put the plain ahead under water. Going round by higher
+    /// ground takes as long as round a flooded ford; wading through costs a ration or health.
+    /// </summary>
+    internal static TravelEvent Floodwater(string? river) => new(TravelEventKind.Hazard,
+        "Floodwater",
+        $"{river ?? "The river"} has burst its banks; the plain ahead is under water.",
+        [new(Detour, FormattableString.Invariant($"Go round by higher ground ({FloodDetourHours:F0} h)")), new(Push, "Wade through (costs a ration or health)")]);
+
     /// <summary>A hazard: at a river, its ford as the stage stands (#9878); elsewhere, or where the river is frozen or dry, the ground.</summary>
     internal static TravelEvent Hazard(MapBiome biome, RiverState river)
     {

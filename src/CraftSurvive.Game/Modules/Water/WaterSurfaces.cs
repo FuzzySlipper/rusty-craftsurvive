@@ -253,7 +253,8 @@ internal sealed class WaterSurfaces : IDisposable
             samples[(j * Side) + i] = sample;
             flow[(j * Side) + i] = sample.Ice ? Vector2.Zero : new((float)sample.CurrentX, (float)sample.CurrentZ);
             anyWet |= sample.Wet;
-            staged |= sample.Body is WaterBody.River or WaterBody.Lake;
+            // A river or lake moves with the stage; a floodplain's dry ground may flood (#9880).
+            staged |= sample.Body is WaterBody.River or WaterBody.Lake || model.Floodable(x0 + (i * Step), z0 + (j * Step));
             long drawn = sample.Wet ? (long)Math.Round(sample.Top / TopResolution) * 2 + (sample.Ice ? 1 : 0) : long.MinValue;
             signature = (signature ^ (ulong)drawn) * 1099511628211UL;
         }

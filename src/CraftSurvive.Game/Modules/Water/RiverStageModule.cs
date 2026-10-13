@@ -5,9 +5,6 @@ using CraftSurvive.Game.Modules.WorldGen;
 
 namespace CraftSurvive.Game.Modules.Water;
 
-/// <summary>An area of the world (metres) where water froze, thawed, ran dry or came back.</summary>
-internal readonly record struct WaterBounds(double MinX, double MinZ, double MaxX, double MaxZ);
-
 /// <summary>
 /// The owner of the river stage in play (#9878). On a continent it builds the stage off the update - the
 /// calibration and warm-up take seconds - and adopts it on an update once ready; then, as the clock
@@ -27,10 +24,10 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
     private readonly WorldMap map;
     private readonly Func<double> hours;
     private readonly Action<IReadOnlyList<WaterBounds>> advanced;
-    private Task<RiverStage>? building;
+    private Task<(RiverStage Stage, FloodPlains Plains)>? building;
     /// <summary>The stage that steps; only the stepping task touches it once adopted.</summary>
     private RiverStage? stepper;
-    private Task<(RiverStageView View, double Milliseconds, WaterBounds[] Changed, RiverStageState? Save)>? stepping;
+    private Task<(RiverStageView View, FloodLevels Floods, double Milliseconds, WaterBounds[] Changed, RiverStageState? Save)>? stepping;
     private readonly IRiverStageArchive? archive;
     private double savedHours = double.NaN;
     private string restoreOutcome = "none";
@@ -42,6 +39,12 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
     private Dictionary<int, List<WaterBounds>> reachLakes = [];
     /// <summary>The stage as last published: everything in play reads this.</summary>
     private RiverStageView? stage;
+    /// <summary>The floodplains (#9880), and the floods as last published with the stage.</summary>
+    private FloodPlains? plains;
+    private FloodLevels? floods;
+
+    /// <summary>A flood whose level moves by more than this (metres) since it was last drawn is drawn again.</summary>
+    private const double FloodRedrawMetres = 0.05;
     private WaterNetwork? network;
     private Dictionary<int, int> lakeReach = [];
     /// <summary>For each node of the network's grid, the largest reach through it, or -1.</summary>
@@ -74,6 +77,18 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
     /// <summary>Whether a lake is frozen: as its outflow is, or for a closed lake its first inflow.</summary>
     public bool LakeIce(Lake lake) => stage is not null && lakeReach.TryGetValue(lake.Id, out int reach) && stage.At(reach).Ice;
 
+    /// <summary>A flood's level at a world point and its reach (#9880), as last published; any thread may ask.</summary>
+    public (double Level, int Reach)? FloodAt(double x, double z) => Volatile.Read(ref floods)?.At(x, z);
+
+    /// <summary>Whether a world point lies by a floodplain (#9880).</summary>
+    public bool Floodable(double x, double z) => Volatile.Read(ref floods)?.Floodable(x, z) ?? false;
+
+    /// <summary>Whether the map's ground at a world point is under a flood now (#9880): what the party's routes and crossings read.</summary>
+    internal bool Flooded(double x, double z) => Volatile.Read(ref floods)?.Flooded(x, z) ?? false;
+
+    /// <summary>The floods now: nodes and area under water, for readouts.</summary>
+    internal FloodLevels? Floods => Volatile.Read(ref floods);
+
     /// <summary>
     /// The crossing where the map shows the party at a river: the largest walked reach within a few cells,
     /// read through its stage. Before the stage is ready, or with no walked reach near, the river runs as usual.
@@ -104,7 +119,9 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         // Off the update: its own weather field (the live one is the update's), the drainage built with the world.
         building = Task.Run(() =>
         {
-            WaterNetwork built = MapRegions.For(continent).Drainage.Network;
+            MapDrainage drainage = MapRegions.For(continent).Drainage;
+            WaterNetwork built = drainage.Network;
+            FloodPlains floodPlains = new(built, drainage.ElevationAt);
             RiverStage fresh = new(built, continent, WeatherField.For(continent));
             // A saved stage no later than the clock is carried on to it; any other starts afresh.
             if (saved is not null && saved.Hours <= now && fresh.StartFrom(saved))
@@ -118,7 +135,7 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
                 fresh.Start(now);
             }
 
-            return fresh;
+            return (fresh, floodPlains);
         });
     }
 
@@ -134,8 +151,11 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         {
             if (building is not { IsCompleted: true } done) return;
             building = null;
-            stepper = done.GetAwaiter().GetResult();
+            (stepper, plains) = done.GetAwaiter().GetResult();
             stage = stepper.View();
+            RiverStageView first = stage;
+            Volatile.Write(ref floods, plains.Levels(first.At));
+            FloodLevels firstFloods = floods!;
             network = MapRegions.For(map).Drainage.Network;
             lakeReach = network.Lakes
                 .Select(node => (node.Lake.Id, Reach: node.Outflow >= 0 ? node.Outflow : node.Inflows.FirstOrDefault(-1)))
@@ -153,8 +173,8 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
             foreach (Reach reach in network.Reaches)
                 foreach (int node in reach.Nodes)
                     if (nodeReach[node] < 0 || network.Reaches[nodeReach[node]].Flow < reach.Flow) nodeReach[node] = reach.Id;
-            // Everything already frozen or dry is news to what draws water.
-            advanced(Changed(null, stage));
+            // Everything already frozen, dry or in flood is news to what draws water.
+            advanced(Changed(null, stage, plains, null, firstFloods));
             Save(stepper.Capture());
         }
 
@@ -163,7 +183,9 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
             stepping = null;
             WaterBounds[] changed;
             RiverStageState? due;
-            (stage, lastAdvanceMs, changed, due) = stepped.GetAwaiter().GetResult();
+            FloodLevels nowFlooded;
+            (stage, nowFlooded, lastAdvanceMs, changed, due) = stepped.GetAwaiter().GetResult();
+            Volatile.Write(ref floods, nowFlooded);
             steps++;
             changedAreas += changed.Length;
             advanced(changed);
@@ -174,15 +196,18 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         if (stepping is not null || stage is null || now - stage.Hours < RiverStage.StepHours) return;
         RiverStage moving = stepper;
         RiverStageView before = stage;
+        FloodPlains floodPlains = plains!;
+        FloodLevels? floodsBefore = Volatile.Read(ref floods);
         double lastSaved = savedHours;
         stepping = Task.Run(() =>
         {
             long started = System.Diagnostics.Stopwatch.GetTimestamp();
             moving.AdvanceTo(now);
             RiverStageView after = moving.View();
+            FloodLevels flooded = floodPlains.Levels(after.At, floodsBefore, after.Hours - before.Hours);
             // The stores are copied here, where the stage is still, when a save is due.
             RiverStageState? save = double.IsNaN(lastSaved) || moving.Hours - lastSaved >= SaveEveryHours ? moving.Capture() : null;
-            return (after, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Changed(before, after), save);
+            return (after, flooded, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds, Changed(before, after, floodPlains, floodsBefore, flooded), save);
         });
     }
 
@@ -207,17 +232,32 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         savedHours = state.Hours;
     }
 
-    /// <summary>Where water froze, thawed, ran dry or came back between two stages (from none: where it is frozen or dry).</summary>
-    private WaterBounds[] Changed(RiverStageView? before, RiverStageView after)
+    /// <summary>
+    /// Where water froze, thawed, ran dry or came back between two stages (from none: where it is frozen or
+    /// dry), and where a flood rose, fell or receded (#9880): a reach's whole floodplain.
+    /// </summary>
+    private WaterBounds[] Changed(RiverStageView? before, RiverStageView after, FloodPlains floodPlains, FloodLevels? floodsBefore, FloodLevels floodsAfter)
     {
         List<WaterBounds> changed = [];
         for (int r = 0; r < after.Count; r++)
         {
             ReachStage now = after.At(r);
-            bool was = before is not null && before.At(r) is { } then && (then.Ice != now.Ice || then.Dry != now.Dry);
-            if (!(before is null ? now.Ice || now.Dry : was)) continue;
-            changed.Add(reachBounds[r]);
-            if (reachLakes.TryGetValue(r, out List<WaterBounds>? lakes)) changed.AddRange(lakes);
+            ReachStage? then = before?.At(r);
+            bool was = then is { } prior && (prior.Ice != now.Ice || prior.Dry != now.Dry);
+            if (before is null ? now.Ice || now.Dry : was)
+            {
+                changed.Add(reachBounds[r]);
+                if (reachLakes.TryGetValue(r, out List<WaterBounds>? lakes)) changed.AddRange(lakes);
+            }
+
+        }
+
+        // A flood that came, went, or rose or fell by more than a little since it was last drawn.
+        foreach (int r in floodsAfter.Reaches.Keys.Union(floodsBefore?.Reaches.Keys ?? []))
+        {
+            bool had = floodsBefore is not null && floodsBefore.Reaches.TryGetValue(r, out double was);
+            bool has = floodsAfter.Reaches.TryGetValue(r, out double now);
+            if (had != has || (has && Math.Abs(now - floodsBefore!.Reaches[r]) > FloodRedrawMetres)) changed.Add(floodPlains.Bounds[r]);
         }
 
         return [.. changed];
@@ -252,6 +292,19 @@ internal sealed class RiverStageModule : IProductModule, IWaterStage
         stepper = null;
         stepping = null;
         building = null;
+    }
+
+    /// <summary>The floods now, and the flooded nodes nearest a point: where, the water's level and depth, and its reach.</summary>
+    internal string FloodReadout(double x, double z, int most)
+    {
+        if (Volatile.Read(ref floods) is not FloodLevels now || plains is null) return "floods=none (no stage yet)";
+        MapGrid grid = plains.Network.Grid;
+        IEnumerable<string> nearest = plains.Nodes.Where(n => !double.IsNaN(now.LevelAt(n)))
+            .OrderBy(n => Math.Pow(grid.X(n) - x, 2) + Math.Pow(grid.Z(n) - z, 2))
+            .Take(most)
+            .Select(n => string.Create(CultureInfo.InvariantCulture,
+                $"at={grid.X(n):F0},{grid.Z(n):F0} level={now.LevelAt(n):F2} depth={now.LevelAt(n) - plains.Ground(n):F2} reach={plains.ReachOf(n)}"));
+        return string.Create(CultureInfo.InvariantCulture, $"floods: {now.Count} nodes, {now.SquareKilometres:F1} km2 under water over {now.Reaches.Count} reaches at hour {PublishedHours:F0}") + " | " + string.Join(" | ", nearest);
     }
 
     /// <summary>The reaches with a mean flow in a band passing within a distance of a point, largest first: where each is nearest, and its water now.</summary>

@@ -32,6 +32,12 @@ internal interface IWaterStage
 
     /// <summary>Whether a lake is frozen now.</summary>
     bool LakeIce(Lake lake);
+
+    /// <summary>A flood's level at a world point and the reach it comes from (#9880), or null where none is near.</summary>
+    (double Level, int Reach)? FloodAt(double x, double z) => null;
+
+    /// <summary>Whether a world point lies by a floodplain, where water may come and go with the stage (#9880).</summary>
+    bool Floodable(double x, double z) => false;
 }
 
 /// <summary>
@@ -52,8 +58,25 @@ internal sealed class WaterModel(TerrainRecipe recipe)
     /// <summary>A river's speed follows its flow to this power (Manning's velocity in a wide channel).</summary>
     private const double VelocityExponent = 0.4;
 
-    /// <summary>The water at a column (whole metres, as the ground is generated).</summary>
+    /// <summary>
+    /// The water at a column (whole metres, as the ground is generated). A flood (#9880) stands over it where
+    /// its level is above the ground and above any water already there, unless that water is frozen.
+    /// </summary>
     internal WaterSample Sample(long x, long z)
+    {
+        WaterSample usual = Usual(x, z);
+        if (Stages?.FloodAt(x + 0.5, z + 0.5) is not (double level, int reach) || usual.Ice || level <= usual.Bed || (usual.Wet && level <= usual.Top)) return usual;
+        return new(level, usual.Bed, usual.Wet ? usual.CurrentX : 0, usual.Wet ? usual.CurrentZ : 0, WaterBody.River, 0, false, reach);
+    }
+
+    /// <summary>The flood's level over a world point (#9880), or negative infinity where there is none: for what draws water from geography alone (the far field).</summary>
+    internal double FloodLevel(double x, double z) => Stages?.FloodAt(x, z)?.Level ?? double.NegativeInfinity;
+
+    /// <summary>Whether water at a world point may come and go with a flood (#9880).</summary>
+    internal bool Floodable(double x, double z) => Stages?.Floodable(x, z) ?? false;
+
+    /// <summary>The water at a column without any flood: the sea, a river at its stage, a lake.</summary>
+    private WaterSample Usual(long x, long z)
     {
         (double ground, MapSample geography) = recipe.GroundAt(x, z);
         double surface = WaterRules.Surface(geography);

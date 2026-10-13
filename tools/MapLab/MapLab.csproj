@@ -38,6 +38,7 @@
     <Compile Include="$(ProductModules)Water/Seasons.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/RiverStage.cs" LinkBase="Product/Water" />
+    <Compile Include="$(ProductModules)Water/Floods.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/RiverStageState.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Travel/TravelCostModel.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Travel/TravelRoute.cs" LinkBase="Product/Travel" />

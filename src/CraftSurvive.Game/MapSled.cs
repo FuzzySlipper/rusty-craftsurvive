@@ -25,7 +25,7 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Whether the sled travels with the party on this map visit.</summary>
     private bool sledWithParty;
 
-    private TravelCostModel SledTravelCost => sledTravelCost ??= new TravelCostModel(worlds.Current.Map, SledTravel.Terrain);
+    private TravelCostModel SledTravelCost => sledTravelCost ??= new TravelCostModel(worlds.Current.Map, SledTravel.Terrain) { Flooded = riverStage.Flooded };
 
     /// <summary>The cost model for how the party travels now.</summary>
     private TravelCostModel PartyCost => sledWithParty ? SledTravelCost : TravelCost;

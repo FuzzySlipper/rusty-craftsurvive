@@ -250,8 +250,9 @@ internal sealed class FarField : IDisposable
                 ground[at] = recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
                 geography[at] = recipe.Geography(x, z);
                 // Inside the near water's square the near surfaces draw the water (#9877): here only the bed.
+                // A flood (#9880) stands over its floodplain beyond the near square as well.
                 waterTop[at] = !double.IsNaN(now.SinkCentre.X) && Water.NearWaterSquare.CoversInside(now.SinkCentre, now.Outer, x, z)
-                    ? double.NegativeInfinity : FarGround.WaterTop(geography[at]);
+                    ? double.NegativeInfinity : Math.Max(FarGround.WaterTop(geography[at]), waters.FloodLevel(x, z));
                 // The stage's ice and dry beds (#9878): a dry bed draws as ground, frozen water as ice.
                 if (waterTop[at] > ground[at])
                 {

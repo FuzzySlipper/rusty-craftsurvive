@@ -85,7 +85,11 @@ internal sealed class WaterNetwork
     /// The floodplain: ground no higher than the bankfull water plus this storm margin (m), within this
     /// many channel widths of a canoe river (at least the lattice spacing).
     /// </summary>
-    private const double StormMargin = 1, FloodplainWidths = 20;
+    internal const double StormMargin = 1, FloodplainWidths = 20;
+
+    /// <summary>How many lattice cells a reach's floodplain reaches from its channel (none for a reach too small to have one).</summary>
+    internal int FloodplainCells(Reach reach) => reach.Flow < CanoeFlow ? 0
+        : Math.Max(1, (int)Math.Ceiling(Math.Max(Grid.Spacing, FloodplainWidths * reach.Width) / Grid.Spacing));
 
     private const double SecondsPerHour = 3600;
 

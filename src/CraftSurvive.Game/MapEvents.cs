@@ -48,11 +48,40 @@ public sealed partial class CraftSurviveProduct
         }
 
         if (RaiseWindbound(sky)) return;
+        if (RaiseFloodwater()) return;
 
         EventPlace place = EventPlaceOfParty(party);
         TravelEventFacts facts = new(place.Biome, conditions.IsNight, place.River,
             Vector2.Distance(party.Position, new((float)home.Home.X, (float)home.Home.Z)) / 1000, party.EventRisk * sky.Effects.EventRisk, place.Water);
         if (TravelEventRolls.Roll(hours, facts) is TravelEventKind kind) Raise(kind, place);
+    }
+
+    /// <summary>Whether the party is already wading the flood it was last stopped at.</summary>
+    private bool inFlood;
+
+    /// <summary>
+    /// Floodwater (#9880): a party on foot that walks onto flooded ground stops, offering to go round by
+    /// higher ground or to wade. Once answered it is not stopped again until it is clear of the flood.
+    /// </summary>
+    private bool RaiseFloodwater()
+    {
+        if (party is null) return false;
+        // On a floodplain the flood is judged by a stage no more than a few hours behind the clock, as a ford is.
+        if (!party.Afloat && riverStage.Floodable(party.Position.X, party.Position.Y)) riverStage.CatchUp(CrossingLagHours);
+        if (party.Afloat || !riverStage.Flooded(party.Position.X, party.Position.Y))
+        {
+            inFlood = false;
+            return false;
+        }
+
+        if (inFlood) return false;
+        inFlood = true;
+        hazardDetourHours = TravelEvents.FloodDetourHours;
+        party.Pause();
+        pendingEvent = TravelEvents.Floodwater(null);
+        worldMessage = pendingEvent.Title + ": " + pendingEvent.Text;
+        SettleParty();
+        return true;
     }
 
     /// <summary>Where an event finds the party: its country, its river as the stage has it, whether it is afloat and how its leg is made.</summary>
