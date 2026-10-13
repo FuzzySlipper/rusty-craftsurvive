@@ -361,6 +361,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // The waves move on first (#9902), so the boat and a swimmer ride, and the water draws, one sea this update.
         WeatherLook wind = sky.Look;
         terrain.AdvanceSea(step.ElapsedSeconds, weather.Hours, wind.Wind, wind.Flow, player.WorldPosition);
+        // The scene wind's lulls and gusts move on too; the weather's update hands them to the Engine.
+        sky.Sway(step.ElapsedSeconds);
 
         // The player moves first on this update's input, then the UI's requests are aimed from
         // where they now look; creatures, discovery and charges then read where the player is and

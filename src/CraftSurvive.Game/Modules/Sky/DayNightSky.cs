@@ -333,11 +333,11 @@ internal sealed class DayNightSky : IDisposable
 
     /// <summary>
     /// The wind over the open world: grass, bushes and trees sway in it (their materials carry the
-    /// bend and flutter). A steady breeze from the west-south-west, a little over half of it gusting.
+    /// bend and flutter). From the west-south-west where the weather gives no flow; its strength, gusts,
+    /// lulls and veering are <see cref="WindSway"/>'s, scaled by <see cref="windStrength"/> for tuning.
     /// </summary>
     private static readonly Vector2 WindDirection = new(1f, 0.35f);
     private const float WindStrength = 1f;
-    private const float WindGust = 0.6f;
 
     /// <summary>
     /// What the weather does to the sky and the light (#9740, Den <c>design/weather-and-environment</c>),
@@ -355,7 +355,6 @@ internal sealed class DayNightSky : IDisposable
     private const float MurkFog = 8f, RainFog = 3f, CloudFog = 0.5f;
     private const float CloudAirShare = 0.6f, MurkAirShare = 0.8f, NightAir = 0.15f;
     private const float MurkFogFalloffMetres = 120f;
-    private const float WindStrengthening = 3f, WindGusting = 0.4f;
     /// <summary>The cloud layer: coverage from fair to full with the cloud channel, drifting with the flow faster as the wind rises.</summary>
     private const float CloudCoverageFloor = 0.25f, CloudCoverageSpan = 0.7f, CloudAppearsAbove = 0.02f;
     /// <summary>
@@ -482,6 +481,12 @@ internal sealed class DayNightSky : IDisposable
     private float gradeTemperature = GradingTemperature, gradeTint, gradeContrast = GradingContrast, gradeSaturation = GradingSaturation, gradeExposure = Exposure;
     private float windStrength = WindStrength;
 
+    /// <summary>Seconds of simulation the scene wind's lulls and gusts have run.</summary>
+    private double swaySeconds;
+
+    /// <summary>Moves the scene wind's lulls, gusts and veering on by simulation seconds; the next weather update applies them.</summary>
+    internal void Sway(double seconds) => swaySeconds += Math.Max(0, seconds);
+
     /// <param name="observer">The eyes' position in the Engine's local frame: the sky's occlusion square follows them.</param>
     internal DayNightSky(IEngineContext engine, Func<Vector3> observer)
     {
@@ -514,7 +519,7 @@ internal sealed class DayNightSky : IDisposable
     {
         windStrength = strength;
         Weathered();
-        return FormattableString.Invariant($"wind strength={strength} gust={WindGust} direction={WindDirection.X},{WindDirection.Y}");
+        return FormattableString.Invariant($"wind scale={strength} now={windStrength * WindSway.Strength(weather.Wind, swaySeconds):F2} gust={WindSway.Gust(weather.Wind):F2} weatherWind={weather.Wind:F2}");
     }
 
     /// <summary>The daylight the lights were last set for.</summary>
@@ -661,7 +666,7 @@ internal sealed class DayNightSky : IDisposable
             gradeContrast + (MurkFlattening * w.Murk),
             gradeSaturation + (CloudDesaturation * w.Cloud) + (ArcaneSaturation * w.Arcane) + (NightDesaturation * night)));
         Vector2 flow = w.Flow.LengthSquared() > 0 ? w.Flow : Vector2.Normalize(WindDirection);
-        engine.CameraView.SetWind(new(flow, windStrength * (1f + (WindStrengthening * w.Wind)), Math.Min(1f, WindGust + (WindGusting * w.Wind))));
+        engine.CameraView.SetWind(new(WindSway.Direction(flow, swaySeconds), windStrength * WindSway.Strength(w.Wind, swaySeconds), WindSway.Gust(w.Wind)));
         Clouds(w);
         Falling = Precipitation(w);
         engine.CameraView.SetPrecipitation(Falling);

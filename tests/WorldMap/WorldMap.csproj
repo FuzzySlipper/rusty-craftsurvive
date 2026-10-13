@@ -67,6 +67,7 @@
     <Compile Include="$(ProductModules)Sky/Twilight.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Moon.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Sky/Stars.cs" LinkBase="Product/Sky" />
+    <Compile Include="$(ProductModules)Sky/WindSway.cs" LinkBase="Product/Sky" />
     <Compile Include="$(ProductModules)Player/PlayerConstants.cs" LinkBase="Product/Player" />
     <Compile Include="$(ProductModules)World/ProductIds.cs" LinkBase="Product" />
   </ItemGroup>
