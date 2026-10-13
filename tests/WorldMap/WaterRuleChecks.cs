@@ -10,6 +10,23 @@ internal static class WaterRuleChecks
 {
     internal static void Run()
     {
+        Check.That(WaterWaveSettings.MaximumAmplitude * Math.Sqrt(1 + Math.Pow(WaterWaveSettings.MaximumChoppiness, 2)) < 1,
+            "the wave study's combined horizontal and vertical displacement stays below one metre");
+        double[] depths = [-1, 0, 0.1, WaterWaveSettings.ShoreClearance, 0.25, 0.5, 1, 2, 4];
+        float previous = 0;
+        foreach (double depth in depths)
+        {
+            float coverage = WaterWaveSettings.Coverage(depth, false);
+            Check.That(coverage >= previous && coverage <= 1, "wave coverage increases smoothly into deeper water");
+            Check.That(WaterWaveSettings.Coverage(depth, true) == 0, "ice never acquires visual wave displacement");
+            Check.That(depth > WaterWaveSettings.ShoreClearance || coverage == 0, "dry ground and the shoreline stay pinned");
+            Check.That(depth <= 0 || coverage * WaterWaveSettings.MaximumAmplitude < depth,
+                "even the deepest visual trough remains above the undeformed bed");
+            previous = coverage;
+        }
+        Check.That(WaterWaveSettings.Coverage(WaterWaveSettings.FullDepth, false) == 1,
+            "deep water receives the full chosen wave amplitude");
+
         MapSample land = new(40, 0.5, 0.5, 0, 0);
         Check.That(WaterRules.Surface(land) == WaterRules.SeaSurface && WaterRules.Body(land, 40) == WaterBody.None,
             "dry land has only the sea's level under it, and no water over it");

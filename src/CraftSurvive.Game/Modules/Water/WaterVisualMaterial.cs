@@ -16,12 +16,16 @@ internal sealed class WaterVisualMaterial : IDisposable
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
     private readonly RenderResource foam, ripples, shader;
-    private int mode = 1;
+    private int mode = 3;
+    private float amplitude = WaterWaveSettings.DefaultAmplitude;
+    private float choppiness = WaterWaveSettings.DefaultChoppiness;
+    private Vector4 waveBounds;
 
-    internal WaterVisualMaterial(IEngineContext engine, WorldFrame frame)
+    internal WaterVisualMaterial(IEngineContext engine, WorldFrame frame, Vector4 waveBounds)
     {
         this.engine = engine;
         this.frame = frame;
+        this.waveBounds = waveBounds;
         foam = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterFoamContentPath);
         ripples = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterRipplesContentPath);
         shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
@@ -30,15 +34,34 @@ internal sealed class WaterVisualMaterial : IDisposable
     }
 
     internal Material Material { get; }
-    internal string Mode => mode switch { 0 => "baseline", 2 => "velocity", _ => "flow" };
+    internal string Mode => mode switch { 0 => "baseline", 1 => "flow", 2 => "velocity", _ => "waves" };
+    internal string WaveReadout => FormattableString.Invariant($"waveAmplitude={amplitude:F2}m choppiness={choppiness:F2} meshSpacing={WaterWaveSettings.MeshSpacingMetres}m");
 
     internal string SetMode(string value)
     {
-        int selected = value.ToLowerInvariant() switch { "baseline" => 0, "flow" => 1, "velocity" => 2, _ => -1 };
-        if (selected < 0) return "Choose baseline, flow or velocity.";
+        int selected = value.ToLowerInvariant() switch { "baseline" => 0, "flow" => 1, "velocity" => 2, "waves" or "gerstner" => 3, _ => -1 };
+        if (selected < 0) return "Choose baseline, flow, waves or velocity.";
         mode = selected;
         Refresh();
-        return $"waterVisual={Mode}";
+        return $"waterVisual={Mode} {WaveReadout}";
+    }
+
+    internal string SetWaves(float amplitudeMetres, float horizontalScale)
+    {
+        // The installed hook culls with the original mesh bounds. Keep this study's displacement
+        // below a metre, rather than offering storm-sized waves whose bounds the SDK cannot name.
+        amplitude = Math.Clamp(amplitudeMetres, 0, WaterWaveSettings.MaximumAmplitude);
+        choppiness = Math.Clamp(horizontalScale, 0, WaterWaveSettings.MaximumChoppiness);
+        mode = 3;
+        Refresh();
+        return $"waterVisual={Mode} {WaveReadout}";
+    }
+
+    internal void SetBounds(Vector4 bounds)
+    {
+        if (bounds == waveBounds) return;
+        waveBounds = bounds;
+        Refresh();
     }
 
     private MaterialRequest Request() => new(White with { A = mode == 0 ? 1 : ShallowOpacity },
@@ -52,7 +75,8 @@ internal sealed class WaterVisualMaterial : IDisposable
                 FoamThreshold = FlowFoamThreshold,
             },
         Shader = new MaterialShader(shader, new Vector4(mode, RippleStrength, FoamStrength, FlowCycleSeconds),
-            new Vector4(frame.Origin.X, frame.Origin.Z, 0, 0), Vector4.Zero, Vector4.Zero),
+            new Vector4(frame.Origin.X, frame.Origin.Z, 0, 0),
+            new Vector4(amplitude, choppiness, WaterWaveSettings.EdgeFadeMetres, 0), waveBounds),
     };
 
     private void Rebased(Vector3 translation) => Refresh();

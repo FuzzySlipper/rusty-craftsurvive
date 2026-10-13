@@ -94,6 +94,7 @@ internal sealed class TerrainWorld : IDisposable
     internal string WaterReadout() => string.Create(CultureInfo.InvariantCulture, $"{waterSurfaces.Readout()} icePatches={IcePatches}");
 
     internal string WaterVisual(string mode) => waterSurfaces.SetVisual(mode);
+    internal string WaterWaves(float amplitude, float choppiness) => waterSurfaces.SetWaves(amplitude, choppiness);
     internal string StartWaterFlow(double x, double z) => waterSurfaces.StartFlow(Session, x, z);
     internal string StopWaterFlow() => waterSurfaces.StopFlow();
     internal string WaterFlowAt(double x, double z) => waterSurfaces.FlowAt(x, z);

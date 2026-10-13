@@ -1,6 +1,7 @@
 // The mesh UV carries horizontal current in metres/second. Surface texture coordinates are
-// world anchored, as in Engine WATER. The Engine still supplies depth colour and shore foam.
-#import rusty::types::Surface
+// world anchored, as in Engine WATER. Vertex alpha is shore coverage for opacity and waves.
+// The Engine still supplies depth colour and shore foam, using the displaced world position.
+#import rusty::types::{Surface, Vertex}
 #import rusty::view::frame
 #import rusty::material::{material, product_map_b, product_sampler_b}
 #import rusty::shade::standard_shade
@@ -25,6 +26,39 @@ const DETAIL_FADE_END: f32 = 150.0;
 const HASH_DIRECTION: vec2<f32> = vec2<f32>(127.1, 311.7);
 const HASH_MULTIPLIER: f32 = 43758.5453;
 const WARP_OFFSET: vec2<f32> = vec2<f32>(7.0);
+const TAU: f32 = 6.28318530718;
+const GRAVITY: f32 = 9.81;
+// xy direction, z wavelength (metres), w fraction of the total amplitude. Fractions sum to 1.
+const WAVE_A: vec4<f32> = vec4<f32>(0.94, 0.34, 28.0, 0.42);
+const WAVE_B: vec4<f32> = vec4<f32>(0.71, -0.70, 18.7, 0.28);
+const WAVE_C: vec4<f32> = vec4<f32>(-0.22, 0.98, 12.3, 0.18);
+const WAVE_D: vec4<f32> = vec4<f32>(0.42, 0.91, 8.4, 0.12);
+const PHASE_B: f32 = 1.7;
+const PHASE_C: f32 = 4.1;
+const PHASE_D: f32 = 2.7;
+
+fn gerstner(p: vec2<f32>, wave: vec4<f32>, phase_offset: f32) -> vec3<f32> {
+    let direction = normalize(wave.xy);
+    let k = TAU / wave.z;
+    let phase = k * dot(direction, p) - sqrt(GRAVITY * k) * frame.time.x + phase_offset;
+    let amplitude = material.parameters[2].x * wave.w;
+    let horizontal = material.parameters[2].y * amplitude * cos(phase);
+    return vec3<f32>(direction.x * horizontal, amplitude * sin(phase), direction.y * horizontal);
+}
+
+fn displace(vertex: Vertex) -> vec3<f32> {
+    if material.parameters[0].x < 2.5 { return vertex.world_position; }
+    let p = vertex.world_position.xz + material.parameters[1].xy;
+    let bounds = material.parameters[3];
+    let to_min = p - bounds.xy;
+    let to_max = bounds.zw - p;
+    let edge_distance = min(min(to_min.x, to_min.y), min(to_max.x, to_max.y));
+    // Only the outer boundary fades: internal tile edges share the identical wave function.
+    let coverage = vertex.color.a * smoothstep(0.0, material.parameters[2].z, edge_distance);
+    let offset = gerstner(p, WAVE_A, 0.0) + gerstner(p, WAVE_B, PHASE_B)
+        + gerstner(p, WAVE_C, PHASE_C) + gerstner(p, WAVE_D, PHASE_D);
+    return vertex.world_position + offset * coverage;
+}
 
 fn hash(p: vec2<f32>) -> f32 {
     return fract(sin(dot(p, HASH_DIRECTION)) * HASH_MULTIPLIER);
@@ -64,10 +98,15 @@ fn flowing_foam(p: vec2<f32>, current: vec2<f32>, time: f32, offset: f32) -> f32
 
 fn shade(surface: Surface) -> vec4<f32> {
     let mode = material.parameters[0].x;
-    if mode < 0.5 { return standard_shade(surface); }
+    if mode < 0.5 {
+        // The original material was opaque, including at the shore; keep that comparison intact.
+        var original = surface;
+        original.base.a = 1.0;
+        return standard_shade(original);
+    }
     let current = surface.uv;
     let speed = length(current);
-    if mode > 1.5 {
+    if mode > 1.5 && mode < 2.5 {
         // Red = +X, green = +Z, blue = slow; brighter red/green means faster flow.
         return vec4<f32>(vec2<f32>(0.5) + clamp(current / FAST_CURRENT, vec2<f32>(-1.0), vec2<f32>(1.0)) * 0.5,
             1.0 - clamp(speed / FAST_CURRENT, 0.0, 1.0), 1.0);
@@ -87,7 +126,14 @@ fn shade(surface: Surface) -> vec4<f32> {
         * (1.0 + clamp(speed / FAST_CURRENT, 0.0, 1.0));
     var water = surface;
     let slope = (broad + fine * FINE_WEIGHT * fine_fade) * strength;
-    water.normal = normalize(vec3<f32>(slope.x, 1.0, slope.y));
+    var geometry_normal = vec3<f32>(0.0, 1.0, 0.0);
+    if mode > 2.5 {
+        // The displacement hook returns position only. Screen derivatives give the normal of the
+        // actual one-metre triangles, including shore/boundary attenuation and sloping rivers.
+        let geometric = normalize(cross(dpdx(surface.world_position), dpdy(surface.world_position)));
+        geometry_normal = select(-geometric, geometric, geometric.y >= 0.0);
+    }
+    water.normal = normalize(geometry_normal + vec3<f32>(slope.x, 0.0, slope.y));
     // Sparse moving foam; the built-in depth intersection foam is already in surface.base.
     let foam_pattern = flowing_foam(p, current, time, patches);
     let foam = smoothstep(FOAM_SPEED_START, FOAM_SPEED_FULL, speed)

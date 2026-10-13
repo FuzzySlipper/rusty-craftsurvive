@@ -99,6 +99,20 @@ with it.
 
 At a river or lake, use `craft.water.visual baseline` and `craft.water.visual flow` to compare
 the original material with the layered surface at the same camera pose and held time.
+`craft.water.visual waves` adds four Gerstner waves to that surface. Compare from a low view over
+deep water so changing crests and occlusion establish geometric motion, then inspect a shallow
+bank and an internal tile join. `craft.water.waves <amplitude-metres> <choppiness>` sets the total
+vertical amplitude (0–0.6 m) and horizontal motion scale (0–1.1); an amplitude of zero is a useful
+control. One-metre mesh spacing resolves the shortest 8.4 m wave. Shore coverage fades both water
+opacity and displacement into the bed, and motion fades across the last 24 m of the near-water
+square to meet the flat distant water. Ice stays on its ordinary material.
+
+These waves are shader displacement, separate from the mean water level used by gameplay. The
+installed shader hook returns positions only; this study derives lighting normals from the
+displaced triangles and adds the fine ripple normals. Look for faceting in highlights. Culling
+still uses the undisplaced mesh bounds: keep the bounded study amplitudes, inspect grazing views,
+and request an Engine displacement-bounds contract before extending it to large storm waves.
+
 `craft.water.visual velocity` displays the mesh's current: red increases toward +X, green
 toward +Z, and blue means slow flow. Resume time to judge motion as well as the still image.
 

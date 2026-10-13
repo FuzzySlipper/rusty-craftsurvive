@@ -21,7 +21,7 @@ namespace CraftSurvive.Game.Modules.Water;
 internal sealed class WaterSurfaces : IDisposable
 {
     /// <summary>A tile's edge and the spacing of its vertices (metres).</summary>
-    internal const int TileMetres = NearWaterSquare.TileMetres, Step = 2;
+    internal const int TileMetres = NearWaterSquare.TileMetres, Step = WaterWaveSettings.MeshSpacingMetres;
     private const int Cells = TileMetres / Step;
 
     /// <summary>Tiles built per update, so a walk into new water never stalls an update.</summary>
@@ -66,6 +66,7 @@ internal sealed class WaterSurfaces : IDisposable
     internal static int TileRadius(double outer) => NearWaterSquare.TileRadius(outer);
 
     private double outerMetres;
+    private Vector4 waveBounds;
 
     /// <summary>The drawn tiles, for the appearance snapshot.</summary>
     internal AppearanceFact[] Facts => [.. tiles.Values.OfType<Tile>().Select(tile =>
@@ -73,9 +74,10 @@ internal sealed class WaterSurfaces : IDisposable
             tile.Look, true, RenderLayer.Scene, ShadowCasting.None))];
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "flow"} {flowStudy.Readout()}");
+        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} {visual?.WaveReadout} {flowStudy.Readout()}");
 
-    internal string SetVisual(string mode) => (visual ??= new(engine, frame)).SetMode(mode);
+    internal string SetVisual(string mode) => (visual ??= new(engine, frame, waveBounds)).SetMode(mode);
+    internal string SetWaves(float amplitude, float choppiness) => (visual ??= new(engine, frame, waveBounds)).SetWaves(amplitude, choppiness);
 
     internal string StartFlow(SpatialSession session, double x, double z)
     {
@@ -124,6 +126,9 @@ internal sealed class WaterSurfaces : IDisposable
         outerMetres = outer;
         int radius = TileRadius(outer);
         long cx = (long)Math.Floor(centre.X / TileMetres), cz = (long)Math.Floor(centre.Z / TileMetres);
+        waveBounds = new((cx - radius) * TileMetres, (cz - radius) * TileMetres,
+            (cx + radius + 1) * TileMetres, (cz + radius + 1) * TileMetres);
+        visual?.SetBounds(waveBounds);
         bool Inside((long X, long Z) key) => Math.Abs(key.X - cx) <= radius && Math.Abs(key.Z - cz) <= radius;
         foreach ((long X, long Z) key in tiles.Keys.Where(key => !Inside(key)).ToArray())
         {
@@ -290,7 +295,9 @@ internal sealed class WaterSurfaces : IDisposable
             normals.Add(Vector3.UnitY);
             // Engine WATER textures use world coordinates, leaving mesh UV free for the current.
             uvs.Add(sampledTile.Flow[v]);
-            colours.Add(white);
+            // Alpha is shore coverage: it fades both translucency and visual displacement. Dry
+            // corners under the bank stay pinned; adjacent tiles evaluate the same world column.
+            colours.Add(white with { A = WaterWaveSettings.Coverage(samples[v].Depth, samples[v].Ice) });
             return at;
         }
 
@@ -306,7 +313,7 @@ internal sealed class WaterSurfaces : IDisposable
         }
 
         if (indices.Count + iceIndices.Count == 0) return null;
-        visual ??= new(engine, frame);
+        visual ??= new(engine, frame, waveBounds);
         List<MeshGroup> groups = [];
         List<MeshMaterialBinding> bindings = [];
         if (indices.Count > 0) { groups.Add(new(WaterSlot, 0, (uint)indices.Count)); bindings.Add(new(WaterSlot, visual.Material)); }
