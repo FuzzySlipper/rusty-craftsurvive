@@ -7,8 +7,10 @@
 //
 // Commands:
 //   exec <debug command...>              run one debug command and print its answer
-//   walk [--action walk-forward] [--seconds 2] [--minimum 1]
-//                                        hold the action's control as harness input and report the
+//   walk [--action walk-forward] [--steps 60] [--minimum 4]
+//                                        hold the action's control as harness input over a known number
+//                                        of simulation steps (the Engine's held time, so the result does
+//                                        not depend on how fast the machine runs) and report the
 //                                        distance walked; fails unless the player moved at least
 //                                        --minimum metres and the product received the key events
 //   discovery [--kind StandingStones]    stand at an unvisited place and check the journal noticed,
@@ -25,6 +27,11 @@ const CLAIM_LABEL = 'craft-live';
 const LEASE_MS = '60000';
 const INPUT_OBSERVATION_TIMEOUT_MS = 30000;
 const INPUT_OBSERVATION_POLL_MS = 100;
+// The Engine's fixed simulation rate, and the most held time one advance call is asked for.
+const STEPS_PER_SECOND = 60;
+const ADVANCE_CHUNK_MS = 500;
+// Steps run after the release so the product sees it before the claim goes.
+const RELEASE_STEPS = 6;
 const DISCOVERY_WAIT_MS = 3000;
 const JOURNAL_HEADER_BYTES = 32;
 const JOURNAL_RECORD_BYTES = 51;
@@ -68,8 +75,26 @@ function options(argv, defaults) {
   return result;
 }
 
-/** Holds one action's control for a while through the harness lane, then gives input back. */
-async function hold(key, milliseconds, initialKeyEvents) {
+/** Runs exactly this many simulation steps of held time, in bounded advances. */
+async function advance(steps) {
+  let remaining = (steps * 1000) / STEPS_PER_SECOND;
+  while (remaining > 0) {
+    const ms = Math.min(ADVANCE_CHUNK_MS, remaining);
+    await exec(`engine.time.advance ${ms}`);
+    remaining -= ms;
+  }
+}
+
+/**
+ * Holds one action's control for a number of simulation steps through the harness lane, then gives
+ * input back. Time is held (manual mode) for the hold, so the walk covers the same steps on any
+ * machine, and the previous time mode is restored after.
+ */
+async function hold(key, steps, initialKeyEvents) {
+  const before = JSON.parse(await exec('engine.time'));
+  await exec('engine.time.mode manual');
+  const held = async () => ({ step: BigInt(JSON.parse(await exec('engine.time')).simulationStep), updates: Number(field(await exec('craft.player.readout'), 'updates')) });
+  const start = await held();
   const presentation = JSON.parse(await exec('engine.renderer.presentation'));
   let claim = await post('/__rusty/product/runtime/control/claim', { runtime: presentation.runtime, label: CLAIM_LABEL, leaseMs: LEASE_MS });
   let binding = claim.binding;
@@ -83,8 +108,9 @@ async function hold(key, milliseconds, initialKeyEvents) {
   };
   try {
     await send('pressed');
-    await sleep(milliseconds);
+    await advance(steps);
     await send('released');
+    await advance(RELEASE_STEPS);
     // A queued input receipt is not product consumption. Keep the claim until both
     // edges reach an update: releasing it first clears queued input on a slow host.
     const deadline = Date.now() + INPUT_OBSERVATION_TIMEOUT_MS;
@@ -94,21 +120,23 @@ async function hold(key, milliseconds, initialKeyEvents) {
       await sleep(INPUT_OBSERVATION_POLL_MS);
       observed = await observe();
     }
-    return observed;
+    const end = await held();
+    return { ...observed, stepsRun: Number(end.step - start.step), updates: end.updates - start.updates };
   } finally {
     await post('/__rusty/product/runtime/control/release', { runtime: binding });
+    if (before.mode !== 'manual') await exec(`engine.time.mode ${before.mode}`);
   }
 }
 
 async function walk(argv) {
-  const { action, seconds, minimum } = options(argv, { action: 'walk-forward', seconds: 2, minimum: 1 });
+  const { action, steps, minimum } = options(argv, { action: 'walk-forward', steps: 60, minimum: 4 });
   const control = JSON.parse(await exec(`playtest.action ${action}`));
   if (!control.available) throw new Error(`${action}: ${control.reason}`);
   const before = await observe();
-  const after = await hold(control.key, seconds * 1000, before.keyEvents);
+  const after = await hold(control.key, steps, before.keyEvents);
   const distance = Math.hypot(after.feet.x - before.feet.x, after.feet.z - before.feet.z);
   const keyEvents = after.keyEvents - before.keyEvents;
-  const report = { action, key: control.key, seconds, distance: Number(distance.toFixed(3)), keyEvents, before: before.feet, after: after.feet };
+  const report = { action, key: control.key, steps, stepsRun: after.stepsRun, updates: after.updates, distance: Number(distance.toFixed(3)), keyEvents, before: before.feet, after: after.feet };
   console.log(JSON.stringify(report));
   if (keyEvents < 2) throw new Error(`the product received ${keyEvents} key events, so the movement is not attributable to input`);
   if (distance < minimum) throw new Error(`walked ${distance.toFixed(3)} m, less than --minimum ${minimum}`);

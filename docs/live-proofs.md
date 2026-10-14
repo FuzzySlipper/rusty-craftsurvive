@@ -53,13 +53,16 @@ export CRAFT_ORIGIN=http://127.0.0.1:<port>   # or CRAFT_PORT=<port>
 ```
 
 ```sh
-node scripts/live.mjs walk --seconds 2
+node scripts/live.mjs walk --steps 60
 ```
 
-Walks the player with the forward control for two seconds and prints the distance, the
-positions before and after, and how many key events the product received. It fails unless the
-player moved at least `--minimum` metres (default 1) *and* the product received the key events,
-so the distance is attributable to input. Other actions: `--action walk-back|strafe-left|strafe-right`.
+Holds time (the Engine's manual mode) and walks the player with the forward control over that
+many simulation steps (60 a second), then puts time back as it was. It prints the distance, the
+steps and product updates it ran, the positions before and after, and how many key events the
+product received. Because the steps are counted, not timed, a slow machine walks as far as a fast
+one (about 7 m for 60 steps on level ground). It fails unless the player moved at least
+`--minimum` metres (default 4) *and* the product received the key events, so the distance is
+attributable to input. Other actions: `--action walk-back|strafe-left|strafe-right`.
 
 ```sh
 node scripts/live.mjs discovery

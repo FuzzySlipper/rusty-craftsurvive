@@ -2,7 +2,7 @@
 # Serves the product on its pinned pair and proves it runs: the bootstrap names
 # the product, the runtime stays Running while the player's update count
 # advances, and the generator's live fingerprint is the one recorded for its
-# version, and a twelve-second walk through the live-lane client moves the player on input.
+# version, and a 60-step walk through the live-lane client moves the player on input.
 #   scripts/ci-serve-product.sh <product.csproj> <port>
 set -euo pipefail
 
@@ -71,10 +71,10 @@ if [[ "$generation" != *golden=match* ]]; then
 fi
 
 # The documented walk: input reaches the product and moves the player, on this machine too.
-# The runner renders without a GPU and admits an update only every few seconds, unevenly; each
-# admitted update walks about 0.47 m. So the key is held for 12 s and any movement passes (a quarter
-# metre is less than one update's step): the check is that input moves the player, not how far.
-if ! CRAFT_ORIGIN=$origin node "$(dirname "$0")/live.mjs" walk --seconds 12 --minimum 0.25; then
+# The key is held over 60 simulation steps of the Engine's held time (#9843), so the walk is the
+# same however slowly the GPU-less runner renders: a second at the walking speed is about 7 m, and
+# 4 m is asked for. It fails if the key events do not reach the product.
+if ! CRAFT_ORIGIN=$origin node "$(dirname "$0")/live.mjs" walk --steps 60 --minimum 4; then
     echo "The player did not walk on input." >&2
     exit 1
 fi
