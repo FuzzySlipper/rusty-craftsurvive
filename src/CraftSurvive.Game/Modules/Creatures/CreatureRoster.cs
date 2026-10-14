@@ -29,6 +29,14 @@ internal sealed class Creature
     /// </summary>
     internal float? Feet { get; set; }
 
+    /// <summary>Its body as the Engine last stepped it (#9737), session-local; null until it first moves, or once the world's origin moves.</summary>
+    internal CreatureBodyState? Body { get; set; }
+
+    /// <summary>The next sequence its body's step commands carry.</summary>
+    internal ulong NextBodySequence() => ++bodySequence;
+
+    private ulong bodySequence;
+
     internal CombatantState Combat { get; set; }
 
     internal CreatureBehaviorState Behavior { get; set; }

@@ -25,20 +25,14 @@ internal sealed class CreatureNavigation
     private const uint ChunkSize = 16U;
 
     /// <summary>How high a creature steps: the ground's own terraces are up to two blocks.</summary>
-    private const uint MaximumStepCells = 2U;
+    private const uint MaximumStepCells = CreatureBody.MaximumStepCells;
 
     /// <summary>How far a creature steps up or down in one move, metres: what its standing height follows.</summary>
-    internal const double ClimbMetres = TerrainConstants.VoxelSize * MaximumStepCells;
+    internal const double ClimbMetres = CreatureBody.StepMetres;
 
     /// <summary>The box's cell budget: its square by its height must stay within it.</summary>
     private const uint MaximumCells = 262_144U;
 
-    private const float AgentRadius = 0.3f;
-    private const float AgentHeight = 1.8f;
-    private const float MaximumSlopeDegrees = 45f;
-
-    /// <summary>How far a creature's standing capsule is held clear of what it stands on.</summary>
-    private const float ContactSkin = 0.02f;
     private const uint MaximumVisitedCells = 4_096U;
 
     /// <summary>
@@ -113,24 +107,15 @@ internal sealed class CreatureNavigation
     private static CollisionNavigationConfig Configure(ISpatialService spatial)
     {
         CollisionNavigationConfig defaults = spatial.DefaultCollisionNavigationConfig();
-        CharacterControllerConfig body = defaults.Character;
-        const double stepMetres = TerrainConstants.VoxelSize * MaximumStepCells;
         return defaults with
         {
             GridId = GridId,
             CellSize = TerrainConstants.VoxelSize,
             ChunkSize = ChunkSize,
             MaximumCells = MaximumCells,
-            Character = body with
-            {
-                Shape = body.Shape with { Radius = AgentRadius, StandingHeight = AgentHeight, ContactSkin = ContactSkin },
-                Surface = body.Surface with
-                {
-                    MaximumStepHeight = (float)stepMetres,
-                    MaximumSlopeRadians = Angles.ToRadians(MaximumSlopeDegrees),
-                },
-            },
-            MaximumDrop = stepMetres,
+            // Routed with the very capsule its body steps as (#9737).
+            Character = CreatureBody.Capsule(defaults.Character),
+            MaximumDrop = CreatureBody.StepMetres,
             VerticalSearchCells = MaximumStepCells,
             SnapAbove = FeetSnapMetres,
             SnapBelow = FeetSnapMetres,

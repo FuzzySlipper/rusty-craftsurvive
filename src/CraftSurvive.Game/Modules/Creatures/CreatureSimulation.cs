@@ -52,6 +52,11 @@ internal static class CreatureSimulation
     /// or its own position to wait (see <see cref="WaypointOrWait"/>). A creature never walks
     /// straight at the player, so nothing but a route moves it past what is in between.
     /// </param>
+    /// <param name="move">
+    /// Moves the creature toward the waypoint by at most some metres over the update's seconds and says
+    /// where it now stands (#9737: its body, stepped against the world's collision). Without one it is
+    /// set down along the line, as a point that meets nothing.
+    /// </param>
     internal static CreatureStrike? Step(
         Creature creature,
         CreatureSense sense,
@@ -59,7 +64,8 @@ internal static class CreatureSimulation
         bool playerCanBeHit,
         ProductStep time,
         double sightScale,
-        Vector2 waypoint)
+        Vector2 waypoint,
+        Func<Creature, Vector2, double, double, Vector2>? move = null)
     {
         ArgumentNullException.ThrowIfNull(creature);
         CreatureKind kind = creature.Kind;
@@ -74,7 +80,11 @@ internal static class CreatureSimulation
             Vector2 offset = waypoint - creature.Position;
             double leg = offset.Length();
             double travel = Math.Min(Math.Min(kind.PursueSpeedMetresPerSecond * time.ElapsedSeconds, distance - kind.HaltDistanceMetres), leg);
-            if (leg > 0)
+            if (move is not null)
+            {
+                if (travel > 0) creature.Position = move(creature, waypoint, travel, time.ElapsedSeconds);
+            }
+            else if (leg > 0)
             {
                 creature.Position += offset * (float)(travel / leg);
             }

@@ -242,6 +242,69 @@ host.Call(engine =>
         Check.That(told.Aboard >= told.Steps - 2 && Math.Abs(told.Carried - told.Moved) < 0.2f,
             $"one heaving with the waves, and saying how fast, carries them up and down as well ({Say(told)})");
     });
+
+    // Creatures move as bodies (#9737): the navigation capsule, stepped by the Engine against the session's
+    // collision, stops at a wall, passes a doorway without touching its jambs and never enters a post.
+    Check.Section("a creature's body cannot pass through walls, jambs or posts", () =>
+    {
+        const int WallX = 10, DoorZ = 7, WallTop = StoneTop + 3, PostX = 4, PostZ = 11;
+        using SpatialSession walls = engine.Spatial.CreateSession(new SpatialSessionConfig(
+            TerrainConstants.VoxelSize, TerrainConstants.VoxelChunkSize, VoxelSurfaceMode.GreedyCubes));
+        engine.Voxel.ConfigureMaterialCollision(new VoxelMaterialCollisionRequest(walls, new[] { new VoxelMaterialCollision(StoneSlot, true) }));
+        uint[] built = new uint[Edge * Edge * Edge];
+        for (int z = 0; z < Edge; z++)
+        for (int y = 0; y < WallTop; y++)
+        for (int x = 0; x < Edge; x++)
+        {
+            bool floor = y < StoneTop, wall = x == WallX && z != DoorZ, post = x == PostX && z == PostZ;
+            if (floor || wall || post) built[(z * Edge * Edge) + (y * Edge) + x] = StoneSlot;
+        }
+
+        engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(walls,
+            new[] { new VoxelResidencyOperation(VoxelResidencyOperationKind.Admit, new VoxelChunkIdentity(0, 0, 0), 0U, (uint)built.Length) },
+            built));
+        CharacterControllerConfig creature = CreatureBody.Configure(CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig()), 3f);
+        float radius = creature.Shape.Radius;
+        const double Seconds = 6, UpdateSeconds = 4d / 60d;
+
+        List<Vector3> Walk(Vector2 from, Vector2 to)
+        {
+            Vector3 centre = CreatureBody.CentreOver(new Vector3(from.X, StoneTop + 0.05f, from.Y), creature);
+            CreatureBodyState body = new(centre, CreatureBody.AtRest(centre));
+            ulong sequence = 0;
+            List<Vector3> path = [centre];
+            for (double t = 0; t < Seconds; t += UpdateSeconds)
+            {
+                if (CreatureBody.Step(engine.Spatial, walls, body, creature, to, 3d * UpdateSeconds, UpdateSeconds, () => ++sequence) is not CreatureBodyState next) break;
+                body = next;
+                path.Add(body.Centre);
+            }
+
+            return path;
+        }
+
+        // How far a body's centre stands into a stone block's box, past its radius (negative while clear).
+        static float Into(Vector3 centre, float radius, int bx, int bz)
+        {
+            float dx = Math.Max(Math.Max(bx - centre.X, 0f), centre.X - (bx + 1)), dz = Math.Max(Math.Max(bz - centre.Z, 0f), centre.Z - (bz + 1));
+            return radius - MathF.Sqrt((dx * dx) + (dz * dz));
+        }
+
+        float Deepest(List<Vector3> path, IEnumerable<(int X, int Z)> blocks) => path.Max(c => blocks.Max(b => Into(c, radius, b.X, b.Z)));
+        IEnumerable<(int X, int Z)> wallBlocks = Enumerable.Range(0, Edge).Where(z => z != DoorZ).Select(z => (WallX, z));
+
+        List<Vector3> blocked = Walk(new Vector2(6.5f, 3.5f), new Vector2(13.5f, 3.5f));
+        List<Vector3> doorway = Walk(new Vector2(6.5f, DoorZ + 0.5f), new Vector2(13.5f, DoorZ + 0.5f));
+        List<Vector3> past = Walk(new Vector2(2.5f, 14.5f), new Vector2(6.5f, 9.5f));
+        float skin = creature.Shape.ContactSkin + 0.01f;
+        Console.WriteLine(FormattableString.Invariant(
+            $"creature bodies: at the wall stopped at x={blocked[^1].X:F2} (wall face {WallX}); through the doorway to x={doorway[^1].X:F2}, deepest into a jamb {Deepest(doorway, wallBlocks):F3} m; past the post to ({past[^1].X:F2},{past[^1].Z:F2}), deepest into it {Deepest(past, [(PostX, PostZ)]):F3} m"));
+        Check.That(blocked[^1].X > 7.5f && blocked[^1].X <= WallX - radius + skin && Deepest(blocked, wallBlocks) <= skin,
+            "a body walking at a wall reaches it and stops at its face, never inside");
+        Check.That(doorway[^1].X > WallX + 1 + radius && Deepest(doorway, wallBlocks) <= skin,
+            "a body walks through a doorway its width allows without entering either jamb");
+        Check.That(Deepest(past, [(PostX, PostZ)]) <= skin, "a body walking at a post goes round it or stops; it never passes through");
+    });
 });
 
 return Check.Finish("PlayerBody");

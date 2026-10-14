@@ -108,6 +108,51 @@ internal sealed class CreatureModule : IProductModule
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         presentation = new CreaturePresentation(engine, frame, StandingAt);
         navigation = new CreatureNavigation(engine, terrain, frame);
+        capsule = CreatureBody.Capsule(engine.Spatial.DefaultCharacterControllerConfig());
+        // A body's step carries session-local positions; when the world's origin moves, each is set down afresh from where it stands.
+        frame.Rebased += _ =>
+        {
+            foreach (Creature creature in roster.All) creature.Body = null;
+        };
+    }
+
+    /// <summary>The creature capsule navigation routes and its body steps as (#9737), and each kind's at its pace.</summary>
+    private readonly CharacterControllerConfig capsule;
+    private readonly Dictionary<CreatureKind, CharacterControllerConfig> bodies = [];
+    private int bodiesStepped, bodiesRefused;
+
+    /// <summary>
+    /// Moves a creature's body toward its waypoint by at most some metres (#9737): the Engine's character step
+    /// carries its capsule against the walking session's collision, so it stops at what it meets, and its feet
+    /// come from the step. A body the Engine refuses, lodged in collision, stays put; not closing on its
+    /// waypoint, it is soon found stuck and routed again.
+    /// </summary>
+    private Vector2 MoveBody(Creature creature, Vector2 waypoint, double travel, double seconds)
+    {
+        if (!bodies.TryGetValue(creature.Kind, out CharacterControllerConfig config))
+            bodies[creature.Kind] = config = CreatureBody.Configure(capsule, (float)creature.Kind.PursueSpeedMetresPerSecond);
+        CreatureBodyState body = creature.Body ?? Placed(creature, config);
+        Vector3 toward = frame.ToLocal(waypoint.X, 0, waypoint.Y);
+        bodiesStepped++;
+        if (CreatureBody.Step(engine.Spatial, terrain.Session, body, config, new Vector2(toward.X, toward.Z), travel, seconds, creature.NextBodySequence)
+            is not CreatureBodyState moved)
+        {
+            bodiesRefused++;
+            creature.Body = body;
+            return creature.Position;
+        }
+
+        creature.Body = moved;
+        Vector3 feet = frame.ToWorld(CreatureBody.FeetUnder(moved.Centre, config));
+        creature.Feet = feet.Y;
+        return new Vector2(feet.X, feet.Z);
+    }
+
+    /// <summary>A body standing where the creature stands now.</summary>
+    private CreatureBodyState Placed(Creature creature, CharacterControllerConfig config)
+    {
+        Vector3 centre = CreatureBody.CentreOver(frame.ToLocal(creature.Position.X, StandingAt(creature), creature.Position.Y), config);
+        return new CreatureBodyState(centre, CreatureBody.AtRest(centre));
     }
 
     internal CreatureRoster Roster => roster;
@@ -174,11 +219,19 @@ internal sealed class CreatureModule : IProductModule
         routing.Record(System.Diagnostics.Stopwatch.GetElapsedTime(routingStarted).TotalMilliseconds, navigation.Queries - queriesBefore,
             roster.All.Count(creature => creature.Awake && creature.Behavior.State is CreatureState.Pursuing or CreatureState.Attacking));
         bool playerCanBeHit = !player.Vitals.IsDown && !player.Vitals.IsInvulnerable(step);
+        long bodiesStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        (bodiesStepped, bodiesRefused) = (0, 0);
+        foreach (Creature creature in roster.All)
+        {
+            // A sleeping creature's body is set down afresh when it wakes, from wherever it was left.
+            if (!creature.Awake) creature.Body = null;
+        }
+
         foreach (Creature creature in roster.All.Where(creature => creature.Awake))
         {
             CreatureSense sense = new(seeing.Contains(creature.Id));
             if (CreatureSimulation.Step(creature, sense, playerWorld, playerCanBeHit, time, SightScale(creature),
-                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint)) is CreatureStrike strike)
+                CreatureSimulation.WaypointOrWait(creature.Position, creature.Waypoint), MoveBody) is CreatureStrike strike)
             {
                 ResolveStrike(strike);
                 playerCanBeHit = !player.Vitals.IsDown;
@@ -186,6 +239,8 @@ internal sealed class CreatureModule : IProductModule
 
             Follow(creature);
         }
+
+        routing.RecordBodies(System.Diagnostics.Stopwatch.GetElapsedTime(bodiesStarted).TotalMilliseconds, bodiesStepped, bodiesRefused);
 
         IReadOnlyList<int> leaving = director.Tick(
             step,
@@ -646,11 +701,13 @@ internal sealed class CreatureModule : IProductModule
     private float StandingAt(Creature creature) => creature.Feet ?? GroundAt(creature.Position);
 
     /// <summary>
-    /// After a move, the creature's feet follow the surface below its reach from where they were
-    /// (#9734), never the top of its column: under a roof it stays on the floor it walked onto.
+    /// A creature not moved as a body keeps its feet on the surface below its reach from where they were
+    /// (#9734), never the top of its column: under a roof it stays on the floor it walked onto. One whose
+    /// body stepped stands where the step left it (#9737).
     /// </summary>
     private void Follow(Creature creature)
     {
+        if (creature.Body is not null) return;
         float from = StandingAt(creature);
         creature.Feet = terrain.GroundBelow(creature.Position.X, creature.Position.Y, from, CreatureNavigation.ClimbMetres) ?? creature.Feet;
     }

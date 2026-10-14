@@ -638,8 +638,15 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   a failed query backs it off (doubling up to about eight seconds). Creatures stand on the
   generator's column height, so navigation snaps feet to the reconstructed ground within 0.6 m. An
   ambush tests at most three candidate columns per update with a small search. A pursuer outside
-  the box, or with no route, waits; creature movement is planar and follows the ground, so the
-  grid's step height is what keeps pursuers out of pits.
+  the box, or with no route, waits.
+- **Pursuers move as bodies (#9737).** Each awake pursuer's move toward its waypoint is the Engine's
+  character step of the capsule navigation routes it with (`CreatureBody`: radius 0.3 m, 1.8 m tall,
+  stepping 2 m), against the walking session's collision, in steps of at most 1/20 s. It stops at
+  walls, jambs, posts and terrain edges and stands where the step leaves it. A body the Engine refuses
+  (lodged in collision) stays put, and stuck detection routes it again. Bodies are set down afresh
+  from where a creature stands when it wakes or the world's origin moves. The step is planar intent
+  with no jumping or swimming, and creatures do not collide with each other or with the player's
+  body. `craft.creatures.routing` reports the bodies' per-update cost beside routing's.
 
 ## Survival
 
