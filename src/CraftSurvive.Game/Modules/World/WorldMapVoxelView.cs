@@ -67,9 +67,11 @@ internal sealed class WorldMapVoxelView : IDisposable
     private const int OriginY = -20000;
     private const int ChunksPerUpdate = 24;
     /// <summary>
-    /// Beyond these camera distances, in map units (one coarse cell), each layer is drawn from coarse
-    /// meshes (#9563): the detail patch when the camera has pulled back past about 770 m, the whole
-    /// map only at the farthest zooms, where its 64 m coarse facets are below a pixel or two.
+    /// Beyond these camera distances, in map units (one coarse cell), each layer would be drawn from coarse
+    /// meshes (#9563); zero draws it at full resolution always. Every tier does (#9952 review): a finer
+    /// tier's edge is matched to the surface the coarser tier's full mesh draws, and a coarse mesh, on a
+    /// lattice twice as coarse, stands off it - the edges showed as lines at the zooms that used one. It
+    /// costs about 3 ms a frame on the map screen at the farthest zoom.
     /// </summary>
     private const double DetailLayerCoarseBeyond = 0;
     private const double CoarseLayerCoarseBeyond = 0;
@@ -77,7 +79,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     internal const double ContinentCellMetres = 1000;
     private const double ContinentVoxel = ContinentCellMetres / CellMetres;
     private const double ContinentChunkMetres = EdgeLength * ContinentCellMetres;
-    private const double ContinentLayerCoarseBeyond = 2000;
+    private const double ContinentLayerCoarseBeyond = CoarseLayerCoarseBeyond;
     /// <summary>Region chunks on each side of the party's covered by a continent's 32 m window (one chunk is 512 m): about 8 km across.</summary>
     private const int RegionRadiusChunks = 8;
     private const double RegionChunkMetres = EdgeLength * CellMetres;

@@ -171,8 +171,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       drawn within a cell needs. Toward the edge each finer column takes the coarser tier's environments
       in the shares its terrain layers blend there, chosen by an ordered threshold that each block turns
       and mirrors its own way, so environment edges keep the coarser tier's softness. Clutter thins
-      toward the patch's edge. The patch and the window's 32 m ground are always drawn at full
-      resolution: their coarse meshes stood off the surface the edge is matched to. From close in the
+      toward the patch's edge. Every map tier is always drawn at full resolution: coarse
+      meshes stood off the surface the edges are matched to (about 3 ms a frame more at the farthest
+      zoom). From close in the
       window's band reads as a mottled transition rather than a line. The region window's own relief
       shows within about 1.2 km of its centre. Trees, cacti and rocks on the patch are generated low-poly
     textured prop meshes (the first-person trees' distant-band meshes, the first-person stones'
