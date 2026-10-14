@@ -158,6 +158,13 @@ internal sealed class MapCameraRig : IDisposable
         return changed;
     }
 
+    internal void ClearInput()
+    {
+        orbiting = false;
+        orbitCursor = null;
+        heldYaw = heldPitch = heldZoom = 0;
+    }
+
     /// <summary>Set the view directly (debug assistance); distance and pitch are clamped as for input.</summary>
     internal void Set(float distanceUnits, float yawDegrees, float pitchDegrees)
     {

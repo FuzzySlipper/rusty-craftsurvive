@@ -78,17 +78,38 @@ internal static class NetworkChecks
         double radius = continent.Radius;
         Check.That(settlements.All(s => !design.InNeck(s.X / radius, s.Z / radius) && !design.BeyondFrontier(s.X / radius, s.Z / radius)
             && design.LandAt(s.X / radius, s.Z / radius) is not { Forbidden: true }), "every settlement stands on the playable peninsula, out of the neck");
-        Check.That(settlements.All(s => !network.OnFloodplain(grid.Nearest(s.X, s.Z)) && drainage.ElevationAt(grid.Nearest(s.X, s.Z)) >= GenerationConstants.WaterLevel),
-            "every settlement stands on dry ground off the floodplain");
+        // Settlements are chosen on dry ground off the floodplain, spaced apart; each town then stands at a
+        // seat beside the water it serves (#9895), so the choice rules hold at the chosen sites.
+        IReadOnlyList<Settlement> chosen = Settlements.Choose(continent, design, drainage);
+        Check.That(chosen.All(s => !network.OnFloodplain(grid.Nearest(s.X, s.Z)) && drainage.ElevationAt(grid.Nearest(s.X, s.Z)) >= GenerationConstants.WaterLevel),
+            "every settlement is chosen on dry ground off the floodplain");
         bool spaced = true;
-        for (int a = 0; a < settlements.Count; a++)
-            for (int b = a + 1; b < settlements.Count; b++)
-                spaced &= Math.Sqrt(Math.Pow(settlements[a].X - settlements[b].X, 2) + Math.Pow(settlements[a].Z - settlements[b].Z, 2)) >= Settlements.SpacingMetres;
+        for (int a = 0; a < chosen.Count; a++)
+            for (int b = a + 1; b < chosen.Count; b++)
+                spaced &= Math.Sqrt(Math.Pow(chosen[a].X - chosen[b].X, 2) + Math.Pow(chosen[a].Z - chosen[b].Z, 2)) >= Settlements.SpacingMetres;
         foreach (PlacedSite hold in FrontierBound.For(continent)!.Sites.Where(site => site.Kind == nameof(SettlementKind.Hold)))
-            spaced &= towns.All(t => Math.Sqrt(Math.Pow(t.X - hold.X, 2) + Math.Pow(t.Z - hold.Z, 2)) >= Settlements.SpacingMetres);
-        Check.That(spaced, $"settlements, and the hold, stand at least {Settlements.SpacingMetres / 1000:F0} km apart");
+            spaced &= chosen.Where(t => t.Kind == SettlementKind.Town).All(t => Math.Sqrt(Math.Pow(t.X - hold.X, 2) + Math.Pow(t.Z - hold.Z, 2)) >= Settlements.SpacingMetres);
+        Check.That(spaced, $"settlements, and the hold, are chosen at least {Settlements.SpacingMetres / 1000:F0} km apart");
         Check.That(settlements.Select(s => s.Name).Distinct().Count() == settlements.Count, "every settlement has its own name");
-        Check.That(Settlements.Choose(continent, design, drainage).SequenceEqual(settlements), "settlements are chosen the same way every time");
+        Check.That(Settlements.Choose(continent, design, drainage).SequenceEqual(chosen), "settlements are chosen the same way every time");
+        Check.That(settlements.Select(s => s with { X = 0, Z = 0, Ground = default }).SequenceEqual(chosen.Select(s => s with { X = 0, Z = 0, Ground = default })),
+            "seating moves a settlement without changing which it is");
+        bool seated = true;
+        foreach ((Settlement site, Settlement seat) in chosen.Zip(settlements))
+        {
+            TownGround ground = seat.Ground;
+            RiverPoint[] course = drainage.Shaped(seat.Reach);
+            double fromSite = Math.Sqrt(Math.Pow(seat.X - site.X, 2) + Math.Pow(seat.Z - site.Z, 2));
+            // The waterfront, a waterfront's width toward the water from the seat, is at the river's bank.
+            double frontX = seat.X + (ground.FacingX * TownGround.Waterfront), frontZ = seat.Z + (ground.FacingZ * TownGround.Waterfront);
+            RiverPoint nearest = course.MinBy(p => Math.Pow(p.X - frontX, 2) + Math.Pow(p.Z - frontZ, 2));
+            double toCentre = Math.Sqrt(Math.Pow(nearest.X - frontX, 2) + Math.Pow(nearest.Z - frontZ, 2));
+            seated &= ground.X == seat.X && ground.Z == seat.Z && Math.Abs(Math.Sqrt((ground.FacingX * ground.FacingX) + (ground.FacingZ * ground.FacingZ)) - 1) < 1e-9
+                && fromSite <= Settlements.StandReachMetres + MapDrainage.Spacing + nearest.HalfWidth && toCentre <= nearest.HalfWidth + TownGround.FlatMetres
+                && ground.Height >= GenerationConstants.WaterLevel + TownGround.QuayMetres - 1e-9;
+        }
+
+        Check.That(seated, "each town is seated on its reach's bank, facing the water, its pad a quay's height over it");
         Check.That(towns.Count(t => network.MouthOf(t.Reach) == ports[0].Reach) >= 1, "towns spread up the port's own river first");
         Check.That(ports[0].Shelter is >= 0 and <= 1 && ports[0].Flat is >= 0 and <= 1 && ports[0].Score > 0, "the port is scored on its shelter and flat land as well as its flow");
         Console.WriteLine($"network: {network.Reaches.Count} reaches, {network.Mouths.Count()} mouths, {network.Confluences.Count} confluences, heads boat {network.BoatHeads.Count} canoe {network.CanoeHeads.Count}; "

@@ -324,7 +324,7 @@ export function mountScreens(root: Element, intents: RustyApplicationUiIntentsPo
 
   const onKey = (event: KeyboardEvent): void => {
     // Under the pause menu the screens wait (#9916).
-    if (event.repeat || layers.menu) return;
+    if (event.repeat || layers.menu || layers.town) return;
     if (event.code === PACK_KEY) show('pack');
     else if (event.code === JOURNAL_KEY) show('journal');
     else if (event.code === CLOSE_KEY && open !== null) {

@@ -382,10 +382,14 @@ internal sealed class WorldMapVoxelView : IDisposable
         factsVersion++;
     }
 
-    /// <summary>
-    /// Move the waypoint with held W/A/S/D relative to the camera's heading, or put it where a
-    /// free-cursor click lands on the relief. Returns true when T or a click asks for a route to it.
-    /// </summary>
+    /// <summary>Release held waypoint/orbit controls when another mode takes the view.</summary>
+    internal void ClearInput()
+    {
+        waypointForward = waypointBack = waypointLeft = waypointRight = false;
+        rig.ClearInput();
+    }
+
+    /// <summary>Move the waypoint with held keys or a free-cursor pick; true requests a route.</summary>
     internal bool SteerWaypoint(ReadOnlySpan<ProductInputEvent> events)
     {
         bool plan = false;

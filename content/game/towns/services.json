@@ -1,0 +1,228 @@
+{
+ "about": "Town services (#9895). Lines are chosen in order: the first whose `when` tags all hold (wet, dry, night, day, port, town) is used; a line without `when` always holds. Text may use {town}, {host}, {service}. Actions: talk (a reply only), meal (eat once a visit), rest (sleep: until morning by night, or `hours` by day), resupply (top the pack's `item` up to `allotment`, once a visit). Outcome templates describe what an action changed, in real game terms.",
+ "services": {
+  "inn": {
+   "names": {
+    "Port": [
+     "The Quayside",
+     "The Harbour Lamp",
+     "The Anchor",
+     "The Tidewater"
+    ],
+    "Town": [
+     "The Landing",
+     "The Ferry Rest",
+     "The Kettle",
+     "The Riverside"
+    ]
+   },
+   "summary": "A meal, a room, a little company",
+   "role": "Your host",
+   "welcome": [
+    {
+     "when": [
+      "wet"
+     ],
+     "text": "‘Come in out of that weather. There’s a place by the fire, and the kettle’s still warm.’"
+    },
+    {
+     "when": [
+      "night"
+     ],
+     "text": "‘Late on the road? Come in, the fire’s banked but it’s warm.’"
+    },
+    {
+     "text": "‘Come in and put your pack down. You’ve time for a cup before the road calls again.’"
+    }
+   ],
+   "choices": [
+    {
+     "key": "news",
+     "action": "talk",
+     "detail": "A little local news",
+     "label": [
+      {
+       "when": [
+        "port"
+       ],
+       "text": "Any news from the harbour?"
+      },
+      {
+       "text": "How is the river today?"
+      }
+     ],
+     "reply": [
+      {
+       "when": [
+        "port",
+        "wet"
+       ],
+       "text": "‘Nothing’s putting out in this. The boats are snug at the quay and their crews are in here, mostly.’"
+      },
+      {
+       "when": [
+        "port"
+       ],
+       "text": "‘A good tide this morning. If you’re heading upriver, the barges will tell you how the water’s running.’"
+      },
+      {
+       "when": [
+        "wet"
+       ],
+       "text": "‘The river’s high today. The ferry folk are keeping an eye on it. No harm in waiting here until the rain eases.’"
+      },
+      {
+       "text": "‘The ferry’s been busy since breakfast. If you’re heading upriver, you’ll find company at the landing.’"
+      }
+     ]
+    },
+    {
+     "key": "company",
+     "action": "talk",
+     "detail": "A little company",
+     "label": [
+      {
+       "text": "I’d like to sit a while"
+      }
+     ],
+     "reply": [
+      {
+       "text": "‘You’re welcome to sit a while.’ {host} turns a cup in their hands. ‘Someone will be down soon with the day’s news.’"
+      }
+     ]
+    },
+    {
+     "key": "meal",
+     "action": "meal",
+     "nourishment": 40,
+     "detail": "Bread and a bowl by the hearth",
+     "label": [
+      {
+       "text": "A hot meal, please"
+      }
+     ],
+     "reply": [
+      {
+       "text": "{host} brings a bowl and pulls out a chair. ‘Take your time. There’s more bread if you need it.’"
+      }
+     ],
+     "spent": "Already eaten"
+    },
+    {
+     "key": "room",
+     "action": "rest",
+     "when": [
+      "night"
+     ],
+     "detail": "A dry bed until morning",
+     "label": [
+      {
+       "text": "A room for the night"
+      }
+     ],
+     "reply": [
+      {
+       "text": "‘The room above the porch is yours.’ {host} sets a key on the table. ‘Leave your wet things by the fire.’"
+      }
+     ],
+     "spent": "Already rested"
+    },
+    {
+     "key": "fireside",
+     "action": "rest",
+     "when": [
+      "day"
+     ],
+     "hours": 2,
+     "detail": "Dry out and rest a couple of hours",
+     "label": [
+      {
+       "text": "Rest by the fire a while"
+      }
+     ],
+     "reply": [
+      {
+       "text": "‘Pull that chair closer. Nobody will hurry you.’"
+      }
+     ],
+     "spent": "Already rested"
+    }
+   ]
+  },
+  "provisioner": {
+   "names": {
+    "Port": [
+     "Harbour Stores",
+     "The Chandlery",
+     "Quay Provisions"
+    ],
+    "Town": [
+     "River Provisions",
+     "The Landing Store",
+     "Upriver Supplies"
+    ]
+   },
+   "summary": "Food and dry things for the road",
+   "role": "Supplies for the road",
+   "welcome": [
+    {
+     "when": [
+      "wet"
+     ],
+     "text": "‘Shake that off by the door. There’s food for the road, lamp oil, and a few dry things.’"
+    },
+    {
+     "text": "‘Set your pack on the bench. There’s food for the road and lamp oil.’"
+    }
+   ],
+   "choices": [
+    {
+     "key": "rations",
+     "action": "resupply",
+     "item": "ration",
+     "allotment": 6,
+     "detail": "Fill your pack to {allotment} rations",
+     "label": [
+      {
+       "text": "Provisions for the road"
+      }
+     ],
+     "reply": [
+      {
+       "text": "The provisioner wraps the rations in paper. ‘They’ll keep a few days. Mind the weather.’"
+      }
+     ],
+     "spent": "Already provisioned",
+     "full": "Your pack already holds enough"
+    },
+    {
+     "key": "oil",
+     "action": "resupply",
+     "item": "oil",
+     "allotment": 2,
+     "detail": "Up to {allotment} flasks",
+     "label": [
+      {
+       "text": "Lamp oil"
+      }
+     ],
+     "reply": [
+      {
+       "text": "A flask is set carefully on the counter. ‘Best keep it upright in your pack.’"
+      }
+     ],
+     "spent": "Already provisioned",
+     "full": "Your pack already holds enough"
+    }
+   ]
+  }
+ },
+ "outcomes": {
+  "rest": "Slept {hours} h · health {health} · food {food} · damp {wet} · chill {chill}",
+  "rest-refused": "You can’t rest just now: {reason}",
+  "meal": "Food {food}",
+  "resupply": "{item}: {before} → {after} in your pack",
+  "pack-full": "Your pack is too full to take more"
+ },
+ "hint": "Prototype rules: talking and browsing cost no time. Resting advances the clock under the usual rules. Meals and supplies are free, once a visit, and supplies top your pack up to a road allotment. There is no money yet."
+}

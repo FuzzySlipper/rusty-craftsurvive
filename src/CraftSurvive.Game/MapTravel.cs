@@ -346,6 +346,8 @@ public sealed partial class CraftSurviveProduct
         // found past them stands on the nearest ground the expedition may cross.
         if (BoundRefusal(party.Position.X, party.Position.Y) is not null && TravelRouter.Nearest(TravelCost, party.Position) is int inside and >= 0)
             party.Relocate(new((float)worlds.Current.Map.Grid.X(inside), (float)worlds.Current.Map.Grid.Z(inside)));
+        // Nor inside a town's bubble: a journey to a town stops at its arrival view and offers entry (#9895).
+        SettleOutsideTowns();
         Vector3 feet = player.WorldFeetPosition;
         // Stopped on the water, the player sits aboard the boat where the party is (#9879).
         if (SettleAfloat())

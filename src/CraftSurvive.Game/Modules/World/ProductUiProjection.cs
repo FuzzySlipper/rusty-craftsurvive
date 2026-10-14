@@ -15,7 +15,7 @@ internal static class ProductUiProjection
 {
     internal static UiValue Create(WorldUiFacts? sceneFacts, PlayerUiFacts? player,
         DiscoveryUiFacts? discovery, ActionUiFacts? actions, ConditionsUiFacts? conditions, SurvivalUiFacts? survival, InventoryUiFacts? inventory, DungeonUiFacts? dungeon, WorldMapUiFacts? map = null, SledUiFacts? sled = null, string? gameOptions = null,
-        GameMenuUiFacts? menu = null)
+        GameMenuUiFacts? menu = null, TownUiFacts? town = null)
     {
         NumericObjectBuilder values = new();
         // The game's own options for the options panel (#9759): id|label|min|max|step|unit|value|description, ';' between.
@@ -24,6 +24,29 @@ internal static class ProductUiProjection
         {
             values.Add("menuPaused", paused.Paused ? 1 : 0);
             values.Add("menuQuit", paused.QuitAvailable ? 1 : 0);
+        }
+        if (town is TownUiFacts visit)
+        {
+            values.Add("townOpen", visit.Open ? 1 : 0);
+            values.Add("townMotion", visit.Motion ? 1 : 0);
+            values.AddText("townTitle", visit.Title);
+            values.AddText("townSubtitle", visit.Subtitle);
+            values.AddText("townSelected", visit.Selected);
+            values.AddText("townSelectedName", visit.SelectedName);
+            values.AddText("townHover", visit.Hover);
+            values.AddText("townAnchors", visit.Anchors);
+            values.AddText("townVisit", visit.Visit);
+            values.AddText("townPrompt", visit.Prompt);
+            if (visit.Service is TownServiceUiFacts service)
+            {
+                values.AddText("townSpeaker", service.Speaker);
+                values.AddText("townRole", service.Role);
+                values.AddText("townSpeech", service.Text);
+                values.AddText("townPortrait", service.Portrait);
+                values.AddText("townChoices", service.Choices);
+                values.AddText("townOutcome", service.Outcome);
+                values.AddText("townHint", service.Hint);
+            }
         }
         if (sceneFacts is WorldUiFacts scene)
         {

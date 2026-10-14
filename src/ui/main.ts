@@ -8,6 +8,7 @@ import { mountLoading } from './loading.js';
 import { mountOverlay } from './overlay.js';
 import { mountMenu } from './menu.js';
 import { mountScreens } from './screens.js';
+import { mountTown } from './town.js';
 
 const CONTROLS_HELP = 'WASD and mouse to move and look; Space jumps, Shift sprints, Ctrl crouches; E takes hold of a wall to climb '
   + '(and lets go); J attacks; F digs; T starts building, where G places and F removes a piece (Q steps the piece, Z its material), T again switches to the terrain brush (G places, F clears, B changes the brush) and T a third time stops building; 1-9 or the wheel select a hotbar slot and R uses it; '
@@ -49,7 +50,8 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
   const disposeOverlay = mountOverlay(gameUi, context.projection);
   const disposeLoading = mountLoading(gameUi, context.projection);
   const disposeScreens = mountScreens(gameUi, context.intents, context.projection);
-  // After the screens, so the pack or journal takes its own Esc first.
+  const disposeTown = mountTown(root, context.ui, context.intents, context.projection);
+  // After the screens/town, so their own Esc takes precedence.
   const disposeMenu = mountMenu(root, context.ui, context.intents, context.projection);
 
   const disposeWorld = mountWorld(root, gameUi, context.ui, context.intents, context.projection);
@@ -58,6 +60,7 @@ export function mountProductUi(root: Element, context: RustyApplicationUiContext
     dispose: () => {
       unsubscribe();
       unsubscribeActions();
+      disposeTown();
       disposeMenu();
       disposeOverlay();
       disposeLoading();

@@ -1,0 +1,60 @@
+{
+  "generator": "Built-in GPT image generation",
+  "created": "2026-10-13",
+  "path_base": "repository root",
+  "status": "Asset-study source candidates, not approved final art.",
+  "images": [
+    {
+      "file": "art/towns/source/inn-concept.png",
+      "prompt": "Use the central inn in this image as the design reference. Make ONE isolated, complete 3D game building asset concept for image-to-mesh reconstruction, on a genuinely transparent background. It must be a single two-storey inn, about seven metres wide and five deep, with all roof, chimney, front and visible side inside the frame. Three-quarter view showing FRONT and RIGHT SIDE, low orthographic-like perspective. No ground plane, streetscape, neighboring buildings, people, trees, UI, text, water, detached props or shadows on a backdrop. No cropped roof.\nPreserve the reference's welcoming practical architecture: ochre plaster between heavy teal-painted timber members, dark grey shingle gabled roof with real eave thickness, one squat stone chimney, upper-storey mullioned windows, broad inviting central ground-floor doorway, stout frame with an understated curved lintel, paired lower windows, a modest porch canopy supported by two posts and one shallow step. A few inset ceramic medallions on the fascia give identity, not a riot of decoration. Whole building must read as a coherent substantial 3D volume rather than a flat photograph cutout. Windows and the open doorway have dark interior depth with restrained warm light, no people inside.\nUse tangible softly shaded volumes, broad material colors, quiet hand-painted surface character, modest structural weathering and readable large shapes. Simplify tiny rubble, peeling paint, cracks and plank microtexture compared with the reference so this is plausible as an economical game asset. Keep adult-scale proportions and early-modern fantasy character. Soft neutral studio illumination reveals construction; no dramatic cast shadow painted onto walls and no glossy wet PBR finish. No castle, dungeon portal, anime or cute cartoon house.",
+      "reference_images": [
+        "docs/style-references/town/02-rainy-upriver.png"
+      ]
+    },
+    {
+      "file": "content/game/towns/portraits/host.png",
+      "prompt": "A square RPG dialogue portrait for Wandering Year, a warm fantasy trekking game with early-modern tools and practical clothing. Bust portrait of a kindly, capable innkeeper around fifty-five with a natural weathered face, grey-streaked brown hair tied loosely back, a simple cream work shirt and a subdued teal shawl. An unforced slight smile and attentive gaze toward the viewer: someone offering shelter and food after a wet trek. Believable anatomy, quiet dignity, no glamour styling, no fantasy armor or jewelry clutter. Plain warm-dark backdrop suitable for a dialogue panel, with no visible frame, no UI, no text, no objects in the foreground.\nStyle: tight pre-digital commercial fantasy illustration, tangible painted volumes and precise contours, broad matte colors, restrained fine drawing around eyes and folds, little surface microdetail. Beloved old-paperback warmth, mellow ochre skin light against softly desaturated teal fabric; warm diffuse illumination. A carefully painted character portrait that sits comfortably beside textured 3D game scenery. No anime, cute caricature, impasto, thick black outlines, photographic skin pores or synthetic glossy skin.",
+      "reference_images": []
+    },
+    {
+      "file": "content/game/towns/kit/textures/plaster.png",
+      "prompt": "Create one square, seamlessly tileable albedo texture for an economical 3D fantasy building: warm pale ochre lime plaster, matte and gently timeworn. Broad quiet color areas with very restrained mottling, a few soft irregular trowel marks and occasional tiny lighter worn patches. The overall color should stay around warm sand / muted honey, not orange. Direct flat orthographic surface scan, absolutely even diffuse lighting, no cast shadows, no ambient-occlusion border, no perspective, no objects, no border, no text. Restrained painted game-texture character, physically tangible but no photographic pores or high-frequency grit. This is a reusable wall material for a welcoming early-modern inn. Texture variation must be subtle enough to repeat across a wall without looking like a painted picture.",
+      "reference_images": []
+    },
+    {
+      "file": "art/towns/materials/painted-timber.png (history only: codex/town 81e945f)",
+      "prompt": "Create one square, seamlessly tileable albedo texture for the heavy structural timbers of a welcoming fantasy inn. A continuous dark desaturated teal-green painted wood surface with long subtle VERTICAL grain. Weathered paint is mostly intact; a few slender irregular streaks reveal muted warm brown wood. Broad quiet paint areas, controlled low contrast, restrained hand-painted game-texture character. This is one continuous material, NOT an array of separate planks: no board divisions, horizontal joints, nails, labels, borders, shadows or objects. Flat orthographic view, uniform diffuse illumination, no baked highlights, no perspective. Serious old-paperback warmth, not photorealistic micrograin or cartoon. All four edges should tile seamlessly.",
+      "reference_images": []
+    },
+    {
+      "file": "content/game/towns/kit/textures/oak.png",
+      "prompt": "Create one square, seamless tiling base-color game material for the natural unpainted dark oak in the supplied inn reference. This output is ONLY a flat texture viewed straight on, not a building or scene. Warm medium-dark smoked brown wood, long vertical grain with very broad quiet changes, slightly worn by hands and use. No plank joints, bolts, frame, highlights, directional shadows or ambient occlusion, no cracks blacker than the wood grain. No overt pixels, photographic microdetail or glossy PBR. Match the tangible, restrained painterly fantasy surface language of the reference, with simple broad tones and just a little dry grain. Uniform moderate value overall so architectural light defines the shape; target warm brown around #715036. Fill all edges, seamless tile. The reference informs material and palette only.",
+      "reference_images": [
+        "art/towns/source/inn-concept.png"
+      ]
+    },
+    {
+      "file": "content/game/towns/kit/textures/slate.png",
+      "prompt": "One square seamless tileable base-color material for a 3D fantasy game: old blue-grey slate roof shingles, seen flat straight-on with no perspective. Eight horizontal staggered courses of irregular hand-split slates. Broad overlapping edges, modest chipped corners, quiet smoky charcoal blue and muted grey-green. Each course about one eighth of the image height. Low-contrast edges and softly painted mineral surface. Restrained worn game texture with clear large shapes, not pixel art, not photographic, not a fantasy illustration scene. No moss tufts, no debris, no highlights, no cast shadows, no lighting gradient, no border, no text, no house. The slates fill the image; top and bottom/left and right must tile. Color target around #586169, with quiet variability. The supplied inn is a reference for roof material character only.",
+      "reference_images": [
+        "art/towns/source/inn-concept.png"
+      ]
+    },
+    {
+      "file": "content/game/towns/kit/textures/masonry.png",
+      "prompt": "One square seamless tiling game base-color texture: weathered small sandstone masonry blocks, moderately irregular rectangular blocks laid in eight staggered horizontal courses. Restrained grey-brown and warm mushroom grey, very close in value, with thin quiet taupe mortar joints, broad subtly worn faces. Seen exactly flat straight-on. Each block roughly twice as wide as tall. No perspective, surrounding scene, border, large stones, dramatic cracks, moss, dirt splatter, black gaps, or white patches. No cast shadow or directional lighting. Quiet softly painted material language for a tangible retro fantasy game, not pixel art and not a photograph. Fill the image edge to edge and tile seamlessly. Mid-value material around #918777, understated overall. Useful on the foundations, steps, chimney and sheltered quays of a welcoming old town. The supplied inn image is for material character and architecture context only.",
+      "reference_images": [
+        "art/towns/source/inn-concept.png"
+      ]
+    },
+    {
+      "file": "content/game/towns/kit/textures/faded-teal.png",
+      "prompt": "Edit the first image, preserving its square seamless vertical wood grain texture, scale, hand-painted weathering and lack of plank joints. Change only the painted wood coloration: it is too dark green in a rendered building. Make the paint a faded medium-light blue teal, around #729694, with warm brown lightly visible in the grain. Increase base color value substantially while keeping restrained contrast; it should read like the worn blue-teal beams of the second inn reference under neutral light. No directional lighting, highlights, shadows, added objects, borders or text. Output the full flat square tileable texture, not a building. Preserve the original texture's pattern and quiet surface character.",
+      "reference_images": [
+        "art/towns/materials/painted-timber.png",
+        "art/towns/source/inn-concept.png"
+      ]
+    }
+  ],
+  "note": "Runtime material textures are the 1024 px downscales in content/game/towns/kit/textures, written by art/towns/export_kit.py. The 1254 px generated sources, the superseded dark painted-timber edit source and the offline previews remain in git history at codex/town 81e945f."
+}

@@ -88,9 +88,10 @@ export function mountWorld(host: Element, gameUi: HTMLElement, ui: RustyApplicat
   const render = (): void => {
     const values = projectionValues(projection?.current() ?? null);
     if (values === null) return;
-    const visible = number(values, 'worldMapOpen') === 1;
-    screen.hidden = !visible; open.hidden = visible; gameUi.hidden = visible;
-    freeCursor(visible);
+    const town = number(values, 'townOpen') === 1;
+    const visible = number(values, 'worldMapOpen') === 1 && !town;
+    screen.hidden = !visible; open.hidden = visible || town; gameUi.hidden = visible || town;
+    freeCursor(visible || town || number(values, 'menuPaused') === 1);
     identity.textContent = `Seed ${text(values, 'worldSeed') ?? ''} · ${((number(values, 'worldSize') ?? 0) / 1000).toFixed(1)} km across`;
     status.textContent = text(values, 'worldMessage') ?? ''; status.hidden = status.textContent.length === 0;
     const phase = text(values, 'worldTravelPhase') ?? 'idle';

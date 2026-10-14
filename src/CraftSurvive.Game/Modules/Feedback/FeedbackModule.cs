@@ -52,6 +52,9 @@ internal sealed class FeedbackModule : IProductModule
 
     public void Dispose() => sounds.Dispose();
 
+    /// <summary>Pause the outdoor beds while a composed scene owns ambience.</summary>
+    internal void SceneGain(float gain) => sounds.SceneGain(gain);
+
     /// <summary>Presents one cue now, by name, in front of the player: for a live check of each sound and burst.</summary>
     internal string PresentNow(string name)
     {

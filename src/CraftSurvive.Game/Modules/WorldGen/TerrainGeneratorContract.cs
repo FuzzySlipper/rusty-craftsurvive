@@ -65,9 +65,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// closed lake's inflow over every sink its water stops at, and splits the walked rivers where they enter
     /// and leave a lake, so a lake's storage lies between them (#9876 review); version 34 saves the sinks the
     /// discharge was routed into with the map's fields, so a fresh or restored map finds its closed lakes on the
-    /// inflow generation summed (#9876 review).
+    /// inflow generation summed (#9876 review); version 35 seats each town beside its water and flattens its
+    /// pad into the ground, with no trees on it (#9895).
     /// </summary>
-    internal const uint CurrentVersion = 34;
+    internal const uint CurrentVersion = 35;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

@@ -1,0 +1,199 @@
+{
+ "key": "landing",
+ "frame": "Metres in the town's frame: +X toward the water (the waterfront is at x = 12), +Y up from the pad, +Z toward the arrival view. Yaw is degrees about +Y; a piece's front faces +Z at yaw 0. Field of view is vertical, in degrees. `arrival` is where the traveller stands (x, z) to enter and on leaving; the camera's eye may stand over the water.",
+ "for": [
+  "Town"
+ ],
+ "view": {
+  "eye": [
+   17,
+   5.8,
+   32
+  ],
+  "focus": [
+   -0.5,
+   3.0,
+   -2.3
+  ],
+  "fieldOfView": 29.107
+ },
+ "pieces": [
+  {
+   "piece": "landing-house",
+   "at": [
+    0,
+    0,
+    -1.4
+   ],
+   "yaw": 0,
+   "service": "inn",
+   "close": {
+    "eye": [
+     3.8,
+     2.6,
+     12.5
+    ],
+    "focus": [
+     0,
+     2.1,
+     1.7
+    ],
+    "fieldOfView": 31.417
+   }
+  },
+  {
+   "piece": "provisioner",
+   "at": [
+    -9.2,
+    0,
+    -4
+   ],
+   "yaw": -30,
+   "service": "provisioner"
+  },
+  {
+   "piece": "inn",
+   "at": [
+    -4,
+    0,
+    -13
+   ],
+   "yaw": 8
+  },
+  {
+   "piece": "pier-short",
+   "at": [
+    10,
+    0,
+    0.8
+   ]
+  },
+  {
+   "piece": "barrel",
+   "at": [
+    10,
+    0,
+    -2.2
+   ]
+  }
+ ],
+ "landmark": {
+  "at": [
+   11.9,
+   0,
+   0.8
+  ],
+  "yaw": 90,
+  "choices": [
+   "ferry-shelter",
+   "landing-bell"
+  ]
+ },
+ "paving": [
+  [
+   -16,
+   3
+  ],
+  [
+   -11,
+   7
+  ],
+  [
+   -5,
+   10
+  ],
+  [
+   3,
+   9
+  ],
+  [
+   10,
+   3
+  ],
+  [
+   9,
+   -6
+  ],
+  [
+   2,
+   -15
+  ],
+  [
+   -12,
+   -15
+  ],
+  [
+   -18,
+   -7
+  ]
+ ],
+ "path": {
+  "points": [
+   [
+    -2.056,
+    28.8
+   ],
+   [
+    -1.662,
+    24.4
+   ],
+   [
+    -1.338,
+    20.0
+   ],
+   [
+    -1.098,
+    15.6
+   ],
+   [
+    -0.95,
+    11.2
+   ],
+   [
+    -0.9,
+    6.8
+   ]
+  ],
+  "width": 4.2
+ },
+ "scatter": [
+  {
+   "prop": "models/scatter/fern-1.prop-mesh.json",
+   "count": 24,
+   "around": [
+    [
+     -12,
+     8
+    ],
+    [
+     -8,
+     14
+    ],
+    [
+     5,
+     9
+    ],
+    [
+     10,
+     0
+    ],
+    [
+     -17,
+     -6
+    ]
+   ],
+   "spread": [
+    2,
+    3
+   ],
+   "scale": [
+    0.5,
+    1.1
+   ]
+  }
+ ],
+ "arrival": [
+  6,
+  34
+ ]
+}

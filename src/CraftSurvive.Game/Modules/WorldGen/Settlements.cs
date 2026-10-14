@@ -2,20 +2,6 @@ using System.Runtime.CompilerServices;
 
 namespace CraftSurvive.Game.Modules.WorldGen;
 
-/// <summary>What a settlement is: the start's sea port, a river town, or the mountain hold at the neck.</summary>
-internal enum SettlementKind { Port, Town, Hold }
-
-/// <summary>Why a site was chosen, for the census and the place's description.</summary>
-internal enum SettlementReason { Mouth, Harbour, Confluence, BoatHead, CanoeHead, LakeOutlet }
-
-/// <summary>
-/// A chosen settlement: where it stands (world metres), on which reach, why and its score. A port also
-/// carries its shelter from the open sea and the flat land about it (0 to 1), and whether its river is
-/// the largest of the harbours it was chosen from.
-/// </summary>
-internal sealed record Settlement(string Name, SettlementKind Kind, double X, double Z, int Reach, SettlementReason Reason, double Score,
-    double Shelter = 0, double Flat = 0, bool LargestFlow = true);
-
 /// <summary>
 /// Where the frontier's people live (#9875; owner direction 2026-10-12): civilisation follows the
 /// waterways. The start is a major sea port at the mouth of the great river, on the calm west coast; a
@@ -53,6 +39,12 @@ internal static class Settlements
     private const int StandSearchCells = 8;
     private const double DryMetres = 1;
 
+    /// <summary>The farthest a settlement is chosen from its candidate on the water (m): the stand search's corner.</summary>
+    internal static readonly double StandReachMetres = StandSearchCells * MapDrainage.Spacing * Math.Sqrt(2);
+
+    /// <summary>How far past the river's half width its bank is taken to begin (m).</summary>
+    private const double BankMarginMetres = 2;
+
     private const ulong NameSalt = 0x3C6EF372FE94F82BUL;
     private const int NameStep = 7;
 
@@ -68,8 +60,51 @@ internal static class Settlements
     /// <summary>A designed continent's settlements, chosen once per map; none for a world without a design.</summary>
     internal static IReadOnlyList<Settlement> For(WorldMap map) =>
         map.RegionFrame is null && map.Scale.Continental && ContinentDesign.For(map.Configuration.Size) is ContinentDesign design
-            ? Chosen.GetValue(map, continent => Choose(continent, design, MapRegions.For(continent).Drainage))
+            ? Chosen.GetValue(map, continent =>
+            {
+                MapDrainage drainage = MapRegions.For(continent).Drainage;
+                return [.. Choose(continent, design, drainage).Select(settlement => Seat(settlement, drainage.Shaped(settlement.Reach)))];
+            })
             : [];
+
+    /// <summary>
+    /// Stands a settlement beside its water (#9895; owner decision 2026-10-14). A settlement is chosen
+    /// on dry ground off the floodplain, up to a few kilometres from the river or coast it serves; its
+    /// town stands on the bank. The bank is found across from the reach's nearest centre-line point, the
+    /// seat a waterfront's width back from it, and the pad a quay's height over that water. Which
+    /// settlements exist, and their names and reaches, are unchanged.
+    /// </summary>
+    internal static Settlement Seat(Settlement settlement, IReadOnlyList<RiverPoint> course)
+    {
+        if (course.Count == 0) return settlement;
+        RiverPoint nearest = course[0];
+        double best = Square(settlement.X - nearest.X) + Square(settlement.Z - nearest.Z);
+        for (int k = 0; k + 1 < course.Count; k++)
+        {
+            RiverPoint a = course[k], b = course[k + 1];
+            double sx = b.X - a.X, sz = b.Z - a.Z, length = (sx * sx) + (sz * sz);
+            double t = length == 0 ? 0 : Math.Clamp((((settlement.X - a.X) * sx) + ((settlement.Z - a.Z) * sz)) / length, 0, 1);
+            double x = a.X + (sx * t), z = a.Z + (sz * t), squared = Square(settlement.X - x) + Square(settlement.Z - z);
+            if (squared >= best) continue;
+            best = squared;
+            nearest = new(x, z, a.Surface + ((b.Surface - a.Surface) * t), a.HalfWidth + ((b.HalfWidth - a.HalfWidth) * t), a.Depth);
+        }
+
+        double distance = Math.Sqrt(best);
+        if (distance < 1) return settlement;
+        // Toward the water: from the chosen site to the river's centre line.
+        double facingX = (nearest.X - settlement.X) / distance, facingZ = (nearest.Z - settlement.Z) / distance;
+        double bank = Math.Min(distance, nearest.HalfWidth + BankMarginMetres);
+        double seatX = nearest.X - (facingX * (bank + TownGround.Waterfront)), seatZ = nearest.Z - (facingZ * (bank + TownGround.Waterfront));
+        return settlement with
+        {
+            X = seatX,
+            Z = seatZ,
+            Ground = new(seatX, seatZ, facingX, facingZ, Math.Max(nearest.Surface, GenerationConstants.WaterLevel) + TownGround.QuayMetres),
+        };
+    }
+
+    private static double Square(double value) => value * value;
 
     internal static IReadOnlyList<Settlement> Choose(WorldMap continent, ContinentDesign? design, MapDrainage drainage)
     {

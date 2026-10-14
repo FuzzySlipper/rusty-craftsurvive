@@ -25,7 +25,6 @@ internal static class KnownPlaces
     internal const string HomeKey = "home";
     internal const string SledKey = "sled";
     internal const string BoatKey = "boat";
-    private const string TownPrefix = "town:";
     private const string PlacePrefix = "poi:";
 
     /// <summary>The kinds of found place the map shows; the rest are walking landmarks.</summary>
@@ -41,7 +40,7 @@ internal static class KnownPlaces
         new(HomeKey, "Home", KnownPlaceKind.Home, new((float)home.X, (float)home.Z)),
         .. sled is Vector2 left ? [new KnownPlace(SledKey, "The sled", KnownPlaceKind.Sled, left)] : Array.Empty<KnownPlace>(),
         .. boat is (string, Vector2) moored ? [new KnownPlace(BoatKey, moored.Name, KnownPlaceKind.Boat, moored.At)] : Array.Empty<KnownPlace>(),
-        .. (towns ?? []).Select(town => new KnownPlace(TownPrefix + town.Name, town.Name, KnownPlaceKind.Town, new((float)town.X, (float)town.Z),
+        .. (towns ?? []).Select(town => new KnownPlace(Settlement.KeyFor(town.Name), town.Name, KnownPlaceKind.Town, new((float)town.X, (float)town.Z),
             Role: town.Role)),
         .. journal.Where(entry => IsMapSite(entry.Kind) && inBounds?.Invoke(new(entry.X, entry.Z)) != false)
             .OrderByDescending(entry => entry.LastTick).Select(entry => new KnownPlace(

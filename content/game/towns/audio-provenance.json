@@ -1,0 +1,42 @@
+{
+  "method": "Deterministic filtered noise, decaying resonators and plucked-string synthesis; editing the source regenerates the media.",
+  "purpose": "Bounded ambience/music trials for town presentation, not final recordings or simulated people.",
+  "clips": [
+    {
+      "file": "audio/river.wav",
+      "seconds": 24,
+      "sampleRate": 24000,
+      "channels": 1,
+      "source": "scripts/generate-town-audio.mjs",
+      "seed": 9892,
+      "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
+    },
+    {
+      "file": "audio/hearth.wav",
+      "seconds": 28,
+      "sampleRate": 24000,
+      "channels": 1,
+      "source": "scripts/generate-town-audio.mjs",
+      "seed": 9892,
+      "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
+    },
+    {
+      "file": "audio/activity.wav",
+      "seconds": 32,
+      "sampleRate": 24000,
+      "channels": 1,
+      "source": "scripts/generate-town-audio.mjs",
+      "seed": 9892,
+      "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
+    },
+    {
+      "file": "audio/shelter-music.wav",
+      "seconds": 42.35295833333333,
+      "sampleRate": 24000,
+      "channels": 1,
+      "source": "scripts/generate-town-audio.mjs",
+      "seed": 9892,
+      "authorship": "Original procedural composition/foley for this project; no external samples or borrowed melody."
+    }
+  ]
+}

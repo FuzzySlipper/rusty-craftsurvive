@@ -1,0 +1,248 @@
+{
+ "key": "port",
+ "frame": "Metres in the town's frame: +X toward the water (the waterfront is at x = 12), +Y up from the pad, +Z toward the arrival view. Yaw is degrees about +Y; a piece's front faces +Z at yaw 0. Field of view is vertical, in degrees. `arrival` is where the traveller stands (x, z) to enter and on leaving; the camera's eye may stand over the water.",
+ "for": [
+  "Port"
+ ],
+ "view": {
+  "eye": [
+   18,
+   6.2,
+   34
+  ],
+  "focus": [
+   1.5,
+   3.0,
+   -2.5
+  ],
+  "fieldOfView": 31.417
+ },
+ "pieces": [
+  {
+   "piece": "inn",
+   "at": [
+    -0.6,
+    0,
+    -2
+   ],
+   "yaw": -4,
+   "service": "inn",
+   "close": {
+    "eye": [
+     4.6,
+     3,
+     11.4
+    ],
+    "focus": [
+     -0.5,
+     2.5,
+     0.8
+    ],
+    "fieldOfView": 31.417
+   }
+  },
+  {
+   "piece": "provisioner",
+   "at": [
+    -9,
+    0,
+    0
+   ],
+   "yaw": -14,
+   "service": "provisioner"
+  },
+  {
+   "piece": "landing-house",
+   "at": [
+    5.2,
+    0,
+    -10
+   ],
+   "yaw": 70
+  },
+  {
+   "piece": "quay-wall",
+   "at": [
+    11.5,
+    0,
+    -2
+   ]
+  },
+  {
+   "piece": "pier-long",
+   "at": [
+    11.6,
+    0,
+    -3
+   ]
+  },
+  {
+   "piece": "market-canopy",
+   "at": [
+    -12,
+    0,
+    9
+   ],
+   "yaw": -12
+  },
+  {
+   "piece": "barrel",
+   "at": [
+    8,
+    0,
+    -4
+   ]
+  },
+  {
+   "piece": "barrel",
+   "at": [
+    8.8,
+    0,
+    -4.6
+   ]
+  },
+  {
+   "piece": "barrel",
+   "at": [
+    7.8,
+    0,
+    -5.2
+   ]
+  },
+  {
+   "piece": "barrel",
+   "at": [
+    9,
+    0,
+    -9
+   ]
+  },
+  {
+   "piece": "barrel",
+   "at": [
+    10,
+    0,
+    -10
+   ]
+  }
+ ],
+ "landmark": {
+  "at": [
+   11.0,
+   0.1,
+   4
+  ],
+  "yaw": 0,
+  "choices": [
+   "crane",
+   "beacon"
+  ]
+ },
+ "paving": [
+  [
+   -19,
+   6
+  ],
+  [
+   -14,
+   10
+  ],
+  [
+   -5,
+   12
+  ],
+  [
+   4,
+   10
+  ],
+  [
+   10,
+   5
+  ],
+  [
+   11,
+   -8
+  ],
+  [
+   6,
+   -17
+  ],
+  [
+   -8,
+   -19
+  ],
+  [
+   -18,
+   -12
+  ]
+ ],
+ "path": {
+  "points": [
+   [
+    -2.056,
+    28.8
+   ],
+   [
+    -1.662,
+    24.4
+   ],
+   [
+    -1.338,
+    20.0
+   ],
+   [
+    -1.098,
+    15.6
+   ],
+   [
+    -0.95,
+    11.2
+   ],
+   [
+    -0.9,
+    6.8
+   ]
+  ],
+  "width": 4.2
+ },
+ "scatter": [
+  {
+   "prop": "models/scatter/fern-1.prop-mesh.json",
+   "count": 24,
+   "around": [
+    [
+     -12,
+     8
+    ],
+    [
+     -8,
+     14
+    ],
+    [
+     5,
+     9
+    ],
+    [
+     10,
+     0
+    ],
+    [
+     -17,
+     -6
+    ]
+   ],
+   "spread": [
+    2,
+    3
+   ],
+   "scale": [
+    0.5,
+    1.1
+   ]
+  }
+ ],
+ "arrival": [
+  7,
+  36
+ ]
+}

@@ -1,0 +1,533 @@
+{
+  "source": "art/towns/export_kit.py from art/towns/recipes.json; Blender Z-up converted to glTF Y-up, front facing +Z",
+  "pieces": {
+    "inn": {
+      "kind": "building",
+      "bounds": {
+        "min": [
+          -4.465,
+          0.0,
+          -3.91
+        ],
+        "max": [
+          5.375,
+          8.6695,
+          4.59
+        ]
+      },
+      "entrance": [
+        0.0,
+        1.3,
+        3.1
+      ],
+      "selection": {
+        "centre": [
+          0,
+          2.85,
+          0
+        ],
+        "size": [
+          7.0,
+          5.7,
+          5.8
+        ]
+      },
+      "lamps": [
+        [
+          -1.33,
+          2.5,
+          3.3
+        ],
+        [
+          1.33,
+          2.5,
+          3.3
+        ],
+        [
+          0.0,
+          2.3,
+          -0.5
+        ],
+        [
+          -1.5,
+          1.8,
+          0.25
+        ]
+      ],
+      "chimneys": [
+        [
+          1.96,
+          8.732,
+          -1.16
+        ]
+      ],
+      "mesh": "towns/kit/inn.glb",
+      "materials": [
+        "cloth",
+        "stone",
+        "iron",
+        "painted-timber",
+        "plaster",
+        "wood",
+        "curtain",
+        "interior",
+        "glass",
+        "window",
+        "ceramic",
+        "leaf",
+        "flower",
+        "roof-edge",
+        "roof"
+      ],
+      "sign": {
+        "mesh": "towns/kit/inn-sign.glb",
+        "materials": [
+          "ceramic",
+          "wood",
+          "iron",
+          "painted-timber"
+        ],
+        "pivot": [
+          1.64,
+          3.25,
+          3.71
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    "provisioner": {
+      "kind": "building",
+      "bounds": {
+        "min": [
+          -4.815,
+          0.0,
+          -3.16
+        ],
+        "max": [
+          4.98,
+          6.1035,
+          4.59
+        ]
+      },
+      "entrance": [
+        0.0,
+        1.3,
+        2.6
+      ],
+      "selection": {
+        "centre": [
+          0,
+          1.675,
+          0
+        ],
+        "size": [
+          8.2,
+          3.35,
+          4.8
+        ]
+      },
+      "lamps": [
+        [
+          0.0,
+          2.3,
+          -0.5
+        ],
+        [
+          -1.5,
+          1.8,
+          0.25
+        ],
+        [
+          -1.28,
+          2.4,
+          2.8
+        ],
+        [
+          1.28,
+          2.4,
+          2.8
+        ]
+      ],
+      "chimneys": [
+        [
+          2.296,
+          6.166,
+          -0.96
+        ]
+      ],
+      "mesh": "towns/kit/provisioner.glb",
+      "materials": [
+        "cloth",
+        "stone",
+        "iron",
+        "painted-timber",
+        "plaster",
+        "interior",
+        "wood",
+        "window",
+        "fruit",
+        "curtain",
+        "glass",
+        "roof-edge",
+        "roof"
+      ],
+      "sign": {
+        "mesh": "towns/kit/provisioner-sign.glb",
+        "materials": [
+          "ceramic",
+          "wood",
+          "iron",
+          "painted-timber"
+        ],
+        "pivot": [
+          1.59,
+          3.15,
+          3.21
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    "landing-house": {
+      "kind": "building",
+      "bounds": {
+        "min": [
+          -4.015,
+          0.0,
+          -3.66
+        ],
+        "max": [
+          4.18,
+          8.3295,
+          5.47
+        ]
+      },
+      "entrance": [
+        0.0,
+        1.3,
+        3.1
+      ],
+      "selection": {
+        "centre": [
+          0,
+          2.5,
+          0
+        ],
+        "size": [
+          6.6,
+          5.0,
+          5.8
+        ]
+      },
+      "lamps": [
+        [
+          0.0,
+          2.3,
+          -0.5
+        ],
+        [
+          -1.5,
+          1.8,
+          0.25
+        ],
+        [
+          -1.355,
+          2.45,
+          3.3
+        ],
+        [
+          1.355,
+          2.45,
+          3.3
+        ],
+        [
+          -1.98,
+          2.14,
+          4.65
+        ],
+        [
+          1.98,
+          2.14,
+          4.65
+        ]
+      ],
+      "chimneys": [
+        [
+          1.848,
+          8.392,
+          -1.16
+        ]
+      ],
+      "mesh": "towns/kit/landing-house.glb",
+      "materials": [
+        "stone",
+        "iron",
+        "painted-timber",
+        "plaster",
+        "interior",
+        "wood",
+        "window",
+        "curtain",
+        "glass",
+        "ceramic",
+        "leaf",
+        "flower",
+        "roof",
+        "roof-edge"
+      ],
+      "sign": {
+        "mesh": "towns/kit/landing-house-sign.glb",
+        "materials": [
+          "ceramic",
+          "wood",
+          "iron",
+          "painted-timber"
+        ],
+        "pivot": [
+          2.96,
+          2.7,
+          5.44
+        ],
+        "axis": [
+          0.0,
+          0.0,
+          1.0
+        ]
+      }
+    },
+    "crane": {
+      "kind": "landmark",
+      "bounds": {
+        "min": [
+          -1.1193,
+          -0.03,
+          -0.625
+        ],
+        "max": [
+          3.26,
+          5.2166,
+          0.625
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/crane.glb",
+      "materials": [
+        "wood",
+        "stone",
+        "rope",
+        "iron"
+      ]
+    },
+    "beacon": {
+      "kind": "landmark",
+      "bounds": {
+        "min": [
+          -1.315,
+          0.0,
+          -1.36
+        ],
+        "max": [
+          1.315,
+          5.355,
+          1.36
+        ]
+      },
+      "lamps": [
+        [
+          0.0,
+          4.05,
+          -0.0
+        ]
+      ],
+      "chimneys": [],
+      "mesh": "towns/kit/beacon.glb",
+      "materials": [
+        "stone",
+        "wood",
+        "iron",
+        "window",
+        "painted-timber",
+        "plaster",
+        "roof-edge",
+        "roof"
+      ]
+    },
+    "ferry-shelter": {
+      "kind": "landmark",
+      "bounds": {
+        "min": [
+          -2.015,
+          0.2,
+          -1.76
+        ],
+        "max": [
+          2.015,
+          3.605,
+          1.76
+        ]
+      },
+      "lamps": [
+        [
+          0.0,
+          2.1,
+          -0.0
+        ]
+      ],
+      "chimneys": [],
+      "mesh": "towns/kit/ferry-shelter.glb",
+      "materials": [
+        "iron",
+        "window",
+        "painted-timber",
+        "plaster",
+        "wood",
+        "roof-edge",
+        "roof"
+      ]
+    },
+    "landing-bell": {
+      "kind": "landmark",
+      "bounds": {
+        "min": [
+          -1.615,
+          0.15,
+          -1.51
+        ],
+        "max": [
+          1.615,
+          4.455,
+          1.51
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/landing-bell.glb",
+      "materials": [
+        "wood",
+        "iron",
+        "rope",
+        "painted-timber",
+        "plaster",
+        "ceramic",
+        "roof-edge",
+        "roof"
+      ]
+    },
+    "pier-short": {
+      "kind": "dressing",
+      "bounds": {
+        "min": [
+          -0.01,
+          -0.955,
+          -1.6
+        ],
+        "max": [
+          7.01,
+          0.785,
+          1.6
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/pier-short.glb",
+      "materials": [
+        "wood"
+      ]
+    },
+    "pier-long": {
+      "kind": "dressing",
+      "bounds": {
+        "min": [
+          -0.01,
+          -0.955,
+          -1.744
+        ],
+        "max": [
+          9.01,
+          0.785,
+          1.744
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/pier-long.glb",
+      "materials": [
+        "wood"
+      ]
+    },
+    "quay-wall": {
+      "kind": "dressing",
+      "bounds": {
+        "min": [
+          -0.725,
+          -0.7,
+          -14.0
+        ],
+        "max": [
+          0.625,
+          0.24,
+          14.0
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/quay-wall.glb",
+      "materials": [
+        "stone"
+      ]
+    },
+    "market-canopy": {
+      "kind": "dressing",
+      "bounds": {
+        "min": [
+          -2.0,
+          0.1,
+          -1.2031
+        ],
+        "max": [
+          2.0,
+          3.9,
+          1.2
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/market-canopy.glb",
+      "materials": [
+        "cloth",
+        "iron",
+        "wood"
+      ]
+    },
+    "barrel": {
+      "kind": "dressing",
+      "bounds": {
+        "min": [
+          -0.361,
+          0.04,
+          -0.361
+        ],
+        "max": [
+          0.361,
+          0.914,
+          0.361
+        ]
+      },
+      "lamps": [],
+      "chimneys": [],
+      "mesh": "towns/kit/barrel.glb",
+      "materials": [
+        "iron",
+        "wood"
+      ]
+    }
+  }
+}

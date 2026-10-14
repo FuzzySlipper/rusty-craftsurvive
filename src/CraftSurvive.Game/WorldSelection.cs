@@ -42,6 +42,14 @@ public sealed partial class CraftSurviveProduct
                 JsonElement root = payload.RootElement;
                 if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("action", out JsonElement action) || action.ValueKind != JsonValueKind.String)
                     throw new FormatException("Choose a world action.");
+                // World/travel/cargo mutations behind the town would change the expedition
+                // while a service view owns input. Menu actions remain available.
+                if (town.Open && action.GetString() is not (MenuPauseAction or MenuResumeAction or "quit"))
+                {
+                    worldMessage = LeaveTownFirst;
+                    PublishWorld();
+                    continue;
+                }
                 switch (action.GetString())
                 {
                     // The pause menu's hold, apart from the journey's own pause (#9916 review).
@@ -62,10 +70,9 @@ public sealed partial class CraftSurviveProduct
                         CloseMap();
                         break;
                     case "travel":
-                        if (!mapOpen || !root.TryGetProperty("place", out JsonElement placeKey) || placeKey.ValueKind != JsonValueKind.String
-                            || KnownPlacesNow().FirstOrDefault(known => known.Key == placeKey.GetString()) is not { Key: not null } place)
+                        if (!mapOpen || !root.TryGetProperty("place", out JsonElement placeKey) || placeKey.ValueKind != JsonValueKind.String)
                             throw new FormatException("Choose a known place.");
-                        PlanTravel(place.Position, place.Name);
+                        PlanToPlace(placeKey.GetString()!);
                         break;
                     case "sled":
                         if (!root.TryGetProperty("op", out JsonElement sledOp) || sledOp.ValueKind != JsonValueKind.String
@@ -165,6 +172,7 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Open the map or close it, as the World button and Explore here do (craft.world.view, #9841).</summary>
     private string MapViewReadout(string view)
     {
+        if (town.Open) return LeaveTownFirst;
         switch (view)
         {
             case OpenMapView:
@@ -243,6 +251,10 @@ public sealed partial class CraftSurviveProduct
         sledTravelCost = null;
         sledWithParty = false;
         boatWithParty = false;
+        // The map is drawn, not the old world's town: its lights, smoke and meshes can go at once.
+        ReleaseTowns();
+        townPresence?.AfterAppearanceSnapshot();
+        DisposeTowns();
         foreach (IProductModule module in gameplay.Reverse()) module.Dispose();
         sled.Save();
         sled.Dispose();

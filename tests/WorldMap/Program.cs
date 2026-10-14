@@ -5,6 +5,7 @@ using CraftSurvive.Game.Modules.WorldGen;
 using CraftSurvive.Game.Tests;
 using Rusty.Engine.Testing;
 
+
 string root = Path.Combine(Path.GetTempPath(), "craft-world-map-" + Guid.NewGuid().ToString("N"));
 ulong expectedFingerprint = 0;
 long expectedGeneration = 0;
@@ -100,6 +101,7 @@ try
 
     // A continent (#9549): generated, saved and restored through the same catalog, with its own golden.
     ulong continentFingerprint = 0;
+    string[] townRecipes = [];
     using (EngineTestHost host = EngineTestHost.Create(new() { PersistenceRoot = root }))
     host.Call(engine =>
     {
@@ -110,6 +112,8 @@ try
         double generateMs = clock.Elapsed.TotalMilliseconds;
         Check.That(catalog.Commit(continent), "a continent commits like any world");
         continentFingerprint = continent.Map.Fingerprint;
+        // A town's identity is its settlement's key and the ground it is seated on (#9895).
+        townRecipes = [.. Settlements.For(continent.Map).Select(s => $"{s.Key}:{s.Ground}")];
         Console.WriteLine($"continent {continent.Map.Configuration.Size / 1000} km: map {continentFingerprint:x16}; nodes={continent.Map.Grid.Count}; spacing={continent.Map.Spacing:F0} m; bytes={catalog.StoredBytes}; generateMs={generateMs:F0}");
         Check.That(continentFingerprint == ContinentGolden, $"the default continent's geography matches its golden ({continentFingerprint:x16})");
         Check.That(continent.Map.Scale.Continental && continent.Map.Spacing == 1000, "a continent is simulated on a kilometre lattice");
@@ -142,6 +146,8 @@ try
         Check.That(restored.RestoreOutcome == "restored" && restored.GenerationMilliseconds == 0
             && restored.Current.Map.Fingerprint == continentFingerprint && restored.Current.Map.Configuration.Size == MapScale.DefaultContinentalSize,
             "a fresh host restores the continent from its save without generating it again");
+        Check.That(townRecipes.SequenceEqual(Settlements.For(restored.Current.Map).Select(s => $"{s.Key}:{s.Ground}")),
+            "restoring saved world fields seats every town on the same ground across hosts");
     });
 }
 finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
@@ -175,7 +181,7 @@ return Check.Finish("WorldMap");
 partial class Program
 {
     /// <summary>Region tile (0, 0) of the <see cref="ContinentSeed"/> continent under generator 23 (#9550); a deliberate generation change updates it.</summary>
-    private const ulong RegionTileGolden = 0x26e23d278d4e5f18UL;
+    private const ulong RegionTileGolden = 0x800e1450e92ada7dUL;
     /// <summary>
     /// A tile builds in about 1.5 s in Release on an idle machine; this wall-clock bound leaves room for a
     /// heavily shared runner (5.6 s was seen at a load average of 40) while still catching a regression.
@@ -268,5 +274,5 @@ partial class Program
 
     private const ulong ContinentSeed = 12345;
     /// <summary>Map fingerprint of the 390 km continent for <see cref="ContinentSeed"/> under generator 23 (#9549); a deliberate generation change updates it.</summary>
-    private const ulong ContinentGolden = 0x1fc70c771ef28260UL;
+    private const ulong ContinentGolden = 0xd5d8857b8473f5a9UL;
 }

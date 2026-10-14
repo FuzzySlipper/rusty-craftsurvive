@@ -39,17 +39,25 @@ export async function compileUi(types, { check = false } = {}) {
 // The compiler's entry point. Resolved through node_modules as usual; where pnpm's link there cannot be
 // read - a checkout installed on Linux and opened from Windows over a network share, whose Linux
 // symbolic links Windows Node cannot follow (EINVAL on readlink) - from the package's own directory in
-// pnpm's store beneath it, which holds no link.
+// pnpm's store beneath it, which holds no link. Node's lookup also climbs past the checkout, so a
+// worktree without its own install would silently borrow whatever TypeScript an ancestor directory
+// holds; only the version package.json pins is accepted.
 export function typescriptCompiler() {
+  const manifest = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8'));
+  const version = manifest.devDependencies?.typescript;
+  let compiler;
   try {
-    return createRequire(join(repositoryRoot, 'package.json')).resolve('typescript/bin/tsc');
+    compiler = createRequire(join(repositoryRoot, 'package.json')).resolve('typescript/bin/tsc');
   } catch (error) {
-    const manifest = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8'));
-    const version = manifest.devDependencies?.typescript;
     const stored = join(repositoryRoot, 'node_modules', '.pnpm', `typescript@${version}`, 'node_modules', 'typescript', 'bin', 'tsc');
     if (version && existsSync(stored)) return stored;
     throw error;
   }
+  const found = JSON.parse(readFileSync(join(compiler, '..', '..', 'package.json'), 'utf8')).version;
+  if (version && found !== version) {
+    throw new Error(`Found TypeScript ${found} at '${compiler}', but package.json pins ${version}. Run \`pnpm install\` in this checkout.`);
+  }
+  return compiler;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

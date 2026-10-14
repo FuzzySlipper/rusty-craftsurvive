@@ -1,0 +1,14 @@
+{
+ "about": "Timber treatments shared by every building in a town (#9894, #9895). Each colour multiplies the named material's texture (linear RGBA), applied at runtime; a palette that names nothing keeps the kit's own colours.",
+ "palettes": {
+  "teal": {},
+  "umber": {
+   "painted-timber": [
+    1,
+    0.3,
+    0.18,
+    1
+   ]
+  }
+ }
+}

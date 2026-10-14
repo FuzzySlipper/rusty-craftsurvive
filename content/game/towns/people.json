@@ -1,0 +1,31 @@
+{
+ "about": "Who keeps each service (#9895). A town draws one person per service from its list by its stable identity. Portraits are placeholders until #10000 decides how portraits are made; a person without one shows no portrait.",
+ "people": {
+  "inn": [
+   {
+    "name": "Mara",
+    "portrait": "towns/portraits/host.png"
+   },
+   {
+    "name": "Hollis"
+   },
+   {
+    "name": "Wenna"
+   },
+   {
+    "name": "Bram"
+   }
+  ],
+  "provisioner": [
+   {
+    "name": "Tamsin"
+   },
+   {
+    "name": "Orrin"
+   },
+   {
+    "name": "Sela"
+   }
+  ]
+ }
+}

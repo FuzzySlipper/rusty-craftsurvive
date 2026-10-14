@@ -20,6 +20,7 @@ using CraftSurvive.Game.Modules.Survival;
 using CraftSurvive.Game.Modules.Terrain;
 using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.World;
+using CraftSurvive.Game.Modules.Towns;
 
 namespace CraftSurvive.Game;
 
@@ -118,6 +119,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         engine = context.Engine;
         store = new ProductStore(context.Engine);
         ui = new ProductUiPublisher(context.Engine);
+        townContent = TownContent.Read(context.Content);
+        town = new TownModule(engine, townContent, ui.PublishTown);
         optionsStore = new GameOptionsStore(context.Engine);
         gameOptions = optionsStore.Load();
         ui.PublishOptions(gameOptions.Describe());
@@ -139,7 +142,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         terrain = new TerrainWorld(context.Engine, context.Content, worlds.Current.Map.Configuration, frame, store, ui, worlds.Current.Map);
         terrain.Edited += entities.ApplyTerrainEdits;
-        player = new PlayerController(context.Engine, terrain, frame, store, ui, cues);
+        // A continent's expedition starts at its sea port (#9895); a world without one at the spawn column.
+        LocateTowns();
+        System.Numerics.Vector2 start = StartColumn();
+        player = new PlayerController(context.Engine, terrain, frame, store, ui, cues, start);
         pieces = new BuildPieceModule(context.Engine, context.Content, store, terrain, frame, cues);
         player.Pieces = pieces;
         BindBounds();
@@ -156,8 +162,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => creatures.NearestAwakeHostileMetres(player.WorldFeetPosition), () => weather.Exposure, () => weather.Here.Dominant?.Front.Kind.Name ?? "");
         survival.Slept += hours => party?.Rest(hours);
         discovery = new DiscoveryModule(context.Engine, terrain, player, store, ui);
-        home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
-        sled = new SledStore(context.Engine, context.Content, store, terrain.SaveIdentity, PlayerConstants.SpawnColumn);
+        home = new HomeMarkerStore(context.Engine, store, terrain.SaveIdentity, start);
+        sled = new SledStore(context.Engine, context.Content, store, terrain.SaveIdentity, start);
         boat = new BoatStore(context.Engine, context.Content, store, terrain.SaveIdentity, frame, terrain.Water, terrain.WaveLift);
         player.Carrier = boat;
         blast = new BlastModule(terrain, frame, entities, cues);
@@ -190,6 +196,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             },
         };
         gameplay = [conditions, weather, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
+        CreateTowns();
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
         ApplyOptions();
@@ -253,12 +260,15 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         if (!worldBuilt) return;
         worldBuilt = false;
+        ReleaseTowns();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+        townPresence?.AfterAppearanceSnapshot();
         foreach (IProductModule module in gameplay.Reverse())
         {
             module.Dispose();
         }
 
+        DisposeTowns();
         sled.Save();
         sled.Dispose();
         boat.Save();
@@ -271,10 +281,14 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     public void RegisterDebugCommands(IDebugCommandModuleRegistrar registrar)
     {
         RequireRegistration(registrar.Register(new TravelDebugModule(() => worldBuilt ? TravelReadout() : "no world", kind => worldBuilt ? ForceTravelEvent(kind) : "no world",
-            (x, z) => worldBuilt ? BoundReadout(x, z) : "no world", (x, z) => worldBuilt ? PlanReadout(x, z) : "no world")));
+            (x, z) => worldBuilt ? BoundReadout(x, z) : "no world", (x, z) => worldBuilt ? PlanReadout(x, z) : "no world",
+            place => worldBuilt ? PlanToPlaceReadout(place) : "no world")));
         RequireRegistration(registrar.Register(new WorldMapDebugModule(() => worlds, () => Owner(terrain), () => mapView, style => requestedMapStyle = MapSurfaceStyle.Named(style),
             view => worldBuilt ? MapViewReadout(view) : "no world")));
         RequireRegistration(registrar.Register(new MenuDebugModule(PauseReadout)));
+        RequireRegistration(registrar.Register(new TownDebugModule(key => EnterTown(key is "" or TownDoorstepKey ? null : key), LeaveTown, () => town.Readout() + ";" + (townPresence?.Readout ?? "placed=none"), TownMotion,
+            () => worldBuilt ? TownSites() : "no world", ApproachTown, SelectTownService, ChooseTownService)));
+        RequireRegistration(registrar.Register(new InteractionDebugModule(town.Interactions)));
         RequireRegistration(registrar.Register(entityDebug));
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
@@ -325,6 +339,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     public ProductUpdateResult Update(ProductUpdate update)
     {
         RequireState(ProductLifecycleState.Running, nameof(Update));
+        town.Present(update.Facts.HostElapsedSeconds);
+        if (worldBuilt) feedback.SceneGain(town.OutdoorGain);
         bool watching = engine.CameraView.ReadSurface().Watching;
         // The clock runs while someone watches and the game is not held under the menu (#9916).
         bool running = watching && !paused;
@@ -333,6 +349,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (!watching)
         {
             if (worldBuilt) player.ClearInput();
+            town.ClearInput();
             // The hold takes effect on the next observation. Finish any steps the Engine
             // already admitted so product rules and Engine presentation share that time;
             // then all product work, including streaming and saves, waits for a watcher.
@@ -342,12 +359,26 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (MenuButtonPressed(update)) SetPaused(!paused);
         // Options apply in every state, the pause menu and the map included; play's own actions wait below.
         actions.UpdateOptions(update);
+        if (HandleTownActions(update)) return ProductUpdateResult.None;
         if (HandleWorldActions(update)) return ProductUpdateResult.None;
         if (paused)
         {
             // As when nobody watches: the steps the Engine already admitted finish, then everything waits.
             player.ClearInput();
             if (update.Facts.AdmittedStepCount == 0) return ProductUpdateResult.None;
+        }
+        if (town.Open)
+        {
+            // A visit costs no expedition time: the clock, survival and creatures wait. The town's
+            // presentation moves on, and the ground around the traveller keeps streaming in.
+            ProductStep visit = ProductStep.From(update.Facts);
+            town.Update(update.Input, visit.ElapsedSeconds);
+            townPresence?.Advance(update.Facts.HostElapsedSeconds);
+            terrain.AdvanceSea(visit.ElapsedSeconds, weather.Hours, sky.Look.Wind, sky.Look.Flow, player.WorldPosition);
+            sky.Sway(visit.ElapsedSeconds);
+            player.HoldResidency();
+            PublishAppearanceSnapshot();
+            return ProductUpdateResult.None;
         }
         if (mapOpen)
         {
@@ -359,6 +390,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 PublishWorld();
             }
             AdvanceTravel(ProductStep.From(update.Facts).ElapsedSeconds);
+            OfferAtParty();
             // The walking modules rest while the map is open; the river stage follows the clock regardless (#9878 review).
             riverStage.Follow();
             ShowWeatherOnMap();
@@ -379,6 +411,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         // what they asked for this update.
         player.Update(update);
         NoteTurnBacks(step.ElapsedSeconds);
+        FollowTowns(update.Facts.HostElapsedSeconds);
         AccrueWalkingFatigue();
         actions.Update(update);
         foreach (IProductModule module in gameplay)
@@ -418,6 +451,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
+        LeaveTown();
         terrain.Restart();
         player.Restart();
         actions.Restart();
@@ -438,7 +472,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             throw new ObjectDisposedException(nameof(CraftSurviveProduct));
         }
 
-        if (worldBuilt) sky.Dispose();
+        if (worldBuilt) { LeaveTown(); sky.Dispose(); }
         lifecycle = ProductLifecycleState.Shutdown;
     }
 
@@ -455,7 +489,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
 
         // The snapshot lets go of the map's appearances before they are disposed.
+        town.Leave();
+        townPresence?.Release();
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
+        town.Dispose();
         mapView?.Dispose();
         if (worldBuilt)
         {
@@ -463,6 +500,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             {
                 module.Dispose();
             }
+
+            DisposeTowns();
 
             player.Dispose();
             terrain.Dispose();
@@ -507,11 +546,13 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(!mapOpen || mapView is null ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. TreeFacts(), .. horizon.Facts]
+        engine.Graphics.PublishSnapshot(town.Open || !mapOpen || mapView is null
+            ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. TreeFacts(), .. horizon.Facts, .. TownFacts()]
             : mapView.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();
+        townPresence?.AfterAppearanceSnapshot();
         if (mapOpen) mapView?.AfterAppearanceSnapshot();
     }
 

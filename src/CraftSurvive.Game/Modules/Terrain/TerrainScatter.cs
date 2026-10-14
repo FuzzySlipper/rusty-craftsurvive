@@ -67,7 +67,8 @@ internal sealed class TerrainScatter : IDisposable
     private static readonly Vector3 PlantTintLow = new(0.8f, 0.85f, 0.75f), PlantTintHigh = new(1.12f, 1.08f, 0.92f);
     private static readonly Vector3 StoneTintLow = new(0.85f, 0.85f, 0.85f), StoneTintHigh = new(1.1f, 1.05f, 1f);
     private static readonly BlockId[] Meadow = [BlockId.Grass];
-    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.Dirt, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
+    // Bare earth carries no field stones: a town's yard is trodden earth (#9895).
+    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
     private static readonly Layer[] Layers =
     [
         new(1, "bush-1", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),

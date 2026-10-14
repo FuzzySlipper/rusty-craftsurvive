@@ -27,6 +27,7 @@ public sealed partial class CraftSurviveProduct
         if (paused == hold) return;
         paused = hold;
         if (worldBuilt) player.ClearInput();
+        town.ClearInput();
         PublishMenu();
     }
 

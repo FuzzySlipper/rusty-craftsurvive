@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace CraftSurvive.Game.Modules.WorldGen;
 
 /// <summary>Which side of a designed continent's bounds a point lies on (#9817).</summary>
-internal enum BoundSide { Open, BeyondFrontier, OpenSea }
+internal enum BoundSide { Open, BeyondFrontier, OpenSea, Town }
 
 /// <summary>
 /// The bounds of a continent drawn to a design (#9817, owner decisions 2026-10-10): the frontier past

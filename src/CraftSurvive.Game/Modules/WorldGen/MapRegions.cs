@@ -80,7 +80,9 @@ internal sealed class MapRegions
         {
             foreach ((int X, int Z) tile in TilesNear(0, 0, PrefetchRadius)) regions.Tile(tile);
             // The settlements stand on the drainage, built for these tiles: choose them here too, off the update.
-            _ = Settlements.For(map);
+            // A new expedition starts at the sea port (#9895), so its tiles are the arrival's too.
+            if (Settlements.For(map).FirstOrDefault(settlement => settlement.Kind == SettlementKind.Port) is Settlement port)
+                foreach ((int X, int Z) tile in TilesNear(port.X, port.Z, PrefetchRadius)) regions.Tile(tile);
         }
         finally { background = false; }
     }

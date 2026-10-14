@@ -62,6 +62,9 @@ internal sealed class PlayerController : IDisposable
     private LookState look = StartingLook;
     private PlayerWorldPosition playerGlobal;
     private PlayerWorldPosition spawn;
+
+    /// <summary>Where a new expedition starts and a defeated player returns: the world's arrival column.</summary>
+    private readonly System.Numerics.Vector2 startColumn;
     private Vector3 playerLocal;
     private double controllerStepAccumulator;
     private double cameraSampleTimeSeconds;
@@ -152,8 +155,10 @@ internal sealed class PlayerController : IDisposable
     /// <summary>Where the player last stood inside the bounds in the open world; null until they have.</summary>
     private PlayerWorldPosition? lastInBounds;
 
-    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, Cues cues)
+    internal PlayerController(IEngineContext engine, TerrainWorld terrain, WorldFrame frame, ProductStore store, ProductUiPublisher ui, Cues cues,
+        System.Numerics.Vector2? start = null)
     {
+        startColumn = start ?? PlayerConstants.SpawnColumn;
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         this.cues = cues ?? throw new ArgumentNullException(nameof(cues));
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -167,7 +172,7 @@ internal sealed class PlayerController : IDisposable
         controllerConfig = PlayerBody.Configure(engine.Spatial.DefaultCharacterControllerConfig());
         // A boat carries whoever stands on it, turning them with it (#9879).
         controllerConfig = controllerConfig with { Platform = controllerConfig.Platform with { CarryTranslation = true, CarryRotation = true } };
-        playerGlobal = PlayerWorldPosition.FromWorld(PlayerConstants.SpawnColumn.X, 0d, PlayerConstants.SpawnColumn.Y);
+        playerGlobal = PlayerWorldPosition.FromWorld(startColumn.X, 0d, startColumn.Y);
         playerEntity = entityWorld.Create();
         PublishRuntimeComponent();
         this.frame = frame;
@@ -221,8 +226,7 @@ internal sealed class PlayerController : IDisposable
         // Home is whatever ground the generator put under the spawn column, so a generator change
         // can never start the player inside the terrain. A saved session continues where it ended
         // when the player still fits there, and from home when they do not.
-        spawn = StandingAt(PlayerConstants.SpawnColumn.X,
-            terrain.GroundAt(PlayerConstants.SpawnColumn.X, PlayerConstants.SpawnColumn.Y), PlayerConstants.SpawnColumn.Y);
+        spawn = StandingAt(startColumn.X, terrain.GroundAt(startColumn.X, startColumn.Y), startColumn.Y);
         playerGlobal = spawn;
         if (continuation.Restore() is PlayerContinuation saved)
         {
@@ -522,6 +526,15 @@ internal sealed class PlayerController : IDisposable
     }
 
     internal void ActivateCamera() => camera.Activate();
+
+    /// <summary>
+    /// Keeps the ground streaming in around where the player stands while another view owns the camera
+    /// and the player is not updated, as during a town visit (#9895).
+    /// </summary>
+    internal void HoldResidency()
+    {
+        if (started && away is null) terrain.SynchronizeAround(playerGlobal.FloorVoxel());
+    }
 
     internal void ClearInput() => input.Reset();
 

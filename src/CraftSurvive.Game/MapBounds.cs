@@ -32,7 +32,10 @@ public sealed partial class CraftSurviveProduct
     /// <summary>Holds the new world's player inside its bounds.</summary>
     private void BindBounds()
     {
-        player.Bound = Bounds is FrontierBound bound ? bound.At : null;
+        // A town's bubble (#9895) holds the traveller at its edge, inside the frontier's bounds.
+        FrontierBound? frontier = Bounds;
+        player.Bound = (x, z) => frontier?.At(x, z) is BoundSide side && side != BoundSide.Open ? side
+            : InTownBubble(x, z) ? BoundSide.Town : BoundSide.Open;
         turnBacksSeen = 0;
         turnedBackSeconds = double.PositiveInfinity;
     }
@@ -51,7 +54,13 @@ public sealed partial class CraftSurviveProduct
     /// <summary>What first person says of a recent turn-back; null when there is none to tell.</summary>
     private string? TurnedBackPrompt() =>
         turnedBackSeconds > TurnedBackPromptSeconds || player.TurnedBack is not { } turned ? null
-        : turned.Side == BoundSide.OpenSea ? OpenSeaTurnBack : FrontierTurnBack;
+        : turned.Side switch
+        {
+            BoundSide.OpenSea => OpenSeaTurnBack,
+            BoundSide.BeyondFrontier => FrontierTurnBack,
+            // A town's edge offers entry instead (FollowTowns).
+            _ => null,
+        };
 
     /// <summary>What a route toward a destination past the bounds is told: where it stops instead; null within them.</summary>
     private string? RouteBoundNote(Vector2 destination) => Bounds?.At(destination.X, destination.Y) switch

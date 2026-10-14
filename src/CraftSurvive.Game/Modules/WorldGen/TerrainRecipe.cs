@@ -37,6 +37,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         if (Map.Configuration != configuration) throw new ArgumentException("Terrain and map must share an identity.", nameof(map));
         radius = configuration.Size / 2;
         regions = Map.Scale.Continental ? MapRegions.For(Map) : null;
+        towns = new(() => [.. Settlements.For(Map).Select(settlement => settlement.Ground)], LazyThreadSafetyMode.ExecutionAndPublication);
         pois = new PoiPlacement(configuration.Contract, draws, this, radius);
         crossings = new CrossingPlacement(configuration.Contract, draws, this, radius);
     }
@@ -172,6 +173,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         long slope = column.Slope;
         MapSample geography = column.Geography;
+        // A town's yard (#9895) is trodden earth: the meadow's ground, where no grass, flowers or stones grow.
+        if (Towns.Any(town => town.InYard(address.X, address.Z))) return TerrainConstants.DirtMaterial;
         // Steep and resistant ground is bare stone; submerged ground is a sand bed.
         if (geography.Rock >= ExposedRockThreshold)
             return TerrainConstants.StoneMaterial;
@@ -571,9 +574,25 @@ internal sealed class TerrainRecipe : ITerrainColumns
         return (ContinuousHeight(geography, x, z), geography);
     }
 
-    private double ContinuousHeight(MapSample geography, long x, long z) =>
-        Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
+    private double ContinuousHeight(MapSample geography, long x, long z)
+    {
+        double ground = Math.Max(geography.Elevation + RegionalTerrain.Relief(Contract.GeographyNoiseSeed, geography, x, z),
             GenerationConstants.MinimumTerrainHeight);
+        // A town's pad (#9895): flat ground beside its water, eased into the country around it.
+        foreach (TownGround town in Towns) ground = town.Level(ground, x, z);
+        return ground;
+    }
+
+    /// <summary>
+    /// The ground every town stands on: none away from a designed continent. Read lazily, once, because
+    /// the far field's workers sample heights concurrently and the settlements need the drainage.
+    /// </summary>
+    private TownGround[] Towns => towns.Value;
+
+    private readonly Lazy<TownGround[]> towns;
+
+    /// <summary>Whether a point lies on a town's pad or near enough its edge that nothing natural grows there.</summary>
+    private bool InTown(long x, long z) => Towns.Any(town => town.Weight(x, z) > 0);
 
     private long CardinalSlope(long x, long z, long top)
     {
@@ -744,6 +763,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         long trunkZ = originZ + offsetZ;
         if (trunkX < -radius || trunkX > radius || trunkZ < -radius || trunkZ > radius)
         {
+            return null;
+        }
+
+        if (InTown(trunkX, trunkZ))
+        {
+            // A town's own layout says what grows on its pad.
             return null;
         }
 

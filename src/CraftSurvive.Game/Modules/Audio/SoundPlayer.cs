@@ -6,7 +6,7 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Audio;
 
 /// <summary>
-/// The one owner of the game's audio, driven by the feedback module. It opens the generated clips,
+/// Owns expedition audio, driven by the feedback module. It opens the generated clips,
 /// plays each cue it is handed, and keeps the four ambience beds looping at the levels the player's
 /// surroundings call for, fading between them. Sound is presentation: a clip the Engine refuses is
 /// counted and reported, and play goes on without it.
@@ -18,6 +18,7 @@ internal sealed class SoundPlayer : IDisposable
 
     /// <summary>The smallest change in a bed's level worth sending to the Engine.</summary>
     private const float LevelStep = 0.01f;
+    private const float SceneGainStep = .001f;
 
     /// <summary>A cue's normal speed, and the range of an unplaced cue, which the Engine requires positive.</summary>
     private const float NormalPitch = 1f;
@@ -27,6 +28,7 @@ internal sealed class SoundPlayer : IDisposable
     private readonly Dictionary<string, AudioClip> clips = [];
     private readonly Dictionary<AmbienceBed, (AudioVoice Voice, AudioSourceDescriptor Descriptor, float Level)> beds = [];
     private readonly Dictionary<Cue, long> played = [];
+    private float sceneGain = 1;
     private long signal;
     private long refused;
     private string lastFailure = "none";
@@ -77,13 +79,28 @@ internal sealed class SoundPlayer : IDisposable
             {
                 Attempt(() =>
                 {
-                    engine.Audio.UpdateVoice(new AudioVoiceUpdateRequest(voice, louder));
+                    engine.Audio.UpdateVoice(new AudioVoiceUpdateRequest(voice, louder with { Volume = louder.Volume * sceneGain }));
                     return true;
                 });
             }
 
             beds[bed] = (voice, louder, next);
         }
+    }
+
+    /// <summary>Crossfade the retained outdoor beds with a composed scene's own voices.</summary>
+    internal void SceneGain(float gain)
+    {
+        gain = Math.Clamp(gain, 0, 1);
+        if (Math.Abs(sceneGain - gain) < SceneGainStep && gain is not (0 or 1)) return;
+        if (sceneGain == gain) return;
+        sceneGain = gain;
+        foreach ((AudioVoice voice, AudioSourceDescriptor descriptor, _) in beds.Values)
+            Attempt(() =>
+            {
+                engine.Audio.UpdateVoice(new(voice, descriptor with { Volume = descriptor.Volume * sceneGain }));
+                return true;
+            });
     }
 
     public void Dispose()
@@ -117,7 +134,7 @@ internal sealed class SoundPlayer : IDisposable
         string levels = string.Join(",", beds.Select(entry => string.Create(CultureInfo.InvariantCulture, $"{entry.Key.ToString().ToLowerInvariant()}={entry.Value.Level:F2}")));
         string counts = string.Join(",", played.OrderBy(entry => entry.Key).Select(entry => $"{entry.Key.ToString().ToLowerInvariant()}={entry.Value}"));
         return $"audio clips={audio.AdmittedClips} voices={audio.ActiveVoices} emitted={audio.EmittedSignals} completed={completed} deviceDiagnostics={diagnostics} " +
-            $"refused={refused} beds={levels} played={(counts.Length == 0 ? "none" : counts)} failure={lastFailure}";
+            $"refused={refused} sceneGain={sceneGain:F3} beds={levels} played={(counts.Length == 0 ? "none" : counts)} failure={lastFailure}";
     }
 
     internal void Play(RaisedCue raised)

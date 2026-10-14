@@ -59,6 +59,12 @@ Their natural surfaces use the generated maps and exact prompts in
 [`content/game/textures/terrain-studies/`](content/game/textures/terrain-studies/).
 `materials.json` controls repeat scale; the Engine supplies DC and triplanar mapping.
 
+Towns stand beside their water on a designed continent. Walking up to one holds you at
+its edge and offers entry (Enter); a map journey to a town ends at its arrival view. In a
+town, click a building or use the door list for a conversation and its services, and
+**Leave town** to walk on. Kit sources and rebuild steps are in
+[art/towns](art/towns/README.md).
+
 ## Develop or use the Den service
 
 Install the UI dependency once:

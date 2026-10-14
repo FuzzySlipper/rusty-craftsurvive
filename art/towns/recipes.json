@@ -1,0 +1,303 @@
+{
+  "units": "metres",
+  "materials": {
+    "plaster": {
+      "color": "#dfbd85",
+      "roughness": 0.9,
+      "texture": "content/game/towns/kit/textures/plaster.png",
+      "tile_metres": 4
+    },
+    "painted-timber": {
+      "color": "#436d65",
+      "roughness": 0.8,
+      "texture": "content/game/towns/kit/textures/faded-teal.png",
+      "tile_metres": 2.3
+    },
+    "wood": {
+      "color": "#805b39",
+      "roughness": 0.85,
+      "texture": "content/game/towns/kit/textures/oak.png",
+      "tile_metres": 2.0
+    },
+    "stone": {
+      "color": "#958b76",
+      "roughness": 0.85,
+      "texture": "content/game/towns/kit/textures/masonry.png",
+      "tile_metres": 2.7
+    },
+    "roof": {
+      "color": "#514f49",
+      "roughness": 0.8,
+      "texture": "content/game/towns/kit/textures/slate.png",
+      "tile_metres": 3.0
+    },
+    "ground": {
+      "color": "#69715c",
+      "roughness": 0.97,
+      "texture": "content/game/towns/kit/textures/plaster.png",
+      "tile_metres": 8,
+      "tint": "#639b9a"
+    },
+    "rock": {
+      "color": "#8b897b",
+      "roughness": 0.95,
+      "texture": "content/game/towns/kit/textures/plaster.png",
+      "tile_metres": 3,
+      "tint": "#91a7b0"
+    },
+    "cloth": {
+      "color": "#9e4c3d",
+      "roughness": 0.95
+    },
+    "iron": {
+      "color": "#2c3432",
+      "roughness": 0.65,
+      "metallic": 0.4
+    },
+    "ceramic": {
+      "color": "#b9aa73",
+      "roughness": 0.45
+    },
+    "window": {
+      "color": "#d69842",
+      "roughness": 0.6,
+      "emission": 1.4
+    },
+    "interior": {
+      "color": "#725639",
+      "roughness": 0.95
+    },
+    "water": {
+      "color": "#497175",
+      "roughness": 0.2,
+      "metallic": 0.15
+    },
+    "foliage": {
+      "color": "#526c48",
+      "roughness": 0.95
+    },
+    "distance": {
+      "color": "#9babb0",
+      "roughness": 1
+    },
+    "paving": {
+      "color": "#8d8474",
+      "roughness": 0.9,
+      "texture": "content/game/towns/kit/textures/masonry.png",
+      "tile_metres": 3.4
+    },
+    "glass": {
+      "color": "#b9c1ac",
+      "roughness": 0.26,
+      "alpha": 0.1
+    },
+    "curtain": {
+      "color": "#bc9668",
+      "roughness": 0.95,
+      "emission": 0.25
+    },
+    "roof-edge": {
+      "color": "#525c60",
+      "roughness": 0.9,
+      "texture": "content/game/towns/kit/textures/slate.png",
+      "tile_metres": 3
+    },
+    "middle-distance": {
+      "color": "#6a8680",
+      "roughness": 1
+    },
+    "reed": {
+      "color": "#807d59",
+      "roughness": 0.98
+    },
+    "leaf": {
+      "color": "#69784b",
+      "roughness": 0.9,
+      "texture": "content/game/towns/kit/textures/plaster.png",
+      "tint": "#8eab68",
+      "tile_metres": 0.6
+    },
+    "flower": {
+      "color": "#d6b090",
+      "roughness": 0.9
+    },
+    "fruit": {
+      "color": "#b9874c",
+      "roughness": 0.85
+    },
+    "rope": {
+      "color": "#9b9375",
+      "roughness": 0.95
+    }
+  },
+  "buildings": {
+    "inn": {
+      "width": 7.0,
+      "depth": 5.8,
+      "eaves": 5.7,
+      "roof_rise": 2.6,
+      "door_width": 1.8,
+      "door_height": 2.45,
+      "upper_windows": 2,
+      "porch_depth": 1.6,
+      "porch": "side",
+      "jetty": 0.25,
+      "sign": "mug",
+      "lean_to": true
+    },
+    "provisioner": {
+      "width": 8.2,
+      "depth": 4.8,
+      "eaves": 3.35,
+      "roof_rise": 2.3,
+      "door_width": 1.7,
+      "door_height": 2.35,
+      "upper_windows": 0,
+      "porch_depth": 2.1,
+      "porch": "market",
+      "jetty": 0,
+      "sign": "grain",
+      "lean_to": false
+    },
+    "landing-house": {
+      "width": 6.6,
+      "depth": 5.8,
+      "eaves": 5.0,
+      "roof_rise": 3.1,
+      "door_width": 1.85,
+      "door_height": 2.4,
+      "upper_windows": 2,
+      "porch_depth": 2.2,
+      "porch": "gallery",
+      "jetty": 0,
+      "sign": "mug",
+      "lean_to": false
+    }
+  },
+  "scenes": {
+    "port": {
+      "wet": false,
+      "description": "A lowland quay: broad market awning, harbour crane and open water.",
+      "buildings": [
+        {
+          "recipe": "inn",
+          "position": [
+            -0.6,
+            2,
+            0
+          ],
+          "angle": -4
+        },
+        {
+          "recipe": "provisioner",
+          "position": [
+            -9,
+            0,
+            0
+          ],
+          "angle": -14
+        },
+        {
+          "recipe": "landing-house",
+          "position": [
+            6.5,
+            10,
+            0
+          ],
+          "angle": 70
+        }
+      ],
+      "cameras": {
+        "wide": {
+          "position": [
+            18,
+            -34,
+            6.2
+          ],
+          "target": [
+            1.5,
+            2.5,
+            3.0
+          ],
+          "lens": 36
+        },
+        "close": {
+          "position": [
+            4.6,
+            -11.4,
+            3
+          ],
+          "target": [
+            -0.5,
+            -0.8,
+            2.5
+          ],
+          "lens": 36
+        }
+      },
+      "motion_metres": 1.0
+    },
+    "upriver": {
+      "wet": true,
+      "description": "A sheltered ferry inn: deep porch, timber landing and a narrow wooded reach.",
+      "buildings": [
+        {
+          "recipe": "landing-house",
+          "position": [
+            0,
+            1.4,
+            0
+          ],
+          "angle": 0
+        },
+        {
+          "recipe": "provisioner",
+          "position": [
+            -9.2,
+            4,
+            0
+          ],
+          "angle": -30
+        },
+        {
+          "recipe": "inn",
+          "position": [
+            -4,
+            13,
+            0
+          ],
+          "angle": 8
+        }
+      ],
+      "cameras": {
+        "wide": {
+          "position": [
+            17,
+            -32,
+            5.8
+          ],
+          "target": [
+            -0.5,
+            2.3,
+            3
+          ],
+          "lens": 39
+        },
+        "close": {
+          "position": [
+            3.8,
+            -12.5,
+            2.6
+          ],
+          "target": [
+            0,
+            -1.7,
+            2.1
+          ],
+          "lens": 36
+        }
+      },
+      "motion_metres": 0.9
+    }
+  }
+}

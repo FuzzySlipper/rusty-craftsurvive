@@ -102,6 +102,18 @@ internal readonly record struct SledUiFacts(bool Near, int Load, int Limit, stri
 /// <summary>The pause menu (#9916): whether the game is held under it, and whether the host can quit from it.</summary>
 internal readonly record struct GameMenuUiFacts(bool Paused, bool QuitAvailable);
 
+/// <summary>
+/// A town visit or its doorstep (#9895): whether a visit is open, the town and its conditions, the
+/// selected service, the projected entrance labels (service|name|summary|x|y|visible, ';' between),
+/// and, outside a visit, the offer to enter.
+/// </summary>
+internal readonly record struct TownUiFacts(bool Open, string Title, string Subtitle, string Selected, string SelectedName,
+    string Hover, bool Motion, string Anchors, string Visit, TownServiceUiFacts? Service, string Prompt);
+
+/// <summary>A service conversation: who speaks, what is said, the choices (key|label|detail|enabled|reason|kind) and what the last one did.</summary>
+internal readonly record struct TownServiceUiFacts(string Speaker, string Role, string Text, string Portrait,
+    string Choices, string Outcome, string Hint);
+
 internal readonly record struct WorldMapUiFacts(bool Open, string Seed, int Size, string Sites, string Message, long Generation,
     string Travel, string TravelPhase, string Supplies, string Event, int TravelSpeed);
 
@@ -131,6 +143,7 @@ internal sealed class ProductUiPublisher : IDisposable
     private DungeonUiFacts? dungeon;
     private ulong sequence;
     private WorldMapUiFacts? map;
+    private TownUiFacts? town;
     private SledUiFacts? sled;
 
     /// <summary>How many projections this publisher has sent.</summary>
@@ -154,6 +167,8 @@ internal sealed class ProductUiPublisher : IDisposable
     {
         world = null; player = null; discovery = null; actions = null; conditions = null; survival = null; inventory = null; dungeon = null; sled = null;
     }
+
+    internal void PublishTown(TownUiFacts facts) { town = facts; Publish(); }
 
     internal void PublishMap(WorldMapUiFacts facts) { map = facts; Publish(); }
 
@@ -236,7 +251,7 @@ internal sealed class ProductUiPublisher : IDisposable
         // Without a world there is no scene; the map and its generating message still publish.
         WorldUiFacts? facts = world?.Invoke();
         engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
-            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions, menu)));
+            ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions, menu, town)));
     }
 
     public void Dispose()

@@ -130,8 +130,19 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     query honours a closed cell but not a ford's cost (only the Engine's weighted full-path query
     does). The overlay is laid when navigation is published, so a river rising afterwards is read at
     the next publication. The first publication beside water explains each wet column, about 60 ms.
-  - Settlements (the sea port, river towns and the mountain hold) are map places only: there are no
-    town scenes yet, and the expedition does not yet start at the port.
+  - Towns (#9895) stand beside their water on a designed continent; they are seen, not walked:
+    - The mountain hold has no town, and there are two layouts (port and river landing) for every
+      other settlement.
+    - A town's bank is estimated from its reach's centre line and half width, so a quay can stand
+      a few metres from the drawn shore. Its pad is levelled a quay's height above the water, which
+      can cut a terrace into a high bank.
+    - Services are free, once a visit: a meal, a rest, and rations or oil topped up to a road
+      allotment. There is no money or price.
+    - Being in a town is not saved: a reload resumes at its arrival view.
+    - A boat's water legs are not held at a town's edge.
+    - Bare-earth slopes carry no field stones, because bare earth is a town yard's ground.
+    - Towns have no far silhouette or night lights beyond 700 m.
+    - Keepers' portraits are placeholders.
   - Climate is rank-normalised, so every world contains dry and wet country; latitude spans
     the whole map whatever its size. Local terrain still uses three blended relief families
     and three surface treatments (soil, sand, snow), so several biomes share a look;

@@ -590,6 +590,12 @@ internal sealed class CreatureModule : IProductModule
         ambushPlaced = 0;
     }
 
+    /// <summary>
+    /// Ground where no creature is placed (#9895): a town and its surroundings are a sanctuary. The
+    /// product decides where towns stand; null places creatures anywhere the encounter rules allow.
+    /// </summary>
+    internal Func<double, double, bool>? Sanctuary { get; set; }
+
     /// <param name="placed">Columns this placement has already filled, kept across updates by a pending
     /// ambush (#9531): none is filled again, and new creatures keep their separation from all of them.</param>
     private int Place(int count, long regionId, Func<int, CreatureKind> kindFor, int minimumMetres, int maximumMetres,
@@ -602,6 +608,7 @@ internal sealed class CreatureModule : IProductModule
             placed ?? [], count, column =>
             {
                 if (usable?.Invoke(new Vector2(column.X + CellCentre, column.Z + CellCentre)) == false
+                    || Sanctuary?.Invoke(column.X + CellCentre, column.Z + CellCentre) == true
                     || !facts.TryDescribe(RegionKind.Wilderness, regionId, column.X, column.Z, out EncounterSite site))
                 {
                     return false;

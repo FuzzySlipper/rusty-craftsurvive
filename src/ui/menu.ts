@@ -121,7 +121,7 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
   };
   show('main');
 
-  const mapOpen = (values: Values | null): boolean => values !== null && number(values, 'worldMapOpen') === 1;
+  const freeScene = (values: Values | null): boolean => values !== null && (number(values, 'worldMapOpen') === 1 || number(values, 'townOpen') === 1);
 
   const render = (values: Values | null): void => {
     if (values === null) return;
@@ -140,7 +140,7 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
       show('main');
       // The pointer is the player's while the game is held, and a click on the view does not take it back.
       ui.setCursorMode('unlocked');
-    } else if (!mapOpen(values)) {
+    } else if (!freeScene(values)) {
       ui.setCursorMode('pointer-lock');
       ui.focusGameplay();
     }
@@ -162,7 +162,7 @@ export function mountMenu(host: Element, ui: RustyApplicationUiPort, intents: Ru
     const now = document.pointerLockElement !== null;
     const lost = locked && !now;
     locked = now;
-    if (!lost || paused || layers.screen || mapOpen(projectionValues(projection?.current() ?? null))) return;
+    if (!lost || paused || layers.screen || freeScene(projectionValues(projection?.current() ?? null))) return;
     claim({ action: MENU_PAUSE });
   };
 
