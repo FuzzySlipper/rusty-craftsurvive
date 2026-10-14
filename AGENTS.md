@@ -2,12 +2,25 @@
 
 ## Direction and ownership
 
-Read `docs/survival-direction.md` and `docs/visual-direction.md` for product
-intent. CraftSurvive is a scavenging expedition game with an inhabited base;
-the overworld terrain target is smooth, stylized dual contouring. Grid-based
-building is an independent usability choice. World size requires streaming,
-not a fixed area quota or infinite generation. Older campaign descriptions of
-a cubic-only world are historical scope, not standing design restrictions.
+**Game design lives in its own repository, the design bible:** the Wandering
+Year design atlas in [FuzzySlipper/docs](https://github.com/FuzzySlipper/docs),
+cloned at `../docs/`. Start at `../docs/wandering-year/readme.md`. It holds the
+current state and plans of the design, not its history. Consult it for larger
+design references before design-shaping work.
+
+Design changes often, and old design lingers in task descriptions, Den documents
+and repository Markdown. Where they disagree with the atlas about game design,
+the atlas is current; raise the conflict rather than following the older text.
+Record owner design decisions in the atlas: pull first, keep its Direction,
+Proposal and Open labels, and push. `docs/visual-direction.md` holds the approved
+visual references; `docs/survival-direction.md` is an older design assessment,
+which the atlas supersedes for game design.
+
+Standing technical direction: the overworld terrain target is smooth, stylized
+dual contouring. Grid-based building is an independent usability choice. World
+size requires streaming, not a fixed area quota or infinite generation. Older
+campaign descriptions of a cubic-only world are historical scope, not standing
+design restrictions.
 
 CraftSurvive is an ordinary C# product that develops against the installed
 Rusty.Engine SDK and its paired runtime pack. `rusty dev` loads the staged
@@ -112,6 +125,9 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
 - **Den holds state.** Tasks, campaign slices, decisions, board discussion, and
   history live in Den project `rusty-craftsurvive`. If a repository document and
   a task disagree, the task wins.
+- **The design atlas holds game design** (`../docs/wandering-year/`; see Direction
+  and ownership). Den and this repository do not keep evolving copies of design:
+  link to the atlas page instead, and treat older design text elsewhere as history.
 - **The repository holds durable references only**: start at
   [`docs/index.md`](docs/index.md), which maps the five live documents
   (`survival-direction.md`, `visual-direction.md`, `csharp-migration-map.md`,
