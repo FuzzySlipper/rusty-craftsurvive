@@ -37,9 +37,21 @@ FACING = 0.3                  # minimum forward component of a face-slot face no
 FORWARD = Vector((0, -1, 0))  # the character faces Blender -Y (glTF +Z)
 BOX_SIZE = 0.24              # face box side in metres: hairline to chin on the base female head
 BOX_DROP = 0.026              # box centre below the eye holes' centre, in metres
+EYE_REACH = 1.7               # around each eyeball, in multiples of its half-size (x and z)
+EYE_DEPTH = 0.01              # and this far in front of it (m), to the back of the eyeball
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=args[1])
+# The eyeballs' boxes (one per side), read before the Eyes mesh goes: the eyelids and socket
+# walls around them join the face slot whatever their facing.
+eyeballs = []
+for obj in [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith("Eyes")]:
+    pts = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    for side in (-1, 1):
+        sp = [p for p in pts if p.x * side > 0]
+        if sp:
+            eyeballs.append((min(p.x for p in sp), max(p.x for p in sp), min(p.y for p in sp), max(p.y for p in sp),
+                             min(p.z for p in sp), max(p.z for p in sp)))
 for obj in list(bpy.data.objects):
     if obj.type == "MESH" and obj.name.startswith(DROP):
         bpy.data.objects.remove(obj)
@@ -121,12 +133,15 @@ face_index = len(mesh.materials) - 1
 uv = bm.loops.layers.uv.active
 normals = world.to_3x3().inverted().transposed()
 cap_set = set(cap_faces)
+eye_zones = [((x0e + x1e) / 2, (z0e + z1e) / 2, (x1e - x0e) / 2 * EYE_REACH, (z1e - z0e) / 2 * EYE_REACH,
+              y0e - EYE_DEPTH, y1e) for x0e, x1e, y0e, y1e, z0e, z1e in eyeballs]
 chosen = 0
 for f in bm.faces:
     c = world @ f.calc_center_median()
     n = (normals @ f.normal).normalized()
     in_box = x0 <= c.x <= x0 + size and z0 <= c.z <= z0 + size
-    if f in cap_set or (in_box and n.dot(FORWARD) > FACING):
+    near_eye = any(abs(c.x - ex) <= rx and abs(c.z - ez) <= rz and ya <= c.y <= yb for ex, ez, rx, rz, ya, yb in eye_zones)
+    if f in cap_set or near_eye or (in_box and n.dot(FORWARD) > FACING):
         f.material_index = face_index
         chosen += 1
         for loop in f.loops:
