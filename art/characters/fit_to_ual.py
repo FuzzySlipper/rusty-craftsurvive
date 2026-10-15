@@ -449,9 +449,18 @@ def main(source, variant_path, out_dir):
     centre_uv = uv[tris].mean(1)
     shade = basecolor[(centre_uv[:, 1] * basecolor.shape[0]).astype(int).clip(0, basecolor.shape[0] - 1),
                       (centre_uv[:, 0] * basecolor.shape[1]).astype(int).clip(0, basecolor.shape[1] - 1)].mean(1)
-    lock = ((np.abs(centroid[:, 0] - anchor[0]) > box.get("lockInner", 0.035)) & (centroid[:, 1] < anchor[1] + box.get("lockTop", 0.04))
-            & (shade < box.get("hairShade", 90)))
+    # Below the nose it may reach in towards the mouth; beside the eyes only past their outer
+    # corners, so the dark lashes and irises stay face slot (else the body texture shows a second
+    # pair of eyes).
+    side = np.abs(centroid[:, 0] - anchor[0])
+    height = centroid[:, 1] - anchor[1]
+    lock = (shade < box.get("hairShade", 90)) & (
+        ((side > box.get("lockInner", 0.035)) & (height < box.get("lockLow", -0.01)))
+        | ((side > box.get("lockOuter", 0.07)) & (height < box.get("lockTop", 0.06))))
     face = candidate & visible & (tri_normal[:, 2] > box["minForward"]) & ~lock
+    # Around the nostrils and between the lips every head triangle takes face paint, hidden or not:
+    # left on the body texture, the generated lip line would double the painted mouth.
+    face |= candidate & (side < box.get("mouthHalfWidth", 0.05)) & (height > box.get("mouthLow", -0.055)) & (height < box.get("mouthHigh", 0.01))
     face[len(tris) - sum(len(f) for f in filled):] = True
     # Hidden inner surfaces (the mouth's walls) may stretch as the sheet moves; visible body holds it.
     anchored = ~face & ~(candidate & ~visible)

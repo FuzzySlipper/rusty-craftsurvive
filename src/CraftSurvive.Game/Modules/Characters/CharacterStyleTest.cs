@@ -38,7 +38,7 @@ internal sealed class CharacterStyleTest : IDisposable
     private const string DenseBodyPath = "characters/traveller/body-{0}-64.png";
     internal static readonly int[] BodyDensities = [32, 64];
     private const int GlbBodyDensity = 32;
-    internal static readonly string[] Variants = ["chunky", "stylised"];
+    internal static readonly string[] Variants = ["chunky", "stylised", "bold"];
     internal static readonly int[] FaceSizes = [32, 64, 128];
     private const int DefaultFaceSize = 64;
 

@@ -13,13 +13,13 @@ public sealed class CharacterStyleDebugModule : IDebugCommandModule
         this.testSource = test ?? throw new ArgumentNullException(nameof(test));
     }
 
-    [DebugCommand("craft.style.place", Description = "Test aid (#10014): place a traveller (chunky|stylised) at world x z facing yaw degrees (0 north, 90 east), at the default scale.")]
+    [DebugCommand("craft.style.place", Description = "Test aid (#10014): place a traveller (chunky|stylised|bold) at world x z facing yaw degrees (0 north, 90 east), at the default scale.")]
     public string Place(string variant, double x, double z, double yaw) => test.Place(variant, x, z, yaw, CharacterStyleTest.DefaultScale);
 
     [DebugCommand("craft.style.placescaled", Description = "Test aid (#10014): as craft.style.place, at a given uniform scale (1 = the fitted mesh, about 2 m).")]
     public string PlaceScaled(string variant, double x, double z, double yaw, double scale) => test.Place(variant, x, z, yaw, (float)scale);
 
-    [DebugCommand("craft.style.near", Description = "Test aid (#10014): place a traveller (chunky|stylised) metres east and south of the player, facing yaw degrees, at a uniform scale (0 = the default).")]
+    [DebugCommand("craft.style.near", Description = "Test aid (#10014): place a traveller (chunky|stylised|bold) metres east and south of the player, facing yaw degrees, at a uniform scale (0 = the default).")]
     public string Near(string variant, double east, double south, double yaw, double scale) =>
         test.PlaceNear(variant, east, south, yaw, scale > 0 ? (float)scale : CharacterStyleTest.DefaultScale);
 

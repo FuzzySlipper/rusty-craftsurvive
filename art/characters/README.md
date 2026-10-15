@@ -26,8 +26,11 @@ under `content/game/characters/traveller` byte for byte:
 3. `fit_to_ual.py` fits the Tripo-rigged model to UAL's rig. It poses Tripo's own rig to UAL's
    T-pose, warps joints onto UAL's, remaps weights and splits the face slot, a front projection
    anchored at the nose tip.
-   - A variant file (`traveller/chunky.json`, `traveller/stylised.json`) gives the head and hand
-     scale and the face box.
+   - A variant file (`traveller/chunky.json`, `traveller/stylised.json`, `traveller/bold.json`)
+     gives the head and hand scale and the face box.
+   - Hair-coloured triangles beside the cheeks stay on the body texture (a hanging lock); the
+     eyes, nostrils and lip line always take face paint, so the generated eyes and lips never
+     double the painted ones.
 4. `reuv.py` (needs `pip install xatlas` in a scratch environment) re-charts the body at
    32 texels/m and bakes the generated texture into it. It also writes a 64 texels/m texture on
    the same UVs, for comparison.

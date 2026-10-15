@@ -28,13 +28,18 @@
  "items": [
   {
    "mesh": "content/game/characters/traveller/traveller-chunky.glb",
-   "sha256": "09f216f52066783e6083511a67b8bffad645fd698c2260d3f2862f58c5ce0d66",
+   "sha256": "2ebca0b5f92585c33841675acf8c936df911c6331e124c9d6b84c0f4a9983487",
    "variant": "art/characters/traveller/chunky.json",
    "derivedBy": "art/characters/fit_to_ual.py, reuv.py (xatlas, 32 texels/m), assemble_character.py; art/characters/traveller/build.sh"
   },
   {
+   "texture": "content/game/characters/traveller/body-chunky.png",
+   "sha256": "d1be0a4985e822d370d29c8e1afa06e4437aeedb019fe1e0133234be24ccab96",
+   "derivedBy": "art/characters/reuv.py: 32 texels/m"
+  },
+  {
    "texture": "content/game/characters/traveller/body-chunky-64.png",
-   "sha256": "c64cf09b52785c7652db4690620a28b6dac22a67b81e7b6d458c0850c806ddec",
+   "sha256": "563beca34559dcd3e22b78757c7ccce3d3d9619bc6c0e9c7bcaae1900df8af27",
    "derivedBy": "art/characters/reuv.py --double: the same UVs at 64 texels/m (comparison only)"
   },
   {
@@ -47,18 +52,47 @@
   },
   {
    "mesh": "content/game/characters/traveller/traveller-stylised.glb",
-   "sha256": "77cf36cfc769e71b5ac324a6b0721c1ada4f60139dbb78b8128662c0b319e0eb",
+   "sha256": "8e40a460c1c1e69c1baaa1144e524ea65d22187ddf753a53c6a370e1459605a9",
    "variant": "art/characters/traveller/stylised.json",
    "derivedBy": "art/characters/fit_to_ual.py, reuv.py (xatlas, 32 texels/m), assemble_character.py; art/characters/traveller/build.sh"
   },
   {
+   "texture": "content/game/characters/traveller/body-stylised.png",
+   "sha256": "6156cbb89278f6156011457f87aacfeea2e538905650266a28682590f30c204c",
+   "derivedBy": "art/characters/reuv.py: 32 texels/m"
+  },
+  {
    "texture": "content/game/characters/traveller/body-stylised-64.png",
-   "sha256": "3b7495ecbcce2d545242fb1cb281cefa5bf3361b4481211c80c77011745ec2fc",
+   "sha256": "2c87b81bf9db190be8f718ce79d565f6fd05140962fe0df1c029ff52bc232562",
    "derivedBy": "art/characters/reuv.py --double: the same UVs at 64 texels/m (comparison only)"
   },
   {
    "clipPack": "content/game/characters/traveller/ual-clips-stylised.glb",
    "sha256": "6467409c9aed1e984ff266606d4844dbe098b9d752ccfc435a38d7e39c50978c",
+   "derivedBy": "art/characters/make_clip_pack.py: UAL1 Idle_Loop, Walk_Loop, Idle_Talking_Loop, Walk_Formal_Loop renamed idle, walk, talk, walk_formal",
+   "source": "content/animations/UAL1_Standard.glb",
+   "sourceSha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
+   "license": "CC0-1.0 (Quaternius, content/animations/UAL1_Standard-License.txt)"
+  },
+  {
+   "mesh": "content/game/characters/traveller/traveller-bold.glb",
+   "sha256": "93f40b1fd47daf407b37f629618704660406ad541c46dc291ed46e9e0198096f",
+   "variant": "art/characters/traveller/bold.json",
+   "derivedBy": "art/characters/fit_to_ual.py, reuv.py (xatlas, 32 texels/m), assemble_character.py; art/characters/traveller/build.sh"
+  },
+  {
+   "texture": "content/game/characters/traveller/body-bold.png",
+   "sha256": "2f90dfa73759db7d5035caa06ec4e9775951de6cd17c2333b873bb3554a14e6e",
+   "derivedBy": "art/characters/reuv.py: 32 texels/m"
+  },
+  {
+   "texture": "content/game/characters/traveller/body-bold-64.png",
+   "sha256": "acf2b2028b1e313fdb1506a453e404ec982e27146d6fb46ec871eaf78b4a3234",
+   "derivedBy": "art/characters/reuv.py --double: the same UVs at 64 texels/m (comparison only)"
+  },
+  {
+   "clipPack": "content/game/characters/traveller/ual-clips-bold.glb",
+   "sha256": "e2d3cc2ba79aef77d25256e008e274245d4d2db6404b882c3c48c99e4193809f",
    "derivedBy": "art/characters/make_clip_pack.py: UAL1 Idle_Loop, Walk_Loop, Idle_Talking_Loop, Walk_Formal_Loop renamed idle, walk, talk, walk_formal",
    "source": "content/animations/UAL1_Standard.glb",
    "sourceSha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
