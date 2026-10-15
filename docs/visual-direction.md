@@ -167,6 +167,11 @@ high-country refuge, with establishing views, closer views and interface
 studies. Use them for mood, spatial composition and hospitality. Their names,
 UI copy and fine details are illustrative.
 
+The [character set](style-references/characters/README.md) holds the approved human character
+look: painted surfaces on simple, smooth-shaded forms, with storybook proportions. It includes its
+style sheet and exact prompts. Valheim, the method reference above, has no characters facing the
+camera, so for people this set governs.
+
 Mood references, not visual styles:
 
 | Reference | What to take from it |
