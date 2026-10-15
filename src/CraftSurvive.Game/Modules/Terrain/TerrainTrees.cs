@@ -85,6 +85,14 @@ internal sealed class TerrainTrees : IDisposable
     private readonly Dictionary<(long X, long Z), TerrainTree?> farCells = [];
     private readonly Dictionary<(long X, long Z), bool> farStands = [];
     private readonly HashSet<(long X, long Z)> nearDrawn = [];
+    /// <summary>
+    /// Each tree's recipe ground and whether a near tree stands, by trunk column (#10015). Both are
+    /// pure functions of the recipe and the edits, so a chunk arriving need not sample them again;
+    /// the standing checks are forgotten when the edits change, and both beyond the trees' window.
+    /// </summary>
+    private readonly Dictionary<(long X, long Z), double> treeGrounds = [];
+    private readonly Dictionary<(long X, long Z), bool> nearStands = [];
+    private ulong nearStandsRevision = ulong.MaxValue;
     private TerrainRecipe? farRecipe;
     private (long X, long Z)? farSweptAround;
     private bool farPending;
@@ -194,7 +202,7 @@ internal sealed class TerrainTrees : IDisposable
             || builtAround is not (long x, long z) || Math.Abs(center.X - x) >= RebuildMetres || Math.Abs(center.Z - z) >= RebuildMetres;
         if (nearStale)
         {
-            BuildNear(center, recipe, materialAt, resident);
+            BuildNear(center, recipe, materialAt, resident, editRevision);
             builtAround = (center.X, center.Z);
             builtRevision = editRevision;
             builtResidents = residentChunks;
@@ -207,8 +215,15 @@ internal sealed class TerrainTrees : IDisposable
         }
     }
 
-    private void BuildNear(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt, Func<VoxelAddress, bool> resident)
+    private void BuildNear(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt,
+        Func<VoxelAddress, bool> resident, ulong editRevision)
     {
+        if (nearStandsRevision != editRevision)
+        {
+            nearStands.Clear();
+            nearStandsRevision = editRevision;
+        }
+
         candidates.Clear();
         nearDrawn.Clear();
         recipe.TreesIn(center.X - drawMetres, center.Z - drawMetres, center.X + drawMetres, center.Z + drawMetres, candidates);
@@ -217,10 +232,18 @@ internal sealed class TerrainTrees : IDisposable
         foreach (TerrainTree tree in candidates)
         {
             VoxelAddress core = new(tree.X, tree.GroundY, tree.Z);
-            if (drawn.Count >= ProductIds.TreeObjectLimit || !resident(core) || !TreeFelling.Stands(tree, materialAt))
+            if (drawn.Count >= ProductIds.TreeObjectLimit || !resident(core))
             {
                 continue;
             }
+
+            if (!nearStands.TryGetValue((tree.X, tree.Z), out bool stands))
+            {
+                stands = TreeFelling.Stands(tree, materialAt);
+                nearStands[(tree.X, tree.Z)] = stands;
+            }
+
+            if (!stands) continue;
 
             nearDrawn.Add((tree.X, tree.Z));
             AppearanceFact placed = Place(tree, recipe, kinds, Sink, drawn.Count);
@@ -246,6 +269,8 @@ internal sealed class TerrainTrees : IDisposable
         {
             farCells.Clear();
             farStands.Clear();
+            treeGrounds.Clear();
+            nearStands.Clear();
             farRecipe = recipe;
             farSweptAround = null;
             changed = true;
@@ -256,6 +281,7 @@ internal sealed class TerrainTrees : IDisposable
             farSweptAround = (cx, cz);
             farPending = true;
             long keep = reach + FarStepCells;
+            ForgetColumnsBeyond(center);
             foreach ((long X, long Z) key in farCells.Keys.Where(key => Math.Abs(key.X - cx) > keep || Math.Abs(key.Z - cz) > keep).ToList())
             {
                 farCells.Remove(key);
@@ -321,11 +347,25 @@ internal sealed class TerrainTrees : IDisposable
         return drawn;
     }
 
+    /// <summary>Drops the cached grounds and standing checks of trees outside both bands, with a step's margin.</summary>
+    private void ForgetColumnsBeyond(VoxelAddress center)
+    {
+        long keep = Math.Max(farReach, drawMetres) + (FarStepCells * GenerationConstants.FeatureCellSize) + RebuildMetres;
+        bool Beyond((long X, long Z) column) => Math.Abs(column.X - center.X) > keep || Math.Abs(column.Z - center.Z) > keep;
+        foreach ((long X, long Z) column in treeGrounds.Keys.Where(Beyond).ToList()) treeGrounds.Remove(column);
+        foreach ((long X, long Z) column in nearStands.Keys.Where(Beyond).ToList()) nearStands.Remove(column);
+    }
+
     private AppearanceFact Place(TerrainTree tree, TerrainRecipe recipe, Dictionary<TreeKind, Appearance[]> meshes, float sink, int index)
     {
         Appearance[] variants = meshes[tree.Kind];
         Appearance mesh = variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))];
-        double ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + GroundTopFace;
+        if (!treeGrounds.TryGetValue((tree.X, tree.Z), out double ground))
+        {
+            ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + GroundTopFace;
+            treeGrounds[(tree.X, tree.Z)] = ground;
+        }
+
         Vector3 at = frame.ToLocal(tree.X + CellCentre, ground - sink, tree.Z + CellCentre);
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)tree.Yaw);
         return new(ProductIds.TreeObjectBase + (ulong)index, false, 0, new(at, turn, Vector3.One * (float)tree.Scale), mesh, true, RenderLayer.Scene);
@@ -356,7 +396,7 @@ internal sealed class TerrainTrees : IDisposable
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"trees drawn={facts.Length} near={nearFacts.Length} canopies={canopies.Length} far={farCount} farCells={farCells.Count} farPending={farPending} candidates={candidates.Count} meshes={meshes.Count}");
+        $"trees drawn={facts.Length} near={nearFacts.Length} canopies={canopies.Length} far={farCount} farCells={farCells.Count} farPending={farPending} candidates={candidates.Count} groundCache={treeGrounds.Count} meshes={meshes.Count}");
 
     public void Dispose()
     {

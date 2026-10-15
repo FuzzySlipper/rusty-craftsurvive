@@ -894,9 +894,13 @@ internal sealed class DayNightSky : IDisposable
         float airShare = Math.Min(1f, (CloudAirShare * w.Cloud) + (MurkAirShare * w.Murk));
         if (w.Air != Vector3.Zero) horizon = Vector3.Lerp(horizon, w.Air * (NightAir + ((1f - NightAir) * (float)daylight)), airShare);
         float weatherThickening = 1f + (MurkFog * w.Murk) + (RainFog * w.Precipitation) + (CloudFog * w.Cloud);
-        engine.CameraView.SetFog(horizonShown
-            ? new(FogMode.Exponential, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, horizonFogDensity / fogReach * weatherThickening)
-            : new(FogMode.ExponentialSquared, new Color(horizon.X, horizon.Y, horizon.Z, 1f), 0f, 0f, OpenFogDensity / fogReach * weatherThickening));
+        Color fogColour = new(horizon.X, horizon.Y, horizon.Z, 1f);
+        // The Engine refuses exponential fog of zero density, so a tuned-away horizon fog is fog off (#10015).
+        engine.CameraView.SetFog(!horizonShown
+            ? new(FogMode.ExponentialSquared, fogColour, 0f, 0f, OpenFogDensity / fogReach * weatherThickening)
+            : horizonFogDensity > 0f
+                ? new(FogMode.Exponential, fogColour, 0f, 0f, horizonFogDensity / fogReach * weatherThickening)
+                : new(FogMode.Off, default, 0f, 0f, 0f));
         float warmth = Warmth(elevation);
         // A low sun hazes the air toward it more strongly and more widely, as much as the evening is spectacular.
         float low = (float)TwilightGlow(elevation) * spectacle;

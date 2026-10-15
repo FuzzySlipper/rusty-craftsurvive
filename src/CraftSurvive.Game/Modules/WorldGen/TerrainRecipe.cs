@@ -433,7 +433,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
                 long trunkX = (anchorX * cell) + tree.OffsetX;
                 long trunkZ = (anchorZ * cell) + tree.OffsetZ;
-                long baseY = TerrainSurface(trunkX, trunkZ) + 1;
+                long baseY = tree.GroundY;
                 if (trunkX >= xStart && trunkX <= xEnd && trunkZ >= zStart && trunkZ <= zEnd
                     && baseY <= yMaximum && baseY + GenerationConstants.TreeCoreHeight - 1 >= yMinimum)
                 {
@@ -656,7 +656,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return TerrainConstants.EmptyMaterial;
         }
 
-        long baseY = TerrainSurface(x, z) + 1;
+        long baseY = tree.GroundY;
         return y >= baseY && y < baseY + GenerationConstants.TreeCoreHeight
             ? (ushort)BlockId.TreeCore
             : TerrainConstants.EmptyMaterial;
@@ -669,7 +669,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         long anchorX = GridMath.FloorDivide(x, cell);
         long anchorZ = GridMath.FloorDivide(z, cell);
         return TreeAt(anchorX, anchorZ) is TreeShape tree && x == (anchorX * cell) + tree.OffsetX && z == (anchorZ * cell) + tree.OffsetZ
-            ? new TerrainTree(x, TerrainSurface(x, z) + 1, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw)
+            ? new TerrainTree(x, tree.GroundY, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw)
             : null;
     }
 
@@ -697,7 +697,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
                     continue;
                 }
 
-                into.Add(new TerrainTree(x, TerrainSurface(x, z) + 1, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw));
+                into.Add(new TerrainTree(x, tree.GroundY, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw));
             }
         }
     }
@@ -719,7 +719,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         long x = (anchorX * GenerationConstants.FeatureCellSize) + shape.OffsetX;
         long z = (anchorZ * GenerationConstants.FeatureCellSize) + shape.OffsetZ;
-        TerrainTree tree = new(x, TerrainSurface(x, z) + 1, z, shape.Kind, shape.Variant, shape.Scale, shape.Yaw);
+        TerrainTree tree = new(x, shape.GroundY, z, shape.Kind, shape.Variant, shape.Scale, shape.Yaw);
         bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
             .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
         return !structured || TreeFelling.Stands(tree, MaterialAt) ? tree : null;
@@ -796,7 +796,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         TreeKind kind = TreeKinds.For(WorldMap.Biome(column.Geography), Unit("tree.kind", key));
         double scale = GenerationConstants.TreeScaleMinimum
             + ((GenerationConstants.TreeScaleMaximum - GenerationConstants.TreeScaleMinimum) * Unit("tree.scale", key));
-        return new TreeShape(offsetX, offsetZ, kind, Unit("tree.variant", key), scale, Unit("tree.yaw", key) * Math.Tau);
+        return new TreeShape(offsetX, offsetZ, ground + 1, kind, Unit("tree.variant", key), scale, Unit("tree.yaw", key) * Math.Tau);
     }
 
     /// <summary>A keyed draw in [0, 1).</summary>
@@ -804,6 +804,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         Contract.DrawLong(draws, purpose, key, 0, GenerationConstants.TreeDrawResolution - 1)
         / (double)GenerationConstants.TreeDrawResolution;
 
-    private readonly record struct TreeShape(long OffsetX, long OffsetZ, TreeKind Kind, double Variant, double Scale, double Yaw);
+    /// <summary>A decided tree; <c>GroundY</c> is its trunk's lowest cell, the one above the generated ground.</summary>
+    private readonly record struct TreeShape(long OffsetX, long OffsetZ, long GroundY, TreeKind Kind, double Variant, double Scale, double Yaw);
 
 }
