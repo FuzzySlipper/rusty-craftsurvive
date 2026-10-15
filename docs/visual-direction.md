@@ -1,203 +1,249 @@
 # Visual direction
 
 CraftSurvive aims for a beautiful, weathered fantasy world with the texture and
-tone of an older 3D game, realized at a scale and with environmental richness
-that would have been out of reach for that era. Think of an impossibly expansive
-1990s or 2000s landscape: simple, tangible surfaces and forms, supported by
-distance, atmosphere, weather, and light.
+tone of an older 3D game, at a scale and with an environmental richness that
+were out of reach in that era. Think of an impossibly expansive landscape from
+the late 1990s or 2000s, built from simple, tangible forms and carried by
+distance, atmosphere, weather and light.
+
+**The one rule: the references set the mood, Valheim sets the method.** The
+approved concept images say what places should feel like: their palette,
+composition, architecture and hospitality. Valheim says how the game achieves
+that: detail level, texture size, and how much light, fog and weather do the
+work. Where a concept image's richness and Valheim's economy disagree on detail,
+follow Valheim.
 
 This is art guidance, not a claim about the renderer's implemented features.
-Evolving design and thematic development live in the
-[Wandering Year Design Atlas](https://github.com/FuzzySlipper/docs/blob/main/wandering-year/readme.md).
-Den holds task and technical records. An individual reference image does not
-establish every detail of the style.
+Game design lives in the
+[Wandering Year Design Atlas](https://github.com/FuzzySlipper/docs/blob/main/wandering-year/readme.md);
+Den holds tasks, technical records and accepted tuning values.
 
-## Approved visual references
+## The method: what "like Valheim" means
 
-The [Paperback Sanctum reference set](style-references/paperback-sanctum/README.md)
-contains four approved images with their exact generation prompts and the source
-style prompt. Use the images as concrete positive references alongside this guide.
-Both the detailed canyon, tundra, and dungeon studies and the broader painted
-canyon are within the intended range. Do not reject the detailed studies merely
-because they contain more naturalistic lighting or surface detail than the
-painted variant.
+Valheim combines cheap surfaces with an expensive-looking atmosphere. Take these
+six ingredients from it, and not its Norse setting, creatures or building kit.
 
-Their shared strengths are monumental landforms, layered distance, tangible
-volumes, worn stone with restrained colored accents, distinctive curved ancient
-structures, and small practical expedition equipment. Warm ochres, faded reds,
-and softened green or teal accents against cooler distance form a useful palette
-family, adapted to the climate and lighting rather than imposed on every scene.
+### 1. Simple forms, small textures
 
-The ancient openings, tapered ribs, and ceramic-like insets provide an approved
-architectural vocabulary to develop. They do not require every ruin to repeat
-the same doorway or settle the civilization's lore. These are concept references;
-retro texture density and filtering still need to be judged in a moving game.
+- Models are low-poly with chunky, readable silhouettes and **smooth shading**.
+  Flat-shaded faceted models with one colour per facet are not the style.
+- Textures are small and carry a few broad marks: colour shifts, planks, cracks,
+  moss patches. They do not carry photographic grain, pores or fabric weave.
+- A surface shows at most three levels of variation at play distance: the broad
+  colour of the mass, a few large marks, and one finer texture. Nothing finer.
+- How much texture "crunch" shows up close is being calibrated (see
+  [Calibration still open](#calibration-still-open)).
 
-The [town reference set](style-references/town/README.md) adds eight positive
-references for warm, inhabited sanctuaries: a lowland port, a rainy upriver town
-and a small high-country refuge. Paired establishing and closer views support
-testing a composed 3D scene that moves closer when a building is selected.
-Portrait and shop studies show how an interaction can retain the surrounding
-town's atmosphere. Use these for mood, spatial composition and hospitality;
-their example names, UI copy and individual details remain illustrative.
+### 2. Air and light carry the mood
 
-## Tone and references
+The mood of a place comes mostly from its atmosphere, not from repainting its
+textures. Each region has an **atmosphere preset**: fog colour and density, sky,
+sun and ambient light colour, and colour grade. Weather and time of day shift
+the preset. The same meadow textures should read golden at noon, amber at
+sunset, grey-green in rain and blue at night.
 
-The world can be dreamy, spacious, and beautiful, and also harsh and dangerous.
-These qualities should coexist. A desert can be luminous and inviting to look
-at while its exposure makes crossing it difficult. A frozen landscape can feel
-quiet and immense before weather closes around the traveler.
+Materials still own their base colour. Check an asset in the neutral daylight
+preset first. If it looks wrong there (too lime, grey or flat), fix the texture
+or its palette ramp (`content/style/palette.json`), not the atmosphere. Presets
+then change mood on purpose; they never cover for a bad asset.
 
-Present the world warmly even where play is harsh. Its danger comes from scale
-and indifference, not malice: a pleasant meadow is hazardous because it is a
-large system that does not account for one small traveler, not because it is
-conspiring against them. Do not paint deadliness onto every surface as dramatic
-foreshadowing. The warmth carries a quiet awe at the environment, and survival
-is a matter of respecting it rather than spotting tricks and traps.
+### 3. Far, layered distance
 
-Use the references for the qualities named here:
+On a clear day you see far. Distant ridges and landmarks stay visible as paler,
+bluer, lower-contrast layers. Aerial haze grows steadily with distance, so the
+view separates into foreground, middle distance and horizon. Distance must never
+read as uniformly sharp and saturated all the way to the skyline.
+
+Fog closes the view in where conditions call for it: weather, forest and wetland
+mornings, valleys at dusk. Clear high country keeps the long view.
+
+### 4. Strong light effects
+
+Light is a showpiece, as in Valheim:
+
+- Strong sun shadows with a definite direction; avoid flat, even noon light everywhere.
+- Visible light shafts through trees, fog and doorways.
+- Lamps, windows, fires and the sun's disc glow and bloom.
+- Sunrise and sunset drench the land in colour, not only the sky.
+- **Warm firelight against a cool surrounding** is the key contrast. It is what
+  makes a town, inn or camp read as shelter.
+
+### 5. Moody but readable night and weather
+
+Night and storms change the mood clearly but never make the world unreadable:
+
+- Night is darker and bluer, and the landform and the route stay legible. Lamps
+  and fires matter for warmth and welcome more than for seeing at all.
+- Rain greys and cools the palette, darkens wet surfaces and pulls the view in.
+  Heavy weather can shrink visibility to a few hundred metres. The path ahead,
+  nearby hazards and shelter silhouettes stay readable.
+- A gathering storm is a beautiful sight as well as a reason to seek shelter.
+  Avoid both a perpetually sunny, safe-looking world and a uniformly bleak one.
+
+### 6. Living things move
+
+Grass, foliage and trees sway, and their motion strengthens with the wind. Rain,
+snow, drifting leaves, embers and chimney smoke make conditions visible.
+Architecture and most props stay still; motion belongs to living things,
+weather and fire.
+
+## Palette
+
+Colour starts from the shared ramps in `content/style/palette.json`. Regional
+character comes from which ramps dominate and from the atmosphere preset.
+
+- **An ordinary sunny meadow** is a warm, slightly golden green with deep,
+  slightly cool shade under trees and a soft haze towards the horizon. The
+  brightest sunlit grass reads as warm olive-gold. It must never read as lime or
+  neon green.
+- **Shadows are coloured.** They are cool in daylight and warm-rimmed near fire,
+  never plain grey.
+- **Accents are restrained.** Faded red cloth, softened teal and ceramic insets
+  appear in small amounts against the earth, stone and plant colours.
+
+Starting atmospheres for the atlas geography. These are proposals, to be tuned
+in the running game:
+
+| Region | Dominant ramps | Atmosphere |
+| --- | --- | --- |
+| Wet lowlands and coast (the starting port) | meadow, foliage, water, stone | Mild and fresh; soft sea haze; bright but not saturated |
+| River forests and upriver towns | foliage, bark, sage, teal | Deep blue-green shade; mist in valleys and mornings; frequent rain |
+| High dry country and canyons | sandstone, earth, sage, autumn | Ochre and sun-faded; very long, clear views; strong warm light, violet distance |
+| Cold high mountains and tundra | snow, stone, distance | Blue-white, pale sky; severe weather closes in |
+| Ancient and buried places | stone, teal, cloth | Worn pale stone; warm work-lights against cool darkness |
+
+## Detail and the concept images
+
+The concept images are richer than the game will be. Take from them:
+
+- mood, light and weather;
+- composition, with clear foreground, middle distance and horizon;
+- palette families and material choices;
+- architectural vocabulary: shapes, openings, rooflines;
+- signs of hospitality: lit windows, open thresholds, dry places to sit.
+
+Do not take their density of small objects, ornament, clutter or microtexture.
+Translate each image into a few big shapes, a handful of signature details and
+small textures, then let atmosphere supply the richness.
+
+**Town buildings** use medium detail: simple masses (walls, heavy roofs, posts)
+plus a handful of modelled details that read at town-overview distance, such as
+shutters, awnings, signs, balconies, porches, chimneys and lit windows. Plaster,
+plank and stone come from small textures, not modelled geometry. The exact amount
+is being calibrated.
+
+## Calibration still open
+
+These need focused in-game tests before they become rules. Judge them in motion
+and at normal play distance, not from texture swatches or still close-ups.
+
+- **Texture crunch.** Three treatments are to be compared side by side:
+  1. visible low-res pixels on props, buildings and gear, with soft painted ground;
+  2. visible low-res texture everywhere;
+  3. soft painted textures with no visible pixels.
+
+  The owner's inclination is the first.
+- **Building detail.** Calibrate "medium detail" on one town building at the
+  overview and entrance distances: how many modelled details, and how large the
+  texture marks are.
+
+## Approved references
+
+The [Paperback Sanctum set](style-references/paperback-sanctum/README.md) holds
+four approved images with their exact generation prompts and source style
+prompt. Both the detailed studies and the broader painted canyon are within
+range. Their strengths are monumental landforms, layered distance, worn stone
+with restrained coloured accents, distinctive curved ancient structures, and
+small practical expedition gear. The ancient openings, tapered ribs and
+ceramic-like insets are an approved architectural vocabulary to develop. They do
+not fix every ruin's doorway or settle the civilization's lore.
+
+The [town set](style-references/town/README.md) holds eight references for warm,
+inhabited sanctuaries: a lowland port, a rainy upriver town and a small
+high-country refuge, with establishing views, closer views and interface
+studies. Use them for mood, spatial composition and hospitality. Their names,
+UI copy and fine details are illustrative.
+
+Mood references, not visual styles:
 
 | Reference | What to take from it |
 | --- | --- |
-| Valheim | The intended balance of retro character, restrained texture resolution, and tactile rendering with rich atmosphere; also a useful level of terrain stylization. |
-| Breath of the Wild | A sense of spacious fantasy adventure and ancient mystery, with beauty and danger sharing the landscape. |
-| Nausicaä of the Valley of the Wind | A dreamy yet sometimes harsh emotional register and a sense of a world larger than its inhabitants. |
+| Valheim | The method: see above. |
+| Breath of the Wild | Spacious fantasy adventure and ancient mystery, with beauty and danger sharing the landscape. |
+| Nausicaä of the Valley of the Wind | A dreamy yet sometimes harsh register; a world larger than its inhabitants. |
 
-The latter references guide mood; they do not establish an anime or JRPG visual
-style. Overt toon rendering and anime character design are outside the target.
-Their palettes, architecture, costumes, and technology motifs are not a kit to
-copy wholesale. The approved set begins an ancient architectural vocabulary;
-its wider technology, objects, and cultural identity remain to be developed.
+Breath of the Wild and Nausicaä guide mood only. Toon rendering, outlines and
+anime character design are outside the target.
+
+## Tone
+
+The world is dreamy, spacious and beautiful, and also harsh and dangerous. A
+desert can be luminous and inviting to look at while its exposure makes
+crossing it hard. Present the world warmly even where play is harsh. Its danger
+comes from scale and indifference, not malice, so do not paint deadliness onto
+every surface. Survival is about respecting the environment, not spotting
+tricks.
+
+Dreaminess comes from colour, light, atmosphere and scale, not from cute or
+exaggerated shapes. Harshness does not require photorealism or a grim palette.
 
 Do not default to a conventional medieval castle-and-village world. The living
-setting includes common gunpowder and early-modern technology alongside magic;
-the buried world has its own much older identity. Those layers need room in the
-architecture and objects. This does not establish a particular historical region,
-an industrial aesthetic, or a standard glowing ancient-machine motif.
+setting has common gunpowder and early-modern technology alongside magic; the
+buried world has its own much older identity. This does not establish a
+historical region, an industrial aesthetic or a glowing ancient-machine motif.
 
-Painterly treatment is compatible with the target. Keep it grounded in tangible
-forms and material differences rather than pushing everything toward a soft,
-storybook cartoon. Dreaminess can come from color, light, atmosphere, and scale;
-it need not depend on exaggerated or cute shapes. Harshness does not require
-photorealism or a uniformly grim palette.
+## Terrain, scale and construction
 
-## Retro surface character
-
-Existing game textures and other art assets are provisional, not a visual baseline
-to preserve. Author replacement materials against the approved references; legacy
-grass-top/dirt-side tiles and their hard bands do not constrain the new terrain.
-
-Use some low-resolution texture character and a degree of crunchy filtering.
-The result should register first as a coherent world and only then as having
-older-game texture. Large visible pixels must not dominate every material or
-become the subject of the image.
-
-Favor readable material colors, broad variation, and economical detail. Texture
-marks should belong to the surface and remain understandable at normal play
-distance. More detailed geometry and lighting do not require photorealistic
-surface maps. Conversely, retro character does not require stripping away
-atmosphere, scale, or environmental complexity.
-
-Economical detail is a hierarchy, not a blanket ban on weathering or convincing
-materials. The approved images allow detailed stone and cloth where they support
-form and place. Preserve quiet areas and readable large shapes rather than
-forcing every surface to be equally sparse or equally intricate.
-
-Painterly color grouping or authored texture marks can provide that economical
-detail. Judge them as part of the material in a moving 3D scene; neither dense
-illustration detail nor a uniform paint effect across the entire view is needed.
-
-Props, rocks and vegetation share the textured ground's surface language. Untextured,
-flat-shaded faceted low-poly models (single flat colours per facet) read as a different
-game beside the painted ground and are not a target style: give natural props textured,
-softly shaded surfaces in the ground's palette, with silhouettes that can stay chunky.
-Earlier faceted props and the faceted prompt wording used to generate them are legacy to
-replace, not a reference.
-
-Do not assume a universal texture resolution or a mandatory nearest-neighbor
-filter. Filtering, texture density, and contrast must be judged together in
-motion and at the distance where a material is normally seen. An enlarged
-texture swatch alone cannot establish the right amount of crunch.
-
-A full-screen pixelation effect, painted-canvas overlay, simulated CRT, or
-deliberate rendering defects are not requirements of this direction. The
-older-game feeling should arise from authored forms and surfaces rather than
-depend on such effects.
-
-## Terrain, scale, and construction
-
-The wider world uses smooth, stylized dual-contoured terrain as its target.
-Landforms should support broad slopes, cliffs, canyon walls, caves, and worn
-transitions. Smooth terrain does not mean featureless rounded hills everywhere:
-strong silhouettes, abrupt breaks, and harsh rock faces still belong.
-
-Use Engine triplanar texture projection for reconstructed natural terrain. Keep
-texture scale and blending readable across slopes and cliffs. Projection blending
-and the choice or transition between ground materials are separate decisions:
-triplanar mapping alone does not blend grass into rock or replace directional
-material selection. Design those transitions with the new textures rather than
-reproducing cube-face decoration.
-
-Prioritize the large landform, the route through it, and its landmarks before
-small surface decoration. A convincing sense of distance can come from layered
-terrain, changing visibility, and intervening landforms; it does not require a
-fixed world-area quota or continuous walking between every region.
-
-Construction may use blocks, a grid, or discrete pieces to simplify assembly.
-That interaction choice does not make the terrain cubic or require every
-building surface to advertise a voxel grid. Keep structures legible against
-the landscape and compatible with its material treatment. Exact construction
-shapes and joining rules remain open.
-
-## Atmosphere and readability
-
-Light, sky, distance, and weather should make restrained assets feel part of a
-large living environment. Preserve enough separation between foreground,
-middle distance, and horizon for a player to understand where they might go.
-Atmosphere can soften far forms while nearby routes and hazards remain legible.
-
-Weather must have a presence in the landscape and communicate changes in
-conditions. Beauty is not confined to clear skies: a gathering storm can be a
-striking sight as well as a reason to seek shelter. Avoid making every location
-perpetually sunny and safe-looking, or uniformly bleak and colorless.
-
-Color belongs to the authored materials. Shared palette ramps (`content/style/palette.json`)
-and the stylisation scripts set it. The final color grade is a light, near-neutral trim: a
-little warmth and contrast. It must not compensate for an asset's color. If a surface reads too
-saturated, grey or flat, correct the texture or its ramp rather than the grade. Weather and
-time of day may shift the grade per condition. The accepted values and their history are in
-Den (`decision-colour-grade`).
-
-Dungeons carry the same surface language into enclosed and vertical spaces.
-Their mood can become darker and more threatening while footholds, ledges,
-openings, and relevant objects remain readable. At home, construction and
-inhabitants should communicate occupancy and the value of returning.
+- The overworld uses smooth, stylized dual-contoured terrain. Smooth does not
+  mean featureless: cliffs, abrupt breaks and harsh rock faces belong.
+- Natural terrain uses Engine triplanar projection. Choosing and blending ground
+  materials is a separate design decision from projection.
+- Props, rocks and vegetation share the ground's textured, softly shaded surface
+  language and palette.
+- Build the large landform, the route through it and its landmarks before small
+  surface decoration.
+- Construction may use a grid or discrete pieces for usability. That does not
+  make the terrain cubic or require buildings to advertise a voxel grid.
+- Dungeons carry the same surface language into enclosed and vertical spaces.
+  They can be darker and more threatening while footholds, ledges and openings
+  stay readable.
 
 ## Scavenging has a physical presence
 
-The abstract building resource simplifies what construction consumes. It must
-not make exploration read as vacuuming the scenery into a wallet. Valuable
-finds should feel situated in places and recovered from them, with hauling and
-extraction remaining meaningful.
+The abstract building resource must not make exploration read as vacuuming the
+scenery into a wallet. Valuable finds are situated in places and recovered from
+them, and hauling and extraction stay meaningful. Distinguish finds by form,
+placement and restrained feedback. Instant, frictionless conversion of the whole
+environment is not the intended fantasy.
 
-Distinguish useful finds through form, placement, and restrained feedback that
-fit the world. Exact pickup presentation, cargo representation, and conversion
-effects are open; this does not require every carried unit to have a visible
-mesh. It does rule out treating instant, frictionless conversion of the whole
-environment as the intended fantasy.
+## Not this
 
-## Using this guidance
+- Lime or neon greens, or saturation that is high everywhere.
+- Clear, crisp, equally saturated air all the way to the horizon.
+- Flat, even lighting with weak shadows; weather that changes nothing but particles.
+- Photographic microtexture, or realistic PBR surface detail.
+- Untextured flat-shaded facets beside the textured ground.
+- Toon outlines, anime styling, cute exaggerated shapes.
+- Full-screen pixelation, painted-canvas overlays, CRT or deliberate rendering defects.
+- A mixed bag of asset styles that do not share the palette and texture scale.
+- Concept-art clutter reproduced in geometry.
 
-Judge visual work at ordinary play distance and in motion. Look for:
+## Judging visual work
 
-- A readable landscape with a strong sense of place, scale, and possible routes.
-- Restrained retro texture and filtering, without overwhelming pixel patterns.
-- Smooth stylized terrain with deliberate large forms and useful local detail.
-- Beauty that can accommodate exposure, severe weather, and threatening places.
-- Consistent treatment across terrain, structures, props, and inhabitants.
-- Clear gameplay information without relying on debug views or intrusive effects.
+Judge at ordinary play distance, in motion, and in more than one condition: noon,
+dusk, night and rain. Compare with the matching kind of Valheim scene (a
+meadow, a forest, a storm, a lit building at night) and ask:
 
-These are criteria for visual direction, not a fixed renderer recipe or a demand
-that every scene show every quality. Use Engine-owned rendering and presentation
-services; if an effect requires a missing capability, identify the upstream need
-rather than adding a downstream renderer or a DOM substitute.
+- Does the air carry the mood, with haze in the distance, directional light and
+  coloured shadow?
+- Do foreground, middle distance and horizon separate, so a player can see where
+  they might go?
+- Is the meadow warm and golden rather than lime?
+- Do terrain, props, buildings and inhabitants share one texture scale and
+  palette?
+- Does a lit building read as warm shelter against a cooler world?
+- Do night and storms change the mood strongly while the route stays readable?
+
+Use Engine-owned rendering and presentation services. If a look needs a missing
+capability (for example light shafts, per-region fog or bloom), name the
+upstream need rather than adding a downstream renderer or a DOM substitute.

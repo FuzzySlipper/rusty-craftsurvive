@@ -6,7 +6,7 @@ provenance, and superseded state — lives in Den and is deliberately not copied
 | Document | What it is |
 | --- | --- |
 | [survival-direction.md](survival-direction.md) | Gameplay identity, scavenging expeditions, rescued residents, base progression, and the Engine boundary |
-| [visual-direction.md](visual-direction.md) | Retro surface character, stylized terrain, atmosphere, mood references, and visual readability |
+| [visual-direction.md](visual-direction.md) | The Valheim method (simple forms, small textures, atmosphere-led mood), palette, detail budget, references, and how to judge visual work |
 | [csharp-migration-map.md](csharp-migration-map.md) | Where product modules, Engine services, and content live |
 | [known-limitations.md](known-limitations.md) | What the product does not do today, and the limits a change must respect |
 | [live-proofs.md](live-proofs.md) | The live lane: the client, what it proves, captures, and the operational traps |
