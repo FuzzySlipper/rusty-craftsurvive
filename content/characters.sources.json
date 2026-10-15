@@ -1,0 +1,128 @@
+{
+ "purpose": "Character style test (#10014): one human traveller in two proportion variants on UAL1's humanoid rig, with a texture-swap face. A test aid placed by craft.style.* debug commands, not shipped content.",
+ "generated": "2026-10-14",
+ "concept": {
+  "image": "art/characters/traveller/concept/concept-01.png",
+  "sha256": "4bad4b77fbb99f31d646d6b2d7cd58cd4838e29d5b6b164fe3d1799f8f8a4510",
+  "tool": "GPT image via ~/.claude/skills/codex-image-gen (gpt-6-sol)",
+  "prompt": "art/characters/traveller/concept/spec-01.txt",
+  "reference": "docs/style-references/town/04-inn-dialogue.png"
+ },
+ "mesh": {
+  "tool": "Tripo P2 (P2-20260801), triangle topology, 10000 faces, standard texture, v1.0 biped rig spec=tripo, via asset-pipeline tools/tripo/tripo.py",
+  "tasks": {
+   "generate": "ac1aff45-821a-40fb-9573-4245b3fae8ea",
+   "prerig": "72969e5c-a378-4134-bd1b-f86a99c3c637",
+   "rig": "3dbf9cdf-7dd0-42af-aabd-3a72bd7d6d45"
+  },
+  "rigModelSha256": "24d13295ffd3ce1682604a7a078217237ed7e0f10bb75c2035aa64a0ac91adaa",
+  "retained": "/data/evidence/rusty-craftsurvive/character-style-10014/tripo-001/rig-model.glb"
+ },
+ "faces": {
+  "sheet": "art/characters/traveller/face/faces-01.png",
+  "sha256": "cf03effcdd0d9161da3386bff0872db25110dccf613dbdbd3b8e273fea317a8b",
+  "tool": "GPT image via codex-image-gen",
+  "prompt": "art/characters/traveller/face/spec-faces-01.txt",
+  "reference": "art/characters/traveller/face/face-reference-filled.png (fit_to_ual.py's front projection of the Tripo face texture)"
+ },
+ "items": [
+  {
+   "mesh": "content/game/characters/traveller/traveller-chunky.glb",
+   "sha256": "09f216f52066783e6083511a67b8bffad645fd698c2260d3f2862f58c5ce0d66",
+   "variant": "art/characters/traveller/chunky.json",
+   "derivedBy": "art/characters/fit_to_ual.py, reuv.py (xatlas, 32 texels/m), assemble_character.py; art/characters/traveller/build.sh"
+  },
+  {
+   "texture": "content/game/characters/traveller/body-chunky-64.png",
+   "sha256": "c64cf09b52785c7652db4690620a28b6dac22a67b81e7b6d458c0850c806ddec",
+   "derivedBy": "art/characters/reuv.py --double: the same UVs at 64 texels/m (comparison only)"
+  },
+  {
+   "clipPack": "content/game/characters/traveller/ual-clips-chunky.glb",
+   "sha256": "987b623759471cc38880c2ceff9bda39154b601b09270cbd26b1b5f56fc16e1d",
+   "derivedBy": "art/characters/make_clip_pack.py: UAL1 Idle_Loop, Walk_Loop, Idle_Talking_Loop, Walk_Formal_Loop renamed idle, walk, talk, walk_formal",
+   "source": "content/animations/UAL1_Standard.glb",
+   "sourceSha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
+   "license": "CC0-1.0 (Quaternius, content/animations/UAL1_Standard-License.txt)"
+  },
+  {
+   "mesh": "content/game/characters/traveller/traveller-stylised.glb",
+   "sha256": "77cf36cfc769e71b5ac324a6b0721c1ada4f60139dbb78b8128662c0b319e0eb",
+   "variant": "art/characters/traveller/stylised.json",
+   "derivedBy": "art/characters/fit_to_ual.py, reuv.py (xatlas, 32 texels/m), assemble_character.py; art/characters/traveller/build.sh"
+  },
+  {
+   "texture": "content/game/characters/traveller/body-stylised-64.png",
+   "sha256": "3b7495ecbcce2d545242fb1cb281cefa5bf3361b4481211c80c77011745ec2fc",
+   "derivedBy": "art/characters/reuv.py --double: the same UVs at 64 texels/m (comparison only)"
+  },
+  {
+   "clipPack": "content/game/characters/traveller/ual-clips-stylised.glb",
+   "sha256": "6467409c9aed1e984ff266606d4844dbe098b9d752ccfc435a38d7e39c50978c",
+   "derivedBy": "art/characters/make_clip_pack.py: UAL1 Idle_Loop, Walk_Loop, Idle_Talking_Loop, Walk_Formal_Loop renamed idle, walk, talk, walk_formal",
+   "source": "content/animations/UAL1_Standard.glb",
+   "sourceSha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
+   "license": "CC0-1.0 (Quaternius, content/animations/UAL1_Standard-License.txt)"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-blink-128.png",
+   "sha256": "41a94ac0f70103e51667dbb5dff7c7ab5ecd84718f740cc302bd930bd084b542",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-blink-32.png",
+   "sha256": "5d10d6596676913c7595af3e5970cc23b3cea9c51225946c88a45f98b8a0be21",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-blink-64.png",
+   "sha256": "0392f6c6dbf0733ecd82e0c008114963364694104b0f761de43b37485d3e902e",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-neutral-128.png",
+   "sha256": "7665133925fde48bb875879ba18b7e84d625c5fc4f0ca0010c4548f16a6b70da",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-neutral-32.png",
+   "sha256": "c762b231628aba7646185c4c283723f3794977b403b8c2ba39d42dc93c197610",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-neutral-64.png",
+   "sha256": "e67f3c8ab4f3daaa91337908b46d5373e071ec0edc86f889f7a3ee299b1588d9",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-smile-128.png",
+   "sha256": "72810aa606c4f2bd259ac96435fa479c358b1690d90404eb0f31117502219c3c",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-smile-32.png",
+   "sha256": "501ffd865072ddeb602e9096b15c94bd8b8f1e5d4b63c5265e09957e28e8e329",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-smile-64.png",
+   "sha256": "c6d877a7e22e613905ed19762af162830bcfa0f264b87cf8a745a9be105a0e61",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-talk-128.png",
+   "sha256": "88f5d2318c91624acf465554d8b9dd21b8fea55f88d787f87b3cd390db364225",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-talk-32.png",
+   "sha256": "1be0c1784d14f2cab13f6b715ae2f7672501d508ee4ac9f876cba8258ab56293",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  },
+  {
+   "texture": "content/game/characters/traveller/face-talk-64.png",
+   "sha256": "e513e4821382ed009571f4e279027f56f30fe2adb24a782ad6163987f5b9a9fa",
+   "derivedBy": "art/characters/face_set.py from art/characters/traveller/face/faces-01.png"
+  }
+ ]
+}

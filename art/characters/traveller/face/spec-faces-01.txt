@@ -1,0 +1,13 @@
+A 2x2 sheet of four square face textures for a stylised game character, for texture-swapping on a 3D head. The attached image is the front projection of the character's current face texture (a warm, weathered woman in her thirties, brown hair, rosy cheeks). Repaint it in every cell.
+
+Style: hand-painted and simple, like Valheim's characters: smooth broad skin tones with soft rosy cheeks, a few clear painted marks for the features, no pores, no photographic detail, no hard outlines, no anime or cartoon styling. Features must read at very low resolution: slightly bold dark upper eyelid line, clearly visible brown irises, defined brows, a clear mouth line. Warm, kind, alive.
+
+Every cell keeps EXACTLY the same framing, scale and positions as the attached image: the same face outline, brows, eyes, nose and mouth in the same places, the same hairline at the top corners, the same skin colours. Only the expression changes:
+- top-left: NEUTRAL - eyes open looking straight ahead, relaxed closed mouth with a faint friendly upturn;
+- top-right: BLINK - identical to neutral but both eyes fully closed (eyelids down, lashes as a soft dark curve); mouth unchanged;
+- bottom-left: TALK - identical to neutral but the mouth open mid-word (a soft oval opening showing a dark interior and a hint of upper teeth); eyes unchanged;
+- bottom-right: SMILE - a warm smile with lips curved up and slightly parted, cheeks lifted, eyes slightly narrowed in a smile.
+
+Square sheet, four equal square cells with no gaps, no borders, no labels. Each cell is a flat front-on texture filling the whole cell, not a portrait: no background, no neck, no shoulders, no lighting effects, no shadows cast from outside.
+
+NO text, NO labels, NO frames, NO extra faces, NO hands.

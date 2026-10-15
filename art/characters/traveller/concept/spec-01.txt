@@ -1,0 +1,13 @@
+Full-body character concept for image-to-3D reconstruction: one stylised human traveller for a fantasy survival game whose look follows Valheim's method (simple chunky low-poly forms, smooth shading, small painted textures with a few broad marks, no photographic detail).
+
+Subject: a sturdy woman in her thirties, a practical early-modern traveller (gunpowder era, around 1600, not medieval knightly, not Victorian). Warm, friendly, weathered face with a calm slight smile, clear simple features, eyes open looking forward. Brown hair tied back in a low bun so the whole face and ears are uncovered. No hat, no hood up.
+
+Clothes: undyed linen shirt with sleeves rolled to the forearm; a sleeveless waxed-leather jerkin, belted at the waist with a broad leather belt carrying two small pouches; a faded red wool scarf knotted loosely at the neck; knee-length brown wool breeches; grey knitted stockings; sturdy laced leather ankle boots. A single leather satchel strap across the chest with a small satchel resting on the hip. Close-fitting garments; no cloak, no long coat, no skirt, no loose flaps, no weapons, nothing held in the hands.
+
+Proportions: chunky but realistic adult proportions, broad shoulders and hands, solid legs, about 7 heads tall.
+
+Pose and framing for 3D reconstruction: strict front orthographic-looking view, standing in a relaxed A-pose with arms angled about 30 degrees away from the body and hands open with fingers together, feet shoulder-width apart, whole figure visible head to toe with margin, centred, even soft studio lighting with no strong cast shadows, plain flat light-grey background, no ground shadow.
+
+Colour: earthy palette of warm ochre, tan leather, oatmeal linen, olive-brown wool, one faded red accent. Painterly but clean flat-colour areas.
+
+Prohibitions: NO text, NO logo, NO frame, NO other figures, NO props in hands, NO armour, NO anime styling, NO toon outlines, NO exaggerated cute chibi proportions, NO photorealism.

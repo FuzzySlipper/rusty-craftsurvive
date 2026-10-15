@@ -109,10 +109,14 @@ internal static class ProductIds
 
     /// <summary>The composed town study: drawing, selectable services and foreground blockers.</summary>
     internal const ulong TownAppearanceBase = 0x9_0000UL;
+
     internal const ulong TownServiceBase = 0x9_1000UL;
     internal const ulong TownBlockerBase = 0x9_2000UL;
     internal const ulong TownLightBase = 0x500UL;
     internal const ulong TownEmitterBase = 0x600UL;
+
+    /// <summary>The character style test's travellers (#10014), a test aid placed by live debug.</summary>
+    internal const ulong CharacterStyleBase = 0x9_8000UL;
 
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
