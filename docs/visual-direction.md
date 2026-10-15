@@ -31,8 +31,17 @@ six ingredients from it, and not its Norse setting, creatures or building kit.
   moss patches. They do not carry photographic grain, pores or fabric weave.
 - A surface shows at most three levels of variation at play distance: the broad
   colour of the mass, a few large marks, and one finer texture. Nothing finer.
-- How much texture "crunch" shows up close is being calibrated (see
-  [Calibration still open](#calibration-still-open)).
+- **Texture crunch (owner, 2026-10-14):**
+  - **Objects** (props, scatter, buildings, gear and other meshes) use small textures,
+    about 32 texels per metre, magnified nearest so texels show crisply up close.
+    They are mipmapped and smoothly filtered at distance, so they never sparkle.
+  - **The ground and grass stay smoothly filtered.** Crisp, low-res ground breaks into
+    blocky patches and shimmers in motion.
+  - **Texture size, not filtering, is what keeps surfaces from looking photographic.**
+    At 250 to 500 texels per metre, wood and plaster show realistic grain; at about
+    32 they read as painted colour.
+
+  The comparison is the Den task "Texture crunch calibration" (#10010).
 
 ### 2. Air and light carry the mood
 
@@ -134,15 +143,9 @@ is being calibrated.
 
 ## Calibration still open
 
-These need focused in-game tests before they become rules. Judge them in motion
+This needs a focused in-game test before it becomes a rule. Judge it in motion
 and at normal play distance, not from texture swatches or still close-ups.
 
-- **Texture crunch.** Three treatments are to be compared side by side:
-  1. visible low-res pixels on props, buildings and gear, with soft painted ground;
-  2. visible low-res texture everywhere;
-  3. soft painted textures with no visible pixels.
-
-  The owner's inclination is the first.
 - **Building detail.** Calibrate "medium detail" on one town building at the
   overview and entrance distances: how many modelled details, and how large the
   texture marks are.
