@@ -238,6 +238,25 @@
     "outfit",
     "face"
    ]
+  },
+  {
+   "name": "q-skirt",
+   "mesh": "characters/quaternius/innkeeper-skirt.glb",
+   "pack": "characters/quaternius/innkeeper-skirt-clips.glb",
+   "faces": {
+    "neutral": "characters/quaternius/innkeeper-face-neutral.png",
+    "blink": "characters/quaternius/innkeeper-face-blink.png",
+    "talk": "characters/quaternius/innkeeper-face-talk.png",
+    "smile": "characters/quaternius/innkeeper-face-smile.png"
+   },
+   "scale": 1.0,
+   "frame": "quaternius",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "outfit",
+    "face"
+   ]
   }
  ]
 }
