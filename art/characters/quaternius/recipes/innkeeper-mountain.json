@@ -1,0 +1,25 @@
+{
+ "root": "/home/agent/dev/rusty-craftsurvive/local",
+ "base": {
+  "file": "Base Characters/Godot - UE/Superhero_Female_FullBody.gltf",
+  "head_only": true
+ },
+ "parts": [
+  {
+   "file": "Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Modular Parts/Female_Ranger_Body.gltf"
+  },
+  {
+   "file": "Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Modular Parts/Female_Ranger_Arms.gltf"
+  },
+  {
+   "file": "Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Modular Parts/Female_Ranger_Legs.gltf"
+  },
+  {
+   "file": "Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Modular Parts/Female_Ranger_Feet.gltf"
+  },
+  {
+   "file": "Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Modular Parts/Female_Ranger_Head_Hood.gltf"
+  }
+ ],
+ "hair": []
+}

@@ -1,0 +1,17 @@
+{
+ "root": "/home/agent/dev/rusty-craftsurvive/local",
+ "base": {
+  "file": "Base Characters/Godot - UE/Superhero_Female_FullBody.gltf",
+  "head_only": true
+ },
+ "parts": [
+  {
+   "file": "Modular Character Outfits - Fantasy[Standard]/Exports/glTF (Godot-Unreal)/Outfits/Female_Peasant.gltf"
+  }
+ ],
+ "hair": [
+  {
+   "file": "Hairstyles/Rigged to Head Bone/glTF (Godot -Unreal)/Hair_Buns.gltf"
+  }
+ ]
+}

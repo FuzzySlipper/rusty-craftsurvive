@@ -1,5 +1,5 @@
 {
- "note": "Character framework check (#10028): built by art/characters/mpfb/build_cast.py; a test aid.",
+ "note": "Character framework check (#10028): built by art/characters/mpfb/build_cast.py; a test aid. Entries q-* are the Quaternius test (#10029), built by art/characters/quaternius/build_variant.sh.",
  "characters": [
   {
    "name": "innkeeper",
@@ -180,6 +180,63 @@
     "outer",
     "skirt",
     "hair"
+   ]
+  },
+  {
+   "name": "q-innkeeper",
+   "mesh": "characters/quaternius/innkeeper.glb",
+   "pack": "characters/quaternius/innkeeper-clips.glb",
+   "faces": {
+    "neutral": "characters/quaternius/innkeeper-face-neutral.png",
+    "blink": "characters/quaternius/innkeeper-face-blink.png",
+    "talk": "characters/quaternius/innkeeper-face-talk.png",
+    "smile": "characters/quaternius/innkeeper-face-smile.png"
+   },
+   "scale": 1.0,
+   "frame": "quaternius",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "outfit",
+    "face"
+   ]
+  },
+  {
+   "name": "q-festival",
+   "mesh": "characters/quaternius/innkeeper-festival.glb",
+   "pack": "characters/quaternius/innkeeper-festival-clips.glb",
+   "faces": {
+    "neutral": "characters/quaternius/innkeeper-face-neutral.png",
+    "blink": "characters/quaternius/innkeeper-face-blink.png",
+    "talk": "characters/quaternius/innkeeper-face-talk.png",
+    "smile": "characters/quaternius/innkeeper-face-smile.png"
+   },
+   "scale": 1.0,
+   "frame": "quaternius",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "outfit",
+    "face"
+   ]
+  },
+  {
+   "name": "q-mountain",
+   "mesh": "characters/quaternius/innkeeper-mountain.glb",
+   "pack": "characters/quaternius/innkeeper-mountain-clips.glb",
+   "faces": {
+    "neutral": "characters/quaternius/innkeeper-face-neutral.png",
+    "blink": "characters/quaternius/innkeeper-face-blink.png",
+    "talk": "characters/quaternius/innkeeper-face-talk.png",
+    "smile": "characters/quaternius/innkeeper-face-smile.png"
+   },
+   "scale": 1.0,
+   "frame": "quaternius",
+   "home": "mountain",
+   "posture": {},
+   "slots": [
+    "outfit",
+    "face"
    ]
   }
  ]

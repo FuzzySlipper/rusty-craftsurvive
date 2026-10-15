@@ -1,0 +1,21 @@
+{
+ "purpose": "Quaternius character test (#10029): one innkeeper with a painted face set and clothing/texture variants. A test aid placed by craft.style.* debug commands, not shipped content.",
+ "generated": "2026-10-15",
+ "sources": {
+  "packs": "Quaternius Universal Base Characters (Standard) and Modular Character Outfits - Fantasy (Standard), CC0 1.0 (their License_Standard.txt); owner-provided in local/ (git-ignored)",
+  "head": "Base Characters/Godot - UE/Superhero_Female_FullBody.gltf, cut to head and neck; Eyes and Eyebrows meshes dropped, eye and mouth holes capped",
+  "outfits": {
+   "innkeeper": "Outfits/Female_Peasant.gltf + Hair_Buns",
+   "innkeeper-festival": "Outfits/Female_Peasant.gltf + Hair_Buns",
+   "innkeeper-mountain": "Modular Parts/Female_Ranger_Body, Arms, Legs, Feet, Head_Hood (no hair)"
+  },
+  "clips": "content/animations/UAL1_Standard.glb (Quaternius UAL1, CC0) Idle_Loop, Walk_Loop, Idle_Talking_Loop, retargeted onto the Quaternius rig by art/characters/quaternius/retarget.py"
+ },
+ "paint": {
+  "method": "asset-pipeline tools/texture-edit/view_paint.py render (4 orthographic views) -> Qwen-Image-2.1 edits (tools/texture-edit/qwen_edit.py, owner RTX 5090) -> art/characters/quaternius/paint_bake.py",
+  "style_reference": "docs/evidence/character-directions/bracket/bracket-a-towards-storybook.png (GPT concept, Den #10027), innkeeper crop",
+  "prompts": "art/characters/quaternius/recipes/{port,festival,mountain}.txt",
+  "face": "art/characters/quaternius/face_slot.py base render, repainted by Qwen (seed 3, prompt in docs/evidence/quaternius-10029/paint/face/neutral-prompt.txt); hair recoloured in code; blink, talk and smile are single Qwen edits of the neutral face (seed 4)"
+ },
+ "build": "art/characters/quaternius/build_variant.sh <name> <recipe> <body-material> <prompt> (innkeeper was built step by step with the same scripts before build_variant.sh existed)"
+}
