@@ -41,3 +41,22 @@ under `content/game/characters/traveller` byte for byte:
 
 `preview.py` renders Blender turnarounds for art review; `--with-clips` GLBs from step 5 carry the
 clips for it. These previews are art studies, not in-game evidence.
+
+## The MPFB cast (#10028)
+
+`mpfb/` builds characters from MakeHuman's fixed base mesh (through MPFB2) instead of
+per-character generated meshes. Every body shares one topology. Therefore it shares:
+- one UV layout, so costume textures fit every body unchanged;
+- one face layout;
+- the base mesh's own skin weights.
+
+| Script | Does |
+| --- | --- |
+| `mpfb/dump_body.py` | Evaluates a recipe (MPFB macros and targets) in Blender |
+| `mpfb/fit.py` | Poses and warps the body onto UAL's rig or a frame, with girth scaling |
+| `mpfb/face_layout.py` | Defines the face slot once |
+| `mpfb/paint.py` | Lays procedural brushwork from body-region costume definitions |
+| `mpfb/build_cast.py` | Assembles the cast in `mpfb/cast.json` into `content/game/characters/cast` |
+
+`frame.py` derives skeleton frames (other leg lengths) from UAL, each with its own clips. The
+verdicts are in Den #10028.

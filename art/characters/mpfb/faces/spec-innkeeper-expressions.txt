@@ -1,0 +1,11 @@
+STYLE (shared by every cell): hand-painted game character face textures in a "storybook" painted style, between Vagrant Story's painted-on detail and Arcane's visible brushwork: broad confident brush strokes, a few simplified planes for brow, cheekbones, nose and jaw, painted edges between colours, warm muted earthy palette. Faces are serious and warm, tired and capable early-modern frontier townsfolk (17th-18th century), not cute, not anime, not a children's cartoon, not photoreal: no pores, no photographic skin. Small calm eyes, simplified rounded noses, clear painted brows and a simple mouth line. Painted shading stays soft and describes the form only (no strong light direction, no cast shadows), because the game's real light lights the 3D head.
+
+LAYOUT (critical): the attached grey image is the exact UV layout of the 3D head: a flat front projection of the face. Every cell repaints it as a flat face texture filling the whole cell, keeping EXACTLY the same positions and sizes of the eye openings, nose and mouth and the same face outline as the attached image, so the paint lands on the 3D features. Paint the eyes inside the eye-opening slits, the mouth along the mouth line. Fill the top band with the character's hairline/forehead and the edges with skin; no background, no neck, no ears outside the face, no shoulders.
+
+FORMAT: a square sheet of four equal square cells in a 2x2 grid, no gaps, no borders, no labels, no text.
+
+CELLS (the SAME person in all four cells: the INNKEEPER, a stout woman of about 50, warm and welcoming, rosy round cheeks, light olive skin, brown hair with grey threads pulled back, small laugh lines). Identical in every cell except the expression:
+- top-left: NEUTRAL, eyes open, a faint kind closed-mouth smile.
+- top-right: BLINK, identical to neutral but both eyes fully closed (lids down, soft dark lash curve).
+- bottom-left: TALK, identical to neutral but the mouth open mid-word (soft dark oval, hint of upper teeth).
+- bottom-right: SMILE, a warm broad smile, cheeks lifted, eyes narrowed.

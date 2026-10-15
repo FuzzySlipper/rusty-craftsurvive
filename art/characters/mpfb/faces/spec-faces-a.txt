@@ -1,0 +1,11 @@
+Repaint the FIRST attached image (a 2x2 sheet of four painted face textures) as a NEW 2x2 sheet with FOUR DIFFERENT PEOPLE, keeping EXACTLY the same style, layout, framing and feature positions as that sheet: each cell is a flat front-projected face texture filling the whole cell edge to edge (it wraps onto a 3D head), eyes, nose and mouth at exactly the same places and sizes as in the first sheet and in the second attached grey layout image. NOT a portrait: no hats, no background, no clothes, no shoulders, no props, no pipes, no feathers.
+
+Style: the same hand-painted storybook brushwork as the first sheet (broad brush strokes, simplified planes, soft painted form shading, warm muted palette), serious and warm early-modern frontier townsfolk. Small calm eyes, simplified rounded noses.
+
+Cells:
+- top-left: a stout woman of about 50, warm and welcoming, rosy round cheeks, light olive skin, brown hair with grey threads at the hairline, a faint kind smile.
+- top-right: a thin old man of about 75, pale weathered skin, grey stubble and a short grey beard over chin and jaw, deep-set tired kind eyes, bushy grey brows.
+- bottom-left: a lean man of about 30, sun-tanned light brown skin, dark stubble, dark straight brows, a calm confident look.
+- bottom-right: a broad man of about 40, dark brown skin, shaved head (skin up to the top edge), a short black beard, calm heavy-lidded eyes, broad rounded nose.
+
+Square sheet, four equal square cells, no gaps, no borders, no labels, no text.

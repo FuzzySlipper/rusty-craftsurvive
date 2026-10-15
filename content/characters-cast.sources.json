@@ -1,0 +1,143 @@
+{
+ "purpose": "Character framework check (#10028): eight townsfolk built from shared parts on MakeHuman's fixed topology, fitted to UAL1's rig or a frame derived from it. A test aid placed by craft.style.* debug commands, not shipped content.",
+ "generated": "2026-10-15",
+ "bodies": {
+  "tool": "MPFB 2.0.18 (makehumancommunity/mpfb2 3af0cd5a2ffba072e93a34e5f6f494fdc4813ddf; base mesh, targets, game_engine rig weights CC0; addon code GPLv3, used as a tool only) in Blender 5.2.2 via art/characters/mpfb/dump_body.py",
+  "recipes": "art/characters/mpfb/recipes/*.json"
+ },
+ "rig": {
+  "source": "content/animations/UAL1_Standard.glb",
+  "sha256": "69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997",
+  "license": "CC0-1.0 (Quaternius)",
+  "frames": "art/characters/frame.py with art/characters/frames/*.json (leg segments scaled, clip translations scaled to match, inverse binds recomputed)"
+ },
+ "faces": {
+  "tool": "GPT image via ~/.claude/skills/codex-image-gen",
+  "sheets": [
+   "art/characters/mpfb/faces/faces-a.png",
+   "art/characters/mpfb/faces/faces-b.png",
+   "art/characters/mpfb/faces/innkeeper-expressions.png"
+  ],
+  "prompts": "art/characters/mpfb/faces/spec-*.txt",
+  "layout": "art/characters/mpfb/face_layout.json (reference art/characters/mpfb/faces/face-reference-1024.png)"
+ },
+ "costumes": {
+  "tool": "art/characters/mpfb/paint.py (procedural strokes on the canonical body, seeded by costume name)",
+  "definitions": "art/characters/mpfb/cast.json"
+ },
+ "builder": "art/characters/mpfb/build_cast.py",
+ "items": [
+  {
+   "file": "content/game/characters/cast/cast.json",
+   "sha256": "536ee297a34dbd5c623186f03394cd9989df1a4cb14a33872f4955e707032948"
+  },
+  {
+   "file": "content/game/characters/cast/clerk-face.png",
+   "sha256": "4af5d4af37a2b5e9e8ec66ec80f8ac598be2181778efb4613180a63127de9835"
+  },
+  {
+   "file": "content/game/characters/cast/clerk.glb",
+   "sha256": "630f3a321f514984a589327c42c3cdde890c8736c45d9c85dbe0ce8b2b3d6f5b"
+  },
+  {
+   "file": "content/game/characters/cast/explorer-face.png",
+   "sha256": "018c04b39ee665ba97c93a5b79bfb29e724ed0e128bc2e1167a8450208ef9ebd"
+  },
+  {
+   "file": "content/game/characters/cast/explorer.glb",
+   "sha256": "c15695f3647320f264cfabc896da8b7b4f579c034a594e6203b97d579faaa6bf"
+  },
+  {
+   "file": "content/game/characters/cast/ferryman-face.png",
+   "sha256": "dfbb54cd07ad6af40b865d4b93fe47cdfec859665c352e451c877ff4e2a354e7"
+  },
+  {
+   "file": "content/game/characters/cast/ferryman.glb",
+   "sha256": "66eebe469d44ff740b25683e21f013055f7592f9ef07ced1d146a3b503ca056c"
+  },
+  {
+   "file": "content/game/characters/cast/fishwife-face.png",
+   "sha256": "b84861816f117ae4aaca67d1c036ce4b0fd47141da8661aebd296963fe6d61c7"
+  },
+  {
+   "file": "content/game/characters/cast/fishwife.glb",
+   "sha256": "463a9925b67b1087fb71406f50705e567c397313778d0c5d4767fba9db64ae4e"
+  },
+  {
+   "file": "content/game/characters/cast/guide-face.png",
+   "sha256": "77c11a78aa9fe2a709b698387fda356de278b430d0b526da3a0f90fb206e18d2"
+  },
+  {
+   "file": "content/game/characters/cast/guide.glb",
+   "sha256": "c07cf2cdf6d8f8b49afde5ccfe03071c0caf00c1437b1ca635dfbcd650555b56"
+  },
+  {
+   "file": "content/game/characters/cast/herder-face.png",
+   "sha256": "4d85582754674797d099da0d1dfc5ca7d21511a269a52381bab8d7b483f17e86"
+  },
+  {
+   "file": "content/game/characters/cast/herder.glb",
+   "sha256": "441e28227e03fb3d21f532232dd8cdfb7fed8757e0ffda3a8a3f93a2b2449c40"
+  },
+  {
+   "file": "content/game/characters/cast/innkeeper-face-blink.png",
+   "sha256": "147a54eaa197c24150df66db51e728d7798aaaf0406ae6fcd1f3bc9260db12d1"
+  },
+  {
+   "file": "content/game/characters/cast/innkeeper-face-neutral.png",
+   "sha256": "3711f711b053c0baa21d29261e5808a2b4304b3a1a1ea1bea102319eaa31b129"
+  },
+  {
+   "file": "content/game/characters/cast/innkeeper-face-smile.png",
+   "sha256": "2cfb235ed1be3b8135e5056fbc972253e29b58d1f8580a9709a39f5f1f25ff40"
+  },
+  {
+   "file": "content/game/characters/cast/innkeeper-face-talk.png",
+   "sha256": "ce7ece80d79f42d770ae7d720591293989ab3b66482680f8a2b4cb7264466e12"
+  },
+  {
+   "file": "content/game/characters/cast/innkeeper.glb",
+   "sha256": "1f3d1d3711d59dbb22d6f270e038d2fc3dfd1f686a1f784735a8f1a15e396221"
+  },
+  {
+   "file": "content/game/characters/cast/provisioner-face.png",
+   "sha256": "e16e33ad32bfc6e0e08ca6a867efb500ff37582daba28596c78bfa316ade7999"
+  },
+  {
+   "file": "content/game/characters/cast/provisioner.glb",
+   "sha256": "aa417264cdacb0527249f70edafe91a6bf6bec6e44a811a11cebac7495872ee2"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-clerk.glb",
+   "sha256": "97c6366db950350af3d269a5c6124dd047344ea3fc3a3cd6aa607dd8ffc63c98"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-explorer.glb",
+   "sha256": "469858df0efe9f8f3ab3f7fe236e01d40c551cc28e61205cf16bf0aa04dcdde7"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-ferryman.glb",
+   "sha256": "07ff32902c07a01a38f8ed665d2fbca02c133af6c8df26cebb4b3081cd90c42a"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-fishwife.glb",
+   "sha256": "3db228a3bfe26f1d1ec1d43efb93ab64a9d8ba253d0cdf72e9f1ce913c0b1874"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-guide.glb",
+   "sha256": "66c3a8db55d14e46c92776020f897ca6bd7fcd207ef02f920f9d96d7fa2f2cc1"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-herder.glb",
+   "sha256": "c7caec1b24e23ea25db262e9b18022f43a6533e659155d0fa76573d62b623465"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-innkeeper.glb",
+   "sha256": "db88add31db294525ee93984789b0ee26a485d09a6d3c7dedc54f8a2f339e310"
+  },
+  {
+   "file": "content/game/characters/cast/ual-clips-provisioner.glb",
+   "sha256": "b265bb0bed10898476c83b70eb67e464d81ebe085c1ffb9856d28d78388e9f6f"
+  }
+ ]
+}

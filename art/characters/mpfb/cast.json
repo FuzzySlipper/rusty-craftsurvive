@@ -1,0 +1,640 @@
+{
+  "note": "Framework check #10028: eight townsfolk from shared parts. Colours are sRGB hex from content/style/palette.json families (ochre, faded red, teal, leather).",
+  "frames": {
+    "ual": null,
+    "long-legs": "../frames/long-legs.json",
+    "short-legs": "../frames/short-legs.json"
+  },
+  "storybook": {
+    "head": 1.25,
+    "hands": 1.3,
+    "feet": 1.25
+  },
+  "costumes": {
+    "innkeeper": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#d6c6a2"
+        },
+        {
+          "region": "sleeve",
+          "to": 0.6,
+          "colour": "#d6c6a2",
+          "folds": "#a8946c"
+        },
+        {
+          "region": "torso",
+          "top": 1.34,
+          "bottom": 0.96,
+          "colour": "#97402f",
+          "edge": "#5c2a20",
+          "folds": "#6d2c22"
+        },
+        {
+          "region": "torso",
+          "top": 1.3,
+          "bottom": 0.96,
+          "front": 0.03,
+          "halfWidth": 0.085,
+          "colour": "#d9cbab",
+          "edge": "#9f8a64"
+        },
+        {
+          "region": "legs",
+          "colour": "#4b433d"
+        }
+      ],
+      "outer": [
+        {
+          "region": "feet",
+          "top": 0.17,
+          "offset": 0.016,
+          "colour": "#5b4232",
+          "edge": "#2f2219"
+        }
+      ],
+      "skirt": {
+        "top": 1.0,
+        "hem": 0.13,
+        "flare": 0.16,
+        "offset": 0.02,
+        "colour": "#8f3b2e",
+        "folds": "#5f261d",
+        "apron": {
+          "from": 0.3,
+          "to": 0.7,
+          "hem": 0.38,
+          "colour": "#d9cbab",
+          "edge": "#8f7d5a"
+        }
+      }
+    },
+    "provisioner": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#d8ccb0"
+        },
+        {
+          "region": "sleeve",
+          "colour": "#d8ccb0",
+          "folds": "#a49577"
+        },
+        {
+          "region": "legs",
+          "top": 0.98,
+          "bottom": 0.42,
+          "colour": "#6b5640",
+          "edge": "#3b2e22",
+          "folds": "#4a3b2c"
+        },
+        {
+          "region": "legs",
+          "top": 0.42,
+          "colour": "#7b7d6b"
+        }
+      ],
+      "outer": [
+        {
+          "region": "torso",
+          "top": 1.38,
+          "bottom": 0.92,
+          "offset": 0.012,
+          "colour": "#4f6f6c",
+          "edge": "#2c3f3d",
+          "folds": "#3b5552",
+          "buttons": "#b89a5a"
+        },
+        {
+          "region": "feet",
+          "top": 0.13,
+          "offset": 0.014,
+          "colour": "#4b3527",
+          "edge": "#241a13"
+        }
+      ]
+    },
+    "explorer": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#cfc0a0"
+        },
+        {
+          "region": "sleeve",
+          "colour": "#cfc0a0"
+        },
+        {
+          "region": "legs",
+          "colour": "#6a5440",
+          "folds": "#4a3a2c"
+        }
+      ],
+      "outer": [
+        {
+          "region": "torso",
+          "offset": 0.022,
+          "colour": "#6e6a45",
+          "edge": "#3e3b26",
+          "folds": "#4e4b31"
+        },
+        {
+          "region": "sleeve",
+          "to": 0.71,
+          "offset": 0.02,
+          "colour": "#6e6a45",
+          "edge": "#3e3b26",
+          "folds": "#4e4b31"
+        },
+        {
+          "region": "legs",
+          "top": 0.44,
+          "offset": 0.02,
+          "colour": "#5b4232",
+          "edge": "#2f2219",
+          "folds": "#3f2e23"
+        },
+        {
+          "region": "feet",
+          "offset": 0.02,
+          "colour": "#5b4232",
+          "edge": "#2f2219"
+        }
+      ],
+      "skirt": {
+        "top": 0.98,
+        "hem": 0.48,
+        "flare": 0.1,
+        "offset": 0.03,
+        "open": [
+          0.44,
+          0.56
+        ],
+        "colour": "#6e6a45",
+        "folds": "#4e4b31"
+      },
+      "scarf": "#a8473a"
+    },
+    "ferryman": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#d9d1bb"
+        },
+        {
+          "region": "sleeve",
+          "to": 0.47,
+          "colour": "#d9d1bb",
+          "folds": "#a9a089"
+        },
+        {
+          "region": "legs",
+          "colour": "#5a5448",
+          "folds": "#3c382f"
+        }
+      ],
+      "outer": [
+        {
+          "region": "torso",
+          "top": 1.37,
+          "bottom": 0.92,
+          "offset": 0.014,
+          "colour": "#6b4a33",
+          "edge": "#352418",
+          "folds": "#4c3424"
+        },
+        {
+          "region": "feet",
+          "top": 0.16,
+          "offset": 0.016,
+          "colour": "#3f3026",
+          "edge": "#1f1813"
+        }
+      ]
+    },
+    "fishwife": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#e0d4b8"
+        },
+        {
+          "region": "sleeve",
+          "to": 0.55,
+          "colour": "#e0d4b8",
+          "folds": "#ad9f80"
+        },
+        {
+          "region": "torso",
+          "top": 1.32,
+          "bottom": 0.96,
+          "colour": "#4f7a77",
+          "edge": "#2e4947"
+        },
+        {
+          "region": "legs",
+          "colour": "#5a514a"
+        }
+      ],
+      "outer": [
+        {
+          "region": "feet",
+          "top": 0.14,
+          "offset": 0.016,
+          "colour": "#5b4232",
+          "edge": "#2f2219"
+        }
+      ],
+      "skirt": {
+        "top": 1.0,
+        "hem": 0.22,
+        "flare": 0.12,
+        "offset": 0.02,
+        "colour": "#58677a",
+        "folds": "#3b4655",
+        "apron": {
+          "from": 0.32,
+          "to": 0.68,
+          "hem": 0.42,
+          "colour": "#cdbf9d",
+          "edge": "#8c7c5c"
+        }
+      }
+    },
+    "herder": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#bcae90"
+        },
+        {
+          "region": "sleeve",
+          "colour": "#bcae90"
+        },
+        {
+          "region": "legs",
+          "colour": "#4b433d"
+        }
+      ],
+      "outer": [
+        {
+          "region": "torso",
+          "offset": 0.026,
+          "colour": "#6d5a47",
+          "edge": "#3a2f25",
+          "folds": "#4d3f32"
+        },
+        {
+          "region": "sleeve",
+          "to": 0.7,
+          "offset": 0.024,
+          "colour": "#6d5a47",
+          "edge": "#3a2f25",
+          "folds": "#4d3f32"
+        },
+        {
+          "region": "feet",
+          "top": 0.3,
+          "offset": 0.022,
+          "colour": "#3f3026",
+          "edge": "#1f1813",
+          "folds": "#2c221b"
+        }
+      ],
+      "skirt": {
+        "top": 1.0,
+        "hem": 0.2,
+        "flare": 0.14,
+        "offset": 0.035,
+        "colour": "#4f4a44",
+        "folds": "#36322e"
+      }
+    },
+    "guide": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#b9ab8d"
+        },
+        {
+          "region": "sleeve",
+          "colour": "#b9ab8d"
+        },
+        {
+          "region": "legs",
+          "colour": "#57503f",
+          "folds": "#3c372b"
+        }
+      ],
+      "outer": [
+        {
+          "region": "torso",
+          "offset": 0.03,
+          "colour": "#5e564c",
+          "edge": "#2f2b26",
+          "folds": "#433d36"
+        },
+        {
+          "region": "sleeve",
+          "to": 0.71,
+          "offset": 0.028,
+          "colour": "#5e564c",
+          "edge": "#2f2b26",
+          "folds": "#433d36"
+        },
+        {
+          "region": "legs",
+          "top": 0.46,
+          "offset": 0.024,
+          "colour": "#3f3026",
+          "edge": "#1f1813",
+          "folds": "#2c221b"
+        },
+        {
+          "region": "feet",
+          "offset": 0.024,
+          "colour": "#3f3026",
+          "edge": "#1f1813"
+        }
+      ],
+      "skirt": {
+        "top": 0.98,
+        "hem": 0.5,
+        "flare": 0.12,
+        "offset": 0.04,
+        "open": [
+          0.45,
+          0.55
+        ],
+        "colour": "#5e564c",
+        "folds": "#433d36"
+      }
+    },
+    "clerk": {
+      "inner": [
+        {
+          "region": "torso",
+          "colour": "#3f5a4c",
+          "folds": "#2b3f35"
+        },
+        {
+          "region": "sleeve",
+          "colour": "#3f5a4c",
+          "folds": "#2b3f35"
+        },
+        {
+          "region": "torso",
+          "top": 1.44,
+          "bottom": 1.3,
+          "front": 0.03,
+          "halfWidth": 0.12,
+          "colour": "#ddd2b8",
+          "edge": "#9d9174"
+        },
+        {
+          "region": "legs",
+          "colour": "#3a3530"
+        }
+      ],
+      "outer": [
+        {
+          "region": "feet",
+          "top": 0.12,
+          "offset": 0.012,
+          "colour": "#2f2620",
+          "edge": "#18130f"
+        }
+      ],
+      "skirt": {
+        "top": 1.0,
+        "hem": 0.12,
+        "flare": 0.13,
+        "offset": 0.018,
+        "colour": "#3f5a4c",
+        "folds": "#2b3f35"
+      }
+    }
+  },
+  "characters": [
+    {
+      "name": "innkeeper",
+      "recipe": "innkeeper",
+      "frame": "short-legs",
+      "costume": "innkeeper",
+      "face": "innkeeper-expressions.png:0",
+      "expressions": "innkeeper-expressions.png",
+      "hair": {
+        "style": "bun",
+        "colour": "#5c4a3a"
+      },
+      "scale": 0.86,
+      "home": "port",
+      "girth": {
+        "torso": 1.38,
+        "arms": 1.3,
+        "legs": 1.25
+      }
+    },
+    {
+      "name": "provisioner",
+      "recipe": "provisioner",
+      "frame": "ual",
+      "costume": "provisioner",
+      "face": "faces-a.png:1",
+      "hair": {
+        "style": "short",
+        "colour": "#a7a39a"
+      },
+      "scale": 0.95,
+      "posture": {
+        "stoop": 14
+      },
+      "home": "port",
+      "girth": {
+        "torso": 0.82,
+        "arms": 0.8,
+        "legs": 0.8
+      }
+    },
+    {
+      "name": "explorer",
+      "recipe": "explorer",
+      "frame": "long-legs",
+      "costume": "explorer",
+      "face": "faces-a.png:2",
+      "hair": {
+        "style": "short",
+        "colour": "#2f241d"
+      },
+      "hat": {
+        "kind": "brim",
+        "colour": "#5d4636"
+      },
+      "scale": 0.93,
+      "home": "trail",
+      "girth": {
+        "torso": 1.05,
+        "arms": 1.05,
+        "legs": 0.95
+      }
+    },
+    {
+      "name": "ferryman",
+      "recipe": "ferryman",
+      "frame": "ual",
+      "costume": "ferryman",
+      "face": "faces-a.png:3",
+      "hair": {
+        "style": "none"
+      },
+      "scale": 1.0,
+      "home": "port",
+      "girth": {
+        "torso": 1.3,
+        "arms": 1.35,
+        "legs": 1.15
+      }
+    },
+    {
+      "name": "fishwife",
+      "recipe": "fishwife",
+      "frame": "ual",
+      "costume": "fishwife",
+      "face": "faces-b.png:0",
+      "hair": {
+        "style": "short",
+        "colour": "#8a4a2c"
+      },
+      "hat": {
+        "kind": "scarf",
+        "colour": "#a6493a"
+      },
+      "scale": 0.88,
+      "home": "port",
+      "girth": {
+        "torso": 0.95,
+        "arms": 0.95,
+        "legs": 0.95
+      }
+    },
+    {
+      "name": "herder",
+      "recipe": "herder",
+      "frame": "short-legs",
+      "costume": "herder",
+      "face": "faces-b.png:1",
+      "hair": {
+        "style": "short",
+        "colour": "#8f8a80"
+      },
+      "hat": {
+        "kind": "scarf",
+        "colour": "#6f6a5e"
+      },
+      "scale": 0.9,
+      "posture": {
+        "stoop": 6
+      },
+      "home": "mountain",
+      "girth": {
+        "torso": 1.25,
+        "arms": 1.15,
+        "legs": 1.15
+      }
+    },
+    {
+      "name": "guide",
+      "recipe": "guide",
+      "frame": "long-legs",
+      "costume": "guide",
+      "face": "faces-b.png:2",
+      "hair": {
+        "style": "short",
+        "colour": "#3d2c22"
+      },
+      "hat": {
+        "kind": "cap",
+        "colour": "#7a6a55"
+      },
+      "scale": 0.95,
+      "home": "mountain",
+      "girth": {
+        "torso": 0.92,
+        "arms": 0.92,
+        "legs": 0.88
+      }
+    },
+    {
+      "name": "clerk",
+      "recipe": "clerk",
+      "frame": "ual",
+      "costume": "clerk",
+      "face": "faces-b.png:3",
+      "hair": {
+        "style": "bun",
+        "colour": "#1e1a18"
+      },
+      "scale": 0.89,
+      "home": "port",
+      "girth": {
+        "torso": 0.92,
+        "arms": 0.9,
+        "legs": 0.9
+      }
+    }
+  ],
+  "studies": [
+    {
+      "name": "q3-innkeeper-costume-on-provisioner",
+      "recipe": "provisioner",
+      "frame": "ual",
+      "costume": "innkeeper",
+      "face": "innkeeper-expressions.png:0",
+      "hair": {
+        "style": "bun",
+        "colour": "#5c4a3a"
+      },
+      "scale": 0.95,
+      "girth": {
+        "torso": 0.82,
+        "arms": 0.8,
+        "legs": 0.8
+      }
+    },
+    {
+      "name": "q3-innkeeper-costume-on-explorer",
+      "recipe": "explorer",
+      "frame": "long-legs",
+      "costume": "innkeeper",
+      "face": "innkeeper-expressions.png:0",
+      "hair": {
+        "style": "bun",
+        "colour": "#5c4a3a"
+      },
+      "scale": 0.93,
+      "girth": {
+        "torso": 1.05,
+        "arms": 1.05,
+        "legs": 0.95
+      }
+    },
+    {
+      "name": "q3-innkeeper-costume-on-ferryman",
+      "recipe": "ferryman",
+      "frame": "ual",
+      "costume": "innkeeper",
+      "face": "innkeeper-expressions.png:0",
+      "hair": {
+        "style": "bun",
+        "colour": "#5c4a3a"
+      },
+      "scale": 1.0,
+      "girth": {
+        "torso": 1.3,
+        "arms": 1.35,
+        "legs": 1.15
+      }
+    }
+  ]
+}

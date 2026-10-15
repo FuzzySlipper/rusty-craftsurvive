@@ -1,0 +1,4 @@
+{"name": "herder", "note": "Mountain woman of about 60, sturdy and weathered.",
+ "macro": {"gender": 0.0, "age": 0.8, "muscle": 0.6, "weight": 0.65, "height": 0.35, "proportions": 0.4},
+ "targets": {"head/head-age-incr": 0.5, "torso/torso-scale-depth-incr": 0.3, "nose/nose-volume-incr": 0.4,
+   "nose/nose-point-width-incr": 0.5, "bilateral:eyes/eye-scale-decr": 0.6, "bilateral:cheek/cheek-bones-incr": 0.4}}

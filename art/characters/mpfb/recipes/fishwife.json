@@ -1,0 +1,3 @@
+{"name": "fishwife", "note": "Young port woman of about 22, light build.",
+ "macro": {"gender": 0.0, "age": 0.3, "muscle": 0.45, "weight": 0.4, "height": 0.45, "proportions": 0.5},
+ "targets": {"head/head-round": 0.4, "nose/nose-point-width-incr": 0.4, "nose/nose-scale-vert-decr": 0.3, "bilateral:eyes/eye-scale-decr": 0.5}}

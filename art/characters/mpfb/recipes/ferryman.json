@@ -1,0 +1,4 @@
+{"name": "ferryman", "note": "Broad, strong dockside man of about 40 (port).",
+ "macro": {"gender": 1.0, "age": 0.55, "muscle": 0.9, "weight": 0.7, "height": 0.65, "proportions": 0.5, "race": {"african": 1.0, "asian": 0.0, "caucasian": 0.0}},
+ "targets": {"torso/torso-scale-horiz-incr": 0.5, "neck/neck-scale-horiz-incr": 0.6, "head/head-square": 0.4,
+   "nose/nose-point-width-incr": 0.6, "nose/nose-volume-incr": 0.4, "bilateral:eyes/eye-scale-decr": 0.6}}

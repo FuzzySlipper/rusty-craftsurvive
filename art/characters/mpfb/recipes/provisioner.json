@@ -1,0 +1,5 @@
+{"name": "provisioner", "note": "Thin and stooped; old shopkeeper with ledger (bracket A, middle).",
+ "macro": {"gender": 1.0, "age": 0.95, "muscle": 0.2, "weight": 0.05, "height": 0.55, "proportions": 0.4},
+ "targets": {"torso/torso-scale-horiz-decr": 0.5, "head/head-oval": 0.6, "head/head-age-incr": 0.6,
+   "nose/nose-scale-vert-incr": 0.3, "nose/nose-point-width-incr": 0.5, "nose/nose-volume-incr": 0.3,
+   "bilateral:eyes/eye-scale-decr": 0.7, "bilateral:cheek/cheek-volume-decr": 0.5, "neck/neck-scale-horiz-decr": 0.5}}

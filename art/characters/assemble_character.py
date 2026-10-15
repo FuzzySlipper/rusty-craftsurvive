@@ -1,6 +1,9 @@
 """Assembles a character GLB on the shared UAL rig (#10014).
 
-usage: python3 -I art/characters/assemble_character.py <payload.npz> <slots.json> <out.glb> [--with-clips]
+usage: python3 -I art/characters/assemble_character.py <payload.npz> <slots.json> <out.glb> [--with-clips] [--rig <rig.glb>]
+
+--rig names the GLB whose rig (nodes, inverse binds) and clips the character takes: UAL1 by
+default, or a skeleton frame (frame.py) for characters fitted to one.
 
 The payload holds one skinned part per material slot, already posed to the UAL rest pose and in
 glTF space (metres, Y up, facing +Z): `<slot>_positions`, `_normals`, `_uvs`, `_joints` (indices
@@ -27,18 +30,21 @@ ROOT = Path(__file__).resolve().parents[2]
 RIG_SOURCE = ROOT / "content/animations/UAL1_Standard.glb"
 NEAREST = 9728
 CLAMP = 33071
+REPEAT = 10497
 ROOT_JOINT = "root"
 REST_SECONDS = 1.0
 
 
-def main(payload_path, slots_path, out_path, with_clips=False):
+def main(payload_path, slots_path, out_path, with_clips=False, rig=RIG_SOURCE):
     payload = np.load(payload_path)
     slots_path = Path(slots_path)
     slots = json.loads(slots_path.read_text())
-    rig_doc, rig_bin = glb.read(RIG_SOURCE)
+    rig_doc, rig_bin = glb.read(rig)
     writer = glb.Writer("CraftSurvive assemble_character.py")
     glb.copy_rig(rig_doc, rig_bin, writer, 0)
-    writer.doc["samplers"] = [{"magFilter": NEAREST, "minFilter": NEAREST, "wrapS": CLAMP, "wrapT": CLAMP}]
+    # Sampler 0 clamps; sampler 1 repeats around (cylindrically mapped shells cross their seam).
+    writer.doc["samplers"] = [{"magFilter": NEAREST, "minFilter": NEAREST, "wrapS": CLAMP, "wrapT": CLAMP},
+                              {"magFilter": NEAREST, "minFilter": NEAREST, "wrapS": REPEAT, "wrapT": CLAMP}]
     writer.doc["textures"], writer.doc["materials"] = [], []
     primitives = []
     joint_count = len(rig_doc["skins"][0]["joints"])
@@ -56,12 +62,13 @@ def main(payload_path, slots_path, out_path, with_clips=False):
             "WEIGHTS_0": writer.accessor(weights, glb.ARRAY_BUFFER),
         }
         indices = writer.accessor(payload[f"{name}_indices"].astype(np.uint32).reshape(-1, 1), glb.ELEMENT_ARRAY_BUFFER)
-        png = (slots_path.parent / slot["texture"]).read_bytes()
+        png = (slots_path.parent / slot["texture"]).read_bytes()  # absolute paths pass through
         image = writer.image(png, name)
-        writer.doc["textures"].append({"sampler": 0, "source": image})
+        writer.doc["textures"].append({"sampler": 1 if slot.get("wrap") == "repeat" else 0, "source": image})
         writer.doc["materials"].append({
             "name": name,
             "pbrMetallicRoughness": {"baseColorTexture": {"index": index}, "metallicFactor": 0, "roughnessFactor": slot.get("roughness", 0.85)},
+            **({"doubleSided": True} if slot.get("doubleSided") else {}),
         })
         primitives.append({"attributes": attributes, "indices": indices, "material": index})
     writer.doc["meshes"] = [{"name": "Character", "primitives": primitives}]
@@ -76,7 +83,7 @@ def main(payload_path, slots_path, out_path, with_clips=False):
     if with_clips:
         # Offline previews only: the product attaches the clip pack through the Engine instead.
         names = {"Idle_Loop": "idle", "Walk_Loop": "walk", "Idle_Talking_Loop": "talk", "Walk_Formal_Loop": "walk_formal"}
-        glb.copy_animations(rig_doc, rig_bin, writer, list(names))
+        glb.copy_animations(rig_doc, rig_bin, writer, [a["name"] for a in rig_doc["animations"] if a["name"] in names])
         for animation in writer.doc["animations"]:
             animation["name"] = names.get(animation["name"], animation["name"])
     writer.write(out_path)
@@ -84,4 +91,5 @@ def main(payload_path, slots_path, out_path, with_clips=False):
     print(out_path, Path(out_path).stat().st_size, "bytes,", triangles, "triangles,", len(slots), "slots")
 
 
-main(*sys.argv[1:4], with_clips="--with-clips" in sys.argv[4:])
+extra = sys.argv[4:]
+main(*sys.argv[1:4], with_clips="--with-clips" in extra, rig=Path(extra[extra.index("--rig") + 1]) if "--rig" in extra else RIG_SOURCE)

@@ -1,0 +1,6 @@
+{"name": "innkeeper", "note": "Round and solid; warm hostess of middle age (bracket A, left).",
+ "macro": {"gender": 0.0, "age": 0.62, "muscle": 0.55, "weight": 1.0, "height": 0.3, "proportions": 0.3},
+ "targets": {"stomach/stomach-pregnant-incr": 0.35, "hip/hip-scale-horiz-incr": 0.5, "torso/torso-scale-horiz-incr": 0.4,
+   "torso/torso-scale-depth-incr": 0.4, "neck/neck-double-incr": 0.5, "head/head-round": 0.8, "head/head-fat-incr": 0.6,
+   "nose/nose-volume-incr": 0.5, "nose/nose-point-width-incr": 0.6, "nose/nose-scale-depth-decr": 0.3,
+   "bilateral:eyes/eye-scale-decr": 0.6, "bilateral:cheek/cheek-volume-incr": 0.6}}

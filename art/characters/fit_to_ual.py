@@ -515,4 +515,5 @@ def main(source, variant_path, out_dir):
     print(json.dumps(fit, indent=2))
 
 
-main(*sys.argv[1:4])
+if __name__ == "__main__":
+    main(*sys.argv[1:4])

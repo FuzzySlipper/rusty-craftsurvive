@@ -1,0 +1,186 @@
+{
+ "note": "Character framework check (#10028): built by art/characters/mpfb/build_cast.py; a test aid.",
+ "characters": [
+  {
+   "name": "innkeeper",
+   "mesh": "characters/cast/innkeeper.glb",
+   "pack": "characters/cast/ual-clips-innkeeper.glb",
+   "faces": {
+    "neutral": "characters/cast/innkeeper-face-neutral.png",
+    "blink": "characters/cast/innkeeper-face-blink.png",
+    "talk": "characters/cast/innkeeper-face-talk.png",
+    "smile": "characters/cast/innkeeper-face-smile.png"
+   },
+   "scale": 0.86,
+   "frame": "short-legs",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "skirt",
+    "hair"
+   ]
+  },
+  {
+   "name": "provisioner",
+   "mesh": "characters/cast/provisioner.glb",
+   "pack": "characters/cast/ual-clips-provisioner.glb",
+   "faces": {
+    "neutral": "characters/cast/provisioner-face.png",
+    "blink": "characters/cast/provisioner-face.png",
+    "talk": "characters/cast/provisioner-face.png",
+    "smile": "characters/cast/provisioner-face.png"
+   },
+   "scale": 0.95,
+   "frame": "ual",
+   "home": "port",
+   "posture": {
+    "stoop": 14
+   },
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "hair"
+   ]
+  },
+  {
+   "name": "explorer",
+   "mesh": "characters/cast/explorer.glb",
+   "pack": "characters/cast/ual-clips-explorer.glb",
+   "faces": {
+    "neutral": "characters/cast/explorer-face.png",
+    "blink": "characters/cast/explorer-face.png",
+    "talk": "characters/cast/explorer-face.png",
+    "smile": "characters/cast/explorer-face.png"
+   },
+   "scale": 0.93,
+   "frame": "long-legs",
+   "home": "trail",
+   "posture": {},
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "skirt",
+    "hair",
+    "hat"
+   ]
+  },
+  {
+   "name": "ferryman",
+   "mesh": "characters/cast/ferryman.glb",
+   "pack": "characters/cast/ual-clips-ferryman.glb",
+   "faces": {
+    "neutral": "characters/cast/ferryman-face.png",
+    "blink": "characters/cast/ferryman-face.png",
+    "talk": "characters/cast/ferryman-face.png",
+    "smile": "characters/cast/ferryman-face.png"
+   },
+   "scale": 1.0,
+   "frame": "ual",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "body",
+    "face",
+    "outer"
+   ]
+  },
+  {
+   "name": "fishwife",
+   "mesh": "characters/cast/fishwife.glb",
+   "pack": "characters/cast/ual-clips-fishwife.glb",
+   "faces": {
+    "neutral": "characters/cast/fishwife-face.png",
+    "blink": "characters/cast/fishwife-face.png",
+    "talk": "characters/cast/fishwife-face.png",
+    "smile": "characters/cast/fishwife-face.png"
+   },
+   "scale": 0.88,
+   "frame": "ual",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "skirt",
+    "hair",
+    "hat"
+   ]
+  },
+  {
+   "name": "herder",
+   "mesh": "characters/cast/herder.glb",
+   "pack": "characters/cast/ual-clips-herder.glb",
+   "faces": {
+    "neutral": "characters/cast/herder-face.png",
+    "blink": "characters/cast/herder-face.png",
+    "talk": "characters/cast/herder-face.png",
+    "smile": "characters/cast/herder-face.png"
+   },
+   "scale": 0.9,
+   "frame": "short-legs",
+   "home": "mountain",
+   "posture": {
+    "stoop": 6
+   },
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "skirt",
+    "hair",
+    "hat"
+   ]
+  },
+  {
+   "name": "guide",
+   "mesh": "characters/cast/guide.glb",
+   "pack": "characters/cast/ual-clips-guide.glb",
+   "faces": {
+    "neutral": "characters/cast/guide-face.png",
+    "blink": "characters/cast/guide-face.png",
+    "talk": "characters/cast/guide-face.png",
+    "smile": "characters/cast/guide-face.png"
+   },
+   "scale": 0.95,
+   "frame": "long-legs",
+   "home": "mountain",
+   "posture": {},
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "skirt",
+    "hair",
+    "hat"
+   ]
+  },
+  {
+   "name": "clerk",
+   "mesh": "characters/cast/clerk.glb",
+   "pack": "characters/cast/ual-clips-clerk.glb",
+   "faces": {
+    "neutral": "characters/cast/clerk-face.png",
+    "blink": "characters/cast/clerk-face.png",
+    "talk": "characters/cast/clerk-face.png",
+    "smile": "characters/cast/clerk-face.png"
+   },
+   "scale": 0.89,
+   "frame": "ual",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "body",
+    "face",
+    "outer",
+    "skirt",
+    "hair"
+   ]
+  }
+ ]
+}

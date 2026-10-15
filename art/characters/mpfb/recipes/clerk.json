@@ -1,0 +1,3 @@
+{"name": "clerk", "note": "Harbour clerk of about 35.",
+ "macro": {"gender": 0.0, "age": 0.48, "muscle": 0.4, "weight": 0.4, "height": 0.45, "proportions": 0.5, "race": {"asian": 1.0, "african": 0.0, "caucasian": 0.0}},
+ "targets": {"nose/nose-point-width-incr": 0.4, "nose/nose-volume-incr": 0.2, "bilateral:eyes/eye-scale-decr": 0.5}}

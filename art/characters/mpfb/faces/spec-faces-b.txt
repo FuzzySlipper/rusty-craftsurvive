@@ -1,0 +1,11 @@
+STYLE (shared by every cell): hand-painted game character face textures in a "storybook" painted style, between Vagrant Story's painted-on detail and Arcane's visible brushwork: broad confident brush strokes, a few simplified planes for brow, cheekbones, nose and jaw, painted edges between colours, warm muted earthy palette. Faces are serious and warm, tired and capable early-modern frontier townsfolk (17th-18th century), not cute, not anime, not a children's cartoon, not photoreal: no pores, no photographic skin. Small calm eyes, simplified rounded noses, clear painted brows and a simple mouth line. Painted shading stays soft and describes the form only (no strong light direction, no cast shadows), because the game's real light lights the 3D head.
+
+LAYOUT (critical): the attached grey image is the exact UV layout of the 3D head: a flat front projection of the face. Every cell repaints it as a flat face texture filling the whole cell, keeping EXACTLY the same positions and sizes of the eye openings, nose and mouth and the same face outline as the attached image, so the paint lands on the 3D features. Paint the eyes inside the eye-opening slits, the mouth along the mouth line. Fill the top band with the character's hairline/forehead and the edges with skin; no background, no neck, no ears outside the face, no shoulders.
+
+FORMAT: a square sheet of four equal square cells in a 2x2 grid, no gaps, no borders, no labels, no text.
+
+CELLS (four different people, each a different face, all in the same layout):
+- top-left: FISHWIFE, a young woman of about 22 from the port, fair freckled skin with sun-pink cheeks, auburn hair at the hairline, lively but calm eyes, a closed half-smile.
+- top-right: HERDER, a mountain woman of about 60, ruddy wind-burnt cheeks over tanned skin, grey hair at the hairline, deep crow's feet in two strokes, steady eyes.
+- bottom-left: GUIDE, a mountain man of about 45, weathered tan skin, a full dark-brown beard painted over the chin, jaw and upper lip (mouth line still visible), heavy brows.
+- bottom-right: CLERK, a woman of about 35, East Asian features suggested only by soft painted planes, warm light skin, black hair at the hairline, small calm eyes, a neutral attentive mouth.
