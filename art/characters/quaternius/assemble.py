@@ -20,6 +20,12 @@ preview = Path(args[2]) if len(args) > 2 else None
 root = Path(recipe["root"])
 HEAD_GROUPS = ("Head", "neck_01")
 HEAD_KEEP = 0.5
+# The outfits' own hands bend poorly (a clenched clip folds them into a claw); the base body's
+# hands bend cleanly. So the base keeps its hands as well as its head, and the outfit parts
+# lose theirs, cut at the wrist.
+HAND_PREFIXES = ("hand_", "thumb_", "index_", "middle_", "ring_", "pinky_")
+BASE_HAND_KEEP = 0.01   # the base keeps a little forearm past the wrist ...
+OUTFIT_HAND_CUT = 0.98  # ... and the outfit keeps its wrist, so the two overlap with no gap
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
@@ -52,14 +58,20 @@ for entry, obj in parts:
     for mod in obj.modifiers:
         if mod.type == "ARMATURE":
             mod.object = rig
-    if entry.get("head_only"):
+    hands = {g.index for g in obj.vertex_groups if g.name.startswith(HAND_PREFIXES)}
+    hand_share = lambda v: sum(g.weight for g in v.groups if g.group in hands)
+    if entry.get("head_only") or (entry is not recipe["base"] and entry.get("own_hands") is not True and hands):
         groups = {obj.vertex_groups[g].index for g in HEAD_GROUPS if g in obj.vertex_groups}
         bpy.context.view_layer.objects.active = obj
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="DESELECT")
         bpy.ops.object.mode_set(mode="OBJECT")
         for v in obj.data.vertices:
-            v.select = sum(g.weight for g in v.groups if g.group in groups) < HEAD_KEEP
+            if entry.get("head_only"):
+                keep = sum(g.weight for g in v.groups if g.group in groups) >= HEAD_KEEP or hand_share(v) >= BASE_HAND_KEEP
+            else:
+                keep = hand_share(v) < OUTFIT_HAND_CUT
+            v.select = not keep
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.delete(type="VERT")
         bpy.ops.object.mode_set(mode="OBJECT")

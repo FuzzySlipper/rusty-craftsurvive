@@ -36,6 +36,7 @@ FACE_PX = 512
 FACING = 0.3                  # minimum forward component of a face-slot face normal
 FORWARD = Vector((0, -1, 0))  # the character faces Blender -Y (glTF +Z)
 BOX_SIZE = 0.24              # face box side in metres: hairline to chin on the base female head
+HEAD_REACH = 0.3             # holes within this far below the top of the head are face holes (m)
 BOX_DROP = 0.026              # box centre below the eye holes' centre, in metres
 EYE_REACH = 1.7               # around each eyeball, in multiples of its half-size (x and z)
 EYE_DEPTH = 0.01              # and this far in front of it (m), to the back of the eyeball
@@ -75,7 +76,11 @@ for e in [e for e in bm.edges if e.is_boundary]:
     z = sum((world @ v.co).z for ed in group for v in ed.verts) / (2 * len(group))
     loops.append((z, group))
 loops.sort(key=lambda l: l[0])
-caps = [g for _, g in loops[1:]]          # every hole but the lowest (the neck cut)
+# Only the head's holes (eyes, mouth): not the neck cut, nor the wrist openings when the base
+# keeps its hands (assemble.py).
+top_z = max((world @ v.co).z for v in bm.verts)
+caps = [g for z, g in loops[1:] if z > top_z - HEAD_REACH
+        and all(abs((world @ v.co).x) < 0.12 for e in g for v in e.verts)]
 rim = [world @ v.co for g in caps for e in g for v in e.verts]
 cap_faces = []
 for group in caps:
