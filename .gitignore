@@ -12,4 +12,4 @@
 *.log
 .codex/
 maplab-out/
-*Thumbs.db
+*Thumbs.db__pycache__/
