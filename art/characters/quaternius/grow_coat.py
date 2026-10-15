@@ -49,6 +49,8 @@ R = {
     "cuff_flare": 0.012,
     "thickness": 0.009,
     "slab": 0.03,
+    "trim_above_hem": 0.06,  # trouser legs are cut from this far above the hem ...
+    "trim_margin": 8.0,      # ... to the hips, outside the front opening plus this (degrees)
     "thigh_share": 0.9,    # high: the coat panels must follow the thighs, or the trousers poke through
     "blend_band": 0.08,    # height over which copied weights give way to the skirt scheme (m)
     "material": "coat",
@@ -282,6 +284,24 @@ mesh.materials.append(mat)
 for obj in list(bpy.data.objects):
     if obj.type == "MESH" and obj.name.startswith("Icosphere"):
         bpy.data.objects.remove(obj)
+# The trousers under the coat panels push through them as the thighs swing (the panels share
+# the thighs' motion only in part): cut the trouser legs between the hips and just above the
+# hem, except where they show through the front opening.
+for obj in [o for o in bpy.data.objects if o.type == "MESH" and "_Legs" in o.name]:
+    cut = bmesh.new()
+    cut.from_mesh(obj.data)
+    hidden = []
+    for v in cut.verts:
+        p = obj.matrix_world @ v.co
+        if not (R["hem"] + R["trim_above_hem"] < p.z < R["hip"]):
+            continue
+        a = math.atan2(p.y - cy, p.x - cx) - front
+        a = (a + math.pi) % (2 * math.pi) - math.pi
+        if abs(a) > math.radians(R["open_hem"] + R["trim_margin"]):
+            hidden.append(v)
+    bmesh.ops.delete(cut, geom=hidden, context="VERTS")
+    cut.to_mesh(obj.data)
+    cut.free()
 # The tunic's short sleeves and shoulder pads are hidden under the coat sleeves, and would poke
 # through them as the arms move: cut the tunic outside the torso above the armpit.
 for obj in [o for o in bpy.data.objects if o.type == "MESH" and "_Body" in o.name]:

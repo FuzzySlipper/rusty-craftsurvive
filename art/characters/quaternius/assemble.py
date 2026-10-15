@@ -26,6 +26,7 @@ HEAD_KEEP = 0.5
 HAND_PREFIXES = ("hand_", "thumb_", "index_", "middle_", "ring_", "pinky_")
 BASE_HAND_KEEP = 0.01   # the base keeps a little forearm past the wrist ...
 OUTFIT_HAND_CUT = 0.98  # ... and the outfit keeps its wrist, so the two overlap with no gap
+GLOVE_SHARE = 0.3       # faces this much on the hand bones take the glove material
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
@@ -75,6 +76,29 @@ for entry, obj in parts:
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.delete(type="VERT")
         bpy.ops.object.mode_set(mode="OBJECT")
+
+# Gloves: the base body's hands, given a painted leather material (recipe "gloves": texture path),
+# so gloved outfits keep their gloves with hands that bend cleanly.
+if recipe.get("gloves"):
+    glove = bpy.data.materials.new("gloves")
+    glove.use_nodes = True
+    bsdf = next(n for n in glove.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
+    tex = glove.node_tree.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(str(Path(recipe["gloves"]).resolve()))
+    tex.image.name = "T_Gloves"
+    glove.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.9
+    for entry, obj in parts:
+        if entry is not recipe["base"] or len(obj.data.vertices) < 1000:
+            continue
+        hands = {g.index for g in obj.vertex_groups if g.name.startswith(HAND_PREFIXES)}
+        obj.data.materials.append(glove)
+        index = len(obj.data.materials) - 1
+        for poly in obj.data.polygons:
+            share = sum(sum(g.weight for g in obj.data.vertices[i].groups if g.group in hands)
+                        for i in poly.vertices) / len(poly.vertices)
+            if share >= GLOVE_SHARE:
+                poly.material_index = index
 
 # Remove the other imported armatures (every mesh now follows the first).
 for obj in list(bpy.data.objects):
