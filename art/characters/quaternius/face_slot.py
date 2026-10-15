@@ -30,7 +30,7 @@ from mathutils import Vector
 
 args = sys.argv[sys.argv.index("--") + 1:]
 mode = args[0]
-HEAD = "Superhero_Female"
+HEAD = "superhero"         # the base head mesh (Superhero_Female, SuperHero_Male), matched case-insensitively
 DROP = ("Eyes", "Eyebrows")
 FACE_PX = 512
 FACING = 0.3                  # minimum forward component of a face-slot face normal
@@ -55,7 +55,7 @@ for obj in [o for o in bpy.data.objects if o.type == "MESH" and o.name.startswit
 for obj in list(bpy.data.objects):
     if obj.type == "MESH" and obj.name.startswith(DROP):
         bpy.data.objects.remove(obj)
-head = next(o for o in bpy.data.objects if o.type == "MESH" and o.name.startswith(HEAD))
+head = next(o for o in bpy.data.objects if o.type == "MESH" and o.name.lower().startswith(HEAD))
 mesh, world = head.data, head.matrix_world
 
 bm = bmesh.new()

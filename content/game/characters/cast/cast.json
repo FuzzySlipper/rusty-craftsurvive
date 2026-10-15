@@ -257,6 +257,25 @@
     "outfit",
     "face"
    ]
+  },
+  {
+   "name": "q-coat",
+   "mesh": "characters/quaternius/provisioner-coat.glb",
+   "pack": "characters/quaternius/provisioner-coat-clips.glb",
+   "faces": {
+    "neutral": "characters/quaternius/provisioner-face-neutral.png",
+    "blink": "characters/quaternius/provisioner-face-blink.png",
+    "talk": "characters/quaternius/provisioner-face-talk.png",
+    "smile": "characters/quaternius/provisioner-face-smile.png"
+   },
+   "scale": 1.0,
+   "frame": "quaternius",
+   "home": "port",
+   "posture": {},
+   "slots": [
+    "outfit",
+    "face"
+   ]
   }
  ]
 }
