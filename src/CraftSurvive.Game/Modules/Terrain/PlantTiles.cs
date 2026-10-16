@@ -120,7 +120,7 @@ internal sealed class PlantTiles : IDisposable
     {
         VegetationReadout r = engine.Vegetation.Read(field);
         return string.Create(CultureInfo.InvariantCulture,
-            $"plantTiles species={looks.Count} tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} sampleMs={streamer.SampleMilliseconds:F0} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
+            $"plantTiles species={looks.Count} tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} selectMs={r.SelectionMicroseconds / 1e3:F2} skipped={r.SettlesSkipped} reselected={r.SettlesReselected} sampleMs={streamer.SampleMilliseconds:F0} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
     }
 
     public void Dispose()
