@@ -19,13 +19,13 @@ namespace CraftSurvive.Game.Modules.Terrain;
 internal static class TerrainGenerationFingerprint
 {
     /// <summary>How much of the world a fingerprint looks at.</summary>
-    internal sealed record ProbeScale(int HeightSamplesPerSide, long SiteCellRadius, bool OriginChunkBlock);
+    internal sealed record ProbeScale(int HeightSamplesPerSide, int TreeSamplesPerSide, long SiteCellRadius, bool OriginChunkBlock);
 
     /// <summary>Cheap enough to take at every start: a few hundred draws and five chunks.</summary>
-    internal static ProbeScale Startup { get; } = new(HeightSamplesPerSide: 65, SiteCellRadius: 2, OriginChunkBlock: false);
+    internal static ProbeScale Startup { get; } = new(HeightSamplesPerSide: 65, TreeSamplesPerSide: 17, SiteCellRadius: 2, OriginChunkBlock: false);
 
     /// <summary>The managed check's probe: every site in a 41-cell square and a block of 63 chunks.</summary>
-    internal static ProbeScale Golden { get; } = new(HeightSamplesPerSide: 257, SiteCellRadius: 20, OriginChunkBlock: true);
+    internal static ProbeScale Golden { get; } = new(HeightSamplesPerSide: 257, TreeSamplesPerSide: 129, SiteCellRadius: 20, OriginChunkBlock: true);
 
     private const ulong FnvOffsetBasis = 14695981039346656037UL;
     private const ulong FnvPrime = 1099511628211UL;
@@ -76,9 +76,9 @@ internal static class TerrainGenerationFingerprint
         hash = Mix(hash, contract.Version);
         hash = Mix(hash, recipe.Map.Fingerprint);
         hash = Mix(hash, (ulong)contract.Extent);
-        // Without this discriminator the same cached chunk could contain trunks from the
-        // other study recipe when none of the small startup probes happen to hit a forest.
-        if (recipe.Forest != ForestPattern.Baseline) hash = Mix(hash, (ulong)recipe.Forest);
+        // Which species stand where, and the forest floor under them, follow the flora catalog (#10032):
+        // a changed catalog is a changed world even where the startup probes miss a forest.
+        hash = Mix(hash, recipe.Forest.Catalog.Fingerprint);
 
         // Heights over the whole world, edge to edge.
         long radius = ProbeRadius(recipe);
@@ -90,6 +90,21 @@ internal static class TerrainGenerationFingerprint
                 long x = -radius + (2 * radius * i / (samples - 1));
                 long z = -radius + (2 * radius * j / (samples - 1));
                 hash = Mix(hash, (ulong)recipe.SurfaceAt(x, z));
+            }
+        }
+
+        // Tree decisions over the whole world (#10032): the probed chunks lie at the origin, which may be
+        // open country, so a change in where forests stand or what grows there would otherwise pass unseen.
+        int trees = scale.TreeSamplesPerSide;
+        for (int i = 0; i < trees; i++)
+        {
+            for (int j = 0; j < trees; j++)
+            {
+                long cellX = GridMath.FloorDivide(-radius + (2 * radius * i / (trees - 1)), recipe.TreeCellMetres);
+                long cellZ = GridMath.FloorDivide(-radius + (2 * radius * j / (trees - 1)), recipe.TreeCellMetres);
+                hash = recipe.TreeInCell(cellX, cellZ) is TerrainTree tree
+                    ? Mix(Mix(Mix(Mix(hash, (ulong)tree.X), (ulong)tree.Z), tree.Species), BitConverter.DoubleToUInt64Bits(tree.Scale))
+                    : Mix(hash, 0);
             }
         }
 

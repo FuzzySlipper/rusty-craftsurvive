@@ -75,7 +75,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return terrain.VegetationReadout();
     }
 
-    [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), and the forest recipe (CRAFT_FOREST_STUDY=dense opts in).")]
+    [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), and the plant tiles (shrubs and ferns).")]
     public string VegetationReadout() => terrain.VegetationReadout();
 
     [DebugCommand("craft.vegetation.sites", Description = "Lists the forest columns nearest a point from the generated map, with ground height and local tree counts. Does not move the player.")]
@@ -86,7 +86,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         TerrainRecipe recipe = terrain.Recipe;
         WorldMap map = recipe.Map;
         return string.Join(" | ", Enumerable.Range(0, map.Grid.Count)
-            .Where(i => ForestPatterns.IsForest(WorldMap.Biome(map.Sample(map.Grid.X(i), map.Grid.Z(i)))))
+            .Where(i => recipe.Forest.Canopy(map.Grid.X(i), map.Grid.Z(i), map.Sample(map.Grid.X(i), map.Grid.Z(i))) >= Forest.FloorFromCanopy)
             .OrderBy(i => Math.Pow(map.Grid.X(i) - x, 2) + Math.Pow(map.Grid.Z(i) - z, 2))
             .Take(MaximumSites).Select(i =>
             {
@@ -112,26 +112,27 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return string.Create(CultureInfo.InvariantCulture, $"vertexOcclusion={strength:F2};chunks={scene.ResidentChunkCount}");
     }
 
-    [DebugCommand("craft.terrain.scatter", Description = "Assisted (#9546): grows grass clumps and bushes on the overworld's grass at these densities per square metre (0 removes one).")]
-    public string TerrainScatter(float grassPerSquareMetre, float bushesPerSquareMetre) =>
-        terrain.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
+    [DebugCommand("craft.terrain.scatter", Description = "Assisted (#9546): grows grass clumps on the overworld's grass at this density per square metre (0 removes them). Shrubs and ferns are the forest's (#10032).")]
+    public string TerrainScatter(float grassPerSquareMetre) => terrain.TuneScatter(grassPerSquareMetre);
 
-    [DebugCommand("craft.terrain.trees", Description = "Assisted (#9665): the nearest trees of a kind (oak, pine, birch, dead, palm) to a point, searching outward up to a radius in metres, for aimed captures.")]
+    [DebugCommand("craft.terrain.trees", Description = "Assisted (#9665): the nearest trees of a species (a flora catalog name: oak, beech, stone-pine, ...) to a point, searching outward up to a radius in metres, for aimed captures.")]
     public string FindTrees(string kind, double x, double z, double radiusMetres)
     {
-        if (!Enum.TryParse(kind, ignoreCase: true, out WorldGen.TreeKind wanted)) return $"refused: no tree kind {kind}";
+        WorldGen.FloraSpecies? wanted = WorldGen.FloraCatalog.Shared.Species.FirstOrDefault(s => s.Role == WorldGen.FloraRole.Tree
+            && string.Equals(s.Name, kind, StringComparison.OrdinalIgnoreCase));
+        if (wanted is null) return $"refused: no tree species {kind}";
         const double Ring = 64;
         List<WorldGen.TerrainTree> found = [];
         for (double reach = Ring; reach <= radiusMetres && found.Count == 0; reach += Ring)
         {
             List<WorldGen.TerrainTree> trees = [];
             terrain.Recipe.TreesIn((long)(x - reach), (long)(z - reach), (long)(x + reach), (long)(z + reach), trees);
-            found = [.. trees.Where(tree => tree.Kind == wanted).OrderBy(tree => Math.Pow(tree.X - x, 2) + Math.Pow(tree.Z - z, 2)).Take(5)];
+            found = [.. trees.Where(tree => tree.Species == wanted.Id).OrderBy(tree => Math.Pow(tree.X - x, 2) + Math.Pow(tree.Z - z, 2)).Take(5)];
         }
 
         return found.Count == 0
-            ? FormattableString.Invariant($"no {wanted} within {radiusMetres} m of {x},{z}")
-            : string.Join(';', found.Select(tree => FormattableString.Invariant($"{tree.Kind} {tree.X},{tree.GroundY},{tree.Z} scale={tree.Scale:F2}")));
+            ? FormattableString.Invariant($"no {wanted.Name} within {radiusMetres} m of {x},{z}")
+            : string.Join(';', found.Select(tree => FormattableString.Invariant($"{wanted.Name} {tree.X},{tree.GroundY},{tree.Z} scale={tree.Scale:F2}")));
     }
 
     [DebugCommand("craft.build.piece", Description = "Assisted (#9729): places a build piece (wall, doorway, window, post, beam, floor, roof, stairs) of a material (planks, timber, masonry, shingles) with its anchor at world x,y,z (snapped to 0.25 m), turned this many quarter turns.")]

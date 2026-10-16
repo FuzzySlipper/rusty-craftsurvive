@@ -218,7 +218,7 @@ Check.Section("generated prop meshes load through the Engine", () =>
         using Appearance appearance = engine.Graphics.CreateMeshAppearance(mesh);
         Check.That(appearance is not null, "the prop mesh becomes an Engine mesh appearance");
 
-        // Procedural trees (#9685): scripts/generate-tree.py adds per-part UVs and a texture per role.
+        // Procedural trees (#9685): scripts/generate-flora.py adds per-part UVs and a texture per role.
         const string TreePath = "models/textured.prop-mesh.json";
         const string Textured = """
             {"name":"textured","height":1,"textures":{"leaves":"textures/trees/oak-leaves.png"},"parts":[

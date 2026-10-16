@@ -70,7 +70,7 @@ internal static class ContentChecks
         return root.ToJsonString();
     }
 
-    private static string RepositoryRoot()
+    internal static string RepositoryRoot()
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, AtlasFile)))

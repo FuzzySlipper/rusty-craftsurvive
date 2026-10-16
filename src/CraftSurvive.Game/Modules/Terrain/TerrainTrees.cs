@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Numerics;
-using System.Text.Json;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -18,8 +17,8 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// </summary>
 internal sealed class TerrainTrees : IDisposable
 {
-    internal const string ManifestPath = "models/trees/trees.json";
-    private const string MeshFolder = "models/trees/";
+    private const string ModelsFolder = "models/";
+    private const string FarSuffix = "-far";
     private const string LeavesRole = PropMaterials.LeavesRole;
 
     /// <summary>Crowns shelter this far from the player: the walking residency's retained reach, by default.</summary>
@@ -53,10 +52,10 @@ internal sealed class TerrainTrees : IDisposable
     /// <summary>Materials for textured parts (procedural trees, #9685).</summary>
     private readonly PropMaterials textured;
     private readonly List<MeshResource> meshes = [];
-    private readonly Dictionary<TreeKind, Appearance[]> kinds = [];
-    private readonly Dictionary<TreeKind, Appearance[]> farKinds = [];
+    private readonly Dictionary<ushort, Appearance[]> kinds = [];
+    private readonly Dictionary<ushort, Appearance[]> farKinds = [];
     /// <summary>Each near variant's leaves, as a box in the mesh's metres (null: a variant without leaves).</summary>
-    private readonly Dictionary<TreeKind, (Vector3 Min, Vector3 Max)?[]> crowns = [];
+    private readonly Dictionary<ushort, (Vector3 Min, Vector3 Max)?[]> crowns = [];
     private SpatialEntityCollider[] canopies = [];
     // Recipe heights and standing checks do not change while streaming: keep them for the near
     // window, forgetting the checks when the edits change, rather than sampling each tree again
@@ -91,28 +90,13 @@ internal sealed class TerrainTrees : IDisposable
         });
         try
         {
-            using JsonDocument manifest = JsonDocument.Parse(content.ReadText(ManifestPath));
-            foreach (JsonProperty kind in manifest.RootElement.GetProperty("kinds").EnumerateObject())
+            // Every tree species in the flora catalog (#10032), each variant with its far variant (NAME-far).
+            foreach (FloraSpecies species in FloraCatalog.Shared.Species.Where(s => s.Role == FloraRole.Tree))
             {
-                TreeKind id = Enum.Parse<TreeKind>(kind.Name, ignoreCase: true);
-                kinds[id] = [.. kind.Value.EnumerateArray().Select(name => Load(content, name.GetString()!))];
-                crowns[id] = [.. kind.Value.EnumerateArray().Select(name => PropMesh.RoleBounds(content, MeshFolder + name.GetString()! + PropMesh.Suffix, LeavesRole))];
-            }
-
-            foreach (JsonProperty kind in manifest.RootElement.GetProperty("far").EnumerateObject())
-            {
-                TreeKind id = Enum.Parse<TreeKind>(kind.Name, ignoreCase: true);
-                farKinds[id] = [.. kind.Value.EnumerateArray().Select(name => Load(content, name.GetString()!))];
-            }
-
-            foreach (TreeKind kind in Enum.GetValues<TreeKind>())
-            {
-                if (!kinds.TryGetValue(kind, out Appearance[]? variants) || variants.Length == 0
-                    || !farKinds.TryGetValue(kind, out Appearance[]? far) || far.Length != variants.Length)
-                {
-                    throw new InvalidOperationException(
-                        $"CraftSurvive tree manifest '{ManifestPath}' needs a mesh and a matching far variant for each {kind}.");
-                }
+                string folder = ModelsFolder + species.Folder + "/";
+                kinds[species.Id] = [.. species.Variants.Select(name => Load(content, folder + name))];
+                farKinds[species.Id] = [.. species.Variants.Select(name => Load(content, folder + name + FarSuffix))];
+                crowns[species.Id] = [.. species.Variants.Select(name => PropMesh.RoleBounds(content, folder + name + PropMesh.Suffix, LeavesRole))];
             }
         }
         catch
@@ -134,8 +118,8 @@ internal sealed class TerrainTrees : IDisposable
     private const float CanopyShelterShare = 0.8f;
 
     /// <summary>Each kind's near and far meshes by variant, which the vegetation tree records draw (#10017).</summary>
-    internal IReadOnlyDictionary<TreeKind, Appearance[]> NearMeshes => kinds;
-    internal IReadOnlyDictionary<TreeKind, Appearance[]> FarMeshes => farKinds;
+    internal IReadOnlyDictionary<ushort, Appearance[]> NearMeshes => kinds;
+    internal IReadOnlyDictionary<ushort, Appearance[]> FarMeshes => farKinds;
 
 
     /// <summary>The world moved: the crowns are rebuilt in the new local frame on the next follow.</summary>
@@ -212,7 +196,7 @@ internal sealed class TerrainTrees : IDisposable
     /// <summary>A standing tree's crown as a query collider: its leaves' box turned, scaled and moved with the tree.</summary>
     private SpatialEntityCollider? Crown(TerrainTree tree, TerrainRecipe recipe, ulong id)
     {
-        (Vector3 Min, Vector3 Max)?[] variants = crowns[tree.Kind];
+        (Vector3 Min, Vector3 Max)?[] variants = crowns[tree.Species];
         if (variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))] is not (Vector3 min, Vector3 max)) return null;
         if (!treeGrounds.TryGetValue((tree.X, tree.Z), out double ground))
         {
@@ -277,9 +261,9 @@ internal sealed class TerrainTrees : IDisposable
     }
 
     /// <summary>One tree mesh: the bark part on the bark material and the leaves on the fluttering one.</summary>
-    private Appearance Load(ProductContent content, string name)
+    private Appearance Load(ProductContent content, string path)
     {
-        MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, MeshFolder + name + PropMesh.Suffix,
+        MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, path + PropMesh.Suffix,
             (role, texture) => texture is null ? role == LeavesRole ? leaves : bark : textured.For(role, texture)));
         meshes.Add(mesh);
         return engine.Graphics.CreateMeshAppearance(mesh);

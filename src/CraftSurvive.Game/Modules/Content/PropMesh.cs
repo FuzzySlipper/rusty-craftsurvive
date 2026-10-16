@@ -5,7 +5,7 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Content;
 
 /// <summary>
-/// A generated prop's mesh as scripts/stylise-mesh.py or scripts/generate-tree.py writes it:
+/// A generated prop's mesh as scripts/stylise-mesh.py or scripts/generate-flora.py writes it:
 /// triangles in metres, Y up, grouped into parts by role ("bark", "leaves" or "solid"), each
 /// vertex's colour alpha its wind weight. A part may carry UVs, and the prop may name a texture per
 /// role ("textures": {role: content path}); untextured parts are coloured by their vertices alone.

@@ -29,11 +29,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly PoiPlacement pois;
     private readonly CrossingPlacement crossings;
 
-    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws, WorldMap? map = null,
-        ForestPattern forest = ForestPattern.Baseline)
+    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws, WorldMap? map = null)
     {
-        Forest = forest;
         this.configuration = configuration.Validate();
+        Forest = new Forest(FloraCatalog.Shared, configuration.Seed);
         this.draws = draws ?? throw new ArgumentNullException(nameof(draws));
         Map = map ?? WorldMapGenerator.Generate(configuration);
         if (Map.Configuration != configuration) throw new ArgumentException("Terrain and map must share an identity.", nameof(map));
@@ -58,8 +57,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     internal TerrainConfiguration Configuration => configuration;
 
-    internal ForestPattern Forest { get; }
-    internal int TreeCellMetres => ForestPatterns.CellMetres(Forest);
+    /// <summary>Where the forests stand and what grows in them (#10032).</summary>
+    internal Forest Forest { get; }
+
+    /// <summary>Each tree owns one cell this many metres square (#10032: crowns touch in a closed forest).</summary>
+    internal int TreeCellMetres => GenerationConstants.TreeCellSize;
     internal int TreeCacheCells => featureCells.Count;
     internal int TreeCacheClears { get; private set; }
 
@@ -135,8 +137,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // surfaces, the swim volume and every view read where water stands from WaterRules.
 
         // Features only fill air, so they never displace terrain: a canopy that
-        // meets a slope loses to the slope rather than leaving a floating leaf.
-        if (material == TerrainConstants.EmptyMaterial && !WorldMap.Arid(column.Geography) && !WorldMap.Frozen(column.Geography))
+        // meets a slope loses to the slope rather than leaving a floating leaf. Where trees grow at all is
+        // the forest's decision (#10032), dry and cold country included.
+        if (material == TerrainConstants.EmptyMaterial)
         {
             material = FeatureMaterialAt(address.X, address.Y, address.Z);
         }
@@ -195,7 +198,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
         long depthFromSurface = top - address.Y;
         if (depthFromSurface == 0 && slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
-            return TerrainConstants.GrassMaterial;
+            // Under a closed canopy the topsoil is leaf litter, not meadow (#10032): Dirt grows no grass.
+            return Forest.Canopy(address.X, address.Z, geography) >= Forest.FloorFromCanopy
+                ? TerrainConstants.DirtMaterial
+                : TerrainConstants.GrassMaterial;
         }
 
         return depthFromSurface <= GenerationConstants.SubsoilDepthMaximum
@@ -679,7 +685,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         long anchorX = GridMath.FloorDivide(x, cell);
         long anchorZ = GridMath.FloorDivide(z, cell);
         return TreeAt(anchorX, anchorZ) is TreeShape tree && x == (anchorX * cell) + tree.OffsetX && z == (anchorZ * cell) + tree.OffsetZ
-            ? new TerrainTree(x, tree.GroundY, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw)
+            ? new TerrainTree(x, tree.GroundY, z, tree.Species, tree.Variant, tree.Scale, tree.Yaw)
             : null;
     }
 
@@ -707,7 +713,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
                     continue;
                 }
 
-                into.Add(new TerrainTree(x, tree.GroundY, z, tree.Kind, tree.Variant, tree.Scale, tree.Yaw));
+                into.Add(new TerrainTree(x, tree.GroundY, z, tree.Species, tree.Variant, tree.Scale, tree.Yaw));
             }
         }
     }
@@ -729,7 +735,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         long x = (anchorX * TreeCellMetres) + shape.OffsetX;
         long z = (anchorZ * TreeCellMetres) + shape.OffsetZ;
-        TerrainTree tree = new(x, shape.GroundY, z, shape.Kind, shape.Variant, shape.Scale, shape.Yaw);
+        TerrainTree tree = new(x, shape.GroundY, z, shape.Species, shape.Variant, shape.Scale, shape.Yaw);
         bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
             .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
         return !structured || TreeFelling.Stands(tree, MaterialAt) ? tree : null;
@@ -761,18 +767,30 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
     private TreeShape? DecideTree(long anchorX, long anchorZ)
     {
-        // The surface is sampled at the candidate trunk column, so a cell whose
-        // ground is not grass - water, sand, stone, or outside the world - owns no
-        // tree. That keeps forests on soil and out of lakes without a biome pass.
-        long originX = anchorX * TreeCellMetres;
-        long originZ = anchorZ * TreeCellMetres;
-        long offsetX = Contract.DrawLong(draws, "tree.offset.x", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            0, TreeCellMetres - 1);
-        long offsetZ = Contract.DrawLong(draws, "tree.offset.z", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            0, TreeCellMetres - 1);
-        long trunkX = originX + offsetX;
-        long trunkZ = originZ + offsetZ;
+        // One keyed draw per cell; every choice about its tree is hashed from it. The vegetation tiles
+        // decide a 128 m tile's thousand cells at once on the update's thread, where a keyed draw per
+        // choice cost tens of milliseconds a tile (#10032).
+        string key = TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ);
+        ulong cell = (ulong)Contract.DrawLong(draws, "tree.cell", key, 0, GenerationConstants.TreeCellDrawMaximum);
+        double Part(TreeDraw part) => HashUnit(CoordinateHash(cell, (long)part, 0));
+
+        long offsetX = (long)(Part(TreeDraw.OffsetX) * TreeCellMetres);
+        long offsetZ = (long)(Part(TreeDraw.OffsetZ) * TreeCellMetres);
+        long trunkX = (anchorX * TreeCellMetres) + offsetX;
+        long trunkZ = (anchorZ * TreeCellMetres) + offsetZ;
         if (trunkX < -radius || trunkX > radius || trunkZ < -radius || trunkZ > radius)
+        {
+            return null;
+        }
+
+        // A canopy tree with a chance from how closed the forest is here, otherwise an open-country tree
+        // from what suits the open ground; the species mostly the stand's own (Forest). Decided from the
+        // map alone first, so most open cells never build their column.
+        MapSample geography = Geography(trunkX, trunkZ);
+        double canopy = Forest.Canopy(trunkX, trunkZ, geography);
+        double inCanopy = canopy * Forest.CanopyTreesPerCell;
+        double present = Part(TreeDraw.Present);
+        if (present >= inCanopy + ((1 - canopy) * Forest.OpenTrees(geography)))
         {
             return null;
         }
@@ -785,39 +803,59 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         TerrainColumn column = ColumnAt(trunkX, trunkZ);
         long ground = column.Surface;
-        MapBiome biome = WorldMap.Biome(column.Geography);
-        int oneIn = ForestPatterns.OneIn(Forest, biome, Forest == ForestPattern.Dense
-            ? Unit("tree.grove", ForestPatterns.GroveKey(trunkX, trunkZ)) : 0);
-        if (ground <= column.WaterTop || oneIn == 0)
+        if (!TreeGround(new VoxelAddress(trunkX, ground, trunkZ), column))
         {
-            // A submerged column is not soil, and some country grows no trees at all.
+            // Water, a steep bank or a built surface is no place for a tree.
             return null;
         }
 
-        if (NaturalMaterialAt(new VoxelAddress(trunkX, ground, trunkZ), column)
-            != TerrainConstants.GrassMaterial)
-        {
-            return null;
-        }
-
-        if (!Contract.DrawUnit(draws, "tree.present", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ), oneIn))
+        (long standX, long standZ) = Forest.StandOf(trunkX, trunkZ);
+        double stand = HashUnit(CoordinateHash(Contract.Seed ^ GenerationConstants.TreeStandSeed, standX, standZ));
+        FloraSpecies? species = Forest.TreeSpecies(geography, present < inCanopy, stand, Part(TreeDraw.Mix), Part(TreeDraw.Kind));
+        if (species is null)
         {
             return null;
         }
 
-        string key = TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ);
-        TreeKind kind = TreeKinds.For(WorldMap.Biome(column.Geography), Unit("tree.kind", key));
         double scale = GenerationConstants.TreeScaleMinimum
-            + ((GenerationConstants.TreeScaleMaximum - GenerationConstants.TreeScaleMinimum) * Unit("tree.scale", key));
-        return new TreeShape(offsetX, offsetZ, ground + 1, kind, Unit("tree.variant", key), scale, Unit("tree.yaw", key) * Math.Tau);
+            + ((GenerationConstants.TreeScaleMaximum - GenerationConstants.TreeScaleMinimum) * Part(TreeDraw.Scale));
+        if (Part(TreeDraw.Giant) < GenerationConstants.TreeGiantShare)
+        {
+            // Now and then an old giant towers over its stand.
+            scale *= GenerationConstants.TreeGiantScale;
+        }
+
+        return new TreeShape(offsetX, offsetZ, ground + 1, species.Id, Part(TreeDraw.Variant), scale, Part(TreeDraw.Yaw) * Math.Tau);
     }
 
-    /// <summary>A keyed draw in [0, 1).</summary>
-    private double Unit(string purpose, string key) =>
-        Contract.DrawLong(draws, purpose, key, 0, GenerationConstants.TreeDrawResolution - 1)
-        / (double)GenerationConstants.TreeDrawResolution;
+    /// <summary>The choices hashed from a tree cell's one draw.</summary>
+    private enum TreeDraw
+    {
+        OffsetX = 1,
+        OffsetZ,
+        Present,
+        Mix,
+        Kind,
+        Scale,
+        Giant,
+        Variant,
+        Yaw,
+    }
+
+    /// <summary>
+    /// Whether a tree may root in a column's top cell: gentle, dry natural ground (meadow, forest floor,
+    /// dry sand, rock or snow) outside a town's yard. Which species suit it is the forest's question.
+    /// </summary>
+    private bool TreeGround(VoxelAddress top, TerrainColumn column)
+    {
+        if (top.Y <= column.WaterTop || column.Slope > GenerationConstants.TopsoilSlopeMaximum) return false;
+        ushort material = NaturalMaterialAt(top, column);
+        return material is TerrainConstants.GrassMaterial or TerrainConstants.StoneMaterial
+            || (BlockId)material is BlockId.Sand or BlockId.Snow
+            || (material == TerrainConstants.DirtMaterial && !InTownYard(top.X, top.Z));
+    }
 
     /// <summary>A decided tree; <c>GroundY</c> is its trunk's lowest cell, the one above the generated ground.</summary>
-    private readonly record struct TreeShape(long OffsetX, long OffsetZ, long GroundY, TreeKind Kind, double Variant, double Scale, double Yaw);
+    private readonly record struct TreeShape(long OffsetX, long OffsetZ, long GroundY, ushort Species, double Variant, double Scale, double Yaw);
 
 }

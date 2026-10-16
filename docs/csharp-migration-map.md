@@ -207,8 +207,8 @@ warp break grid alignment. A broader activity field leaves quieter patches,
 while rock exposure permits more fine relief. The density grid remains one metre;
 changing its resolution is separate from tuning those banks.
 
-Regional fields also select surface materials and tree density per biome, and
-`TerrainColumn` carries one map sample per column so voxels never resample geography.
+Regional fields also select surface materials, and their climate places forests (`Forest`, from the
+flora catalog's ecology). `TerrainColumn` carries one map sample per column so voxels never resample geography.
 Map samples remain unchanged by local noise or player edits. River channels, banks and
 the arrival reserve suppress local noise. Steep and resistant ground exposes stone,
 submerged ground is a sand bed, and river channels hold water up to their surface. These constraints preserve the map's intended routes without

@@ -55,14 +55,12 @@ internal sealed class TerrainWorld : IDisposable
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         frame.Rebased += OnRebased;
         map ??= WorldMapGenerator.Generate(configuration);
-        ForestPattern forest = string.Equals(Environment.GetEnvironmentVariable(ForestPatterns.EnvironmentVariable),
-            ForestPatterns.DenseName, StringComparison.OrdinalIgnoreCase) ? ForestPattern.Dense : ForestPattern.Baseline;
-        recipe = new TerrainRecipe(configuration, new EngineTerrainDraws(engine.Random), map, forest);
+        recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map);
 
         // The fingerprint comes from a fresh recipe, so nothing the live one memoises can hide a
         // change in the generator or in the Engine's keyed draws underneath it.
         GenerationFingerprint = TerrainGenerationFingerprint.Compute(
-            new TerrainRecipe(configuration, new EngineTerrainDraws(engine.Random), map, forest),
+            configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map),
             TerrainGenerationFingerprint.Startup);
         CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
@@ -167,9 +165,9 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string ScatterReadout() => presentation.ScatterReadout();
 
-    internal string TuneScatter(float grassPerSquareMetre, float bushesPerSquareMetre)
+    internal string TuneScatter(float grassPerSquareMetre)
     {
-        string readout = presentation.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
+        string readout = presentation.TuneScatter(grassPerSquareMetre);
         vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
         return readout;
     }
@@ -212,6 +210,7 @@ internal sealed class TerrainWorld : IDisposable
             vegetationTiles.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
             treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre);
             treeTiles.Grow(treeReachMetres);
+            plantTiles = new PlantTiles(engine, content, recipe, session, () => overlayStore.Overlay, lastCentre);
             ui.Publish();
             started = true;
         }
@@ -252,6 +251,8 @@ internal sealed class TerrainWorld : IDisposable
         vegetationTiles = null;
         treeTiles?.Dispose();
         treeTiles = null;
+        plantTiles?.Dispose();
+        plantTiles = null;
         farField?.Dispose();
         farField = null;
         trees.Dispose();
@@ -283,6 +284,7 @@ internal sealed class TerrainWorld : IDisposable
         var changedColumns = overlayStore.Overlay.TakeChangedColumns();
         vegetationTiles?.Follow(centerVoxel, changedColumns);
         treeTiles?.Follow(centerVoxel, changedColumns);
+        plantTiles?.Follow(centerVoxel, changedColumns);
         if (farField is FarField far)
         {
             far.Follow(centerVoxel.X, centerVoxel.Z);
@@ -534,12 +536,15 @@ internal sealed class TerrainWorld : IDisposable
     private VegetationTiles? vegetationTiles;
     private TreeTiles? treeTiles;
 
+    /// <summary>The shrubs and ferns the forest places (#10032), as Engine vegetation records; null before the world starts.</summary>
+    private PlantTiles? plantTiles;
+
     /// <summary>Where the player's voxel was at the last follow: where the vegetation fields centre.</summary>
     private VoxelAddress lastCentre;
 
 
     internal string VegetationReadout() => FormattableString.Invariant(
-        $"forest={recipe.Forest} treeCell={recipe.TreeCellMetres}m treeCache={recipe.TreeCacheCells}/{GenerationConstants.FeatureCacheLimit} treeCacheClears={recipe.TreeCacheClears} cover={groundCoverMetres}m treeReach={treeReachMetres}m resident={streamer.ResidentCount} pendingAdmissions={streamer.PendingAdmissions} {presentation.ScatterReadout()} {trees.Readout()}{(vegetationTiles is null ? "" : " " + vegetationTiles.Readout())}{(treeTiles is null ? "" : " " + treeTiles.Readout())}");
+        $"treeCell={recipe.TreeCellMetres}m treeCache={recipe.TreeCacheCells}/{GenerationConstants.FeatureCacheLimit} treeCacheClears={recipe.TreeCacheClears} cover={groundCoverMetres}m treeReach={treeReachMetres}m resident={streamer.ResidentCount} pendingAdmissions={streamer.PendingAdmissions} {presentation.ScatterReadout()} {trees.Readout()}{(vegetationTiles is null ? "" : " " + vegetationTiles.Readout())}{(treeTiles is null ? "" : " " + treeTiles.Readout())}{(plantTiles is null ? "" : " " + plantTiles.Readout())}");
 
 
     /// <summary>Sets how far trees are drawn for the session, for measuring (the view distance sets it again).</summary>
@@ -682,8 +687,7 @@ internal sealed class TerrainWorld : IDisposable
     internal string GenerationReadout()
     {
         uint version = recipe.Contract.Version;
-        string golden = recipe.Forest != ForestPattern.Baseline ? "forest-study"
-            : recipe.Configuration != TerrainConfiguration.Default ? "custom-world" : TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
+        string golden = recipe.Configuration != TerrainConfiguration.Default ? "custom-world" : TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
             ? expected == GenerationFingerprint ? "match" : string.Create(CultureInfo.InvariantCulture, $"mismatch expected={expected:x16}")
             : "unrecorded";
         return string.Create(CultureInfo.InvariantCulture,

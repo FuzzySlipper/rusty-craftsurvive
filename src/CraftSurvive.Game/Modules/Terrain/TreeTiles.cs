@@ -39,7 +39,11 @@ internal sealed class TreeTiles : IDisposable
     /// <summary>A tree record's layer key: one per species variant.</summary>
     private const uint LayerBase = 0x100, VariantsPerKind = 4;
     private const uint MaximumTreesPerLayer = 65_536;
-    private const int CommitsPerUpdate = 4;
+    /// <summary>
+    /// A tile's tree decisions take about 15 ms on the update's thread (#10032), so one tile is committed an
+    /// update: a fresh view fills nearest first over a few seconds rather than stalling an update.
+    /// </summary>
+    private const int CommitsPerUpdate = 1;
     private const double FocusStepMetres = 4;
     private const float CellCentre = 0.5f;
 
@@ -51,7 +55,7 @@ internal sealed class TreeTiles : IDisposable
     private readonly VegetationField field;
     private readonly VegetationStreamer streamer;
     private (double X, double Z) focus;
-    private long recordsMade;
+    private long recordsMade, decidedTiles, decidingTicks, slowestTicks;
 
     internal TreeTiles(IEngineContext engine, TerrainRecipe recipe, SpatialSession session, TerrainTrees trees,
         Func<VoxelAddress, ushort> materialAt, Func<VoxelAddress, bool> edited, VoxelAddress centre)
@@ -70,7 +74,7 @@ internal sealed class TreeTiles : IDisposable
     /// <summary>Sets every species variant's layer out to <paramref name="farReach"/>: near mesh, far mesh, then impostor.</summary>
     internal void Grow(float farReach)
     {
-        foreach ((TreeKind kind, Appearance[] near) in trees.NearMeshes)
+        foreach ((ushort kind, Appearance[] near) in trees.NearMeshes)
         {
             Appearance[] far = trees.FarMeshes[kind];
             for (int variant = 0; variant < Math.Min(near.Length, (int)VariantsPerKind); variant++)
@@ -112,7 +116,7 @@ internal sealed class TreeTiles : IDisposable
     {
         VegetationReadout r = engine.Vegetation.Read(field);
         return string.Create(CultureInfo.InvariantCulture,
-            $"treeTiles tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} placeMs={r.PlacementMicroseconds / 1e3:F2} selectMs={r.SelectionMicroseconds / 1e3:F2} publishMs={r.PublicationMicroseconds / 1e3:F2} invalidated={r.InvalidatedTiles} records={recordsMade} committed={streamer.Committed} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
+            $"treeTiles tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} placeMs={r.PlacementMicroseconds / 1e3:F2} selectMs={r.SelectionMicroseconds / 1e3:F2} publishMs={r.PublicationMicroseconds / 1e3:F2} invalidated={r.InvalidatedTiles} records={recordsMade} decideMs={Milliseconds(decidedTiles == 0 ? 0 : decidingTicks / decidedTiles):F2}/tile slowest={Milliseconds(slowestTicks):F2} committed={streamer.Committed} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
     }
 
     public void Dispose()
@@ -121,14 +125,26 @@ internal sealed class TreeTiles : IDisposable
         field.Dispose();
     }
 
-    private static uint Key(TreeKind kind, int variant) =>
-        LayerBase + ((uint)kind * VariantsPerKind) + (uint)variant;
+    private static double Milliseconds(long ticks) => ticks * 1e3 / System.Diagnostics.Stopwatch.Frequency;
+
+    private static uint Key(ushort species, int variant) =>
+        LayerBase + ((uint)species * VariantsPerKind) + (uint)variant;
 
     /// <summary>
     /// The tile's standing trees as records in their variant's layer, on the update's thread:
     /// the recipe's decisions use the Engine's keyed draws, and standing reads the edits.
     /// </summary>
     private void AddTrees(VegetationTileSamples samples)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        Decide(samples);
+        long spent = System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        decidedTiles++;
+        decidingTicks += spent;
+        slowestTicks = Math.Max(slowestTicks, spent);
+    }
+
+    private void Decide(VegetationTileSamples samples)
     {
         VegetationTileRequest tile = samples.Tile;
         long cell = recipe.TreeCellMetres;
@@ -142,9 +158,9 @@ internal sealed class TreeTiles : IDisposable
             bool touched = TreeFelling.Core(tree).Append(TreeFelling.Support(tree)).Any(edited);
             if (touched && !TreeFelling.Stands(tree, materialAt)) continue;
 
-            int variants = trees.NearMeshes[tree.Kind].Length;
+            int variants = trees.NearMeshes[tree.Species].Length;
             int variant = Math.Min(variants - 1, (int)(tree.Variant * variants));
-            uint key = Key(tree.Kind, variant);
+            uint key = Key(tree.Species, variant);
             double ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + FarGround.GroundTopFace;
             float x = (float)(tree.X + CellCentre - tile.OriginX), z = (float)(tree.Z + CellCentre - tile.OriginZ);
             samples.Records.Add(new VegetationRecord(key, new Vector3(x, (float)(ground - TerrainTrees.Sink), z), (float)tree.Yaw, (float)tree.Scale));

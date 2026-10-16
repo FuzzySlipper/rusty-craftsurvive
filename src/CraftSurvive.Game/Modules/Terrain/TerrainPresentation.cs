@@ -61,10 +61,10 @@ internal sealed class TerrainPresentation : IDisposable
     }
 
     /// <summary>Sets how densely grass and bushes grow (0 removes them), for tuning.</summary>
-    internal string TuneScatter(float grassPerSquareMetre, float bushesPerSquareMetre)
+    internal string TuneScatter(float grassPerSquareMetre)
     {
         VoxelScenePresentation current = projection ?? throw new InvalidOperationException("Terrain presentation is unavailable.");
-        scatter!.Tune(current, grassPerSquareMetre, bushesPerSquareMetre);
+        scatter!.Tune(current, grassPerSquareMetre);
         return ScatterReadout();
     }
 

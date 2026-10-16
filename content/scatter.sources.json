@@ -1,5 +1,5 @@
 {
- "purpose": "Ground clutter scattered by TerrainScatter (#9668): bushes, a fern, flower clumps and field stones. Generated locally and stylised toward content/style/palette.json. The field stones and flower clumps are textured (#9831).",
+ "purpose": "Ground clutter (#9668, #10032): flower clumps and field stones scattered by TerrainScatter on the voxels and the vegetation tiles, and the flora catalog's shrubs and ferns, placed by PlantTiles where their ecology suits. The field stones and flower clumps are textured (#9831); shrubs and ferns are built by scripts/generate-flora.py from content/game/flora/catalog.json.",
  "generated": "2026-10-07",
  "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter",
  "rejected": "fern seed 31 came out as a small palm",
@@ -7,15 +7,15 @@
   {
    "model": "content/game/models/scatter/flowers-1.prop-mesh.json",
    "sha256": "d919d6cf5f0ff275b0fdfdbe402d51e82e23c8932c20d5db6b038af57633d293",
-   "tool": "scripts/generate-tree.py (crossed upright cards of painted clump sprites, #9831)",
-   "command": "python3 scripts/generate-tree.py flowers --seed 1 --name flowers-1 --cells 0,1",
+   "tool": "scripts/generate-flora.py (crossed upright cards of painted clump sprites, #9831)",
+   "command": "python3 scripts/generate-flora.py flowers --seed 1 --name flowers-1 --cells 0,1",
    "texture": "content/game/textures/trees/flowers-leaves.png"
   },
   {
    "model": "content/game/models/scatter/flowers-2.prop-mesh.json",
    "sha256": "9b6cd9ad1f360741239c98ce0b8eebf084ca9c68e1cfd8e47d7284257e1695d9",
-   "tool": "scripts/generate-tree.py (crossed upright cards of painted clump sprites, #9831)",
-   "command": "python3 scripts/generate-tree.py flowers --seed 2 --name flowers-2 --cells 2,3",
+   "tool": "scripts/generate-flora.py (crossed upright cards of painted clump sprites, #9831)",
+   "command": "python3 scripts/generate-flora.py flowers --seed 2 --name flowers-2 --cells 2,3",
    "texture": "content/game/textures/trees/flowers-leaves.png"
   },
   {
@@ -61,20 +61,92 @@
   {
    "model": "content/game/models/scatter/bush-1.prop-mesh.json",
    "sha256": "33caa4fc76b1aa16f64569e42d9e2d72b66a614a325e76b90492b00f4acfd85e",
-   "tool": "scripts/generate-tree.py (procedural leaf cards / fronds, #9685)",
-   "command": "python3 scripts/generate-tree.py bush --seed 1 --name bush-1"
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py bush"
   },
   {
    "model": "content/game/models/scatter/bush-2.prop-mesh.json",
    "sha256": "75b4a4cbeed350f34172082fa2cbc361ab8076c6de77f518fbca1e3cda2fa596",
-   "tool": "scripts/generate-tree.py (procedural leaf cards / fronds, #9685)",
-   "command": "python3 scripts/generate-tree.py bush --seed 2 --name bush-2"
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py bush"
   },
   {
    "model": "content/game/models/scatter/fern-1.prop-mesh.json",
    "sha256": "5dade46e6710b26d06600b9fc08c654bf292fbfcbb7db5982f918f280cfd9476",
-   "tool": "scripts/generate-tree.py (procedural leaf cards / fronds, #9685)",
-   "command": "python3 scripts/generate-tree.py fern --seed 1 --name fern-1"
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py fern"
+  },
+  {
+   "model": "content/game/models/scatter/broom-1.prop-mesh.json",
+   "sha256": "2dac26dee3623a54e3e7c576e708315d25005379c7de44a7ef3c836d336486bf",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py broom"
+  },
+  {
+   "model": "content/game/models/scatter/broom-2.prop-mesh.json",
+   "sha256": "3c6c7a617bc9f97cf93c653d4b6ac924f3c3b8dbf1837b037c7bdfbc26ff235e",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py broom"
+  },
+  {
+   "model": "content/game/models/scatter/gorse-1.prop-mesh.json",
+   "sha256": "26e42cb1c6f908a6ecaad03baff37cb99fc12bb4b4a3ece438eff3bfbde1a78b",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py gorse"
+  },
+  {
+   "model": "content/game/models/scatter/gorse-2.prop-mesh.json",
+   "sha256": "bb1b648833be5c48096c7cfc4f0f994548011d6bee5d13ef5351217199a1b9d4",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py gorse"
+  },
+  {
+   "model": "content/game/models/scatter/heather-1.prop-mesh.json",
+   "sha256": "d0c754a05fa0b2c1f374df7bba9b2711ed138e8e140d4dcd3cec901df5354980",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py heather"
+  },
+  {
+   "model": "content/game/models/scatter/heather-2.prop-mesh.json",
+   "sha256": "7642f2d3692b9be688e69a099e37006b4886779ded5d81ec642febe52b7c8e73",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py heather"
+  },
+  {
+   "model": "content/game/models/scatter/rosemary-1.prop-mesh.json",
+   "sha256": "6f3ac7fcaba4bed8f1710dcf408fa1ce887673d66c9fd3c9d269cce76657082a",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py rosemary"
+  },
+  {
+   "model": "content/game/models/scatter/rosemary-2.prop-mesh.json",
+   "sha256": "9f11b2b9f093d27553d7f6f2b926e2d65e48f141b957855bdece7d5278ce529e",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py rosemary"
+  },
+  {
+   "model": "content/game/models/scatter/holly-1.prop-mesh.json",
+   "sha256": "414a7ea65c46e97d9d1e3bdfcd3b1d2501c897837e3e8a356e7e129e099d4efd",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py holly"
+  },
+  {
+   "model": "content/game/models/scatter/holly-2.prop-mesh.json",
+   "sha256": "403be85ae382dfd153afaa3a2b4b38b58de0f8e2ddc790509bb2c28925105713",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py holly"
+  },
+  {
+   "model": "content/game/models/scatter/hazel-1.prop-mesh.json",
+   "sha256": "c9cc00d64c99a74b29c37380773a455f9dc11fb89c2bb930659f03c72cb55399",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py hazel"
+  },
+  {
+   "model": "content/game/models/scatter/hazel-2.prop-mesh.json",
+   "sha256": "a683e01f481a007d54059a94da3686a810e082aa37ebde95c3c4de6ce44e0f43",
+   "tool": "scripts/generate-flora.py (flora catalog, #10032)",
+   "command": "python3 scripts/generate-flora.py hazel"
   }
  ],
  "textures": [

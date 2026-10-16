@@ -50,6 +50,8 @@
   <ItemGroup>
     <!-- Continent designs are part of the generator (#9815), so they ship inside it, not as content. -->
     <EmbeddedResource Include="Modules/WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
+    <!-- The flora catalog (#10032): which species stand where is part of generation; the same file is content for the meshes. -->
+    <EmbeddedResource Include="../../content/game/flora/catalog.json" LogicalName="WorldGen.Flora.catalog.json" />
   </ItemGroup>
 
   <ItemGroup>

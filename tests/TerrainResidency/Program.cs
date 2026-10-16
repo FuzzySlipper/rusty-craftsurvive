@@ -1,9 +1,9 @@
 using CraftSurvive.Game.Tests;
 
-if (args is ["forest-study"])
+if (args is ["forest"])
 {
-    Check.Section("dense forest study", ForestStudyChecks.Run);
-    return Check.Finish("ForestStudy");
+    Check.Section("forests", ForestChecks.Run);
+    return Check.Finish("Forests");
 }
 
 if (args is ["vegetation-ground"])
@@ -44,7 +44,7 @@ Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);
 Check.Section("view distance window", ResidencyChecks.ViewDistanceMovesTheWindow);
 Check.Section("generation", GenerationChecks.Run);
-Check.Section("dense forest study", ForestStudyChecks.Run);
+Check.Section("forests", ForestChecks.Run);
 Check.Section("vegetation ground", VegetationGroundChecks.Run);
 Check.Section("continuous density", DensityChecks.Run);
 Check.Section("edits", EditChecks.Run);

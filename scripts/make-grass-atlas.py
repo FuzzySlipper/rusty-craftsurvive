@@ -6,7 +6,7 @@ the key; magenta is keyed by hue so lavender and blue petals survive. This keys 
 drops a painted ground line along the base if there is one, crops to the tuft, scales it to sit on
 the bottom edge of its cell (centred, stretched by at most MAXIMUM_STRETCH to fill it) and pulls its colours a little toward the
 palette's ramps (--ramps, default meadow, foliage, autumn and snow). Four sources fill a 2x2 atlas, left
-to right then top to bottom; a clump variant (TerrainScatter's grass, generate-tree.py's flowercards) samples
+to right then top to bottom; a clump variant (TerrainScatter's grass, generate-flora.py's flowercards) samples
 one cell.
 
     python3 scripts/make-grass-atlas.py OUT.png A.png B.png C.png D.png [--cell 256]

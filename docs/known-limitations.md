@@ -615,17 +615,17 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   cube course but not the same course reconstructed as stone (rusty-engine #9681), and a vantage
   point is there to be walked up. There is no coloured (ceramic) accent: the terrain blend's four
   layers are taken (rusty-engine #9676).
-- **Trees are meshes on an invisible trunk core; distant trees end at 400 m.** The recipe plants
-  each tree (kind by biome, drawn variant, size and turn) and writes only a short `TreeCore` column
-  into the voxels, which bodies collide with and a blast can break. `TerrainTrees` draws a
-  procedural tree (`scripts/generate-tree.py`: low-poly trunk and limbs, alpha-cut leaf cards or
-  fronds, nearest-filtered textures) on every resident core within 144 m. Beyond that, and out to
-  400 m, it draws each tree's far variant on the recipe's ground, sunk a metre under the far field's
-  coarser mesh. Past 400 m the far field has no trees, and the fog hides the edge. The far band's
-  decisions are swept a slice per update, so after a teleport it fills in over a fraction of a
-  second. It reads only edited cores back through the materials, so a far tree felled by an edit
-  disappears and an unedited one is assumed standing. A canopy is not solid, and the collision is
-  the core's whole cell, a little wider than a slender trunk.
+- **Trees are meshes on an invisible trunk core; forests follow climate only.** The recipe plants
+  each tree (species from the flora catalog's ecology, stand, variant, size and turn) and writes only
+  a short `TreeCore` column into the voxels, which bodies collide with and a blast can break. Trees are
+  Engine vegetation records: a procedural mesh (`scripts/generate-flora.py`: low-poly trunk and limbs,
+  alpha-cut leaf cards or fronds, nearest-filtered textures) near, its far variant from 144 m, and an
+  impostor from 350 m out to the tree reach, which follows the view distance. Edited cores are read
+  back through the materials, so a felled tree disappears and an unedited one is assumed standing. A
+  canopy is not solid, and the collision is the core's whole cell, a little wider than a slender trunk.
+  Where forests stand comes from each species' temperature and moisture range, glades and rock; the
+  catalog's riparian preference is not read yet (poplars and willows follow climate, not rivers), and
+  shrubs and ferns are drawn only to 160 m.
 - **Under water the view closes into murk.** While the player's eyes are under water,
   `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same
   colour (exponential squared), in the open and underground alike. Water, glass and tree cores are

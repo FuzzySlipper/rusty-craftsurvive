@@ -1,4 +1,10 @@
-"""Generate a procedural tree as a CraftSurvive prop mesh with leaf cards (#9685).
+"""Generate the flora catalog's trees and plants as CraftSurvive prop meshes (#9685, #10032).
+
+Every species is data in content/game/flora/catalog.json: its form (trunk, branching levels, leaf
+cards, fronds or a card clump), its bark and foliage styles, its height, its seeded variants and,
+for the game, its role and ecology. With no arguments this builds every species' variants (and the
+far variant of every tree), and the textures each one samples; naming species builds only those.
+A species may start from another (`like`) and change parts of it (`set`, merged key by key).
 
 Image-to-mesh crowns come out as lumpy shells. Instead, a tree here is built like an older game's:
 
@@ -25,22 +31,27 @@ With --far it also writes NAME-far: the distant-band variant (#9677) from the sa
 scale, so the silhouette holds at the switch: only the trunk and first limbs, four-sided, and every
 FAR_KEEP-th leaf card enlarged by FAR_GROW (fronds in two segments).
 
-Textures are drawn from the palette ramps (content/style/palette.json): KIND-bark.png and
-KIND-leaves.png in content/game/textures/trees/, RGBA (the Engine admits only RGBA PNGs). They are
-the same for every seed of a kind.
+Textures are drawn from the palette ramps (content/style/palette.json): BARK-bark.png and
+FOLIAGE-leaves.png in content/game/textures/trees/, named for the catalog's bark and foliage styles,
+RGBA (the Engine admits only RGBA PNGs). They are the same for every seed of a species.
 
 Output is the product prop-mesh JSON (Y up, metres; see PropMesh) with per-part UVs and the
 texture each role samples:
     {"name", "height", "bounds", "textures": {"bark", "leaves"},
      "parts": [{"role", "positions", "normals", "uvs", "colors", "indices"}]}
 
-    python3 scripts/generate-tree.py oak --seed 1 --name oak-1
-    python3 scripts/generate-tree.py bush --seed 1 --name bush-1
+    python3 scripts/generate-flora.py                 # every species in the catalog
+    python3 scripts/generate-flora.py oak birch       # those species' variants and textures
+    python3 scripts/generate-flora.py --sheet flora.png   # and a contact sheet of every variant (Blender)
+    python3 scripts/generate-flora.py oak --seed 1 --name broadleaf --height 1.0 --far-only --folder map --no-textures
+        # one asset outside the catalog's variants (the world map's clutter)
 """
 import argparse
 import json
 import math
 import random
+import subprocess
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -51,6 +62,7 @@ CONTENT = ROOT / "content" / "game"
 MODELS = CONTENT / "models"
 TEXTURES = "textures/trees"
 PALETTE = ROOT / "content" / "style" / "palette.json"
+CATALOG = CONTENT / "flora" / "catalog.json"
 DECIMALS = 4
 UP = np.array([0.0, 1.0, 0.0])
 GOLDEN_ANGLE = math.pi * (3 - math.sqrt(5))
@@ -65,161 +77,66 @@ ATLAS_CELLS, LEAF_CELL = 2, 128
 # Frond atlas: FROND_CELLS fronds side by side, each FROND_WIDTH x FROND_LENGTH pixels, base at the bottom.
 FROND_CELLS, FROND_WIDTH, FROND_LENGTH = 2, 64, 256
 
-# Per kind: the trunk, then each branching level's children (count, where along the parent they
-# start and end, angle from the parent's axis, length in metres before scaling, radius relative to
-# the parent's at that point, sides, wobble, rise (+up / -droop) and segments), then the leaves
-# (cards per twig, from how far along it, card size in metres, the crown-normal weight).
-KINDS = {
-    "oak": {
-        "height": 9.0,
-        "bark": "oak",
-        "leaves": "oak",
-        "trunk": {"length": 3.6, "radius": 0.38, "sides": 7, "segments": 3, "wobble": 0.08, "rise": 0.0,
-                  "tip": 0.6, "flare": 1.4},
-        "levels": [
-            {"count": (5, 6), "start": 0.55, "end": 1.0, "angle": (35, 55), "length": (4.2, 5.2), "shrink": 0.1,
-             "radius": 0.6, "sides": 6, "segments": 4, "wobble": 0.16, "rise": 0.1, "tip": 0.35, "even": True},
-            {"count": (4, 6), "start": 0.25, "end": 1.0, "angle": (30, 60), "length": (1.8, 2.6), "shrink": 0.3,
-             "radius": 0.55, "sides": 4, "segments": 3, "wobble": 0.3, "rise": 0.1, "tip": 0.3},
-        ],
-        "cards": {"per_twig": (6, 9), "from": 0.15, "size": (1.8, 2.6), "crown_normal": 0.75, "spread": 0.45,
-                  "hang": 0.0},
-    },
-    "birch": {
-        "height": 10.0,
-        "bark": "birch",
-        "leaves": "birch",
-        "trunk": {"length": 9.6, "radius": 0.19, "sides": 7, "segments": 6, "wobble": 0.05, "rise": 0.0,
-                  "tip": 0.2, "flare": 1.25},
-        "levels": [
-            {"count": (15, 19), "start": 0.3, "end": 0.98, "angle": (30, 55), "length": (2.2, 3.2), "shrink": 0.7,
-             "radius": 0.45, "sides": 4, "segments": 3, "wobble": 0.22, "rise": -0.04, "tip": 0.3},
-            {"count": (2, 4), "start": 0.3, "end": 1.0, "angle": (25, 50), "length": (0.9, 1.5), "shrink": 0.3,
-             "radius": 0.6, "sides": 3, "segments": 2, "wobble": 0.3, "rise": -0.18, "tip": 0.4},
-        ],
-        "cards": {"per_twig": (4, 6), "from": 0.1, "size": (1.2, 1.7), "crown_normal": 0.7, "spread": 0.35,
-                  "hang": 0.55},
-    },
-    # Whorls of near-level branches shortening toward the top, flat needle sprays along them.
-    "pine": {
-        "height": 12.0,
-        "bark": "pine",
-        "leaves": "pine",
-        "trunk": {"length": 12.0, "radius": 0.26, "sides": 6, "segments": 6, "wobble": 0.03, "rise": 0.0,
-                  "tip": 0.12, "flare": 1.3},
-        "levels": [
-            {"count": (36, 42), "start": 0.14, "end": 0.98, "angle": (78, 98), "length": (4.2, 5.0), "shrink": 0.9,
-             "radius": 0.3, "sides": 3, "segments": 2, "wobble": 0.08, "rise": -0.06, "tip": 0.3},
-        ],
-        "cards": {"per_twig": (8, 11), "from": 0.0, "size": (1.8, 2.4), "crown_normal": 0.55, "spread": 0.15,
-                  "hang": 0.1, "roll": True, "size_by_reach": True},
-    },
-    "dead": {
-        "height": 8.0,
-        "bark": "dead",
-        "leaves": None,
-        "trunk": {"length": 4.5, "radius": 0.3, "sides": 6, "segments": 4, "wobble": 0.12, "rise": 0.0,
-                  "tip": 0.5, "flare": 1.5},
-        "levels": [
-            {"count": (3, 5), "start": 0.45, "end": 1.0, "angle": (25, 55), "length": (2.5, 3.5), "shrink": 0.2,
-             "radius": 0.6, "sides": 5, "segments": 4, "wobble": 0.3, "rise": 0.05, "tip": 0.35, "even": True},
-            {"count": (2, 4), "start": 0.3, "end": 1.0, "angle": (25, 60), "length": (1.0, 1.8), "shrink": 0.3,
-             "radius": 0.55, "sides": 4, "segments": 3, "wobble": 0.4, "rise": 0.08, "tip": 0.25},
-            {"count": (1, 3), "start": 0.4, "end": 1.0, "angle": (25, 60), "length": (0.4, 0.8), "shrink": 0.2,
-             "radius": 0.6, "sides": 3, "segments": 2, "wobble": 0.4, "rise": 0.1, "tip": 0.2},
-        ],
-        "cards": None,
-    },
-    # A leaning trunk curving back up, crowned with drooping fronds.
-    "palm": {
-        "height": 9.0,
-        "bark": "palm",
-        "leaves": "palm",
-        "trunk": {"length": 8.0, "radius": 0.25, "sides": 6, "segments": 7, "wobble": 0.03, "rise": 0.1,
-                  "tip": 0.75, "flare": 1.35, "lean": 0.4},
-        "levels": [],
-        "cards": None,
-        "fronds": {"at": "top", "count": (12, 15), "length": (4.4, 5.4), "width": (1.5, 1.9), "elevation": (10, 50),
-                   "droop": 0.35, "segments": 5, "root_sway": 0.3},
-    },
-    # Scatter (models/scatter/): leaf cards on short stems, swaying from the root.
-    "bush": {
-        "height": 1.1,
-        "folder": "scatter",
-        # Leaves only: a scatter layer draws with one material, and the stems hardly show.
-        "bark": None,
-        "leaves": "bush",
-        "sink": 0.1,
-        "trunk": {"length": 0.25, "radius": 0.05, "sides": 3, "segments": 1, "wobble": 0.0, "rise": 0.0,
-                  "tip": 0.8, "flare": 1.0},
-        "levels": [
-            {"count": (7, 9), "start": 0.6, "end": 1.0, "angle": (25, 65), "length": (0.8, 1.1), "shrink": 0.0,
-             "radius": 0.7, "sides": 3, "segments": 2, "wobble": 0.25, "rise": 0.1, "tip": 0.4, "even": True},
-        ],
-        "cards": {"per_twig": (6, 9), "from": 0.25, "size": (0.55, 0.8), "crown_normal": 0.7, "spread": 0.5,
-                  "hang": 0.0, "rooted": True},
-    },
-    # A flower clump as crossed upright cards of painted sprites; its atlas is made by make-grass-atlas.py.
-    "flowers": {
-        "height": 0.5,
-        "folder": "scatter",
-        "bark": None,
-        "leaves": "flowers",
-        "sink": 0.0,
-        "trunk": None,
-        "levels": [],
-        "cards": None,
-        "clump": {"cards": (5, 6), "size": (0.4, 0.55), "spread": 0.1, "lean": 0.3, "cells": (0, 1)},
-    },
-    "fern": {
-        "height": 0.8,
-        "folder": "scatter",
-        "bark": None,
-        "leaves": "fern",
-        "trunk": None,
-        "levels": [],
-        "cards": None,
-        "fronds": {"at": "ground", "count": (9, 12), "length": (0.9, 1.3), "width": (0.3, 0.42), "elevation": (35, 70),
-                   "droop": 0.45, "segments": 4, "root_sway": 0.0},
-    },
-}
+# The catalog's species, each resolved to a full form: the trunk, then each branching level's children
+# (count, where along the parent they start and end, angle from the parent's axis, length in metres
+# before scaling, radius relative to the parent's at that point, sides, wobble, rise (+up / -droop) and
+# segments), then the leaves (cards per twig, from how far along it, card size in metres, the
+# crown-normal weight), fronds or a card clump. Foliage styles say how a leaf atlas is drawn: the ramp,
+# the lighter ramp the most lit leaves come from (those lit above "light_from"), leaf length and width in
+# pixels, leaves per cluster, how many of the atlas's cells carry a few autumn-turned leaves, and the
+# darkest point of the ramp a leaf uses; needle sprays and fronds have their own sizes.
 
-# Leaf cluster drawing per kind: the ramp, the lighter ramp the most lit leaves come from (those
-# lit above "light_from"), leaf length and width in pixels, leaves per cluster, how many of the
-# atlas's cells carry a few autumn-turned leaves, and the darkest point of the ramp a leaf uses
-# (the crown's own shading and self-shadowing in the game darken it further).
-LEAF_STYLES = {
-    "oak": {"ramp": "foliage", "light": "meadow", "accent": "autumn", "length": (13, 18), "width": (8, 11),
-            "leaves": (46, 60), "turned_cells": 1, "floor": 0.55, "light_from": 0.7},
-    "birch": {"ramp": "meadow", "light": "meadow", "accent": "autumn", "length": (10, 14), "width": (6, 8),
-              "leaves": (60, 78), "turned_cells": 1, "floor": 0.4, "light_from": 0.8},
-    "bush": {"ramp": "foliage", "light": "meadow", "accent": "autumn", "length": (9, 13), "width": (6, 8),
-             "leaves": (70, 90), "turned_cells": 0, "floor": 0.45, "light_from": 0.75},
-    # Needle sprays and fronds: the ramp, the ramp of the lightest needles or leaflets, and their size.
-    "pine": {"form": "needles", "ramp": "foliage", "light": "teal", "needle": (9, 14), "side_twigs": (6, 8)},
-    "palm": {"form": "frond", "ramp": "foliage", "light": "meadow", "leaflet": 30, "leaflet_width": 3, "spacing": 5,
-             "angle": (35, 50)},
-    "fern": {"form": "frond", "ramp": "foliage", "light": "meadow", "leaflet": 26, "leaflet_width": 6, "spacing": 7,
-             "angle": (20, 35)},
-    # Painted sprites made elsewhere (scripts/make-grass-atlas.py): nothing to draw here.
-    "flowers": {"form": "sprites"},
-}
+
+def merged(base, change):
+    """A copy of base with change laid over it, dictionaries merged key by key."""
+    out = dict(base)
+    for key, value in change.items():
+        out[key] = merged(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
+    return out
+
+
+def load_catalog():
+    catalog = json.loads(CATALOG.read_text())
+    raw = catalog["species"]
+
+    def resolve(name, seen=()):
+        if name in seen:
+            raise ValueError(f"species {name} inherits from itself")
+        entry = raw[name]
+        base = resolve(entry["like"], seen + (name,)) if "like" in entry else {}
+        own = {k: v for k, v in entry.items() if k not in ("like", "set")}
+        return merged(merged(base, own), entry.get("set", {}))
+
+    return {name: resolve(name) for name in raw}, catalog["foliage"], catalog["barks"]
+
+
+KINDS, LEAF_STYLES, BARK_STYLES = load_catalog()
 
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("kind", choices=sorted(KINDS))
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--name", help="mesh name (default KIND-pSEED)")
-    parser.add_argument("--height", type=float, help="metres to the crown's top (default the kind's)")
-    parser.add_argument("--no-textures", action="store_true", help="leave the kind's textures as they are")
-    parser.add_argument("--far", action="store_true", help="also write NAME-far, the distant-band variant")
-    parser.add_argument("--far-only", action="store_true", help="write only the distant-band variant, as NAME (the world map's clutter, #9831)")
-    parser.add_argument("--folder", help="models subfolder to write to (default the kind's: trees, or scatter)")
+    parser.add_argument("species", nargs="*", help="species to build (default every species in the catalog)")
+    parser.add_argument("--seed", type=int, help="one asset: this seed of the one species named")
+    parser.add_argument("--name", help="one asset: mesh name (default SPECIES-pSEED)")
+    parser.add_argument("--height", type=float, help="one asset: metres to the crown's top (default the species')")
+    parser.add_argument("--no-textures", action="store_true", help="leave the textures as they are")
+    parser.add_argument("--far", action="store_true", help="one asset: also write NAME-far, the distant-band variant")
+    parser.add_argument("--far-only", action="store_true", help="one asset: write only the distant-band variant, as NAME (the world map's clutter, #9831)")
+    parser.add_argument("--folder", help="one asset: models subfolder to write to (default the species': trees, or scatter)")
     parser.add_argument("--frond-width", type=float, default=1.0,
-                        help="multiply a palm's or fern's frond width (the map's palms, seen from far, need broad fronds)")
-    parser.add_argument("--cells", help="flowers: comma-separated atlas cells (0-3) the cards show (default the kind's)")
-    return parser.parse_args()
+                        help="one asset: multiply a palm's or fern's frond width (the map's palms, seen from far, need broad fronds)")
+    parser.add_argument("--cells", help="one asset, flowers: comma-separated atlas cells (0-3) the cards show")
+    parser.add_argument("--sheet", help="also write a contact sheet of the species' variants to this PNG (Blender)")
+    parser.add_argument("--no-build", action="store_true", help="with --sheet: draw the sheet from the meshes as they are")
+    args = parser.parse_args()
+    unknown = [name for name in args.species if name not in KINDS]
+    if unknown:
+        parser.error(f"not in the catalog: {', '.join(unknown)}")
+    args.single = any(value is not None for value in (args.seed, args.name, args.height, args.folder, args.cells)) \
+        or args.far or args.far_only or args.frond_width != 1.0
+    if args.single and len(args.species) != 1:
+        parser.error("one asset (--seed, --name, ...) needs exactly one species")
+    return args
 
 
 def ramps():
@@ -368,7 +285,7 @@ def leaf_cards(rng, kind, branches, crown_top, far=False):
         u0, v0 = (cell % ATLAS_CELLS) / ATLAS_CELLS, (cell // ATLAS_CELLS) / ATLAS_CELLS
         u1, v1 = u0 + 1 / ATLAS_CELLS, v0 + 1 / ATLAS_CELLS
         first = len(positions)
-        half_a, half_b = across * size / 2, along * size / 2
+        half_a, half_b = across * size / 2, along * size * cards.get("aspect", 1.0) / 2
         corners = [centre_of_card - half_a - half_b, centre_of_card + half_a - half_b,
                    centre_of_card + half_a + half_b, centre_of_card - half_a + half_b]
         for corner, uv in zip(corners, [(u0, v1), (u1, v1), (u1, v0), (u0, v0)]):
@@ -458,8 +375,21 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_widt
     trunk = kind["trunk"]
     branches = []
     if trunk is not None:
-        lean = normalise(UP + random_unit(rng) * trunk.get("lean", 0.06))
-        grow(rng, kind, np.array([0.0, -kind.get("sink", 0.4), 0.0]), lean, trunk["length"], trunk["radius"], 0, branches)
+        root = np.array([0.0, -kind.get("sink", 0.4), 0.0])
+        stems = trunk.get("stems", 1)
+        if stems == 1:
+            lean = normalise(UP + random_unit(rng) * trunk.get("lean", 0.06))
+            grow(rng, kind, root, lean, trunk["length"], trunk["radius"], 0, branches)
+        else:
+            # Stems spread round the root at "splay" from upright, each a little shorter and thinner.
+            azimuth = rng.uniform(0, 2 * math.pi)
+            for _ in range(stems):
+                azimuth += 2 * math.pi / stems + rng.uniform(-0.4, 0.4)
+                splay = math.radians(rng.uniform(*trunk["splay"]))
+                out = np.array([math.cos(azimuth) * math.sin(splay), math.cos(splay), math.sin(azimuth) * math.sin(splay)])
+                share = rng.uniform(0.75, 1.0)
+                grow(rng, kind, root, normalise(out + random_unit(rng) * trunk.get("lean", 0.06)),
+                     trunk["length"] * share, trunk["radius"] * share, 0, branches)
     crown_top = max((p[1] for b in branches for p in b.points), default=1.0)
     bark = {"positions": [], "normals": [], "uvs": [], "colors": [], "indices": []}
     uv_metres = BARK_TILE_METRES * BARK_TEXELS_UP / BARK_TEXELS_AROUND
@@ -647,13 +577,147 @@ def palm_bark(palette, rng):
     return image
 
 
-BARKS = {"birch": birch_bark, "oak": oak_bark, "pine": pine_bark, "palm": palm_bark,
-         # Weathered grey wood: the oak's fissured plates in the stone ramp.
-         "dead": lambda palette, rng: oak_bark(palette, rng, "stone")}
+def smooth_bark(palette, rng, style):
+    """Smooth bark (beech, alder, young poplar): a soft grey, faint horizontal marks and a few dark rings."""
+    w, h = BARK_TEXELS_AROUND, BARK_TEXELS_UP
+    ramp = palette[style.get("ramp", "stone")]
+    tone = 0.45 + 0.3 * wrap_noise(rng, w, h, 16) + 0.12 * wrap_noise(rng, w, h, 4)
+    image = np.zeros((h, w, 3))
+    for y in range(h):
+        for x in range(w):
+            image[y, x] = ramp_colour(ramp[1:], tone[y, x])
+    mark = np.array(ramp[1], dtype=float)
+    for _ in range(style.get("marks", 14)):
+        y, x, length = rng.randrange(h), rng.randrange(w), rng.randint(2, 6)
+        for i in range(length):
+            image[y, (x + i) % w] = mark
+    return image
 
 
-def leaf_polygon(cx, cy, length, width, angle):
-    """A pointed leaf: an ellipse-like outline sharpened at both ends."""
+def corky_bark(palette, rng, style):
+    """Thick, spongy cork in deep blocky ridges (cork oak), warm grey-brown with dark furrows."""
+    w, h = BARK_TEXELS_AROUND, BARK_TEXELS_UP
+    ramp = palette[style.get("ramp", "earth")]
+    image = np.zeros((h, w, 3))
+    tone = 0.45 + 0.35 * wrap_noise(rng, w, h, 8)
+    for y in range(h):
+        for x in range(w):
+            image[y, x] = ramp_colour(ramp[2:], tone[y, x])
+    furrow = np.array(ramp[0], dtype=float)
+    y = 0
+    while y < h:
+        rows = rng.randint(6, 12)
+        x = rng.randrange(w)
+        while x < w + 16:
+            width = rng.randint(4, 8)
+            for dy in range(rows):
+                image[(y + dy) % h, (x + width) % w] = furrow
+                image[(y + dy) % h, (x + width + 1) % w] = furrow
+            for dx in range(width):
+                image[y % h, (x + dx) % w] = furrow
+            x += width + 2
+        y += rows
+    return image
+
+
+def spiral_bark(palette, rng, style):
+    """Fissures running up the trunk on a slant (sweet chestnut)."""
+    w, h = BARK_TEXELS_AROUND, BARK_TEXELS_UP
+    ramp = palette[style.get("ramp", "bark")]
+    tone = 0.35 + 0.4 * wrap_noise(rng, w, h, 8)
+    image = np.zeros((h, w, 3))
+    for y in range(h):
+        for x in range(w):
+            image[y, x] = ramp_colour(ramp[1:], tone[y, x])
+    deep, ridge = np.array(ramp[0], dtype=float), np.array(ramp[3], dtype=float)
+    slant = style.get("slant", 0.25)
+    for start in range(0, w, 5):
+        for y in range(h):
+            x = int(start + y * slant + rng.choice((0, 0, 1)))
+            image[y, x % w] = deep
+            if rng.random() < 0.4:
+                image[y, (x + 1) % w] = ridge
+    return image
+
+
+def gnarled_bark(palette, rng, style):
+    """Old twisted wood (olive): grey, with dark hollows and knots and pale worn ridges."""
+    w, h = BARK_TEXELS_AROUND, BARK_TEXELS_UP
+    ramp = palette[style.get("ramp", "stone")]
+    image = np.zeros((h, w, 3))
+    tone = 0.3 + 0.5 * wrap_noise(rng, w, h, 8) * wrap_noise(rng, w, h, 16)
+    for y in range(h):
+        for x in range(w):
+            image[y, x] = ramp_colour(ramp[1:], tone[y, x] + 0.15 * math.sin((x + y * 0.4) / 3))
+    dark = np.array(ramp[0], dtype=float)
+    for _ in range(style.get("hollows", 6)):
+        cx, cy, rx, ry = rng.randrange(w), rng.randrange(h), rng.randint(1, 3), rng.randint(2, 5)
+        for dy in range(-ry, ry + 1):
+            for dx in range(-rx, rx + 1):
+                if (dx / max(1, rx)) ** 2 + (dy / ry) ** 2 <= 1:
+                    image[(cy + dy) % h, (cx + dx) % w] = dark
+    return image
+
+
+def stringy_bark(palette, rng, style):
+    """Long fibrous strips peeling up the trunk (juniper), reddish with dark seams."""
+    w, h = BARK_TEXELS_AROUND, BARK_TEXELS_UP
+    ramp = [((np.array(b) + np.array(a)) / 2).tolist() for a, b in zip(palette["autumn"], palette["bark"])]
+    image = np.zeros((h, w, 3))
+    for x in range(w):
+        strip = rng.uniform(0.25, 0.75)
+        for y in range(h):
+            image[y, x] = ramp_colour(ramp[1:], strip + 0.15 * math.sin(y / rng.uniform(4, 9)))
+    seam = np.array(ramp[0], dtype=float)
+    for start in range(0, w, 3):
+        x = start + rng.randint(0, 1)
+        for y in range(h):
+            if rng.random() < 0.08:
+                x += rng.choice((-1, 1))
+            if rng.random() < 0.8:
+                image[y, x % w] = seam
+    return image
+
+
+def glass_bark(palette, rng, style):
+    """Fantastical (#10032): wood grown half into glass, pale teal facets split by bright seams."""
+    w, h = BARK_TEXELS_AROUND, BARK_TEXELS_UP
+    ramp, light = palette[style.get("ramp", "teal")], palette["snow"]
+    image = np.zeros((h, w, 3))
+    tone = wrap_noise(rng, w, h, 8)
+    for y in range(h):
+        for x in range(w):
+            image[y, x] = ramp_colour(ramp[1:], 0.3 + 0.6 * round(tone[y, x] * 3) / 3)
+    seam = np.array(light[3], dtype=float)
+    for _ in range(style.get("seams", 10)):
+        x, y = rng.randrange(w), rng.randrange(h)
+        dx, dy = rng.choice((-1, 1)), rng.choice((1, 2))
+        for i in range(rng.randint(6, 16)):
+            image[(y + i * dy) % h, (x + i * dx) % w] = seam
+    return image
+
+
+# Bark patterns by name; a style may give the ramp a pattern draws from (fissured: weathered grey wood
+# is the oak's fissured plates in the stone ramp).
+BARKS = {"lenticel": lambda palette, rng, style: birch_bark(palette, rng),
+         "fissured": lambda palette, rng, style: oak_bark(palette, rng, style.get("ramp", "bark")),
+         "plated": lambda palette, rng, style: pine_bark(palette, rng),
+         "ringed": lambda palette, rng, style: palm_bark(palette, rng),
+         "smooth": smooth_bark, "corky": corky_bark, "spiral": spiral_bark, "gnarled": gnarled_bark,
+         "stringy": stringy_bark, "glass": glass_bark}
+
+
+def leaf_polygon(cx, cy, length, width, angle, shape="pointed"):
+    """A leaf's outline: pointed (an ellipse-like outline sharpened at both ends), round, or a shard
+    (an angular, glassy sliver)."""
+    if shape == "round":
+        return [(cx + math.cos(a) * length / 2 * math.cos(angle) - math.sin(a) * width / 2 * math.sin(angle),
+                 cy + math.cos(a) * length / 2 * math.sin(angle) + math.sin(a) * width / 2 * math.cos(angle))
+                for a in (2 * math.pi * k / 10 for k in range(10))]
+    if shape == "shard":
+        outline = ((-0.5, 0.0), (-0.1, 0.45), (0.5, 0.05), (0.15, -0.4))
+        return [(cx + x * length * math.cos(angle) - y * width * math.sin(angle),
+                 cy + x * length * math.sin(angle) + y * width * math.cos(angle)) for x, y in outline]
     points = []
     for k in range(10):
         a = 2 * math.pi * k / 10
@@ -698,14 +762,30 @@ def leaf_atlas(palette, style, rng):
             if cell in turned and rng.random() < 0.12:
                 colour = ramp_colour(palette[style["accent"]], rng.uniform(0.5, 1.0))
             angle = a + rng.uniform(-0.6, 0.6)
-            draw.polygon(leaf_polygon(x, y, length, width, angle), fill=tuple(int(v) for v in colour) + (255,))
+            draw.polygon(leaf_polygon(x, y, length, width, angle, style.get("shape", "pointed")),
+                         fill=tuple(int(v) for v in colour) + (255,))
             # A darker underside edge gives each leaf a readable shape inside the mass.
             shadow = tuple(int(v) for v in ramp_colour(ramp, max(0.0, shade - 0.3))) + (255,)
             ex, ey = x + math.cos(angle + math.pi / 2) * width * 0.3, y + math.sin(angle + math.pi / 2) * width * 0.3
             draw.line([(ex - math.cos(angle) * length * 0.3, ey - math.sin(angle) * length * 0.3),
                        (ex + math.cos(angle) * length * 0.3, ey + math.sin(angle) * length * 0.3)], fill=shadow, width=1)
+        if style.get("blossom"):
+            blossoms(draw, palette, style["blossom"], rng)
         atlas.paste(layer, ((cell % ATLAS_CELLS) * LEAF_CELL, (cell // ATLAS_CELLS) * LEAF_CELL))
     return atlas
+
+
+def blossoms(draw, palette, spec, rng):
+    """Flowers or berries over a cluster: small dots in the spec's ramp, each with a darker lower edge."""
+    ramp = palette[spec["ramp"]]
+    c = LEAF_CELL / 2
+    for _ in range(rng.randint(*spec["count"])):
+        a, r = rng.uniform(0, 2 * math.pi), LEAF_CELL * 0.38 * math.sqrt(rng.random())
+        x, y, size = c + math.cos(a) * r, c + math.sin(a) * r, rng.uniform(*spec["size"])
+        shade = rng.uniform(*spec["range"])
+        draw.ellipse([x - size, y - size, x + size, y + size], fill=tuple(int(v) for v in ramp_colour(ramp, shade)) + (255,))
+        draw.arc([x - size, y - size, x + size, y + size], 20, 160,
+                 fill=tuple(int(v) for v in ramp_colour(ramp, max(0.0, shade - 0.35))) + (255,))
 
 
 def needle_atlas(palette, style, rng):
@@ -785,7 +865,8 @@ def write_textures(kind_name):
     folder = CONTENT / TEXTURES
     folder.mkdir(parents=True, exist_ok=True)
     if kind["bark"]:
-        bark = BARKS[kind["bark"]](palette, random.Random(f"bark-{kind['bark']}"))
+        style = BARK_STYLES[kind["bark"]]
+        bark = BARKS[style["pattern"]](palette, random.Random(f"bark-{kind['bark']}"), style)
         Image.fromarray(np.clip(bark, 0, 255).astype(np.uint8), "RGB").convert("RGBA").save(folder / f"{kind['bark']}-bark.png")
     if kind["leaves"] and LEAF_STYLES[kind["leaves"]].get("form") != "sprites":
         style = LEAF_STYLES[kind["leaves"]]
@@ -793,22 +874,94 @@ def write_textures(kind_name):
             folder / f"{kind['leaves']}-leaves.png")
 
 
-def main():
-    args = arguments()
-    kind = KINDS[args.kind]
-    name = args.name or f"{args.kind}-p{args.seed}"
+def variant_name(species, kind, seed):
+    """Trees are SPECIES-pSEED, beside their SPECIES-pSEED-far; scatter is SPECIES-SEED."""
+    return f"{species}-p{seed}" if kind["role"] == "tree" else f"{species}-{seed}"
+
+
+def build_one(args):
+    species = args.species[0]
+    kind = KINDS[species]
+    seed = args.seed or 1
+    name = args.name or f"{species}-p{seed}"
     height = args.height or kind["height"]
     if not args.no_textures:
-        write_textures(args.kind)
+        write_textures(species)
     cells = [int(c) for c in args.cells.split(",")] if args.cells else None
-    parts, low, high, scale = build(args.kind, args.seed, height, cells=cells, frond_width=args.frond_width)
+    parts, low, high, scale = build(species, seed, height, cells=cells, frond_width=args.frond_width)
     folder = args.folder or kind.get("folder", "trees")
     if not args.far_only:
-        write(kind, name, height, parts, low, high, args.seed, folder)
+        write(kind, name, height, parts, low, high, seed, folder)
     if args.far or args.far_only:
         # Same skeleton and scale as the near tree; only what is drawn of it changes.
-        parts, low, high, _ = build(args.kind, args.seed, height, far=True, scale=scale, frond_width=args.frond_width)
-        write(kind, name if args.far_only else f"{name}-far", height, parts, low, high, args.seed, folder)
+        parts, low, high, _ = build(species, seed, height, far=True, scale=scale, frond_width=args.frond_width)
+        write(kind, name if args.far_only else f"{name}-far", height, parts, low, high, seed, folder)
+
+
+def build_catalog(names, textures):
+    """Every variant of each species, and each tree's far variant, from the catalog."""
+    for species in names:
+        base = KINDS[species]
+        if textures:
+            write_textures(species)
+        for variant in base["variants"]:
+            kind = merged(base, variant.get("set", {}))
+            KINDS[species] = kind
+            try:
+                seed = variant["seed"]
+                name = variant.get("name", variant_name(species, base, seed))
+                folder = kind.get("folder", "trees")
+                parts, low, high, scale = build(species, seed, kind["height"])
+                write(kind, name, kind["height"], parts, low, high, seed, folder)
+                if kind["role"] == "tree":
+                    parts, low, high, _ = build(species, seed, kind["height"], far=True, scale=scale)
+                    write(kind, f"{name}-far", kind["height"], parts, low, high, seed, folder)
+            finally:
+                KINDS[species] = base
+
+
+# The contact sheet: a row per species, a cell per variant, labelled with its name and triangle count.
+SHEET_LABEL = 22
+SHEET_BACKGROUND = (40, 44, 48, 255)
+SHEET_TEXT = (230, 230, 224, 255)
+BLENDER = "/usr/local/bin/blender"
+
+
+def contact_sheet(names, output):
+    rows = []
+    for species in names:
+        kind = KINDS[species]
+        folder = MODELS / kind.get("folder", "trees")
+        rows.append([folder / f"{variant.get('name', variant_name(species, kind, variant['seed']))}.prop-mesh.json"
+                     for variant in kind["variants"]])
+    with tempfile.TemporaryDirectory() as renders:
+        meshes = [str(mesh) for row in rows for mesh in row]
+        subprocess.run([BLENDER, "-b", "--python", str(ROOT / "scripts" / "preview-prop-mesh.py"), "--", "--batch", renders, *meshes],
+                       check=True, stdout=subprocess.DEVNULL)
+        cell = Image.open(next(Path(renders).glob("*.png"))).size[0]
+        columns = max(len(row) for row in rows)
+        sheet = Image.new("RGBA", (cell * columns, (cell + SHEET_LABEL) * len(rows)), SHEET_BACKGROUND)
+        draw = ImageDraw.Draw(sheet)
+        for r, row in enumerate(rows):
+            for c, mesh in enumerate(row):
+                asset = json.loads(mesh.read_text())
+                x, y = c * cell, r * (cell + SHEET_LABEL)
+                sheet.paste(Image.open(Path(renders) / f"{asset['name']}.png").convert("RGBA"), (x, y + SHEET_LABEL))
+                triangles = sum(len(part["indices"]) // 3 for part in asset["parts"])
+                draw.text((x + 6, y + 5), f"{asset['name']}  {asset['height']:g} m  {triangles} tris", fill=SHEET_TEXT)
+    sheet.save(output)
+    print(f"generate-flora contact sheet {output}: {sum(len(row) for row in rows)} variants")
+
+
+def main():
+    args = arguments()
+    names = args.species or list(KINDS)
+    if args.single:
+        build_one(args)
+    elif not args.no_build:
+        build_catalog(names, not args.no_textures)
+    if args.sheet:
+        contact_sheet(names, args.sheet)
 
 
 def write(kind, name, height, parts, low, high, seed, folder):
@@ -823,7 +976,7 @@ def write(kind, name, height, parts, low, high, seed, folder):
     output = MODELS / folder / f"{name}.prop-mesh.json"
     output.write_text(json.dumps(asset, separators=(",", ":")))
     counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in parts)
-    print(f"generate-tree {output.name}: {counts} triangles; seed {seed}")
+    print(f"generate-flora {output.name}: {counts} triangles; seed {seed}")
 
 
 if __name__ == "__main__":

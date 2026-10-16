@@ -4,29 +4,29 @@
     {
       "model": "content/game/models/map/pine.prop-mesh.json",
       "sha256": "8b59a3561dd85dd51c0a338ed12bfb6f2c1058c5a4b0fc2ebfd7c0e4839c0700",
-      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-tree.py pine --seed 1 --name pine --height 1.0 --far-only --folder map --no-textures",
+      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-flora.py pine --seed 1 --name pine --height 1.0 --far-only --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/broadleaf.prop-mesh.json",
       "sha256": "1ea90fd51f0cc9ecae0fe5403038e9ce27413466e4819c32ca6acd23992ced73",
-      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-tree.py oak --seed 1 --name broadleaf --height 1.0 --far-only --folder map --no-textures",
+      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-flora.py oak --seed 1 --name broadleaf --height 1.0 --far-only --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/palm.prop-mesh.json",
       "sha256": "a5e774d5d5f3749a9f3ecfaea60630c9aa8e469913d7df421b968b4a7d17561f",
-      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-tree.py palm --seed 1 --name palm --height 1.0 --frond-width 2.2 --folder map --no-textures",
+      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-flora.py palm --seed 1 --name palm --height 1.0 --frond-width 2.2 --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {
       "model": "content/game/models/map/deadtree.prop-mesh.json",
       "sha256": "966ffd11ea0127ec659b52ff228ac02913fd4e02f876872404ecc287e0bf5c24",
-      "tool": "scripts/generate-tree.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
-      "command": "python3 scripts/generate-tree.py dead --seed 1 --name deadtree --height 1.0  --folder map --no-textures",
+      "tool": "scripts/generate-flora.py: the first-person tree's skeleton and textures (content/trees.sources.json), at unit height",
+      "command": "python3 scripts/generate-flora.py dead --seed 1 --name deadtree --height 1.0  --folder map --no-textures",
       "textures": "content/game/textures/trees/ (shared with the first-person trees)"
     },
     {

@@ -5,8 +5,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// What grows on the overworld's ground (Engine #9546): clumps of grass cards, and generated low-poly
-/// bushes, ferns, flowers and field stones (#9668)
+/// What grows on the overworld's ground (Engine #9546): clumps of grass cards, and generated flower
+/// clumps and field stones (#9668), which
 /// the Engine scatters on the grass block's ground around the camera. The product decides what
 /// grows, where and how densely; the Engine places, draws, fades and re-places the copies.
 /// Here each kind grows on the full-detail voxel ground out to <see cref="VegetationTiles.VoxelReach"/>,
@@ -33,7 +33,6 @@ internal sealed class TerrainScatter : IDisposable
 
     /// <summary>Clumps per square metre of grass ground, and how far from the camera they grow.</summary>
     internal const float DefaultGrassDensity = 2.5f;
-    internal const float DefaultBushDensity = 0.03f;
     internal const string PropFolder = "models/scatter/";
     private const float GrassSlopeDegrees = 38f;
     private const float GrassLean = 0.35f;
@@ -44,13 +43,11 @@ internal sealed class TerrainScatter : IDisposable
 
     /// <summary>
     /// What else grows or lies on the ground, each a generated prop mesh (scripts/stylise-mesh.py,
-    /// content/scatter.sources.json) scattered on its own: bushes, a fern, flower clumps and field
-    /// stones. Density is per square metre of the named ground; the bushes' share follows the bush
-    /// density the debug command tunes.
+    /// content/scatter.sources.json) scattered on its own: flower clumps and field stones. Density is per
+    /// square metre of the named ground. Shrubs and ferns are the forest's to place (PlantTiles, #10032).
     /// </summary>
     private sealed record Layer(uint Id, string Mesh, bool Sways, float Density, float ScaleMin, float ScaleMax,
-        float SlopeDegrees, float Align, bool CastsShadows, uint Maximum, Vector3 TintLow, Vector3 TintHigh, BlockId[] Ground,
-        bool Bush = false);
+        float SlopeDegrees, float Align, bool CastsShadows, uint Maximum, Vector3 TintLow, Vector3 TintHigh, BlockId[] Ground);
 
     private static readonly Vector3 PlantTintLow = new(0.8f, 0.85f, 0.75f), PlantTintHigh = new(1.12f, 1.08f, 0.92f);
     private static readonly Vector3 StoneTintLow = new(0.85f, 0.85f, 0.85f), StoneTintHigh = new(1.1f, 1.05f, 1f);
@@ -59,9 +56,6 @@ internal sealed class TerrainScatter : IDisposable
     private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
     private static readonly Layer[] Layers =
     [
-        new(1, "bush-1", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),
-        new(2, "bush-2", true, DefaultBushDensity / 2, 0.7f, 1.4f, 28f, 0f, true, 1_500, PlantTintLow, PlantTintHigh, Meadow, Bush: true),
-        new(3, "fern-1", true, 0.02f, 0.7f, 1.3f, 32f, 0.2f, false, 2_000, PlantTintLow, PlantTintHigh, Meadow),
         new(4, "flowers-1", true, 0.1f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
         new(5, "flowers-2", true, 0.1f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
         new(6, "stones-1", false, 0.008f, 0.6f, 1.6f, 45f, 0.8f, true, 1_000, StoneTintLow, StoneTintHigh, Stony),
@@ -93,7 +87,7 @@ internal sealed class TerrainScatter : IDisposable
     private readonly Dictionary<uint, Appearance> grassLooks = [];
     private readonly List<MeshResource> propMeshes = [];
     private readonly Dictionary<uint, Appearance> looks = [];
-    private float grassDensity = DefaultGrassDensity, bushDensity = DefaultBushDensity;
+    private float grassDensity = DefaultGrassDensity;
 
     internal TerrainScatter(IEngineContext engine, ProductContent content)
     {
@@ -164,7 +158,7 @@ internal sealed class TerrainScatter : IDisposable
 
         foreach (Layer layer in Layers)
         {
-            float density = layer.Bush ? bushDensity / 2 : layer.Density * (grassDensity > 0 ? 1 : 0);
+            float density = layer.Density * (grassDensity > 0 ? 1 : 0);
             yield return new(layer.Id, looks[layer.Id], layerMaterials[layer.Id], density, layer.Ground, layer.SlopeDegrees,
                 layer.Align, layer.ScaleMin, layer.ScaleMax, layer.TintLow, layer.TintHigh, layer.Id, layer.CastsShadows, layer.Maximum);
         }
@@ -194,15 +188,14 @@ internal sealed class TerrainScatter : IDisposable
     }
 
     /// <summary>Sets the densities (0 removes that scatter) and grows again.</summary>
-    internal void Tune(VoxelScenePresentation projection, float grassPerSquareMetre, float bushesPerSquareMetre)
+    internal void Tune(VoxelScenePresentation projection, float grassPerSquareMetre)
     {
         grassDensity = grassPerSquareMetre;
-        bushDensity = bushesPerSquareMetre;
         Grow(projection);
     }
 
     internal string Readout(VoxelScenePresentationReadout current) => FormattableString.Invariant(
-        $"scatter grass={grassDensity} bushes={bushDensity} reach={VegetationTiles.VoxelReach}m patches={current.ScatterPatchCount} copies={current.ScatterInstanceCount} overBudget={current.ScatterOverBudgetCount}");
+        $"scatter grass={grassDensity} reach={VegetationTiles.VoxelReach}m patches={current.ScatterPatchCount} copies={current.ScatterInstanceCount} overBudget={current.ScatterOverBudgetCount}");
 
     private void Set(VoxelScenePresentation projection, uint scatter, float density, VoxelSceneScatterRequest request)
     {

@@ -60,14 +60,4 @@ internal static class MapBiomes
 
     internal static bool Frozen(MapBiome biome) => biome is MapBiome.IceField or MapBiome.Tundra;
     internal static bool Arid(MapBiome biome) => biome is MapBiome.Desert or MapBiome.Shrubland;
-    /// <summary>One tree per this many feature cells on open soil, or 0 where none grow.</summary>
-    internal static int TreeOneIn(MapBiome biome) => biome switch
-    {
-        MapBiome.Rainforest => 4,
-        MapBiome.TemperateForest => 6,
-        MapBiome.BorealForest => 7,
-        MapBiome.Grassland => 40,
-        MapBiome.ColdSteppe => 90,
-        _ => 0,
-    };
 }

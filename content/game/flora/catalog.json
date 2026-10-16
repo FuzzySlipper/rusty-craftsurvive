@@ -1,0 +1,2804 @@
+{
+ "purpose": "The flora catalog (#10032): every tree and plant the world grows, as data. scripts/generate-flora.py builds each species' seeded variants (and far variants for trees), bark and foliage textures from content/style/palette.json; the game reads the species, their meshes and their ecology from here.",
+ "barks": {
+  "oak": {
+   "pattern": "fissured",
+   "ramp": "bark"
+  },
+  "dead": {
+   "pattern": "fissured",
+   "ramp": "stone"
+  },
+  "birch": {
+   "pattern": "lenticel"
+  },
+  "pine": {
+   "pattern": "plated"
+  },
+  "palm": {
+   "pattern": "ringed"
+  },
+  "chestnut": {
+   "pattern": "spiral",
+   "ramp": "bark",
+   "slant": 0.3
+  },
+  "beech": {
+   "pattern": "smooth",
+   "ramp": "stone",
+   "marks": 10
+  },
+  "holm": {
+   "pattern": "fissured",
+   "ramp": "stone"
+  },
+  "cork": {
+   "pattern": "corky",
+   "ramp": "earth"
+  },
+  "fir": {
+   "pattern": "smooth",
+   "ramp": "stone",
+   "marks": 18
+  },
+  "poplar": {
+   "pattern": "smooth",
+   "ramp": "sage",
+   "marks": 22
+  },
+  "willow": {
+   "pattern": "fissured",
+   "ramp": "bark"
+  },
+  "alder": {
+   "pattern": "smooth",
+   "ramp": "stone",
+   "marks": 26
+  },
+  "olive": {
+   "pattern": "gnarled",
+   "ramp": "stone",
+   "hollows": 7
+  },
+  "laurel": {
+   "pattern": "smooth",
+   "ramp": "earth",
+   "marks": 12
+  },
+  "juniper": {
+   "pattern": "stringy"
+  },
+  "glass": {
+   "pattern": "glass",
+   "ramp": "teal",
+   "seams": 12
+  }
+ },
+ "foliage": {
+  "oak": {
+   "ramp": "foliage",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    13,
+    18
+   ],
+   "width": [
+    8,
+    11
+   ],
+   "leaves": [
+    46,
+    60
+   ],
+   "turned_cells": 1,
+   "floor": 0.55,
+   "light_from": 0.7,
+   "form": "cluster"
+  },
+  "birch": {
+   "ramp": "meadow",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    10,
+    14
+   ],
+   "width": [
+    6,
+    8
+   ],
+   "leaves": [
+    60,
+    78
+   ],
+   "turned_cells": 1,
+   "floor": 0.4,
+   "light_from": 0.8,
+   "form": "cluster"
+  },
+  "bush": {
+   "ramp": "foliage",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    9,
+    13
+   ],
+   "width": [
+    6,
+    8
+   ],
+   "leaves": [
+    70,
+    90
+   ],
+   "turned_cells": 0,
+   "floor": 0.45,
+   "light_from": 0.75,
+   "form": "cluster"
+  },
+  "pine": {
+   "form": "needles",
+   "ramp": "foliage",
+   "light": "teal",
+   "needle": [
+    9,
+    14
+   ],
+   "side_twigs": [
+    6,
+    8
+   ]
+  },
+  "palm": {
+   "form": "frond",
+   "ramp": "foliage",
+   "light": "meadow",
+   "leaflet": 30,
+   "leaflet_width": 3,
+   "spacing": 5,
+   "angle": [
+    35,
+    50
+   ]
+  },
+  "fern": {
+   "form": "frond",
+   "ramp": "foliage",
+   "light": "meadow",
+   "leaflet": 26,
+   "leaflet_width": 6,
+   "spacing": 7,
+   "angle": [
+    20,
+    35
+   ]
+  },
+  "flowers": {
+   "form": "sprites"
+  },
+  "chestnut": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    20,
+    26
+   ],
+   "width": [
+    6,
+    8
+   ],
+   "leaves": [
+    30,
+    40
+   ],
+   "turned_cells": 1,
+   "floor": 0.5,
+   "light_from": 0.72
+  },
+  "beech": {
+   "form": "cluster",
+   "ramp": "meadow",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    11,
+    14
+   ],
+   "width": [
+    8,
+    10
+   ],
+   "leaves": [
+    50,
+    60
+   ],
+   "turned_cells": 1,
+   "floor": 0.45,
+   "light_from": 0.8,
+   "shape": "round"
+  },
+  "holm": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "sage",
+   "accent": "autumn",
+   "length": [
+    8,
+    11
+   ],
+   "width": [
+    5,
+    7
+   ],
+   "leaves": [
+    80,
+    95
+   ],
+   "turned_cells": 0,
+   "floor": 0.35,
+   "light_from": 0.8
+  },
+  "cork": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "sage",
+   "accent": "autumn",
+   "length": [
+    9,
+    12
+   ],
+   "width": [
+    5,
+    7
+   ],
+   "leaves": [
+    70,
+    85
+   ],
+   "turned_cells": 0,
+   "floor": 0.4,
+   "light_from": 0.78
+  },
+  "olive": {
+   "form": "cluster",
+   "ramp": "sage",
+   "light": "sage",
+   "accent": "autumn",
+   "length": [
+    12,
+    16
+   ],
+   "width": [
+    3,
+    4
+   ],
+   "leaves": [
+    70,
+    90
+   ],
+   "turned_cells": 0,
+   "floor": 0.4,
+   "light_from": 0.75
+  },
+  "laurel": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "teal",
+   "accent": "autumn",
+   "length": [
+    16,
+    20
+   ],
+   "width": [
+    6,
+    8
+   ],
+   "leaves": [
+    40,
+    55
+   ],
+   "turned_cells": 0,
+   "floor": 0.4,
+   "light_from": 0.78
+  },
+  "poplar": {
+   "form": "cluster",
+   "ramp": "meadow",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    10,
+    12
+   ],
+   "width": [
+    9,
+    11
+   ],
+   "leaves": [
+    55,
+    70
+   ],
+   "turned_cells": 1,
+   "floor": 0.45,
+   "light_from": 0.8,
+   "shape": "round"
+  },
+  "willow": {
+   "form": "cluster",
+   "ramp": "sage",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    18,
+    24
+   ],
+   "width": [
+    3,
+    4
+   ],
+   "leaves": [
+    70,
+    90
+   ],
+   "turned_cells": 0,
+   "floor": 0.45,
+   "light_from": 0.75
+  },
+  "alder": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    11,
+    13
+   ],
+   "width": [
+    9,
+    11
+   ],
+   "leaves": [
+    50,
+    62
+   ],
+   "turned_cells": 0,
+   "floor": 0.4,
+   "light_from": 0.8,
+   "shape": "round"
+  },
+  "hazel": {
+   "form": "cluster",
+   "ramp": "meadow",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    12,
+    15
+   ],
+   "width": [
+    10,
+    12
+   ],
+   "leaves": [
+    40,
+    50
+   ],
+   "turned_cells": 1,
+   "floor": 0.45,
+   "light_from": 0.8,
+   "shape": "round"
+  },
+  "holly": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "teal",
+   "accent": "autumn",
+   "length": [
+    10,
+    13
+   ],
+   "width": [
+    7,
+    9
+   ],
+   "leaves": [
+    55,
+    70
+   ],
+   "turned_cells": 0,
+   "floor": 0.3,
+   "light_from": 0.8,
+   "blossom": {
+    "ramp": "cloth",
+    "range": [
+     0.3,
+     0.6
+    ],
+    "count": [
+     8,
+     14
+    ],
+    "size": [
+     2.5,
+     3.5
+    ]
+   }
+  },
+  "broom": {
+   "form": "cluster",
+   "ramp": "meadow",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    8,
+    12
+   ],
+   "width": [
+    3,
+    5
+   ],
+   "leaves": [
+    100,
+    120
+   ],
+   "turned_cells": 0,
+   "floor": 0.35,
+   "light_from": 0.8,
+   "blossom": {
+    "ramp": "autumn",
+    "range": [
+     0.7,
+     1.0
+    ],
+    "count": [
+     40,
+     55
+    ],
+    "size": [
+     2.5,
+     4.0
+    ]
+   }
+  },
+  "gorse": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "meadow",
+   "accent": "autumn",
+   "length": [
+    7,
+    10
+   ],
+   "width": [
+    3,
+    5
+   ],
+   "leaves": [
+    120,
+    140
+   ],
+   "turned_cells": 0,
+   "floor": 0.3,
+   "light_from": 0.8,
+   "blossom": {
+    "ramp": "autumn",
+    "range": [
+     0.75,
+     1.0
+    ],
+    "count": [
+     40,
+     55
+    ],
+    "size": [
+     2.5,
+     3.5
+    ]
+   }
+  },
+  "heather": {
+   "form": "cluster",
+   "ramp": "foliage",
+   "light": "foliage",
+   "accent": "autumn",
+   "length": [
+    5,
+    7
+   ],
+   "width": [
+    3,
+    4
+   ],
+   "leaves": [
+    130,
+    150
+   ],
+   "turned_cells": 0,
+   "floor": 0.3,
+   "light_from": 0.85,
+   "blossom": {
+    "ramp": "distance",
+    "range": [
+     0.25,
+     0.5
+    ],
+    "count": [
+     90,
+     120
+    ],
+    "size": [
+     2.0,
+     3.2
+    ]
+   }
+  },
+  "rosemary": {
+   "form": "cluster",
+   "ramp": "sage",
+   "light": "sage",
+   "accent": "autumn",
+   "length": [
+    9,
+    12
+   ],
+   "width": [
+    3,
+    4
+   ],
+   "leaves": [
+    120,
+    140
+   ],
+   "turned_cells": 0,
+   "floor": 0.3,
+   "light_from": 0.8,
+   "blossom": {
+    "ramp": "sky",
+    "range": [
+     0.25,
+     0.45
+    ],
+    "count": [
+     25,
+     35
+    ],
+    "size": [
+     1.8,
+     2.6
+    ]
+   }
+  },
+  "glass": {
+   "form": "cluster",
+   "ramp": "teal",
+   "light": "snow",
+   "accent": "water",
+   "length": [
+    12,
+    16
+   ],
+   "width": [
+    6,
+    9
+   ],
+   "leaves": [
+    40,
+    55
+   ],
+   "turned_cells": 1,
+   "floor": 0.5,
+   "light_from": 0.7,
+   "shape": "shard"
+  },
+  "fir": {
+   "form": "needles",
+   "ramp": "foliage",
+   "light": "teal",
+   "needle": [
+    7,
+    10
+   ],
+   "side_twigs": [
+    8,
+    10
+   ]
+  },
+  "stonepine": {
+   "form": "needles",
+   "ramp": "foliage",
+   "light": "meadow",
+   "needle": [
+    11,
+    15
+   ],
+   "side_twigs": [
+    6,
+    8
+   ]
+  },
+  "juniper": {
+   "form": "needles",
+   "ramp": "sage",
+   "light": "teal",
+   "needle": [
+    5,
+    8
+   ],
+   "side_twigs": [
+    9,
+    12
+   ]
+  }
+ },
+ "species": {
+  "oak": {
+   "role": "tree",
+   "height": 9.0,
+   "bark": "oak",
+   "leaves": "oak",
+   "trunk": {
+    "length": 3.6,
+    "radius": 0.38,
+    "sides": 7,
+    "segments": 3,
+    "wobble": 0.08,
+    "rise": 0.0,
+    "tip": 0.6,
+    "flare": 1.4
+   },
+   "levels": [
+    {
+     "count": [
+      5,
+      6
+     ],
+     "start": 0.55,
+     "end": 1.0,
+     "angle": [
+      35,
+      55
+     ],
+     "length": [
+      4.2,
+      5.2
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.16,
+     "rise": 0.1,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      4,
+      6
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      1.8,
+      2.6
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.3,
+     "rise": 0.1,
+     "tip": 0.3
+    }
+   ],
+   "cards": {
+    "per_twig": [
+     6,
+     9
+    ],
+    "from": 0.15,
+    "size": [
+     1.8,
+     2.6
+    ],
+    "crown_normal": 0.75,
+    "spread": 0.45,
+    "hang": 0.0
+   },
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.4,
+     0.52,
+     0.66
+    ],
+    "moisture": [
+     0.45,
+     0.65,
+     0.88
+    ],
+    "habit": "canopy",
+    "abundance": 1.0
+   }
+  },
+  "birch": {
+   "role": "tree",
+   "height": 10.0,
+   "bark": "birch",
+   "leaves": "birch",
+   "trunk": {
+    "length": 9.6,
+    "radius": 0.19,
+    "sides": 7,
+    "segments": 6,
+    "wobble": 0.05,
+    "rise": 0.0,
+    "tip": 0.2,
+    "flare": 1.25
+   },
+   "levels": [
+    {
+     "count": [
+      15,
+      19
+     ],
+     "start": 0.3,
+     "end": 0.98,
+     "angle": [
+      30,
+      55
+     ],
+     "length": [
+      2.2,
+      3.2
+     ],
+     "shrink": 0.7,
+     "radius": 0.45,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.22,
+     "rise": -0.04,
+     "tip": 0.3
+    },
+    {
+     "count": [
+      2,
+      4
+     ],
+     "start": 0.3,
+     "end": 1.0,
+     "angle": [
+      25,
+      50
+     ],
+     "length": [
+      0.9,
+      1.5
+     ],
+     "shrink": 0.3,
+     "radius": 0.6,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.3,
+     "rise": -0.18,
+     "tip": 0.4
+    }
+   ],
+   "cards": {
+    "per_twig": [
+     4,
+     6
+    ],
+    "from": 0.1,
+    "size": [
+     1.2,
+     1.7
+    ],
+    "crown_normal": 0.7,
+    "spread": 0.35,
+    "hang": 0.55
+   },
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.26,
+     0.4,
+     0.56
+    ],
+    "moisture": [
+     0.38,
+     0.6,
+     0.92
+    ],
+    "habit": "canopy",
+    "abundance": 0.6
+   }
+  },
+  "pine": {
+   "role": "tree",
+   "height": 12.0,
+   "bark": "pine",
+   "leaves": "pine",
+   "trunk": {
+    "length": 12.0,
+    "radius": 0.26,
+    "sides": 6,
+    "segments": 6,
+    "wobble": 0.03,
+    "rise": 0.0,
+    "tip": 0.12,
+    "flare": 1.3
+   },
+   "levels": [
+    {
+     "count": [
+      36,
+      42
+     ],
+     "start": 0.14,
+     "end": 0.98,
+     "angle": [
+      78,
+      98
+     ],
+     "length": [
+      4.2,
+      5.0
+     ],
+     "shrink": 0.9,
+     "radius": 0.3,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.08,
+     "rise": -0.06,
+     "tip": 0.3
+    }
+   ],
+   "cards": {
+    "per_twig": [
+     8,
+     11
+    ],
+    "from": 0.0,
+    "size": [
+     1.8,
+     2.4
+    ],
+    "crown_normal": 0.55,
+    "spread": 0.15,
+    "hang": 0.1,
+    "roll": true,
+    "size_by_reach": true
+   },
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.26,
+     0.4,
+     0.55
+    ],
+    "moisture": [
+     0.3,
+     0.5,
+     0.82
+    ],
+    "habit": "canopy",
+    "abundance": 1.0
+   }
+  },
+  "dead": {
+   "role": "tree",
+   "height": 8.0,
+   "bark": "dead",
+   "leaves": null,
+   "trunk": {
+    "length": 4.5,
+    "radius": 0.3,
+    "sides": 6,
+    "segments": 4,
+    "wobble": 0.12,
+    "rise": 0.0,
+    "tip": 0.5,
+    "flare": 1.5
+   },
+   "levels": [
+    {
+     "count": [
+      3,
+      5
+     ],
+     "start": 0.45,
+     "end": 1.0,
+     "angle": [
+      25,
+      55
+     ],
+     "length": [
+      2.5,
+      3.5
+     ],
+     "shrink": 0.2,
+     "radius": 0.6,
+     "sides": 5,
+     "segments": 4,
+     "wobble": 0.3,
+     "rise": 0.05,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      2,
+      4
+     ],
+     "start": 0.3,
+     "end": 1.0,
+     "angle": [
+      25,
+      60
+     ],
+     "length": [
+      1.0,
+      1.8
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.4,
+     "rise": 0.08,
+     "tip": 0.25
+    },
+    {
+     "count": [
+      1,
+      3
+     ],
+     "start": 0.4,
+     "end": 1.0,
+     "angle": [
+      25,
+      60
+     ],
+     "length": [
+      0.4,
+      0.8
+     ],
+     "shrink": 0.2,
+     "radius": 0.6,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.4,
+     "rise": 0.1,
+     "tip": 0.2
+    }
+   ],
+   "cards": null,
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.14,
+     0.4,
+     0.92
+    ],
+    "moisture": [
+     0.0,
+     0.14,
+     0.4
+    ],
+    "habit": "open",
+    "abundance": 0.25,
+    "rock": 0.9
+   }
+  },
+  "palm": {
+   "role": "tree",
+   "height": 9.0,
+   "bark": "palm",
+   "leaves": "palm",
+   "trunk": {
+    "length": 8.0,
+    "radius": 0.25,
+    "sides": 6,
+    "segments": 7,
+    "wobble": 0.03,
+    "rise": 0.1,
+    "tip": 0.75,
+    "flare": 1.35,
+    "lean": 0.4
+   },
+   "levels": [],
+   "cards": null,
+   "fronds": {
+    "at": "top",
+    "count": [
+     12,
+     15
+    ],
+    "length": [
+     4.4,
+     5.4
+    ],
+    "width": [
+     1.5,
+     1.9
+    ],
+    "elevation": [
+     10,
+     50
+    ],
+    "droop": 0.35,
+    "segments": 5,
+    "root_sway": 0.3
+   },
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.66,
+     0.82,
+     1.0
+    ],
+    "moisture": [
+     0.04,
+     0.22,
+     0.48
+    ],
+    "habit": "open",
+    "abundance": 0.6,
+    "riparian": 0.6
+   }
+  },
+  "bush": {
+   "role": "shrub",
+   "height": 1.1,
+   "folder": "scatter",
+   "bark": null,
+   "leaves": "bush",
+   "sink": 0.1,
+   "trunk": {
+    "length": 0.25,
+    "radius": 0.05,
+    "sides": 3,
+    "segments": 1,
+    "wobble": 0.0,
+    "rise": 0.0,
+    "tip": 0.8,
+    "flare": 1.0
+   },
+   "levels": [
+    {
+     "count": [
+      7,
+      9
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      25,
+      65
+     ],
+     "length": [
+      0.8,
+      1.1
+     ],
+     "shrink": 0.0,
+     "radius": 0.7,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.25,
+     "rise": 0.1,
+     "tip": 0.4,
+     "even": true
+    }
+   ],
+   "cards": {
+    "per_twig": [
+     6,
+     9
+    ],
+    "from": 0.25,
+    "size": [
+     0.55,
+     0.8
+    ],
+    "crown_normal": 0.7,
+    "spread": 0.5,
+    "hang": 0.0,
+    "rooted": true
+   },
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.34,
+     0.55,
+     0.76
+    ],
+    "moisture": [
+     0.35,
+     0.6,
+     0.92
+    ],
+    "habit": "edge",
+    "abundance": 1.0
+   }
+  },
+  "flowers": {
+   "role": "ground",
+   "height": 0.5,
+   "folder": "scatter",
+   "bark": null,
+   "leaves": "flowers",
+   "sink": 0.0,
+   "trunk": null,
+   "levels": [],
+   "cards": null,
+   "clump": {
+    "cards": [
+     5,
+     6
+    ],
+    "size": [
+     0.4,
+     0.55
+    ],
+    "spread": 0.1,
+    "lean": 0.3,
+    "cells": [
+     0,
+     1
+    ]
+   },
+   "variants": [
+    {
+     "seed": 1,
+     "set": {
+      "clump": {
+       "cells": [
+        0,
+        1
+       ]
+      }
+     }
+    },
+    {
+     "seed": 2,
+     "set": {
+      "clump": {
+       "cells": [
+        2,
+        3
+       ]
+      }
+     }
+    }
+   ]
+  },
+  "fern": {
+   "role": "ground",
+   "height": 0.8,
+   "folder": "scatter",
+   "bark": null,
+   "leaves": "fern",
+   "trunk": null,
+   "levels": [],
+   "cards": null,
+   "fronds": {
+    "at": "ground",
+    "count": [
+     9,
+     12
+    ],
+    "length": [
+     0.9,
+     1.3
+    ],
+    "width": [
+     0.3,
+     0.42
+    ],
+    "elevation": [
+     35,
+     70
+    ],
+    "droop": 0.45,
+    "segments": 4,
+    "root_sway": 0.0
+   },
+   "variants": [
+    {
+     "seed": 1
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.3,
+     0.52,
+     0.8
+    ],
+    "moisture": [
+     0.5,
+     0.76,
+     1.0
+    ],
+    "habit": "understory",
+    "abundance": 1.0
+   }
+  },
+  "chestnut": {
+   "like": "oak",
+   "height": 11.0,
+   "bark": "chestnut",
+   "leaves": "chestnut",
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "set": {
+    "trunk": {
+     "radius": 0.45,
+     "flare": 1.5
+    },
+    "cards": {
+     "size": [
+      2.0,
+      2.8
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      5,
+      7
+     ],
+     "start": 0.5,
+     "end": 1.0,
+     "angle": [
+      40,
+      60
+     ],
+     "length": [
+      4.8,
+      6.0
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.18,
+     "rise": 0.08,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      4,
+      6
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      2.0,
+      2.8
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.3,
+     "rise": 0.08,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.44,
+     0.56,
+     0.68
+    ],
+    "moisture": [
+     0.5,
+     0.66,
+     0.88
+    ],
+    "habit": "canopy",
+    "abundance": 0.8
+   }
+  },
+  "beech": {
+   "like": "oak",
+   "height": 13.0,
+   "bark": "beech",
+   "leaves": "beech",
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "set": {
+    "trunk": {
+     "length": 5.0,
+     "radius": 0.36,
+     "flare": 1.25,
+     "wobble": 0.04
+    },
+    "cards": {
+     "per_twig": [
+      6,
+      9
+     ],
+     "size": [
+      1.8,
+      2.4
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      7,
+      9
+     ],
+     "start": 0.35,
+     "end": 1.0,
+     "angle": [
+      40,
+      65
+     ],
+     "length": [
+      5.2,
+      6.4
+     ],
+     "shrink": 0.2,
+     "radius": 0.55,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.12,
+     "rise": 0.15,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      5,
+      7
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      55
+     ],
+     "length": [
+      2.0,
+      2.8
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.25,
+     "rise": 0.1,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.36,
+     0.48,
+     0.6
+    ],
+    "moisture": [
+     0.55,
+     0.72,
+     0.97
+    ],
+    "habit": "canopy",
+    "abundance": 0.9
+   }
+  },
+  "holm-oak": {
+   "like": "oak",
+   "height": 7.0,
+   "bark": "holm",
+   "leaves": "holm",
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "set": {
+    "trunk": {
+     "length": 2.4,
+     "radius": 0.32
+    },
+    "cards": {
+     "per_twig": [
+      8,
+      11
+     ],
+     "size": [
+      1.4,
+      1.9
+     ],
+     "crown_normal": 0.8
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      6,
+      8
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      45,
+      70
+     ],
+     "length": [
+      3.6,
+      4.4
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.2,
+     "rise": 0.05,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      4,
+      6
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      1.6,
+      2.2
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.3,
+     "rise": 0.1,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.5,
+     0.64,
+     0.8
+    ],
+    "moisture": [
+     0.22,
+     0.4,
+     0.62
+    ],
+    "habit": "canopy",
+    "abundance": 0.9
+   }
+  },
+  "cork-oak": {
+   "like": "holm-oak",
+   "height": 8.0,
+   "bark": "cork",
+   "leaves": "cork",
+   "set": {
+    "trunk": {
+     "radius": 0.4,
+     "flare": 1.5
+    },
+    "cards": {
+     "per_twig": [
+      10,
+      13
+     ],
+     "size": [
+      1.6,
+      2.1
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      5,
+      7
+     ],
+     "start": 0.55,
+     "end": 1.0,
+     "angle": [
+      50,
+      75
+     ],
+     "length": [
+      4.4,
+      5.4
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.22,
+     "rise": 0.0,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      6,
+      8
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      2.0,
+      2.8
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.3,
+     "rise": 0.06,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.52,
+     0.64,
+     0.78
+    ],
+    "moisture": [
+     0.32,
+     0.5,
+     0.7
+    ],
+    "habit": "open",
+    "abundance": 0.8
+   }
+  },
+  "stone-pine": {
+   "like": "oak",
+   "height": 12.0,
+   "bark": "pine",
+   "leaves": "stonepine",
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "set": {
+    "trunk": {
+     "length": 7.5,
+     "radius": 0.3,
+     "wobble": 0.1,
+     "lean": 0.15,
+     "segments": 4
+    },
+    "cards": {
+     "per_twig": [
+      8,
+      11
+     ],
+     "size": [
+      1.8,
+      2.4
+     ],
+     "crown_normal": 0.85,
+     "roll": true,
+     "hang": 0.0,
+     "spread": 0.3
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      6,
+      8
+     ],
+     "start": 0.75,
+     "end": 1.0,
+     "angle": [
+      60,
+      80
+     ],
+     "length": [
+      4.5,
+      5.5
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 5,
+     "segments": 3,
+     "wobble": 0.15,
+     "rise": 0.12,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      5,
+      7
+     ],
+     "start": 0.3,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      1.8,
+      2.4
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 2,
+     "wobble": 0.25,
+     "rise": 0.05,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.52,
+     0.66,
+     0.82
+    ],
+    "moisture": [
+     0.2,
+     0.38,
+     0.58
+    ],
+    "habit": "open",
+    "abundance": 0.7
+   }
+  },
+  "fir": {
+   "like": "pine",
+   "height": 16.0,
+   "bark": "fir",
+   "leaves": "fir",
+   "set": {
+    "trunk": {
+     "length": 16.0,
+     "radius": 0.3
+    },
+    "cards": {
+     "per_twig": [
+      9,
+      12
+     ],
+     "size": [
+      1.6,
+      2.1
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      44,
+      52
+     ],
+     "start": 0.12,
+     "end": 0.98,
+     "angle": [
+      85,
+      105
+     ],
+     "length": [
+      3.6,
+      4.4
+     ],
+     "shrink": 0.95,
+     "radius": 0.3,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.06,
+     "rise": -0.1,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.26,
+     0.37,
+     0.5
+    ],
+    "moisture": [
+     0.5,
+     0.7,
+     0.97
+    ],
+    "habit": "canopy",
+    "abundance": 0.9
+   }
+  },
+  "poplar": {
+   "like": "birch",
+   "height": 16.0,
+   "bark": "poplar",
+   "leaves": "poplar",
+   "set": {
+    "trunk": {
+     "length": 15.5,
+     "radius": 0.24,
+     "tip": 0.15
+    },
+    "cards": {
+     "hang": 0.0,
+     "size": [
+      1.2,
+      1.6
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      22,
+      28
+     ],
+     "start": 0.15,
+     "end": 0.98,
+     "angle": [
+      12,
+      25
+     ],
+     "length": [
+      2.5,
+      4.0
+     ],
+     "shrink": 0.6,
+     "radius": 0.45,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.15,
+     "rise": 0.25,
+     "tip": 0.3
+    },
+    {
+     "count": [
+      2,
+      4
+     ],
+     "start": 0.3,
+     "end": 1.0,
+     "angle": [
+      10,
+      30
+     ],
+     "length": [
+      0.8,
+      1.4
+     ],
+     "shrink": 0.3,
+     "radius": 0.6,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.25,
+     "rise": 0.2,
+     "tip": 0.4
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.4,
+     0.55,
+     0.72
+    ],
+    "moisture": [
+     0.4,
+     0.7,
+     0.98
+    ],
+    "habit": "edge",
+    "abundance": 0.5,
+    "riparian": 1.0
+   }
+  },
+  "willow": {
+   "like": "oak",
+   "height": 10.0,
+   "bark": "willow",
+   "leaves": "willow",
+   "set": {
+    "trunk": {
+     "length": 2.8,
+     "radius": 0.45,
+     "lean": 0.18
+    },
+    "cards": {
+     "per_twig": [
+      5,
+      7
+     ],
+     "size": [
+      0.9,
+      1.2
+     ],
+     "aspect": 3.0,
+     "hang": 0.9,
+     "crown_normal": 0.6,
+     "spread": 0.25
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      5,
+      7
+     ],
+     "start": 0.55,
+     "end": 1.0,
+     "angle": [
+      35,
+      60
+     ],
+     "length": [
+      4.0,
+      5.0
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.18,
+     "rise": 0.15,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      5,
+      7
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      2.0,
+      3.0
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.3,
+     "rise": -0.25,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.32,
+     0.5,
+     0.7
+    ],
+    "moisture": [
+     0.5,
+     0.8,
+     1.0
+    ],
+    "habit": "edge",
+    "abundance": 0.5,
+    "riparian": 1.0
+   }
+  },
+  "alder": {
+   "like": "birch",
+   "height": 12.0,
+   "bark": "alder",
+   "leaves": "alder",
+   "set": {
+    "trunk": {
+     "length": 11.0,
+     "radius": 0.24,
+     "tip": 0.2
+    },
+    "cards": {
+     "hang": 0.15
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      18,
+      22
+     ],
+     "start": 0.3,
+     "end": 0.98,
+     "angle": [
+      55,
+      80
+     ],
+     "length": [
+      3.0,
+      4.2
+     ],
+     "shrink": 0.8,
+     "radius": 0.45,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.2,
+     "rise": 0.0,
+     "tip": 0.3
+    },
+    {
+     "count": [
+      2,
+      4
+     ],
+     "start": 0.3,
+     "end": 1.0,
+     "angle": [
+      25,
+      50
+     ],
+     "length": [
+      0.9,
+      1.4
+     ],
+     "shrink": 0.3,
+     "radius": 0.6,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.3,
+     "rise": -0.05,
+     "tip": 0.4
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.34,
+     0.48,
+     0.62
+    ],
+    "moisture": [
+     0.55,
+     0.78,
+     1.0
+    ],
+    "habit": "canopy",
+    "abundance": 0.4,
+    "riparian": 0.8
+   }
+  },
+  "olive": {
+   "like": "oak",
+   "height": 6.0,
+   "bark": "olive",
+   "leaves": "olive",
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "set": {
+    "trunk": {
+     "length": 2.0,
+     "radius": 0.35,
+     "wobble": 0.3,
+     "lean": 0.25,
+     "flare": 1.7,
+     "segments": 4
+    },
+    "cards": {
+     "per_twig": [
+      7,
+      10
+     ],
+     "size": [
+      1.3,
+      1.7
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      4,
+      6
+     ],
+     "start": 0.5,
+     "end": 1.0,
+     "angle": [
+      35,
+      60
+     ],
+     "length": [
+      2.8,
+      3.6
+     ],
+     "shrink": 0.1,
+     "radius": 0.6,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.35,
+     "rise": 0.1,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      4,
+      6
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      30,
+      60
+     ],
+     "length": [
+      1.4,
+      2.0
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.35,
+     "rise": 0.1,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.58,
+     0.7,
+     0.86
+    ],
+    "moisture": [
+     0.16,
+     0.34,
+     0.56
+    ],
+    "habit": "open",
+    "abundance": 0.8
+   }
+  },
+  "laurel": {
+   "like": "oak",
+   "height": 9.0,
+   "bark": "laurel",
+   "leaves": "laurel",
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2
+    },
+    {
+     "seed": 3
+    }
+   ],
+   "set": {
+    "trunk": {
+     "length": 3.2,
+     "radius": 0.3
+    },
+    "cards": {
+     "per_twig": [
+      8,
+      11
+     ],
+     "size": [
+      1.6,
+      2.1
+     ],
+     "crown_normal": 0.8
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      6,
+      8
+     ],
+     "start": 0.4,
+     "end": 1.0,
+     "angle": [
+      25,
+      45
+     ],
+     "length": [
+      3.6,
+      4.4
+     ],
+     "shrink": 0.15,
+     "radius": 0.55,
+     "sides": 6,
+     "segments": 4,
+     "wobble": 0.15,
+     "rise": 0.2,
+     "tip": 0.35,
+     "even": true
+    },
+    {
+     "count": [
+      4,
+      6
+     ],
+     "start": 0.25,
+     "end": 1.0,
+     "angle": [
+      25,
+      50
+     ],
+     "length": [
+      1.6,
+      2.2
+     ],
+     "shrink": 0.3,
+     "radius": 0.55,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.25,
+     "rise": 0.15,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.6,
+     0.73,
+     0.9
+    ],
+    "moisture": [
+     0.58,
+     0.8,
+     1.0
+    ],
+    "habit": "canopy",
+    "abundance": 1.0
+   }
+  },
+  "juniper": {
+   "like": "pine",
+   "height": 5.0,
+   "bark": "juniper",
+   "leaves": "juniper",
+   "set": {
+    "trunk": {
+     "length": 2.0,
+     "radius": 0.14,
+     "wobble": 0.25,
+     "lean": 0.1,
+     "stems": 3,
+     "splay": [
+      10,
+      35
+     ],
+     "segments": 3,
+     "tip": 0.4
+    },
+    "cards": {
+     "per_twig": [
+      6,
+      8
+     ],
+     "size": [
+      0.9,
+      1.3
+     ],
+     "crown_normal": 0.7
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      10,
+      14
+     ],
+     "start": 0.2,
+     "end": 1.0,
+     "angle": [
+      40,
+      70
+     ],
+     "length": [
+      1.2,
+      1.8
+     ],
+     "shrink": 0.5,
+     "radius": 0.5,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.25,
+     "rise": 0.1,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.2,
+     0.45,
+     0.76
+    ],
+    "moisture": [
+     0.12,
+     0.3,
+     0.56
+    ],
+    "habit": "open",
+    "abundance": 0.6,
+    "rock": 0.9
+   }
+  },
+  "mountain-pine": {
+   "like": "pine",
+   "height": 6.0,
+   "set": {
+    "trunk": {
+     "length": 5.0,
+     "radius": 0.2,
+     "lean": 0.45,
+     "wobble": 0.12
+    },
+    "cards": {
+     "per_twig": [
+      9,
+      12
+     ],
+     "size": [
+      1.5,
+      2.0
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      22,
+      28
+     ],
+     "start": 0.15,
+     "end": 0.98,
+     "angle": [
+      60,
+      95
+     ],
+     "length": [
+      2.0,
+      2.8
+     ],
+     "shrink": 0.8,
+     "radius": 0.3,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.2,
+     "rise": 0.0,
+     "tip": 0.3
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.16,
+     0.29,
+     0.42
+    ],
+    "moisture": [
+     0.22,
+     0.5,
+     0.88
+    ],
+    "habit": "open",
+    "abundance": 0.8,
+    "rock": 0.85
+   }
+  },
+  "glasswood": {
+   "like": "birch",
+   "height": 9.0,
+   "bark": "glass",
+   "leaves": "glass",
+   "fantastical": true,
+   "set": {
+    "trunk": {
+     "length": 6.0,
+     "radius": 0.25,
+     "wobble": 0.15
+    },
+    "cards": {
+     "per_twig": [
+      4,
+      6
+     ],
+     "size": [
+      1.2,
+      1.6
+     ],
+     "crown_normal": 0.6,
+     "hang": 0.2
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      8,
+      10
+     ],
+     "start": 0.35,
+     "end": 1.0,
+     "angle": [
+      30,
+      55
+     ],
+     "length": [
+      2.8,
+      3.6
+     ],
+     "shrink": 0.3,
+     "radius": 0.5,
+     "sides": 4,
+     "segments": 3,
+     "wobble": 0.3,
+     "rise": 0.05,
+     "tip": 0.3
+    },
+    {
+     "count": [
+      3,
+      5
+     ],
+     "start": 0.3,
+     "end": 1.0,
+     "angle": [
+      25,
+      55
+     ],
+     "length": [
+      1.0,
+      1.6
+     ],
+     "shrink": 0.3,
+     "radius": 0.6,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.35,
+     "rise": 0.0,
+     "tip": 0.4
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.3,
+     0.5,
+     0.8
+    ],
+    "moisture": [
+     0.1,
+     0.4,
+     0.9
+    ],
+    "habit": "canopy",
+    "abundance": 0.03
+   }
+  },
+  "broom": {
+   "like": "bush",
+   "height": 1.4,
+   "leaves": "broom",
+   "set": {
+    "cards": {
+     "size": [
+      0.4,
+      0.6
+     ],
+     "per_twig": [
+      6,
+      9
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      9,
+      12
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      10,
+      35
+     ],
+     "length": [
+      1.0,
+      1.5
+     ],
+     "shrink": 0.0,
+     "radius": 0.7,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.2,
+     "rise": 0.3,
+     "tip": 0.4,
+     "even": true
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.44,
+     0.6,
+     0.76
+    ],
+    "moisture": [
+     0.22,
+     0.44,
+     0.7
+    ],
+    "habit": "open",
+    "abundance": 0.8
+   }
+  },
+  "gorse": {
+   "like": "bush",
+   "height": 1.0,
+   "leaves": "gorse",
+   "set": {
+    "cards": {
+     "size": [
+      0.45,
+      0.65
+     ]
+    }
+   },
+   "ecology": {
+    "temperature": [
+     0.4,
+     0.54,
+     0.7
+    ],
+    "moisture": [
+     0.34,
+     0.56,
+     0.82
+    ],
+    "habit": "open",
+    "abundance": 0.7
+   }
+  },
+  "heather": {
+   "like": "bush",
+   "height": 0.45,
+   "leaves": "heather",
+   "set": {
+    "trunk": {
+     "length": 0.08
+    },
+    "cards": {
+     "size": [
+      0.25,
+      0.35
+     ],
+     "per_twig": [
+      5,
+      7
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      10,
+      14
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      40,
+      75
+     ],
+     "length": [
+      0.3,
+      0.45
+     ],
+     "shrink": 0.0,
+     "radius": 0.7,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.25,
+     "rise": 0.1,
+     "tip": 0.4,
+     "even": true
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.24,
+     0.4,
+     0.6
+    ],
+    "moisture": [
+     0.35,
+     0.62,
+     0.88
+    ],
+    "habit": "open",
+    "abundance": 0.9
+   }
+  },
+  "rosemary": {
+   "like": "bush",
+   "height": 0.8,
+   "leaves": "rosemary",
+   "set": {
+    "cards": {
+     "size": [
+      0.3,
+      0.45
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      10,
+      13
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      15,
+      40
+     ],
+     "length": [
+      0.5,
+      0.8
+     ],
+     "shrink": 0.0,
+     "radius": 0.7,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.2,
+     "rise": 0.25,
+     "tip": 0.4,
+     "even": true
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.54,
+     0.7,
+     0.86
+    ],
+    "moisture": [
+     0.1,
+     0.3,
+     0.52
+    ],
+    "habit": "open",
+    "abundance": 0.8
+   }
+  },
+  "holly": {
+   "like": "bush",
+   "height": 1.6,
+   "leaves": "holly",
+   "set": {
+    "cards": {
+     "size": [
+      0.55,
+      0.75
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      8,
+      10
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      25,
+      55
+     ],
+     "length": [
+      1.0,
+      1.4
+     ],
+     "shrink": 0.0,
+     "radius": 0.7,
+     "sides": 3,
+     "segments": 2,
+     "wobble": 0.2,
+     "rise": 0.15,
+     "tip": 0.4,
+     "even": true
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.38,
+     0.5,
+     0.66
+    ],
+    "moisture": [
+     0.5,
+     0.72,
+     0.97
+    ],
+    "habit": "understory",
+    "abundance": 0.7
+   }
+  },
+  "hazel": {
+   "like": "bush",
+   "height": 2.2,
+   "leaves": "hazel",
+   "set": {
+    "cards": {
+     "size": [
+      0.6,
+      0.85
+     ]
+    }
+   },
+   "levels": [
+    {
+     "count": [
+      6,
+      8
+     ],
+     "start": 0.6,
+     "end": 1.0,
+     "angle": [
+      10,
+      30
+     ],
+     "length": [
+      1.8,
+      2.4
+     ],
+     "shrink": 0.0,
+     "radius": 0.7,
+     "sides": 3,
+     "segments": 3,
+     "wobble": 0.2,
+     "rise": 0.3,
+     "tip": 0.4,
+     "even": true
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.34,
+     0.48,
+     0.63
+    ],
+    "moisture": [
+     0.45,
+     0.66,
+     0.92
+    ],
+    "habit": "understory",
+    "abundance": 0.8
+   }
+  }
+ }
+}

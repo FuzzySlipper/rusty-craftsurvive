@@ -22,7 +22,7 @@ internal readonly record struct GameOptions(int ViewDistanceChunks, int FieldOfV
 
     /// <summary>How far ground cover grows (#10016): it thins with distance, each kept plant grown to keep the cover.</summary>
     internal static GameOptionSpec GroundCoverSpec { get; } = new(GroundCover, "Ground cover",
-        "How far grass, flowers, bushes and stones grow, thinning with distance. Farther costs more on the graphics card.",
+        "How far grass, flowers and stones grow, thinning with distance. Farther costs more on the graphics card.",
         Minimum: 128, Maximum: 384, Step: 32, Unit: "m", Default: 256);
 
     internal static GameOptionSpec FieldOfViewSpec { get; } = new(FieldOfView, "Field of view",

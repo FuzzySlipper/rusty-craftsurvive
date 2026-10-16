@@ -1,162 +1,789 @@
 {
- "purpose": "First-person trees (#9665, #9685), drawn by TerrainTrees on the recipe's trunk cores: procedural low-poly trunks and branches with tiling nearest-filtered bark, and alpha-cut leaf cards or fronds that flutter in the wind. Generated offline by scripts/generate-tree.py (seeded, deterministic); each NAME-far is the distant-band variant (#9677), written by --far. The earlier TRELLIS-generated meshes are recorded in Den history/trees-trellis-sources.",
- "generated": "2026-10-08",
- "tool": "scripts/generate-tree.py",
+ "purpose": "The flora catalog's trees (#9665, #9685, #10032), drawn as Engine vegetation records on the recipe's trunk cores: procedural low-poly trunks and branches with tiling nearest-filtered bark, and alpha-cut leaf cards or fronds that flutter in the wind. Every species, its form and its seeded variants are data in content/game/flora/catalog.json; scripts/generate-flora.py builds them (seeded, deterministic), each tree's NAME-far being its distant-band variant (#9677). The earlier TRELLIS-generated meshes are recorded in Den history/trees-trellis-sources.",
+ "generated": "2026-10-16",
+ "tool": "scripts/generate-flora.py",
  "items": [
   {
-   "texture": "content/game/textures/trees/oak-bark.png",
-   "sha256": "b1c5eb90747ee2484e2326f9a479607af68458e386aa562b85f1c58826c66a29",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "texture": "content/game/textures/trees/alder-bark.png",
+   "sha256": "a79655fb8e323e23a7ce1a4a5b2b8a2205fa746ae47200a9429690d08c69a7e7",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
-   "texture": "content/game/textures/trees/oak-leaves.png",
-   "sha256": "687d141131e53bb79c8094d1c5e2b1153340182cc105f3e9b060c2773c0af243",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "texture": "content/game/textures/trees/alder-leaves.png",
+   "sha256": "305b7616b0b95869cd236cb7865871b074a8443f6abc03b4ca7b583fcc5652a5",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/beech-bark.png",
+   "sha256": "82327b40ddfb458023175e4888b661b9df0b700b9d9099e4bef460150319e59d",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/beech-leaves.png",
+   "sha256": "ae61a04f9ba33d6b56c480e2a7a50b782c568e2ddc145d9b106e3f33ed7d7612",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
    "texture": "content/game/textures/trees/birch-bark.png",
    "sha256": "b858661c217e897b564359d0a60c79bac14c1d4a56c45dba12e13a53d5deace8",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
    "texture": "content/game/textures/trees/birch-leaves.png",
    "sha256": "344b77def8007e5013427f36749502379e6861a498fac34702b542670af9d8cf",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
-   "texture": "content/game/textures/trees/pine-bark.png",
-   "sha256": "89db2d406f3c365b1ad43d4d1af1e066624940be4329783d5d52aa7c2f382708",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
-  },
-  {
-   "texture": "content/game/textures/trees/pine-leaves.png",
-   "sha256": "d007d28fc40a657a04339e89ca802e311ea8f885de3ed4c58e4a0b4e068e2dd3",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
-  },
-  {
-   "texture": "content/game/textures/trees/dead-bark.png",
-   "sha256": "50d844c2ae42ba599589697978441b91a1f9f5ddf1fc5951e08163000fe80914",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
-  },
-  {
-   "texture": "content/game/textures/trees/palm-bark.png",
-   "sha256": "5682cbf6fe1919312501f4bd1ba20e20d35d5c02b2a93e1327622eea8be5a87c",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
-  },
-  {
-   "texture": "content/game/textures/trees/palm-leaves.png",
-   "sha256": "93df2097b7ab048db3a4903633b4e1a61ca6dc2782b142ef3083b67b0df64124",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "texture": "content/game/textures/trees/broom-leaves.png",
+   "sha256": "ef40a7bd9edd192b1fd570dc54dbb4659eb492d5ed96b198a071db94eddcd1da",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
    "texture": "content/game/textures/trees/bush-leaves.png",
    "sha256": "ca04bb95b196c82f3e8477ad811908368cbf07b77bdd1fb98a7032bb182dd4c0",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/chestnut-bark.png",
+   "sha256": "68f674358f47416f5efc08e390f3c19b2dacb777e185f1fbbc4df71aa819ab74",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/chestnut-leaves.png",
+   "sha256": "934880f697f7cceacbcc5ec42a74deff4d12c96f0342c25d6775cda4e510e7b0",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/cork-bark.png",
+   "sha256": "d0fa4ffb1dfd9a0cb06d5fc26ef4631a3cb089d22b60a5074db137989186354c",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/cork-leaves.png",
+   "sha256": "81c7752394f62b01654e8c5ab23d1e4a7ba32b9dd56695263a2eb5f8d7bac895",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/dead-bark.png",
+   "sha256": "50d844c2ae42ba599589697978441b91a1f9f5ddf1fc5951e08163000fe80914",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
    "texture": "content/game/textures/trees/fern-leaves.png",
-   "sha256": "cde716ff53ebbb9e7224a700a649a0475167e155bbf98e0bb1e7dbc4361b03fc",
-   "drawnBy": "scripts/generate-tree.py from content/style/palette.json ramps"
+   "sha256": "c75ae8011334336c5e5bc65a61cfc7ec0cc76618a0ce149ca463dff73b5fce5f",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/fir-bark.png",
+   "sha256": "4f413747a15d2150f1912a90588c09b9ba4cd21c2585f1161aedeeaade4162ab",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/fir-leaves.png",
+   "sha256": "77d3ee72c1c32bc84e6726e599c91d1460f0ac81d4d93565430466ec2952b076",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/glass-bark.png",
+   "sha256": "093fae48c6574ecbc7b7aaa4e637d2e383a8ecaa68c4028e9b8d0977af298754",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/glass-leaves.png",
+   "sha256": "69d7dc16fb7902ba04e0b606ee532580e4ec8a9f5ff63ea26c3126cba8d7710d",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/gorse-leaves.png",
+   "sha256": "aa40d02a5ffe3f192c847b4509b0758da94fb77650385a70a05f7184e843e54d",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/hazel-leaves.png",
+   "sha256": "f7885cb8f2538bdc637357931c42cb430484f903587c2dd0c21f1f04da455d31",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/heather-leaves.png",
+   "sha256": "cae10e0244d1dd24a5205d41ccbcb30bb8825615a9e6168ee9303fe719167779",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/holly-leaves.png",
+   "sha256": "414d85c162d358c418fd0bd01787f256960df3a0ec273dac3817bb1570ecde1a",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/holm-bark.png",
+   "sha256": "e3bf9c9c9244f66ace0ae5659512691f3f49354256085f741719f34f2c32d907",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/holm-leaves.png",
+   "sha256": "a799ec3c3e64d03c4d60cfaa048fb8fdb4f4ece4bcca0aa7ca9a71ef74b724a0",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/juniper-bark.png",
+   "sha256": "218fba05e0e2963b0eaf6edfef1f0cbf3ac7255c8aa51c09901e15f5d3f7c16a",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/juniper-leaves.png",
+   "sha256": "daa5313212c2da7b186536ade75635dd22526787d4da637d505d2a772b9a03f1",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/laurel-bark.png",
+   "sha256": "e49010b9180b10ff8ab1340cac67b8ca6e5472153c9a7cf3e058f8548e2cf9ca",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/laurel-leaves.png",
+   "sha256": "e00937722f25a5af6b39180387c5526e6f756e71ef5b71b8ad7085cc3efd8c24",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/oak-bark.png",
+   "sha256": "b1c5eb90747ee2484e2326f9a479607af68458e386aa562b85f1c58826c66a29",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/oak-leaves.png",
+   "sha256": "687d141131e53bb79c8094d1c5e2b1153340182cc105f3e9b060c2773c0af243",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/olive-bark.png",
+   "sha256": "e14048e2122723b0b129007f58e32ea59cd097823c7071748918c758697cddb6",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/olive-leaves.png",
+   "sha256": "223ce2bf5105f66fe79375c9422fa8d7c6fc85c81cff9779b1eb89e48658f79e",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/palm-bark.png",
+   "sha256": "5682cbf6fe1919312501f4bd1ba20e20d35d5c02b2a93e1327622eea8be5a87c",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/palm-leaves.png",
+   "sha256": "b6ae7b2bb3a2eb9f9bb4e6554ad8a5cc28e255b4038482091cc8b37fa7432693",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/pine-bark.png",
+   "sha256": "89db2d406f3c365b1ad43d4d1af1e066624940be4329783d5d52aa7c2f382708",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/pine-leaves.png",
+   "sha256": "fa6b4db032bab8b84015a396f3060dca1f6c1bcfa5fd295e431d90ed2ea4a42f",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/poplar-bark.png",
+   "sha256": "6f5c236f40b1a5877012badad2b21116480fe57157e94de7f18fa1bee62d76ad",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/poplar-leaves.png",
+   "sha256": "b06e63a7fe63bc0406a160b0de300d1f65f491797089a7f0a6797640be06a158",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/rosemary-leaves.png",
+   "sha256": "d25ef52ea1f895ef2b99e5edd1da19e9ece48a1a1f812deade6c9c934b994b2b",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/stonepine-leaves.png",
+   "sha256": "f38e17b89c47888f1133f42af9bd5f7d490a2226b5c0182653bb4eedbc88a8a1",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/willow-bark.png",
+   "sha256": "f34ffcf54f8e314ef2ffae6ac44d0c7688e0c72077ffdf461d8047670525eff1",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
+  },
+  {
+   "texture": "content/game/textures/trees/willow-leaves.png",
+   "sha256": "96b6a8dd6ee68f019bebc878f09f3ac1d5fda762e8e0169842d14296ca94bddf",
+   "drawnBy": "scripts/generate-flora.py from the catalog's bark and foliage styles and content/style/palette.json ramps"
   },
   {
    "model": "content/game/models/trees/oak-p1.prop-mesh.json",
    "sha256": "a98436c8fdfd4573e145c4a8074d116122d1bb5ca057e3d0338218001555aee8",
-   "command": "python3 scripts/generate-tree.py oak --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py oak"
   },
   {
    "model": "content/game/models/trees/oak-p1-far.prop-mesh.json",
    "sha256": "d026f44f3eafe6788e7850d93dcdf32b17031c2d53c8c8a7b57485f3e88f9c95",
-   "command": "python3 scripts/generate-tree.py oak --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py oak"
   },
   {
    "model": "content/game/models/trees/oak-p2.prop-mesh.json",
    "sha256": "958bfa54044079bcd0910450cceba09d71624f66c0ed23deb7d554e633b9e1e0",
-   "command": "python3 scripts/generate-tree.py oak --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py oak"
   },
   {
    "model": "content/game/models/trees/oak-p2-far.prop-mesh.json",
    "sha256": "4374e355018e4a63c84010e9f0023432d9c4bbdd9b6b10b1c62cb8d9bc1de420",
-   "command": "python3 scripts/generate-tree.py oak --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py oak"
+  },
+  {
+   "model": "content/game/models/trees/oak-p3.prop-mesh.json",
+   "sha256": "84af9ba3e00b74c52e5ec770c8ef5290b558dc6dfca2501c56cb0a688e37ec57",
+   "command": "python3 scripts/generate-flora.py oak"
+  },
+  {
+   "model": "content/game/models/trees/oak-p3-far.prop-mesh.json",
+   "sha256": "d6f11ddcf3247c13052e8f7b73910fe00d810e7e97dcc2cb30b5b49db6286afe",
+   "command": "python3 scripts/generate-flora.py oak"
   },
   {
    "model": "content/game/models/trees/birch-p1.prop-mesh.json",
    "sha256": "1861c0e1d02517eba7365b8544e9b46c9de47f344492450ee03982aaf118d537",
-   "command": "python3 scripts/generate-tree.py birch --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py birch"
   },
   {
    "model": "content/game/models/trees/birch-p1-far.prop-mesh.json",
    "sha256": "c911693abb3cb09d188b9545121607e30d3f0db5c4b0724eec1902fb54254a92",
-   "command": "python3 scripts/generate-tree.py birch --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py birch"
   },
   {
    "model": "content/game/models/trees/birch-p2.prop-mesh.json",
    "sha256": "393b2b6e4501a96126accf34082719d86c45d0861c02cbcde61ef27a9d2fe8ff",
-   "command": "python3 scripts/generate-tree.py birch --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py birch"
   },
   {
    "model": "content/game/models/trees/birch-p2-far.prop-mesh.json",
    "sha256": "39176e66c1a72339dc00cf911c875b2100a77c80c1173b373071eccd43fe33e0",
-   "command": "python3 scripts/generate-tree.py birch --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py birch"
+  },
+  {
+   "model": "content/game/models/trees/birch-p3.prop-mesh.json",
+   "sha256": "7c3434851dd5c91747b3a2efe5b54b3c65a16e4a3514fa3dd31fdb3463445bc7",
+   "command": "python3 scripts/generate-flora.py birch"
+  },
+  {
+   "model": "content/game/models/trees/birch-p3-far.prop-mesh.json",
+   "sha256": "ed470d053c4c589eb0bd3e9a49b64e1af3ab94dd0f7a21f151ef0ff9bd9c45be",
+   "command": "python3 scripts/generate-flora.py birch"
   },
   {
    "model": "content/game/models/trees/pine-p1.prop-mesh.json",
    "sha256": "73c25be69842c65d55f501e06949d7077f6dc7c791dc52d8de3292a0fadb9f55",
-   "command": "python3 scripts/generate-tree.py pine --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py pine"
   },
   {
    "model": "content/game/models/trees/pine-p1-far.prop-mesh.json",
    "sha256": "d5166a2dc814b13dd1acb8ecb399b0a56587d168f370d22cad595b39fc52f0bd",
-   "command": "python3 scripts/generate-tree.py pine --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py pine"
   },
   {
    "model": "content/game/models/trees/pine-p2.prop-mesh.json",
    "sha256": "ea131437970b1c282ec18207c3ef37e2b95e6b71c21826d83453edfb29d0cc0f",
-   "command": "python3 scripts/generate-tree.py pine --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py pine"
   },
   {
    "model": "content/game/models/trees/pine-p2-far.prop-mesh.json",
    "sha256": "ca666871f89a3e307ec63a53a6832e58f8cb0022015615b926858fd1d0cd0be7",
-   "command": "python3 scripts/generate-tree.py pine --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py pine"
+  },
+  {
+   "model": "content/game/models/trees/pine-p3.prop-mesh.json",
+   "sha256": "885680129f849e6c82a61d49f6d9e48c166ff4b71f71c4bb267d4dda6d87e705",
+   "command": "python3 scripts/generate-flora.py pine"
+  },
+  {
+   "model": "content/game/models/trees/pine-p3-far.prop-mesh.json",
+   "sha256": "5a548dfe07d0572ca925315452a1dd11ff2f6305513dd8e6f61108dee7531fa4",
+   "command": "python3 scripts/generate-flora.py pine"
   },
   {
    "model": "content/game/models/trees/dead-p1.prop-mesh.json",
    "sha256": "fb14fa90b11497240b34b9424c01e9c8beec2f325f12a0f3bd814b6604fc2188",
-   "command": "python3 scripts/generate-tree.py dead --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py dead"
   },
   {
    "model": "content/game/models/trees/dead-p1-far.prop-mesh.json",
    "sha256": "fbb6598d895bd1c0b603f0071c3e14fb3707e328c6a6286f2ef5f126da4b4f6f",
-   "command": "python3 scripts/generate-tree.py dead --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py dead"
   },
   {
    "model": "content/game/models/trees/dead-p2.prop-mesh.json",
    "sha256": "2a68110aed5ebacb6dd5df081288f917f08cd6d287a8bd08a7a7b59856e72ea9",
-   "command": "python3 scripts/generate-tree.py dead --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py dead"
   },
   {
    "model": "content/game/models/trees/dead-p2-far.prop-mesh.json",
    "sha256": "b1c1dc4c8eebbba6cf1a5937cbd70b3ac47a0d23d905e58653e31ca8fab05535",
-   "command": "python3 scripts/generate-tree.py dead --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py dead"
+  },
+  {
+   "model": "content/game/models/trees/dead-p3.prop-mesh.json",
+   "sha256": "211a9423b5fa3571200108d128a6bfe18f5c04c54f8df0c494a58629cb702e4c",
+   "command": "python3 scripts/generate-flora.py dead"
+  },
+  {
+   "model": "content/game/models/trees/dead-p3-far.prop-mesh.json",
+   "sha256": "37f6527fc142f994b908ac02e360ec171abadd3e686bd93ab0f4949b75b05ad2",
+   "command": "python3 scripts/generate-flora.py dead"
   },
   {
    "model": "content/game/models/trees/palm-p1.prop-mesh.json",
    "sha256": "3cb159fc3144610ffe32c21999f93a988b4e2c29d2cfae295c4968c3fbb5c7ba",
-   "command": "python3 scripts/generate-tree.py palm --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py palm"
   },
   {
    "model": "content/game/models/trees/palm-p1-far.prop-mesh.json",
    "sha256": "7cccab61813588fd2ddd463bf6cbc30c9b09b61d85ed2e4b84e63f7ac8846ee7",
-   "command": "python3 scripts/generate-tree.py palm --seed 1 --far"
+   "command": "python3 scripts/generate-flora.py palm"
   },
   {
    "model": "content/game/models/trees/palm-p2.prop-mesh.json",
    "sha256": "fda3b02eecd50590ab0ecbd6d929c51066a69ce642beb7f17b7ce41f55c493dc",
-   "command": "python3 scripts/generate-tree.py palm --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py palm"
   },
   {
    "model": "content/game/models/trees/palm-p2-far.prop-mesh.json",
    "sha256": "841b87ea3383047dfe08c444c84740a06e15343bbf0bde45f32129680c690e8e",
-   "command": "python3 scripts/generate-tree.py palm --seed 2 --far"
+   "command": "python3 scripts/generate-flora.py palm"
+  },
+  {
+   "model": "content/game/models/trees/palm-p3.prop-mesh.json",
+   "sha256": "56c59f09cd5805b1ef8e6f975d8de4635a9b5764114d06fe2b351d87c5aad13f",
+   "command": "python3 scripts/generate-flora.py palm"
+  },
+  {
+   "model": "content/game/models/trees/palm-p3-far.prop-mesh.json",
+   "sha256": "2f6e577c86f5e0e5f45be477cc15cac40b9633116ce04380500cdb5c7e4f81fc",
+   "command": "python3 scripts/generate-flora.py palm"
+  },
+  {
+   "model": "content/game/models/trees/chestnut-p1.prop-mesh.json",
+   "sha256": "c9342b5255cfa58db34744b0a802c88d8e0dd1bce47d6e7109d9bc386f7b3c9d",
+   "command": "python3 scripts/generate-flora.py chestnut"
+  },
+  {
+   "model": "content/game/models/trees/chestnut-p1-far.prop-mesh.json",
+   "sha256": "f8f0055d4cc23debeb498bfbad60469b7728954ed7fdc2f16f6b3a7c921b9f66",
+   "command": "python3 scripts/generate-flora.py chestnut"
+  },
+  {
+   "model": "content/game/models/trees/chestnut-p2.prop-mesh.json",
+   "sha256": "927c603be14b44c8f698207544d8cb53861abd28d6a1de335b512fee2b1dbfbd",
+   "command": "python3 scripts/generate-flora.py chestnut"
+  },
+  {
+   "model": "content/game/models/trees/chestnut-p2-far.prop-mesh.json",
+   "sha256": "6ffd33b0ef6fa32547c2aaa2296d2040f1af1756e76956db29c43d48ac8c205b",
+   "command": "python3 scripts/generate-flora.py chestnut"
+  },
+  {
+   "model": "content/game/models/trees/chestnut-p3.prop-mesh.json",
+   "sha256": "76ba97de702a506982db70f9e6fde7fd6e1df024b62774ae4e4e621792cf5b9c",
+   "command": "python3 scripts/generate-flora.py chestnut"
+  },
+  {
+   "model": "content/game/models/trees/chestnut-p3-far.prop-mesh.json",
+   "sha256": "8081c035677b85f1e2af8cd2dde84910666765125e872207d01859669d61853f",
+   "command": "python3 scripts/generate-flora.py chestnut"
+  },
+  {
+   "model": "content/game/models/trees/beech-p1.prop-mesh.json",
+   "sha256": "1ba71a4ab2d65a6ed506dcede7b14f51921808a5968e1b42b89728604343b643",
+   "command": "python3 scripts/generate-flora.py beech"
+  },
+  {
+   "model": "content/game/models/trees/beech-p1-far.prop-mesh.json",
+   "sha256": "ac62cf208cf940154614f8fa339a0d82f446b3d2f791e7e0338b8946e9379498",
+   "command": "python3 scripts/generate-flora.py beech"
+  },
+  {
+   "model": "content/game/models/trees/beech-p2.prop-mesh.json",
+   "sha256": "22dfaa294bb017d68eaeda6d95d0fd2fd25304c818ac2eed40202d8fbc9a25a9",
+   "command": "python3 scripts/generate-flora.py beech"
+  },
+  {
+   "model": "content/game/models/trees/beech-p2-far.prop-mesh.json",
+   "sha256": "c5e96cc745a1f11219a183e57735d844ab379077dc127a9e9cb894e566cc3d44",
+   "command": "python3 scripts/generate-flora.py beech"
+  },
+  {
+   "model": "content/game/models/trees/beech-p3.prop-mesh.json",
+   "sha256": "20d12443cad8be93ab990d096e0508e8b4b9111e4f6c69e318be37c535da3cf9",
+   "command": "python3 scripts/generate-flora.py beech"
+  },
+  {
+   "model": "content/game/models/trees/beech-p3-far.prop-mesh.json",
+   "sha256": "1918f930f9e2c849c4185c93785fa20d3005f2d77529ffadd3cd1754c09b902a",
+   "command": "python3 scripts/generate-flora.py beech"
+  },
+  {
+   "model": "content/game/models/trees/holm-oak-p1.prop-mesh.json",
+   "sha256": "2665c52220783b5b0a2f18bd91560d23ac01127e7d119cf1f7ec9244b28dbea2",
+   "command": "python3 scripts/generate-flora.py holm-oak"
+  },
+  {
+   "model": "content/game/models/trees/holm-oak-p1-far.prop-mesh.json",
+   "sha256": "f629b4b05d6ac090cb85afc8fecd51a3074bacbd16b09141e4ab186e3c977223",
+   "command": "python3 scripts/generate-flora.py holm-oak"
+  },
+  {
+   "model": "content/game/models/trees/holm-oak-p2.prop-mesh.json",
+   "sha256": "58535880a214cfa5efcd09eb45987a9f78aef9c1f4513e9a030ae46bf8626a43",
+   "command": "python3 scripts/generate-flora.py holm-oak"
+  },
+  {
+   "model": "content/game/models/trees/holm-oak-p2-far.prop-mesh.json",
+   "sha256": "8c97dd8615b859ed4778022619c53e9db547fca6dc8a9ec5e8c633165eae670f",
+   "command": "python3 scripts/generate-flora.py holm-oak"
+  },
+  {
+   "model": "content/game/models/trees/holm-oak-p3.prop-mesh.json",
+   "sha256": "c5cbed105762af59b257430e7a9aa2a6daf8d7d83f816dbf770e5aeb676d61ec",
+   "command": "python3 scripts/generate-flora.py holm-oak"
+  },
+  {
+   "model": "content/game/models/trees/holm-oak-p3-far.prop-mesh.json",
+   "sha256": "a373e294bbeb31cae1baa8b879b604d87f4f076be57263ccffbc408f07f8a5b3",
+   "command": "python3 scripts/generate-flora.py holm-oak"
+  },
+  {
+   "model": "content/game/models/trees/cork-oak-p1.prop-mesh.json",
+   "sha256": "e6b4afcaf25a152203ec0ed4192ec05abf4b1087ccd937cc17fbdf5a4a914a97",
+   "command": "python3 scripts/generate-flora.py cork-oak"
+  },
+  {
+   "model": "content/game/models/trees/cork-oak-p1-far.prop-mesh.json",
+   "sha256": "6f94c6aa47df157a6ad6238d6b2fca19b77753086c6a727fee4e80cf8ed4fd34",
+   "command": "python3 scripts/generate-flora.py cork-oak"
+  },
+  {
+   "model": "content/game/models/trees/cork-oak-p2.prop-mesh.json",
+   "sha256": "506c2923964cc6ae290c85597f8c7f8843a5adfb9da515406d3950da9fa84e68",
+   "command": "python3 scripts/generate-flora.py cork-oak"
+  },
+  {
+   "model": "content/game/models/trees/cork-oak-p2-far.prop-mesh.json",
+   "sha256": "5816e993f9d8ff54da8177433cc46e7c45b95658331f2ec76ae1297f0fcdc261",
+   "command": "python3 scripts/generate-flora.py cork-oak"
+  },
+  {
+   "model": "content/game/models/trees/cork-oak-p3.prop-mesh.json",
+   "sha256": "c3fe110d83e50d5cbd852280ceefc60ae1674e2453c9f48d51018ddf48209fbe",
+   "command": "python3 scripts/generate-flora.py cork-oak"
+  },
+  {
+   "model": "content/game/models/trees/cork-oak-p3-far.prop-mesh.json",
+   "sha256": "626d96dc260693a6c54a7d1201f82aa29088a1e17745bb8c887888c4fc9e82b9",
+   "command": "python3 scripts/generate-flora.py cork-oak"
+  },
+  {
+   "model": "content/game/models/trees/stone-pine-p1.prop-mesh.json",
+   "sha256": "5bf6b57c79fc1df025f4bc122a8e7e86f886fbdecbec63f1b029f94e8dee6cf2",
+   "command": "python3 scripts/generate-flora.py stone-pine"
+  },
+  {
+   "model": "content/game/models/trees/stone-pine-p1-far.prop-mesh.json",
+   "sha256": "c409648d339d79f279a385797a11ee772053ef82c17bb6ef649438151ea97463",
+   "command": "python3 scripts/generate-flora.py stone-pine"
+  },
+  {
+   "model": "content/game/models/trees/stone-pine-p2.prop-mesh.json",
+   "sha256": "88f1e26a320484f2b9671a90ec79f21983848a46e841839b050e243a6a2ac843",
+   "command": "python3 scripts/generate-flora.py stone-pine"
+  },
+  {
+   "model": "content/game/models/trees/stone-pine-p2-far.prop-mesh.json",
+   "sha256": "413a8645abc4281b80678c2b3f7193ced4043752ebac26fc877cf38c552aef0a",
+   "command": "python3 scripts/generate-flora.py stone-pine"
+  },
+  {
+   "model": "content/game/models/trees/stone-pine-p3.prop-mesh.json",
+   "sha256": "bbf547ed6e93f3a1a4204ddbf8e82947286db0eb75ce254f3682c37e9f3ed603",
+   "command": "python3 scripts/generate-flora.py stone-pine"
+  },
+  {
+   "model": "content/game/models/trees/stone-pine-p3-far.prop-mesh.json",
+   "sha256": "7da5d86bc3409de1ec5f114704cf71f1b90201697f7d03802323f16147856440",
+   "command": "python3 scripts/generate-flora.py stone-pine"
+  },
+  {
+   "model": "content/game/models/trees/fir-p1.prop-mesh.json",
+   "sha256": "dcc68ee0712299070fe71f03b187920432bfd1672878b443add7d5d027a79068",
+   "command": "python3 scripts/generate-flora.py fir"
+  },
+  {
+   "model": "content/game/models/trees/fir-p1-far.prop-mesh.json",
+   "sha256": "2129d89c2ddbd67ff0d878f3d32f9a7a4f353162255520a7ee64307fa8cb1a06",
+   "command": "python3 scripts/generate-flora.py fir"
+  },
+  {
+   "model": "content/game/models/trees/fir-p2.prop-mesh.json",
+   "sha256": "7ee15b8c56a40a1bc4fe38780b3de7285d22178e43aab6c886aeb46ddb7c5a00",
+   "command": "python3 scripts/generate-flora.py fir"
+  },
+  {
+   "model": "content/game/models/trees/fir-p2-far.prop-mesh.json",
+   "sha256": "0b3b7d184c625c06b74f01bf91c0cb1bef3f4673a868b852e0be8e853d4c9713",
+   "command": "python3 scripts/generate-flora.py fir"
+  },
+  {
+   "model": "content/game/models/trees/fir-p3.prop-mesh.json",
+   "sha256": "6877404dd54c4439af307da79c8a247a5181ff7dae3f2edff84567d0e9fa0081",
+   "command": "python3 scripts/generate-flora.py fir"
+  },
+  {
+   "model": "content/game/models/trees/fir-p3-far.prop-mesh.json",
+   "sha256": "ebe0fde0cb3653a38e7c71199695b4fba04685fc91fcc91150f75ca18b947bd5",
+   "command": "python3 scripts/generate-flora.py fir"
+  },
+  {
+   "model": "content/game/models/trees/poplar-p1.prop-mesh.json",
+   "sha256": "ccc690184b79d4e5593a4faca3c1fefa23fa468a071acede7672cb10d20cc30d",
+   "command": "python3 scripts/generate-flora.py poplar"
+  },
+  {
+   "model": "content/game/models/trees/poplar-p1-far.prop-mesh.json",
+   "sha256": "36d25d575140930e9454cf652a840144a24ffe64ca08023f24049a9fe379a056",
+   "command": "python3 scripts/generate-flora.py poplar"
+  },
+  {
+   "model": "content/game/models/trees/poplar-p2.prop-mesh.json",
+   "sha256": "e91e951422fb4f6c4b2420f09f076c4fa5d07ec208892d20a3a4f65807031f48",
+   "command": "python3 scripts/generate-flora.py poplar"
+  },
+  {
+   "model": "content/game/models/trees/poplar-p2-far.prop-mesh.json",
+   "sha256": "305872285cb1ede2bf33ec48eb04ef60dd0a437760ba1b2e1895b73b29f2f501",
+   "command": "python3 scripts/generate-flora.py poplar"
+  },
+  {
+   "model": "content/game/models/trees/poplar-p3.prop-mesh.json",
+   "sha256": "3144b25fa2280f092b4fc681554a99c379a477295867e2f55608be13a51b0be1",
+   "command": "python3 scripts/generate-flora.py poplar"
+  },
+  {
+   "model": "content/game/models/trees/poplar-p3-far.prop-mesh.json",
+   "sha256": "abe452d622dbbb2aacae3c2e0f9cb3823e89f28dcc5e643ead5210d7b9007b56",
+   "command": "python3 scripts/generate-flora.py poplar"
+  },
+  {
+   "model": "content/game/models/trees/willow-p1.prop-mesh.json",
+   "sha256": "d63b3705a5ffb4ba1fec5df4a163416ebf8958f7817df07ab2df8f0efb5e029d",
+   "command": "python3 scripts/generate-flora.py willow"
+  },
+  {
+   "model": "content/game/models/trees/willow-p1-far.prop-mesh.json",
+   "sha256": "44637802709e56c20c18c1c7ccf9a6eaf87d72b458b06e6b9602a65753e5e1a7",
+   "command": "python3 scripts/generate-flora.py willow"
+  },
+  {
+   "model": "content/game/models/trees/willow-p2.prop-mesh.json",
+   "sha256": "d2a6fc0efdd3a614d0fe14d8728b6dcadad42060599f5a26670389d01586f332",
+   "command": "python3 scripts/generate-flora.py willow"
+  },
+  {
+   "model": "content/game/models/trees/willow-p2-far.prop-mesh.json",
+   "sha256": "11d891ef8d51720ed8bf058b6444fa1533daebd4ab6ec15059e4877fd8d77f55",
+   "command": "python3 scripts/generate-flora.py willow"
+  },
+  {
+   "model": "content/game/models/trees/willow-p3.prop-mesh.json",
+   "sha256": "9e001e64dd88c74d5217d9bcefec303d105bebc4eac7d1b5daba72086b51fcda",
+   "command": "python3 scripts/generate-flora.py willow"
+  },
+  {
+   "model": "content/game/models/trees/willow-p3-far.prop-mesh.json",
+   "sha256": "ddd2f4c4ff167c57a4622387a86f8ac6b57b405b1a4b821af8d298c0abdfb8ba",
+   "command": "python3 scripts/generate-flora.py willow"
+  },
+  {
+   "model": "content/game/models/trees/alder-p1.prop-mesh.json",
+   "sha256": "5c62e4f2c037098e36740b287ff5813bde2829cdeea653a1f431fa65a627a894",
+   "command": "python3 scripts/generate-flora.py alder"
+  },
+  {
+   "model": "content/game/models/trees/alder-p1-far.prop-mesh.json",
+   "sha256": "46192bda943d9efca813d918d5734864271f9f03442700e565b52c7189e72d6e",
+   "command": "python3 scripts/generate-flora.py alder"
+  },
+  {
+   "model": "content/game/models/trees/alder-p2.prop-mesh.json",
+   "sha256": "1adc335cfb7c84e09fb79b2a8982e8d770160270123b243aa1fa68ab81d1e818",
+   "command": "python3 scripts/generate-flora.py alder"
+  },
+  {
+   "model": "content/game/models/trees/alder-p2-far.prop-mesh.json",
+   "sha256": "3515a957e038c95fa6b4087b710e5a5b403eb343483d3f52f2e893809583cae8",
+   "command": "python3 scripts/generate-flora.py alder"
+  },
+  {
+   "model": "content/game/models/trees/alder-p3.prop-mesh.json",
+   "sha256": "15fe8733eb47a69092705ce540ba179f99139f42b5d7888af7ca3b7e7c9e8a5d",
+   "command": "python3 scripts/generate-flora.py alder"
+  },
+  {
+   "model": "content/game/models/trees/alder-p3-far.prop-mesh.json",
+   "sha256": "5c3362288913df9e343bfaf1bba739e5e3a1df61330162be13c889bc5ade0b81",
+   "command": "python3 scripts/generate-flora.py alder"
+  },
+  {
+   "model": "content/game/models/trees/olive-p1.prop-mesh.json",
+   "sha256": "6d08029144272f444c1b7e2b2e6c47bbe1a21b93808e43d2d9f8a347d6023e50",
+   "command": "python3 scripts/generate-flora.py olive"
+  },
+  {
+   "model": "content/game/models/trees/olive-p1-far.prop-mesh.json",
+   "sha256": "fd8bbed808620e3040a6fa59fdfc94c6a6d68d5af7697b56bc0bc1ea8e98182d",
+   "command": "python3 scripts/generate-flora.py olive"
+  },
+  {
+   "model": "content/game/models/trees/olive-p2.prop-mesh.json",
+   "sha256": "bb84e5ce248afb4a4221e4bbfb576db83097b773f1c9a8e15a5a1768f12b040d",
+   "command": "python3 scripts/generate-flora.py olive"
+  },
+  {
+   "model": "content/game/models/trees/olive-p2-far.prop-mesh.json",
+   "sha256": "1fb57d7ecda4476ea6f21845b1b4acaba9f40e90beba2b6e0f08ef95ff866d5e",
+   "command": "python3 scripts/generate-flora.py olive"
+  },
+  {
+   "model": "content/game/models/trees/olive-p3.prop-mesh.json",
+   "sha256": "bfe5ba333a9cc87be223e75e8b15083edef7c84fa26db3a20234ce6fa9430677",
+   "command": "python3 scripts/generate-flora.py olive"
+  },
+  {
+   "model": "content/game/models/trees/olive-p3-far.prop-mesh.json",
+   "sha256": "c666d4d22fbf5be6fc4fb4e590f45ff1b2bb7225a1ffc597abe78ffeacdda8fa",
+   "command": "python3 scripts/generate-flora.py olive"
+  },
+  {
+   "model": "content/game/models/trees/laurel-p1.prop-mesh.json",
+   "sha256": "f1a4350daf2db28151b696eda39ee565b62b5ae7dff4958d1080b02e870bb043",
+   "command": "python3 scripts/generate-flora.py laurel"
+  },
+  {
+   "model": "content/game/models/trees/laurel-p1-far.prop-mesh.json",
+   "sha256": "2afbf842f6a7015834c5c3269c16f3085753dcb32e0bb6238ff8523afe216100",
+   "command": "python3 scripts/generate-flora.py laurel"
+  },
+  {
+   "model": "content/game/models/trees/laurel-p2.prop-mesh.json",
+   "sha256": "2bbd5d3458cc17b61d2201751bffdf9f18a8c366ed2a5dde9b87729ce1e7494a",
+   "command": "python3 scripts/generate-flora.py laurel"
+  },
+  {
+   "model": "content/game/models/trees/laurel-p2-far.prop-mesh.json",
+   "sha256": "839f23852d0d1d7f832f6de77ceca96c998dc21729a4e5d9a03a958e46a62320",
+   "command": "python3 scripts/generate-flora.py laurel"
+  },
+  {
+   "model": "content/game/models/trees/laurel-p3.prop-mesh.json",
+   "sha256": "093d25cd66d4c25d93cfef11bc428a149724092d326c7ae42cfd2b4e5132f9fd",
+   "command": "python3 scripts/generate-flora.py laurel"
+  },
+  {
+   "model": "content/game/models/trees/laurel-p3-far.prop-mesh.json",
+   "sha256": "230c06a265c1b3e60f9ee8749ef695c02260702868b767eef5247830315cf9fb",
+   "command": "python3 scripts/generate-flora.py laurel"
+  },
+  {
+   "model": "content/game/models/trees/juniper-p1.prop-mesh.json",
+   "sha256": "a0c585751fc8de47e86cf38f627516e31bde8940f8cc4752e3d038eeae3a54da",
+   "command": "python3 scripts/generate-flora.py juniper"
+  },
+  {
+   "model": "content/game/models/trees/juniper-p1-far.prop-mesh.json",
+   "sha256": "d9eef9665e5d7a1bc449cfbf8656cc3e4f79a0afb3c4e0bf6a26de8606bb0e07",
+   "command": "python3 scripts/generate-flora.py juniper"
+  },
+  {
+   "model": "content/game/models/trees/juniper-p2.prop-mesh.json",
+   "sha256": "e0e70d4d7ef4ad54d04046f7b30baf83e1dba65fd5ff4650b18fb030946a3a6d",
+   "command": "python3 scripts/generate-flora.py juniper"
+  },
+  {
+   "model": "content/game/models/trees/juniper-p2-far.prop-mesh.json",
+   "sha256": "260d6efcd448e4c0f219d6f5bc9ae79f1dea6fe6eca29b3202dd2d39c3c88f7f",
+   "command": "python3 scripts/generate-flora.py juniper"
+  },
+  {
+   "model": "content/game/models/trees/juniper-p3.prop-mesh.json",
+   "sha256": "d161d13c0d7abba5e4b8e7ee58c0359254ee0e08334669106169d6c75f76acf5",
+   "command": "python3 scripts/generate-flora.py juniper"
+  },
+  {
+   "model": "content/game/models/trees/juniper-p3-far.prop-mesh.json",
+   "sha256": "a7efa67993e38747c56375b4bc839a3467f871280c9fc522172c95c536f1f9db",
+   "command": "python3 scripts/generate-flora.py juniper"
+  },
+  {
+   "model": "content/game/models/trees/mountain-pine-p1.prop-mesh.json",
+   "sha256": "6f54ed2a478e019b825f53f422e33bbddc98c5a8d1fd7fd1f4e9fbf8770252dc",
+   "command": "python3 scripts/generate-flora.py mountain-pine"
+  },
+  {
+   "model": "content/game/models/trees/mountain-pine-p1-far.prop-mesh.json",
+   "sha256": "e9f1aa2c1bba90976f3bbae94c3ecb47d8e38189d0a7622105e32619471421f2",
+   "command": "python3 scripts/generate-flora.py mountain-pine"
+  },
+  {
+   "model": "content/game/models/trees/mountain-pine-p2.prop-mesh.json",
+   "sha256": "b8667af3edcadac1739d878225ee0d3f4a3e1613f007ad7f7d74bccba3da9d47",
+   "command": "python3 scripts/generate-flora.py mountain-pine"
+  },
+  {
+   "model": "content/game/models/trees/mountain-pine-p2-far.prop-mesh.json",
+   "sha256": "17b2f9f81547edb74b3ec0006d721db3f6e85e5290efe8a18c8b648b0f544fd6",
+   "command": "python3 scripts/generate-flora.py mountain-pine"
+  },
+  {
+   "model": "content/game/models/trees/mountain-pine-p3.prop-mesh.json",
+   "sha256": "83a78f16b3e8457636372709adc31f7339addb9dfed78b50c030bc7e14a10339",
+   "command": "python3 scripts/generate-flora.py mountain-pine"
+  },
+  {
+   "model": "content/game/models/trees/mountain-pine-p3-far.prop-mesh.json",
+   "sha256": "d9a5d6c52a5aebcc3337c06794d179c5ef831b2da301cbe9362bd6d0ab2787e0",
+   "command": "python3 scripts/generate-flora.py mountain-pine"
+  },
+  {
+   "model": "content/game/models/trees/glasswood-p1.prop-mesh.json",
+   "sha256": "a832642051b24f5f64580168727b5ba17ecf9acfb980082dc16582cff7c2b97b",
+   "command": "python3 scripts/generate-flora.py glasswood"
+  },
+  {
+   "model": "content/game/models/trees/glasswood-p1-far.prop-mesh.json",
+   "sha256": "75ecaa20a582930af3974968cbc10d2c50c94ab20e11d007f47aa01f589c85c1",
+   "command": "python3 scripts/generate-flora.py glasswood"
+  },
+  {
+   "model": "content/game/models/trees/glasswood-p2.prop-mesh.json",
+   "sha256": "075071807a0ddeae7eb64836ad22e32240ec1a74d488bd2e30dd6c99047f024e",
+   "command": "python3 scripts/generate-flora.py glasswood"
+  },
+  {
+   "model": "content/game/models/trees/glasswood-p2-far.prop-mesh.json",
+   "sha256": "adc8e87d59ea52c69f8d9f9ff5d9c1f3437d9029f4321240edcd995a625eda21",
+   "command": "python3 scripts/generate-flora.py glasswood"
+  },
+  {
+   "model": "content/game/models/trees/glasswood-p3.prop-mesh.json",
+   "sha256": "f7f0615cfb2f4f43f59dab53f00b82b05dea87ccca4d09e2e060bc75ffee5c91",
+   "command": "python3 scripts/generate-flora.py glasswood"
+  },
+  {
+   "model": "content/game/models/trees/glasswood-p3-far.prop-mesh.json",
+   "sha256": "6af67d33a92899a7473dde621d0864f9ceda41af515a0af877dedca0945e2033",
+   "command": "python3 scripts/generate-flora.py glasswood"
   }
- ]
+ ],
+ "catalog": "content/game/flora/catalog.json",
+ "command": "python3 scripts/generate-flora.py [species ...]"
 }

@@ -10,7 +10,6 @@ internal static class GenerationConstants
 {
     // Surface features are decided per anchor cell, never per chunk: a tree that
     // overhangs a boundary must be the same tree whichever chunk asks first.
-    internal const int FeatureCellSize = 8;
     /// <summary>
     /// A tree is drawn as a mesh (TerrainTrees); in the voxels it is only this many cells of
     /// invisible trunk core above its ground, enough to stop a standing body and a creature.
@@ -19,7 +18,15 @@ internal static class GenerationConstants
     /// <summary>A tree's size about its kind's authored height, and the draw's resolution.</summary>
     internal const double TreeScaleMinimum = 0.8;
     internal const double TreeScaleMaximum = 1.25;
-    internal const long TreeDrawResolution = 1000;
+    /// <summary>Each tree owns one cell this many metres square: in a closed forest, crowns touch (#10032).</summary>
+    internal const int TreeCellSize = 4;
+    /// <summary>This share of trees are old giants, this many times the size their draw gives them.</summary>
+    internal const double TreeGiantShare = 0.03;
+    internal const double TreeGiantScale = 1.35;
+    /// <summary>A tree cell's one keyed draw is in [0, this]: wide enough to seed every choice hashed from it.</summary>
+    internal const long TreeCellDrawMaximum = (1L << 62) - 1;
+    /// <summary>Mixed into the world's seed for a forest stand's species draw.</summary>
+    internal const ulong TreeStandSeed = 0x57A2_D5EE_D000_0001UL;
     // Keep the measured 256 m study window (including its retained ring) at 4 m tree cells.
     // A 4096-entry cache was smaller than even the dense near-tree query (73 x 73 cells),
     // so every residency update cleared it and regenerated the same forest again.

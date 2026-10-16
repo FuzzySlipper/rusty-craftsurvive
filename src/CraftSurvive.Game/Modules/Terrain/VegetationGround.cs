@@ -64,6 +64,26 @@ internal sealed class VegetationGround(TerrainRecipe recipe)
         }
     }
 
+    /// <summary>
+    /// One column's ground: the drawn height (the top face), its top block and the map sample, with the
+    /// slope from its four neighbours, as <see cref="Fill"/> reads them on a metre lattice. Null outside the
+    /// world.
+    /// </summary>
+    internal (double Height, BlockId Top, MapSample Geography)? At(long x, long z)
+    {
+        if (Math.Abs(x) > recipe.Radius || Math.Abs(z) > recipe.Radius) return null;
+        MapSample here = recipe.Geography(x, z);
+        double height = recipe.ContinuousHeightAt(x, z);
+        long surface = Round(height);
+        long slope = Math.Max(
+            Math.Max(Math.Abs(surface - Round(recipe.ContinuousHeightAt(x - 1, z))), Math.Abs(surface - Round(recipe.ContinuousHeightAt(x + 1, z)))),
+            Math.Max(Math.Abs(surface - Round(recipe.ContinuousHeightAt(x, z - 1))), Math.Abs(surface - Round(recipe.ContinuousHeightAt(x, z + 1)))));
+        long waterTop = (long)Math.Ceiling(WaterRules.Surface(here)) - 1;
+        return (height + FarGround.GroundTopFace, Top(here, surface, waterTop, slope, x, z), here);
+    }
+
+    private static long Round(double height) => (long)Math.Round(height, MidpointRounding.AwayFromZero);
+
     /// <summary>The top block of a column by the near ground's rules (TerrainRecipe.NaturalMaterialAt), without its structures.</summary>
     private BlockId Top(MapSample geography, long surface, long waterTop, double slope, long x, long z)
     {
@@ -74,7 +94,8 @@ internal sealed class VegetationGround(TerrainRecipe recipe)
         {
             if (WorldMap.Frozen(geography)) return BlockId.Snow;
             if (WorldMap.Arid(geography)) return BlockId.Sand;
-            return BlockId.Grass;
+            // Under a closed canopy the topsoil is forest floor (#10032), as the voxels say.
+            return recipe.Forest.Canopy(x, z, geography) >= Forest.FloorFromCanopy ? BlockId.Dirt : BlockId.Grass;
         }
 
         return slope <= GenerationConstants.SubsoilSlopeMaximum ? BlockId.Dirt : BlockId.Stone;

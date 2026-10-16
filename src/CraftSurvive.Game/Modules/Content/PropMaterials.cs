@@ -4,7 +4,7 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Content;
 
 /// <summary>
-/// Materials for textured prop parts (scripts/generate-tree.py, #9685), one for each role and texture,
+/// Materials for textured prop parts (scripts/generate-flora.py, #9685), one for each role and texture,
 /// owned and disposed together. Textures are nearest-filtered so their low-resolution texels read as
 /// one chunky style. A "leaves" part is alpha-cut cards built with both windings, so its material is
 /// one-sided and both sides keep the crown-facing normals they were built with; other roles (bark)

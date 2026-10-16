@@ -1,10 +1,15 @@
-"""Render a textured prop mesh (scripts/generate-tree.py output) for a quick look. Blender, headless.
+"""Render a textured prop mesh (scripts/generate-flora.py output) for a quick look. Blender, headless.
 
 Front, three-quarter and from-below views on a sky-grey background in EEVEE, with the prop's
 textures nearest-filtered and the leaves alpha-cut, as the game draws them. Not a substitute for
 judging the prop in the game; it is for iterating on shape and texture.
 
     blender -b --python scripts/preview-prop-mesh.py -- content/game/models/trees/oak-p1.prop-mesh.json OUT.png
+
+With --batch, one three-quarter view of each mesh, written as OUTDIR/NAME.png, in one Blender run (the
+flora contact sheet, scripts/generate-flora.py --sheet):
+
+    blender -b --python scripts/preview-prop-mesh.py -- --batch OUTDIR MESH.prop-mesh.json ...
 """
 import json
 import math
@@ -17,6 +22,10 @@ from mathutils import Vector
 ROOT = Path(__file__).resolve().parent.parent
 CONTENT = ROOT / "content" / "game"
 SIZE = 512
+# A contact sheet's cells are smaller: one view of every species and variant.
+BATCH_SIZE = 320
+# A batch view stands this many of the asset's half-extents from its centre.
+FRAME_DISTANCE = 3.2
 BACKGROUND = (0.62, 0.72, 0.8, 1.0)
 VIEWS = (("front", 0, 5), ("three-quarter", 40, 18), ("below", 20, -25))
 
@@ -48,9 +57,8 @@ def material(name, texture, cutout):
     return mat
 
 
-def main():
-    source, output = sys.argv[sys.argv.index("--") + 1:][:2]
-    asset = json.loads(Path(source).read_text())
+def stage(asset, size):
+    """A fresh scene holding the asset, a sky, a sun and a camera; returns the scene and the camera."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     for part in asset["parts"]:
@@ -82,27 +90,60 @@ def main():
     scene.collection.objects.link(sun)
     engines = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
     scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in engines else "BLENDER_EEVEE"
-    scene.render.resolution_x = scene.render.resolution_y = SIZE
-    height = asset["height"]
+    scene.render.resolution_x = scene.render.resolution_y = size
     camera_data = bpy.data.cameras.new("camera")
     camera_data.lens = 35
     camera = bpy.data.objects.new("camera", camera_data)
     scene.collection.objects.link(camera)
     scene.camera = camera
+    return scene, camera
+
+
+def shoot(scene, camera, height, angle, pitch, frame):
+    yaw, tilt = math.radians(angle), math.radians(pitch)
+    target = Vector((0, 0, height * (0.55 if pitch >= 0 else 0.75)))
+    # Small props (scatter) are framed from further off, so a camera never sits inside them.
+    distance = max(height * (1.9 if pitch >= 0 else 0.9), 3.0 if pitch >= 0 else 1.5)
+    camera.location = target + Vector((math.sin(yaw) * math.cos(tilt), -math.cos(yaw) * math.cos(tilt),
+                                       math.sin(tilt))) * distance
+    if pitch < 0:
+        camera.location.z = min(1.7, height * 0.2)
+    camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
+    scene.render.filepath = frame
+    bpy.ops.render.render(write_still=True)
+
+
+def batch(folder, sources):
+    """One three-quarter view of each mesh, as FOLDER/NAME.png, framed on its bounds so a flower and a
+    tree each fill their cell."""
+    _, angle, pitch = VIEWS[1]
+    for source in sources:
+        asset = json.loads(Path(source).read_text())
+        scene, camera = stage(asset, BATCH_SIZE)
+        low, high = asset["bounds"]["min"], asset["bounds"]["max"]
+        # The asset is Y-up; the scene is Z-up (x, -z, y).
+        centre = Vector(((low[0] + high[0]) / 2, -(low[2] + high[2]) / 2, (low[1] + high[1]) / 2))
+        radius = max(high[i] - low[i] for i in range(3)) / 2
+        yaw, tilt = math.radians(angle), math.radians(pitch)
+        camera.location = centre + Vector((math.sin(yaw) * math.cos(tilt), -math.cos(yaw) * math.cos(tilt),
+                                           math.sin(tilt))) * radius * FRAME_DISTANCE
+        camera.rotation_euler = (centre - camera.location).to_track_quat("-Z", "Y").to_euler()
+        scene.render.filepath = str(Path(folder) / f"{asset['name']}.png")
+        bpy.ops.render.render(write_still=True)
+
+
+def main():
+    arguments = sys.argv[sys.argv.index("--") + 1:]
+    if arguments[0] == "--batch":
+        batch(arguments[1], arguments[2:])
+        return
+    source, output = arguments[:2]
+    asset = json.loads(Path(source).read_text())
+    scene, camera = stage(asset, SIZE)
     frames = []
     for name, angle, pitch in VIEWS:
-        yaw, tilt = math.radians(angle), math.radians(pitch)
-        target = Vector((0, 0, height * (0.55 if pitch >= 0 else 0.75)))
-        # Small props (scatter) are framed from further off, so a camera never sits inside them.
-        distance = max(height * (1.9 if pitch >= 0 else 0.9), 3.0 if pitch >= 0 else 1.5)
-        camera.location = target + Vector((math.sin(yaw) * math.cos(tilt), -math.cos(yaw) * math.cos(tilt),
-                                           math.sin(tilt))) * distance
-        if pitch < 0:
-            camera.location.z = min(1.7, height * 0.2)
-        camera.rotation_euler = (target - camera.location).to_track_quat("-Z", "Y").to_euler()
         frame = str(Path(output).with_name(Path(output).stem + f"-{name}.png"))
-        scene.render.filepath = frame
-        bpy.ops.render.render(write_still=True)
+        shoot(scene, camera, asset["height"], angle, pitch, frame)
         frames.append(frame)
     sheet = bpy.data.images.new("sheet", SIZE * len(frames), SIZE)
     pixels = [0.0] * (SIZE * len(frames) * SIZE * 4)

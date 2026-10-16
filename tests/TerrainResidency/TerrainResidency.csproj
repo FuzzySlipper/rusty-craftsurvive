@@ -18,6 +18,7 @@
     <!-- The world generator is pure: link it whole. -->
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
     <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../content/game/flora/catalog.json" LogicalName="WorldGen.Flora.catalog.json" />
     <Compile Include="$(ProductModules)Travel/*.cs" LinkBase="Product/Travel" />
     <Compile Include="$(ProductModules)Water/ReachStage.cs" LinkBase="Product/Water" />
     <Compile Include="$(ProductModules)Water/BoatFloat.cs" LinkBase="Product/Water" />

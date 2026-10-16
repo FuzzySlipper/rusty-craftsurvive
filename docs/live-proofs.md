@@ -112,11 +112,13 @@ rate includes capture and delivery, so it is not a gameplay FPS measurement.
 `engine.renderer.camera` takes scene-local coordinates: a long teleport that rebases the world origin
 moves every pinned camera, so take fixed-pose captures in a session that has not travelled far.
 
-Set `CRAFT_FOREST_STUDY=dense` before `rusty dev` (or use `.den-serve-forest-study.json` in an owned
-playtest profile) to generate dense forests: 4 m tree cells, roughly one tree per two eligible forest
-cells, scattered clearings, grassland density unchanged. The chunk-cache identity includes the recipe.
-The focused check is `dotnet run --project tests/TerrainResidency -c Release -- forest-study`;
-`craft.vegetation.sites <x> <z>` finds forest columns near a point.
+Forests come from the flora catalog (`content/game/flora/catalog.json`): each species' climate range
+sets where the canopy closes, with forest floor under it, stands of mostly one species, sparse
+open-country trees, and shrubs and ferns as Engine vegetation records out to 160 m (`plantTiles` in the
+readout). `craft.vegetation.sites <x> <z>` finds closed forest near a point with its trees per 128 m
+square, and `craft.terrain.trees <species> <x> <z>` the nearest trees of one species. The focused check
+is `dotnet run --project tests/TerrainResidency -c Release -- forest`. Compare a forest interior, its
+edge, open country and a raised vista; a stand should read as one species with others mixed in.
 
 **Water appearance comparison.**
 

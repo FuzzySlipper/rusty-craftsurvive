@@ -122,20 +122,23 @@ internal static class GenerationChecks
             }
 
             // Mesh trees (#9665): every tree the presenter is told about stands on exactly its
-            // trunk core - TreeCore cells from its ground up for the core's height, ground below,
-            // air above - and its kind is one its country grows.
+            // trunk core - TreeCore cells from its ground up for the core's height, natural ground below,
+            // air above - and its species is one of the flora catalog's trees (#10032).
             {
                 TerrainConfiguration treeConfig = TerrainConfiguration.Default;
                 TerrainRecipe treeRecipe = treeConfig.CreateRecipe(new TestDraws(treeConfig.Seed));
                 List<TerrainTree> trees = [];
                 treeRecipe.TreesIn(-256, -256, 255, 255, trees);
                 Check.That(trees.Count > 0, "a 512 m square around the origin must hold trees");
-                Dictionary<TreeKind, int> kinds = [];
+                Dictionary<string, int> kinds = [];
                 foreach (TerrainTree tree in trees)
                 {
-                    kinds[tree.Kind] = kinds.GetValueOrDefault(tree.Kind) + 1;
-                    Check.That(treeRecipe.MaterialAt(new(tree.X, tree.GroundY - 1, tree.Z)) == (ushort)BlockId.Grass,
-                        $"the tree at {tree.X},{tree.Z} must stand on grass");
+                    FloraSpecies species = FloraCatalog.Shared[tree.Species];
+                    kinds[species.Name] = kinds.GetValueOrDefault(species.Name) + 1;
+                    Check.That(species.Role == FloraRole.Tree, $"the tree at {tree.X},{tree.Z} must be a tree species, not {species.Name}");
+                    Check.That((BlockId)treeRecipe.MaterialAt(new(tree.X, tree.GroundY - 1, tree.Z))
+                        is BlockId.Grass or BlockId.Dirt or BlockId.Sand or BlockId.Stone or BlockId.Snow,
+                        $"the tree at {tree.X},{tree.Z} must stand on natural ground");
                     for (long y = 0; y < GenerationConstants.TreeCoreHeight; y++)
                     {
                         Check.That(treeRecipe.MaterialAt(new(tree.X, tree.GroundY + y, tree.Z)) == (ushort)BlockId.TreeCore,
@@ -144,7 +147,8 @@ internal static class GenerationChecks
 
                     Check.That(treeRecipe.MaterialAt(new(tree.X, tree.GroundY + GenerationConstants.TreeCoreHeight, tree.Z)) == TerrainConstants.EmptyMaterial,
                         $"nothing generated stands on the core of the tree at {tree.X},{tree.Z}");
-                    Check.That(tree.Scale >= GenerationConstants.TreeScaleMinimum && tree.Scale <= GenerationConstants.TreeScaleMaximum
+                    Check.That(tree.Scale >= GenerationConstants.TreeScaleMinimum
+                        && tree.Scale <= GenerationConstants.TreeScaleMaximum * GenerationConstants.TreeGiantScale
                         && tree.Variant is >= 0 and < 1 && tree.Yaw is >= 0 and < Math.Tau,
                         $"the tree at {tree.X},{tree.Z} must draw its size, variant and turn in range");
                 }
@@ -159,7 +163,7 @@ internal static class GenerationChecks
             // that moves its draws still tests it. Everywhere else TreeInCell must agree with the near
             // band's own reading of the final materials.
             {
-                long cell = GenerationConstants.FeatureCellSize;
+                long cell = GenerationConstants.TreeCellSize;
                 TerrainRecipe farRecipe = null!;
                 TerrainTree? carved = null;
                 foreach (ulong seed in CarvedTreeSeeds)

@@ -66,9 +66,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// and leave a lake, so a lake's storage lies between them (#9876 review); version 34 saves the sinks the
     /// discharge was routed into with the map's fields, so a fresh or restored map finds its closed lakes on the
     /// inflow generation summed (#9876 review); version 35 seats each town beside its water and flattens its
-    /// pad into the ground, with no trees on it (#9895).
+    /// pad into the ground, with no trees on it (#9895); version 36 grows the flora catalog's forests: canopy
+    /// from each species' climate range, forest floor under a closed canopy, trees of many species in stands
+    /// on 4 m cells, sparse open-country trees, in dry and cold country too (#10032).
     /// </summary>
-    internal const uint CurrentVersion = 35;
+    internal const uint CurrentVersion = 36;
 
     private const string GenerationScope = "craftsurvive.terrain";
 
