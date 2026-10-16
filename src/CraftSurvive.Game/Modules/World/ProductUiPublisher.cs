@@ -250,7 +250,8 @@ internal sealed class ProductUiPublisher : IDisposable
 
         // Without a world there is no scene; the map and its generating message still publish.
         WorldUiFacts? facts = world?.Invoke();
-        engine.Ui.PublishProjection(new UiProjection(stream, ++sequence,
+        sequence++;
+        engine.Ui.PublishProjection(new UiProjection(stream,
             ProductUiProjection.Create(facts, player, discovery, actions, conditions, survival, inventory, dungeon, map, sled, gameOptions, menu, town)));
     }
 

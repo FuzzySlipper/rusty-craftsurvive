@@ -9,15 +9,12 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Terrain;
 
 /// <summary>
-/// The overworld's trees, drawn as stylised low-poly meshes (#9665). The recipe decides where each
-/// tree stands, what it is and how it is turned and sized, and writes only an invisible trunk core
-/// into the voxels for bodies to collide with; this presents a mesh on every resident core near the
-/// player. A tree is drawn only while it stands (TreeFelling): an edit that breaks its core or digs
-/// out its footing fells it, clearing the rest of the core in the same edit.
-/// Beyond the near trees, a far band (#9677) out to <see cref="FarMetres"/> draws each tree's
-/// lighter far variant (the same skeleton, fewer and larger leaf cards) on the recipe's ground, so
-/// a forest runs on to the fog instead of ending at the residency's edge. Its decisions are kept
-/// here per anchor cell and made a slice at a time as the player moves.
+/// The overworld's trees' meshes and the shelter of the near ones (#9665, #9741). The recipe decides
+/// where each tree stands, what it is and how it is turned and sized, and writes only an invisible
+/// trunk core into the voxels for bodies to collide with; the trees are drawn as Engine vegetation
+/// records from these meshes (<see cref="TreeTiles"/>, #10017). A tree stands only while its core and
+/// footing do (TreeFelling): an edit that breaks its core or digs out its footing fells it, clearing the
+/// rest of the core in the same edit. The near standing trees' crowns are kept here as query colliders.
 /// </summary>
 internal sealed class TerrainTrees : IDisposable
 {
@@ -25,10 +22,10 @@ internal sealed class TerrainTrees : IDisposable
     private const string MeshFolder = "models/trees/";
     private const string LeavesRole = PropMaterials.LeavesRole;
 
-    /// <summary>Trees are drawn this far from the player: the walking residency's retained reach, by default.</summary>
+    /// <summary>Crowns shelter this far from the player: the walking residency's retained reach, by default.</summary>
     private long drawMetres = TerrainConstants.RetainedChunkRadius * TerrainConstants.ChunkEdgeLength;
 
-    /// <summary>The walking residency's retained reach (#9759): near trees are drawn out to it.</summary>
+    /// <summary>The walking residency's retained reach (#9759): near trees' crowns shelter out to it.</summary>
     internal long NearMetres
     {
         set
@@ -38,32 +35,12 @@ internal sealed class TerrainTrees : IDisposable
             stale = true;
         }
     }
-    /// <summary>The drawn set is rebuilt when the player has moved this far, or the terrain changed.</summary>
+    /// <summary>The near set is rebuilt when the player has moved this far, or the terrain changed.</summary>
     private const long RebuildMetres = 8;
     /// <summary>How far a trunk is sunk below its ground's surface, so a slope never shows its base.</summary>
-    private const float Sink = 0.25f;
+    internal const float Sink = 0.25f;
 
-    /// <summary>The far band reaches this far (a circle), past the near trees to the fog.</summary>
-    internal const long FarMetres = 400;
-    /// <summary>The far band's anchor cells are swept again when the player has moved this many cells.</summary>
-    private const long FarStepCells = 4;
-    /// <summary>At most this many anchor cells are decided per update, so a teleport fills the band over a few frames.</summary>
-    private const int FarDecisionsPerUpdate = 1_500;
-    /// <summary>Far trees stand on the recipe's ground under the far field's coarser mesh: sunk deeper.</summary>
-    private const float FarSink = 1.0f;
-    private static readonly long FarReachCells = (FarMetres / GenerationConstants.FeatureCellSize) + 1;
-    /// <summary>The anchor cells of the far band about the player's own, nearest first.</summary>
-    private static readonly (long X, long Z)[] FarOffsets =
-    [
-        .. from dx in Enumerable.Range((int)-FarReachCells, (int)((2 * FarReachCells) + 1))
-           from dz in Enumerable.Range((int)-FarReachCells, (int)((2 * FarReachCells) + 1))
-           where ((long)dx * dx) + ((long)dz * dz) <= FarReachCells * FarReachCells
-           orderby ((long)dx * dx) + ((long)dz * dz)
-           select ((long)dx, (long)dz),
-    ];
     private const double CellCentre = 0.5;
-    /// <summary>The natural ground is the top face of its unrounded top cell (TerrainDensity).</summary>
-    private const double GroundTopFace = 1.0;
 
     // Wind: trunks lean a little from their roots; leaves also flutter, most at the canopy's edge.
     private const float BarkWindBend = 0.006f, LeafWindBend = 0.01f, LeafWindFlutter = 0.12f;
@@ -81,39 +58,15 @@ internal sealed class TerrainTrees : IDisposable
     /// <summary>Each near variant's leaves, as a box in the mesh's metres (null: a variant without leaves).</summary>
     private readonly Dictionary<TreeKind, (Vector3 Min, Vector3 Max)?[]> crowns = [];
     private SpatialEntityCollider[] canopies = [];
-    /// <summary>The far band's decisions by anchor cell (null: the cell owns no tree), and which of its trees stand.</summary>
-    private readonly Dictionary<(long X, long Z), TerrainTree?> farCells = [];
-    private readonly Dictionary<(long X, long Z), bool> farStands = [];
-    private readonly HashSet<(long X, long Z)> nearDrawn = [];
-    /// <summary>
-    /// Each tree's recipe ground and whether a near tree stands, by trunk column (#10015). Both are
-    /// pure functions of the recipe and the edits, so a chunk arriving need not sample them again;
-    /// the standing checks are forgotten when the edits change, and both beyond the trees' window.
-    /// </summary>
+    // Recipe heights and standing checks do not change while streaming: keep them for the near
+    // window, forgetting the checks when the edits change, rather than sampling each tree again
+    // whenever a chunk arrives.
     private readonly Dictionary<(long X, long Z), double> treeGrounds = [];
     private readonly Dictionary<(long X, long Z), bool> nearStands = [];
     private ulong nearStandsRevision = ulong.MaxValue;
-    private TerrainRecipe? farRecipe;
-    private (long X, long Z)? farSweptAround;
-    private bool farPending;
-    private ulong farStandsRevision = ulong.MaxValue;
-    private AppearanceFact[] nearFacts = [];
-    private int farCount;
-    private long farReach = FarMetres;
-
-    /// <summary>How far the far band reaches (0 turns it off), up to <see cref="FarMetres"/>; for measuring its cost.</summary>
-    internal long FarReach
-    {
-        get => farReach;
-        set
-        {
-            farReach = Math.Clamp(value, 0, FarMetres);
-            stale = true;
-        }
-    }
     private readonly List<TerrainTree> candidates = [];
-    private AppearanceFact[] facts = [];
     private (long X, long Z)? builtAround;
+    private TerrainRecipe? builtRecipe;
     private ulong builtRevision = ulong.MaxValue;
     private int builtResidents = -1;
     private bool stale = true;
@@ -180,24 +133,29 @@ internal sealed class TerrainTrees : IDisposable
     /// <summary>The share of a crown's spread that shelters: its thin edge does not.</summary>
     private const float CanopyShelterShare = 0.8f;
 
-    /// <summary>The drawn trees, for the appearance snapshot.</summary>
-    internal AppearanceFact[] Facts => facts;
+    /// <summary>Each kind's near and far meshes by variant, which the vegetation tree records draw (#10017).</summary>
+    internal IReadOnlyDictionary<TreeKind, Appearance[]> NearMeshes => kinds;
+    internal IReadOnlyDictionary<TreeKind, Appearance[]> FarMeshes => farKinds;
 
-    internal int Count => facts.Length;
 
-    /// <summary>The terrain changed under the trees, or the world moved: rebuild on the next follow.</summary>
+    /// <summary>The world moved: the crowns are rebuilt in the new local frame on the next follow.</summary>
     internal void Invalidate() => stale = true;
 
     /// <summary>
-    /// Draws the trees around the player: near, those whose trunk core still stands in a resident
-    /// chunk; far, every other standing tree out to <see cref="FarMetres"/>. The near set is rebuilt
-    /// when the player has moved a few metres or the edits or residency changed; the far band's
-    /// decisions are made a slice per update, and its facts follow either change.
+    /// Keeps the crowns of the trees around the player whose trunk core still stands in a resident
+    /// chunk, rebuilt when the player has moved a few metres or the edits or residency changed.
     /// </summary>
     internal void Follow(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt,
-        Func<VoxelAddress, bool> resident, Func<VoxelAddress, bool> edited, ulong editRevision, int residentChunks)
+        Func<VoxelAddress, bool> resident, ulong editRevision, int residentChunks)
     {
-        bool farChanged = SweepFar(center, recipe);
+        if (!ReferenceEquals(recipe, builtRecipe))
+        {
+            treeGrounds.Clear();
+            nearStands.Clear();
+            builtRecipe = recipe;
+            stale = true;
+        }
+
         bool nearStale = stale || builtRevision != editRevision || builtResidents != residentChunks
             || builtAround is not (long x, long z) || Math.Abs(center.X - x) >= RebuildMetres || Math.Abs(center.Z - z) >= RebuildMetres;
         if (nearStale)
@@ -209,10 +167,6 @@ internal sealed class TerrainTrees : IDisposable
             stale = false;
         }
 
-        if (nearStale || farChanged)
-        {
-            facts = [.. nearFacts, .. BuildFar(center, materialAt, edited, editRevision, nearFacts.Length)];
-        }
     }
 
     private void BuildNear(VoxelAddress center, TerrainRecipe recipe, Func<VoxelAddress, ushort> materialAt,
@@ -223,159 +177,52 @@ internal sealed class TerrainTrees : IDisposable
             nearStands.Clear();
             nearStandsRevision = editRevision;
         }
+        long keep = drawMetres + RebuildMetres;
+        foreach ((long X, long Z) column in treeGrounds.Keys.Where(column => Math.Abs(column.X - center.X) > keep || Math.Abs(column.Z - center.Z) > keep).ToList())
+        {
+            treeGrounds.Remove(column);
+            nearStands.Remove(column);
+        }
 
         candidates.Clear();
-        nearDrawn.Clear();
         recipe.TreesIn(center.X - drawMetres, center.Z - drawMetres, center.X + drawMetres, center.Z + drawMetres, candidates);
-        List<AppearanceFact> drawn = new(candidates.Count);
         List<SpatialEntityCollider> crowned = new(candidates.Count);
         foreach (TerrainTree tree in candidates)
         {
             VoxelAddress core = new(tree.X, tree.GroundY, tree.Z);
-            if (drawn.Count >= ProductIds.TreeObjectLimit || !resident(core))
+            if (crowned.Count >= ProductIds.TreeCanopyLimit || !resident(core))
             {
                 continue;
             }
 
+            // Streaming changes which cores are resident, not whether an already checked tree
+            // stands. Re-read its core/support after edits, instead of sampling them for every
+            // near tree whenever any chunk arrives. This matters for thousands of canopies.
             if (!nearStands.TryGetValue((tree.X, tree.Z), out bool stands))
-            {
-                stands = TreeFelling.Stands(tree, materialAt);
-                nearStands[(tree.X, tree.Z)] = stands;
-            }
-
+                nearStands[(tree.X, tree.Z)] = stands = TreeFelling.Stands(tree, materialAt);
             if (!stands) continue;
 
-            nearDrawn.Add((tree.X, tree.Z));
-            AppearanceFact placed = Place(tree, recipe, kinds, Sink, drawn.Count);
-            drawn.Add(placed);
-            if (Crown(tree, placed) is SpatialEntityCollider crown) crowned.Add(crown);
+            if (Crown(tree, recipe, ProductIds.TreeCanopyBase + (ulong)crowned.Count) is SpatialEntityCollider crown) crowned.Add(crown);
         }
 
-        nearFacts = [.. drawn];
         canopies = [.. crowned];
     }
 
-    /// <summary>
-    /// Decides the far band's anchor cells not yet known, nearest first by sweep order, within this
-    /// update's budget, and forgets those now beyond the band. Returns whether anything changed.
-    /// </summary>
-    private bool SweepFar(VoxelAddress center, TerrainRecipe recipe)
-    {
-        long cell = GenerationConstants.FeatureCellSize;
-        long cx = GridMath.FloorDivide(center.X, cell), cz = GridMath.FloorDivide(center.Z, cell);
-        long reach = FarReachCells;
-        bool changed = false;
-        if (!ReferenceEquals(recipe, farRecipe))
-        {
-            farCells.Clear();
-            farStands.Clear();
-            treeGrounds.Clear();
-            nearStands.Clear();
-            farRecipe = recipe;
-            farSweptAround = null;
-            changed = true;
-        }
 
-        if (farSweptAround is not (long sx, long sz) || Math.Abs(cx - sx) >= FarStepCells || Math.Abs(cz - sz) >= FarStepCells)
-        {
-            farSweptAround = (cx, cz);
-            farPending = true;
-            long keep = reach + FarStepCells;
-            ForgetColumnsBeyond(center);
-            foreach ((long X, long Z) key in farCells.Keys.Where(key => Math.Abs(key.X - cx) > keep || Math.Abs(key.Z - cz) > keep).ToList())
-            {
-                farCells.Remove(key);
-                farStands.Remove(key);
-                changed = true;
-            }
-        }
-
-        if (!farPending) return changed;
-        int budget = FarDecisionsPerUpdate;
-        foreach ((long dx, long dz) in FarOffsets)
-        {
-            (long X, long Z) key = (cx + dx, cz + dz);
-            if (farCells.ContainsKey(key)) continue;
-            if (budget-- == 0) return true;
-            farCells[key] = recipe.TreeInCell(key.X, key.Z);
-            changed = true;
-        }
-
-        farPending = false;
-        return changed;
-    }
-
-    /// <summary>
-    /// The far band's facts: every decided tree within reach that the near set does not draw and that
-    /// stands. <see cref="TerrainRecipe.TreeInCell"/> keeps only trees that stand as generated
-    /// (structures included), so a tree whose core and footing were never edited stands; only an
-    /// edited one is read back through the materials, so the band never asks the recipe about cores.
-    /// </summary>
-    private List<AppearanceFact> BuildFar(VoxelAddress center, Func<VoxelAddress, ushort> materialAt,
-        Func<VoxelAddress, bool> edited, ulong editRevision, int firstIndex)
-    {
-        if (farStandsRevision != editRevision)
-        {
-            farStands.Clear();
-            farStandsRevision = editRevision;
-        }
-
-        List<AppearanceFact> drawn = [];
-        long reach = farReach * farReach;
-        foreach (((long X, long Z) key, TerrainTree? decided) in farCells)
-        {
-            if (decided is not TerrainTree tree || firstIndex + drawn.Count >= ProductIds.TreeObjectLimit
-                || nearDrawn.Contains((tree.X, tree.Z))
-                || ((tree.X - center.X) * (tree.X - center.X)) + ((tree.Z - center.Z) * (tree.Z - center.Z)) > reach)
-            {
-                continue;
-            }
-
-            if (!farStands.TryGetValue(key, out bool stands))
-            {
-                stands = !TreeFelling.Core(tree).Append(TreeFelling.Support(tree)).Any(edited) || TreeFelling.Stands(tree, materialAt);
-                farStands[key] = stands;
-            }
-
-            if (stands)
-            {
-                drawn.Add(Place(tree, farRecipe!, farKinds, FarSink, firstIndex + drawn.Count));
-            }
-        }
-
-        farCount = drawn.Count;
-        return drawn;
-    }
-
-    /// <summary>Drops the cached grounds and standing checks of trees outside both bands, with a step's margin.</summary>
-    private void ForgetColumnsBeyond(VoxelAddress center)
-    {
-        long keep = Math.Max(farReach, drawMetres) + (FarStepCells * GenerationConstants.FeatureCellSize) + RebuildMetres;
-        bool Beyond((long X, long Z) column) => Math.Abs(column.X - center.X) > keep || Math.Abs(column.Z - center.Z) > keep;
-        foreach ((long X, long Z) column in treeGrounds.Keys.Where(Beyond).ToList()) treeGrounds.Remove(column);
-        foreach ((long X, long Z) column in nearStands.Keys.Where(Beyond).ToList()) nearStands.Remove(column);
-    }
-
-    private AppearanceFact Place(TerrainTree tree, TerrainRecipe recipe, Dictionary<TreeKind, Appearance[]> meshes, float sink, int index)
-    {
-        Appearance[] variants = meshes[tree.Kind];
-        Appearance mesh = variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))];
-        if (!treeGrounds.TryGetValue((tree.X, tree.Z), out double ground))
-        {
-            ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + GroundTopFace;
-            treeGrounds[(tree.X, tree.Z)] = ground;
-        }
-
-        Vector3 at = frame.ToLocal(tree.X + CellCentre, ground - sink, tree.Z + CellCentre);
-        Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)tree.Yaw);
-        return new(ProductIds.TreeObjectBase + (ulong)index, false, 0, new(at, turn, Vector3.One * (float)tree.Scale), mesh, true, RenderLayer.Scene);
-    }
-
-    /// <summary>A placed tree's crown as a query collider: its leaves' box turned, scaled and moved with the tree.</summary>
-    private SpatialEntityCollider? Crown(TerrainTree tree, AppearanceFact placed)
+    /// <summary>A standing tree's crown as a query collider: its leaves' box turned, scaled and moved with the tree.</summary>
+    private SpatialEntityCollider? Crown(TerrainTree tree, TerrainRecipe recipe, ulong id)
     {
         (Vector3 Min, Vector3 Max)?[] variants = crowns[tree.Kind];
         if (variants[Math.Min(variants.Length - 1, (int)(tree.Variant * variants.Length))] is not (Vector3 min, Vector3 max)) return null;
+        if (!treeGrounds.TryGetValue((tree.X, tree.Z), out double ground))
+        {
+            ground = recipe.ContinuousHeightAt(tree.X, tree.Z) + FarGround.GroundTopFace;
+            treeGrounds[(tree.X, tree.Z)] = ground;
+        }
+
+        Vector3 at = frame.ToLocal(tree.X + CellCentre, ground - Sink, tree.Z + CellCentre);
+        Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)tree.Yaw);
+        float scale = (float)tree.Scale;
         Vector3 middle = (min + max) / 2, half = (max - min) / 2 * new Vector3(CanopyShelterShare, 1, CanopyShelterShare);
         Vector3 low = new(float.PositiveInfinity), high = new(float.NegativeInfinity);
         foreach (float sx in (ReadOnlySpan<float>)[-1, 1])
@@ -384,19 +231,19 @@ internal sealed class TerrainTrees : IDisposable
             {
                 foreach (float sy in (ReadOnlySpan<float>)[-1, 1])
                 {
-                    Vector3 corner = Vector3.Transform((middle + (half * new Vector3(sx, sy, sz))) * placed.Transform.Scale, placed.Transform.Rotation) + placed.Transform.Translation;
+                    Vector3 corner = Vector3.Transform((middle + (half * new Vector3(sx, sy, sz))) * scale, turn) + at;
                     low = Vector3.Min(low, corner);
                     high = Vector3.Max(high, corner);
                 }
             }
         }
 
-        return new SpatialEntityCollider(placed.ObjectId, low, high, TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll,
+        return new SpatialEntityCollider(id, low, high, TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll,
             Enabled: true, StaticCollider: true, Trigger: false);
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"trees drawn={facts.Length} near={nearFacts.Length} canopies={canopies.Length} far={farCount} farCells={farCells.Count} farPending={farPending} candidates={candidates.Count} groundCache={treeGrounds.Count} meshes={meshes.Count}");
+        $"trees canopies={canopies.Length} candidates={candidates.Count} groundCache={treeGrounds.Count} meshes={meshes.Count}");
 
     public void Dispose()
     {

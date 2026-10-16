@@ -10,6 +10,13 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// </summary>
 internal static class FarGround
 {
+    /// <summary>
+    /// The drawn ground stands this far above the recipe's continuous height: the top face of its unrounded
+    /// top cell, where the voxels' isosurface lies (TerrainDensity). The far field and the vegetation tiles
+    /// both draw there, so they meet the near ground at its own height.
+    /// </summary>
+    internal const double GroundTopFace = 1d;
+
     /// <summary>One far cell, in metres: eight keeps a ridge's shape and a valley's floor at a kilometre.</summary>
     internal const double CellMetres = 8d;
 

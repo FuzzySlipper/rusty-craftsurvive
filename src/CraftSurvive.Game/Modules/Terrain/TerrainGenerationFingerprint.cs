@@ -76,6 +76,9 @@ internal static class TerrainGenerationFingerprint
         hash = Mix(hash, contract.Version);
         hash = Mix(hash, recipe.Map.Fingerprint);
         hash = Mix(hash, (ulong)contract.Extent);
+        // Without this discriminator the same cached chunk could contain trunks from the
+        // other study recipe when none of the small startup probes happen to hit a forest.
+        if (recipe.Forest != ForestPattern.Baseline) hash = Mix(hash, (ulong)recipe.Forest);
 
         // Heights over the whole world, edge to edge.
         long radius = ProbeRadius(recipe);

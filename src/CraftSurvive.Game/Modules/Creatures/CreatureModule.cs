@@ -668,7 +668,7 @@ internal sealed class CreatureModule : IProductModule
             {
                 PerceptionReadoutResult page = engine.Perception.QueryVisibility(new PerceptionQueryRequest(
                     terrain.Session, observers, targets, ReadOnlyMemory<SpatialEntityCollider>.Empty,
-                    0UL, cursor, (uint)observers.Length));
+                    cursor, (uint)observers.Length));
                 foreach (PerceptionPair pair in page.Pairs.Span)
                 {
                     if (pair.Target == ProductIds.PlayerEntity)

@@ -68,9 +68,9 @@ internal static class ProductIds
     internal const ulong HorizonLandmarkBase = 0x8_1000UL;
     internal const int HorizonLandmarkLimit = 0x100;
 
-    /// <summary>The overworld's drawn trees (TerrainTrees, #9665); up to 0x4000 of them.</summary>
-    internal const ulong TreeObjectBase = 0x6_0000UL;
-    internal const int TreeObjectLimit = 0x4000;
+    /// <summary>The near standing trees' crowns as shelter query colliders (TerrainTrees, #9741); up to 0x4000 of them.</summary>
+    internal const ulong TreeCanopyBase = 0x6_0000UL;
+    internal const int TreeCanopyLimit = 0x4000;
 
     /// <summary>The building look study's mesh cabin (BuildStudy, #9684).</summary>
     internal const ulong BuildStudyObject = 0x7_0000UL;

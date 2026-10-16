@@ -10,6 +10,10 @@ internal sealed class TerrainOverlayState
 
     /// <summary>How many overrides fall in each chunk, so "does the player touch this chunk" is one lookup.</summary>
     private readonly Dictionary<TerrainChunkAddress, int> perChunk = [];
+
+    /// <summary>The columns any override stands in, and the area changed since the vegetation tiles last asked (#10016).</summary>
+    private readonly HashSet<(long X, long Z)> columns = [];
+    private (long MinX, long MinZ, long MaxX, long MaxZ)? changedColumns;
     private readonly ulong seed;
     private ulong revision;
     private TerrainOverlaySnapshot? snapshot;
@@ -31,6 +35,29 @@ internal sealed class TerrainOverlayState
 
     /// <summary>Whether the player has changed any cell in the chunk.</summary>
     internal bool TouchesChunk(TerrainChunkAddress chunk) => perChunk.ContainsKey(chunk);
+
+    /// <summary>Whether the player has changed any cell in the column.</summary>
+    internal bool TouchesColumn(long x, long z) => columns.Contains((x, z));
+
+    /// <summary>Whether the player has changed any column in the rectangle (inclusive).</summary>
+    internal bool TouchesColumns(long minX, long minZ, long maxX, long maxZ) =>
+        columns.Any(column => column.X >= minX && column.X <= maxX && column.Z >= minZ && column.Z <= maxZ);
+
+    /// <summary>The columns changed since the last call, as one bounding rectangle, and forgets them.</summary>
+    internal (long MinX, long MinZ, long MaxX, long MaxZ)? TakeChangedColumns()
+    {
+        var changed = changedColumns;
+        changedColumns = null;
+        return changed;
+    }
+
+    private void MarkColumn(long x, long z)
+    {
+        columns.Add((x, z));
+        changedColumns = changedColumns is var (minX, minZ, maxX, maxZ)
+            ? (Math.Min(minX, x), Math.Min(minZ, z), Math.Max(maxX, x), Math.Max(maxZ, z))
+            : (x, z, x, z);
+    }
 
     /// <summary>
     /// Whether the overlay has room for these edits: every edit to a cell not already overridden
@@ -81,6 +108,7 @@ internal sealed class TerrainOverlayState
             }
 
             materials[edit.Address] = edit.Material;
+            MarkColumn(edit.Address.X, edit.Address.Z);
         }
 
         revision = checked(revision + 1UL);
@@ -103,6 +131,9 @@ internal sealed class TerrainOverlayState
 
         materials.Clear();
         perChunk.Clear();
+        // The columns edited before the restore change back too.
+        foreach ((long x, long z) in columns.ToArray()) MarkColumn(x, z);
+        columns.Clear();
         foreach (TerrainOverlayEntry entry in snapshot.Entries)
         {
             entry.Address.Validate();
@@ -114,6 +145,7 @@ internal sealed class TerrainOverlayState
 
             TerrainChunkAddress chunk = entry.Address.Chunk;
             perChunk[chunk] = perChunk.GetValueOrDefault(chunk) + 1;
+            MarkColumn(entry.Address.X, entry.Address.Z);
         }
 
         revision = checked(revision + 1UL);

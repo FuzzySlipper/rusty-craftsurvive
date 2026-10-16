@@ -29,8 +29,10 @@ internal sealed class TerrainRecipe : ITerrainColumns
     private readonly PoiPlacement pois;
     private readonly CrossingPlacement crossings;
 
-    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws, WorldMap? map = null)
+    internal TerrainRecipe(TerrainConfiguration configuration, ITerrainDraws draws, WorldMap? map = null,
+        ForestPattern forest = ForestPattern.Baseline)
     {
+        Forest = forest;
         this.configuration = configuration.Validate();
         this.draws = draws ?? throw new ArgumentNullException(nameof(draws));
         Map = map ?? WorldMapGenerator.Generate(configuration);
@@ -55,6 +57,11 @@ internal sealed class TerrainRecipe : ITerrainColumns
     internal ITerrainColumns Columns => this;
 
     internal TerrainConfiguration Configuration => configuration;
+
+    internal ForestPattern Forest { get; }
+    internal int TreeCellMetres => ForestPatterns.CellMetres(Forest);
+    internal int TreeCacheCells => featureCells.Count;
+    internal int TreeCacheClears { get; private set; }
 
     internal WorldMap Map { get; }
 
@@ -174,7 +181,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         long slope = column.Slope;
         MapSample geography = column.Geography;
         // A town's yard (#9895) is trodden earth: the meadow's ground, where no grass, flowers or stones grow.
-        if (Towns.Any(town => town.InYard(address.X, address.Z))) return TerrainConstants.DirtMaterial;
+        if (InTownYard(address.X, address.Z)) return TerrainConstants.DirtMaterial;
         // Steep and resistant ground is bare stone; submerged ground is a sand bed.
         if (geography.Rock >= ExposedRockThreshold)
             return TerrainConstants.StoneMaterial;
@@ -420,7 +427,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     private bool ChunkFeaturesReach(long xStart, long xEnd, long yMinimum, long yMaximum, long zStart, long zEnd)
     {
-        long cell = GenerationConstants.FeatureCellSize;
+        long cell = TreeCellMetres;
         // A tree's voxels are its trunk core, inside its own anchor cell.
         for (long anchorX = GridMath.FloorDivide(xStart, cell); anchorX <= GridMath.FloorDivide(xEnd, cell); anchorX++)
         {
@@ -594,6 +601,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>Whether a point lies on a town's pad or near enough its edge that nothing natural grows there.</summary>
     private bool InTown(long x, long z) => Towns.Any(town => town.Weight(x, z) > 0);
 
+    /// <summary>Whether a column is a town's yard: trodden earth where nothing grows. Safe on workers (the towns are built once).</summary>
+    internal bool InTownYard(long x, long z) => Towns.Any(town => town.InYard(x, z));
+
     private long CardinalSlope(long x, long z, long top)
     {
         long west = Math.Abs(top - TerrainSurface(x - 1, z));
@@ -647,7 +657,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     private ushort FeatureMaterialAt(long x, long y, long z)
     {
-        long cell = GenerationConstants.FeatureCellSize;
+        long cell = TreeCellMetres;
         long anchorX = GridMath.FloorDivide(x, cell);
         long anchorZ = GridMath.FloorDivide(z, cell);
         if (TreeAt(anchorX, anchorZ) is not TreeShape tree
@@ -665,7 +675,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// <summary>The tree whose trunk stands in this column, if any.</summary>
     internal TerrainTree? TreeAtColumn(long x, long z)
     {
-        long cell = GenerationConstants.FeatureCellSize;
+        long cell = TreeCellMetres;
         long anchorX = GridMath.FloorDivide(x, cell);
         long anchorZ = GridMath.FloorDivide(z, cell);
         return TreeAt(anchorX, anchorZ) is TreeShape tree && x == (anchorX * cell) + tree.OffsetX && z == (anchorZ * cell) + tree.OffsetZ
@@ -680,7 +690,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
     /// </summary>
     internal void TreesIn(long minimumX, long minimumZ, long maximumX, long maximumZ, List<TerrainTree> into)
     {
-        long cell = GenerationConstants.FeatureCellSize;
+        long cell = TreeCellMetres;
         for (long anchorX = GridMath.FloorDivide(minimumX, cell); anchorX <= GridMath.FloorDivide(maximumX, cell); anchorX++)
         {
             for (long anchorZ = GridMath.FloorDivide(minimumZ, cell); anchorZ <= GridMath.FloorDivide(maximumZ, cell); anchorZ++)
@@ -717,8 +727,8 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return null;
         }
 
-        long x = (anchorX * GenerationConstants.FeatureCellSize) + shape.OffsetX;
-        long z = (anchorZ * GenerationConstants.FeatureCellSize) + shape.OffsetZ;
+        long x = (anchorX * TreeCellMetres) + shape.OffsetX;
+        long z = (anchorZ * TreeCellMetres) + shape.OffsetZ;
         TerrainTree tree = new(x, shape.GroundY, z, shape.Kind, shape.Variant, shape.Scale, shape.Yaw);
         bool structured = TreeFelling.Core(tree).Append(TreeFelling.Support(tree))
             .Any(cell => !PoiAt(cell.X, cell.Y, cell.Z).IsNone || CrossingAt(cell.X, cell.Y, cell.Z) is not null);
@@ -742,6 +752,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
         if (featureCells.Count >= GenerationConstants.FeatureCacheLimit)
         {
             featureCells.Clear();
+            TreeCacheClears++;
         }
 
         featureCells[(anchorX, anchorZ)] = shape;
@@ -753,12 +764,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         // The surface is sampled at the candidate trunk column, so a cell whose
         // ground is not grass - water, sand, stone, or outside the world - owns no
         // tree. That keeps forests on soil and out of lakes without a biome pass.
-        long originX = anchorX * GenerationConstants.FeatureCellSize;
-        long originZ = anchorZ * GenerationConstants.FeatureCellSize;
+        long originX = anchorX * TreeCellMetres;
+        long originZ = anchorZ * TreeCellMetres;
         long offsetX = Contract.DrawLong(draws, "tree.offset.x", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            0, GenerationConstants.FeatureCellSize - 1);
+            0, TreeCellMetres - 1);
         long offsetZ = Contract.DrawLong(draws, "tree.offset.z", TerrainGeneratorContract.CoordinateKey(anchorX, anchorZ),
-            0, GenerationConstants.FeatureCellSize - 1);
+            0, TreeCellMetres - 1);
         long trunkX = originX + offsetX;
         long trunkZ = originZ + offsetZ;
         if (trunkX < -radius || trunkX > radius || trunkZ < -radius || trunkZ > radius)
@@ -774,7 +785,9 @@ internal sealed class TerrainRecipe : ITerrainColumns
 
         TerrainColumn column = ColumnAt(trunkX, trunkZ);
         long ground = column.Surface;
-        int oneIn = MapBiomes.TreeOneIn(WorldMap.Biome(column.Geography));
+        MapBiome biome = WorldMap.Biome(column.Geography);
+        int oneIn = ForestPatterns.OneIn(Forest, biome, Forest == ForestPattern.Dense
+            ? Unit("tree.grove", ForestPatterns.GroveKey(trunkX, trunkZ)) : 0);
         if (ground <= column.WaterTop || oneIn == 0)
         {
             // A submerged column is not soil, and some country grows no trees at all.

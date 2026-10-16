@@ -98,6 +98,26 @@ are for the lane:
 A command earns its place by serving one of these; one whose experiment has ended is retired
 with it.
 
+**Vegetation reach and forests.**
+
+Ground cover grows on the voxels to 40 m, then on two Engine vegetation tile fields out to the
+Ground cover option's reach, thinning with distance; trees are Engine vegetation records with a far
+mesh and an impostor level, out to a reach that follows the view distance. `craft.vegetation.readout`
+reports both, with each field's tiles, pending tiles, copies and over-budget layers; before judging a
+view, wait for `pendingAdmissions=0` and `settled=True` on the tiles. `craft.terrain.groundcover <m>`
+and `craft.terrain.fartrees <m>` set the reaches for the session. `engine.renderer` reports the
+renderer's per-copy selection (`gpu.scatterSelection`), impostors and pass timings; a stream's frame
+rate includes capture and delivery, so it is not a gameplay FPS measurement.
+
+`engine.renderer.camera` takes scene-local coordinates: a long teleport that rebases the world origin
+moves every pinned camera, so take fixed-pose captures in a session that has not travelled far.
+
+Set `CRAFT_FOREST_STUDY=dense` before `rusty dev` (or use `.den-serve-forest-study.json` in an owned
+playtest profile) to generate dense forests: 4 m tree cells, roughly one tree per two eligible forest
+cells, scattered clearings, grassland density unchanged. The chunk-cache identity includes the recipe.
+The focused check is `dotnet run --project tests/TerrainResidency -c Release -- forest-study`;
+`craft.vegetation.sites <x> <z>` finds forest columns near a point.
+
 **Water appearance comparison.**
 
 At a river or lake, `craft.water.visual waves` (the default) draws the sea state's waves (#9902);

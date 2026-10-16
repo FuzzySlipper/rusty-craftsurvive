@@ -207,7 +207,7 @@ internal sealed class FarField : IDisposable
     }
 
     /// <summary>
-    /// One tile's samples on a worker: the generated height at every vertex and one more each side, less
+    /// One tile's samples on a worker: the generated ground's top face at every vertex and one more each side, less
     /// the sink, with water's surface over it where water stands; per vertex the far rules' materials about
     /// it, each a terrain layer, weighed by nearness over the ground's transition reach as a voxel chunk's
     /// layer weights are (so patches blend over the same width), or the water index where water stands.
@@ -247,7 +247,7 @@ internal sealed class FarField : IDisposable
                     continue;
                 }
 
-                ground[at] = recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z));
+                ground[at] = recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + FarGround.GroundTopFace;
                 geography[at] = recipe.Geography(x, z);
                 // Inside the near water's square the near surfaces draw the water (#9877): here only the bed.
                 // A flood (#9880) stands over its floodplain beyond the near square as well.
@@ -295,7 +295,7 @@ internal sealed class FarField : IDisposable
                         if (!double.IsNaN(ground[neighbour])) rise = Math.Max(rise, Math.Abs(ground[neighbour] - height));
                     }
 
-                    layer = Math.Max(0, TerrainLayers.Layer(FarGround.Natural(geography[at], rise, height, tile.CellSize)));
+                    layer = Math.Max(0, TerrainLayers.Layer(FarGround.Natural(geography[at], rise, height - FarGround.GroundTopFace, tile.CellSize)));
                 }
 
                 layers[((j + reach) * layerSpan) + i + reach] = layer;

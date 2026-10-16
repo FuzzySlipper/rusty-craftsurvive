@@ -242,6 +242,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         try
         {
+            // The game's own default: hide vegetation behind the ground (#10020). The player's video option wins.
+            engine.RendererSettings.Set(engine.RendererSettings.Read().Requested with { OcclusionCulling = true });
             terrain.Start();
             player.Start();
             home.Start();
@@ -546,8 +548,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
     }
 
-    /// <summary>The overworld's trees, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] TreeFacts() => player.InSeparateSpace ? [] : [.. terrain.TreeFacts, .. terrain.WaterFacts, .. terrain.StudyFacts, .. pieces.Facts()];
+    /// <summary>The overworld's water, studies and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
+    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. pieces.Facts()];
 
     /// <summary>The style test's travellers, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : styleTest.Facts;
@@ -562,7 +564,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
 
         engine.Graphics.PublishSnapshot(town.Open || !mapOpen || mapView is null
-            ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. TreeFacts(), .. horizon.Facts, .. TownFacts(), .. StyleFacts()]
+            ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. OverworldFacts(), .. horizon.Facts, .. TownFacts(), .. StyleFacts()]
             : mapView.Facts);
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();

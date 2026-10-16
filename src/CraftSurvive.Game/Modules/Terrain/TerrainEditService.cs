@@ -175,8 +175,7 @@ internal sealed class TerrainEditService(
             return TerrainPick.Missed(TerrainPickOutcome.CastMiss);
         }
 
-        SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(
-            session, origin, direction, TerrainConstants.EditReach, cast.VoxelX, cast.VoxelY, cast.VoxelZ, cast.Face));
+        SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(session, origin, direction, TerrainConstants.EditReach));
         if (!picked.Present || picked.Kind != SpatialHitKind.Voxel)
         {
             return TerrainPick.Missed(TerrainPickOutcome.PickMiss);

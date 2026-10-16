@@ -1,5 +1,17 @@
 using CraftSurvive.Game.Tests;
 
+if (args is ["forest-study"])
+{
+    Check.Section("dense forest study", ForestStudyChecks.Run);
+    return Check.Finish("ForestStudy");
+}
+
+if (args is ["vegetation-ground"])
+{
+    Check.Section("vegetation ground", VegetationGroundChecks.Run);
+    return Check.Finish("VegetationGround");
+}
+
 if (args.Length > 0 && args[0] == "continent")
 {
     ContinentDump.Run(args);
@@ -32,6 +44,8 @@ Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);
 Check.Section("view distance window", ResidencyChecks.ViewDistanceMovesTheWindow);
 Check.Section("generation", GenerationChecks.Run);
+Check.Section("dense forest study", ForestStudyChecks.Run);
+Check.Section("vegetation ground", VegetationGroundChecks.Run);
 Check.Section("continuous density", DensityChecks.Run);
 Check.Section("edits", EditChecks.Run);
 Check.Section("residency", ResidencyChecks.Run);

@@ -20,6 +20,8 @@ internal sealed class TerrainResidencyStreamer(
     private readonly Queue<TerrainChunkAddress> pendingCacheWrites = new();
     private long admissions;
     private long evictions;
+    /// <summary>Chunks the plan wants that are not resident yet, as of the last synchronize: 0 once the window has filled.</summary>
+    internal int PendingAdmissions { get; private set; }
 
     internal int ResidentCount => resident.Count;
 
@@ -74,12 +76,14 @@ internal sealed class TerrainResidencyStreamer(
 
         if (operations.Count == 0)
         {
+            PendingAdmissions = 0;
             return false;
         }
 
         engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty,
             session, operations.ToArray(), materialSlots.ToArray(), densities.ToArray()));
         Refresh(session, operations.Select(operation => new TerrainChunkAddress(operation.Chunk.X, operation.Chunk.Y, operation.Chunk.Z)));
+        PendingAdmissions = plan.Requested.Count(address => !resident.ContainsKey(address));
         return true;
     }
 

@@ -55,12 +55,14 @@ internal sealed class TerrainWorld : IDisposable
         this.ui = ui ?? throw new ArgumentNullException(nameof(ui));
         frame.Rebased += OnRebased;
         map ??= WorldMapGenerator.Generate(configuration);
-        recipe = configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map);
+        ForestPattern forest = string.Equals(Environment.GetEnvironmentVariable(ForestPatterns.EnvironmentVariable),
+            ForestPatterns.DenseName, StringComparison.OrdinalIgnoreCase) ? ForestPattern.Dense : ForestPattern.Baseline;
+        recipe = new TerrainRecipe(configuration, new EngineTerrainDraws(engine.Random), map, forest);
 
         // The fingerprint comes from a fresh recipe, so nothing the live one memoises can hide a
         // change in the generator or in the Engine's keyed draws underneath it.
         GenerationFingerprint = TerrainGenerationFingerprint.Compute(
-            configuration.CreateRecipe(new EngineTerrainDraws(engine.Random), map),
+            new TerrainRecipe(configuration, new EngineTerrainDraws(engine.Random), map, forest),
             TerrainGenerationFingerprint.Startup);
         CacheIdentity = TerrainGenerationFingerprint.CacheIdentity(GenerationFingerprint, TerrainGeneratorSource.Stamp);
         chunkCache = new TerrainChunkCache(engine, recipe.Contract, CacheIdentity);
@@ -165,8 +167,12 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string ScatterReadout() => presentation.ScatterReadout();
 
-    internal string TuneScatter(float grassPerSquareMetre, float bushesPerSquareMetre) =>
-        presentation.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
+    internal string TuneScatter(float grassPerSquareMetre, float bushesPerSquareMetre)
+    {
+        string readout = presentation.TuneScatter(grassPerSquareMetre, bushesPerSquareMetre);
+        vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
+        return readout;
+    }
 
     /// <summary>The atlas image every block material is built from.</summary>
     internal RenderResourceReference AtlasSprite => presentation.AtlasSprite;
@@ -202,6 +208,10 @@ internal sealed class TerrainWorld : IDisposable
             streamer.Synchronize(session, FixedResidencyCenter);
             presentation.Project(session);
             farField = new FarField(engine, content, recipe, () => Session, Water) { RadiusChunks = viewDistanceChunks, NearEdgeMetres = NearEdgeMetres };
+            vegetationTiles = new VegetationTiles(engine, recipe, session, () => overlayStore.Overlay, lastCentre);
+            vegetationTiles.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
+            treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre);
+            treeTiles.Grow(treeReachMetres);
             ui.Publish();
             started = true;
         }
@@ -238,6 +248,10 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         streamer.Clear();
+        vegetationTiles?.Dispose();
+        vegetationTiles = null;
+        treeTiles?.Dispose();
+        treeTiles = null;
         farField?.Dispose();
         farField = null;
         trees.Dispose();
@@ -263,7 +277,12 @@ internal sealed class TerrainWorld : IDisposable
             ui.Publish();
         }
 
-        trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, IsEdited, EditRevision, streamer.ResidentCount);
+        trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
+        lastCentre = centerVoxel;
+        // Ground cover and trees re-ask the tiles under the columns edited since the last follow.
+        var changedColumns = overlayStore.Overlay.TakeChangedColumns();
+        vegetationTiles?.Follow(centerVoxel, changedColumns);
+        treeTiles?.Follow(centerVoxel, changedColumns);
         if (farField is FarField far)
         {
             far.Follow(centerVoxel.X, centerVoxel.Z);
@@ -279,9 +298,6 @@ internal sealed class TerrainWorld : IDisposable
         // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
         if (waterSurfaces.IceRevision != composedIce || (composedIceAny && composedOrigin != frame.Origin)) ComposeStaticCollision();
     }
-
-    /// <summary>The trees drawn around the player (#9665), for the appearance snapshot.</summary>
-    internal AppearanceFact[] TreeFacts => trees.Facts;
 
     internal string TreesReadout() => trees.Readout();
 
@@ -465,8 +481,8 @@ internal sealed class TerrainWorld : IDisposable
     /// How far the land is drawn (#9759), in the far field's chunk columns. It sets the far field's
     /// reach; the near ground's request window in proportion (8 chunks at the default 12, within
     /// 5 to 10), which streams in or out within the residency's per-update budget with no reload;
-    /// the far field's sunk zone, which stays short of the near edge; the near trees, which follow
-    /// the retained ring; and the far trees' band, up to its own reach at the default.
+    /// the far field's sunk zone, which stays short of the near edge; the near trees' shelter, which
+    /// follows the retained ring; and how far trees are drawn (<see cref="TreeReachFor"/>).
     /// </summary>
     internal int ViewDistanceChunks
     {
@@ -484,38 +500,54 @@ internal sealed class TerrainWorld : IDisposable
                 farField.NearEdgeMetres = NearEdgeMetres;
             }
 
-            trees.FarReach = Math.Min(TerrainTrees.FarMetres, TerrainTrees.FarMetres * value / FarField.DefaultRadiusChunks);
-            GroundCoverMetres = groundCoverMetres;
+            treeReachMetres = TreeReachFor(value);
+            treeTiles?.Grow(treeReachMetres);
         }
     }
 
-    /// <summary>The near ground's last chunk of reach grows no ground cover, so copies never stand at its ragged edge.</summary>
-    private const double GroundCoverEdgeMetres = TerrainConstants.ChunkEdgeLength;
+    /// <summary>Trees are drawn this many metres out per far-field chunk column of view distance: 1,200 m at the default.</summary>
+    private const float TreeReachPerViewChunk = 100;
 
-    private double groundCoverMetres = TerrainScatter.DefaultReachMetres;
+    /// <summary>How far trees are drawn for a view distance: in proportion, never past the far field's ground.</summary>
+    internal static float TreeReachFor(int viewDistanceChunks) =>
+        Math.Min(TreeReachPerViewChunk * viewDistanceChunks, (viewDistanceChunks + 1) * FarField.ChunkMetres);
 
-    /// <summary>
-    /// How far grass, flowers, bushes and stones grow (the player's option): kept a chunk inside the near
-    /// ground, which a short view distance draws nearer.
-    /// </summary>
+    private float treeReachMetres = TreeReachFor(FarField.DefaultRadiusChunks);
+
+    private double groundCoverMetres = VegetationTiles.DefaultReachMetres;
+
+    /// <summary>How far grass, flowers, bushes and stones grow (the player's option), thinning with distance (#10016).</summary>
     internal double GroundCoverMetres
     {
         get => groundCoverMetres;
         set
         {
-            groundCoverMetres = value;
-            presentation.GroundCover = Math.Min(value, NearEdgeMetres - GroundCoverEdgeMetres);
+            groundCoverMetres = Math.Max(value, VegetationTiles.MinimumReachMetres);
+            vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
         }
     }
 
     /// <summary>The near ground's request and retained radii, in chunks.</summary>
     internal (int Requested, int Retained) NearRadii => (policy.RequestedRadius, policy.RetainedRadius);
 
-    /// <summary>Sets how far the distant trees reach (#9677); 0 turns them off.</summary>
+    /// <summary>Ground cover beyond the voxel scatter (#10016) and the trees (#10017), as Engine vegetation fields; null before the world starts.</summary>
+    private VegetationTiles? vegetationTiles;
+    private TreeTiles? treeTiles;
+
+    /// <summary>Where the player's voxel was at the last follow: where the vegetation fields centre.</summary>
+    private VoxelAddress lastCentre;
+
+
+    internal string VegetationReadout() => FormattableString.Invariant(
+        $"forest={recipe.Forest} treeCell={recipe.TreeCellMetres}m treeCache={recipe.TreeCacheCells}/{GenerationConstants.FeatureCacheLimit} treeCacheClears={recipe.TreeCacheClears} cover={groundCoverMetres}m treeReach={treeReachMetres}m resident={streamer.ResidentCount} pendingAdmissions={streamer.PendingAdmissions} {presentation.ScatterReadout()} {trees.Readout()}{(vegetationTiles is null ? "" : " " + vegetationTiles.Readout())}{(treeTiles is null ? "" : " " + treeTiles.Readout())}");
+
+
+    /// <summary>Sets how far trees are drawn for the session, for measuring (the view distance sets it again).</summary>
     internal string SetFarTrees(long metres)
     {
-        trees.FarReach = metres;
-        return trees.Readout();
+        treeReachMetres = Math.Clamp(metres, TreeTiles.NearReach, TreeTiles.MaximumReach);
+        treeTiles?.Grow(treeReachMetres);
+        return VegetationReadout();
     }
 
     /// <summary>How much of the horizon is drawn, for the scene readout.</summary>
@@ -650,7 +682,8 @@ internal sealed class TerrainWorld : IDisposable
     internal string GenerationReadout()
     {
         uint version = recipe.Contract.Version;
-        string golden = recipe.Configuration != TerrainConfiguration.Default ? "custom-world" : TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
+        string golden = recipe.Forest != ForestPattern.Baseline ? "forest-study"
+            : recipe.Configuration != TerrainConfiguration.Default ? "custom-world" : TerrainGenerationGoldens.Live.TryGetValue(version, out ulong expected)
             ? expected == GenerationFingerprint ? "match" : string.Create(CultureInfo.InvariantCulture, $"mismatch expected={expected:x16}")
             : "unrecorded";
         return string.Create(CultureInfo.InvariantCulture,

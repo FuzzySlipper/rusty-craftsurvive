@@ -68,11 +68,33 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"health={state.Health}/{state.MaximumHealth} defeats={state.Defeats} respawnStep={state.RespawnTick} outcome={player.Vitals.Outcome(player.CurrentStep)}");
     }
 
-    [DebugCommand("craft.terrain.groundcover", Description = "Assisted (#9911): sets how far ground cover grows (metres), as the Ground cover option does for the session, and reads the scatter and the coarse distance.")]
+    [DebugCommand("craft.terrain.groundcover", Description = "Assisted (#9911): sets how far ground cover grows (metres, at least 128), as the Ground cover option does for the session, and reads the vegetation.")]
     public string TerrainGroundCover(double metres)
     {
         terrain.GroundCoverMetres = metres;
-        return $"{terrain.ScatterReadout()} {terrain.LevelOfDetailReadout()}";
+        return terrain.VegetationReadout();
+    }
+
+    [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), and the forest recipe (CRAFT_FOREST_STUDY=dense opts in).")]
+    public string VegetationReadout() => terrain.VegetationReadout();
+
+    [DebugCommand("craft.vegetation.sites", Description = "Lists the forest columns nearest a point from the generated map, with ground height and local tree counts. Does not move the player.")]
+    public string VegetationSites(double x, double z)
+    {
+        const int MaximumSites = 4;
+        const long CountRadius = 64;
+        TerrainRecipe recipe = terrain.Recipe;
+        WorldMap map = recipe.Map;
+        return string.Join(" | ", Enumerable.Range(0, map.Grid.Count)
+            .Where(i => ForestPatterns.IsForest(WorldMap.Biome(map.Sample(map.Grid.X(i), map.Grid.Z(i)))))
+            .OrderBy(i => Math.Pow(map.Grid.X(i) - x, 2) + Math.Pow(map.Grid.Z(i) - z, 2))
+            .Take(MaximumSites).Select(i =>
+            {
+                long sx = (long)map.Grid.X(i), sz = (long)map.Grid.Z(i);
+                List<TerrainTree> local = [];
+                recipe.TreesIn(sx - CountRadius, sz - CountRadius, sx + CountRadius, sz + CountRadius, local);
+                return FormattableString.Invariant($"{WorldMap.Biome(recipe.Geography(sx, sz))} at={sx},{recipe.SurfaceAt(sx, sz) + 2},{sz} trees128m={local.Count}");
+            }));
     }
 
     [DebugCommand("craft.terrain.scene", Description = "Reads the current Engine-owned voxel scene facts.")]
@@ -213,7 +235,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.water.flow.at", Description = "Compares the Engine field's current and depth with the regional water at world x,z.")]
     public string WaterFlowAt(double x, double z) => terrain.WaterFlowAt(x, z);
 
-    [DebugCommand("craft.terrain.fartrees", Description = "Assisted (#9677): how far the distant trees reach in metres (0 off, up to 400), for measuring their cost.")]
+    [DebugCommand("craft.terrain.fartrees", Description = "Assisted: how far trees are drawn, in metres (144 to 2000), for the session; the view distance sets it again.")]
     public string SetFarTrees(long metres) => terrain.SetFarTrees(metres);
 
     [DebugCommand("craft.terrain.generation", Description = "Reads the generator's version, live fingerprint, golden status and chunk cache.")]

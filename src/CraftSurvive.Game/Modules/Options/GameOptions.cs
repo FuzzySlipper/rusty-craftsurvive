@@ -20,10 +20,10 @@ internal readonly record struct GameOptions(int ViewDistanceChunks, int FieldOfV
         "How far the land is drawn beyond the near ground, in 128 m steps. The haze closes in to match a shorter reach.",
         Minimum: 6, Maximum: 16, Step: 1, Unit: "× 128 m", Default: 12);
 
-    /// <summary>How far ground cover grows: it thins toward its edge, and its reach draws as much of the near ground at full detail.</summary>
+    /// <summary>How far ground cover grows (#10016): it thins with distance, each kept plant grown to keep the cover.</summary>
     internal static GameOptionSpec GroundCoverSpec { get; } = new(GroundCover, "Ground cover",
-        "How far grass, flowers, bushes and stones grow, thinning toward the edge. Farther draws more of the near ground at full detail, which costs more.",
-        Minimum: 32, Maximum: 96, Step: 8, Unit: "m", Default: 64);
+        "How far grass, flowers, bushes and stones grow, thinning with distance. Farther costs more on the graphics card.",
+        Minimum: 128, Maximum: 384, Step: 32, Unit: "m", Default: 256);
 
     internal static GameOptionSpec FieldOfViewSpec { get; } = new(FieldOfView, "Field of view",
         "The vertical field of view in first person.", Minimum: 55, Maximum: 100, Step: 1, Unit: "°", Default: 70);

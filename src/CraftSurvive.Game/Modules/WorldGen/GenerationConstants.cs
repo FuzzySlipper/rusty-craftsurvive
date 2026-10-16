@@ -20,7 +20,10 @@ internal static class GenerationConstants
     internal const double TreeScaleMinimum = 0.8;
     internal const double TreeScaleMaximum = 1.25;
     internal const long TreeDrawResolution = 1000;
-    internal const int FeatureCacheLimit = 4096;
+    // Keep the measured 256 m study window (including its retained ring) at 4 m tree cells.
+    // A 4096-entry cache was smaller than even the dense near-tree query (73 x 73 cells),
+    // so every residency update cleared it and regenerated the same forest again.
+    internal const int FeatureCacheLimit = 32_768;
     /// <summary>
     /// The world's water level. It is part of the generation contract rather than a
     /// per-chunk decision, so every chunk agrees about where the sea ends.
