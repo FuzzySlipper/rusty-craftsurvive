@@ -809,9 +809,7 @@ internal sealed class TerrainRecipe : ITerrainColumns
             return null;
         }
 
-        (long standX, long standZ) = Forest.StandOf(trunkX, trunkZ);
-        double stand = HashUnit(CoordinateHash(Contract.Seed ^ GenerationConstants.TreeStandSeed, standX, standZ));
-        FloraSpecies? species = Forest.TreeSpecies(geography, present < inCanopy, stand, Part(TreeDraw.Mix), Part(TreeDraw.Kind));
+        FloraSpecies? species = Forest.TreeSpecies(geography, present < inCanopy, Forest.StandDraw(trunkX, trunkZ), Part(TreeDraw.Mix), Part(TreeDraw.Kind));
         if (species is null)
         {
             return null;

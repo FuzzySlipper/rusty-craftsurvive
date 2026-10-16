@@ -68,9 +68,10 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// inflow generation summed (#9876 review); version 35 seats each town beside its water and flattens its
     /// pad into the ground, with no trees on it (#9895); version 36 grows the flora catalog's forests: canopy
     /// from each species' climate range, forest floor under a closed canopy, trees of many species in stands
-    /// on 4 m cells, sparse open-country trees, in dry and cold country too (#10032).
+    /// on 4 m cells, sparse open-country trees, in dry and cold country too (#10032); version 37 fingerprints only
+    /// the flora catalog's trees, since its plants and deadwood are presentation (#10034).
     /// </summary>
-    internal const uint CurrentVersion = 36;
+    internal const uint CurrentVersion = 37;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

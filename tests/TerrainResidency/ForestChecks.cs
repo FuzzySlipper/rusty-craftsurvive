@@ -22,6 +22,8 @@ internal static class ForestChecks
     private const double StandDominance = 0.5;
     private const int MinimumForestSpecies = 3;
     private const int PlantProbes = 4000;
+    // A closed forest's floor holds at least this many plants a square metre (ferns, flowers, shrubs).
+    private const double DenseUnderstory = 0.1;
     private const string MeshSuffix = ".prop-mesh.json";
 
     internal static void Run()
@@ -82,21 +84,41 @@ internal static class ForestChecks
             Check.That(recipe.MaterialAt(new(tree.X, tree.GroundY, tree.Z)) == (ushort)BlockId.TreeCore, "a tree must keep its colliding core");
         }
 
-        // Understory under the canopy and scrub in the open.
-        int understory = 0, scrub = 0;
+        // Understory under the canopy (#10034): species grow on their own, so plants overlap, with saplings and deadwood.
+        int understory = 0, others = 0, overlapping = 0, saplings = 0, deadwood = 0;
+        List<(FloraSpecies Species, ulong Hash)> growing = [];
         for (int i = 0; i < PlantProbes; i++)
         {
             long cx = GridMath.FloorDivide(fx, Forest.PlantCellMetres) + (i % 64), cz = GridMath.FloorDivide(fz, Forest.PlantCellMetres) + (i / 64);
             long px = cx * Forest.PlantCellMetres, pz = cz * Forest.PlantCellMetres;
             MapSample here = recipe.Geography(px, pz);
-            if (forest.Plant(cx, cz, forest.Canopy(px, pz, here), here, Forest.PlantsPerCell) is FloraSpecies plant)
+            double canopyHere = forest.Canopy(px, pz, here);
+            growing.Clear();
+            forest.Plants(cx, cz, canopyHere, here, growing);
+            if (growing.Count > 1) overlapping++;
+            foreach ((FloraSpecies plant, _) in growing)
             {
-                if (plant.Ecology!.Habit is FloraHabit.Understory) understory++;
-                else scrub++;
+                if (plant.Role == FloraRole.Deadwood) deadwood++;
+                else if (plant.Ecology!.Habit is FloraHabit.Understory) understory++;
+                else others++;
+            }
+
+            if (forest.Sapling(cx, cz, px, pz, canopyHere, here, out _) is FloraSpecies sapling)
+            {
+                saplings++;
+                Check.That(sapling.Role == FloraRole.Tree, $"a sapling must be a tree, not {sapling.Name}");
             }
         }
 
-        Check.That(understory > 0, "a closed forest must grow understory plants");
+        double perSquareMetre = (understory + others) / (double)(PlantProbes * Forest.PlantCellMetres * Forest.PlantCellMetres);
+        Check.That(perSquareMetre >= DenseUnderstory, $"a closed forest's understory must be dense: {perSquareMetre:F3} plants a square metre");
+        Check.That(overlapping > 0, "understory species must overlap in a cell rather than compete for it");
+        Check.That(saplings > 0, "a forest must grow saplings of its trees");
+        Check.That(deadwood > 0, "a forest floor must carry fallen logs and stumps");
+        Check.That(Forest.HabitShare(FloraHabit.Understory, 0) == 0 && Forest.HabitShare(FloraHabit.Understory, 1) == 1,
+            "understory grows under a closed canopy and not in the open");
+        Check.That(Forest.HabitShare(FloraHabit.Open, 1) == 0 && Forest.HabitShare(FloraHabit.Open, 0) == 1,
+            "open-country plants grow in the open and not under a closed canopy");
 
         // Every species variant the catalog names has its meshes (each tree also its far variant).
         string models = Path.Combine(ContentChecks.RepositoryRoot(), "content", "game", "models");
@@ -112,6 +134,6 @@ internal static class ForestChecks
         }
 
         Console.WriteLine(FormattableString.Invariant(
-            $"Forests: canopy {closed:F2} at {fx},{fz} holds {trees.Count} trees per {Square} m square, {species} species within {Square * 4} m, stands {dominance:P0} one species; open country {open.Count}; plants {understory} understory, {scrub} scrub in {PlantProbes} cells."));
+            $"Forests: canopy {closed:F2} at {fx},{fz} holds {trees.Count} trees per {Square} m square, {species} species within {Square * 4} m, stands {dominance:P0} one species; open country {open.Count}; in {PlantProbes} cells: {understory} understory and {others} other plants ({perSquareMetre:F2} a square metre, {overlapping} cells overlapping), {saplings} saplings, {deadwood} deadwood."));
     }
 }

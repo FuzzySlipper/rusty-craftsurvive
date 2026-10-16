@@ -76,15 +76,25 @@ internal sealed class TerrainScatter : IDisposable
     private const float GrassAlphaCutoff = 0.5f;
     private const float GrassRoughness = 0.9f;
     private static readonly Color GrassColor = new(1, 1, 1, 1);
+    // A clump's blades are white at the root and tip; the wind weight (alpha) rises from 0 to 1.
+    private static readonly Color ClumpRoot = new(1, 1, 1, 0), ClumpTip = new(1, 1, 1, 1);
+
+    /// <summary>
+    /// Shade grass (#10034): the meadow's clumps under the canopy, a cooler, darker green and darker still at the
+    /// root, so a forest floor reads as deep grass in shade. PlantTiles places it as records on the forest floor.
+    /// </summary>
+    private static readonly Color ShadeGrassColor = new(0.74f, 0.86f, 0.7f, 1);
+    private static readonly Color ShadeRoot = new(0.5f, 0.56f, 0.5f, 0), ShadeTip = new(0.95f, 1, 0.92f, 1);
 
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
-    private readonly Material grass, plant, stone;
+    private readonly Material grass, shadeGrass, plant, stone;
     /// <summary>Textured props (leaf-card bushes, frond ferns, #9685, and field stones, #9831), and each layer's material.</summary>
     private readonly PropMaterials textured;
     private readonly Dictionary<uint, Material> layerMaterials = [];
     private readonly List<MeshResource> grassMeshes = [];
     private readonly Dictionary<uint, Appearance> grassLooks = [];
+    private readonly List<(Appearance Look, float Share)> shadeLooks = [];
     private readonly List<MeshResource> propMeshes = [];
     private readonly Dictionary<uint, Appearance> looks = [];
     private float grassDensity = DefaultGrassDensity;
@@ -107,6 +117,13 @@ internal sealed class TerrainScatter : IDisposable
             WindBend = GrassWindBend,
             WindFlutter = GrassWindFlutter,
         });
+        shadeGrass = engine.Graphics.CreateMaterial(new MaterialRequest(ShadeGrassColor, grassTexture, GrassRoughness, white, Vector3.Zero, 0, true) with
+        {
+            AlphaMode = MaterialAlphaMode.Mask,
+            AlphaCutoff = GrassAlphaCutoff,
+            WindBend = GrassWindBend,
+            WindFlutter = GrassWindFlutter,
+        });
         plant = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), PlantRoughness, white, Vector3.Zero, 0, true) with
         {
             FlatShading = true,
@@ -119,9 +136,12 @@ internal sealed class TerrainScatter : IDisposable
         });
         foreach (GrassVariant variant in GrassVariants)
         {
-            MeshResource mesh = engine.Graphics.CreateMeshResource(Clump(grass, variant));
+            MeshResource mesh = engine.Graphics.CreateMeshResource(Clump(grass, variant, ClumpRoot, ClumpTip));
             grassMeshes.Add(mesh);
             grassLooks[variant.Id] = engine.Graphics.CreateMeshAppearance(mesh);
+            MeshResource shade = engine.Graphics.CreateMeshResource(Clump(shadeGrass, variant, ShadeRoot, ShadeTip));
+            grassMeshes.Add(shade);
+            shadeLooks.Add((engine.Graphics.CreateMeshAppearance(shade), variant.Share));
         }
         textured = new PropMaterials(engine, role => role == StoneRole
             ? new PropMaterials.Finish(StoneRoughness, 0, 0)
@@ -146,6 +166,9 @@ internal sealed class TerrainScatter : IDisposable
     internal readonly record struct Kind(uint Key, Appearance Look, Material Material, float Density, BlockId[] Ground,
         float SlopeDegrees, float Align, float ScaleMin, float ScaleMax, Vector3 TintLow, Vector3 TintHigh, uint Seed,
         bool CastsShadows, uint Maximum);
+
+    /// <summary>The shade grass's clumps, one per grass variant, with the share of clumps each takes.</summary>
+    internal IReadOnlyList<(Appearance Look, float Share)> ShadeGrass => shadeLooks;
 
     internal IEnumerable<Kind> Kinds()
     {
@@ -209,11 +232,14 @@ internal sealed class TerrainScatter : IDisposable
         looks.Clear();
         foreach (Appearance look in grassLooks.Values) look.Dispose();
         grassLooks.Clear();
+        foreach ((Appearance look, _) in shadeLooks) look.Dispose();
+        shadeLooks.Clear();
         foreach (MeshResource mesh in grassMeshes) mesh.Dispose();
         grassMeshes.Clear();
         foreach (MeshResource mesh in propMeshes) mesh.Dispose();
         propMeshes.Clear();
         grass.Dispose();
+        shadeGrass.Dispose();
         plant.Dispose();
         stone.Dispose();
         textured.Dispose();
@@ -224,7 +250,7 @@ internal sealed class TerrainScatter : IDisposable
     /// A clump: <see cref="GrassCards"/> cards crossed at even angles near its origin, each showing the
     /// variant's atlas cell; vertex alpha 0 at the root and 1 at the tip weights the wind's flutter.
     /// </summary>
-    private static MeshResourceCreateRequest Clump(Material material, GrassVariant variant)
+    private static MeshResourceCreateRequest Clump(Material material, GrassVariant variant, Color rootColor, Color tipColor)
     {
         float u0 = (float)(variant.Cell % AtlasCells) / AtlasCells, v0 = (float)(variant.Cell / AtlasCells) / AtlasCells;
         float u1 = u0 + (1f / AtlasCells), v1 = v0 + (1f / AtlasCells);
@@ -244,7 +270,7 @@ internal sealed class TerrainScatter : IDisposable
             positions.AddRange([root - across, root + across, root + across + up, root - across + up]);
             normals.AddRange([normal, normal, normal, normal]);
             uvs.AddRange([new(u0, v1), new(u1, v1), new(u1, v0), new(u0, v0)]);
-            colors.AddRange([new(1, 1, 1, 0), new(1, 1, 1, 0), new(1, 1, 1, 1), new(1, 1, 1, 1)]);
+            colors.AddRange([rootColor, rootColor, tipColor, tipColor]);
             indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
         }
 

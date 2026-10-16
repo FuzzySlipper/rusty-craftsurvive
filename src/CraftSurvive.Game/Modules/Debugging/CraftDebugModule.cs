@@ -75,7 +75,7 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return terrain.VegetationReadout();
     }
 
-    [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), and the plant tiles (shrubs and ferns).")]
+    [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), the plant tiles (plants, deadwood and saplings) and the forest floor's shade grass.")]
     public string VegetationReadout() => terrain.VegetationReadout();
 
     [DebugCommand("craft.vegetation.sites", Description = "Lists the forest columns nearest a point from the generated map, with ground height and local tree counts. Does not move the player.")]

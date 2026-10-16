@@ -25,7 +25,9 @@ frond a drooping strip showing a painted frond); and a bush's leaf cards on shor
 wind weight rises from the root; and a flower clump (#9831), upright cards crossed at even angles, each
 showing one cell of an atlas of painted clump sprites (scripts/make-grass-atlas.py, chosen with --cells), its
 tip leaning and moving with the wind, as the grass clumps do. Bushes, ferns and flowers are written to
-models/scatter/.
+models/scatter/. Deadwood (#10034): a fallen log is a trunk lying along X ("lie"), with broken
+limbs and capped ends ("caps"), and a stump a short capped trunk; both keep their authored metres
+("scale": 1) rather than being scaled to a height.
 
 With --far it also writes NAME-far: the distant-band variant (#9677) from the same skeleton and
 scale, so the silhouette holds at the switch: only the trunk and first limbs, four-sided, and every
@@ -237,6 +239,26 @@ def tube(branch, uv_metres):
     return positions, normals, uvs, indices
 
 
+def cap(branch, positions, end):
+    """A flat cap closing a tube's "base" or "tip" ring (a cut log's or a stump's face), both windings."""
+    ring = 0 if end == "base" else len(branch.points) - 1
+    sides = branch.sides
+    rim = positions[ring * (sides + 1): ring * (sides + 1) + sides]
+    centre = branch.points[ring]
+    axis = normalise(branch.points[1] - branch.points[0]) if end == "base" else normalise(branch.points[-1] - branch.points[-2])
+    normal = -axis if end == "base" else axis
+    cap_positions = [centre] + list(rim)
+    normals = [normal] * len(cap_positions)
+    # The cut face samples a small patch of the bark's lightest rows: rings of pale wood.
+    uvs = [(0.5, 0.02)] + [(0.5 + 0.4 * math.cos(2 * math.pi * j / sides), 0.02 + 0.015 * math.sin(2 * math.pi * j / sides))
+                           for j in range(sides)]
+    indices = []
+    for j in range(sides):
+        a, b = 1 + j, 1 + (j + 1) % sides
+        indices += [0, a, b, 0, b, a]
+    return cap_positions, normals, uvs, indices
+
+
 def leaf_cards(rng, kind, branches, crown_top, far=False):
     cards = kind["cards"]
     twigs = [b for b in branches if b.level == len(kind["levels"])]
@@ -377,7 +399,12 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_widt
     if trunk is not None:
         root = np.array([0.0, -kind.get("sink", 0.4), 0.0])
         stems = trunk.get("stems", 1)
-        if stems == 1:
+        if trunk.get("lie"):
+            # A fallen trunk (#10034): it lies along X, half sunk, its root end at -X.
+            root = np.array([-trunk["length"] / 2, trunk["radius"] * (1 - 2 * kind.get("sink", 0.4)), 0.0])
+            along = normalise(np.array([1.0, 0.0, 0.0]) + random_unit(rng) * trunk.get("lean", 0.06) * np.array([0.0, 0.3, 1.0]))
+            grow(rng, kind, root, along, trunk["length"], trunk["radius"], 0, branches)
+        elif stems == 1:
             lean = normalise(UP + random_unit(rng) * trunk.get("lean", 0.06))
             grow(rng, kind, root, lean, trunk["length"], trunk["radius"], 0, branches)
         else:
@@ -399,6 +426,11 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_widt
         if far:
             branch.sides = min(branch.sides, FAR_SIDES)
         p, n, uv, idx = tube(branch, uv_metres)
+        if branch.level == 0:
+            for end in kind.get("caps", []):
+                cp, cn, cuv, cidx = cap(branch, p, end)
+                idx = idx + [len(p) + i for i in cidx]
+                p, n, uv = p + cp, n + cn, uv + cuv
         first = len(bark["positions"])
         bark["positions"] += p
         bark["normals"] += n
@@ -428,7 +460,8 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_widt
         leaves["colors"] += lc
         leaves["indices"] += [first + i for i in li]
     if scale is None:
-        scale = height / max(p[1] for p in bark["positions"] + leaves["positions"])
+        # A form drawn in metres (a log or a stump, #10034) keeps them; others are scaled to their height.
+        scale = kind.get("scale") or height / max(p[1] for p in bark["positions"] + leaves["positions"])
     low, high = [math.inf] * 3, [-math.inf] * 3
     parts = []
     for role, part in (("bark", bark), ("leaves", leaves)):

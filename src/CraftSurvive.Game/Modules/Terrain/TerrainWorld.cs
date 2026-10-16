@@ -210,7 +210,7 @@ internal sealed class TerrainWorld : IDisposable
             vegetationTiles.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
             treeTiles = new TreeTiles(engine, recipe, session, trees, MaterialAt, IsEdited, lastCentre);
             treeTiles.Grow(treeReachMetres);
-            plantTiles = new PlantTiles(engine, content, recipe, session, () => overlayStore.Overlay, lastCentre);
+            plantTiles = new PlantTiles(engine, content, recipe, session, trees.NearMeshes, presentation.ShadeGrass, () => overlayStore.Overlay, lastCentre);
             ui.Publish();
             started = true;
         }

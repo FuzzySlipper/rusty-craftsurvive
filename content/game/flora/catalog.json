@@ -1,5 +1,5 @@
 {
- "purpose": "The flora catalog (#10032): every tree and plant the world grows, as data. scripts/generate-flora.py builds each species' seeded variants (and far variants for trees), bark and foliage textures from content/style/palette.json; the game reads the species, their meshes and their ecology from here.",
+ "purpose": "The flora catalog (#10032): every tree, plant and piece of deadwood the world grows, as data. scripts/generate-flora.py builds each species' seeded variants (and far variants for trees), bark and foliage textures from content/style/palette.json; the game reads the species, their meshes and their ecology from here.",
  "barks": {
   "oak": {
    "pattern": "fissured",
@@ -1184,7 +1184,8 @@
      0.92
     ],
     "habit": "edge",
-    "abundance": 1.0
+    "abundance": 1.0,
+    "density": 0.03
    }
   },
   "flowers": {
@@ -1286,7 +1287,8 @@
      1.0
     ],
     "habit": "understory",
-    "abundance": 1.0
+    "abundance": 1.0,
+    "density": 0.22
    }
   },
   "chestnut": {
@@ -2551,7 +2553,8 @@
      0.7
     ],
     "habit": "open",
-    "abundance": 0.8
+    "abundance": 0.8,
+    "density": 0.015
    }
   },
   "gorse": {
@@ -2578,7 +2581,8 @@
      0.82
     ],
     "habit": "open",
-    "abundance": 0.7
+    "abundance": 0.7,
+    "density": 0.012
    }
   },
   "heather": {
@@ -2638,7 +2642,8 @@
      0.88
     ],
     "habit": "open",
-    "abundance": 0.9
+    "abundance": 0.9,
+    "density": 0.04
    }
   },
   "rosemary": {
@@ -2691,7 +2696,8 @@
      0.52
     ],
     "habit": "open",
-    "abundance": 0.8
+    "abundance": 0.8,
+    "density": 0.015
    }
   },
   "holly": {
@@ -2744,7 +2750,8 @@
      0.97
     ],
     "habit": "understory",
-    "abundance": 0.7
+    "abundance": 0.7,
+    "density": 0.02
    }
   },
   "hazel": {
@@ -2797,7 +2804,204 @@
      0.92
     ],
     "habit": "understory",
-    "abundance": 0.8
+    "abundance": 0.8,
+    "density": 0.03
+   }
+  },
+  "woodland-flowers": {
+   "like": "flowers",
+   "variants": [
+    {
+     "seed": 1,
+     "set": {
+      "clump": {
+       "cells": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "seed": 2,
+     "set": {
+      "clump": {
+       "cells": [
+        2,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "seed": 3,
+     "set": {
+      "clump": {
+       "cells": [
+        0,
+        1
+       ]
+      }
+     }
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.3,
+     0.5,
+     0.78
+    ],
+    "moisture": [
+     0.45,
+     0.7,
+     1.0
+    ],
+    "habit": "understory",
+    "abundance": 1.0,
+    "density": 0.08
+   }
+  },
+  "log": {
+   "role": "deadwood",
+   "height": 0.6,
+   "folder": "scatter",
+   "bark": "dead",
+   "leaves": null,
+   "sink": 0.35,
+   "scale": 1.0,
+   "caps": [
+    "base",
+    "tip"
+   ],
+   "trunk": {
+    "length": 4.5,
+    "radius": 0.32,
+    "sides": 7,
+    "segments": 4,
+    "wobble": 0.09,
+    "rise": 0.0,
+    "tip": 0.65,
+    "flare": 1.25,
+    "lie": true,
+    "lean": 0.3
+   },
+   "levels": [
+    {
+     "count": [
+      2,
+      4
+     ],
+     "start": 0.2,
+     "end": 0.85,
+     "angle": [
+      50,
+      85
+     ],
+     "length": [
+      0.35,
+      0.7
+     ],
+     "shrink": 0.0,
+     "radius": 0.4,
+     "sides": 4,
+     "segments": 1,
+     "wobble": 0.1,
+     "rise": 0.0,
+     "tip": 0.6
+    }
+   ],
+   "cards": null,
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2,
+     "set": {
+      "trunk": {
+       "length": 3.4,
+       "radius": 0.26
+      }
+     }
+    },
+    {
+     "seed": 3,
+     "set": {
+      "trunk": {
+       "length": 5.6,
+       "radius": 0.4
+      }
+     }
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.2,
+     0.5,
+     0.85
+    ],
+    "moisture": [
+     0.3,
+     0.65,
+     1.0
+    ],
+    "habit": "understory",
+    "abundance": 1.0,
+    "density": 0.004
+   }
+  },
+  "stump": {
+   "role": "deadwood",
+   "height": 0.7,
+   "folder": "scatter",
+   "bark": "oak",
+   "leaves": null,
+   "sink": 0.15,
+   "scale": 1.0,
+   "caps": [
+    "tip"
+   ],
+   "trunk": {
+    "length": 0.75,
+    "radius": 0.32,
+    "sides": 8,
+    "segments": 2,
+    "wobble": 0.08,
+    "rise": 0.0,
+    "tip": 0.92,
+    "flare": 1.35,
+    "lean": 0.05
+   },
+   "levels": [],
+   "cards": null,
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2,
+     "set": {
+      "trunk": {
+       "length": 0.45,
+       "radius": 0.38
+      }
+     }
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.2,
+     0.5,
+     0.85
+    ],
+    "moisture": [
+     0.3,
+     0.65,
+     1.0
+    ],
+    "habit": "understory",
+    "abundance": 1.0,
+    "density": 0.003
    }
   }
  }

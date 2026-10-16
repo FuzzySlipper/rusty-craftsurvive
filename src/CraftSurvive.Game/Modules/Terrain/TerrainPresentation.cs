@@ -71,6 +71,9 @@ internal sealed class TerrainPresentation : IDisposable
     /// <summary>The kinds of ground cover at their current densities, for the vegetation tiles to grow too.</summary>
     internal IEnumerable<TerrainScatter.Kind> ScatterKinds => scatter!.Kinds();
 
+    /// <summary>The shade grass's clumps for the forest floor (#10034), with each one's share.</summary>
+    internal IReadOnlyList<(Appearance Look, float Share)> ShadeGrass => scatter!.ShadeGrass;
+
     /// <summary>What grows on the ground now, for the scene readout.</summary>
     internal string ScatterReadout() => projection is VoxelScenePresentation current && scatter is not null
         ? scatter.Readout(engine.VoxelScenePresentation.RefreshScene(current))

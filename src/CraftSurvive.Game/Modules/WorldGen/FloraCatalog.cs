@@ -3,12 +3,13 @@ using System.Text.Json;
 
 namespace CraftSurvive.Game.Modules.WorldGen;
 
-/// <summary>What a species is in the world: a tree, a shrub or a ground plant.</summary>
+/// <summary>What a species is in the world: a tree, a shrub, a ground plant, or deadwood (a fallen log, a stump: #10034).</summary>
 internal enum FloraRole : byte
 {
     Tree,
     Shrub,
     Ground,
+    Deadwood,
 }
 
 /// <summary>
@@ -42,13 +43,17 @@ internal readonly record struct FloraRange(double Minimum, double Optimum, doubl
 /// A species' ecology (#10032): its climate range, where it grows relative to the forest, how common it
 /// is, how bare and rocky a place it bears, and how much it seeks the water's edge.
 /// </summary>
+/// <param name="Density">For a plant (#10034): how many grow per square metre where the climate and canopy suit it fully.</param>
 internal sealed record FloraEcology(FloraRange Temperature, FloraRange Moisture, FloraHabit Habit, double Abundance,
-    double RockTolerance, double Riparian)
+    double RockTolerance, double Riparian, double Density)
 {
     /// <summary>How well a place suits the species, from its map sample: its climate, scaled by how common it is.</summary>
-    internal double Suitability(MapSample sample) => sample.Rock > RockTolerance
+    internal double Suitability(MapSample sample) => Fit(sample) * Abundance;
+
+    /// <summary>How well a place's climate and rock suit the species, 0 to 1, before how common it is.</summary>
+    internal double Fit(MapSample sample) => sample.Rock > RockTolerance
         ? 0
-        : Temperature.Suitability(sample.Temperature) * Moisture.Suitability(sample.Moisture) * Abundance;
+        : Temperature.Suitability(sample.Temperature) * Moisture.Suitability(sample.Moisture);
 }
 
 /// <summary>A species from the flora catalog (#10032): its id in catalog order, role, height, meshes and ecology.</summary>
@@ -89,7 +94,10 @@ internal sealed class FloraCatalog
     /// <summary>Every species, in catalog order: a species' id is its index.</summary>
     internal IReadOnlyList<FloraSpecies> Species { get; }
 
-    /// <summary>A hash of the catalog's text, for the generation fingerprint: a changed catalog is a changed world.</summary>
+    /// <summary>
+    /// A hash of the catalog's trees, for the generation fingerprint: they decide trunk cores and the forest floor,
+    /// so a changed tree is a changed world. Plants and deadwood are presentation only (#10034).
+    /// </summary>
     internal ulong Fingerprint { get; }
 
     internal FloraSpecies this[ushort id] => Species[id];
@@ -101,9 +109,12 @@ internal sealed class FloraCatalog
     {
         using JsonDocument document = JsonDocument.Parse(json);
         List<FloraSpecies> species = [];
+        System.Text.StringBuilder generated = new();
         foreach (JsonProperty entry in document.RootElement.GetProperty("species").EnumerateObject())
         {
             JsonElement resolved = Resolve(document.RootElement.GetProperty("species"), entry.Name);
+            if (String(resolved, "role", entry.Name).Equals(nameof(FloraRole.Tree), StringComparison.OrdinalIgnoreCase))
+                generated.Append(entry.Name).Append('=').Append(resolved.GetRawText()).Append('\n');
             FloraRole role = Enum.Parse<FloraRole>(String(resolved, "role", entry.Name), ignoreCase: true);
             List<string> variants = [];
             foreach (JsonElement variant in resolved.GetProperty("variants").EnumerateArray())
@@ -120,7 +131,7 @@ internal sealed class FloraCatalog
                 resolved.TryGetProperty("ecology", out JsonElement ecology) ? Ecology(ecology, entry.Name) : null));
         }
 
-        return new FloraCatalog(species, Hash(json));
+        return new FloraCatalog(species, Hash(generated.ToString()));
     }
 
     /// <summary>A species' entry with what it inherits (<c>like</c>) beneath it; the generator merges forms, and only whole fields matter here.</summary>
@@ -152,7 +163,8 @@ internal sealed class FloraCatalog
             Enum.Parse<FloraHabit>(ecology.GetProperty("habit").GetString()!, ignoreCase: true),
             ecology.TryGetProperty("abundance", out JsonElement abundance) ? abundance.GetDouble() : 1,
             ecology.TryGetProperty("rock", out JsonElement rock) ? rock.GetDouble() : DefaultRockTolerance,
-            ecology.TryGetProperty("riparian", out JsonElement riparian) ? riparian.GetDouble() : 0);
+            ecology.TryGetProperty("riparian", out JsonElement riparian) ? riparian.GetDouble() : 0,
+            ecology.TryGetProperty("density", out JsonElement density) ? density.GetDouble() : 0);
     }
 
     /// <summary>Most species keep off bare rock; those that bear it (juniper, mountain pine) say so.</summary>

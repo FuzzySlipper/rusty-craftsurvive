@@ -114,8 +114,10 @@ moves every pinned camera, so take fixed-pose captures in a session that has not
 
 Forests come from the flora catalog (`content/game/flora/catalog.json`): each species' climate range
 sets where the canopy closes, with forest floor under it, stands of mostly one species, sparse
-open-country trees, and shrubs and ferns as Engine vegetation records out to 160 m (`plantTiles` in the
-readout). `craft.vegetation.sites <x> <z>` finds closed forest near a point with its trees per 128 m
+open-country trees. On the ground beside them (`plantTiles` and `floorTiles` in the readout), every plant
+species grows on its own, so ferns, woodland flowers, shrubs, saplings and deadwood overlap. These are
+Engine vegetation records: shrubs, deadwood and saplings to 160 m, ground plants to 112 m, and shade
+grass on the forest floor to 72 m. `craft.vegetation.sites <x> <z>` finds closed forest near a point with its trees per 128 m
 square, and `craft.terrain.trees <species> <x> <z>` the nearest trees of one species. The focused check
 is `dotnet run --project tests/TerrainResidency -c Release -- forest`. Compare a forest interior, its
 edge, open country and a raised vista; a stand should read as one species with others mixed in.
