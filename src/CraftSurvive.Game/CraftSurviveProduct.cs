@@ -242,8 +242,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     {
         try
         {
-            // The game's own default: hide vegetation behind the ground (#10020). The player's video option wins.
-            engine.RendererSettings.Set(engine.RendererSettings.Read().Requested with { OcclusionCulling = true });
+            // Vegetation occlusion (#10020) stays the Engine's opt-in default, off: since canopies stopped counting as
+            // occluders it hid 1-10% of copies for no world GPU time and cost 0.6-0.85 ms of host render (#10033).
+            // `craft.renderer.occlusion on` turns it on for a session.
             terrain.Start();
             player.Start();
             home.Start();
@@ -316,6 +317,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new Modules.Water.RiverStageDebugModule(() => Owner(riverStage), () => Owner(terrain).Water,
             (x, z) => Owner(terrain).Recipe.GroundAt((long)Math.Floor(x), (long)Math.Floor(z)).Geography.RiverReach)));
         RequireRegistration(registrar.Register(new HorizonDebugModule(() => Owner(horizon), () => Owner(sky))));
+        RequireRegistration(registrar.Register(new Modules.Debugging.RendererDebugModule(engine)));
         RequireRegistration(registrar.Register(new SurvivalDebugModule(() => Owner(survival))));
         RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
         RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));
