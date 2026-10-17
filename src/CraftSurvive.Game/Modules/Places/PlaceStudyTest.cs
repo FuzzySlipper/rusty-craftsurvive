@@ -42,12 +42,16 @@ internal sealed class PlaceStudyTest : IDisposable
         foreach (JsonElement v in manifest.RootElement.GetProperty("variants").EnumerateArray())
         {
             string name = v.GetProperty("name").GetString()!;
-            variants[name] = new(name, v.GetProperty("model").GetString()!, v.GetProperty("sink").GetSingle());
+            string? texture = v.TryGetProperty("texture", out JsonElement t) ? t.GetString() : null;
+            variants[name] = new(name, v.GetProperty("model").GetString()!, texture, v.GetProperty("sink").GetSingle());
         }
     }
 
-    /// <summary>A study variant: its prop mesh and how far its base sinks below the ground it stands on.</summary>
-    private sealed record Variant(string Name, string Model, float Sink);
+    /// <summary>
+    /// A study variant: its prop mesh, an optional texture in place of the mesh's own (texture treatments
+    /// of one mesh), and how far its base sinks below the ground it stands on.
+    /// </summary>
+    private sealed record Variant(string Name, string Model, string? Texture, float Sink);
 
     private sealed record Placement(int Index, Variant Variant, double X, double Z, double YawDegrees);
 
@@ -60,7 +64,7 @@ internal sealed class PlaceStudyTest : IDisposable
         if (!loaded.ContainsKey(name))
         {
             MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, variant.Model,
-                (role, texture) => materials.For(role, texture ?? throw new InvalidOperationException($"Place study '{name}' part '{role}' names no texture."))));
+                (role, texture) => materials.For(role, variant.Texture ?? texture ?? throw new InvalidOperationException($"Place study '{name}' part '{role}' names no texture."))));
             loaded[name] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
