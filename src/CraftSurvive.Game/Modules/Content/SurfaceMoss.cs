@@ -90,6 +90,61 @@ internal sealed class SurfaceMoss : IDisposable
         }
     }
 
+    // The shader's own constants (surface-moss.wgsl), mirrored for Field.
+    private const int WrapCells = 4096;
+    private const float Streak = 2.2f, EdgeFray = 0.04f, ThresholdAtNone = 0.74f, ThresholdPerStrength = 0.09f;
+
+    /// <summary>The threshold the shader draws moss above at the current strength.</summary>
+    internal float Threshold => ThresholdAtNone - (Strength * ThresholdPerStrength);
+
+    /// <summary>
+    /// The shader's moss field at a world point on a surface facing <paramref name="normal"/>, before the threshold
+    /// (surface-moss.wgsl, mirrored): so product geometry (the hanging moss cards) can grow exactly where the painted
+    /// moss is thick. The shader reads the point as renderer-local plus the wrapped origin; so does this.
+    /// </summary>
+    internal float Field(double worldX, double worldY, double worldZ, Vector3 normal, float clumpMetres, int texelsPerMetre)
+    {
+        double px = worldX - (WrapMetres * Math.Floor(origin.X / (double)WrapMetres));
+        double py = worldY - (WrapMetres * Math.Floor(origin.Y / (double)WrapMetres));
+        double pz = worldZ - (WrapMetres * Math.Floor(origin.Z / (double)WrapMetres));
+        Vector3 n = Vector3.Normalize(normal), a = Vector3.Abs(n);
+        (double qx, double qy, bool top) = a.Y >= a.X && a.Y >= a.Z ? (px, pz, true) : a.X >= a.Z ? (pz, py, false) : (px, py, false);
+        float facing = n.Y >= LowestFacing ? Lerp(SideShare, 1, SmoothStep(0, 0.8f, n.Y)) : 0;
+        double tpm = texelsPerMetre;
+        double cx = Math.Floor(qx * tpm), cy = Math.Floor(qy * tpm);
+        double tx = (cx + 0.5) / tpm, ty = (cy + 0.5) / tpm;
+        double sy = top ? 1 : Streak;
+        float clump = Clumps((float)(tx / clumpMetres), (float)(ty / (clumpMetres * sy)));
+        float fray = (Hash((long)cx, (long)cy) - 0.5f) * EdgeFray;
+        return (clump + fray) * facing;
+    }
+
+    private static float Hash(long x, long y)
+    {
+        uint wx = (uint)(((x % WrapCells) + WrapCells) % WrapCells), wy = (uint)(((y % WrapCells) + WrapCells) % WrapCells);
+        uint h = unchecked((wx * 374761393u) + (wy * 668265263u));
+        h = unchecked((h ^ (h >> 13)) * 1274126177u);
+        return (h & 0x00ffffffu) / 16777215f;
+    }
+
+    private static float Noise(float x, float y)
+    {
+        long ix = (long)Math.Floor(x), iy = (long)Math.Floor(y);
+        float fx = x - ix, fy = y - iy;
+        float ux = fx * fx * (3 - (2 * fx)), uy = fy * fy * (3 - (2 * fy));
+        return Lerp(Lerp(Hash(ix, iy), Hash(ix + 1, iy), ux), Lerp(Hash(ix, iy + 1), Hash(ix + 1, iy + 1), ux), uy);
+    }
+
+    private static float Clumps(float x, float y) => (Noise(x, y) * 0.7f) + (Noise((x * 2.7f) + 17.3f, (y * 2.7f) + 5.1f) * 0.3f);
+
+    private static float Lerp(float a, float b, float t) => a + ((b - a) * t);
+
+    private static float SmoothStep(float e0, float e1, float x)
+    {
+        float t = Math.Clamp((x - e0) / (e1 - e0), 0, 1);
+        return t * t * (3 - (2 * t));
+    }
+
     internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"moss strength={Strength:F1} materials={materials.Count} origin={origin.X},{origin.Y},{origin.Z}");
 
     /// <summary>Disposes the shader; the materials are their owners' to dispose.</summary>

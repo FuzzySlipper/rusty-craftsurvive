@@ -123,6 +123,9 @@ internal static class ProductIds
 
     internal const ulong PlaceMeshLimit = 0x1000UL;
 
+    /// <summary>The places' hanging moss and ivy cards (#10044): one mesh for every place near the player.</summary>
+    internal const ulong PlaceMossCardsObject = 0x9_B000UL;
+
     /// <summary>The place look study's variants (#9992), a test aid placed by live debug.</summary>
     internal const ulong PlaceStudyBase = 0x9_9000UL;
 

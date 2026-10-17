@@ -1,0 +1,40 @@
+{
+ "purpose": "Place art outside the kit meshes (#10044): the hanging moss and ivy cards PlaceMossCards grows on the places' lips and wall feet where the surface moss is thick.",
+ "moss-cards": {
+  "texture": "content/game/textures/places/moss-cards.png",
+  "generator": "local Qwen-Image-2.1 text-to-image on the owner's RTX 5090 (asset-pipeline tools/texture-edit/qwen_edit.py --size 1024x1024)",
+  "assembly": "python3 scripts/make-grass-atlas.py content/game/textures/places/moss-cards.png <hang-s71 flipped> <hang-s71 flipped and mirrored> <foot-s71> <foot-s72> --cell 128 --key magenta --ramps foliage,sage,meadow (curtains flipped so their attached edge is the cell's base; hang-s72 was dropped for a painted rod along its top)",
+  "cells": [
+   {
+    "cell": 0,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/hang-s71.png",
+    "sha256": "bbc84c8615fe698b4eb5589bd92ec8d50fa2d65eb52c992e1f6581914e98fc87",
+    "seed": 71,
+    "prompt": "a curtain of hanging moss and small-leaved ivy draping down from a straight horizontal line along the top edge of the image, ragged uneven strands of different lengths, olive green and dark green with a few yellow-green leaves, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable leaf shapes, soft shading, isolated on a pure flat magenta background, no wall, no stone, no shadow, no text, fills the frame width",
+    "note": "flipped top to bottom"
+   },
+   {
+    "cell": 1,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/hang-s71.png",
+    "sha256": "bbc84c8615fe698b4eb5589bd92ec8d50fa2d65eb52c992e1f6581914e98fc87",
+    "seed": 71,
+    "prompt": "a curtain of hanging moss and small-leaved ivy draping down from a straight horizontal line along the top edge of the image, ragged uneven strands of different lengths, olive green and dark green with a few yellow-green leaves, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable leaf shapes, soft shading, isolated on a pure flat magenta background, no wall, no stone, no shadow, no text, fills the frame width",
+    "note": "flipped top to bottom and mirrored"
+   },
+   {
+    "cell": 2,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/foot-s71.png",
+    "sha256": "9a6716d7e81aafdedcfc35032f6e2c23387702df6a3e2f3fc1d735c36cb1b09b",
+    "seed": 71,
+    "prompt": "a low cushion clump of moss with a few small ferns and ivy leaves growing up from a straight base line along the bottom edge of the image, olive green and dark green, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable shapes, soft shading, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+   },
+   {
+    "cell": 3,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/foot-s72.png",
+    "sha256": "f7709cd4cdc18c529a69105a9a82e2d5eed25c048abc1bea3abd82166c477c1e",
+    "seed": 72,
+    "prompt": "a low cushion clump of moss with a few small ferns and ivy leaves growing up from a straight base line along the bottom edge of the image, olive green and dark green, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable shapes, soft shading, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+   }
+  ]
+ }
+}

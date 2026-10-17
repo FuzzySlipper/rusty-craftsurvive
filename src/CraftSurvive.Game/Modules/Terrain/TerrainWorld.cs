@@ -99,7 +99,7 @@ internal sealed class TerrainWorld : IDisposable
     private const double PlaceGroundTopFace = 1.0;
 
     /// <summary>The places' pieces standing about the player, for the appearance snapshot.</summary>
-    internal IEnumerable<AppearanceFact> PlaceFacts => places.Facts;
+    internal IEnumerable<AppearanceFact> PlaceFacts => [.. places.Facts, .. places.CardFacts];
 
     internal string PlacesReadout() => places.Readout() + string.Create(CultureInfo.InvariantCulture, $" colliders={PlaceColliders}");
 
@@ -147,7 +147,11 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>After an appearance snapshot is published: retired water tiles may now be disposed.</summary>
-    internal void AfterAppearanceSnapshot() => waterSurfaces.AfterAppearanceSnapshot();
+    internal void AfterAppearanceSnapshot()
+    {
+        waterSurfaces.AfterAppearanceSnapshot();
+        places.AfterAppearanceSnapshot();
+    }
 
     internal LandscapeSampleSpace CreateLandscapeStudy(LandscapeStudy study) =>
         new(engine, content, study);
@@ -202,6 +206,7 @@ internal sealed class TerrainWorld : IDisposable
     internal string SetMossStrength(float strength)
     {
         string readout = Moss.SetStrength(strength);
+        places.RelayCards();
         presentation.RegrowScatter();
         vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
         return readout;

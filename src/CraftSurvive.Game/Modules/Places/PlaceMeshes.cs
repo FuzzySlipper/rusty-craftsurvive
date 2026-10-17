@@ -33,6 +33,7 @@ internal sealed class PlaceMeshes : IDisposable
     private readonly Func<double, double, double> groundTop;
     private readonly PropMaterials materials;
     private readonly IReadOnlyDictionary<string, PlaceKitPiece> kit;
+    private readonly PlaceMossCards? cards;
     private readonly Dictionary<string, Loaded> loaded = [];
     private readonly List<Standing> standing = [];
     private readonly List<PoiSite> sites = [];
@@ -52,12 +53,13 @@ internal sealed class PlaceMeshes : IDisposable
         // Every place is stone, and grows the surface moss (#10044).
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.PlaceClumpMetres), moss: moss);
         kit = PlaceKit.Read(content);
+        cards = moss is null ? null : new PlaceMossCards(engine, frame, moss);
     }
 
     /// <summary>A piece's drawing and its collision shape (the mesh's own triangles, in its metres).</summary>
     private sealed record Loaded(MeshResource Mesh, Appearance Appearance, Vector3[] Positions, Triangle[] Triangles, ulong Asset);
 
-    private sealed record Standing(string Site, Loaded Piece, Vector3 World, Quaternion Rotation, Vector3 Scale);
+    private sealed record Standing(string Site, Loaded Piece, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale);
 
     /// <summary>Pieces standing now, for the readout.</summary>
     internal int Pieces => standing.Count;
@@ -79,12 +81,24 @@ internal sealed class PlaceMeshes : IDisposable
                 if (!kit.TryGetValue(part.Piece, out PlaceKitPiece? piece)) continue;
                 double ground = part.OnSiteGround ? siteGround : groundTop(part.X, part.Z);
                 // The sink scales with the piece: a stele scaled to its height carries its skirt along.
-                standing.Add(new(site.Id, Load(piece), new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
+                standing.Add(new(site.Id, Load(piece), piece.Sink, new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
             }
         }
 
         layoutRevision++;
+        LayCards(player);
     }
+
+    /// <summary>Lays the hanging moss cards again over the pieces standing (#10044): after a layout, or when the moss changed.</summary>
+    internal void LayCards(Vector3 about) => cards?.Lay([.. standing.Select(s => new PlaceMossCards.Piece(s.Piece.Mesh, s.Piece.Positions, s.Piece.Triangles,
+        s.Sink, s.World, s.Rotation, s.Scale))], new Vector3(about.X, standing.Count > 0 ? standing[0].World.Y : about.Y, about.Z));
+
+    /// <summary>Lays the cards again where they were last laid (the moss's strength changed).</summary>
+    internal void RelayCards() => LayCards(new Vector3((float)laidOutAt.X, 0, (float)laidOutAt.Z));
+
+    internal IEnumerable<AppearanceFact> CardFacts => cards?.Facts ?? [];
+
+    internal void AfterAppearanceSnapshot() => cards?.AfterAppearanceSnapshot();
 
     private Loaded Load(PlaceKitPiece piece)
     {
@@ -141,7 +155,9 @@ internal sealed class PlaceMeshes : IDisposable
         return added;
     }
 
-    internal string Readout() =>
+    internal string Readout() => (cards?.Readout() ?? "mossCards=none") + " " + PieceReadout();
+
+    private string PieceReadout() =>
         string.Create(CultureInfo.InvariantCulture, $"places sites={sites.Count} pieces={standing.Count} kinds={loaded.Count} at={laidOutAt.X:F0},{laidOutAt.Z:F0} ")
         + string.Join(' ', standing.GroupBy(s => s.Site).Take(8).Select(g => $"{g.Key}:{g.Count()}"));
 
@@ -156,6 +172,7 @@ internal sealed class PlaceMeshes : IDisposable
         }
 
         loaded.Clear();
+        cards?.Dispose();
         materials.Dispose();
     }
 }
