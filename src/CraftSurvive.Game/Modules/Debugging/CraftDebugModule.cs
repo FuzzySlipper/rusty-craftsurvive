@@ -127,6 +127,12 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};nearRadius={terrain.NearRadii.Requested}/{terrain.NearRadii.Retained};solidVoxels={scene.SolidVoxelCount};multiLoopCells={scene.MultiLoopCells};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()};{terrain.TreesReadout()}");
     }
 
+    [DebugCommand("craft.moss.strength", Description = "Tuning (#10044): sets the surface moss's strength on every stone place and field stone (0 none, 1 accents, 2 moss, 3 overgrown) and reads it.")]
+    public string MossStrength(double strength) => terrain.SetMossStrength((float)strength);
+
+    [DebugCommand("craft.moss.readout", Description = "Reads the surface moss (#10044): its strength, the materials growing it and the origin it was last given.")]
+    public string MossReadout() => terrain.Moss.Readout();
+
     [DebugCommand("craft.places.readout", Description = "Reads the overworld places drawn as kit meshes (#9992): sites and pieces in the near ground, kit pieces loaded, and pieces in the walking collision.")]
     public string ReadPlaces() => terrain.PlacesReadout();
 

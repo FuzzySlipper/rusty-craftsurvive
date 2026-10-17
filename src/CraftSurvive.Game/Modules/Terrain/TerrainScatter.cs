@@ -120,7 +120,7 @@ internal sealed class TerrainScatter : IDisposable
     private readonly Dictionary<uint, Appearance> looks = [];
     private float grassDensity = DefaultGrassDensity;
 
-    internal TerrainScatter(IEngineContext engine, ProductContent content)
+    internal TerrainScatter(IEngineContext engine, ProductContent content, SurfaceMoss? moss = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         Color white = new(1, 1, 1, 1);
@@ -187,9 +187,10 @@ internal sealed class TerrainScatter : IDisposable
             grassMeshes.Add(shade);
             shadeLooks.Add((engine.Graphics.CreateMeshAppearance(shade), variant.Share));
         }
+        // Field stones grow the surface moss (#10044); plants do not.
         textured = new PropMaterials(engine, role => role == StoneRole
-            ? new PropMaterials.Finish(StoneRoughness, 0, 0)
-            : new PropMaterials.Finish(PlantRoughness, PlantWindBend, PlantWindFlutter));
+            ? new PropMaterials.Finish(StoneRoughness, 0, 0, SurfaceMoss.FieldStoneClumpMetres)
+            : new PropMaterials.Finish(PlantRoughness, PlantWindBend, PlantWindFlutter), moss: moss);
         foreach (Layer layer in Layers)
         {
             // A layer draws with one material: a textured prop is a single leaves or stone part on its texture.

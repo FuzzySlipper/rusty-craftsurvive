@@ -69,10 +69,11 @@ internal sealed class TerrainWorld : IDisposable
         SaveIdentity = new SaveIdentity(recipe.Contract.Version, recipe.Contract.Seed);
         overlayStore = new TerrainOverlayStore(engine, store, SaveIdentity);
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
-        presentation = new TerrainPresentation(engine, content);
+        Moss = new SurfaceMoss(engine);
+        presentation = new TerrainPresentation(engine, content, Moss);
         trees = new TerrainTrees(engine, content, frame);
         places = new Places.PlaceMeshes(engine, content, frame, recipe.Placement,
-            (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace);
+            (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace, Moss);
         Water = new Water.WaterModel(recipe);
         waterSurfaces = new Water.WaterSurfaces(engine, frame, Water);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
@@ -89,6 +90,9 @@ internal sealed class TerrainWorld : IDisposable
     internal Water.WaterModel Water { get; }
 
     private readonly Water.WaterSurfaces waterSurfaces;
+
+    /// <summary>The surface moss (#10044) the places and field stones grow, one style for all.</summary>
+    internal SurfaceMoss Moss { get; }
 
     /// <summary>The overworld places as kit meshes (#9992), stood on the ground's top face.</summary>
     private readonly Places.PlaceMeshes places;
@@ -191,6 +195,18 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string GrassLook => presentation.GrassBlades ? "grass=blades" : "grass=cards";
 
+    /// <summary>
+    /// Sets the surface moss's strength (#10044) for the places and the field stones: the places' materials follow at
+    /// once, and the scatter and its tiles are grown again, since their copies keep the shader values they were set with.
+    /// </summary>
+    internal string SetMossStrength(float strength)
+    {
+        string readout = Moss.SetStrength(strength);
+        presentation.RegrowScatter();
+        vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
+        return readout;
+    }
+
     internal string TuneScatter(float grassPerSquareMetre)
     {
         string readout = presentation.TuneScatter(grassPerSquareMetre);
@@ -287,6 +303,7 @@ internal sealed class TerrainWorld : IDisposable
         study?.Dispose();
         waterStudy?.Dispose();
         presentation.Dispose();
+        Moss.Dispose();
         chunkCache.Dispose();
         session?.Dispose();
         session = null;
@@ -307,6 +324,7 @@ internal sealed class TerrainWorld : IDisposable
 
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
         places.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
+        Moss.Follow(frame.Origin);
         lastCentre = centerVoxel;
         // Ground cover and trees re-ask the tiles under the columns edited since the last follow.
         var changedColumns = overlayStore.Overlay.TakeChangedColumns();

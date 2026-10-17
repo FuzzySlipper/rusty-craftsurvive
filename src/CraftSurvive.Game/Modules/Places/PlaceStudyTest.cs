@@ -30,14 +30,15 @@ internal sealed class PlaceStudyTest : IDisposable
     private readonly Dictionary<string, (MeshResource Mesh, Appearance Appearance)> loaded = [];
     private readonly Dictionary<string, Placement> placed = [];
 
-    internal PlaceStudyTest(IEngineContext engine, ProductContent content, WorldFrame frame, Func<double, double, float> groundAt, Func<Vector3> playerWorld)
+    internal PlaceStudyTest(IEngineContext engine, ProductContent content, WorldFrame frame, Func<double, double, float> groundAt, Func<Vector3> playerWorld,
+        SurfaceMoss? moss = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
+        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.FieldStoneClumpMetres), moss: moss);
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         foreach (JsonElement v in manifest.RootElement.GetProperty("variants").EnumerateArray())
         {

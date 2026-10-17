@@ -203,7 +203,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         gameplay = [conditions, weather, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
-        placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
+        placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition, terrain.Moss);
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
         ApplyOptions();

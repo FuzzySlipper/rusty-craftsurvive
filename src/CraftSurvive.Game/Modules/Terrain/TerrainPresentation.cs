@@ -16,14 +16,14 @@ internal sealed class TerrainPresentation : IDisposable
     private VoxelScenePresentation? projection;
 
     /// <summary>Authored content is admitted at product create, so every later projection can bind it.</summary>
-    internal TerrainPresentation(IEngineContext engine, ProductContent content)
+    internal TerrainPresentation(IEngineContext engine, ProductContent content, SurfaceMoss? moss = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         atlas = new TerrainAtlasCatalog(engine, content);
         try
         {
             ground = new TerrainGroundMaterials(engine, content);
-            scatter = new TerrainScatter(engine, content);
+            scatter = new TerrainScatter(engine, content, moss);
         }
         catch
         {
@@ -66,6 +66,15 @@ internal sealed class TerrainPresentation : IDisposable
         VoxelScenePresentation current = projection ?? throw new InvalidOperationException("Terrain presentation is unavailable.");
         scatter!.Tune(current, grassPerSquareMetre);
         return ScatterReadout();
+    }
+
+    /// <summary>
+    /// Grows the voxel scatter again: its copies take their material's shader values when a layer is set, so a
+    /// change to the surface moss (#10044) reaches the field stones only through a new layer.
+    /// </summary>
+    internal void RegrowScatter()
+    {
+        if (projection is VoxelScenePresentation current) scatter?.Grow(current);
     }
 
     /// <summary>Whether grass is blades or cards (#10038); setting it grows the voxel scatter again.</summary>

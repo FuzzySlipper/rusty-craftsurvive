@@ -53,6 +53,11 @@
       "name": "c2-pixel",
       "model": "models/place-study/stele-c2.prop-mesh.json",
       "sink": 1.5
+    },
+    {
+      "name": "field-stone",
+      "model": "models/scatter/stones-1.prop-mesh.json",
+      "sink": 0.0
     }
   ]
 }

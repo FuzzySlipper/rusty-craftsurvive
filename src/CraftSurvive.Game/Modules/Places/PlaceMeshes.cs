@@ -41,14 +41,16 @@ internal sealed class PlaceMeshes : IDisposable
     private (long X, long Y, long Z) collidedOrigin;
     private int layoutRevision, collidedRevision = -1;
 
-    internal PlaceMeshes(IEngineContext engine, ProductContent content, WorldFrame frame, PoiPlacement placement, Func<double, double, double> groundTop)
+    internal PlaceMeshes(IEngineContext engine, ProductContent content, WorldFrame frame, PoiPlacement placement, Func<double, double, double> groundTop,
+        SurfaceMoss? moss = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.placement = placement ?? throw new ArgumentNullException(nameof(placement));
         this.groundTop = groundTop ?? throw new ArgumentNullException(nameof(groundTop));
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
+        // Every place is stone, and grows the surface moss (#10044).
+        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.PlaceClumpMetres), moss: moss);
         kit = PlaceKit.Read(content);
     }
 

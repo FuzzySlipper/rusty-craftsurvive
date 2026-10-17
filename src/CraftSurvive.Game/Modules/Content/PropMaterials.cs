@@ -17,18 +17,24 @@ internal sealed class PropMaterials : IDisposable
     private const float CardAlphaCutoff = 0.5f;
     private static readonly Color White = new(1, 1, 1, 1);
 
-    /// <summary>A role's surface and how the wind moves it (flutter scales by each vertex's wind weight).</summary>
-    internal readonly record struct Finish(float Roughness, float WindBend, float WindFlutter);
+    /// <summary>
+    /// A role's surface and how the wind moves it (flutter scales by each vertex's wind weight); a mossy
+    /// role grows the surface moss (#10044) when its owner gave one, in clumps of <paramref name="MossClumpMetres"/>
+    /// (0 for none): a small prop needs smaller clumps than a wall, or it is all moss or bare.
+    /// </summary>
+    internal readonly record struct Finish(float Roughness, float WindBend, float WindFlutter, float MossClumpMetres = 0);
 
     private readonly IEngineContext engine;
     private readonly Func<string, Finish> finishFor;
     private readonly TextureFilter filter;
+    private readonly SurfaceMoss? moss;
     private readonly Dictionary<(string Role, string Texture), Material> materials = [];
     private readonly Dictionary<string, RenderResource> textures = [];
 
-    internal PropMaterials(IEngineContext engine, Func<string, Finish> finishFor, TextureFilter filter = TextureFilter.NearestMipmapped)
+    internal PropMaterials(IEngineContext engine, Func<string, Finish> finishFor, TextureFilter filter = TextureFilter.NearestMipmapped, SurfaceMoss? moss = null)
     {
         this.filter = filter;
+        this.moss = moss;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.finishFor = finishFor ?? throw new ArgumentNullException(nameof(finishFor));
     }
@@ -50,13 +56,17 @@ internal sealed class PropMaterials : IDisposable
 
         bool cards = role == LeavesRole;
         Finish finish = finishFor(role);
-        material = engine.Graphics.CreateMaterial(new MaterialRequest(White, texture, finish.Roughness, White, Vector3.Zero, 0, false) with
+        MaterialRequest request = new MaterialRequest(White, texture, finish.Roughness, White, Vector3.Zero, 0, false) with
         {
             AlphaMode = cards ? MaterialAlphaMode.Mask : MaterialAlphaMode.Opaque,
             AlphaCutoff = cards ? CardAlphaCutoff : 0,
             WindBend = finish.WindBend,
             WindFlutter = finish.WindFlutter,
-        });
+        };
+        bool mossy = finish.MossClumpMetres > 0 && moss is not null;
+        if (mossy) request = request with { Shader = moss!.Shader(finish.MossClumpMetres) };
+        material = engine.Graphics.CreateMaterial(request);
+        if (mossy) moss!.Register(material, request, finish.MossClumpMetres);
         materials[(role, texturePath)] = material;
         return material;
     }
@@ -65,6 +75,7 @@ internal sealed class PropMaterials : IDisposable
     {
         foreach (Material material in materials.Values)
         {
+            moss?.Unregister(material);
             material.Dispose();
         }
 
