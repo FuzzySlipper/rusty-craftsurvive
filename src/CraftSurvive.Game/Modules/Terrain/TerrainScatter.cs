@@ -32,7 +32,15 @@ internal sealed class TerrainScatter : IDisposable
     private const int AtlasCells = 2;
 
     /// <summary>Clumps per square metre of grass ground, and how far from the camera they grow.</summary>
-    internal const float DefaultGrassDensity = 2.5f;
+    internal const float DefaultGrassDensity = 3.5f;
+
+    /// <summary>
+    /// The vegetation tiles (past the near 40 m) grow grass at most this thickly, whatever the near density (#10038). Every
+    /// resident copy of every vegetation layer, trees and plants included, shares one renderer buffer; past about 1.5
+    /// million it overflows the binding limit and the renderer's stream stops (Engine #10040). The near band is where
+    /// bare ground shows between clumps, and holds a few tens of thousands of copies; the tiles hold the rest.
+    /// </summary>
+    private const float TileGrassDensityLimit = 2.5f;
     internal const string PropFolder = "models/scatter/";
     private const float GrassSlopeDegrees = 38f;
     private const float GrassLean = 0.35f;
@@ -181,9 +189,10 @@ internal sealed class TerrainScatter : IDisposable
     /// (<see cref="VegetationTiles"/>, #10016) grow the same kinds, so a kind's copies hand over one for one.
     /// </summary>
     /// <param name="Mid">How the kind looks in the middle distance (the mid tiles), and <paramref name="Far"/> beyond it.</param>
+    /// <param name="TileDensity">How thickly it grows on the vegetation tiles, past the near band.</param>
     internal readonly record struct Kind(uint Key, Appearance Look, Material Material, float Density, BlockId[] Ground,
         float SlopeDegrees, float Align, float ScaleMin, float ScaleMax, Vector3 TintLow, Vector3 TintHigh, uint Seed,
-        bool CastsShadows, uint Maximum, (Appearance Look, Material Material) Mid, (Appearance Look, Material Material) Far);
+        bool CastsShadows, uint Maximum, (Appearance Look, Material Material) Mid, (Appearance Look, Material Material) Far, float TileDensity);
 
     /// <summary>
     /// Whether grass is blades (#10038), the default, or the painted cards it was. Blades are drawn near and in the middle
@@ -207,7 +216,7 @@ internal sealed class TerrainScatter : IDisposable
             (Appearance Look, Material Material) mid = Blades ? (meadowBlades[index].Lite, blade) : card;
             yield return new(variant.Id, near.Look, near.Material, grassDensity * variant.Share, Meadow, GrassSlopeDegrees,
                 GrassLean, GrassScaleMin, GrassScaleMax, GrassTintLow, GrassTintHigh, variant.Id + GrassSeedOffset, false,
-                (uint)(MaximumGrass * variant.Share), mid, card);
+                (uint)(MaximumGrass * variant.Share), mid, card, Math.Min(grassDensity, TileGrassDensityLimit) * variant.Share);
         }
 
         foreach (Layer layer in Layers)
@@ -215,7 +224,7 @@ internal sealed class TerrainScatter : IDisposable
             float density = layer.Density * (grassDensity > 0 ? 1 : 0);
             (Appearance, Material) look = (looks[layer.Id], layerMaterials[layer.Id]);
             yield return new(layer.Id, looks[layer.Id], layerMaterials[layer.Id], density, layer.Ground, layer.SlopeDegrees,
-                layer.Align, layer.ScaleMin, layer.ScaleMax, layer.TintLow, layer.TintHigh, layer.Id, layer.CastsShadows, layer.Maximum, look, look);
+                layer.Align, layer.ScaleMin, layer.ScaleMax, layer.TintLow, layer.TintHigh, layer.Id, layer.CastsShadows, layer.Maximum, look, look, density);
         }
     }
 

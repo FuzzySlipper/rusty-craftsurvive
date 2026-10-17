@@ -20,13 +20,16 @@ internal static class GrassBlades
     /// <summary>A clump's colours, linear: root, body and tip, a dry tip, and how much a blade's hue may wander.</summary>
     internal sealed record Palette(Vector3 Root, Vector3 Body, Vector3 Tip, Vector3 Dry, float Wander);
 
-    /// <summary>Meadow clumps: tight tufts, loose spreads, a few tall seed stems among them.</summary>
+    /// <summary>
+    /// Meadow clumps: tight tufts, loose spreads, a few tall seed stems among them. A clump covers its ground with blades
+    /// rather than more clumps covering it: copies are bounded by the renderer's buffers, blades only by triangles.
+    /// </summary>
     internal static readonly Style[] Meadow =
     [
-        new(Blades: 40, Spread: 0.18f, HeightMin: 0.3f, HeightMax: 0.55f, LeanMin: 0.15f, LeanMax: 0.5f, Curve: 0.4f, Width: 0.018f, DryShare: 0.06f),
-        new(Blades: 44, Spread: 0.32f, HeightMin: 0.22f, HeightMax: 0.45f, LeanMin: 0.3f, LeanMax: 0.75f, Curve: 0.55f, Width: 0.02f, DryShare: 0.04f),
-        new(Blades: 30, Spread: 0.22f, HeightMin: 0.45f, HeightMax: 0.8f, LeanMin: 0.1f, LeanMax: 0.35f, Curve: 0.3f, Width: 0.016f, DryShare: 0.2f),
-        new(Blades: 50, Spread: 0.36f, HeightMin: 0.15f, HeightMax: 0.32f, LeanMin: 0.35f, LeanMax: 0.85f, Curve: 0.6f, Width: 0.02f, DryShare: 0.03f),
+        new(Blades: 56, Spread: 0.26f, HeightMin: 0.3f, HeightMax: 0.55f, LeanMin: 0.15f, LeanMax: 0.5f, Curve: 0.4f, Width: 0.018f, DryShare: 0.06f),
+        new(Blades: 60, Spread: 0.42f, HeightMin: 0.22f, HeightMax: 0.45f, LeanMin: 0.3f, LeanMax: 0.75f, Curve: 0.55f, Width: 0.02f, DryShare: 0.04f),
+        new(Blades: 42, Spread: 0.3f, HeightMin: 0.45f, HeightMax: 0.8f, LeanMin: 0.1f, LeanMax: 0.35f, Curve: 0.3f, Width: 0.016f, DryShare: 0.2f),
+        new(Blades: 70, Spread: 0.46f, HeightMin: 0.15f, HeightMax: 0.32f, LeanMin: 0.35f, LeanMax: 0.85f, Curve: 0.6f, Width: 0.02f, DryShare: 0.03f),
     ];
 
     // The meadow grass's colours, as the atlas's middle and light blades read lit. Vertex colours are squared on the way

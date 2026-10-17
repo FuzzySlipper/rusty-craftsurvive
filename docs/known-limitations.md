@@ -625,6 +625,11 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   canopy is not solid, and the collision is the core's whole cell, a little wider than a slender trunk.
   Where forests stand comes from each species' temperature and moisture range, glades and rock; the
   catalog's riparian preference is not read yet (poplars and willows follow climate, not rivers).
+- **Vegetation copies have a ceiling.** Every resident vegetation copy (ground cover near, mid and far, tree, plant
+  and shade-grass records) shares one renderer buffer. Past about 1.5 million copies it overflows the GPU's 128 MiB
+  binding limit, and the renderer's stream panics and stops drawing (rusty-engine #10040). Grass is therefore denser
+  only in the near 40 m band (3.5 clumps/m², blades). The vegetation tiles hold 2.5/m², which keeps the far tiles
+  near 1.24 million copies at the maximum 384 m Ground cover reach.
 - **The forest floor's plants are pictures; only deadwood is solid.** Shade grass, ferns, flowers,
   shrubs and saplings are vegetation records (#10034): the player walks through them, a sapling cannot
   be felled, and none can be gathered. Fallen logs and stumps are solid within 64 m of the player (their

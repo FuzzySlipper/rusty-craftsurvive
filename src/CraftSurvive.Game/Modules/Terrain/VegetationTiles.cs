@@ -81,7 +81,7 @@ internal sealed class VegetationTiles : IDisposable
     {
         foreach (TerrainScatter.Kind kind in kinds)
         {
-            VegetationLayerRequest near = new VegetationLayerRequest(mid, kind.Key, kind.Mid.Look, kind.Mid.Material, kind.Density, MidReach) with
+            VegetationLayerRequest near = new VegetationLayerRequest(mid, kind.Key, kind.Mid.Look, kind.Mid.Material, kind.TileDensity, MidReach) with
             {
                 Grounds = kind.Ground.Aggregate(0UL, (mask, block) => mask | VegetationLayerRequest.Ground(BlockRegistry.Get(block).Slot)),
                 Seed = kind.Seed,
@@ -95,7 +95,7 @@ internal sealed class VegetationTiles : IDisposable
                 TintLow = kind.TintLow,
                 TintHigh = kind.TintHigh,
                 CastsShadows = kind.CastsShadows,
-                MaximumInstances = Budget(kind.Density, MidReach, MidTileMetres),
+                MaximumInstances = Budget(kind.TileDensity, MidReach, MidTileMetres),
             };
             Set(near);
             Set(near with
@@ -108,9 +108,9 @@ internal sealed class VegetationTiles : IDisposable
                 Near = MidReach - HandoverFade,
                 // Beyond the mid field a stone's or bush's shadow is a few pixels: not worth its caster pass.
                 CastsShadows = false,
-                MaximumInstances = Budget(kind.Density, reach, FarTileMetres),
+                MaximumInstances = Budget(kind.TileDensity, reach, FarTileMetres),
             });
-            if (kind.Density > 0)
+            if (kind.TileDensity > 0)
             {
                 engine.Vegetation.SetLayerDetail(new VegetationLayerDetailRequest(far, kind.Key, ReadOnlyMemory<VegetationLod>.Empty, 0,
                     new VegetationThinningPoint[] { new(MidReach, 1f), new(reach, FarKeptShare) }, ThinnedMaximumScale));
