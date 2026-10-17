@@ -1,5 +1,5 @@
 {
-  "purpose": "Place look study (#9992), a test aid: the tallest standing stone as three base meshes x two paint routes, each a prop mesh at 32 texels/m. Built in asset-pipeline live-evidence/stele-place-study-20261017 (scripts/ there). Bases: a = the current PoiShapes stele distance field, meshed; b = an authored slab in Blender; c = a Qwen concept turnaround edited to plain clay and rebuilt by Pixal3D, rescaled to 1.8 x 1.0 m. Paints: proj = painted views projected back onto the mesh (a, b: Qwen repaints of rendered views after the c concept; c: the detailed concept views themselves); stamps = a calm painted stone tile with authored ceramic ring, band and chips. Texture treatments of c (optional \"texture\" overrides the mesh's own): clean = the concept projected over a flat stone base (no tile leftovers); pixel = clean reduced as pixel art (dark line texels kept crisp, 14-colour palette plus 3 accent colours); pixelpaint = the concept views redrawn by Qwen as pixel art, projected and reduced the same way.",
+  "purpose": "Place look study (#9992), a test aid: the tallest standing stone as three base meshes x two paint routes, each a prop mesh at 32 texels/m. Built in asset-pipeline live-evidence/stele-place-study-20261017 (scripts/ there). Bases: a = the current PoiShapes stele distance field, meshed; b = an authored slab in Blender; c = a Qwen concept turnaround edited to plain clay and rebuilt by Pixal3D, rescaled to 1.8 x 1.0 m. Paints: proj = painted views projected back onto the mesh (a, b: Qwen repaints of rendered views after the c concept; c: the detailed concept views themselves); stamps = a calm painted stone tile with authored ceramic ring, band and chips. Texture treatments of c (optional \"texture\" overrides the mesh's own): clean = the concept projected over a flat stone base (no tile leftovers); pixel = clean reduced as pixel art (dark line texels kept crisp, 14-colour palette plus 3 accent colours); pixelpaint = the concept views redrawn by Qwen as pixel art, projected and reduced the same way. c2 = c firmed: its measured profile lofted with crisp corners, the porthole re-cut round in a shallow inset, the concept projected with its ring blanked and the ceramic ring authored round around the real porthole, then the pixel reduction (the owner's locked look, treatment 3).",
   "variants": [
     {
       "name": "a-proj",
@@ -48,6 +48,11 @@
       "model": "models/place-study/stele-c-proj.prop-mesh.json",
       "texture": "textures/place-study/stele-c-pixelpaint.png",
       "sink": 0.4
+    },
+    {
+      "name": "c2-pixel",
+      "model": "models/place-study/stele-c2.prop-mesh.json",
+      "sink": 1.5
     }
   ]
 }
