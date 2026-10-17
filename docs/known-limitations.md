@@ -612,7 +612,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   horizon draws its box silhouettes, which do not match the meshes (a vantage point's silhouette is
   still a timber platform). The terrain keeps only a cave mouth's recess, a descent's shaft and the
   vantage lamp. Consequences:
-  - **Not editable.** A blast no longer breaks a place; only the carves are terrain.
+  - **Not editable, by design (owner, 2026-10-17).** Places are impervious: a blast breaks only the
+    terrain round them and the carves.
   - **Seating.** Each piece sinks a fixed skirt (`sink`) below the ground it stands on: ring steles,
     the cairn and ruin pieces on their own ground, the rest on the site's. A slope steeper than the
     skirt covers could still show a gap under a downhill edge.
