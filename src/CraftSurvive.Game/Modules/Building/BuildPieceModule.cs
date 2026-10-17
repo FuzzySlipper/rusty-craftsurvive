@@ -454,7 +454,7 @@ internal sealed class BuildPieceModule : IProductModule
                         VoxelAddress cell = new(x, y, z);
                         ushort material = terrain.MaterialAt(cell);
                         if (material == TerrainConstants.EmptyMaterial) continue;
-                        if (material == TerrainConstants.GrassMaterial && !trampled.Contains(cell)) trampled.Add(cell);
+                        if (material is TerrainConstants.GrassMaterial or (ushort)Content.BlockId.DryGrass && !trampled.Contains(cell)) trampled.Add(cell);
                         break;
                     }
                 }

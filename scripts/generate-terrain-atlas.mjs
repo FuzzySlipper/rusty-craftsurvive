@@ -13,7 +13,10 @@ const ATLAS_PATH = 'content/game/textures/terrain-atlas.png';
 const METADATA_PATH = 'content/game/textures/terrain-atlas.json';
 const TILE = 64;
 const GRID = 4;
+// A fifth row holds the blocks added after the V1 floor (#10041: dry grass).
+const ROWS = 5;
 const EXTENT = TILE * GRID;
+const HEIGHT = TILE * ROWS;
 
 // ---------------------------------------------------------------- PNG codec
 function crc32(bytes) {
@@ -179,7 +182,31 @@ const painters = {
   },
   bedrock: (x, y) => shade([74, 74, 78, 255], 0.7 + noise(hash('bedrock'), x >> 1, y >> 1) * 0.55),
   snow: (x, y) => shade([242, 246, 250, 255], 0.97 + noise(hash('snow'), x >> 1, y) * 0.05),
+  // The grass top, sun-dried, as scripts/make-dry-meadow.py dries the walking ground's meadow (#10041).
+  'dry-grass': (x, y) => dried(sourcePixel(0, 0, x, y)),
 };
+
+function sourcePixel(x0, y0, x, y) {
+  const at = ((y0 + y) * previous.width + x0 + x) * 4;
+  return [previous.pixels[at], previous.pixels[at + 1], previous.pixels[at + 2], previous.pixels[at + 3]];
+}
+
+function dried([r, g, b, a]) {
+  const max = Math.max(r, g, b) / 255, min = Math.min(r, g, b) / 255, v = max, d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  if (d > 0) {
+    if (max === r / 255) h = ((g - b) / 255 / d + 6) % 6;
+    else if (max === g / 255) h = (b - r) / 255 / d + 2;
+    else h = (r - g) / 255 / d + 4;
+    h /= 6;
+  }
+  let [hh, ss, vv] = [h, s, Math.min(1, v * 1.14)];
+  if (h >= 0.16 && h <= 0.45) { hh = h + (0.115 - h) * 0.8; ss = s * 0.82; }
+  const i = Math.floor(hh * 6), f = hh * 6 - i, p = vv * (1 - ss), q = vv * (1 - f * ss), t = vv * (1 - (1 - f) * ss);
+  const [rr, gg, bb] = [[vv, t, p], [q, vv, p], [p, vv, t], [p, q, vv], [t, p, vv], [vv, p, q]][((i % 6) + 6) % 6];
+  return [Math.round(rr * 255), Math.round(gg * 255), Math.round(bb * 255), a];
+}
 
 // ------------------------------------------------------------- composition
 // Original tiles keep their exact coordinates; new tiles fill the rest of the
@@ -201,14 +228,18 @@ const layout = [
   { id: 'lamp', block: 'lamp', face: 'base', at: [TILE, TILE * 3] },
   { id: 'bedrock', block: 'bedrock', face: 'base', at: [TILE * 2, TILE * 3] },
   { id: 'snow', block: 'snow', face: 'base', at: [TILE * 3, TILE * 3] },
+  { id: 'dry-grass', block: 'dry-grass', face: 'base', at: [0, TILE * 4] },
 ];
 
+// The source tiles keep their coordinates in every atlas so far (128 and 256 wide), so they copy across.
 const previous = decodePng(readFileSync(ATLAS_PATH));
-if (previous.width !== 128 || previous.height !== 128) {
-  throw new Error(`expected the checked-in atlas to be 128x128, found ${previous.width}x${previous.height}`);
+if (![128, EXTENT].includes(previous.width)) {
+  throw new Error(`expected the checked-in atlas to be 128 or ${EXTENT} wide, found ${previous.width}x${previous.height}`);
 }
+// Source tiles drawn earlier keep the provenance the layout recorded for them.
+const recorded = new Map(JSON.parse(readFileSync(METADATA_PATH, 'utf8')).regions.map(region => [region.id, region]));
 
-const canvas = Buffer.alloc(EXTENT * EXTENT * 4);
+const canvas = Buffer.alloc(EXTENT * HEIGHT * 4);
 const regions = [];
 for (const entry of layout) {
   const [x0, y0] = entry.source ?? entry.at;
@@ -238,18 +269,18 @@ for (const entry of layout) {
     face: entry.face,
     contentMin: [x0, y0],
     ...(entry.source
-      ? { source: `source/${entry.id}-gpt.png` }
-      : { authored: 'scripts/generate-terrain-atlas.mjs' }),
+      ? { source: recorded.get(entry.id)?.source ?? `source/${entry.id}-gpt.png` }
+      : { authored: recorded.get(entry.id)?.authored ?? 'scripts/generate-terrain-atlas.mjs' }),
   });
 }
 
-const image = encodePng(EXTENT, EXTENT, canvas);
+const image = encodePng(EXTENT, HEIGHT, canvas);
 writeFileSync(ATLAS_PATH, image);
 const metadata = {
   schemaVersion: 2,
   image: 'terrain-atlas.png',
   contentHash: `sha256:${createHash('sha256').update(image).digest('hex')}`,
-  extent: [EXTENT, EXTENT],
+  extent: [EXTENT, HEIGHT],
   tileExtent: [TILE, TILE],
   filter: 'nearest',
   wrap: 'clamp',
@@ -257,4 +288,4 @@ const metadata = {
   regions,
 };
 writeFileSync(METADATA_PATH, `${JSON.stringify(metadata, null, 2)}\n`);
-console.log(`wrote ${ATLAS_PATH} (${EXTENT}x${EXTENT}, ${regions.length} regions) ${metadata.contentHash}`);
+console.log(`wrote ${ATLAS_PATH} (${EXTENT}x${HEIGHT}, ${regions.length} regions) ${metadata.contentHash}`);

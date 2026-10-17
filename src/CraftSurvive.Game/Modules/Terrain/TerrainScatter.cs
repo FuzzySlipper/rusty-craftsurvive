@@ -63,7 +63,16 @@ internal sealed class TerrainScatter : IDisposable
     private static readonly Vector3 StoneTintLow = new(0.85f, 0.85f, 0.85f), StoneTintHigh = new(1.1f, 1.05f, 1f);
     private static readonly BlockId[] Meadow = [BlockId.Grass];
     // Bare earth carries no field stones: a town's yard is trodden earth (#9895).
-    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
+    private static readonly BlockId[] Stony = [BlockId.Grass, BlockId.DryGrass, BlockId.Stone, BlockId.Gravel, BlockId.Snow];
+    private static readonly BlockId[] DryMeadow = [BlockId.DryGrass];
+
+    /// <summary>
+    /// Dry meadow's grass (#10041): the meadow's clumps in straw, a little sparser, each variant a kind of its own with
+    /// these keys (one per grass variant, in order). Its far cards are the meadow's, tinted dry.
+    /// </summary>
+    private static readonly uint[] DryGrassKeys = [11, 12, 13, 14];
+    private const float DryGrassShare = 0.8f;
+    private static readonly Color DryCardColor = new(1.3f, 1.05f, 0.55f, 1);
     private static readonly Layer[] Layers =
     [
         new(4, "flowers-1", true, 0.1f, 0.7f, 1.2f, 30f, 0.3f, false, 4_000, PlantTintLow, PlantTintHigh, Meadow),
@@ -98,14 +107,14 @@ internal sealed class TerrainScatter : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
-    private readonly Material grass, shadeGrass, blade, plant, stone;
+    private readonly Material grass, dryCard, shadeGrass, blade, plant, stone;
     /// <summary>Textured props (leaf-card bushes, frond ferns, #9685, and field stones, #9831), and each layer's material.</summary>
     private readonly PropMaterials textured;
     private readonly Dictionary<uint, Material> layerMaterials = [];
     private readonly List<MeshResource> grassMeshes = [];
     private readonly Dictionary<uint, Appearance> grassLooks = [];
     private readonly List<(Appearance Look, float Share)> shadeLooks = [];
-    private readonly List<(Appearance Near, Appearance Lite)> meadowBlades = [], shadeBlades = [];
+    private readonly List<(Appearance Near, Appearance Lite)> meadowBlades = [], dryBlades = [], shadeBlades = [];
     private readonly List<Appearance> bladeLooks = [];
     private readonly List<MeshResource> propMeshes = [];
     private readonly Dictionary<uint, Appearance> looks = [];
@@ -123,6 +132,13 @@ internal sealed class TerrainScatter : IDisposable
 
         grassTexture = texture.Handle;
         grass = engine.Graphics.CreateMaterial(new MaterialRequest(GrassColor, grassTexture, GrassRoughness, white, Vector3.Zero, 0, true) with
+        {
+            AlphaMode = MaterialAlphaMode.Mask,
+            AlphaCutoff = GrassAlphaCutoff,
+            WindBend = GrassWindBend,
+            WindFlutter = GrassWindFlutter,
+        });
+        dryCard = engine.Graphics.CreateMaterial(new MaterialRequest(DryCardColor, grassTexture, GrassRoughness, white, Vector3.Zero, 0, true) with
         {
             AlphaMode = MaterialAlphaMode.Mask,
             AlphaCutoff = GrassAlphaCutoff,
@@ -157,6 +173,7 @@ internal sealed class TerrainScatter : IDisposable
             GrassBlades.Style style = GrassBlades.Meadow[index % GrassBlades.Meadow.Length];
             int seed = BladeSeed + (int)GrassVariants[index].Id;
             meadowBlades.Add((BladeLook(style, GrassBlades.MeadowPalette, seed, false), BladeLook(style, GrassBlades.MeadowPalette, seed, true)));
+            dryBlades.Add((BladeLook(style, GrassBlades.DryPalette, seed + DrySeedOffset, false), BladeLook(style, GrassBlades.DryPalette, seed + DrySeedOffset, true)));
             shadeBlades.Add((BladeLook(style, GrassBlades.ShadePalette, seed + ShadeSeedOffset, false),
                 BladeLook(style, GrassBlades.ShadePalette, seed + ShadeSeedOffset, true)));
         }
@@ -219,6 +236,18 @@ internal sealed class TerrainScatter : IDisposable
             yield return new(variant.Id, near.Look, near.Material, grassDensity * variant.Share, Meadow, GrassSlopeDegrees,
                 GrassLean, GrassScaleMin, GrassScaleMax, GrassTintLow, GrassTintHigh, variant.Id + GrassSeedOffset, false,
                 (uint)(MaximumGrass * variant.Share), mid, card, Math.Min(grassDensity, TileGrassDensityLimit) * variant.Share);
+        }
+
+        for (int index = 0; index < GrassVariants.Length; index++)
+        {
+            GrassVariant variant = GrassVariants[index];
+            (Appearance Look, Material Material) card = (grassLooks[variant.Id], dryCard);
+            (Appearance Look, Material Material) near = Blades ? (dryBlades[index].Near, blade) : card;
+            (Appearance Look, Material Material) mid = Blades ? (dryBlades[index].Lite, blade) : card;
+            float share = DryGrassShare * variant.Share;
+            yield return new(DryGrassKeys[index], near.Look, near.Material, grassDensity * share, DryMeadow, GrassSlopeDegrees,
+                GrassLean, GrassScaleMin, GrassScaleMax, GrassTintLow, GrassTintHigh, DryGrassKeys[index] + GrassSeedOffset, false,
+                (uint)(MaximumGrass * share), mid, card, Math.Min(grassDensity, TileGrassDensityLimit) * share);
         }
 
         foreach (Layer layer in Layers)
@@ -285,6 +314,7 @@ internal sealed class TerrainScatter : IDisposable
         propMeshes.Clear();
         grass.Dispose();
         shadeGrass.Dispose();
+        dryCard.Dispose();
         blade.Dispose();
         plant.Dispose();
         stone.Dispose();
@@ -297,7 +327,7 @@ internal sealed class TerrainScatter : IDisposable
     /// variant's atlas cell; vertex alpha 0 at the root and 1 at the tip weights the wind's flutter.
     /// </summary>
     /// <summary>The blade clumps' layouts are seeded from this, and the shade grass's from it offset, so they differ.</summary>
-    private const int BladeSeed = 10038, ShadeSeedOffset = 500;
+    private const int BladeSeed = 10038, ShadeSeedOffset = 500, DrySeedOffset = 1000;
 
     private Appearance BladeLook(GrassBlades.Style style, GrassBlades.Palette palette, int seed, bool lite)
     {

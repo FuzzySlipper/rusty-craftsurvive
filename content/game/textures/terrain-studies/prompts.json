@@ -32,6 +32,11 @@
       "source": "content/terrain-studies/source/frost-stone.png",
       "sourceSha256": "048fc38e67285d386b87c6b71aaf9abf40b809dcdfcb74335dfa5076f08b5079",
       "stylise": "stylise-texture <asset-pipeline>/outputs/craftsurvive-content-pass/ground/snow-s1.png <asset-pipeline>/outputs/craftsurvive-content-pass/ground/styled/frost-stone.png --size 512 --paint 3 --colors 16 --group-strength 0.5 --tile --saturation 0.6 --contrast 0.7 --brightness 1.05 --pull snow,stone --pull-strength 0.4"
+    },
+    {
+      "name": "dry-meadow",
+      "derivation": "python3 scripts/make-dry-meadow.py: sage-ground recoloured toward straw (#10041), same brushwork, scale and seamless edges",
+      "source": "sage-ground"
     }
   ]
 }

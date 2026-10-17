@@ -69,9 +69,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// pad into the ground, with no trees on it (#9895); version 36 grows the flora catalog's forests: canopy
     /// from each species' climate range, forest floor under a closed canopy, trees of many species in stands
     /// on 4 m cells, sparse open-country trees, in dry and cold country too (#10032); version 37 fingerprints only
-    /// the flora catalog's trees, since its plants and deadwood are presentation (#10034).
+    /// the flora catalog's trees, since its plants and deadwood are presentation (#10034); version 38 gives open
+    /// ground a lush, dry or (in deep desert only) sand topsoil by climate, adds the dry grass block, and makes the
+    /// arrival wet lowland (#10041).
     /// </summary>
-    internal const uint CurrentVersion = 37;
+    internal const uint CurrentVersion = 38;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

@@ -16,7 +16,7 @@ internal static class TerrainDensity
     private const float MinimumMagnitude = 0.001f;
 
     internal static bool IsGround(ushort material) => (BlockId)material is
-        BlockId.Grass or BlockId.Dirt or BlockId.Stone or BlockId.Sand or BlockId.Gravel or BlockId.Snow;
+        BlockId.Grass or BlockId.Dirt or BlockId.Stone or BlockId.Sand or BlockId.Gravel or BlockId.Snow or BlockId.DryGrass;
 
     /// <param name="structure">
     /// The signed distance to a shaped landmark's surface near this voxel (TerrainRecipe.StructureDistanceAt):

@@ -24,4 +24,6 @@ internal enum BlockId : ushort
     Lamp = 13,
     Bedrock = 14,
     Snow = 15,
+    /// <summary>Sun-dried meadow (#10041): open ground where the climate is dry, between lush grass and desert sand.</summary>
+    DryGrass = 16,
 }

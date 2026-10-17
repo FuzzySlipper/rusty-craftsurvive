@@ -1,10 +1,9 @@
 namespace CraftSurvive.Game.Modules.Content;
 
 /// <summary>
-/// The V1 block floor: fifteen blocks plus air, which is the settled content
-/// floor of twelve to sixteen for campaign #8595. The atlas is the binding
-/// constraint, so every block here owns exactly one tile in the world's single
-/// atlas, except grass, which owns a base tile and a top-face tile.
+/// The V1 block floor of fifteen blocks plus air (campaign #8595), and dry grass after it (#10041). Every block
+/// here owns exactly one tile in the world's single atlas, except grass, which owns a base tile and a top-face tile;
+/// a block added after the floor takes a tile in the atlas's added rows (scripts/generate-terrain-atlas.mjs).
 ///
 /// The world's material slot is the block's numeric id. Append only.
 ///
@@ -94,6 +93,11 @@ internal static class BlockRegistry
         new(BlockId.Snow, "snow", "snow", null, BlockTransparency.Opaque,
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
             BlastResistance: 0.3f, LightEmission: 0f, LightAttenuation: 1f),
+
+        new(BlockId.DryGrass, "dry-grass", "dry-grass", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 0.6f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
     ];
 
     /// <summary>Every block, air first, in slot order.</summary>

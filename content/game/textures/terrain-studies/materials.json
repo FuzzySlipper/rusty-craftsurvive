@@ -1,5 +1,13 @@
 [
   {
+    "id": "dry-meadow",
+    "width": 512,
+    "height": 512,
+    "sha256": "80744bd9c4da91c4322382e24360897df5651bad3bad21321225c3f3828d7e51",
+    "metresPerTile": 6,
+    "triplanarSharpness": 4
+  },
+  {
     "id": "dune-sand",
     "width": 512,
     "height": 512,

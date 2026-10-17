@@ -37,6 +37,10 @@ internal static class GrassBlades
     internal static readonly Palette MeadowPalette = new(new(0.173f, 0.245f, 0.110f), new(0.283f, 0.424f, 0.173f), new(0.469f, 0.583f, 0.224f),
         new(0.648f, 0.616f, 0.316f), 0.12f);
 
+    // Dry meadow (#10041): straw from root to tip, with a few still green.
+    internal static readonly Palette DryPalette = new(new(0.224f, 0.212f, 0.122f), new(0.447f, 0.424f, 0.224f), new(0.648f, 0.600f, 0.346f),
+        new(0.374f, 0.490f, 0.224f), 0.12f);
+
     // Shade grass under the canopy: cooler and darker, and its tips never dry.
     internal static readonly Palette ShadePalette = new(new(0.134f, 0.200f, 0.122f), new(0.224f, 0.346f, 0.173f), new(0.346f, 0.490f, 0.224f),
         new(0.346f, 0.490f, 0.224f), 0.1f);

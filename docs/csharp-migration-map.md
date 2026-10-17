@@ -208,7 +208,8 @@ while rock exposure permits more fine relief. The density grid remains one metre
 changing its resolution is separate from tuning those banks.
 
 Regional fields also select surface materials, and their climate places forests (`Forest`, from the
-flora catalog's ecology). `TerrainColumn` carries one map sample per column so voxels never resample geography.
+flora catalog's ecology) and sets open ground lush, dry or (in deep desert only) sand (`Soils`). A regional world's
+arrival is wet lowland: its moisture eases up to a floor near the origin. `TerrainColumn` carries one map sample per column so voxels never resample geography.
 Map samples remain unchanged by local noise or player edits. River channels, banks and
 the arrival reserve suppress local noise. Steep and resistant ground exposes stone,
 submerged ground is a sand bed, and river channels hold water up to their surface. These constraints preserve the map's intended routes without

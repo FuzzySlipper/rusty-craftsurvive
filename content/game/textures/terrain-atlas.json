@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:74809f1d3f816be11ec5e3f6c60cf3a74339d40b34a05468bd0dfb288e330f99",
+  "contentHash": "sha256:af8b9ead1e389b7d0aa6d92ba348550812d12dddfe5200d41ecd0946380ecf7e",
   "extent": [
     256,
-    256
+    320
   ],
   "tileExtent": [
     64,
@@ -171,6 +171,16 @@
       "contentMin": [
         192,
         192
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "dry-grass",
+      "block": "dry-grass",
+      "face": "base",
+      "contentMin": [
+        0,
+        256
       ],
       "authored": "scripts/generate-terrain-atlas.mjs"
     }

@@ -93,9 +93,9 @@ internal sealed class VegetationGround(TerrainRecipe recipe)
         if (slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
             if (WorldMap.Frozen(geography)) return BlockId.Snow;
-            if (WorldMap.Arid(geography)) return BlockId.Sand;
-            // Under a closed canopy the topsoil is forest floor (#10032), as the voxels say.
-            return recipe.Forest.Canopy(x, z, geography) >= Forest.FloorFromCanopy ? BlockId.Dirt : BlockId.Grass;
+            if (Soils.DeepDesert(geography)) return BlockId.Sand;
+            // Forest floor or meadow, lush or dry, as the voxels say (#10032, #10041).
+            return recipe.Topsoil(x, z, geography);
         }
 
         return slope <= GenerationConstants.SubsoilSlopeMaximum ? BlockId.Dirt : BlockId.Stone;

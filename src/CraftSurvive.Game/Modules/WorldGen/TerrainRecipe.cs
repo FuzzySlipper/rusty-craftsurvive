@@ -193,15 +193,12 @@ internal sealed class TerrainRecipe : ITerrainColumns
         if (slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
             if (WorldMap.Frozen(geography)) return (ushort)BlockId.Snow;
-            if (WorldMap.Arid(geography)) return (ushort)BlockId.Sand;
+            if (Soils.DeepDesert(geography)) return (ushort)BlockId.Sand;
         }
         long depthFromSurface = top - address.Y;
         if (depthFromSurface == 0 && slope <= GenerationConstants.TopsoilSlopeMaximum)
         {
-            // Under a closed canopy the topsoil is leaf litter, not meadow (#10032): Dirt grows no grass.
-            return Forest.Canopy(address.X, address.Z, geography) >= Forest.FloorFromCanopy
-                ? TerrainConstants.DirtMaterial
-                : TerrainConstants.GrassMaterial;
+            return (ushort)Topsoil(address.X, address.Z, geography);
         }
 
         return depthFromSurface <= GenerationConstants.SubsoilDepthMaximum
@@ -849,9 +846,19 @@ internal sealed class TerrainRecipe : ITerrainColumns
         if (top.Y <= column.WaterTop || column.Slope > GenerationConstants.TopsoilSlopeMaximum) return false;
         ushort material = NaturalMaterialAt(top, column);
         return material is TerrainConstants.GrassMaterial or TerrainConstants.StoneMaterial
-            || (BlockId)material is BlockId.Sand or BlockId.Snow
+            || (BlockId)material is BlockId.Sand or BlockId.Snow or BlockId.DryGrass
             || (material == TerrainConstants.DirtMaterial && !InTownYard(top.X, top.Z));
     }
+
+    /// <summary>
+    /// The top cell of open, gentle ground that is neither frozen nor deep desert: forest floor under a closed canopy
+    /// (#10032; Dirt grows meadow grass only as the forest's shade grass), else meadow, lush or sun-dried by the climate
+    /// (<see cref="Soils"/>, #10041).
+    /// </summary>
+    internal BlockId Topsoil(long x, long z, MapSample geography) =>
+        Forest.Canopy(x, z, geography) >= Forest.FloorFromCanopy ? BlockId.Dirt
+        : Soils.Dry(geography, x, z, Contract.Seed) ? BlockId.DryGrass
+        : BlockId.Grass;
 
     /// <summary>A decided tree; <c>GroundY</c> is its trunk's lowest cell, the one above the generated ground.</summary>
     private readonly record struct TreeShape(long OffsetX, long OffsetZ, long GroundY, ushort Species, double Variant, double Scale, double Yaw);

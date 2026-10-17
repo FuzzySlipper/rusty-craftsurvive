@@ -301,9 +301,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
 - **The horizon is a far field, not the world (#9548, #9850).** Beyond the drawn chunks the first-person
   view shows `FarField`: the same height function sampled every `FarGround.CellMetres` (8 m) as one ring
   of an Engine heightfield in the scene, out to `FarField.RadiusChunks` far chunk columns (about 1.5 km,
-  the view distance), drawn with the walking ground's four layers and water as its own flat material.
+  the view distance), drawn with the walking ground's layers and water as its own flat material.
   - **Ground.** `FarGround` decides what a far cell is: rock where the map says so or the ground is
-    steep, snow or sand by climate, sand at the water, else grass; water where the sea or a river stands
+    steep, snow by climate, sand at the water or in deep desert, else meadow, lush or dry (`Soils`, #10041);
+    water where the sea or a river stands
     over it. Each vertex weighs the materials about it over the ground's transition reach, so patches
     blend as on the walking ground.
   - **Join.** It is sunk `FarGround.SinkMetres` under the near ground and rises to its true height short
@@ -613,8 +614,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   Every shape reaches three metres into the ground, so on a slope it fills the gap rather than
   overhanging it. Vantage points stay stepped cobble with a lamp: the player steps up a one-metre
   cube course but not the same course reconstructed as stone (rusty-engine #9681), and a vantage
-  point is there to be walked up. There is no coloured (ceramic) accent: the terrain blend's four
-  layers are taken (rusty-engine #9676).
+  point is there to be walked up. There is no coloured (ceramic) accent yet. The terrain blend now
+  takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
 - **Trees are meshes on an invisible trunk core; forests follow climate only.** The recipe plants
   each tree (species from the flora catalog's ecology, stand, variant, size and turn) and writes only
   a short `TreeCore` column into the voxels, which bodies collide with and a blast can break. Trees are

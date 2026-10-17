@@ -41,19 +41,19 @@ for (const region of metadata.regions) {
   positions.add(key);
 }
 
-// Every block in the V1 floor owns a base tile, and grass additionally owns a top
+// Every block (the V1 floor, then dry grass, #10041) owns a base tile, and grass additionally owns a top
 // tile. A block that appears in the product without a tile here would fail at
 // product create instead, which is a worse place to learn it.
 const bases = new Set(metadata.regions.filter((region) => region.face === 'base').map((region) => region.block));
 for (const block of [
   'grass', 'dirt', 'stone', 'sand', 'gravel', 'cobblestone', 'brick',
-  'log', 'planks', 'tree-core', 'water', 'glass', 'lamp', 'bedrock', 'snow',
+  'log', 'planks', 'tree-core', 'water', 'glass', 'lamp', 'bedrock', 'snow', 'dry-grass',
 ]) {
   assert.ok(bases.has(block), `block ${block} has no base tile in the atlas`);
 }
 const grassTops = metadata.regions.filter((region) => region.block === 'grass' && region.face === 'top');
 assert.equal(grassTops.length, 1, 'grass must own exactly one top tile');
-assert.equal(metadata.regions.length, 16, 'the V1 floor is sixteen tiles');
+assert.equal(metadata.regions.length, 17, 'sixteen V1 tiles and dry grass');
 
 assert.equal(skyWidth, skyHeight * 2, 'sky panorama must have an exact 2:1 aspect ratio');
 assert.equal(sky[24], 8, 'sky panorama must use 8-bit channels');

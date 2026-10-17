@@ -55,6 +55,11 @@ internal sealed class WorldMap
     // The arrival area stays quiet and dry enough to stand in.
     private const double ReserveRadius = 140;
     private const double ReserveFade = 120;
+    // A regional world's arrival is wet lowland (the design atlas: a mild sea port in wet lowlands, #10041): near it the
+    // land is at least this moist, easing back to the map's own climate across the fade, so dry country lies farther out.
+    private const double ArrivalMoisture = 0.5;
+    private const double ArrivalWetRadius = 600;
+    private const double ArrivalWetFade = 1_400;
     // Channel cross-section and banks in metres.
     private const double BankFreeboard = 0.6;
     // Sites: one representative interior place per environment present.
@@ -110,6 +115,10 @@ internal sealed class WorldMap
             double worldX = Grid.X(i) + (region?.X ?? 0), worldZ = Grid.Z(i) + (region?.Z ?? 0);
             double centre = Math.Sqrt(worldX * worldX + worldZ * worldZ);
             protection[i] = 1 - Ease(ReserveRadius, ReserveRadius + ReserveFade, centre);
+            // A continent designs its own arrival (the start's sea port, its great river) and its rain, so only a
+            // regional world is wetted here.
+            double wet = Scale.Continental || MapScale.IsContinental(Configuration.Size) ? 0 : 1 - Ease(ArrivalWetRadius, ArrivalWetRadius + ArrivalWetFade, centre);
+            if (elevation[i] >= GenerationConstants.WaterLevel && moisture[i] < ArrivalMoisture) moisture[i] += (ArrivalMoisture - moisture[i]) * wet;
         }
 
         if (region is null)

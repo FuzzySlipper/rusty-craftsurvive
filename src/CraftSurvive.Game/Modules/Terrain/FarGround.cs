@@ -55,14 +55,15 @@ internal static class FarGround
 
     /// <summary>
     /// A far cell's natural material: rock where the map says so or the ground is steep (<paramref name="rise"/>,
-    /// the largest height change to a neighbouring cell), snow or sand by climate, sand at the water, else grass.
+    /// the largest height change to a neighbouring cell), snow by climate, sand at the water or in deep desert, else
+    /// meadow, sun-dried where the climate is dry (#10041).
     /// </summary>
     internal static BlockId Natural(MapSample geography, double rise, double height, double cellMetres)
     {
         if (geography.Rock >= TerrainRecipe.ExposedRockThreshold || rise / cellMetres > RockSlope) return BlockId.Stone;
         if (height <= GenerationConstants.WaterLevel + 1) return BlockId.Sand;
         if (WorldMap.Frozen(geography)) return BlockId.Snow;
-        if (WorldMap.Arid(geography)) return BlockId.Sand;
-        return BlockId.Grass;
+        if (Soils.DeepDesert(geography)) return BlockId.Sand;
+        return Soils.Dry(geography) ? BlockId.DryGrass : BlockId.Grass;
     }
 }

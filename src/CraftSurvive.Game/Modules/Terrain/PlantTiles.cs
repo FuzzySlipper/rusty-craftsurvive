@@ -339,7 +339,7 @@ internal sealed class PlantTiles : IDisposable
 
     /// <summary>Whether a plant may root in a column's top: meadow, forest floor or dry sand, never a town's yard.</summary>
     private static bool Soil(TerrainRecipe recipe, BlockId top, long x, long z) =>
-        top is BlockId.Grass or BlockId.Sand || (top == BlockId.Dirt && !recipe.InTownYard(x, z));
+        top is BlockId.Grass or BlockId.DryGrass or BlockId.Sand || (top == BlockId.Dirt && !recipe.InTownYard(x, z));
 
     /// <summary>A tile's cells, in the given cell size, covering the tile.</summary>
     private static (long First, long Last) Cells(double origin, double size, double cell) =>
