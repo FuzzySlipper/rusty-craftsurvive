@@ -309,7 +309,7 @@ internal sealed class TerrainWorld : IDisposable
     internal string TreesReadout() => trees.Readout();
 
     /// <summary>The kept logs and stumps nearest a point (#10034), for aimed checks; "none" before the plants have streamed.</summary>
-    internal string DeadwoodNearest(double x, double z, int count) => plantTiles?.Nearest(x, z, count) ?? "none";
+    internal string DeadwoodNearest(string kind, double x, double z, int count) => plantTiles?.Nearest(kind, x, z, count) ?? "none";
 
     /// <summary>
     /// How many times the walking session's static collision (built pieces, #9734) has been replaced:

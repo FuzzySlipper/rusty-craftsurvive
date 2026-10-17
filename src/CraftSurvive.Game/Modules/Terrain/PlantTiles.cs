@@ -42,6 +42,8 @@ internal sealed class PlantTiles : IDisposable
     /// <summary>A plant's root sits this far into the ground, so a slope never shows under it.</summary>
     private const float Sink = 0.1f, FloorSink = 0.05f;
     private const double ScaleMinimum = 0.8, ScaleMaximum = 1.2;
+    /// <summary>Deadwood varies less, so a fallen trunk always stands above the player's step and mostly below a jump.</summary>
+    private const double DeadwoodScaleMinimum = 0.9, DeadwoodScaleMaximum = 1.1;
     private const double ShadeScaleMinimum = 1.15, ShadeScaleMaximum = 1.8;
     /// <summary>A sapling stands this tall, whatever its species grows to.</summary>
     private const double SaplingHeightMinimum = 1.2, SaplingHeightMaximum = 3.6;
@@ -77,6 +79,21 @@ internal sealed class PlantTiles : IDisposable
     private readonly Dictionary<(double X, double Z), Deadwood[]> deadwoodByTile = [];
     private readonly Dictionary<uint, string> deadwoodNames = [];
 
+    /// <summary>
+    /// How far each deadwood mesh reaches along its length from its origin, and whether it stands above the player's
+    /// step: a log lies only where the ground is level enough under it.
+    /// </summary>
+    private readonly Dictionary<uint, (double Half, bool Blocking)> deadwoodLying = [];
+
+    /// <summary>A log or trunk lies only where the ground under both ends is within this of its middle's: on a slope one end would float.</summary>
+    private const double DeadwoodEndTolerance = 0.3;
+
+    /// <summary>
+    /// Deadwood taller than the player's step also needs the ground either side of its middle within this: from
+    /// the uphill side it would otherwise be low enough to step onto.
+    /// </summary>
+    private const double DeadwoodSideTolerance = 0.2, DeadwoodSideMetres = 1.5;
+
     /// <summary>Kept tiles' deadwood is forgotten past this many metres from the focus.</summary>
     private const double DeadwoodKeptMetres = Reach * 1.5;
     private double deadwoodReach;
@@ -110,7 +127,11 @@ internal sealed class PlantTiles : IDisposable
                     (role, texture) => texture is null ? plain : textured.For(role, texture));
                 if (species.Role == FloraRole.Deadwood)
                 {
-                    deadwoodShapes[PlantKey(species.Id, variant)] = (request.Positions.ToArray(), request.Indices.ToArray());
+                    // Deadwood tall enough to block collides as its upright-sided boxes, when the generator wrote them; the rest as its mesh.
+                    IReadOnlyList<(Vector3 Centre, Vector3 Half, float Yaw)> boxes = PropMesh.Colliders(content, ModelsFolder + species.Folder + "/" + name + PropMesh.Suffix);
+                    deadwoodShapes[PlantKey(species.Id, variant)] = boxes.Count > 0 ? Boxes(boxes) : (request.Positions.ToArray(), request.Indices.ToArray());
+                    deadwoodLying[PlantKey(species.Id, variant)] = (request.Positions.ToArray().Max(position => Math.Abs(position.X)),
+                        species.Height > Player.PlayerConstants.MaximumStepHeight);
                     deadwoodNames[PlantKey(species.Id, variant)] = name;
                 }
                 MeshResource mesh = engine.Graphics.CreateMeshResource(request);
@@ -137,7 +158,7 @@ internal sealed class PlantTiles : IDisposable
 
         VegetationGround ground = new(recipe);
         plantStreamer = new VegetationStreamer(engine, plants,
-            new PlantSampler(recipe, ground, recipe.Configuration.Seed ^ PlacementSeed, variantCounts), CommitPlants, CommitsPerUpdate);
+            new PlantSampler(recipe, ground, recipe.Configuration.Seed ^ PlacementSeed, variantCounts, deadwoodLying), CommitPlants, CommitsPerUpdate);
         floorStreamer = new VegetationStreamer(engine, floor,
             new FloorSampler(recipe, ground, recipe.Configuration.Seed ^ FloorSeed, shadeShares), DropEdited, CommitsPerUpdate);
     }
@@ -180,7 +201,8 @@ internal sealed class PlantTiles : IDisposable
     }
 
     /// <summary>The kept logs and stumps nearest a point: mesh, position, turn in degrees and size.</summary>
-    internal string Nearest(double x, double z, int count) => string.Join(" | ", deadwoodByTile.Values.SelectMany(tile => tile)
+    internal string Nearest(string kind, double x, double z, int count) => string.Join(" | ", deadwoodByTile.Values.SelectMany(tile => tile)
+        .Where(wood => deadwoodNames[wood.Key].StartsWith(kind + (kind.Length > 0 ? "-" : ""), StringComparison.Ordinal))
         .OrderBy(wood => Math.Pow(wood.World.X - x, 2) + Math.Pow(wood.World.Z - z, 2)).Take(count)
         .Select(wood => FormattableString.Invariant(
             $"{deadwoodNames[wood.Key]} at={wood.World.X:F2},{wood.World.Y:F2},{wood.World.Z:F2} yaw={wood.Yaw * 180 / Math.PI:F0} scale={wood.Scale:F2}")));
@@ -227,6 +249,33 @@ internal sealed class PlantTiles : IDisposable
     /// <summary>The catalog's shrubs, ground plants and deadwood that grow by density: those the forest places.</summary>
     private static IEnumerable<FloraSpecies> Plants(FloraCatalog catalog) =>
         catalog.Species.Where(species => species.Role != FloraRole.Tree && species.Ecology is { Density: > 0 });
+
+    /// <summary>Boxes as one collision mesh: each box's eight corners and twelve outward triangles.</summary>
+    private static (Vector3[] Positions, uint[] Indices) Boxes(IReadOnlyList<(Vector3 Centre, Vector3 Half, float Yaw)> boxes)
+    {
+        // Corner index bits: 1 = +X, 2 = +Y, 4 = +Z; each face wound anticlockwise seen from outside.
+        ReadOnlySpan<int> faces = [0, 4, 6, 2, 1, 3, 7, 5, 0, 1, 5, 4, 2, 6, 7, 3, 0, 2, 3, 1, 4, 5, 7, 6];
+        List<Vector3> positions = [];
+        List<uint> indices = [];
+        foreach ((Vector3 centre, Vector3 half, float yaw) in boxes)
+        {
+            uint first = (uint)positions.Count;
+            Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw);
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 local = new((corner & 1) == 0 ? -half.X : half.X, (corner & 2) == 0 ? -half.Y : half.Y, (corner & 4) == 0 ? -half.Z : half.Z);
+                positions.Add(centre + Vector3.Transform(local, turn));
+            }
+
+            for (int face = 0; face < faces.Length; face += 4)
+            {
+                indices.AddRange([first + (uint)faces[face], first + (uint)faces[face + 1], first + (uint)faces[face + 2]]);
+                indices.AddRange([first + (uint)faces[face], first + (uint)faces[face + 2], first + (uint)faces[face + 3]]);
+            }
+        }
+
+        return ([.. positions], [.. indices]);
+    }
 
     private static uint PlantKey(ushort species, int variant) => PlantBase + ((uint)species * VariantsPerSpecies) + (uint)variant;
 
@@ -282,8 +331,8 @@ internal sealed class PlantTiles : IDisposable
         ((long)Math.Floor(origin / cell), (long)Math.Ceiling((origin + size) / cell) - 1);
 
     /// <summary>One plant tile on a worker: heights from the recipe, and every plant and sapling growing in each cell.</summary>
-    private sealed class PlantSampler(TerrainRecipe recipe, VegetationGround ground, ulong placement, IReadOnlyDictionary<ushort, int> variantCounts)
-        : IVegetationSampler
+    private sealed class PlantSampler(TerrainRecipe recipe, VegetationGround ground, ulong placement, IReadOnlyDictionary<ushort, int> variantCounts,
+        IReadOnlyDictionary<uint, (double Half, bool Blocking)> lying) : IVegetationSampler
     {
         private readonly VegetationTiles.Sampler heights = new(ground);
 
@@ -305,7 +354,10 @@ internal sealed class PlantTiles : IDisposable
                 foreach ((FloraSpecies species, ulong hash) in growing)
                 {
                     int variant = (int)(Part(hash, Draw.Variant) * variantCounts[species.Id]);
-                    double scale = ScaleMinimum + ((ScaleMaximum - ScaleMinimum) * Part(hash, Draw.Scale));
+                    (double low, double high) = species.Role == FloraRole.Deadwood
+                        ? (DeadwoodScaleMinimum, DeadwoodScaleMaximum)
+                        : (ScaleMinimum, ScaleMaximum);
+                    double scale = low + ((high - low) * Part(hash, Draw.Scale));
                     Place(tile, samples, cellX, cellZ, CellMetres, CombinedHash(placement, hash), PlantKey(species.Id, variant), scale, Sink);
                 }
 
@@ -324,9 +376,23 @@ internal sealed class PlantTiles : IDisposable
             long column = (long)Math.Floor(x), row = (long)Math.Floor(z);
             if (ground.At(column, row) is not var (height, top, _) || !Soil(recipe, top, column, row)) return;
             float yaw = (float)(Part(hash, Draw.Yaw) * Math.Tau);
+            if (lying.TryGetValue(key, out (double Half, bool Blocking) shape))
+            {
+                // The mesh's +X turned by the yaw about +Y, as the Engine turns a record.
+                double reach = shape.Half * scale, alongX = Math.Cos(yaw) * reach, alongZ = -Math.Sin(yaw) * reach;
+                double acrossX = Math.Sin(yaw) * DeadwoodSideMetres, acrossZ = Math.Cos(yaw) * DeadwoodSideMetres;
+                if (!Level(x - alongX, z - alongZ, height, DeadwoodEndTolerance) || !Level(x + alongX, z + alongZ, height, DeadwoodEndTolerance)) return;
+                if (shape.Blocking && (!Level(x - acrossX, z - acrossZ, height, DeadwoodSideTolerance) || !Level(x + acrossX, z + acrossZ, height, DeadwoodSideTolerance)))
+                    return;
+            }
+
             samples.Records.Add(new VegetationRecord(key,
                 new Vector3((float)(x - tile.OriginX), (float)(height - sink), (float)(z - tile.OriginZ)), yaw, (float)scale));
         }
+
+        /// <summary>Whether the ground at a point is within a tolerance of a height.</summary>
+        private bool Level(double x, double z, double height, double tolerance) =>
+            ground.At((long)Math.Floor(x), (long)Math.Floor(z)) is var (other, _, _) && Math.Abs(other - height) <= tolerance;
 
         private static ulong CombinedHash(ulong placement, ulong hash) => TerrainRecipe.CoordinateHash(placement, (long)hash, (long)(hash >> 32));
     }

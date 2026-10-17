@@ -27,7 +27,8 @@ showing one cell of an atlas of painted clump sprites (scripts/make-grass-atlas.
 tip leaning and moving with the wind, as the grass clumps do. Bushes, ferns and flowers are written to
 models/scatter/. Deadwood (#10034): a fallen log is a trunk lying along X ("lie"), with broken
 limbs and capped ends ("caps"), and a stump a short capped trunk; both keep their authored metres
-("scale": 1) rather than being scaled to a height.
+("scale": 1) rather than being scaled to a height. A fallen trunk tall enough to block the way also
+writes "colliders": an upright-sided box per trunk segment ({"centre", "half", "yaw"}, metres).
 
 With --far it also writes NAME-far: the distant-band variant (#9677) from the same skeleton and
 scale, so the silhouette holds at the switch: only the trunk and first limbs, four-sided, and every
@@ -185,8 +186,10 @@ def grow(rng, kind, origin, direction, length, radius, level, branches):
     spec = kind["trunk"] if level == 0 else kind["levels"][level - 1]
     segments = spec["segments"]
     points, d = [origin], direction
+    # A lying trunk wanders only sideways: up or down, it would float off or sink into the ground.
+    level_only = np.array([1.0, 0.0, 1.0]) if spec.get("lie") else np.ones(3)
     for _ in range(segments):
-        d = normalise(d + random_unit(rng) * spec["wobble"] + UP * spec["rise"])
+        d = normalise(d + random_unit(rng) * spec["wobble"] * level_only + UP * spec["rise"])
         points.append(points[-1] + d * length / segments)
     radii = [radius * (1 - (1 - spec["tip"]) * i / segments) for i in range(segments + 1)]
     if level == 0:
@@ -402,7 +405,7 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_widt
         if trunk.get("lie"):
             # A fallen trunk (#10034): it lies along X, half sunk, its root end at -X.
             root = np.array([-trunk["length"] / 2, trunk["radius"] * (1 - 2 * kind.get("sink", 0.4)), 0.0])
-            along = normalise(np.array([1.0, 0.0, 0.0]) + random_unit(rng) * trunk.get("lean", 0.06) * np.array([0.0, 0.3, 1.0]))
+            along = normalise(np.array([1.0, 0.0, 0.0]) + random_unit(rng) * trunk.get("lean", 0.06) * np.array([0.0, 0.0, 1.0]))
             grow(rng, kind, root, along, trunk["length"], trunk["radius"], 0, branches)
         elif stems == 1:
             lean = normalise(UP + random_unit(rng) * trunk.get("lean", 0.06))
@@ -482,7 +485,30 @@ def build(kind_name, seed, height, far=False, scale=None, cells=None, frond_widt
             "colors": [round(float(c), DECIMALS) for col in part["colors"] for c in col],
             "indices": part["indices"],
         })
-    return parts, low, high, scale
+    return parts, low, high, scale, trunk_boxes(kind, branches, scale)
+
+
+def trunk_boxes(kind, branches, scale):
+    """A deadwood trunk's collision (#10034): an upright-sided box per trunk segment, in the mesh's metres.
+
+    A round trunk's top is gentle enough to walk up once a step has lifted the walker, so a trunk meant to
+    block is given straight sides: each box reaches the trunk's radius either side and above its axis.
+    """
+    if kind.get("colliders") != "trunk" or not branches:
+        return []
+    trunk = branches[0]
+    boxes = []
+    for i in range(len(trunk.points) - 1):
+        a, b = trunk.points[i] * scale, trunk.points[i + 1] * scale
+        radius = max(trunk.radii[i], trunk.radii[i + 1]) * scale
+        along = b - a
+        boxes.append({
+            "centre": [round(float(c), DECIMALS) for c in (a + b) / 2],
+            "half": [round(float(np.linalg.norm(along[[0, 2]])) / 2, DECIMALS), round(float(radius), DECIMALS), round(float(radius), DECIMALS)],
+            # Turned about +Y from +X, as the game turns a record: +X goes to (cos, 0, -sin).
+            "yaw": round(math.atan2(-float(along[2]), float(along[0])), DECIMALS),
+        })
+    return boxes
 
 
 # ---- textures -------------------------------------------------------------------------------
@@ -921,13 +947,13 @@ def build_one(args):
     if not args.no_textures:
         write_textures(species)
     cells = [int(c) for c in args.cells.split(",")] if args.cells else None
-    parts, low, high, scale = build(species, seed, height, cells=cells, frond_width=args.frond_width)
+    parts, low, high, scale, boxes = build(species, seed, height, cells=cells, frond_width=args.frond_width)
     folder = args.folder or kind.get("folder", "trees")
     if not args.far_only:
-        write(kind, name, height, parts, low, high, seed, folder)
+        write(kind, name, height, parts, low, high, seed, folder, boxes)
     if args.far or args.far_only:
         # Same skeleton and scale as the near tree; only what is drawn of it changes.
-        parts, low, high, _ = build(species, seed, height, far=True, scale=scale, frond_width=args.frond_width)
+        parts, low, high, _, _ = build(species, seed, height, far=True, scale=scale, frond_width=args.frond_width)
         write(kind, name if args.far_only else f"{name}-far", height, parts, low, high, seed, folder)
 
 
@@ -944,10 +970,10 @@ def build_catalog(names, textures):
                 seed = variant["seed"]
                 name = variant.get("name", variant_name(species, base, seed))
                 folder = kind.get("folder", "trees")
-                parts, low, high, scale = build(species, seed, kind["height"])
-                write(kind, name, kind["height"], parts, low, high, seed, folder)
+                parts, low, high, scale, boxes = build(species, seed, kind["height"])
+                write(kind, name, kind["height"], parts, low, high, seed, folder, boxes)
                 if kind["role"] == "tree":
-                    parts, low, high, _ = build(species, seed, kind["height"], far=True, scale=scale)
+                    parts, low, high, _, _ = build(species, seed, kind["height"], far=True, scale=scale)
                     write(kind, f"{name}-far", kind["height"], parts, low, high, seed, folder)
             finally:
                 KINDS[species] = base
@@ -997,7 +1023,7 @@ def main():
         contact_sheet(names, args.sheet)
 
 
-def write(kind, name, height, parts, low, high, seed, folder):
+def write(kind, name, height, parts, low, high, seed, folder, colliders=None):
     asset = {
         "name": name,
         "height": height,
@@ -1006,6 +1032,8 @@ def write(kind, name, height, parts, low, high, seed, folder):
                      if any(part["role"] == role for part in parts)},
         "parts": parts,
     }
+    if colliders:
+        asset["colliders"] = colliders
     output = MODELS / folder / f"{name}.prop-mesh.json"
     output.write_text(json.dumps(asset, separators=(",", ":")))
     counts = ", ".join(f"{p['role']} {len(p['indices']) // 3}" for p in parts)

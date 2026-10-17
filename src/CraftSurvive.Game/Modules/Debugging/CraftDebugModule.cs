@@ -78,8 +78,8 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), the plant tiles (plants, deadwood and saplings) and the forest floor's shade grass.")]
     public string VegetationReadout() => terrain.VegetationReadout();
 
-    [DebugCommand("craft.vegetation.deadwood", Description = "Assisted (#10034): the fallen logs and stumps nearest a point among those streamed, with mesh, position, turn and size; each is solid within 64 m of the player.")]
-    public string Deadwood(double x, double z) => terrain.DeadwoodNearest(x, z, DeadwoodListed);
+    [DebugCommand("craft.vegetation.deadwood", Description = "Assisted (#10034): the deadwood of a kind (log, stump, fallen-trunk, or any) nearest a point among those streamed, with mesh, position, turn and size; each is solid within 64 m of the player.")]
+    public string Deadwood(string kind, double x, double z) => terrain.DeadwoodNearest(kind == "any" ? "" : kind, x, z, DeadwoodListed);
 
     private const int DeadwoodListed = 5;
 

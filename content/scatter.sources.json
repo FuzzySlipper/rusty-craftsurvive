@@ -1,5 +1,5 @@
 {
- "purpose": "Ground clutter (#9668, #10032): flower clumps and field stones scattered by TerrainScatter on the voxels and the vegetation tiles, and the flora catalog's shrubs, ferns, woodland flowers and deadwood (fallen logs, stumps), placed by PlantTiles where their ecology suits. The field stones and flower clumps are textured (#9831); shrubs and ferns are built by scripts/generate-flora.py from content/game/flora/catalog.json.",
+ "purpose": "Ground clutter (#9668, #10032): flower clumps and field stones scattered by TerrainScatter on the voxels and the vegetation tiles, and the flora catalog's shrubs, ferns, woodland flowers and deadwood (fallen logs, stumps and large fallen trunks), placed by PlantTiles where their ecology suits. The field stones and flower clumps are textured (#9831); shrubs and ferns are built by scripts/generate-flora.py from content/game/flora/catalog.json.",
  "generated": "2026-10-07",
  "workingDirectory": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/clutter",
  "rejected": "fern seed 31 came out as a small palm",
@@ -168,19 +168,19 @@
   },
   {
    "model": "content/game/models/scatter/log-1.prop-mesh.json",
-   "sha256": "f4ca820015824f9b267f9a5e028a10d7e178c0cb9096ad0dfdbed82b6bea4bf7",
+   "sha256": "9ac5e5209bdcda1d9efa917537b7c1608ea871c2d1f39c37a381df6eb2188734",
    "tool": "scripts/generate-flora.py (flora catalog, #10034)",
    "command": "python3 scripts/generate-flora.py log"
   },
   {
    "model": "content/game/models/scatter/log-2.prop-mesh.json",
-   "sha256": "d93fa3715a2063b93c93e19bb8a9a8ef5e8da741ca79c97aa4e9498c4f72518d",
+   "sha256": "839ce3356ee40a5337da8b32a26b1ee6a53279854a0f64328283a1d53bbb2599",
    "tool": "scripts/generate-flora.py (flora catalog, #10034)",
    "command": "python3 scripts/generate-flora.py log"
   },
   {
    "model": "content/game/models/scatter/log-3.prop-mesh.json",
-   "sha256": "c0f765d8c11aea03a4217e3c3290d573b05b3e524745808e0b802a4e519f276d",
+   "sha256": "f83680b0037d294a4437316bef71546939e81f64ccee79a6279c9083c2345cdc",
    "tool": "scripts/generate-flora.py (flora catalog, #10034)",
    "command": "python3 scripts/generate-flora.py log"
   },
@@ -195,6 +195,24 @@
    "sha256": "b24088354b223918c77850eb85ba9663504ac9d9aeac77ff462b6e79401293ba",
    "tool": "scripts/generate-flora.py (flora catalog, #10034)",
    "command": "python3 scripts/generate-flora.py stump"
+  },
+  {
+   "model": "content/game/models/scatter/fallen-trunk-1.prop-mesh.json",
+   "sha256": "de36a28f8ab06529e541f5959c26bf5dcd10b1ff9966b594da02be6648bdc2e0",
+   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 scripts/generate-flora.py fallen-trunk"
+  },
+  {
+   "model": "content/game/models/scatter/fallen-trunk-2.prop-mesh.json",
+   "sha256": "76db8e351715477a651b36b40b2a1a0ab346bab200c4b0d4610ef2a1ff78244d",
+   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 scripts/generate-flora.py fallen-trunk"
+  },
+  {
+   "model": "content/game/models/scatter/fallen-trunk-3.prop-mesh.json",
+   "sha256": "e64aa15e1221ad11256a78e29fc93d128a22a72706ec4efbfcf0554edd7c4b70",
+   "tool": "scripts/generate-flora.py (flora catalog, #10034)",
+   "command": "python3 scripts/generate-flora.py fallen-trunk"
   }
  ],
  "textures": [

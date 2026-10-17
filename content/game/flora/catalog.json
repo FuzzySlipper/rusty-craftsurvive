@@ -3003,6 +3003,96 @@
     "abundance": 1.0,
     "density": 0.003
    }
+  },
+  "fallen-trunk": {
+   "role": "deadwood",
+   "height": 1.6,
+   "folder": "scatter",
+   "bark": "oak",
+   "leaves": null,
+   "sink": 0.12,
+   "scale": 1.0,
+   "caps": [
+    "base",
+    "tip"
+   ],
+   "trunk": {
+    "length": 10.0,
+    "radius": 0.95,
+    "sides": 9,
+    "segments": 6,
+    "wobble": 0.07,
+    "rise": 0.0,
+    "tip": 0.85,
+    "flare": 1.4,
+    "lie": true,
+    "lean": 0.25
+   },
+   "levels": [
+    {
+     "count": [
+      3,
+      5
+     ],
+     "start": 0.25,
+     "end": 0.9,
+     "angle": [
+      45,
+      80
+     ],
+     "length": [
+      0.8,
+      1.6
+     ],
+     "shrink": 0.0,
+     "radius": 0.32,
+     "sides": 5,
+     "segments": 2,
+     "wobble": 0.15,
+     "rise": 0.05,
+     "tip": 0.5
+    }
+   ],
+   "cards": null,
+   "variants": [
+    {
+     "seed": 1
+    },
+    {
+     "seed": 2,
+     "set": {
+      "trunk": {
+       "length": 8.0,
+       "radius": 1.0
+      }
+     }
+    },
+    {
+     "seed": 3,
+     "set": {
+      "trunk": {
+       "length": 12.0,
+       "wobble": 0.1
+      }
+     }
+    }
+   ],
+   "ecology": {
+    "temperature": [
+     0.25,
+     0.5,
+     0.8
+    ],
+    "moisture": [
+     0.35,
+     0.68,
+     1.0
+    ],
+    "habit": "understory",
+    "abundance": 1.0,
+    "density": 0.0006
+   },
+   "colliders": "trunk"
   }
  }
 }

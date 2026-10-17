@@ -9,7 +9,8 @@ namespace CraftSurvive.Game.Modules.Content;
 /// triangles in metres, Y up, grouped into parts by role ("bark", "leaves" or "solid"), each
 /// vertex's colour alpha its wind weight. A part may carry UVs, and the prop may name a texture per
 /// role ("textures": {role: content path}); untextured parts are coloured by their vertices alone.
-/// The caller chooses the material for each role and its texture (null when it has none).
+/// The caller chooses the material for each role and its texture (null when it has none). A prop may also
+/// carry collision boxes (<see cref="Colliders"/>).
 /// </summary>
 internal static class PropMesh
 {
@@ -83,6 +84,22 @@ internal static class PropMesh
         }
 
         return min.X <= max.X ? (min, max) : null;
+    }
+
+    /// <summary>
+    /// A prop's collision boxes, if its generator wrote any ("colliders": a centre, half extents and a turn about
+    /// +Y from +X, in its own metres): a fallen trunk's upright-sided segments (#10034). Empty when it has none.
+    /// </summary>
+    internal static IReadOnlyList<(Vector3 Centre, Vector3 Half, float Yaw)> Colliders(ProductContent content, string path)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        using JsonDocument document = JsonDocument.Parse(content.ReadText(path));
+        if (!document.RootElement.TryGetProperty("colliders", out JsonElement colliders)) return [];
+        return [.. colliders.EnumerateArray().Select(box =>
+        {
+            float[] centre = Floats(box, "centre"), half = Floats(box, "half");
+            return (new Vector3(centre[0], centre[1], centre[2]), new Vector3(half[0], half[1], half[2]), box.GetProperty("yaw").GetSingle());
+        })];
     }
 
     private static float[] Floats(JsonElement part, string name) =>
