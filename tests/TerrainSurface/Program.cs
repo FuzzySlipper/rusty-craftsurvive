@@ -90,8 +90,7 @@ host.Call(engine =>
         SpatialHit hit = Cast(EditedRayX);
         Check.Equal(SpatialHitKind.Voxel, hit.Kind, "DC collision keeps a voxel identity for picking");
         SpatialHit picked = engine.Spatial.PickVoxel(new SpatialPickRequest(session,
-            new Vector3(EditedRayX, RayTop, RayZ), -Vector3.UnitY, RayLength,
-            hit.VoxelX, hit.VoxelY, hit.VoxelZ, hit.Face));
+            new Vector3(EditedRayX, RayTop, RayZ), -Vector3.UnitY, RayLength));
         Check.That(picked.Present && picked.Kind == SpatialHitKind.Voxel, "the existing edit picker can target reconstructed ground");
     });
 
