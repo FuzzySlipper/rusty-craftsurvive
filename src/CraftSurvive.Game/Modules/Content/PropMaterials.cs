@@ -20,9 +20,11 @@ internal sealed class PropMaterials : IDisposable
     /// <summary>
     /// A role's surface and how the wind moves it (flutter scales by each vertex's wind weight); a mossy
     /// role grows the surface moss (#10044) when its owner gave one, in clumps of <paramref name="MossClumpMetres"/>
-    /// (0 for none): a small prop needs smaller clumps than a wall, or it is all moss or bare.
+    /// (0 for none) at <paramref name="MossTexelsPerMetre"/>: a small prop needs smaller clumps and a finer grid
+    /// than a wall, or it is all moss or bare, in a handful of blocks.
     /// </summary>
-    internal readonly record struct Finish(float Roughness, float WindBend, float WindFlutter, float MossClumpMetres = 0);
+    internal readonly record struct Finish(float Roughness, float WindBend, float WindFlutter, float MossClumpMetres = 0,
+        int MossTexelsPerMetre = SurfaceMoss.PlaceTexelsPerMetre);
 
     private readonly IEngineContext engine;
     private readonly Func<string, Finish> finishFor;
@@ -64,9 +66,9 @@ internal sealed class PropMaterials : IDisposable
             WindFlutter = finish.WindFlutter,
         };
         bool mossy = finish.MossClumpMetres > 0 && moss is not null;
-        if (mossy) request = request with { Shader = moss!.Shader(finish.MossClumpMetres) };
+        if (mossy) request = request with { Shader = moss!.Shader(finish.MossClumpMetres, finish.MossTexelsPerMetre) };
         material = engine.Graphics.CreateMaterial(request);
-        if (mossy) moss!.Register(material, request, finish.MossClumpMetres);
+        if (mossy) moss!.Register(material, request, finish.MossClumpMetres, finish.MossTexelsPerMetre);
         materials[(role, texturePath)] = material;
         return material;
     }

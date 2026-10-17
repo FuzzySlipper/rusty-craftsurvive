@@ -189,7 +189,7 @@ internal sealed class TerrainScatter : IDisposable
         }
         // Field stones grow the surface moss (#10044); plants do not.
         textured = new PropMaterials(engine, role => role == StoneRole
-            ? new PropMaterials.Finish(StoneRoughness, 0, 0, SurfaceMoss.FieldStoneClumpMetres)
+            ? new PropMaterials.Finish(StoneRoughness, 0, 0, SurfaceMoss.FieldStoneClumpMetres, SurfaceMoss.SmallPropTexelsPerMetre)
             : new PropMaterials.Finish(PlantRoughness, PlantWindBend, PlantWindFlutter), moss: moss);
         foreach (Layer layer in Layers)
         {

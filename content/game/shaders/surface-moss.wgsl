@@ -12,13 +12,22 @@
 //       (wrapped, so a far-flung world keeps texel precision); w: strength (0 none, 1 accents, 2 moss, 3 overgrown).
 //   [1] rgb: the moss's dark colour (linear); w: clump scale (metres per clump).
 //   [2] rgb: the moss's light colour (linear); w: how far down a surface may face and still hold moss (normal y).
-//   [3] rgb: the patch rim's colour (linear); w: how much a vertical face holds, as a share of a top's.
+//   [3] rgb: the patch rim's colour (linear); w: how much a vertical face holds, as a share of a top's,
+//       plus 1000 times the moss's texels per metre (32 by default: the crunch rule; a small prop asks for more,
+//       so a patch on a one-metre stone is more than a handful of texels).
 
 #import rusty::types::Surface
 #import rusty::material::material
 #import rusty::shade::standard_shade
 
-const TEXELS_PER_METRE: f32 = 32.0;
+const DEFAULT_TEXELS_PER_METRE: f32 = 32.0;
+const PACK: f32 = 1000.0;
+
+// Texels per metre, packed into parameters[3].w above the side share.
+fn texels_per_metre() -> f32 {
+    let packed = floor(material.parameters[3].w / PACK);
+    return select(DEFAULT_TEXELS_PER_METRE, packed, packed > 0.0);
+}
 const WRAP_CELLS: i32 = 4096;
 
 fn hash(c: vec2<i32>) -> f32 {
@@ -52,13 +61,15 @@ const EDGE_FRAY: f32 = 0.04;
 
 // The moss amount at one texel of the surface's dominant plane, before the threshold.
 fn moss_field(q: vec2<f32>, plane: f32, facing: f32, scale: f32) -> f32 {
-    let texel = (floor(q * TEXELS_PER_METRE) + 0.5) / TEXELS_PER_METRE;
+    let tpm = texels_per_metre();
+    let texel = (floor(q * tpm) + 0.5) / tpm;
     // A side plane's second axis is height: its clumps run downward.
     let stretch = select(vec2<f32>(1.0, STREAK), vec2<f32>(1.0, 1.0), plane == 0.0);
-    // Each plane reads its own part of the noise, so a side face does not repeat the top's pattern.
-    let clump = clumps(texel / (scale * stretch) + vec2<f32>(plane * 31.7, plane * 11.3));
+    // Every plane reads the same noise field, so a patch carries on across a facet edge instead of
+    // stopping there (a low-poly stone's facets otherwise turn all moss or bare, a mosaic).
+    let clump = clumps(texel / (scale * stretch));
     // A per-texel nudge frays a patch's edge by a texel or two, as moss grows, instead of a smooth blob.
-    let cell = vec2<i32>(floor(q * TEXELS_PER_METRE)) + vec2<i32>(i32(plane) * 977, 0);
+    let cell = vec2<i32>(floor(q * tpm));
     let fray = (hash(cell) - 0.5) * EDGE_FRAY;
     return (clump + fray) * facing;
 }
@@ -88,7 +99,7 @@ fn shade(surface: Surface) -> vec4<f32> {
 
     // Tops hold the most; sides their share; undersides none.
     let lowest = material.parameters[2].w;
-    let side = material.parameters[3].w;
+    let side = material.parameters[3].w - floor(material.parameters[3].w / PACK) * PACK;
     let facing = select(0.0, mix(side, 1.0, smoothstep(0.0, 0.8, n.y)), n.y >= lowest);
     let scale = max(material.parameters[1].w, 0.05);
     let m = moss_field(q, plane, facing, scale);
@@ -99,13 +110,13 @@ fn shade(surface: Surface) -> vec4<f32> {
     }
 
     // The rim: a texel next to one without moss (along the plane's axes) is the patch's outline.
-    let step_m = 1.0 / TEXELS_PER_METRE;
+    let step_m = 1.0 / texels_per_metre();
     let rim = min(min(moss_field(q + vec2<f32>(step_m, 0.0), plane, facing, scale),
                       moss_field(q - vec2<f32>(step_m, 0.0), plane, facing, scale)),
                   min(moss_field(q + vec2<f32>(0.0, step_m), plane, facing, scale),
                       moss_field(q - vec2<f32>(0.0, step_m), plane, facing, scale))) < threshold;
     // Light and dark moss in broad areas, read from a coarser noise so they form a few patches, not speckle.
-    let texel = (floor(q * TEXELS_PER_METRE) + 0.5) / TEXELS_PER_METRE;
+    let texel = (floor(q * texels_per_metre()) + 0.5) / texels_per_metre();
     let tone = step(0.5, noise(texel / (scale * 0.45) + vec2<f32>(53.0, 7.0)));
     var colour = mix(material.parameters[1].rgb, material.parameters[2].rgb, tone);
     if rim {

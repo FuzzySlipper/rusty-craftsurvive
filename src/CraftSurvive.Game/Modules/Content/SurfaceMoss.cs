@@ -21,7 +21,11 @@ internal sealed class SurfaceMoss : IDisposable
     /// <summary>Metres per clump on a place's walls and stones; a small prop asks for its own.</summary>
     internal const float PlaceClumpMetres = 0.9f;
     /// <summary>Metres per clump on a field stone (about a metre across), so a stone holds a few patches.</summary>
-    internal const float FieldStoneClumpMetres = 0.3f;
+    internal const float FieldStoneClumpMetres = 0.18f;
+    /// <summary>The moss's texels per metre on a place (the crunch rule), and on a small prop, where 32 leaves a patch a handful of texels.</summary>
+    internal const int PlaceTexelsPerMetre = 32, SmallPropTexelsPerMetre = 64;
+    /// <summary>The shader reads texels per metre packed above the side share (parameters[3].w).</summary>
+    private const float Pack = 1000;
     /// <summary>How far down a surface may face and still hold moss (its normal's y).</summary>
     private const float LowestFacing = -0.25f;
     /// <summary>How much a vertical face holds, as a share of a top's.</summary>
@@ -35,7 +39,7 @@ internal sealed class SurfaceMoss : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
-    private readonly Dictionary<Material, (MaterialRequest Request, float Clump)> materials = [];
+    private readonly Dictionary<Material, (MaterialRequest Request, float Clump, int Texels)> materials = [];
     private (long X, long Y, long Z) origin;
 
     internal SurfaceMoss(IEngineContext engine)
@@ -47,17 +51,18 @@ internal sealed class SurfaceMoss : IDisposable
     internal float Strength { get; private set; } = DefaultStrength;
 
     /// <summary>The shader as a material carries it now.</summary>
-    internal MaterialShader Shader(float clumpMetres)
+    internal MaterialShader Shader(float clumpMetres, int texelsPerMetre)
     {
         Vector4 at = new(Wrap(origin.X), Wrap(origin.Y), Wrap(origin.Z), Strength);
         return new MaterialShader(shader, at, new(Dark.R, Dark.G, Dark.B, clumpMetres),
-            new(Light.R, Light.G, Light.B, LowestFacing), new(Rim.R, Rim.G, Rim.B, SideShare));
+            new(Light.R, Light.G, Light.B, LowestFacing), new(Rim.R, Rim.G, Rim.B, (texelsPerMetre * Pack) + SideShare));
     }
 
     private static float Wrap(long metres) => ((metres % WrapMetres) + WrapMetres) % WrapMetres;
 
     /// <summary>Keeps a material's shader current from now on; <paramref name="request"/> is the material as created.</summary>
-    internal void Register(Material material, MaterialRequest request, float clumpMetres) => materials[material] = (request, clumpMetres);
+    internal void Register(Material material, MaterialRequest request, float clumpMetres, int texelsPerMetre) =>
+        materials[material] = (request, clumpMetres, texelsPerMetre);
 
     internal void Unregister(Material material) => materials.Remove(material);
 
@@ -79,9 +84,9 @@ internal sealed class SurfaceMoss : IDisposable
 
     private void Refresh()
     {
-        foreach ((Material material, (MaterialRequest request, float clump)) in materials)
+        foreach ((Material material, (MaterialRequest request, float clump, int texels)) in materials)
         {
-            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, request with { Shader = Shader(clump) }));
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, request with { Shader = Shader(clump, texels) }));
         }
     }
 
