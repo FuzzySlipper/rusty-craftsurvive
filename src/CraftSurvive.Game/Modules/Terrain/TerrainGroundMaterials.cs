@@ -27,11 +27,14 @@ internal sealed class TerrainGroundMaterials : IDisposable
     private readonly Dictionary<string, Material> materials = [];
     private AuthoredCatalog? catalog;
     private Material? blended;
+    private readonly List<Material> sets = [];
+    private readonly IEngineContext engine;
     internal TerrainBlendSettings Settings { get; }
 
     internal TerrainGroundMaterials(IEngineContext engine, ProductContent content, double voxelSize = TerrainConstants.VoxelSize,
         GroundTextureSet? set = null)
     {
+        this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         set ??= GroundTextureSet.Walking;
         string root = set.Root;
         Settings = TerrainBlendSettings.Parse(content.ReadText(root + "blending.json"));
@@ -96,6 +99,18 @@ internal sealed class TerrainGroundMaterials : IDisposable
     /// <summary>The terrain-layer material blending this set's four layers.</summary>
     internal Material Layered => blended ?? throw new ObjectDisposedException(nameof(TerrainGroundMaterials));
 
+    /// <summary>
+    /// A terrain-layer material blending these named maps of the set, in this order (up to four for a heightfield,
+    /// which weighs only a material's first four layers: FarGroundBlend). Disposed with the set.
+    /// </summary>
+    internal Material LayeredOf(IReadOnlyList<string> names)
+    {
+        Material layered = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(
+            materials[names[0]], names.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
+        sets.Add(layered);
+        return layered;
+    }
+
     /// <summary>One map of the set on its own, unblended.</summary>
     internal Material Plain(string name) => materials[name];
 
@@ -107,6 +122,8 @@ internal sealed class TerrainGroundMaterials : IDisposable
 
     public void Dispose()
     {
+        foreach (Material set in sets) set.Dispose();
+        sets.Clear();
         blended?.Dispose();
         blended = null;
         foreach (Material material in materials.Values) material.Dispose();

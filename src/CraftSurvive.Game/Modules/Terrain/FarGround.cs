@@ -1,3 +1,4 @@
+using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.WorldGen;
 
@@ -65,5 +66,57 @@ internal static class FarGround
         if (WorldMap.Frozen(geography)) return BlockId.Snow;
         if (Soils.DeepDesert(geography)) return BlockId.Sand;
         return Soils.Dry(geography) ? BlockId.DryGrass : BlockId.Grass;
+    }
+}
+
+/// <summary>
+/// How the far field's ground blends (#10041 review). A heightfield weighs only the first four layers of a terrain
+/// layer material, and the walking ground now has five, so the far field draws with two four-layer sets that share
+/// their first three: lush (meadow, rock, sand, frost) and dry (meadow, rock, sand, dry meadow). A vertex takes the
+/// dry set when dry meadow lies within one cell beyond its blend reach. Then every vertex carrying dry meadow's
+/// weight stands among dry-set vertices, and where the sets meet only the shared layers carry weight, so the two
+/// draw alike and leave no seam. Frost in a dry set (cold and dry rarely meet) weighs as rock.
+/// </summary>
+internal static class FarGroundBlend
+{
+    internal static readonly string[] LushLayers = ["sage-ground", "ochre-rock", "dune-sand", "frost-stone"];
+    internal static readonly string[] DryLayers = ["sage-ground", "ochre-rock", "dune-sand", "dry-meadow"];
+
+    /// <summary>The channel (0 to 3) a far ground block weighs into in a set.</summary>
+    internal static int Channel(BlockId ground, bool drySet) => ground switch
+    {
+        BlockId.Stone => 1,
+        BlockId.Sand => 2,
+        BlockId.Snow or BlockId.Gravel => drySet ? 1 : 3,
+        BlockId.DryGrass => drySet ? 3 : 0,
+        _ => 0,
+    };
+
+    /// <summary>Whether a vertex takes the dry set: dry meadow within <paramref name="reach"/> + 1 cells (null for water or none).</summary>
+    internal static bool UsesDrySet(Func<int, int, BlockId?> groundAt, int reach)
+    {
+        for (int dz = -(reach + 1); dz <= reach + 1; dz++)
+        for (int dx = -(reach + 1); dx <= reach + 1; dx++)
+            if (groundAt(dx, dz) == BlockId.DryGrass) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// A vertex's layer weights in its set: each land cell within <paramref name="reach"/> weighs reach + 1 at the vertex,
+    /// one less a cell outward (Chebyshev), as a voxel chunk's layers do. Zero when no land is near.
+    /// </summary>
+    internal static Vector4 Weights(Func<int, int, BlockId?> groundAt, int reach, bool drySet)
+    {
+        Vector4 weights = Vector4.Zero;
+        for (int dz = -reach; dz <= reach; dz++)
+        for (int dx = -reach; dx <= reach; dx++)
+        {
+            if (groundAt(dx, dz) is not BlockId ground) continue;
+            float weight = reach + 1 - Math.Max(Math.Abs(dx), Math.Abs(dz));
+            weights += Channel(ground, drySet) switch { 0 => Vector4.UnitX, 1 => Vector4.UnitY, 2 => Vector4.UnitZ, _ => Vector4.UnitW } * weight;
+        }
+
+        float total = weights.X + weights.Y + weights.Z + weights.W;
+        return total > 0 ? weights / total : Vector4.Zero;
     }
 }

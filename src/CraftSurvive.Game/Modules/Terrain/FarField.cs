@@ -32,7 +32,7 @@ internal sealed class FarField : IDisposable
 
     /// <summary>Cells along a tile's side: one far chunk column.</summary>
     private const uint TileCells = (uint)TerrainConstants.ChunkEdgeLength;
-    private const uint GroundIndex = 0, WaterIndex = 1, IceIndex = 2;
+    private const uint GroundIndex = 0, WaterIndex = 1, IceIndex = 2, DryGroundIndex = 3;
     /// <summary>How many sampled tiles are committed to the Engine an update.</summary>
     private const int CommitsPerUpdate = 64;
     /// <summary>The ring's focus moves onto the player once they are this far from it.</summary>
@@ -166,7 +166,11 @@ internal sealed class FarField : IDisposable
         double reach = (radiusChunks + 1) * (double)ChunkMetres;
         heightfield = engine.Heightfield.Create(new HeightfieldCreateRequest(TileCells,
             new HeightfieldRing[] { new(FarGround.CellMetres, reach) },
-            new HeightfieldMaterial[] { new(GroundIndex, ground.Layered), new(WaterIndex, water), new(IceIndex, ice) },
+            new HeightfieldMaterial[]
+            {
+                new(GroundIndex, ground.LayeredOf(FarGroundBlend.LushLayers)), new(WaterIndex, water), new(IceIndex, ice),
+                new(DryGroundIndex, ground.LayeredOf(FarGroundBlend.DryLayers)),
+            },
             RenderLayer.Scene, Vector3.Zero, 1f, HeightfieldFocus.At(worldX, worldZ))
             with { Session = walking(), Anchor = new WorldOriginGlobalPosition(0, 0, 0, 0, 0, 0) });
         streamer = new HeightfieldStreamer(engine, heightfield, sampler, CommitsPerUpdate);
@@ -229,8 +233,9 @@ internal sealed class FarField : IDisposable
         {
             Frame now = Current;
             int side = tile.Side, reach = transitionCells;
-            // A lattice reaching the transition (for the weights) and a cell more (for each material's slope).
-            int border = reach + 1, span = side + (2 * border);
+            // A lattice reaching the transition and a cell beyond (for the dry set's margin, FarGroundBlend) and a cell
+            // more (for each material's slope).
+            int border = reach + 2, span = side + (2 * border);
             double[] ground = new double[span * span];
             double[] waterTop = new double[span * span];
             bool[] frozen = new bool[span * span];
@@ -278,15 +283,15 @@ internal sealed class FarField : IDisposable
                 samples.SetHeight(i, j, (float)(Math.Max(ground[at], waterTop[at]) - sink));
             }
 
-            // Each land cell's layer within the transition reach of the tile (-1 for none or water).
-            int layerSpan = side + (2 * reach);
-            int[] layers = new int[layerSpan * layerSpan];
-            for (int j = -reach; j < side + reach; j++)
-            for (int i = -reach; i < side + reach; i++)
+            // Each land cell's natural ground within the transition reach of the tile and a cell beyond (null for none or water).
+            int margin = reach + 1, layerSpan = side + (2 * margin);
+            BlockId?[] grounds = new BlockId?[layerSpan * layerSpan];
+            for (int j = -margin; j < side + margin; j++)
+            for (int i = -margin; i < side + margin; i++)
             {
                 int at = At(i, j);
                 double height = ground[at];
-                int layer = -1;
+                BlockId? natural = null;
                 if (!double.IsNaN(height) && waterTop[at] <= height)
                 {
                     double rise = 0;
@@ -295,37 +300,30 @@ internal sealed class FarField : IDisposable
                         if (!double.IsNaN(ground[neighbour])) rise = Math.Max(rise, Math.Abs(ground[neighbour] - height));
                     }
 
-                    layer = Math.Max(0, TerrainLayers.Layer(FarGround.Natural(geography[at], rise, height - FarGround.GroundTopFace, tile.CellSize)));
+                    natural = FarGround.Natural(geography[at], rise, height - FarGround.GroundTopFace, tile.CellSize);
                 }
 
-                layers[((j + reach) * layerSpan) + i + reach] = layer;
+                grounds[((j + margin) * layerSpan) + i + margin] = natural;
             }
 
             for (int j = 0; j < side; j++)
             for (int i = 0; i < side; i++)
             {
-                int own = layers[((j + reach) * layerSpan) + i + reach];
-                if (own < 0)
+                int vi = i, vj = j;
+                BlockId? GroundAt(int dx, int dz) => grounds[((vj + dz + margin) * layerSpan) + vi + dx + margin];
+                if (GroundAt(0, 0) is null)
                 {
                     if (!double.IsNaN(ground[At(i, j)])) samples.SetMaterial(i, j, frozen[At(i, j)] ? IceIndex : WaterIndex);
                     samples.SetLayerWeights(i, j, Vector4.UnitX);
                     continue;
                 }
 
-                // Nearer cells weigh more: reach + 1 at the vertex, falling by one a cell (Chebyshev).
-                Vector4 weights = Vector4.Zero;
-                for (int dz = -reach; dz <= reach; dz++)
-                for (int dx = -reach; dx <= reach; dx++)
-                {
-                    int layer = layers[((j + dz + reach) * layerSpan) + i + dx + reach];
-                    if (layer < 0) continue;
-                    weights += Layer(layer) * (reach + 1 - Math.Max(Math.Abs(dx), Math.Abs(dz)));
-                }
-
-                samples.SetLayerWeights(i, j, weights / (weights.X + weights.Y + weights.Z + weights.W));
+                // Two four-layer sets, dry meadow in the second (FarGroundBlend): the heightfield weighs four layers a material.
+                bool dry = FarGroundBlend.UsesDrySet(GroundAt, reach);
+                if (dry) samples.SetMaterial(i, j, DryGroundIndex);
+                samples.SetLayerWeights(i, j, FarGroundBlend.Weights(GroundAt, reach, dry));
             }
         }
 
-        private static Vector4 Layer(int layer) => layer switch { 0 => Vector4.UnitX, 1 => Vector4.UnitY, 2 => Vector4.UnitZ, _ => Vector4.UnitW };
     }
 }

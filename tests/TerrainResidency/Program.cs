@@ -39,6 +39,7 @@ Check.Section("overland travel", TravelChecks.Run);
 Check.Section("walking and travel scale", TravelChecks.Walking);
 Check.Section("continental travel", TravelChecks.Continental);
 Check.Section("regional terrain", RegionalTerrainChecks.Run);
+Check.Section("far ground blend", FarGroundBlendChecks.Run);
 Check.Section("generator identity", GeneratorChecks.Run);
 Check.Section("overlay", OverlayChecks.Run);
 Check.Section("chunk cache", ChunkCacheChecks.Run);
