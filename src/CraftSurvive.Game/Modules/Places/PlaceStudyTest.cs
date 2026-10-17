@@ -37,7 +37,7 @@ internal sealed class PlaceStudyTest : IDisposable
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.groundAt = groundAt ?? throw new ArgumentNullException(nameof(groundAt));
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0), TextureFilter.NearestMipmapped);
+        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         foreach (JsonElement v in manifest.RootElement.GetProperty("variants").EnumerateArray())
         {

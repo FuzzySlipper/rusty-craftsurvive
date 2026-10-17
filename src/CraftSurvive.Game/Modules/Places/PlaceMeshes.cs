@@ -48,7 +48,7 @@ internal sealed class PlaceMeshes : IDisposable
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.placement = placement ?? throw new ArgumentNullException(nameof(placement));
         this.groundTop = groundTop ?? throw new ArgumentNullException(nameof(groundTop));
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0), TextureFilter.NearestMipmapped);
+        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
         kit = PlaceKit.Read(content);
     }
 

@@ -5,11 +5,11 @@ namespace CraftSurvive.Game.Modules.Content;
 
 /// <summary>
 /// Materials for textured prop parts (scripts/generate-flora.py, #9685), one for each role and texture,
-/// owned and disposed together. Textures are nearest-filtered so their low-resolution texels read as
-/// one chunky style. A "leaves" part is alpha-cut cards built with both windings, so its material is
+/// owned and disposed together. Textures are magnified nearest so their low-resolution texels read as
+/// one chunky style up close, and mipmapped at distance so they do not sparkle (the crunch rule). A "leaves" part is alpha-cut cards built with both windings, so its material is
 /// one-sided and both sides keep the crown-facing normals they were built with; other roles (bark)
 /// are opaque and smooth-shaded by their own normals. The owner gives each role's finish, and may
-/// choose the texture filter (plain nearest by default).
+/// choose another texture filter.
 /// </summary>
 internal sealed class PropMaterials : IDisposable
 {
@@ -26,7 +26,7 @@ internal sealed class PropMaterials : IDisposable
     private readonly Dictionary<(string Role, string Texture), Material> materials = [];
     private readonly Dictionary<string, RenderResource> textures = [];
 
-    internal PropMaterials(IEngineContext engine, Func<string, Finish> finishFor, TextureFilter filter = TextureFilter.Nearest)
+    internal PropMaterials(IEngineContext engine, Func<string, Finish> finishFor, TextureFilter filter = TextureFilter.NearestMipmapped)
     {
         this.filter = filter;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));

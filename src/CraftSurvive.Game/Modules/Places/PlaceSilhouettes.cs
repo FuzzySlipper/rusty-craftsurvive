@@ -38,7 +38,7 @@ internal sealed class PlaceSilhouettes : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         kit = PlaceKit.Read(content);
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0), TextureFilter.NearestMipmapped);
+        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
     }
 
     /// <summary>A kind's silhouette and its height above its ground, or null for a kind with no pieces.</summary>
