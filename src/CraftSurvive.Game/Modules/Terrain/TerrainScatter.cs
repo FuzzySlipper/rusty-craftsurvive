@@ -35,10 +35,12 @@ internal sealed class TerrainScatter : IDisposable
     internal const float DefaultGrassDensity = 3.5f;
 
     /// <summary>
-    /// The vegetation tiles (past the near 40 m) grow grass at most this thickly, whatever the near density (#10038). Every
-    /// resident copy of every vegetation layer, trees and plants included, shares one renderer buffer; past about 1.5
-    /// million it overflows the binding limit and the renderer's stream stops (Engine #10040). The near band is where
-    /// bare ground shows between clumps, and holds a few tens of thousands of copies; the tiles hold the rest.
+    /// The vegetation tiles (past the near 40 m) grow grass at most this thickly, whatever the near density (#10038). The
+    /// near band is where bare ground shows between clumps; past it a low view hides the ground, and matching the near
+    /// 3.5 there cost about 0.7 ms more of the world pass in open meadow. Every copy is also a row in one renderer buffer
+    /// whose ceiling depends on the device: 16.7 million rows on RADV, 2 million where a binding is 128 MiB (Engine
+    /// #10040 refuses patches past it rather than failing). At this density the far tiles hold about 1.24 million copies
+    /// at the longest Ground cover reach.
     /// </summary>
     private const float TileGrassDensityLimit = 2.5f;
     internal const string PropFolder = "models/scatter/";
