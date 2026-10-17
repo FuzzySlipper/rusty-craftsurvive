@@ -35,8 +35,8 @@
     "prompt_id": "413476a1-3a58-4fc2-811b-cccd0b9a6922",
     "wall_seconds": 200.6
    },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used), then the UVs scaled by 0.7 so one tile of the shared stone texture spans 2 m, its 64 texels making 32 texels/m (the crunch rule, #9831)",
-   "texture": "content/game/textures/scatter/stones.png"
+   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used). Repainted for the crunch rule (#9831, 2026-10-17): a tiled crack texture through many small charts read as a censor mosaic once its texels were large, so the stone has its own atlas at 128 texels/m (asset-pipeline legacy/experiments/stele-place-study/prepare_base.py), its views repainted by Qwen after the stones-s54 concept (calm grey, one or two bold cracks, a little lichen; asset-pipeline legacy/experiments/stele-place-study/paint_stones.py), the painted light and shade divided back out (flatten_shading.py), projected (tools/texture-edit/view_paint.py), and reduced to 32 texels/m by area means without a palette (pixel_reduce.py --factor 4 --colors 0 --line-contrast 9 --luminance 0.65): a palette stair-stepped the soft variation into camouflage on a stone only twenty texels across",
+   "texture": "content/game/textures/scatter/stones-1.png"
   },
   {
    "model": "content/game/models/scatter/stones-2.prop-mesh.json",
@@ -55,8 +55,8 @@
     "prompt_id": "b011e093-ab8f-4f8d-ba5f-42ea92725b4a",
     "wall_seconds": 205.3
    },
-   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used), then the UVs scaled by 0.7 so one tile of the shared stone texture spans 2 m, its 64 texels making 32 texels/m (the crunch rule, #9831)",
-   "texture": "content/game/textures/scatter/stones.png"
+   "derivation": "blender -b --python scripts/stylise-mesh.py -- <mesh> <model> --height 0.6 --faces 1000 --texture-ref textures/scatter/stones.png --tile-metres 1.4 (smart-UV charts, smooth normals; the generator's own patchwork atlas is not used). Repainted for the crunch rule (#9831, 2026-10-17): a tiled crack texture through many small charts read as a censor mosaic once its texels were large, so the stone has its own atlas at 128 texels/m (asset-pipeline legacy/experiments/stele-place-study/prepare_base.py), its views repainted by Qwen after the stones-s54 concept (calm grey, one or two bold cracks, a little lichen; asset-pipeline legacy/experiments/stele-place-study/paint_stones.py), the painted light and shade divided back out (flatten_shading.py), projected (tools/texture-edit/view_paint.py), and reduced to 32 texels/m by area means without a palette (pixel_reduce.py --factor 4 --colors 0 --line-contrast 9 --luminance 0.65): a palette stair-stepped the soft variation into camouflage on a stone only twenty texels across",
+   "texture": "content/game/textures/scatter/stones-2.png"
   },
   {
    "model": "content/game/models/scatter/bush-1.prop-mesh.json",
@@ -224,7 +224,7 @@
    "rejected": "the first wording (a boulder-stone surface) returned cobble pavements at every seed tried; the bedrock wording above returns continuous rock faces",
    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/props-9831/tiles/stone2-s12.png",
    "sourceSha256": "dcafd1027cf49ffc08e0ab5315f9f46baf40b9c1f0cca183cd6246eb8dbc8898",
-   "stylise": "stylise-texture <source> content/game/textures/scatter/stones.png --size 256 --paint 1 --pull stone,earth --pull-strength 0.4 --saturation 0.75 --brightness 1.5 --contrast 0.7 --tile --sharpen 0.2, then reduced as pixel art to 64 px (asset-pipeline legacy/experiments/stele-place-study/pixel_reduce.py <256 px> stones.png --factor 4 --erode 0 --colors 12 --luminance 0.676: crack texels kept crisp, 12 colours, the same mean brightness; #9831)",
+   "stylise": "stylise-texture <source> content/game/textures/scatter/stones.png --size 256 --paint 1 --pull stone,earth --pull-strength 0.4 --saturation 0.75 --brightness 1.5 --contrast 0.7 --tile --sharpen 0.2",
    "note": "Brightness is high on purpose: a texture is decoded as sRGB where the vertex colours it replaces were read as linear, so a texture of the same average grey draws about 2.4 times darker."
   },
   {
