@@ -1,70 +1,83 @@
 {
-  "purpose": "The overworld places' kit (#9992): every place is drawn from these pieces, laid out by PlaceLayouts. Each piece is a prop mesh in metres with its origin at the bottom of the mesh; sink is how far that bottom goes below the ground the piece stands on (a skirt that keeps it seated on slopes), and scales with the piece. The look is the owner's locked one (2026-10-17): a Qwen concept projected onto the shape and reduced as pixel art at 32 texels/m (asset-pipeline legacy/experiments/stele-place-study, live-evidence/places-kit-20261017). Generated shapes (Pixal3D from clay views): stele-plain-a/b, cairn, ruin-rib, cave-arch, entrance-arch; authored in Blender for exact geometry: stele-pierced (C's profile lofted), ruin-wall, entrance-platform, vantage-h3..h6 (walkable courses).",
+  "purpose": "The overworld places' kit (#9992): every place is drawn from these pieces, laid out by PlaceLayouts. Each piece is a prop mesh in metres with its origin at the bottom of the mesh; sink is how far that bottom goes below the ground the piece stands on (a skirt that keeps it seated on slopes), and scales with the piece. The look is the owner's locked one (2026-10-17): a Qwen concept projected onto the shape and reduced as pixel art at 32 texels/m (asset-pipeline legacy/experiments/stele-place-study, live-evidence/places-kit-20261017). Generated shapes (Pixal3D from clay views): stele-plain-a/b, cairn, ruin-rib, cave-arch, entrance-arch; authored in Blender for exact geometry: stele-pierced (C's profile lofted), ruin-wall, entrance-platform, vantage-h3..h6 (walkable courses). far is the piece's silhouette model for the horizon (a decimated copy on the same texture; small pieces reuse their model).",
   "pieces": [
     {
       "name": "stele-pierced",
       "model": "models/places/stele-pierced.prop-mesh.json",
-      "sink": 1.5
+      "sink": 1.5,
+      "far": "models/places/stele-pierced-far.prop-mesh.json"
     },
     {
       "name": "stele-plain-a",
       "model": "models/places/stele-plain-a.prop-mesh.json",
-      "sink": 0.4
+      "sink": 0.4,
+      "far": "models/places/stele-plain-a-far.prop-mesh.json"
     },
     {
       "name": "stele-plain-b",
       "model": "models/places/stele-plain-b.prop-mesh.json",
-      "sink": 0.4
+      "sink": 0.4,
+      "far": "models/places/stele-plain-b-far.prop-mesh.json"
     },
     {
       "name": "cairn",
       "model": "models/places/cairn.prop-mesh.json",
-      "sink": 0.3
+      "sink": 0.3,
+      "far": "models/places/cairn-far.prop-mesh.json"
     },
     {
       "name": "ruin-wall",
       "model": "models/places/ruin-wall.prop-mesh.json",
-      "sink": 1.0
+      "sink": 1.0,
+      "far": "models/places/ruin-wall-far.prop-mesh.json"
     },
     {
       "name": "ruin-rib",
       "model": "models/places/ruin-rib.prop-mesh.json",
-      "sink": 0.3
+      "sink": 0.3,
+      "far": "models/places/ruin-rib-far.prop-mesh.json"
     },
     {
       "name": "cave-arch",
       "model": "models/places/cave-arch.prop-mesh.json",
-      "sink": 6.65
+      "sink": 6.65,
+      "far": "models/places/cave-arch-far.prop-mesh.json"
     },
     {
       "name": "entrance-arch",
       "model": "models/places/entrance-arch.prop-mesh.json",
-      "sink": 0.3
+      "sink": 0.3,
+      "far": "models/places/entrance-arch-far.prop-mesh.json"
     },
     {
       "name": "entrance-platform",
       "model": "models/places/entrance-platform.prop-mesh.json",
-      "sink": 2.5
+      "sink": 2.5,
+      "far": "models/places/entrance-platform.prop-mesh.json"
     },
     {
       "name": "vantage-h3",
       "model": "models/places/vantage-h3.prop-mesh.json",
-      "sink": 1.5
+      "sink": 1.5,
+      "far": "models/places/vantage-h3.prop-mesh.json"
     },
     {
       "name": "vantage-h4",
       "model": "models/places/vantage-h4.prop-mesh.json",
-      "sink": 1.5
+      "sink": 1.5,
+      "far": "models/places/vantage-h4.prop-mesh.json"
     },
     {
       "name": "vantage-h5",
       "model": "models/places/vantage-h5.prop-mesh.json",
-      "sink": 1.5
+      "sink": 1.5,
+      "far": "models/places/vantage-h5.prop-mesh.json"
     },
     {
       "name": "vantage-h6",
       "model": "models/places/vantage-h6.prop-mesh.json",
-      "sink": 1.5
+      "sink": 1.5,
+      "far": "models/places/vantage-h6.prop-mesh.json"
     }
   ]
 }

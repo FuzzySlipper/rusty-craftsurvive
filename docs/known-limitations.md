@@ -398,9 +398,10 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     rain (the deciles ranking used to give), so a region's change plays out in its own rain shadow
     without re-ranking the rest. A continent's reference peak stays 1,800 m (what a seeded continent is
     normalised to and what weather calls upland, over 1,350 m); only its ceiling rose for the design.
-  - **Known places on the horizon (H3 #9781, `HorizonLandmarks`).** Home, ruins, vantage points and
-    dungeon entrances stand where the map has them as stylised block silhouettes of their kind (the
-    sled and walking landmarks do not).
+  - **Known places on the horizon (H3 #9781, `HorizonLandmarks`).** Every known place stands where the
+    map has it as a silhouette of its kind: home as a block house, and each site kind (standing stones,
+    ruin, cave mouth, dungeon entrance, vantage point) as its kind's layout of the place kit's far pieces
+    (`PlaceSilhouettes`, #9992), one representative site per kind. The sled does not.
     - **Where.** Within the near ground a place is its own structure and nothing is drawn. Between
       the near ground and the far field's reach its silhouette stands in the world on the far
       field's ground; past the reach, in the backdrop on the map's ground. Both edges are measured
@@ -411,8 +412,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
       the default view distance): the old fixed 1 km clip cut the far field's outer ground, leaving
       the sunk backdrop showing there.
     - **Size.** A real site is about ten metres across, so a silhouette is never drawn under 1°
-      tall: life size within about half a kilometre, six times at 3 km. It does not match the
-      structure's own shape, which takes over at the near ground's edge.
+      tall: life size within about half a kilometre, six times at 3 km. It is the kind's shape,
+      not the site's own variant, which takes over at the near ground's edge.
     - **By day** a silhouette is fogged like the land under it, so it fades with the land: clear at
       a kilometre, pale at 3 km (captured at the old 0.0005 fog). By the fog's density
       (0.0002 per metre since #9800) a tenth of it is left at about 11.5 km in clear air, less in
@@ -609,8 +610,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   arches, dungeon entrances (platform and crossing arches) and vantage points are drawn from the place
   kit (`content/game/models/places/kit.json`), laid out per site by `PlaceLayouts` (the layouts the old
   `PoiShapes` distance fields had) and drawn by `PlaceMeshes` within the near ground; beyond it the
-  horizon draws its box silhouettes, which do not match the meshes (a vantage point's silhouette is
-  still a timber platform). The terrain keeps only a cave mouth's recess, a descent's shaft and the
+  horizon draws each kind's silhouette (`PlaceSilhouettes`): the kind's layout of the kit's far pieces
+  (about 250 triangles each) on one representative site, so every ring, ruin or look-out of a kind looks
+  alike from afar, enlarged to stay at least a degree tall. Home keeps its box house. The terrain keeps only a cave mouth's recess, a descent's shaft and the
   vantage lamp. Consequences:
   - **Not editable, by design (owner, 2026-10-17).** Places are impervious: a blast breaks only the
     terrain round them and the carves.

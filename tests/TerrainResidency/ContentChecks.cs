@@ -74,14 +74,20 @@ internal static class ContentChecks
     }
 
     /// <summary>
-    /// Every piece the place layouts can name is in the place kit (#9992), and each kit piece's model and
-    /// the texture it names are installed, so no site can ask for a piece that is not there.
+    /// Every piece the place layouts can name is in the place kit (#9992), and each kit piece's model, its far
+    /// silhouette model and the textures they name are installed, so no site can ask for a piece that is not there.
     /// </summary>
     private static void PlaceKit()
     {
         string root = RepositoryRoot();
         JsonNode kit = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "content/game/models/places/kit.json")))!;
         Dictionary<string, string> models = kit["pieces"]!.AsArray().ToDictionary(p => p!["name"]!.GetValue<string>(), p => p!["model"]!.GetValue<string>());
+        // A piece's far silhouette model (the horizon's) is installed as well.
+        foreach (JsonNode? piece in kit["pieces"]!.AsArray())
+        {
+            if (piece!["far"] is JsonNode far) models[piece["name"]!.GetValue<string>() + " (far)"] = far.GetValue<string>();
+        }
+
         string[] named =
         [
             PlaceLayouts.PiercedStele, PlaceLayouts.TallStele, PlaceLayouts.BrokenStele, PlaceLayouts.Cairn, PlaceLayouts.RuinWall,

@@ -193,7 +193,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             {
                 Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
             },
-            Landmarks = new HorizonLandmarks(context.Engine, KnownPlacesNow, () => player.WorldPosition,
+            Landmarks = new HorizonLandmarks(context.Engine, context.Content, KnownPlacesNow, () => player.WorldPosition,
                 (x, z) => terrain.Recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + GroundTopFace,
                 frame.ToLocal, () => terrain.NearEdgeMetres)
             {

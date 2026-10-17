@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Numerics;
-using System.Text.Json;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
@@ -17,7 +16,6 @@ namespace CraftSurvive.Game.Modules.Places;
 /// </summary>
 internal sealed class PlaceMeshes : IDisposable
 {
-    private const string KitManifest = "models/places/kit.json";
     /// <summary>Weathered stone: matt, and nothing about a place moves in the wind.</summary>
     private const float Roughness = 0.92f;
     /// <summary>The pieces are laid out again once the player has walked this far: sites are hundreds of metres apart.</summary>
@@ -34,7 +32,7 @@ internal sealed class PlaceMeshes : IDisposable
     private readonly PoiPlacement placement;
     private readonly Func<double, double, double> groundTop;
     private readonly PropMaterials materials;
-    private readonly Dictionary<string, KitPiece> kit = [];
+    private readonly IReadOnlyDictionary<string, PlaceKitPiece> kit;
     private readonly Dictionary<string, Loaded> loaded = [];
     private readonly List<Standing> standing = [];
     private readonly List<PoiSite> sites = [];
@@ -51,16 +49,8 @@ internal sealed class PlaceMeshes : IDisposable
         this.placement = placement ?? throw new ArgumentNullException(nameof(placement));
         this.groundTop = groundTop ?? throw new ArgumentNullException(nameof(groundTop));
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0), TextureFilter.NearestMipmapped);
-        using JsonDocument manifest = JsonDocument.Parse(content.ReadText(KitManifest));
-        foreach (JsonElement piece in manifest.RootElement.GetProperty("pieces").EnumerateArray())
-        {
-            string name = piece.GetProperty("name").GetString()!;
-            kit[name] = new(name, piece.GetProperty("model").GetString()!, piece.GetProperty("sink").GetSingle());
-        }
+        kit = PlaceKit.Read(content);
     }
-
-    /// <summary>A kit piece: its prop mesh and how far its base sinks below the ground it stands on.</summary>
-    private sealed record KitPiece(string Name, string Model, float Sink);
 
     /// <summary>A piece's drawing and its collision shape (the mesh's own triangles, in its metres).</summary>
     private sealed record Loaded(MeshResource Mesh, Appearance Appearance, Vector3[] Positions, Triangle[] Triangles, ulong Asset);
@@ -84,7 +74,7 @@ internal sealed class PlaceMeshes : IDisposable
             double siteGround = groundTop(site.X + 0.5, site.Z + 0.5);
             foreach (PlacedPart part in PlaceLayouts.For(site))
             {
-                if (!kit.TryGetValue(part.Piece, out KitPiece? piece)) continue;
+                if (!kit.TryGetValue(part.Piece, out PlaceKitPiece? piece)) continue;
                 double ground = part.OnSiteGround ? siteGround : groundTop(part.X, part.Z);
                 // The sink scales with the piece: a stele scaled to its height carries its skirt along.
                 standing.Add(new(site.Id, Load(piece), new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
@@ -94,7 +84,7 @@ internal sealed class PlaceMeshes : IDisposable
         layoutRevision++;
     }
 
-    private Loaded Load(KitPiece piece)
+    private Loaded Load(PlaceKitPiece piece)
     {
         if (loaded.TryGetValue(piece.Name, out Loaded? found)) return found;
         MeshResourceCreateRequest request = PropMesh.Read(content, piece.Model,

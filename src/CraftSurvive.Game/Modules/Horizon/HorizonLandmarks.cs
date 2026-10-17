@@ -35,35 +35,14 @@ internal sealed class HorizonLandmarks : IDisposable
     /// <summary>A kind's silhouette: its blocks and its true height (what <see cref="HorizonLandmarkRules.MinimumDegrees"/> is measured against).</summary>
     private sealed record Shape(Block[] Blocks, float Height);
 
-    // Darker than the map's stone and timber: a silhouette has to stand out of the pale haze it is seen through.
+    // Home's silhouette: darker than the map's timber, since a silhouette has to stand out of the pale haze it is seen through.
     // Authored as sRGB hex and decoded here, once: the blocks' vertex colours are linear (#9844).
-    private static readonly Color Stone = Color.FromSrgbHex(0x959390);
     private static readonly Color DarkStone = Color.FromSrgbHex(0x7c7979);
     private static readonly Color Timber = Color.FromSrgbHex(0x8e7961);
     private static readonly Color Thatch = Color.FromSrgbHex(0x7c6550);
     /// <summary>Every silhouette reaches this far below its ground, so a coarse tier's ground never shows under it.</summary>
     private const float Foundation = 3f;
 
-    private static readonly Shape Ruin = new(RuinBlocks(), 8);
-    private static readonly Shape Vantage = new(
-    [
-        new(new(-2.6f, 4.5f, -2.6f), new(0.7f, 4.5f + Foundation, 0.7f), Timber),
-        new(new(2.6f, 4.5f, -2.6f), new(0.7f, 4.5f + Foundation, 0.7f), Timber),
-        new(new(-2.6f, 4.5f, 2.6f), new(0.7f, 4.5f + Foundation, 0.7f), Timber),
-        new(new(2.6f, 4.5f, 2.6f), new(0.7f, 4.5f + Foundation, 0.7f), Timber),
-        new(new(0, 9.5f, 0), new(3.8f, 0.6f, 3.8f), Timber),
-        new(new(0, 11.5f, 0), new(3.4f, 1.6f, 3.4f), Thatch, Roof: true),
-    ], 13);
-    private static readonly Shape Entrance = new(
-    [
-        new(new(0, -1, 0), new(3.5f, 1.25f + Foundation, 3.5f), DarkStone),
-        new(new(-4, 3, 0), new(0.8f, 3 + Foundation, 0.8f), Stone),
-        new(new(4, 3, 0), new(0.8f, 3 + Foundation, 0.8f), Stone),
-        new(new(0, 3, -4), new(0.8f, 3 + Foundation, 0.8f), Stone),
-        new(new(0, 3, 4), new(0.8f, 3 + Foundation, 0.8f), Stone),
-        new(new(0, 6.6f, 0), new(4.8f, 0.7f, 0.8f), Stone),
-        new(new(0, 6.6f, 0), new(0.8f, 0.7f, 4.8f), Stone),
-    ], 7.3f);
     private static readonly Shape Home = new(
     [
         new(new(0, 2, 0), new(3.6f, 2 + Foundation, 3.1f), Timber),
@@ -99,6 +78,7 @@ internal sealed class HorizonLandmarks : IDisposable
     private readonly Func<Vector3, Vector3> toLocal;
     private readonly Func<double> nearEdge;
     private readonly Dictionary<Shape, (MeshResource Mesh, Appearance Look)> built = [];
+    private readonly PlaceSilhouettes silhouettes;
     private Material? material;
     private RenderResource? glow;
     private IReadOnlyList<KnownPlace> listed = [];
@@ -125,10 +105,11 @@ internal sealed class HorizonLandmarks : IDisposable
     /// <param name="worldGround">The terrain's ground height at a world point (x, z), which the far field draws.</param>
     /// <param name="toLocal">A world point in the renderer's frame.</param>
     /// <param name="nearEdge">The near ground's edge from the player in metres: places within it are their own structures.</param>
-    internal HorizonLandmarks(IEngineContext engine, Func<IReadOnlyList<KnownPlace>> places, Func<Vector3> playerWorld,
+    internal HorizonLandmarks(IEngineContext engine, ProductContent content, Func<IReadOnlyList<KnownPlace>> places, Func<Vector3> playerWorld,
         Func<double, double, double> worldGround, Func<Vector3, Vector3> toLocal, Func<double> nearEdge)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        silhouettes = new PlaceSilhouettes(engine, content ?? throw new ArgumentNullException(nameof(content)));
         this.places = places ?? throw new ArgumentNullException(nameof(places));
         this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
         this.worldGround = worldGround ?? throw new ArgumentNullException(nameof(worldGround));
@@ -174,8 +155,7 @@ internal sealed class HorizonLandmarks : IDisposable
     /// <summary>Where a place's silhouette stands at its distance, in the backdrop or the world.</summary>
     private Placement Place(KnownPlace place, double distance, bool backdrop, double scale, Func<double, double, double> backdropGround)
     {
-        Shape shape = Of(place)!;
-        float grow = (float)HorizonLandmarkRules.Grow(distance, shape.Height);
+        float grow = (float)HorizonLandmarkRules.Grow(distance, Of(place)!.Value.Height);
         float lightGrow = (float)Math.Max(grow, HorizonLandmarkRules.Grow(distance, LightMetres, LightMinimumDegrees));
         double ground = backdrop ? backdropGround(place.Position.X, place.Position.Y) : worldGround(place.Position.X, place.Position.Y);
         return backdrop
@@ -191,19 +171,18 @@ internal sealed class HorizonLandmarks : IDisposable
         {
             if (index >= ProductIds.HorizonLandmarkLimit) yield break;
             yield return new AppearanceFact(ProductIds.HorizonLandmarkBase + (ulong)index++, false, 0,
-                new Transform(at.Position, Quaternion.Identity, new Vector3(at.Scale)), Silhouette(Of(place)!), true,
+                new Transform(at.Position, Quaternion.Identity, new Vector3(at.Scale)), Of(place)!.Value.Look, true,
                 at.Backdrop ? RenderLayer.Backdrop : RenderLayer.Scene, at.Backdrop ? ShadowCasting.None : ShadowCasting.Cast);
         }
     }
 
-    /// <summary>Home's silhouette and the map sites' by what stands there; the sled is not a landmark.</summary>
-    private static Shape? Of(KnownPlace place) => place.Kind == KnownPlaceKind.Home ? Home : place.Site switch
-    {
-        PoiKind.Ruin => Ruin,
-        PoiKind.VantagePoint => Vantage,
-        PoiKind.DungeonEntrance => Entrance,
-        _ => null,
-    };
+    /// <summary>
+    /// Home's silhouette, and a map site's: the place's own kit pieces in its kind's layout (PlaceSilhouettes,
+    /// #9992), so the horizon shows what stands there. The sled is not a landmark.
+    /// </summary>
+    private (Appearance Look, float Height)? Of(KnownPlace place) =>
+        place.Kind == KnownPlaceKind.Home ? (Silhouette(Home), Home.Height)
+        : place.Site == PoiKind.None ? null : silhouettes.For(place.Site);
 
     /// <summary>
     /// The lights of home while the daylight is low: one emitter per window, placed and sized with its
@@ -312,25 +291,6 @@ internal sealed class HorizonLandmarks : IDisposable
         };
     }
 
-    /// <summary>A ruin: a broken ring of wall, whole in places and a stub or gone in others.</summary>
-    private static Block[] RuinBlocks()
-    {
-        const int Segments = 7;
-        const float Radius = 5f;
-        float[] heights = [8f, 3f, 6f, 0f, 5f, 2f, 7f];
-        List<Block> blocks = [];
-        for (int segment = 0; segment < Segments; segment++)
-        {
-            if (heights[segment] <= 0) continue;
-            float angle = segment * MathF.Tau / Segments;
-            // Each block is set square to the compass, so a ring of them reads as a ring from any bearing.
-            Vector3 centre = new(Radius * MathF.Cos(angle), heights[segment] / 2, Radius * MathF.Sin(angle));
-            blocks.Add(new(centre, new(1.6f, (heights[segment] / 2) + Foundation, 1.6f), segment % 2 == 0 ? Stone : DarkStone));
-        }
-
-        return [.. blocks];
-    }
-
     /// <summary>A shape's mesh, built once: its blocks as boxes, a roof block as a pyramid, coloured by vertex.</summary>
     private Appearance Silhouette(Shape shape)
     {
@@ -408,6 +368,7 @@ internal sealed class HorizonLandmarks : IDisposable
         }
 
         built.Clear();
+        silhouettes.Dispose();
         material?.Dispose();
         material = null;
     }
