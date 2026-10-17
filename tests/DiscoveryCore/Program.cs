@@ -178,7 +178,11 @@ foreach (PoiSite site in forward.Values.Where(site => site is not null).Select(s
         }
     }
 
-    Check.That(built > 0, $"{site.Id} is a {site.KindName} that builds nothing");
+    // The places are kit meshes (#9992): only the vantage lamp is still built into the voxels, and
+    // every kind must lay out at least one kit piece.
+    Check.That(site.Kind == PoiKind.VantagePoint ? built == 1 : built == 0,
+        $"{site.Id} is a {site.KindName} and must build {(site.Kind == PoiKind.VantagePoint ? "only its lamp" : "nothing")} into the voxels, built {built}");
+    Check.That(PlaceLayouts.For(site).Any(), $"{site.Id} is a {site.KindName} that lays out no kit pieces");
     carved += removed;
 
     // A way in is a hole: the kinds that are one must actually cut.

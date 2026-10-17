@@ -71,9 +71,11 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// on 4 m cells, sparse open-country trees, in dry and cold country too (#10032); version 37 fingerprints only
     /// the flora catalog's trees, since its plants and deadwood are presentation (#10034); version 38 gives open
     /// ground a lush, dry or (in deep desert only) sand topsoil by climate, adds the dry grass block, and makes the
-    /// arrival wet lowland (#10041).
+    /// arrival wet lowland (#10041); version 39 takes the places out of the voxels - standing stones, ruins,
+    /// arches, entrance platforms and vantage courses are kit meshes now, and the voxels keep only the cave
+    /// recess, the shaft and the vantage lamp (#9992).
     /// </summary>
-    internal const uint CurrentVersion = 38;
+    internal const uint CurrentVersion = 39;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

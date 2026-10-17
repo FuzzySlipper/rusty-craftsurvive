@@ -42,6 +42,13 @@ six ingredients from it, and not its Norse setting, creatures or building kit.
     32 they read as painted colour.
 
   The comparison is the Den task "Texture crunch calibration" (#10010).
+- **Authored detail, not wrapped texture (owner, 2026-10-17):** a prop or place is a calm surface,
+  nearly flat broad colour, carrying a couple of strong authored details (a few bold cracks, one
+  ceramic accent) rather than a busy texture tiled over the whole mesh. The approved method paints a
+  concept of the object and projects it back onto the clean shape. It then reduces the result as
+  pixel art at 32 texels per metre: dark line work stays one crisp texel wide, and the palette is a
+  few stone colours plus the accent's own. The comparison is in the Den task for overworld places
+  as meshes (#9992); the recipe is in asset-pipeline `legacy/experiments/stele-place-study/`.
 
 ### 2. Air and light carry the mood
 

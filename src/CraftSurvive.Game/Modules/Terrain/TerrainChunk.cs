@@ -88,7 +88,6 @@ internal sealed class TerrainChunkGenerator
             {
                 TerrainColumn column = cached is null ? recipe.ColumnAt(origin.X + x, origin.Z + z) : default;
                 double height = recipe.ContinuousHeightAt(origin.X + x, origin.Z + z);
-                bool shaped = recipe.ShapedSiteNear(origin.X + x, origin.Z + z);
                 for (int y = 0; y < TerrainConstants.ChunkEdgeLength; y++)
                 {
                     VoxelAddress voxel = new(origin.X + x, origin.Y + y, origin.Z + z);
@@ -98,8 +97,7 @@ internal sealed class TerrainChunkGenerator
                         ? overridden
                         : generated;
                     materials[index] = material;
-                    densities[index] = TerrainDensity.At(voxel.Y, height, generated, material,
-                        shaped ? recipe.StructureDistanceAt(voxel.X, voxel.Y, voxel.Z) : null);
+                    densities[index] = TerrainDensity.At(voxel.Y, height, generated, material);
                 }
             }
         }
@@ -126,8 +124,7 @@ internal sealed class TerrainChunkGenerator
             ushort generated = recipe.MaterialAt(voxel, recipe.ColumnAt(voxel.X, voxel.Z));
             ushort material = overlay.TryGetMaterial(voxel, out ushort overridden) ? overridden : generated;
             materials[index] = material;
-            densities[index] = TerrainDensity.At(voxel.Y, recipe.ContinuousHeightAt(voxel.X, voxel.Z), generated, material,
-                recipe.ShapedSiteNear(voxel.X, voxel.Z) ? recipe.StructureDistanceAt(voxel.X, voxel.Y, voxel.Z) : null);
+            densities[index] = TerrainDensity.At(voxel.Y, recipe.ContinuousHeightAt(voxel.X, voxel.Z), generated, material);
         }
 
         return new TerrainChunk(previous.Address, materials, densities);

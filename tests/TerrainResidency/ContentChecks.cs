@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using CraftSurvive.Game.Modules.Content;
 using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
 using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
 
@@ -19,6 +20,8 @@ internal static class ContentChecks
 
     internal static void Run()
     {
+        PlaceKit();
+
         // The staged atlas layout must satisfy the product's registry: every material block binds
         // tiles of its own name and face, no two tiles overlap, and every tile names a real block.
         string json = File.ReadAllText(Path.Combine(RepositoryRoot(), AtlasFile));
@@ -68,6 +71,40 @@ internal static class ContentChecks
         JsonNode root = JsonNode.Parse(json)!;
         change(root);
         return root.ToJsonString();
+    }
+
+    /// <summary>
+    /// Every piece the place layouts can name is in the place kit (#9992), and each kit piece's model and
+    /// the texture it names are installed, so no site can ask for a piece that is not there.
+    /// </summary>
+    private static void PlaceKit()
+    {
+        string root = RepositoryRoot();
+        JsonNode kit = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "content/game/models/places/kit.json")))!;
+        Dictionary<string, string> models = kit["pieces"]!.AsArray().ToDictionary(p => p!["name"]!.GetValue<string>(), p => p!["model"]!.GetValue<string>());
+        string[] named =
+        [
+            PlaceLayouts.PiercedStele, PlaceLayouts.TallStele, PlaceLayouts.BrokenStele, PlaceLayouts.Cairn, PlaceLayouts.RuinWall,
+            PlaceLayouts.RuinRib, PlaceLayouts.CaveArch, PlaceLayouts.EntranceArch, PlaceLayouts.EntrancePlatform,
+            .. Enumerable.Range((int)PoiConstants.VantageMinimumSteps, (int)PoiConstants.VantageStepRange).Select(h => $"{PlaceLayouts.VantagePrefix}{h}"),
+        ];
+        foreach (string piece in named)
+        {
+            Check.That(models.ContainsKey(piece), $"the place kit must hold the {piece} piece the layouts name");
+        }
+
+        foreach ((string piece, string model) in models)
+        {
+            string path = Path.Combine(root, "content/game", model);
+            Check.That(File.Exists(path), $"the place kit's {piece} model must be installed at {model}");
+            if (!File.Exists(path)) continue;
+            JsonNode mesh = JsonNode.Parse(File.ReadAllText(path))!;
+            foreach (KeyValuePair<string, JsonNode?> texture in mesh["textures"]!.AsObject())
+            {
+                Check.That(File.Exists(Path.Combine(root, "content/game", texture.Value!.GetValue<string>())),
+                    $"the place kit's {piece} texture {texture.Value} must be installed");
+            }
+        }
     }
 
     internal static string RepositoryRoot()

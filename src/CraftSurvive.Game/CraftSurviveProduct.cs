@@ -555,8 +555,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
     }
 
-    /// <summary>The overworld's water, studies and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. pieces.Facts()];
+    /// <summary>The overworld's water, studies, places and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
+    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts()];
 
     /// <summary>The style test's travellers and the place study's variants, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. placeStudy.Facts];

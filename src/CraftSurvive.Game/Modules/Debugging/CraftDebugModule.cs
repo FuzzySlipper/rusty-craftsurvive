@@ -127,6 +127,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
             $"present={scene.Present};revision={scene.SourceRevision};chunks={scene.ResidentChunkCount};nearRadius={terrain.NearRadii.Requested}/{terrain.NearRadii.Retained};solidVoxels={scene.SolidVoxelCount};multiLoopCells={scene.MultiLoopCells};{terrain.LevelOfDetailReadout()};{terrain.FarFieldReadout()};{terrain.ScatterReadout()};{terrain.TreesReadout()}");
     }
 
+    [DebugCommand("craft.places.readout", Description = "Reads the overworld places drawn as kit meshes (#9992): sites and pieces in the near ground, kit pieces loaded, and pieces in the walking collision.")]
+    public string ReadPlaces() => terrain.PlacesReadout();
+
     [DebugCommand("craft.terrain.vertexocclusion", Description = "Assisted (#9506 exploration): darkens the overworld's surface vertices by the solid voxels around them at the given strength (0 off, 1 full); every resident chunk remeshes.")]
     public string TerrainVertexOcclusion(float strength)
     {

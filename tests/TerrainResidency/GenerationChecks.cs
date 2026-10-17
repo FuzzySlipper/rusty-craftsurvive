@@ -11,8 +11,11 @@ namespace CraftSurvive.Game.Tests;
 /// <summary>What generation produces: order independence, the surface passes, the content predicate, and every kind of place.</summary>
 internal static class GenerationChecks
 {
-    /// <summary>The carved tree is looked for among landmarks this far from the origin, and trees this far from each.</summary>
-    private const long CarvedTreeSearchMetres = 6000, CarvedTreeReach = 12;
+    /// <summary>The place clearance is checked at places this far from the origin.</summary>
+    private const long CarvedTreeSearchMetres = 6000;
+
+    /// <summary>A place's reach plus the recipe's tree clearance about it (#9992).</summary>
+    private const long PlaceClearReach = PoiConstants.MaximumStructureReach + 4;
     private static readonly ulong[] CarvedTreeSeeds = [TerrainConstants.DefaultSeed, 12345, 1, 2, 3, 4, 5, 6];
 
     internal static void Run()
@@ -156,36 +159,31 @@ internal static class GenerationChecks
                 Console.WriteLine($"Mesh trees stand on their cores: {trees.Count} in 512 m around the origin ({string.Join(", ", kinds.Select(pair => $"{pair.Key}={pair.Value}"))})");
             }
 
-            // Distant trees (#9677 review): TreeInCell keeps a tree only if it stands as generated,
-            // structures included. A landmark that carves the core and footing of a tree planted beside it
-            // (with no edit at all) must keep that tree from the far band (inside or outside the near band,
-            // which share this decision). The case is searched for over a few worlds, so a generator version
-            // that moves its draws still tests it. Everywhere else TreeInCell must agree with the near
-            // band's own reading of the final materials.
+            // Places are kit meshes (#9992), so nothing in the voxels stops a tree growing through one: the
+            // recipe keeps every tree off a place's footprint and a clearance about it, over a few worlds.
+            // Distant trees (#9677 review): TreeInCell keeps a tree only if it stands as generated, structures
+            // (the remaining carves) included, and must agree with the near band's reading of the final materials.
             {
                 long cell = GenerationConstants.TreeCellSize;
                 TerrainRecipe farRecipe = null!;
-                TerrainTree? carved = null;
+                int places = 0;
                 foreach (ulong seed in CarvedTreeSeeds)
                 {
                     TerrainConfiguration farConfig = TerrainConfiguration.Default with { Seed = seed };
                     farRecipe = farConfig.CreateRecipe(new TestDraws(farConfig.Seed));
                     List<PoiSite> landmarks = [];
                     farRecipe.Placement.CollectSitesNear(0, 0, CarvedTreeSearchMetres, landmarks);
-                    foreach (PoiSite site in landmarks.Where(site => site.Kind is PoiKind.CaveMouth or PoiKind.DungeonEntrance or PoiKind.Ruin or PoiKind.StandingStones))
+                    foreach (PoiSite site in landmarks)
                     {
+                        places++;
                         List<TerrainTree> beside = [];
-                        farRecipe.TreesIn(site.X - CarvedTreeReach, site.Z - CarvedTreeReach, site.X + CarvedTreeReach, site.Z + CarvedTreeReach, beside);
-                        carved = beside.Cast<TerrainTree?>().FirstOrDefault(tree => !TreeFelling.Stands(tree!.Value, farRecipe.MaterialAt));
-                        if (carved is not null) break;
+                        farRecipe.TreesIn(site.X - PlaceClearReach, site.Z - PlaceClearReach, site.X + PlaceClearReach, site.Z + PlaceClearReach, beside);
+                        Check.That(beside.Count == 0,
+                            $"no tree grows within a place's footprint and clearance: {site.Id} ({site.KindName}) has {beside.Count}, seed {seed}");
                     }
-
-                    if (carved is not null) break;
                 }
 
-                Check.That(carved is TerrainTree planted
-                    && farRecipe.TreeInCell(GridMath.FloorDivide(planted.X, cell), GridMath.FloorDivide(planted.Z, cell)) is null,
-                    $"a tree whose core a landmark carves away is planted but not handed to the distant trees ({(carved is TerrainTree t ? $"at {t.X},{t.Z}, seed {farRecipe.Configuration.Seed}" : "no such tree found")})");
+                Check.That(places > 100, $"the place clearance must be checked over many places, saw {places}");
 
                 List<TerrainTree> square = [];
                 farRecipe.TreesIn(-256, -256, 255, 255, square);

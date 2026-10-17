@@ -59,6 +59,8 @@ internal static class GeneratorChecks
                 [(37, 12345UL)] = 0xc085218701c53518UL,
                 [(38, TerrainConstants.DefaultSeed)] = 0x2f4e857854c2393fUL,
                 [(38, 12345UL)] = 0x320e11444a641a52UL,
+                [(39, TerrainConstants.DefaultSeed)] = 0x5a31778e7314210cUL,
+                [(39, 12345UL)] = 0xdf5601291dfef668UL,
                 [(19, TerrainConstants.DefaultSeed)] = 0xe808453fe4c8386cUL,
                 [(19, 12345UL)] = 0xf439dc53c78a57d1UL,
                 [(18, TerrainConstants.DefaultSeed)] = 0x8780952811978cd6UL,
@@ -102,12 +104,12 @@ internal static class GeneratorChecks
                 "a different recipe version must move the complete terrain fingerprint");
 
             // A structure's geometry is part of the identity even when this seed's probe holds no site of
-            // its kind: each kind, and the crossing, changed on its own moves the catalogue, and a
-            // changed catalogue moves the fingerprint the chunk cache keys on.
+            // its kind: each kind that still writes voxels (the holes and the vantage lamp; the places
+            // themselves are meshes, #9992), and the crossing, changed on its own moves the catalogue,
+            // and a changed catalogue moves the fingerprint the chunk cache keys on.
             ulong catalogue = TerrainGenerationFingerprint.StructureCatalogue(PoiStructures.MaterialAt, CrossingStructure.MaterialAt);
-            for (long kind = PoiConstants.FirstKind; kind <= PoiConstants.LastKind; kind++)
+            foreach (PoiKind changed in new[] { PoiKind.CaveMouth, PoiKind.DungeonEntrance, PoiKind.VantagePoint })
             {
-                PoiKind changed = (PoiKind)kind;
                 ulong mutated = TerrainGenerationFingerprint.StructureCatalogue(
                     (site, x, y, z) => PoiStructures.MaterialAt(site, site.Kind == changed ? x + 1 : x, y, z),
                     CrossingStructure.MaterialAt);

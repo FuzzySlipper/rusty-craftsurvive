@@ -71,6 +71,8 @@ internal sealed class TerrainWorld : IDisposable
         streamer = new TerrainResidencyStreamer(engine, policy, generator, chunkCache, overlayStore.Overlay, configuration.Seed);
         presentation = new TerrainPresentation(engine, content);
         trees = new TerrainTrees(engine, content, frame);
+        places = new Places.PlaceMeshes(engine, content, frame, recipe.Placement,
+            (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace);
         Water = new Water.WaterModel(recipe);
         waterSurfaces = new Water.WaterSurfaces(engine, frame, Water);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,
@@ -87,6 +89,18 @@ internal sealed class TerrainWorld : IDisposable
     internal Water.WaterModel Water { get; }
 
     private readonly Water.WaterSurfaces waterSurfaces;
+
+    /// <summary>The overworld places as kit meshes (#9992), stood on the ground's top face.</summary>
+    private readonly Places.PlaceMeshes places;
+    private const double PlaceGroundTopFace = 1.0;
+
+    /// <summary>The places' pieces standing about the player, for the appearance snapshot.</summary>
+    internal IEnumerable<AppearanceFact> PlaceFacts => places.Facts;
+
+    internal string PlacesReadout() => places.Readout() + string.Create(CultureInfo.InvariantCulture, $" colliders={PlaceColliders}");
+
+    /// <summary>How many place pieces the walking collision holds, for the readout.</summary>
+    internal int PlaceColliders { get; private set; }
 
     /// <summary>The near water surfaces' draw facts (#9877).</summary>
     internal AppearanceFact[] WaterFacts => waterSurfaces.Facts;
@@ -268,6 +282,7 @@ internal sealed class TerrainWorld : IDisposable
         farField?.Dispose();
         farField = null;
         trees.Dispose();
+        places.Dispose();
         waterSurfaces.Dispose();
         study?.Dispose();
         waterStudy?.Dispose();
@@ -291,6 +306,7 @@ internal sealed class TerrainWorld : IDisposable
         }
 
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
+        places.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
         lastCentre = centerVoxel;
         // Ground cover and trees re-ask the tiles under the columns edited since the last follow.
         var changedColumns = overlayStore.Overlay.TakeChangedColumns();
@@ -312,6 +328,8 @@ internal sealed class TerrainWorld : IDisposable
         // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
         if (waterSurfaces.IceRevision != composedIce || (composedIceAny && composedOrigin != frame.Origin)) ComposeStaticCollision();
         // So are fallen logs and stumps (#10034): compose again when deadwood near the player changed, or they moved on.
+        // So are the places' pieces (#9992): compose again when they were laid out again or the player walked on.
+        else if (places.CollisionStale(new Vector3(centerVoxel.X + 0.5f, 0, centerVoxel.Z + 0.5f))) ComposeStaticCollision();
         else if (plantTiles is PlantTiles flora && (flora.DeadwoodRevision != composedDeadwood
             || Math.Max(Math.Abs(centerVoxel.X - composedDeadwoodAt.X), Math.Abs(centerVoxel.Z - composedDeadwoodAt.Z)) >= DeadwoodStepMetres
             || (DeadwoodColliders > 0 && composedOrigin != frame.Origin)))
@@ -426,6 +444,7 @@ internal sealed class TerrainWorld : IDisposable
             }
         }
 
+        PlaceColliders = places.AddCollision(new Vector3(lastCentre.X + 0.5f, 0, lastCentre.Z + 0.5f), assets, vertices, triangles, instances);
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(Session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray()));
         DeadwoodColliders = deadwood;
         StaticCollisionRevision++;

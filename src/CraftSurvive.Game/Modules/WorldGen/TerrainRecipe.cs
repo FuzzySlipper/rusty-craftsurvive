@@ -231,21 +231,19 @@ internal sealed class TerrainRecipe : ITerrainColumns
                 ? voxel
                 : null) ?? PoiVoxel.None;
 
-    /// <summary>
-    /// Whether any shaped site (PoiShapes) reaches this column, so dense generation asks for
-    /// structure distances only where a landmark can be.
-    /// </summary>
-    internal bool ShapedSiteNear(long x, long z)
+    /// <summary>How far beyond a place's own reach trees stay away (metres), so a canopy does not hide it.</summary>
+    private const long PlaceTreeClearance = 4;
+
+    /// <summary>Whether a column is within a place's footprint or its clearance (#9992).</summary>
+    private bool OnPlace(long x, long z)
     {
-        long cell = PoiConstants.CellSize;
+        long cell = PoiConstants.CellSize, reach = PoiConstants.MaximumStructureReach + PlaceTreeClearance;
         long cellX = GridMath.FloorDivide(x, cell), cellZ = GridMath.FloorDivide(z, cell);
         for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
         {
             for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
             {
-                if (pois.SiteAt(anchorX, anchorZ) is PoiSite site && site.Kind != PoiKind.VantagePoint
-                    && Math.Abs(x - site.X) <= PoiConstants.MaximumStructureReach + 1
-                    && Math.Abs(z - site.Z) <= PoiConstants.MaximumStructureReach + 1)
+                if (pois.SiteAt(anchorX, anchorZ) is PoiSite site && Math.Abs(x - site.X) <= reach && Math.Abs(z - site.Z) <= reach)
                 {
                     return true;
                 }
@@ -253,34 +251,6 @@ internal sealed class TerrainRecipe : ITerrainColumns
         }
 
         return false;
-    }
-
-    /// <summary>
-    /// The signed distance (metres, negative inside) from a voxel centre to the nearest shaped
-    /// landmark's surface, or null when none is within <see cref="PoiShapes.Band"/>. The density
-    /// pass takes it so the Engine reconstructs the landmark's own surface (TerrainDensity).
-    /// </summary>
-    internal double? StructureDistanceAt(long x, long y, long z)
-    {
-        long cell = PoiConstants.CellSize;
-        long cellX = GridMath.FloorDivide(x, cell), cellZ = GridMath.FloorDivide(z, cell);
-        double? nearest = null;
-        for (long anchorX = cellX - 1; anchorX <= cellX + 1; anchorX++)
-        {
-            for (long anchorZ = cellZ - 1; anchorZ <= cellZ + 1; anchorZ++)
-            {
-                if (pois.SiteAt(anchorX, anchorZ) is PoiSite site
-                    && Math.Abs(x - site.X) <= PoiConstants.MaximumStructureReach + 1
-                    && Math.Abs(z - site.Z) <= PoiConstants.MaximumStructureReach + 1
-                    && PoiShapes.DistanceAt(site, x, y, z) is double distance
-                    && (nearest is null || distance < nearest))
-                {
-                    nearest = distance;
-                }
-            }
-        }
-
-        return nearest is double found && found < PoiShapes.Band ? found : null;
     }
 
     /// <summary>
@@ -795,6 +765,13 @@ internal sealed class TerrainRecipe : ITerrainColumns
         if (InTown(trunkX, trunkZ))
         {
             // A town's own layout says what grows on its pad.
+            return null;
+        }
+
+        if (OnPlace(trunkX, trunkZ))
+        {
+            // A place is a mesh, not voxels (#9992): nothing in the ground stops a tree growing through it,
+            // so its footprint and a margin about it stay clear, and it can be seen.
             return null;
         }
 

@@ -605,17 +605,24 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   painting would shimmer without adding character. Judged in ordinary W-key movement at play
   distance (the motion sequences in the #9547 evidence); the grading in `DayNightSky` carries the
   contrast. The atlas art itself is provisional.
-- **Landmarks are stone distance fields on the one-metre grid.** Dungeon gates (a platform and two
-  crossing arches over the shaft), ruins (a broken round wall with leaning ribs), standing stones
-  (tapered steles, the tallest pierced) and cave-mouth arches are `PoiShapes` distance fields filled
-  with Stone, whose distance feeds the voxel densities, so dual contouring draws them as worn faceted
-  rock with terrain collision, navigation and blasts. Features thinner than about two metres do not
-  survive one-metre voxels, so the shapes stay chunky; parts sunk into a slope are simply buried.
-  Every shape reaches three metres into the ground, so on a slope it fills the gap rather than
-  overhanging it. Vantage points stay stepped cobble with a lamp: the player steps up a one-metre
-  cube course but not the same course reconstructed as stone (rusty-engine #9681), and a vantage
-  point is there to be walked up. There is no coloured (ceramic) accent yet. The terrain blend now
-  takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
+- **Places are kit meshes; their holes stay terrain (#9992).** Standing stones, ruins, cave-mouth
+  arches, dungeon entrances (platform and crossing arches) and vantage points are drawn from the place
+  kit (`content/game/models/places/kit.json`), laid out per site by `PlaceLayouts` (the layouts the old
+  `PoiShapes` distance fields had) and drawn by `PlaceMeshes` within the near ground; beyond it the
+  horizon draws its box silhouettes, which do not match the meshes (a vantage point's silhouette is
+  still a timber platform). The terrain keeps only a cave mouth's recess, a descent's shaft and the
+  vantage lamp. Consequences:
+  - **Not editable.** A blast no longer breaks a place; only the carves are terrain.
+  - **Seating.** Each piece sinks a fixed skirt (`sink`) below the ground it stands on: ring steles,
+    the cairn and ruin pieces on their own ground, the rest on the site's. A slope steeper than the
+    skirt covers could still show a gap under a downhill edge.
+  - **Collision.** Pieces within 64 m of the player join the walking collision as their render
+    triangles, so the vantage courses are climbed as a mesh and creatures navigate round the places.
+    A ruin wall stretch scaled vertically keeps a scaled collision shape.
+  - **Kit quality.** The generated pieces (plain steles, cairn, rib, arches) keep some Pixal3D
+    softness; the cave arch has a ragged lower lip (buried) and the cairn's stones are pillowy.
+    One kit, no per-biome variants; per-site variety comes from layout, scale and turn only.
+  The terrain blend takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
 - **Trees are meshes on an invisible trunk core; forests follow climate only.** The recipe plants
   each tree (species from the flora catalog's ecology, stand, variant, size and turn) and writes only
   a short `TreeCore` column into the voxels, which bodies collide with and a blast can break. Trees are
