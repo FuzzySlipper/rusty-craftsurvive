@@ -83,6 +83,15 @@ public sealed class CraftDebugModule : IDebugCommandModule
 
     private const int DeadwoodListed = 5;
 
+    [DebugCommand("craft.terrain.grass", Description = "Assisted (#10038): draws grass as blades (the game's look) or as the painted cards it was, everywhere it grows, for the session; read reports which.")]
+    public string Grass(string look) => look switch
+    {
+        "blades" => terrain.GrassBlades(true),
+        "cards" => terrain.GrassBlades(false),
+        "read" => terrain.GrassLook,
+        _ => $"refused: expected blades, cards or read, not {look}",
+    };
+
     [DebugCommand("craft.vegetation.solid", Description = "Assisted (#10034): makes fallen logs and stumps solid (on, the game's rule) or not (off) for the session, to compare walking over them; read reports it.")]
     public string DeadwoodSolid(string state)
     {

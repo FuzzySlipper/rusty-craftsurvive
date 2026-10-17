@@ -88,13 +88,15 @@ internal sealed class TerrainScatter : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
-    private readonly Material grass, shadeGrass, plant, stone;
+    private readonly Material grass, shadeGrass, blade, plant, stone;
     /// <summary>Textured props (leaf-card bushes, frond ferns, #9685, and field stones, #9831), and each layer's material.</summary>
     private readonly PropMaterials textured;
     private readonly Dictionary<uint, Material> layerMaterials = [];
     private readonly List<MeshResource> grassMeshes = [];
     private readonly Dictionary<uint, Appearance> grassLooks = [];
     private readonly List<(Appearance Look, float Share)> shadeLooks = [];
+    private readonly List<(Appearance Near, Appearance Lite)> meadowBlades = [], shadeBlades = [];
+    private readonly List<Appearance> bladeLooks = [];
     private readonly List<MeshResource> propMeshes = [];
     private readonly Dictionary<uint, Appearance> looks = [];
     private float grassDensity = DefaultGrassDensity;
@@ -134,6 +136,21 @@ internal sealed class TerrainScatter : IDisposable
         {
             FlatShading = true,
         });
+        // Blades draw from their vertex colours alone, solid (nothing to alpha-cut), moving with the wind as the cards did.
+        blade = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), GrassRoughness, white, Vector3.Zero, 0, true) with
+        {
+            WindBend = GrassWindBend,
+            WindFlutter = GrassWindFlutter,
+        });
+        for (int index = 0; index < GrassVariants.Length; index++)
+        {
+            GrassBlades.Style style = GrassBlades.Meadow[index % GrassBlades.Meadow.Length];
+            int seed = BladeSeed + (int)GrassVariants[index].Id;
+            meadowBlades.Add((BladeLook(style, GrassBlades.MeadowPalette, seed, false), BladeLook(style, GrassBlades.MeadowPalette, seed, true)));
+            shadeBlades.Add((BladeLook(style, GrassBlades.ShadePalette, seed + ShadeSeedOffset, false),
+                BladeLook(style, GrassBlades.ShadePalette, seed + ShadeSeedOffset, true)));
+        }
+
         foreach (GrassVariant variant in GrassVariants)
         {
             MeshResource mesh = engine.Graphics.CreateMeshResource(Clump(grass, variant, ClumpRoot, ClumpTip));
@@ -163,27 +180,42 @@ internal sealed class TerrainScatter : IDisposable
     /// grows, and the key and seed that fix its spots. The voxel scatter and the vegetation tiles
     /// (<see cref="VegetationTiles"/>, #10016) grow the same kinds, so a kind's copies hand over one for one.
     /// </summary>
+    /// <param name="Mid">How the kind looks in the middle distance (the mid tiles), and <paramref name="Far"/> beyond it.</param>
     internal readonly record struct Kind(uint Key, Appearance Look, Material Material, float Density, BlockId[] Ground,
         float SlopeDegrees, float Align, float ScaleMin, float ScaleMax, Vector3 TintLow, Vector3 TintHigh, uint Seed,
-        bool CastsShadows, uint Maximum);
+        bool CastsShadows, uint Maximum, (Appearance Look, Material Material) Mid, (Appearance Look, Material Material) Far);
 
-    /// <summary>The shade grass's clumps, one per grass variant, with the share of clumps each takes.</summary>
-    internal IReadOnlyList<(Appearance Look, float Share)> ShadeGrass => shadeLooks;
+    /// <summary>
+    /// Whether grass is blades (#10038), the default, or the painted cards it was. Blades are drawn near and in the middle
+    /// distance (a lighter clump there); cards stay beyond, where a blade is under a pixel. The forest floor's shade grass
+    /// follows the same choice. A session may switch it to compare (TerrainWorld).
+    /// </summary>
+    internal bool Blades { get; set; } = true;
+
+    /// <summary>The shade grass's clumps, one per grass variant: how each looks near, in the middle distance (null for cards), and its share.</summary>
+    internal IReadOnlyList<(Appearance Look, Appearance? Lite, float Share)> ShadeGrass => Blades
+        ? [.. shadeBlades.Select((blade, index) => ((Appearance, Appearance?, float))(blade.Near, blade.Lite, shadeLooks[index].Share))]
+        : [.. shadeLooks.Select(card => ((Appearance, Appearance?, float))(card.Look, null, card.Share))];
 
     internal IEnumerable<Kind> Kinds()
     {
-        foreach (GrassVariant variant in GrassVariants)
+        for (int index = 0; index < GrassVariants.Length; index++)
         {
-            yield return new(variant.Id, grassLooks[variant.Id], grass, grassDensity * variant.Share, Meadow, GrassSlopeDegrees,
+            GrassVariant variant = GrassVariants[index];
+            (Appearance Look, Material Material) card = (grassLooks[variant.Id], grass);
+            (Appearance Look, Material Material) near = Blades ? (meadowBlades[index].Near, blade) : card;
+            (Appearance Look, Material Material) mid = Blades ? (meadowBlades[index].Lite, blade) : card;
+            yield return new(variant.Id, near.Look, near.Material, grassDensity * variant.Share, Meadow, GrassSlopeDegrees,
                 GrassLean, GrassScaleMin, GrassScaleMax, GrassTintLow, GrassTintHigh, variant.Id + GrassSeedOffset, false,
-                (uint)(MaximumGrass * variant.Share));
+                (uint)(MaximumGrass * variant.Share), mid, card);
         }
 
         foreach (Layer layer in Layers)
         {
             float density = layer.Density * (grassDensity > 0 ? 1 : 0);
+            (Appearance, Material) look = (looks[layer.Id], layerMaterials[layer.Id]);
             yield return new(layer.Id, looks[layer.Id], layerMaterials[layer.Id], density, layer.Ground, layer.SlopeDegrees,
-                layer.Align, layer.ScaleMin, layer.ScaleMax, layer.TintLow, layer.TintHigh, layer.Id, layer.CastsShadows, layer.Maximum);
+                layer.Align, layer.ScaleMin, layer.ScaleMax, layer.TintLow, layer.TintHigh, layer.Id, layer.CastsShadows, layer.Maximum, look, look);
         }
     }
 
@@ -234,12 +266,15 @@ internal sealed class TerrainScatter : IDisposable
         grassLooks.Clear();
         foreach ((Appearance look, _) in shadeLooks) look.Dispose();
         shadeLooks.Clear();
+        foreach (Appearance look in bladeLooks) look.Dispose();
+        bladeLooks.Clear();
         foreach (MeshResource mesh in grassMeshes) mesh.Dispose();
         grassMeshes.Clear();
         foreach (MeshResource mesh in propMeshes) mesh.Dispose();
         propMeshes.Clear();
         grass.Dispose();
         shadeGrass.Dispose();
+        blade.Dispose();
         plant.Dispose();
         stone.Dispose();
         textured.Dispose();
@@ -250,6 +285,18 @@ internal sealed class TerrainScatter : IDisposable
     /// A clump: <see cref="GrassCards"/> cards crossed at even angles near its origin, each showing the
     /// variant's atlas cell; vertex alpha 0 at the root and 1 at the tip weights the wind's flutter.
     /// </summary>
+    /// <summary>The blade clumps' layouts are seeded from this, and the shade grass's from it offset, so they differ.</summary>
+    private const int BladeSeed = 10038, ShadeSeedOffset = 500;
+
+    private Appearance BladeLook(GrassBlades.Style style, GrassBlades.Palette palette, int seed, bool lite)
+    {
+        MeshResource mesh = engine.Graphics.CreateMeshResource(GrassBlades.Clump(blade, style, palette, seed, lite));
+        grassMeshes.Add(mesh);
+        Appearance look = engine.Graphics.CreateMeshAppearance(mesh);
+        bladeLooks.Add(look);
+        return look;
+    }
+
     private static MeshResourceCreateRequest Clump(Material material, GrassVariant variant, Color rootColor, Color tipColor)
     {
         float u0 = (float)(variant.Cell % AtlasCells) / AtlasCells, v0 = (float)(variant.Cell / AtlasCells) / AtlasCells;

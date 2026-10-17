@@ -165,6 +165,18 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string ScatterReadout() => presentation.ScatterReadout();
 
+    /// <summary>Switches grass between blades (the default) and the painted cards, everywhere it grows, to compare (#10038).</summary>
+    internal string GrassBlades(bool blades)
+    {
+        EnsureStarted();
+        presentation.GrassBlades = blades;
+        vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
+        plantTiles?.ShadeGrass(presentation.ShadeGrass);
+        return GrassLook;
+    }
+
+    internal string GrassLook => presentation.GrassBlades ? "grass=blades" : "grass=cards";
+
     internal string TuneScatter(float grassPerSquareMetre)
     {
         string readout = presentation.TuneScatter(grassPerSquareMetre);

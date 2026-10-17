@@ -120,7 +120,9 @@ Engine vegetation records: shrubs, deadwood and saplings to 160 m, ground plants
 grass on the forest floor to 72 m. Fallen logs and stumps are solid near the player:
 `craft.vegetation.deadwood <log|stump|fallen-trunk|any> <x> <z>` lists the nearest, and `craft.vegetation.solid off|on` compares
 walking the same path over a log without and with them (the player's height rises over the log only
-when solid). A fallen trunk blocks: walk straight at one (`craft.vegetation.deadwood fallen-trunk <x> <z>`)
+when solid). Grass is blades (#10038): seeded clumps of tapered blades near (to 40 m) and a lighter clump in the mid tiles (to
+112 m), with painted cards beyond. `craft.terrain.grass cards|blades` switches it everywhere it grows to compare at a
+held pose. A fallen trunk blocks: walk straight at one (`craft.vegetation.deadwood fallen-trunk <x> <z>`)
 and the player slides along it, then jump it. `craft.vegetation.sites <x> <z>` finds closed forest near a point with its trees per 128 m
 square, and `craft.terrain.trees <species> <x> <z>` the nearest trees of one species. The focused check
 is `dotnet run --project tests/TerrainResidency -c Release -- forest`. Compare a forest interior, its

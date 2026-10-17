@@ -68,11 +68,22 @@ internal sealed class TerrainPresentation : IDisposable
         return ScatterReadout();
     }
 
+    /// <summary>Whether grass is blades or cards (#10038); setting it grows the voxel scatter again.</summary>
+    internal bool GrassBlades
+    {
+        get => scatter!.Blades;
+        set
+        {
+            scatter!.Blades = value;
+            if (projection is VoxelScenePresentation current) scatter.Grow(current);
+        }
+    }
+
     /// <summary>The kinds of ground cover at their current densities, for the vegetation tiles to grow too.</summary>
     internal IEnumerable<TerrainScatter.Kind> ScatterKinds => scatter!.Kinds();
 
     /// <summary>The shade grass's clumps for the forest floor (#10034), with each one's share.</summary>
-    internal IReadOnlyList<(Appearance Look, float Share)> ShadeGrass => scatter!.ShadeGrass;
+    internal IReadOnlyList<(Appearance Look, Appearance? Lite, float Share)> ShadeGrass => scatter!.ShadeGrass;
 
     /// <summary>What grows on the ground now, for the scene readout.</summary>
     internal string ScatterReadout() => projection is VoxelScenePresentation current && scatter is not null

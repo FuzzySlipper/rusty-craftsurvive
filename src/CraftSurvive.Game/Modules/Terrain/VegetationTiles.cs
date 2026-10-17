@@ -81,7 +81,7 @@ internal sealed class VegetationTiles : IDisposable
     {
         foreach (TerrainScatter.Kind kind in kinds)
         {
-            VegetationLayerRequest near = new VegetationLayerRequest(mid, kind.Key, kind.Look, kind.Material, kind.Density, MidReach) with
+            VegetationLayerRequest near = new VegetationLayerRequest(mid, kind.Key, kind.Mid.Look, kind.Mid.Material, kind.Density, MidReach) with
             {
                 Grounds = kind.Ground.Aggregate(0UL, (mask, block) => mask | VegetationLayerRequest.Ground(BlockRegistry.Get(block).Slot)),
                 Seed = kind.Seed,
@@ -101,6 +101,8 @@ internal sealed class VegetationTiles : IDisposable
             Set(near with
             {
                 Field = far,
+                Appearance = kind.Far.Look,
+                Material = kind.Far.Material,
                 Reach = reach,
                 Fade = reach * FarFadeShare,
                 Near = MidReach - HandoverFade,

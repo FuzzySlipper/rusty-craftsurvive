@@ -37,6 +37,8 @@ internal sealed class PlantTiles : IDisposable
     internal const float Reach = 160, GroundReach = 112;
     /// <summary>Shade grass is drawn this far.</summary>
     internal const float FloorReach = 72;
+    /// <summary>Blade shade grass draws its lighter clump from this far, dithering over the band before it.</summary>
+    private const float FloorLiteFrom = 24, FloorLodBand = 4;
     private const float FadeShare = 0.2f, FloorFadeShare = 0.3f;
 
     /// <summary>A plant's root sits this far into the ground, so a slope never shows under it.</summary>
@@ -102,7 +104,7 @@ internal sealed class PlantTiles : IDisposable
     private (double X, double Z) focus;
 
     internal PlantTiles(IEngineContext engine, ProductContent content, TerrainRecipe recipe, SpatialSession session,
-        IReadOnlyDictionary<ushort, Appearance[]> treeMeshes, IReadOnlyList<(Appearance Look, float Share)> shadeGrass,
+        IReadOnlyDictionary<ushort, Appearance[]> treeMeshes, IReadOnlyList<(Appearance Look, Appearance? Lite, float Share)> shadeGrass,
         Func<TerrainOverlayState> overlay, VoxelAddress centre)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -153,14 +155,27 @@ internal sealed class PlantTiles : IDisposable
 
         double shares = shadeGrass.Sum(grass => grass.Share);
         double[] shadeShares = [.. shadeGrass.Select(grass => grass.Share / shares)];
-        for (int variant = 0; variant < shadeGrass.Count; variant++)
-            SetLayer(floor, (uint)variant, shadeGrass[variant].Look, FloorReach, FloorFadeShare, castsShadows: false);
+        ShadeGrass(shadeGrass);
 
         VegetationGround ground = new(recipe);
         plantStreamer = new VegetationStreamer(engine, plants,
             new PlantSampler(recipe, ground, recipe.Configuration.Seed ^ PlacementSeed, variantCounts, deadwoodLying), CommitPlants, CommitsPerUpdate);
         floorStreamer = new VegetationStreamer(engine, floor,
             new FloorSampler(recipe, ground, recipe.Configuration.Seed ^ FloorSeed, shadeShares), DropEdited, CommitsPerUpdate);
+    }
+
+    /// <summary>
+    /// Sets the forest floor's shade-grass layers: each variant near, and its lighter clump from <see cref="FloorLiteFrom"/>
+    /// when it has one (blades, #10038). Called again when the grass's look is switched; the records stay.
+    /// </summary>
+    internal void ShadeGrass(IReadOnlyList<(Appearance Look, Appearance? Lite, float Share)> shadeGrass)
+    {
+        for (int variant = 0; variant < shadeGrass.Count; variant++)
+        {
+            SetLayer(floor, (uint)variant, shadeGrass[variant].Look, FloorReach, FloorFadeShare, castsShadows: false);
+            VegetationLod[] levels = shadeGrass[variant].Lite is Appearance lite ? [VegetationLod.Mesh(lite, FloorLiteFrom)] : [];
+            engine.Vegetation.SetLayerDetail(new VegetationLayerDetailRequest(floor, (uint)variant, levels, FloorLodBand));
+        }
     }
 
     /// <summary>Keeps both fields centred on the player, re-asks the tiles under new edits, and streams tiles.</summary>
