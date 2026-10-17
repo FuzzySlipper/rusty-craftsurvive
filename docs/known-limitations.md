@@ -625,11 +625,13 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   canopy is not solid, and the collision is the core's whole cell, a little wider than a slender trunk.
   Where forests stand comes from each species' temperature and moisture range, glades and rock; the
   catalog's riparian preference is not read yet (poplars and willows follow climate, not rivers).
-- **The forest floor's plants are pictures, not things.** Shade grass, ferns, flowers, shrubs,
-  saplings, fallen logs and stumps are vegetation records (#10034). The player walks through them, a
-  log does not block the way, a sapling cannot be felled, and none can be gathered. Shade grass ends
-  at 72 m and ground plants at 112 m. Past that, a forest floor is its bare ground texture under the
-  trees.
+- **The forest floor's plants are pictures; only deadwood is solid.** Shade grass, ferns, flowers,
+  shrubs and saplings are vegetation records (#10034): the player walks through them, a sapling cannot
+  be felled, and none can be gathered. Fallen logs and stumps are solid within 64 m of the player (their
+  meshes join the walking collision, recomposed every 16 m walked). Being under the 1.05 m step, they
+  are stepped up onto and over, not walked around, and creatures route over them the same way. Shade
+  grass ends at 72 m and ground plants at 112 m. Past that, a forest floor is its bare ground texture
+  under the trees.
 
 - **Under water the view closes into murk.** While the player's eyes are under water,
   `DayNightSky.Submerged` swaps the sky for one blue-green colour and fades distance into the same

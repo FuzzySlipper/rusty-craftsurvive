@@ -17,9 +17,11 @@ namespace CraftSurvive.Game.Modules.Terrain;
 /// (the Dirt topsoil under a closed canopy), so the meadow's grass carries on under the trees, deeper and darker.
 /// It reaches <see cref="FloorReach"/>: past that, the trunks hide the floor.</item>
 /// </list>
-/// Presentation only, placed on the tiles' workers from pure hashes, never in a town's yard; a record over an
-/// edited column is dropped before its tile is committed, and an edit re-asks the tiles under it. Meadow grass,
-/// meadow flowers and field stones stay the voxel and tile scatter's.
+/// Placed on the tiles' workers from pure hashes, never in a town's yard; a record over an edited column is
+/// dropped before its tile is committed, and an edit re-asks the tiles under it. Meadow grass, meadow flowers and
+/// field stones stay the voxel and tile scatter's. Plants are presentation only, but deadwood is solid: as a tile is
+/// committed its logs and stumps are kept, and <see cref="DeadwoodNear"/> gives those about the player, with each
+/// one's mesh as its collision, for the walking session (TerrainWorld).
 /// </summary>
 internal sealed class PlantTiles : IDisposable
 {
@@ -66,6 +68,18 @@ internal sealed class PlantTiles : IDisposable
     private readonly List<MeshResource> meshes = [];
     private readonly List<Appearance> looks = [];
     private readonly Dictionary<ushort, int> variantCounts = [];
+
+    /// <summary>A fallen log or stump standing in the world: its layer key, world position, turn and size.</summary>
+    internal readonly record struct Deadwood(uint Key, Vector3 World, float Yaw, float Scale);
+
+    /// <summary>Each deadwood layer's mesh as collision: its positions and triangles (each three indices).</summary>
+    private readonly Dictionary<uint, (Vector3[] Positions, uint[] Indices)> deadwoodShapes = [];
+    private readonly Dictionary<(double X, double Z), Deadwood[]> deadwoodByTile = [];
+    private readonly Dictionary<uint, string> deadwoodNames = [];
+
+    /// <summary>Kept tiles' deadwood is forgotten past this many metres from the focus.</summary>
+    private const double DeadwoodKeptMetres = Reach * 1.5;
+    private double deadwoodReach;
     private readonly VegetationField plants, floor;
     private readonly VegetationStreamer plantStreamer, floorStreamer;
     private (double X, double Z) focus;
@@ -90,10 +104,16 @@ internal sealed class PlantTiles : IDisposable
 
         foreach (FloraSpecies species in Plants(recipe.Forest.Catalog))
         {
-            Appearance[] variants = [.. species.Variants.Take((int)VariantsPerSpecies).Select(name =>
+            Appearance[] variants = [.. species.Variants.Take((int)VariantsPerSpecies).Select((name, variant) =>
             {
-                MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, ModelsFolder + species.Folder + "/" + name + PropMesh.Suffix,
-                    (role, texture) => texture is null ? plain : textured.For(role, texture)));
+                MeshResourceCreateRequest request = PropMesh.Read(content, ModelsFolder + species.Folder + "/" + name + PropMesh.Suffix,
+                    (role, texture) => texture is null ? plain : textured.For(role, texture));
+                if (species.Role == FloraRole.Deadwood)
+                {
+                    deadwoodShapes[PlantKey(species.Id, variant)] = (request.Positions.ToArray(), request.Indices.ToArray());
+                    deadwoodNames[PlantKey(species.Id, variant)] = name;
+                }
+                MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                 meshes.Add(mesh);
                 Appearance look = engine.Graphics.CreateMeshAppearance(mesh);
                 looks.Add(look);
@@ -117,7 +137,7 @@ internal sealed class PlantTiles : IDisposable
 
         VegetationGround ground = new(recipe);
         plantStreamer = new VegetationStreamer(engine, plants,
-            new PlantSampler(recipe, ground, recipe.Configuration.Seed ^ PlacementSeed, variantCounts), DropEdited, CommitsPerUpdate);
+            new PlantSampler(recipe, ground, recipe.Configuration.Seed ^ PlacementSeed, variantCounts), CommitPlants, CommitsPerUpdate);
         floorStreamer = new VegetationStreamer(engine, floor,
             new FloorSampler(recipe, ground, recipe.Configuration.Seed ^ FloorSeed, shadeShares), DropEdited, CommitsPerUpdate);
     }
@@ -144,11 +164,35 @@ internal sealed class PlantTiles : IDisposable
         floorStreamer.Update();
     }
 
+    /// <summary>Moves when a committed tile's deadwood within <see cref="DeadwoodNear"/>'s last reach changes: the collision is due again.</summary>
+    internal long DeadwoodRevision { get; private set; }
+
+    /// <summary>
+    /// The kept logs and stumps within <paramref name="reach"/> metres (square) of a point; later commits within it
+    /// move <see cref="DeadwoodRevision"/>.
+    /// </summary>
+    internal void DeadwoodNear(double x, double z, double reach, List<Deadwood> into)
+    {
+        deadwoodReach = reach;
+        foreach (Deadwood[] tile in deadwoodByTile.Values)
+            foreach (Deadwood wood in tile)
+                if (Math.Abs(wood.World.X - x) <= reach && Math.Abs(wood.World.Z - z) <= reach) into.Add(wood);
+    }
+
+    /// <summary>The kept logs and stumps nearest a point: mesh, position, turn in degrees and size.</summary>
+    internal string Nearest(double x, double z, int count) => string.Join(" | ", deadwoodByTile.Values.SelectMany(tile => tile)
+        .OrderBy(wood => Math.Pow(wood.World.X - x, 2) + Math.Pow(wood.World.Z - z, 2)).Take(count)
+        .Select(wood => FormattableString.Invariant(
+            $"{deadwoodNames[wood.Key]} at={wood.World.X:F2},{wood.World.Y:F2},{wood.World.Z:F2} yaw={wood.Yaw * 180 / Math.PI:F0} scale={wood.Scale:F2}")));
+
+    /// <summary>A deadwood layer's mesh as collision: positions and triangle indices.</summary>
+    internal (Vector3[] Positions, uint[] Indices) DeadwoodShape(uint key) => deadwoodShapes[key];
+
     internal string Readout()
     {
         static string Field(string name, VegetationReadout r, VegetationStreamer streamer) => string.Create(CultureInfo.InvariantCulture,
             $"{name} tiles={r.Tiles} pending={r.PendingTiles} patches={r.Patches} copies={r.Instances} overBudget={r.OverBudget} deferred={r.Deferred} selectMs={r.SelectionMicroseconds / 1e3:F2} skipped={r.SettlesSkipped} reselected={r.SettlesReselected} sampleMs={streamer.SampleMilliseconds:F0} settled={r.PendingTiles == 0 && r.Deferred == 0 && streamer.InFlight == 0}");
-        return string.Create(CultureInfo.InvariantCulture, $"plantTiles species={variantCounts.Count} ")
+        return string.Create(CultureInfo.InvariantCulture, $"plantTiles species={variantCounts.Count} deadwoodTiles={deadwoodByTile.Count} ")
             + Field("plants", engine.Vegetation.Read(plants), plantStreamer) + " floorTiles "
             + Field("floor", engine.Vegetation.Read(floor), floorStreamer);
     }
@@ -196,6 +240,26 @@ internal sealed class PlantTiles : IDisposable
             MaximumInstances = MaximumPerLayer,
             CastsShadows = castsShadows,
         });
+
+    /// <summary>A plant tile as it is committed: edited columns' records dropped, and its deadwood kept for the collision.</summary>
+    private void CommitPlants(VegetationTileSamples samples)
+    {
+        DropEdited(samples);
+        VegetationTileRequest tile = samples.Tile;
+        Deadwood[] wood = [.. samples.Records.Where(record => deadwoodShapes.ContainsKey(record.Layer)).Select(record => new Deadwood(record.Layer,
+            new Vector3((float)(tile.OriginX + record.Position.X), record.Position.Y, (float)(tile.OriginZ + record.Position.Z)), record.Yaw, record.Scale))];
+        (double X, double Z) key = (tile.OriginX, tile.OriginZ);
+        bool had = deadwoodByTile.TryGetValue(key, out Deadwood[]? before);
+        if (wood.Length > 0) deadwoodByTile[key] = wood;
+        else deadwoodByTile.Remove(key);
+        double size = tile.TileCells * tile.CellSize;
+        bool near = Math.Abs(tile.OriginX + (size / 2) - focus.X) <= deadwoodReach + size
+            && Math.Abs(tile.OriginZ + (size / 2) - focus.Z) <= deadwoodReach + size;
+        if (near && (wood.Length > 0 || (had && before!.Length > 0))) DeadwoodRevision++;
+        foreach ((double X, double Z) far in deadwoodByTile.Keys.Where(origin =>
+            Math.Max(Math.Abs(origin.X - focus.X), Math.Abs(origin.Z - focus.Z)) > DeadwoodKeptMetres).ToList())
+            deadwoodByTile.Remove(far);
+    }
 
     /// <summary>Drops the records standing on edited columns, on the update's thread where the edits may be read.</summary>
     private void DropEdited(VegetationTileSamples samples)

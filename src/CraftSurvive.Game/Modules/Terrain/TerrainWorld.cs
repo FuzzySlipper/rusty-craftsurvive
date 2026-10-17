@@ -299,9 +299,17 @@ internal sealed class TerrainWorld : IDisposable
 
         // The ice is part of the walking collision (#9878): compose again when it changes, or when the origin moved under it.
         if (waterSurfaces.IceRevision != composedIce || (composedIceAny && composedOrigin != frame.Origin)) ComposeStaticCollision();
+        // So are fallen logs and stumps (#10034): compose again when deadwood near the player changed, or they moved on.
+        else if (plantTiles is PlantTiles flora && (flora.DeadwoodRevision != composedDeadwood
+            || Math.Max(Math.Abs(centerVoxel.X - composedDeadwoodAt.X), Math.Abs(centerVoxel.Z - composedDeadwoodAt.Z)) >= DeadwoodStepMetres
+            || (DeadwoodColliders > 0 && composedOrigin != frame.Origin)))
+            ComposeStaticCollision();
     }
 
     internal string TreesReadout() => trees.Readout();
+
+    /// <summary>The kept logs and stumps nearest a point (#10034), for aimed checks; "none" before the plants have streamed.</summary>
+    internal string DeadwoodNearest(double x, double z, int count) => plantTiles?.Nearest(x, z, count) ?? "none";
 
     /// <summary>
     /// How many times the walking session's static collision (built pieces, #9734) has been replaced:
@@ -321,6 +329,36 @@ internal sealed class TerrainWorld : IDisposable
 
     /// <summary>The ice's collision ids, clear of the built work's.</summary>
     private const ulong IceAssetBase = 0x4000_0000UL, IceInstanceBase = 0x4000_0000UL;
+
+    /// <summary>Deadwood's collision ids (#10034): an asset per log or stump mesh, an instance per one standing.</summary>
+    private const ulong DeadwoodAssetBase = 0x5000_0000UL, DeadwoodInstanceBase = 0x5000_0000UL;
+
+    /// <summary>
+    /// Deadwood is solid this far about the player (a square's half side), recomposed once they have walked
+    /// <see cref="DeadwoodStepMetres"/>: wide enough to cover the creatures' navigation box (32 m about where it was
+    /// published) from wherever the player stands before the next composition.
+    /// </summary>
+    private const double DeadwoodCollisionMetres = 64, DeadwoodStepMetres = 16;
+
+    private long composedDeadwood = -1;
+    private (long X, long Z) composedDeadwoodAt = (long.MinValue / 2, long.MinValue / 2);
+
+    /// <summary>How many logs and stumps the walking collision holds, for the readout.</summary>
+    internal int DeadwoodColliders { get; private set; }
+
+    /// <summary>Whether deadwood is solid (the game's rule); a session may turn it off to compare (#10034).</summary>
+    internal bool DeadwoodSolid
+    {
+        get => deadwoodSolid;
+        set
+        {
+            if (deadwoodSolid == value) return;
+            deadwoodSolid = value;
+            ComposeStaticCollision();
+        }
+    }
+
+    private bool deadwoodSolid = true;
 
     private CollisionReplaceRequest? builtCollision;
     private long composedIce;
@@ -349,7 +387,35 @@ internal sealed class TerrainWorld : IDisposable
             patch++;
         }
 
+        int deadwood = 0;
+        if (plantTiles is PlantTiles flora)
+        {
+            // Composed as of now whether or not deadwood is solid, so turning it off does not recompose every update.
+            composedDeadwood = flora.DeadwoodRevision;
+            composedDeadwoodAt = (lastCentre.X, lastCentre.Z);
+            List<PlantTiles.Deadwood> standing = [];
+            if (deadwoodSolid) flora.DeadwoodNear(lastCentre.X + 0.5, lastCentre.Z + 0.5, DeadwoodCollisionMetres, standing);
+            HashSet<uint> shaped = [];
+            foreach (PlantTiles.Deadwood wood in standing)
+            {
+                ulong asset = DeadwoodAssetBase + wood.Key;
+                if (shaped.Add(wood.Key))
+                {
+                    (Vector3[] positions, uint[] indices) = flora.DeadwoodShape(wood.Key);
+                    assets.Add(new StaticMeshAsset(asset, (uint)vertices.Count, (uint)positions.Length, (uint)triangles.Count, (uint)(indices.Length / 3)));
+                    vertices.AddRange(positions);
+                    for (int i = 0; i + 2 < indices.Length; i += 3) triangles.Add(new Triangle(indices[i], indices[i + 1], indices[i + 2]));
+                }
+
+                instances.Add(new StaticMeshInstance(DeadwoodInstanceBase + (ulong)deadwood, asset,
+                    new Transform(frame.ToLocal(wood.World.X, wood.World.Y, wood.World.Z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, wood.Yaw),
+                        new Vector3(wood.Scale))));
+                deadwood++;
+            }
+        }
+
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(Session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(), instances.ToArray()));
+        DeadwoodColliders = deadwood;
         StaticCollisionRevision++;
         IcePatches = (int)patch;
         composedIce = waterSurfaces.IceRevision;
@@ -544,7 +610,7 @@ internal sealed class TerrainWorld : IDisposable
 
 
     internal string VegetationReadout() => FormattableString.Invariant(
-        $"treeCell={recipe.TreeCellMetres}m treeCache={recipe.TreeCacheCells}/{GenerationConstants.FeatureCacheLimit} treeCacheClears={recipe.TreeCacheClears} cover={groundCoverMetres}m treeReach={treeReachMetres}m resident={streamer.ResidentCount} pendingAdmissions={streamer.PendingAdmissions} {presentation.ScatterReadout()} {trees.Readout()}{(vegetationTiles is null ? "" : " " + vegetationTiles.Readout())}{(treeTiles is null ? "" : " " + treeTiles.Readout())}{(plantTiles is null ? "" : " " + plantTiles.Readout())}");
+        $"treeCell={recipe.TreeCellMetres}m treeCache={recipe.TreeCacheCells}/{GenerationConstants.FeatureCacheLimit} treeCacheClears={recipe.TreeCacheClears} cover={groundCoverMetres}m treeReach={treeReachMetres}m resident={streamer.ResidentCount} pendingAdmissions={streamer.PendingAdmissions} {presentation.ScatterReadout()} {trees.Readout()}{(vegetationTiles is null ? "" : " " + vegetationTiles.Readout())}{(treeTiles is null ? "" : " " + treeTiles.Readout())}{(plantTiles is null ? "" : " " + plantTiles.Readout() + $" deadwoodColliders={DeadwoodColliders}")}");
 
 
     /// <summary>Sets how far trees are drawn for the session, for measuring (the view distance sets it again).</summary>

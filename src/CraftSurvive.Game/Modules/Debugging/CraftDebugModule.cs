@@ -78,6 +78,19 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.vegetation.readout", Description = "Reads the ground cover and trees: reach, the voxel scatter, both vegetation tile fields and the tree tiles (tiles, pending, copies, over budget), the plant tiles (plants, deadwood and saplings) and the forest floor's shade grass.")]
     public string VegetationReadout() => terrain.VegetationReadout();
 
+    [DebugCommand("craft.vegetation.deadwood", Description = "Assisted (#10034): the fallen logs and stumps nearest a point among those streamed, with mesh, position, turn and size; each is solid within 64 m of the player.")]
+    public string Deadwood(double x, double z) => terrain.DeadwoodNearest(x, z, DeadwoodListed);
+
+    private const int DeadwoodListed = 5;
+
+    [DebugCommand("craft.vegetation.solid", Description = "Assisted (#10034): makes fallen logs and stumps solid (on, the game's rule) or not (off) for the session, to compare walking over them; read reports it.")]
+    public string DeadwoodSolid(string state)
+    {
+        if (state is "on" or "off") terrain.DeadwoodSolid = state == "on";
+        else if (state != "read") return $"refused: expected on, off or read, not {state}";
+        return FormattableString.Invariant($"deadwoodSolid={terrain.DeadwoodSolid} deadwoodColliders={terrain.DeadwoodColliders}");
+    }
+
     [DebugCommand("craft.vegetation.sites", Description = "Lists the forest columns nearest a point from the generated map, with ground height and local tree counts. Does not move the player.")]
     public string VegetationSites(double x, double z)
     {
