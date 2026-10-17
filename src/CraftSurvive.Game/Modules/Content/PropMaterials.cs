@@ -8,7 +8,8 @@ namespace CraftSurvive.Game.Modules.Content;
 /// owned and disposed together. Textures are nearest-filtered so their low-resolution texels read as
 /// one chunky style. A "leaves" part is alpha-cut cards built with both windings, so its material is
 /// one-sided and both sides keep the crown-facing normals they were built with; other roles (bark)
-/// are opaque and smooth-shaded by their own normals. The owner gives each role's finish.
+/// are opaque and smooth-shaded by their own normals. The owner gives each role's finish, and may
+/// choose the texture filter (plain nearest by default).
 /// </summary>
 internal sealed class PropMaterials : IDisposable
 {
@@ -21,11 +22,13 @@ internal sealed class PropMaterials : IDisposable
 
     private readonly IEngineContext engine;
     private readonly Func<string, Finish> finishFor;
+    private readonly TextureFilter filter;
     private readonly Dictionary<(string Role, string Texture), Material> materials = [];
     private readonly Dictionary<string, RenderResource> textures = [];
 
-    internal PropMaterials(IEngineContext engine, Func<string, Finish> finishFor)
+    internal PropMaterials(IEngineContext engine, Func<string, Finish> finishFor, TextureFilter filter = TextureFilter.Nearest)
     {
+        this.filter = filter;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.finishFor = finishFor ?? throw new ArgumentNullException(nameof(finishFor));
     }
@@ -35,7 +38,7 @@ internal sealed class PropMaterials : IDisposable
         if (materials.TryGetValue((role, texturePath), out Material? material)) return material;
         if (!textures.TryGetValue(texturePath, out RenderResource? texture))
         {
-            RenderResourceInfo info = engine.Graphics.OpenResource(new RenderResourceRequest(texturePath, TextureFilter.Nearest, TextureWrap.Repeat));
+            RenderResourceInfo info = engine.Graphics.OpenResource(new RenderResourceRequest(texturePath, filter, TextureWrap.Repeat));
             if (info.Kind != RenderResourceKind.Texture || info.ByteLength == 0)
             {
                 throw new InvalidOperationException($"CraftSurvive prop texture '{texturePath}' must be a non-empty Engine texture.");

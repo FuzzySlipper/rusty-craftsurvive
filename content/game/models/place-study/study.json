@@ -1,0 +1,11 @@
+{
+  "purpose": "Place look study (#9992), a test aid: the tallest standing stone as three base meshes x two paint routes, each a prop mesh at 32 texels/m. Built in asset-pipeline live-evidence/stele-place-study-20261017 (scripts/ there). Bases: a = the current PoiShapes stele distance field, meshed; b = an authored slab in Blender; c = a Qwen concept turnaround edited to plain clay and rebuilt by Pixal3D, rescaled to 1.8 x 1.0 m. Paints: proj = painted views projected back onto the mesh (a, b: Qwen repaints of rendered views after the c concept; c: the detailed concept views themselves); stamps = a calm painted stone tile with authored ceramic ring, band and chips.",
+  "variants": [
+    { "name": "a-proj", "model": "models/place-study/stele-a-proj.prop-mesh.json", "sink": 1.5 },
+    { "name": "a-stamps", "model": "models/place-study/stele-a-stamps.prop-mesh.json", "sink": 1.5 },
+    { "name": "b-proj", "model": "models/place-study/stele-b-proj.prop-mesh.json", "sink": 1.5 },
+    { "name": "b-stamps", "model": "models/place-study/stele-b-stamps.prop-mesh.json", "sink": 1.5 },
+    { "name": "c-proj", "model": "models/place-study/stele-c-proj.prop-mesh.json", "sink": 0.4 },
+    { "name": "c-stamps", "model": "models/place-study/stele-c-stamps.prop-mesh.json", "sink": 0.4 }
+  ]
+}

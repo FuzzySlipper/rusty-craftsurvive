@@ -106,6 +106,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
     /// <summary>The character style test's travellers (#10014): a test aid placed only by live debug.</summary>
     private CharacterStyleTest styleTest = null!;
+    private PlaceStudyTest placeStudy = null!;
 
     /// <summary>One owner for block entities: placed by building, swept by every clearing edit.</summary>
     private BlockEntityIndex entities = new();
@@ -202,6 +203,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         gameplay = [conditions, weather, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
+        placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         actions.ChooseOption = ChooseOption;
         worldBuilt = true;
         ApplyOptions();
@@ -273,6 +275,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         engine.Graphics.PublishSnapshot(ReadOnlySpan<AppearanceFact>.Empty);
         townPresence?.AfterAppearanceSnapshot();
         styleTest.Dispose();
+        placeStudy.Dispose();
         foreach (IProductModule module in gameplay.Reverse())
         {
             module.Dispose();
@@ -303,6 +306,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(productDebug));
         RequireRegistration(registrar.Register(creatureDebug));
         RequireRegistration(registrar.Register(new CharacterStyleDebugModule(() => Owner(styleTest))));
+        RequireRegistration(registrar.Register(new PlaceStudyDebugModule(() => Owner(placeStudy))));
         RequireRegistration(registrar.Register(new DiscoveryDebugModule(() => Owner(discovery))));
         RequireRegistration(registrar.Register(new BlastDebugModule(() => Owner(blast))));
         RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore), () => Owner(lamps))));
@@ -512,6 +516,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         if (worldBuilt)
         {
             styleTest.Dispose();
+            placeStudy.Dispose();
             foreach (IProductModule module in gameplay.Reverse())
             {
                 module.Dispose();
@@ -553,8 +558,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The overworld's water, studies and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
     private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. pieces.Facts()];
 
-    /// <summary>The style test's travellers, unless the player is in a separate space.</summary>
-    private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : styleTest.Facts;
+    /// <summary>The style test's travellers and the place study's variants, unless the player is in a separate space.</summary>
+    private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. placeStudy.Facts];
 
     /// <summary>The product's one complete appearance snapshot: every object it publishes.</summary>
     private void PublishAppearanceSnapshot()

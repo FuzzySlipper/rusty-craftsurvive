@@ -118,6 +118,9 @@ internal static class ProductIds
     /// <summary>The character style test's travellers (#10014), a test aid placed by live debug.</summary>
     internal const ulong CharacterStyleBase = 0x9_8000UL;
 
+    /// <summary>The place look study's variants (#9992), a test aid placed by live debug.</summary>
+    internal const ulong PlaceStudyBase = 0x9_9000UL;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 
