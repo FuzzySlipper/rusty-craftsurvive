@@ -649,6 +649,8 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     (`CameraView.SetSnow`, rusty-engine #10069; full at 12 cm, stepped at 32 texels a metre). It lies on the ground,
     plants, places and field stones alike, so a ruin across a cell's edge shows the party's snow.
   - **A full cover is plain white:** the snow terrain layer's own painting does not show through it.
+  - **Grass and meadow flowers sink and pale** under the cover where the sky is open (rusty-engine #10071); under a
+    tree's crown they stay green and tall, so a wood's floor keeps its grass. Ferns and shrubs stand.
   - **Moss and lichen:** the moss stain and lichen keep off what the cover covers.
   - **Cards:** icicle cards hang from level lips, and foot cushions are buried. The cards are laid again at three
     depths, about 2 ms each.

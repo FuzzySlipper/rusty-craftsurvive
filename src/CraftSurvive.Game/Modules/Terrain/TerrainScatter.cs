@@ -107,6 +107,12 @@ internal sealed class TerrainScatter : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource grassTexture;
+    /// <summary>
+    /// Grass and the meadow flowers sink toward their roots and pale under the snow, where the sky is open (#10068,
+    /// rusty-engine #10071): ground cover does not stand green through a snowfield. Field stones stand.
+    /// </summary>
+    private const bool SinksUnderSnow = true;
+
     private readonly Material grass, dryCard, shadeGrass, blade, plant, stone;
     /// <summary>Textured props (leaf-card bushes, frond ferns, #9685, and field stones, #9831), and each layer's material.</summary>
     private readonly PropMaterials textured;
@@ -137,6 +143,7 @@ internal sealed class TerrainScatter : IDisposable
             AlphaCutoff = GrassAlphaCutoff,
             WindBend = GrassWindBend,
             WindFlutter = GrassWindFlutter,
+            SinksUnderSnow = SinksUnderSnow,
         });
         dryCard = engine.Graphics.CreateMaterial(new MaterialRequest(DryCardColor, grassTexture, GrassRoughness, white, Vector3.Zero, 0, true) with
         {
@@ -144,6 +151,7 @@ internal sealed class TerrainScatter : IDisposable
             AlphaCutoff = GrassAlphaCutoff,
             WindBend = GrassWindBend,
             WindFlutter = GrassWindFlutter,
+            SinksUnderSnow = SinksUnderSnow,
         });
         shadeGrass = engine.Graphics.CreateMaterial(new MaterialRequest(ShadeGrassColor, grassTexture, GrassRoughness, white, Vector3.Zero, 0, true) with
         {
@@ -151,12 +159,14 @@ internal sealed class TerrainScatter : IDisposable
             AlphaCutoff = GrassAlphaCutoff,
             WindBend = GrassWindBend,
             WindFlutter = GrassWindFlutter,
+            SinksUnderSnow = SinksUnderSnow,
         });
         plant = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), PlantRoughness, white, Vector3.Zero, 0, true) with
         {
             FlatShading = true,
             WindBend = PlantWindBend,
             WindFlutter = PlantWindFlutter,
+            SinksUnderSnow = SinksUnderSnow,
         });
         stone = engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), StoneRoughness, white, Vector3.Zero, 0, false) with
         {
@@ -167,6 +177,7 @@ internal sealed class TerrainScatter : IDisposable
         {
             WindBend = GrassWindBend,
             WindFlutter = GrassWindFlutter,
+            SinksUnderSnow = SinksUnderSnow,
         });
         for (int index = 0; index < GrassVariants.Length; index++)
         {
