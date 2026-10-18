@@ -114,8 +114,20 @@ internal sealed class TerrainPresentation : IDisposable
     internal VoxelScenePresentation ProjectAnother(SpatialSession session) =>
         engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             session,
-            MaterialBindings(blend: false),
-            FaceMaterialBindings()));
+            SeparateBindings(),
+            FaceMaterialBindings(skipRock: ground is not null)));
+
+    /// <summary>The cave rock (#10090): a dungeon's rock blocks are drawn in it, as its rock meshes are.</summary>
+    internal const string CaveRockName = "cave-rock";
+
+    /// <summary>The cave rock's authored, triplanar material.</summary>
+    internal Material CaveRock => (ground ?? throw new InvalidOperationException("Terrain ground materials are unavailable.")).Plain(CaveRockName);
+
+    /// <summary>A separate space's bindings: the world's blocks unblended, its rock in the cave rock.</summary>
+    private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings() =>
+        BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
+            ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? CaveRock
+                : ground?.For(block.Id, blend: false) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     /// <summary>Re-meshes the projection after the scene or the world origin changed.</summary>
     internal VoxelScenePresentationReadout Refresh()
@@ -149,9 +161,10 @@ internal sealed class TerrainPresentation : IDisposable
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
             ground?.For(block.Id, blend) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
-    private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings() =>
+    /// <param name="skipRock">Leaves rock blocks to their one material (a separate space's cave rock, #10090).</param>
+    private ReadOnlyMemory<VoxelSceneFaceMaterialBinding> FaceMaterialBindings(bool skipRock = false) =>
         BlockRegistry.BoundBlocks
-            .Where(block => ground?.For(block.Id) is null && Atlas.TopMaterial(block.Id) is not null)
+            .Where(block => ground?.For(block.Id) is null && Atlas.TopMaterial(block.Id) is not null && !(skipRock && Dungeons.DungeonSurfaces.IsRock(block.Id)))
             .Select(block => new VoxelSceneFaceMaterialBinding(block.Slot, SpatialFace.PosY, Atlas.TopMaterial(block.Id)!))
             .ToArray();
 }

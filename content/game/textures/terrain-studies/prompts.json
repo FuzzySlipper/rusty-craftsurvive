@@ -37,6 +37,14 @@
       "name": "dry-meadow",
       "derivation": "python3 scripts/make-dry-meadow.py: sage-ground recoloured toward straw (#10041), same brushwork, scale and seamless edges",
       "source": "sage-ground"
+    },
+    {
+      "name": "cave-rock",
+      "seed": 12,
+      "prompt": "Natural cave wall rock surface deep underground: large continuous smooth planes and broad rounded facets of solid stone, gentle flowing strata bands, a few long thin cracks and darker damp seams, cool slate grey, muted blue-grey and dark umber with faint pale mineral streaks. Not individual stones, not cobbles, not bricks, not paving, no gaps between stones. Seamless tileable square texture for a stylized fantasy survival game, seen straight on, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no highlights, no objects, no text.",
+      "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/cave-10090/cave-rock-s12.png",
+      "stylise": "stylise-texture <source> content/game/textures/terrain-studies/cave-rock.png --size 512 --paint 2 --colors 20 --group-strength 0.5 --tile --saturation 0.55 --brightness 0.72 --pull stone --pull-strength 0.4",
+      "note": "provisional, for the rock route study (#10090): a shared cave material so the three routes differ only in geometry"
     }
   ]
 }

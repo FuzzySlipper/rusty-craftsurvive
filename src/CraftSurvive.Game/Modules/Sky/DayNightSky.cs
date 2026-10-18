@@ -600,11 +600,31 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetStars(default);
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         Eyes(0f);
-        Relight(
-            Off,
-            SkyShadow(0d, Vector3.Zero) with { Color = UndergroundFillColour, Intensity = UndergroundFillIntensity, ShadowIntent = LightShadowIntent.Disabled },
-            LightDescriptor.Hemisphere(NightSkyColour, NightGroundColour, 0f, enabled: false),
-            Off);
+        RelightUnderground();
+    }
+
+    private void RelightUnderground() => Relight(
+        Off,
+        SkyShadow(0d, Vector3.Zero) with { Color = UndergroundFillColour, Intensity = studyFill ?? UndergroundFillIntensity, ShadowIntent = LightShadowIntent.Disabled },
+        LightDescriptor.Hemisphere(NightSkyColour, NightGroundColour, 0f, enabled: false),
+        Off);
+
+    /// <summary>A diagnostic fill and fog density underground, for studies that must see the shapes (#10090); null is the game's own.</summary>
+    private float? studyFill, studyFog;
+
+    /// <summary>For diagnosis: sets the underground fill and fog density (negative restores the game's own) and applies them at once.</summary>
+    internal string StudyLight(float fill, float fogDensity)
+    {
+        studyFill = fill < 0 ? null : fill;
+        studyFog = fogDensity < 0 ? null : fogDensity;
+        if (underground)
+        {
+            RelightUnderground();
+            Veil();
+        }
+
+        return string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"underground fill={studyFill ?? UndergroundFillIntensity:F2}{(studyFill is null ? " (game)" : " (study)")} fog={studyFog ?? UndergroundFogDensity:F3}{(studyFog is null ? " (game)" : " (study)")}");
     }
 
     /// <summary>
@@ -917,7 +937,7 @@ internal sealed class DayNightSky : IDisposable
         else if (underground)
         {
             engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(UndergroundBackground));
-            engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, UndergroundFogDensity));
+            engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, studyFog ?? UndergroundFogDensity));
         }
     }
 

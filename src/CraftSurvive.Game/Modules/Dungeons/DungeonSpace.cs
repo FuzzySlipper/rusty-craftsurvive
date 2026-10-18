@@ -25,6 +25,10 @@ internal sealed class DungeonSpace : IDisposable
     private readonly DungeonSurface surface;
     private MeshResource? rockMesh;
     private Appearance? rockAppearance;
+    /// <summary>Route C's rock pieces (#10090): merged meshes and their appearances.</summary>
+    private readonly List<(MeshResource Mesh, Appearance Look)> pieces = [];
+    /// <summary>Route B's finer rock (#10090), meshed in slabs; the first is also <see cref="rockMesh"/>.</summary>
+    private readonly List<(MeshResource Mesh, Appearance Look)> slabs = [];
     private readonly int totalChunks;
     private VoxelScenePresentation? projection;
     private long loadTicks;
@@ -59,7 +63,11 @@ internal sealed class DungeonSpace : IDisposable
 
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot; nothing when its rock is voxels.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts => rockAppearance is Appearance appearance
-        ? [new AppearanceFact(ProductIds.DungeonRockObject, false, 0UL, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), appearance, true, RenderLayer.Scene)]
+        ? [new AppearanceFact(ProductIds.DungeonRockObject, false, 0UL, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), appearance, true, RenderLayer.Scene),
+            .. slabs.Skip(1).Select((slab, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0x800 + (ulong)index, false, 0UL,
+                new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), slab.Look, true, RenderLayer.Scene)),
+            .. pieces.Select((piece, index) => new AppearanceFact(ProductIds.DungeonRockObject + 1 + (ulong)index, false, 0UL,
+                new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), piece.Look, true, RenderLayer.Scene))]
         : [];
 
     /// <summary>The rock mesh's size and cost, once built.</summary>
@@ -99,12 +107,70 @@ internal sealed class DungeonSpace : IDisposable
     private void BuildRock(RockDensity rock)
     {
         long started = Stopwatch.GetTimestamp();
-        rockMesh = DungeonCollision.MeshRock(engine, rock, rockMaterial!, out ImplicitGenerationReadout generated);
+        ImplicitGenerationReadout generated;
+        if (surface == DungeonSurface.Fine)
+        {
+            // The Engine meshes at most a few million samples at once: the finer field goes in slabs along z that share
+            // their boundary plane of samples, so neighbouring slabs' surfaces meet.
+            (int w, int h, int d, float[] values) = RockRoutes.Refine(rock, StudySeed);
+            float spacing = 1f / RockRoutes.FineSamplesPerMetre;
+            int slabDepth = Math.Max(2, RockRoutes.MostSamplesPerMesh / (w * h));
+            generated = default;
+            for (int z0 = 0; z0 < d - 1; z0 += slabDepth - 1)
+            {
+                int depth = Math.Min(slabDepth, d - z0);
+                float[] slab = values.AsSpan(z0 * w * h, depth * w * h).ToArray();
+                MeshResource mesh = DungeonCollision.MeshRock(engine, w, h, depth, slab, spacing, rockMaterial!, out ImplicitGenerationReadout part,
+                    new Vector3(0, 0, z0 * spacing));
+                slabs.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                generated = generated with
+                {
+                    Vertices = generated.Vertices + part.Vertices,
+                    Triangles = generated.Triangles + part.Triangles,
+                    BoundaryEdges = generated.BoundaryEdges + part.BoundaryEdges,
+                };
+            }
+
+            rockMesh = slabs[0].Mesh;
+        }
+        else
+        {
+            rockMesh = DungeonCollision.MeshRock(engine, rock, rockMaterial!, out generated);
+        }
+
         double meshMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        DungeonCollision.AdmitRock(engine, Session, rockMesh);
-        rockAppearance = engine.Graphics.CreateMeshAppearance(rockMesh);
+        DungeonCollision.AdmitRock(engine, Session, slabs.Count > 0 ? [.. slabs.Select(slab => slab.Mesh)] : [rockMesh]);
+        rockAppearance = slabs.Count > 0 ? slabs[0].Look : engine.Graphics.CreateMeshAppearance(rockMesh);
+        double collisionMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds - meshMs;
+        string piecesReadout = "";
+        if (surface == DungeonSurface.Pieced)
+        {
+            long piecing = Stopwatch.GetTimestamp();
+            int count = 0, triangles = 0;
+            foreach (MeshResourceCreateRequest request in RockRoutes.Pieces(rock, StudySeed, rockMaterial!, DungeonCollision.Origin, out count))
+            {
+                MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+                pieces.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                triangles += request.Indices.Length / 3;
+            }
+
+            piecesReadout = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"; pieces: {count} in {pieces.Count} meshes, {triangles} triangles, built in {Stopwatch.GetElapsedTime(piecing).TotalMilliseconds:F0} ms");
+        }
+
         RockReadout = string.Create(System.Globalization.CultureInfo.InvariantCulture,
-            $"sculpted rock: {generated.Vertices} vertices, {generated.Triangles} triangles, {generated.BoundaryEdges} boundary edges, meshed in {meshMs:F0} ms, collision and appearance in {Stopwatch.GetElapsedTime(started).TotalMilliseconds - meshMs:F0} ms");
+            $"{surface} rock: {generated.Vertices} vertices, {generated.Triangles} triangles, {generated.BoundaryEdges} boundary edges, meshed in {meshMs:F0} ms, collision and appearance in {collisionMs:F0} ms") + piecesReadout;
+    }
+
+    /// <summary>A stable seed from the layout's name for the rock study's detail and pieces (string hashes vary per process).</summary>
+    private ulong StudySeed
+    {
+        get
+        {
+            ulong h = 14695981039346656037UL;
+            foreach (char c in layout.Name) h = unchecked((h ^ c) * 1099511628211UL);
+            return h;
+        }
     }
 
     /// <summary>Re-meshes what the space draws after its voxels were edited.</summary>
@@ -118,6 +184,20 @@ internal sealed class DungeonSpace : IDisposable
 
     public void Dispose()
     {
+        foreach ((MeshResource mesh, Appearance look) in pieces)
+        {
+            look.Dispose();
+            mesh.Dispose();
+        }
+
+        pieces.Clear();
+        foreach ((MeshResource mesh, Appearance look) in slabs.Skip(1))
+        {
+            look.Dispose();
+            mesh.Dispose();
+        }
+
+        slabs.Clear();
         rockAppearance?.Dispose();
         rockAppearance = null;
         rockMesh?.Dispose();

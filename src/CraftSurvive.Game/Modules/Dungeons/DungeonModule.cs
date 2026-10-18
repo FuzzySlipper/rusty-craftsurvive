@@ -258,8 +258,10 @@ internal sealed class DungeonModule : IProductModule
         walkable = candidate.Walkable;
         try
         {
-            space = surface == DungeonSurface.Cubes
-                ? new DungeonSpace(engine, terrain, candidate.Layout, candidate.Layout.Rock is null ? null : RockMaterial())
+            // The rock study (#10090): cubes keep the old rock texture; the mesh routes take the cave material, as the dc voxels do.
+            space = DungeonSurfaces.RockAsMesh(surface)
+                ? new DungeonSpace(engine, terrain, candidate.Layout,
+                    candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, null, surface);
         }
         catch (EngineCallException refusal)
@@ -291,7 +293,7 @@ internal sealed class DungeonModule : IProductModule
             return false;
         }
 
-        if (routes.Walkable)
+        if (routes.Walkable || keepUnwalkable)
         {
             return true;
         }
@@ -347,12 +349,24 @@ internal sealed class DungeonModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture, $"dungeons entered use seed {chosen}");
     }
 
+    /// <summary>For studies (#10090): enter a candidate even when its routes fail, so looks compare on the same layout.</summary>
+    private bool keepUnwalkable;
+
+    internal string KeepUnwalkable(bool keep)
+    {
+        keepUnwalkable = keep;
+        return keep ? "candidates are kept even when their routes fail (study only)" : "candidates whose routes fail are refused again";
+    }
+
+    /// <summary>For studies (#10090): a flat diagnostic fill and fog density underground, so shapes can be compared; negative restores the game's.</summary>
+    internal string StudyLight(float fill, float fogDensity) => sky.StudyLight(fill, fogDensity);
+
     /// <summary>Chooses how the next dungeon's voxels are surfaced: cubes, dc (worn rock), faceted (chiselled rock), ruined (weathered building) or mc (marched rock).</summary>
     internal string ChooseSurface(string name)
     {
         if (DungeonSurfaces.Parse(name) is not DungeonSurface next)
         {
-            return $"surface refused: \"{name}\" is not cubes, dc, faceted, ruined or mc";
+            return $"surface refused: \"{name}\" is not cubes, dc, faceted, ruined, mc, mesh, fine or pieced";
         }
 
         surface = next;

@@ -16,6 +16,12 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();
 
+    [DebugCommand("craft.dungeon.studylight", Description = "Assisted, for studies (#10090): sets the underground fill light and fog density (negative restores the game's own), so shapes can be seen and compared.")]
+    public string StudyLight(float fill, float fogDensity) => dungeons.StudyLight(fill, fogDensity);
+
+    [DebugCommand("craft.dungeon.keepunwalkable", Description = "Assisted, for studies (#10090): true enters a dungeon candidate even when its routes fail (to compare looks on one layout); false restores refusal.")]
+    public string KeepUnwalkable(bool keep) => dungeons.KeepUnwalkable(keep);
+
     [DebugCommand("craft.dungeon.enter", Description = "Enters the dungeon at the entrance the player stands at, as the UI's Enter does.")]
     public string Enter() => dungeons.Enter();
 
@@ -25,7 +31,7 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.seed", Description = "Makes every dungeon entered use a chosen seed (as the dungeon bank numbers them), or \"entrance\" to go back to each entrance's own.")]
     public string Seed(string seed) => dungeons.ChooseSeed(seed);
 
-    [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual-contoured worn rock, building on the grid), faceted (flat-faceted rock), ruined (faceted rock, weathered building) or mc (marched rock, cube building).")]
+    [DebugCommand("craft.dungeon.surface", Description = "Chooses how the next dungeon's voxels are surfaced: cubes, dc (dual-contoured worn rock, building on the grid), faceted (flat-faceted rock), ruined (faceted rock, weathered building), mc (marched rock, cube building); for the rock study (#10090): mesh (rock as the Engine's mesh of the field), fine (that mesh at half a metre) or pieced (rock pieces over it).")]
     public string Surface(string name) => dungeons.ChooseSurface(name);
 
     [DebugCommand("craft.dungeon.blast", Description = "Carves a sphere of the given radius (metres) out of the loaded dungeon where the player aims, and reports the rebuild cost.")]

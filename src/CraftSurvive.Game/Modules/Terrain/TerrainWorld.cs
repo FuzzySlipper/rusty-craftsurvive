@@ -188,6 +188,9 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Draws a separate space's session with this world's block materials; the caller disposes the projection.</summary>
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate) => presentation.ProjectAnother(separate);
 
+    /// <summary>The cave rock's material (#10090), for a dungeon's rock meshes.</summary>
+    internal Material CaveRockMaterial => presentation.CaveRock;
+
     /// <summary>How much of the open world's ground is drawn coarse (#9563).</summary>
     internal string LevelOfDetailReadout() => presentation.LevelOfDetailReadout();
 

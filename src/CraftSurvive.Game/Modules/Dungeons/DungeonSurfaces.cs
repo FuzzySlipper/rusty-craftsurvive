@@ -27,6 +27,15 @@ internal enum DungeonSurface
     /// by its densities. Floors, stairs and timber stay on the grid.
     /// </summary>
     Ruined,
+
+    /// <summary>Rock study (#10090) route B: the rock is the Engine's mesh of the sculpted field, in the cave material.</summary>
+    Mesh,
+
+    /// <summary>Route B, finer: the sculpted field resampled at half a metre with a little detail before meshing.</summary>
+    Fine,
+
+    /// <summary>Route C: rock pieces dressing the walls and ceilings over route B's mesh, which stays the collision.</summary>
+    Pieced,
 }
 
 /// <summary>
@@ -65,6 +74,10 @@ internal static class DungeonSurfaces
 
     internal static bool IsRock(BlockId block) => Array.IndexOf(Rock, block) >= 0;
 
+    /// <summary>Whether a look's rock is a mesh beside cube voxels rather than voxels itself.</summary>
+    internal static bool RockAsMesh(DungeonSurface surface) =>
+        surface is DungeonSurface.Cubes or DungeonSurface.Mesh or DungeonSurface.Fine or DungeonSurface.Pieced;
+
     /// <summary>Whether a look wears its building back by density, not only its rock.</summary>
     internal static bool Weathers(DungeonSurface surface) => surface == DungeonSurface.Ruined;
 
@@ -78,7 +91,7 @@ internal static class DungeonSurfaces
     /// <summary>Each bound block's surface under a look; empty for cubes.</summary>
     internal static VoxelMaterialSurface[] Materials(DungeonSurface surface)
     {
-        if (surface == DungeonSurface.Cubes)
+        if (RockAsMesh(surface))
         {
             return [];
         }
@@ -109,6 +122,9 @@ internal static class DungeonSurfaces
         "faceted" => DungeonSurface.Faceted,
         "mc" => DungeonSurface.Marched,
         "ruined" => DungeonSurface.Ruined,
+        "mesh" => DungeonSurface.Mesh,
+        "fine" => DungeonSurface.Fine,
+        "pieced" => DungeonSurface.Pieced,
         _ => null,
     };
 }

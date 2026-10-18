@@ -140,17 +140,22 @@ internal static class DungeonCollision
     }
 
     /// <summary>Meshes the rock's density by dual contouring through the Engine's sampled volume.</summary>
-    internal static MeshResource MeshRock(IEngineContext engine, RockDensity rock, Material material, out ImplicitGenerationReadout readout)
+    internal static MeshResource MeshRock(IEngineContext engine, RockDensity rock, Material material, out ImplicitGenerationReadout readout) =>
+        MeshRock(engine, rock.Width, rock.Height, rock.Depth, rock.Values, RockDensity.Spacing, material, out readout);
+
+    /// <summary>Meshes a density sampled <paramref name="spacing"/> metres apart from the first cell's centre (the rock study's finer route, #10090).</summary>
+    internal static MeshResource MeshRock(IEngineContext engine, int width, int height, int depth, float[] values, float spacing, Material material,
+        out ImplicitGenerationReadout readout, Vector3 offset = default)
     {
         using SampledVolume volume = engine.ImplicitSurfaces.CreateSampledVolume(new SampledVolumeCreateRequest(
-            Origin + new Vector3(0.5f, 0.5f, 0.5f), RockDensity.Spacing, (uint)rock.Width, (uint)rock.Height, (uint)rock.Depth, 1f));
+            Origin + new Vector3(0.5f, 0.5f, 0.5f) + offset, spacing, (uint)width, (uint)height, (uint)depth, 1f));
         DensitySample[] batch = new DensitySample[RockWriteBatch];
-        for (int start = 0; start < rock.Values.Length; start += RockWriteBatch)
+        for (int start = 0; start < values.Length; start += RockWriteBatch)
         {
-            int count = Math.Min(RockWriteBatch, rock.Values.Length - start);
+            int count = Math.Min(RockWriteBatch, values.Length - start);
             for (int index = 0; index < count; index++)
             {
-                batch[index] = new DensitySample(rock.Values[start + index]);
+                batch[index] = new DensitySample(values[start + index]);
             }
 
             engine.ImplicitSurfaces.WriteSampledVolume(new SampledVolumeWriteRequest(volume, (uint)start, batch.AsMemory(0, count)));
@@ -261,11 +266,14 @@ internal static class DungeonCollision
     }
 
     /// <summary>Admits the rock mesh as the session's static collision.</summary>
-    internal static void AdmitRock(IEngineContext engine, SpatialSession session, MeshResource mesh) =>
+    internal static void AdmitRock(IEngineContext engine, SpatialSession session, MeshResource mesh) => AdmitRock(engine, session, [mesh]);
+
+    /// <summary>Admits the rock's meshes (a finer rock is meshed in slabs, #10090) as the session's static collision.</summary>
+    internal static void AdmitRock(IEngineContext engine, SpatialSession session, IReadOnlyList<MeshResource> meshes) =>
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(
             session,
-            new[] { new StaticMeshAsset(RockAssetId, new MeshResourceReference(mesh), 0, 0, 0, 0) },
+            meshes.Select((mesh, index) => new StaticMeshAsset(RockAssetId + (ulong)index, new MeshResourceReference(mesh), 0, 0, 0, 0)).ToArray(),
             ReadOnlyMemory<Vector3>.Empty,
             ReadOnlyMemory<Triangle>.Empty,
-            new[] { new StaticMeshInstance(RockInstanceId, RockAssetId, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One)) }));
+            meshes.Select((_, index) => new StaticMeshInstance(RockInstanceId + (ulong)index, RockAssetId + (ulong)index, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One))).ToArray()));
 }

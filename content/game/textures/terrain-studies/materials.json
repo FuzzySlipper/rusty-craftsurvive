@@ -1,5 +1,13 @@
 [
   {
+    "id": "cave-rock",
+    "width": 512,
+    "height": 512,
+    "sha256": "f6764fb21e69f3d7e280a4629d8e3d7201af978b9a9df38d227e087d6cbad397",
+    "metresPerTile": 5,
+    "triplanarSharpness": 4
+  },
+  {
     "id": "dry-meadow",
     "width": 512,
     "height": 512,
