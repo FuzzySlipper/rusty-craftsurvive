@@ -172,6 +172,7 @@ Check.Section("the water rule", WaterRuleChecks.Run);
 Check.Section("sea state", SeaWaveChecks.Run);
 Check.Section("scene wind", WindSwayChecks.Run);
 Check.Section("seasons", StageChecks.TheYearTurns);
+Check.Section("snow cover", SnowChecks.Run);
 Check.Section("boats", BoatChecks.Rules);
 Check.Section("lake rules", LakeChecks.Rules);
 Check.Section("horizon landmarks", HorizonChecks.LandmarksStandInTheirBand);

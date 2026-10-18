@@ -6,10 +6,14 @@ namespace CraftSurvive.Game.Modules.Weather;
 public sealed class WeatherDebugModule : IDebugCommandModule
 {
     private readonly Func<WeatherModule> weatherSource;
+    private readonly Func<SnowModule> snowSource;
     private WeatherModule weather => weatherSource();
 
-    internal WeatherDebugModule(Func<WeatherModule> weather) =>
+    internal WeatherDebugModule(Func<WeatherModule> weather, Func<SnowModule> snow)
+    {
         weatherSource = weather ?? throw new ArgumentNullException(nameof(weather));
+        snowSource = snow ?? throw new ArgumentNullException(nameof(snow));
+    }
 
     [DebugCommand("craft.weather.here", Description = "Reads the weather over the player: the strongest front, its channels and its effects on play.")]
     public string Here() => weather.Readout();
@@ -25,4 +29,10 @@ public sealed class WeatherDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.weather.clear", Description = "Lifts every summoned front; the world's own weather stays.")]
     public string Clear() => weather.ClearSummoned();
+
+    [DebugCommand("craft.snow.readout", Description = "Reads the snow where the player stands (#10068): its depth, frost, the air against freezing, what falls, and the kept cells.")]
+    public string Snow() => snowSource().Readout();
+
+    [DebugCommand("craft.snow.lay", Description = "Assisted: lays the given metres of snow around the player at once (negative takes it away).")]
+    public string Lay(double metres) => snowSource().Lay(metres);
 }

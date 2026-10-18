@@ -12,7 +12,7 @@
 //   [2] x: texels per metre; y: how much a vertical face holds; z: how far down a surface may face and hold
 //       moss; w: 1 when the vertex colour's alpha is the vertex's moisture.
 //   [3] x: the wrap period (whole metres; every lattice divides it, in texels); y: lichen amount (0 none, 1 the
-//       default); w: how much of the tint the fullest stain takes.
+//       default); z: the snow's depth in metres (#10068); w: how much of the tint the fullest stain takes.
 //
 // Lichen is the moss's opposite: small pale crusty spots on dry, sunny, high stone (crowns, south faces), kept off
 // the damp where the stain is. It is drawn crisp at texel scale, as painted spots, on the fine lattice (so it repeats
@@ -129,6 +129,48 @@ fn field_at(world: vec3<f32>, n: vec3<f32>, vertex_moisture: f32) -> f32 {
 }
 // --- end of the moss field ---
 
+// --- Snow (#10068; kept equal in surface-moss.wgsl and ivy-blanket.wgsl) ---
+// parameters[3].z is the snow lying where the party stands, in metres (frost shows as a thin depth). Snow sits
+// on up-facing texels of the field's lattice where its own noise clears a threshold that falls as the depth
+// grows, so a dusting is scattered crisp texels on the flattest tops and SNOW_FULL_DEPTH caps every top. It is
+// drawn whole texels at a time with a darker one-step rim, as painted snow.
+const SNOW_FULL_DEPTH: f32 = 0.15;
+const SNOW_UP_FROM: f32 = 0.55;
+const SNOW_UP_FULL: f32 = 0.9;
+const SNOW_RIM: f32 = 0.08;
+// The threshold falls as the depth's share of full to this power, so a thin snow already spreads in patches.
+const SNOW_SPREAD: f32 = 0.6;
+// Linear: a cold white, and its rim a shade bluer and darker; each texel varies by up to SNOW_SPECKLE.
+const SNOW_WHITE: vec3<f32> = vec3<f32>(0.78, 0.81, 0.86);
+const SNOW_EDGE: vec3<f32> = vec3<f32>(0.55, 0.60, 0.70);
+const SNOW_SPECKLE: f32 = 0.05;
+const SNOW_ROUGHNESS: f32 = 0.85;
+
+// Snow at texel t of a plane facing n: 0 none, else its cover (1 snow, 2 its rim).
+fn snow_at(t: vec2<i32>, top: bool, n: vec3<f32>) -> f32 {
+    let depth = material.parameters[3].z;
+    if depth <= 0.0 || !top {
+        return 0.0;
+    }
+
+    let l = vec4<i32>(material.parameters[1]);
+    let noise = lattice_noise(t + vec2<i32>(l.x * 23, l.x * 61), vec2<i32>(l.x, l.x)) * 0.6
+        + lattice_noise(t + vec2<i32>(l.z * 37, l.z * 11), vec2<i32>(l.z, l.z)) * 0.4;
+    let cover = noise * smoothstep(SNOW_UP_FROM, SNOW_UP_FULL, n.y);
+    let threshold = 1.0 - pow(min(depth / SNOW_FULL_DEPTH, 1.0), SNOW_SPREAD);
+    if cover < threshold {
+        return 0.0;
+    }
+
+    return select(1.0, 2.0, cover < threshold + SNOW_RIM);
+}
+
+fn snow_colour(t: vec2<i32>, cover: f32) -> vec3<f32> {
+    let speckle = (hash(wrap(t, period_texels()) + vec2<i32>(4099, 2617)) - 0.5) * SNOW_SPECKLE;
+    return select(SNOW_WHITE, SNOW_EDGE, cover > 1.5) + vec3<f32>(speckle);
+}
+// --- end of the snow ---
+
 // Lichen at texel t: a spot of the fine lattice's noise where the stone is dry (the moss's wetness inverted), or 0.
 // Returns the spot's cover (0 none) and which colour (0 pale, 1 ochre).
 fn lichen(t: vec2<i32>, n: vec3<f32>, vertex_moisture: f32) -> vec2<f32> {
@@ -170,6 +212,14 @@ fn shade(surface: Surface) -> vec4<f32> {
             let colour = mix(LICHEN_PALE, LICHEN_OCHRE, spot.y);
             s.base = vec4<f32>(mix(s.base.rgb, colour, spot.x), s.base.a);
         }
+    }
+
+    // Snow lies over the stain and the lichen alike.
+    let snow = snow_at(texel.xy, texel.z == 1, n);
+    if snow > 0.0 {
+        s.base = vec4<f32>(snow_colour(texel.xy, snow), s.base.a);
+        s.roughness = SNOW_ROUGHNESS;
+        s.metalness = 0.0;
     }
 
     return standard_shade(s);

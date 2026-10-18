@@ -69,6 +69,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     /// <summary>The player's hunger and air, which give and take health through the player's vitals.</summary>
     private SurvivalModule survival = null!;
     private WeatherModule weather = null!;
+    /// <summary>The snow lying on the ground (#10068).</summary>
+    private SnowModule snow = null!;
 
     /// <summary>The rivers' stage from the weather and the seasons (#9878): fords, ice and dry beds.</summary>
     private Modules.Water.RiverStageModule riverStage = null!;
@@ -159,6 +161,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         weather = new WeatherModule(worlds.Current.Map, sky, () => conditions.Time, () => player.WorldPosition,
             () => !player.InSeparateSpace && !player.HeadSubmerged,
             () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
+        snow = new SnowModule(context.Engine, store, terrain.SaveIdentity, weather.Field, () => weather.Hours, () => player.WorldPosition,
+            depth => terrain.SetSnow((float)depth));
         riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater,
             new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));
         terrain.Water.Stages = riverStage;
@@ -200,7 +204,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
             },
         };
-        gameplay = [conditions, weather, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
+        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition, terrain.Moss);
@@ -312,7 +316,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore), () => Owner(lamps))));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
-        RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather))));
+        RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather), () => Owner(snow))));
         RequireRegistration(registrar.Register(new Modules.Travel.BoatDebugModule(() => worldBuilt ? BoatReadout() : "no world",
             kind => worldBuilt ? DebugBuildBoat(kind) : "no world",
             (forward, turn, seconds) => worldBuilt ? DebugPaddle(forward, turn, seconds) : "no world",

@@ -74,6 +74,10 @@ internal static class SaveManifest
     internal static SaveKey WaterStage { get; } =
         new("water/stage", "water/stage.backup", "RiverStageStore", 0x4754_5357, 1);
 
+    /// <summary>The snow lying around where the party has been (#10068): its depth per cell.</summary>
+    internal static SaveKey WeatherSnow { get; } =
+        new("weather/snow", "weather/snow.backup", "SnowModule", 0x574F_4E53, 1);
+
     internal static IReadOnlyList<SaveKey> All { get; } =
-        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat, WaterStage];
+        [WorldMap, TerrainOverlay, DiscoveryJournal, BlockEntities, BuildPieces, BuildRemnants, PlayerContinuation, WorldConditions, PlayerSurvival, PlayerInventory, TravelHome, TravelSled, TravelBoat, WaterStage, WeatherSnow];
 }

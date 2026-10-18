@@ -74,6 +74,9 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly List<(MeshResource Mesh, Appearance Look)> retiring = [];
     private Vector3 centre;
 
+    /// <summary>Snow this deep (metres) buries the cushions at a place's feet (#10068).</summary>
+    private const float CushionsBuriedMetres = 0.06f;
+
     internal PlaceMossCards(IEngineContext engine, WorldFrame frame, SurfaceMoss moss)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -124,6 +127,9 @@ internal sealed class PlaceMossCards : IDisposable
                     if (kind == Kind.Face) faceAnchors++;
                     float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceGrain, SurfaceMoss.HeightMoisture(anchor.At.Y - piece.Sink));
                     if (!float.IsFinite(field) || field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
+                    // Snow (#10068) buries a mat or a cluster on a top where the shader draws it, and the cushions at the feet once it lies deep.
+                    if (kind == Kind.Cushion && moss.Snow >= CushionsBuriedMetres) continue;
+                    if (kind == Kind.Mat && moss.SnowAt(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceGrain)) continue;
                     float pick = Hash(at);
                     Kind laid = kind;
                     if (field >= blanket && kind is Kind.Face or Kind.Mat)

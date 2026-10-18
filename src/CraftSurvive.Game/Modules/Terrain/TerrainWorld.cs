@@ -215,6 +215,26 @@ internal sealed class TerrainWorld : IDisposable
         return readout;
     }
 
+    /// <summary>
+    /// The depths (metres) at which the snow (#10068) on the field stones and the places' moss cards is laid again: the
+    /// places' own surfaces follow every change at once, but the scatter's copies keep the shader values they were grown
+    /// with, so they regrow only when the snow crosses a step.
+    /// </summary>
+    private static readonly float[] SnowSteps = [0.005f, 0.015f, 0.03f, 0.05f, 0.08f, 0.12f];
+    private int snowStep;
+
+    /// <summary>Sets the snow lying where the party stands (#10068) on the places and the field stones.</summary>
+    internal void SetSnow(float metres)
+    {
+        Moss.SetSnow(metres);
+        int step = SnowSteps.Count(at => metres >= at);
+        if (step == snowStep) return;
+        snowStep = step;
+        places.RelayCards();
+        presentation.RegrowScatter();
+        vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
+    }
+
     internal string TuneScatter(float grassPerSquareMetre)
     {
         string readout = presentation.TuneScatter(grassPerSquareMetre);

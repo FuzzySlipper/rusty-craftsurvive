@@ -1,3 +1,4 @@
+using CraftSurvive.Game.Modules.Weather;
 using CraftSurvive.Game.Modules.Water;
 using System.Buffers;
 using System.Buffers.Binary;
@@ -95,6 +96,9 @@ SavedForm[] forms =
         (left, right) => left.Hours == right.Hours && left.Storage.SequenceEqual(right.Storage) && left.Frost.SequenceEqual(right.Frost)
             && left.Snow.SequenceEqual(right.Snow) && left.Ground.SequenceEqual(right.Ground),
         seed => new RiverStageCodec(identity with { Seed = seed })),
+    SavedForm.For(SaveManifest.WeatherSnow, new SnowCoverCodec(identity),
+        (IReadOnlyList<SnowCell>)[new SnowCell(-3, -1, 0.25, 610.5), new SnowCell(4, -1, 0, 611), new SnowCell(-2, 7, 0.8, 2.25)], SnowCoverCodec.RecordBytes,
+        (left, right) => left.SequenceEqual(right), seed => new SnowCoverCodec(identity with { Seed = seed })),
 ];
 
 // --- known places (#9471): home first, then the journal, newest first, entrances marked as such --------
