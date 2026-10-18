@@ -222,6 +222,12 @@ historical region, an industrial aesthetic or a glowing ancient-machine motif.
 - Dungeons carry the same surface language into enclosed and vertical spaces.
   They can be darker and more threatening while footholds, ledges and openings
   stay readable.
+  - Their built parts are textured kit meshes on a grid, like the overworld's
+    places.
+  - Their rock may stay carved voxels or become pieced or procedural meshes,
+    chosen by testing look and cost.
+  - Nothing of the earlier faceted dungeon look is assumed. That includes how
+    darkness is made (owner, 2026-10-18; see the atlas's Combat & Delving).
 
 ## Scavenging has a physical presence
 
