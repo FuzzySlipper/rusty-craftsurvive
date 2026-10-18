@@ -32,33 +32,19 @@ internal sealed class SnowTracks : IProductModule
     /// <summary>The atlas's columns and rows: three stages a row, boots above paws.</summary>
     private const int Columns = 4, Rows = 2;
 
-    private enum Maker { Boot, Paw }
-
-    private sealed class Print
-    {
-        internal Vector3 At;
-        internal float Heading;
-        internal bool Left;
-        internal Maker Maker;
-        internal double Hours, Fallen;
-        /// <summary>The stage shown, or <see cref="TrackFading.Gone"/> for none; and the stage the Engine was last given.</summary>
-        internal int Stage = TrackFading.Gone, Placed = TrackFading.Gone;
-    }
-
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
     private readonly SnowCover cover;
     private readonly Func<double> hours;
     private readonly Func<(Vector3 Feet, bool Grounded, bool Open)> player;
     private readonly Func<IEnumerable<(int Id, Vector3 Feet)>> creatures;
-    private readonly Print[] pool = new Print[PoolSize];
+    private readonly FootprintPool pool;
     private readonly Dictionary<int, (Vector3 Last, float Walked, bool Left)> walkers = [];
     private RenderResource? atlas;
     private (Vector3 Last, float Walked, bool Left)? walking;
     private (long X, long Y, long Z) placedOrigin;
     private bool shown = true;
-    private int next;
-    private long stamped, refused;
+    private long refused;
     private string lastFailure = "none";
 
     /// <param name="player">The player's feet (world metres), whether they stand on the ground, and whether they are in the open world.</param>
@@ -71,10 +57,10 @@ internal sealed class SnowTracks : IProductModule
         this.hours = hours ?? throw new ArgumentNullException(nameof(hours));
         this.player = player ?? throw new ArgumentNullException(nameof(player));
         this.creatures = creatures ?? throw new ArgumentNullException(nameof(creatures));
-        for (int i = 0; i < pool.Length; i++) pool[i] = new Print();
+        pool = new FootprintPool(cover, PoolSize);
     }
 
-    internal int Live => pool.Count(print => print.Stage < TrackFading.Gone);
+    internal int Live => pool.Live;
 
     public void Start()
     {
@@ -88,7 +74,7 @@ internal sealed class SnowTracks : IProductModule
     {
         double now = hours();
         (Vector3 feet, bool grounded, bool open) = player();
-        if (open) Walk(ref walking, feet, grounded, PlayerStride, PlayerFootSpread, Maker.Boot, now);
+        if (open) Walk(ref walking, feet, grounded, PlayerStride, PlayerFootSpread, FootprintMaker.Boot, now);
         else walking = null;
 
         HashSet<int> seen = [];
@@ -96,17 +82,17 @@ internal sealed class SnowTracks : IProductModule
         {
             seen.Add(id);
             (Vector3 Last, float Walked, bool Left)? state = walkers.TryGetValue(id, out var known) ? known : null;
-            Walk(ref state, at, true, CreatureStride, CreatureFootSpread, Maker.Paw, now);
+            Walk(ref state, at, true, CreatureStride, CreatureFootSpread, FootprintMaker.Paw, now);
             if (state is { } kept) walkers[id] = kept;
         }
 
         foreach (int gone in walkers.Keys.Where(id => !seen.Contains(id)).ToList()) walkers.Remove(gone);
-        Fade(now);
+        pool.Fade(now);
         Present(open);
     }
 
     /// <summary>A body's walk since the last update: a print each stride on snow deep enough, feet alternating.</summary>
-    private void Walk(ref (Vector3 Last, float Walked, bool Left)? state, Vector3 feet, bool grounded, float stride, float spread, Maker maker, double now)
+    private void Walk(ref (Vector3 Last, float Walked, bool Left)? state, Vector3 feet, bool grounded, float stride, float spread, FootprintMaker maker, double now)
     {
         if (state is not { } s || Vector3.Distance(s.Last, feet) > GapMetres)
         {
@@ -127,30 +113,11 @@ internal sealed class SnowTracks : IProductModule
         state = (feet, grounded ? walked : s.Walked, left);
     }
 
-    private void Stamp(Vector3 feet, Vector2 way, bool left, float spread, Maker maker, double now)
+    private void Stamp(Vector3 feet, Vector2 way, bool left, float spread, FootprintMaker maker, double now)
     {
         Vector3 side = new(-way.Y, 0, way.X);
-        Print print = pool[next];
-        next = (next + 1) % pool.Length;
-        print.At = feet + (side * (left ? -spread : spread));
         // The box turns so its -z (the atlas's toe, v 0) points the way walked.
-        print.Heading = MathF.Atan2(-way.X, -way.Y);
-        print.Left = left;
-        print.Maker = maker;
-        print.Hours = now;
-        print.Fallen = cover.FallenAt(print.At.X, print.At.Z, now);
-        print.Stage = 0;
-        stamped++;
-    }
-
-    private void Fade(double now)
-    {
-        foreach (Print print in pool)
-        {
-            if (print.Stage >= TrackFading.Gone) continue;
-            print.Stage = TrackFading.StageOf(cover.FallenAt(print.At.X, print.At.Z, now) - print.Fallen, now - print.Hours,
-                cover.DepthAt(print.At.X, print.At.Z, now));
-        }
+        pool.Stamp(feet + (side * (left ? -spread : spread)), MathF.Atan2(-way.X, -way.Y), left, maker, now);
     }
 
     /// <summary>
@@ -167,31 +134,29 @@ internal sealed class SnowTracks : IProductModule
             rebase = true;
         }
 
-        for (int i = 0; i < pool.Length; i++)
+        foreach (FootprintChange change in pool.Changes(shown, rebase))
         {
-            Print print = pool[i];
-            int want = shown ? print.Stage : TrackFading.Gone;
-            if (want == print.Placed && !(rebase && want < TrackFading.Gone)) continue;
             try
             {
-                if (want >= TrackFading.Gone) engine.CameraView.RemoveDecal(new DecalRemoval(Id(i)));
-                else engine.CameraView.SetDecal(Request(i, print, want));
-                print.Placed = want;
+                if (change.Print is { } print) engine.CameraView.SetDecal(Request(change.Slot, print));
+                else engine.CameraView.RemoveDecal(new DecalRemoval(Id(change.Slot)));
+                pool.Told(change, taken: true);
             }
             catch (EngineCallException exception)
             {
                 refused++;
                 lastFailure = exception.Message;
-                print.Placed = TrackFading.Gone;
+                pool.Told(change, taken: false);
             }
         }
     }
 
     private static ulong Id(int index) => ProductIds.SnowTrackBase + (ulong)index;
 
-    private DecalRequest Request(int index, Print print, int stage)
+    private DecalRequest Request(int index, Footprint print)
     {
-        float size = PrintMetres * (print.Maker == Maker.Paw ? PawScale : 1);
+        int stage = print.Stage;
+        float size = PrintMetres * (print.Maker == FootprintMaker.Paw ? PawScale : 1);
         float row = (int)print.Maker, u0 = stage / (float)Columns, u1 = (stage + 1) / (float)Columns;
         // A left foot is the right one mirrored across the atlas cell.
         if (print.Left) (u0, u1) = (u1, u0);
@@ -210,7 +175,7 @@ internal sealed class SnowTracks : IProductModule
         for (int i = 0; i < PoolSize; i++)
         {
             Vector3 at = feet + new Vector3(((i % side) - (side / 2)) * FillSpacing, 0, ((i / side) - (side / 2)) * FillSpacing);
-            Stamp(at, -Vector2.UnitY, i % 2 == 0, 0, i % 3 == 0 ? Maker.Paw : Maker.Boot, now);
+            Stamp(at, -Vector2.UnitY, i % 2 == 0, 0, i % 3 == 0 ? FootprintMaker.Paw : FootprintMaker.Boot, now);
         }
 
         return Readout();
@@ -221,17 +186,14 @@ internal sealed class SnowTracks : IProductModule
 
     public void Restart()
     {
-        foreach (Print print in pool) print.Stage = TrackFading.Gone;
+        pool.Clear();
         walking = null;
         walkers.Clear();
     }
 
     public void Dispose()
     {
-        for (int i = 0; i < pool.Length; i++)
-        {
-            if (pool[i].Placed < TrackFading.Gone) engine.CameraView.RemoveDecal(new DecalRemoval(Id(i)));
-        }
+        foreach (int slot in pool.Placed().ToList()) engine.CameraView.RemoveDecal(new DecalRemoval(Id(slot)));
 
         engine.CameraView.SetDecalAtlas(default);
         atlas?.Dispose();
@@ -242,6 +204,6 @@ internal sealed class SnowTracks : IProductModule
     {
         DecalReadout engineDecals = engine.CameraView.ReadDecals();
         return string.Create(CultureInfo.InvariantCulture,
-            $"tracks live={Live}/{PoolSize} stamped={stamped} walkers={walkers.Count} stages=[{string.Join(",", Enumerable.Range(0, TrackFading.Stages).Select(s => pool.Count(p => p.Stage == s)))}] decals={engineDecals.Decals}/{engineDecals.Budget} refused={refused} failure={lastFailure}");
+            $"tracks live={Live}/{PoolSize} stamped={pool.Stamped} walkers={walkers.Count} stages=[{string.Join(",", Enumerable.Range(0, TrackFading.Stages).Select(pool.AtStage))}] decals={engineDecals.Decals}/{engineDecals.Budget} refused={refused} failure={lastFailure}");
     }
 }

@@ -96,6 +96,26 @@ internal static class SnowChecks
         Check.That(TrackFading.StageOf(0, 1, 0.005) == TrackFading.Gone && TrackFading.StageOf(0, 1, 0.3) == 0,
             "a print goes once the snow under it melts out, and stands while it lies");
 
+        // A reused slot is told again (R10068-5): fill and publish the pool, then a new fresh print in the oldest slot is
+        // placed at its own position on the very next publish, though its stage (fresh) is the stage the slot showed.
+        SnowCover deep = new(polar);
+        deep.Lay(0, 0, StartHours + 200, 0.4);
+        FootprintPool pool = new(deep, 8);
+        for (int i = 0; i < pool.Size; i++) pool.Stamp(new System.Numerics.Vector3(i, 0, 0), 0, false, FootprintMaker.Boot, StartHours + 200);
+        pool.Fade(StartHours + 200);
+        IReadOnlyList<FootprintChange> first = pool.Changes(shown: true, all: false);
+        foreach (FootprintChange change in first) pool.Told(change, taken: true);
+        bool quiet = pool.Changes(shown: true, all: false).Count == 0;
+        int reused = pool.Stamp(new System.Numerics.Vector3(-3, 0, 5), 1, true, FootprintMaker.Paw, StartHours + 200);
+        pool.Fade(StartHours + 200);
+        IReadOnlyList<FootprintChange> next = pool.Changes(shown: true, all: false);
+        Check.That(first.Count == pool.Size && quiet && next.Count == 1 && next[0].Slot == reused && next[0].Print is { } placed
+            && placed.At == new System.Numerics.Vector3(-3, 0, 5) && placed.Maker == FootprintMaker.Paw && placed.Stage == 0,
+            "a pool slot reused for a fresh print is placed again at its new position, though its stage is unchanged");
+        foreach (FootprintChange change in next) pool.Told(change, taken: true);
+        IReadOnlyList<FootprintChange> hidden = pool.Changes(shown: false, all: false);
+        Check.That(hidden.Count == pool.Size && hidden.All(change => change.Print is null), "leaving the open world removes every placed print");
+
         Console.WriteLine(FormattableString.Invariant($"snow cover: storm {before:F3}->{during:F3} m, a day later {dayLater:F3} m; warm {laid:F3}->{thawed:F3} m; near freezing {reference:F4}/{continued:F4} m"));
         Check.That(Math.Abs(continued - resumed) < 1e-12, $"saved cells carry on exactly as they would have ({continued:F4} m, restored {resumed:F4} m)");
         Check.That(Math.Abs(reference - continued) < 0.01, $"the cover follows the weather, not how often it is asked ({reference:F4} m and {continued:F4} m)");
