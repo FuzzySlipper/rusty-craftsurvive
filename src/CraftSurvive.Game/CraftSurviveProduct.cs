@@ -71,6 +71,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private WeatherModule weather = null!;
     /// <summary>The snow lying on the ground (#10068).</summary>
     private SnowModule snow = null!;
+    /// <summary>Breath and frost in the cold (#10068).</summary>
+    private ColdModule cold = null!;
+    /// <summary>Footprints in the snow (#10068).</summary>
+    private SnowTracks tracks = null!;
 
     /// <summary>The rivers' stage from the weather and the seasons (#9878): fords, ice and dry beds.</summary>
     private Modules.Water.RiverStageModule riverStage = null!;
@@ -163,6 +167,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
         snow = new SnowModule(context.Engine, store, terrain.SaveIdentity, weather.Field, () => weather.Hours, () => player.WorldPosition,
             depth => terrain.SetSnow((float)depth));
+        weather.Freezing = () => snow.Air <= Modules.Water.Seasons.Freezing;
         riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater,
             new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));
         terrain.Water.Stages = riverStage;
@@ -187,6 +192,14 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => new Surroundings(player.InSeparateSpace, player.HeadSubmerged, WorldClock.Daylight(conditions.Time.DayFraction)),
             player.LocalAhead);
 
+        cold = new ColdModule(context.Engine, snow, frame, () => frame.ToLocal(player.WorldEyePosition), () => player.LocalAhead(1), () => player.Sprinting,
+            () => !player.InSeparateSpace && !player.HeadSubmerged && !weather.Exposure.Sheltered,
+            () => creatures.AwakeWithin(player.WorldPosition, ColdModule.CreatureBreathMetres), sky.Frost);
+
+        tracks = new SnowTracks(context.Engine, frame, snow.Cover, () => weather.Hours,
+            () => (player.WorldFeetPosition, player.Grounded, !player.InSeparateSpace && !player.HeadSubmerged),
+            () => creatures.AwakeWithin(player.WorldPosition, SnowTracks.CreatureMetres), (x, z) => terrain.GroundAt(x, z));
+
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
         horizon = new HorizonBackdrop(context.Engine, worlds.Current.Map, () => terrain.Session, () => player.WorldPosition,
@@ -204,7 +217,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
             },
         };
-        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, horizon];
+        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, cold, tracks, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition, terrain.Moss);
@@ -316,7 +329,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new BuildDebugModule(() => Owner(build), () => Owner(entityStore), () => Owner(lamps))));
         RequireRegistration(registrar.Register(new SaveDebugModule(engine, store)));
         RequireRegistration(registrar.Register(new WorldConditionsDebugModule(() => Owner(conditions))));
-        RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather), () => Owner(snow))));
+        RequireRegistration(registrar.Register(new WeatherDebugModule(() => Owner(weather), () => Owner(snow), () => Owner(cold), () => Owner(tracks))));
         RequireRegistration(registrar.Register(new Modules.Travel.BoatDebugModule(() => worldBuilt ? BoatReadout() : "no world",
             kind => worldBuilt ? DebugBuildBoat(kind) : "no world",
             (forward, turn, seconds) => worldBuilt ? DebugPaddle(forward, turn, seconds) : "no world",
@@ -560,7 +573,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's water, studies, places and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts()];
+    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. tracks.Facts];
 
     /// <summary>The style test's travellers and the place study's variants, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. placeStudy.Facts];

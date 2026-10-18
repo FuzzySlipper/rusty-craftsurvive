@@ -463,10 +463,25 @@ internal sealed class DayNightSky : IDisposable
     private RenderResource? veil;
     private bool veiled;
 
-    /// <summary>The arcane air ripples and splits the light over the view; nothing runs while there is none.</summary>
+    /// <summary>Frost creeping in from the view's edges in bitter cold (#10068), 0 to 1, as the snow cover tells it.</summary>
+    private float screenFrost;
+    /// <summary>The frost is set again once it has moved this far.</summary>
+    private const float FrostStep = 0.01f;
+
+    /// <summary>Sets the frost at the view's edges (#10068): drawn by the veil, with the glass storm's ripples.</summary>
+    internal void Frost(float amount)
+    {
+        float frost = Math.Clamp(amount, 0f, 1f);
+        if (disposed || (Math.Abs(frost - screenFrost) < FrostStep && !(frost == 0f && screenFrost > 0f))) return;
+        screenFrost = frost;
+        ArcaneVeil(underground || onMap ? WeatherLook.Clear(weather.Flow) : weather);
+    }
+
+    /// <summary>The arcane air ripples and splits the light over the view, and frost edges it; nothing runs while there is neither.</summary>
     private void ArcaneVeil(WeatherLook w)
     {
-        bool wanted = !underground && w.Arcane * screenWeather > VeilAbove;
+        float frost = underground || onMap ? 0f : screenFrost * screenWeather;
+        bool wanted = !underground && (w.Arcane * screenWeather > VeilAbove || frost > VeilAbove);
         if (!wanted)
         {
             if (veiled) engine.CameraView.SetImageEffect(default);
@@ -475,7 +490,7 @@ internal sealed class DayNightSky : IDisposable
         }
 
         veil ??= engine.Graphics.OpenResource(new RenderResourceRequest(VeilContentPath)).Handle;
-        engine.CameraView.SetImageEffect(new ImageEffectRequest(veil, new Vector4(w.Arcane * screenWeather, 0f, 0f, 0f)));
+        engine.CameraView.SetImageEffect(new ImageEffectRequest(veil, new Vector4(w.Arcane * screenWeather, frost, 0f, 0f)));
         veiled = true;
     }
 

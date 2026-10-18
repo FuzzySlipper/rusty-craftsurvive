@@ -48,6 +48,10 @@ internal sealed class SnowModule : IProductModule
     /// <summary>The depth where the party stands.</summary>
     internal double Depth { get; private set; }
 
+    /// <summary>The air where the party stands (product temperature units; freezing at <see cref="Water.Seasons.Freezing"/>), and the snow falling there, 0..1.</summary>
+    internal double Air { get; private set; } = double.NaN;
+    internal double Falling { get; private set; }
+
     /// <summary>The frost where the party stands, 0..1.</summary>
     internal double Frost { get; private set; }
 
@@ -87,7 +91,9 @@ internal sealed class SnowModule : IProductModule
     {
         EnvironmentSample sample = field.Sample(at.X, at.Z, now);
         double air = Cover.Air(at.X, at.Z, now, sample);
-        bool freezing = air <= Water.Seasons.Freezing && SnowCover.Snowfall(sample, air) <= 0;
+        Air = air;
+        Falling = SnowCover.Snowfall(sample, air);
+        bool freezing = air <= Water.Seasons.Freezing && Falling <= 0;
         double target = freezing ? 1 : 0;
         if (double.IsNaN(frostHours)) Frost = target;
         else

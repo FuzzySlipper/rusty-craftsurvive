@@ -157,6 +157,11 @@ internal sealed class CreatureModule : IProductModule
 
     internal CreatureRoster Roster => roster;
 
+    /// <summary>The awake creatures within a distance of a world point: each one's id and where its feet stand (world metres).</summary>
+    internal IEnumerable<(int Id, Vector3 Feet)> AwakeWithin(Vector3 world, double metres) => roster.All
+        .Where(creature => creature.Awake && CreatureSimulation.PlanarDistance(creature.Position, world) <= metres)
+        .Select(creature => (creature.Id, new Vector3(creature.Position.X, StandingAt(creature), creature.Position.Y)));
+
     /// <summary>How far the nearest awake hostile creature stands from a point, in metres, or infinity when none is awake.</summary>
     internal double NearestAwakeHostileMetres(Vector3 world) => roster.All
         .Where(creature => creature.Awake && creature.Kind.Tuning.Disposition == CreatureDisposition.Hostile)

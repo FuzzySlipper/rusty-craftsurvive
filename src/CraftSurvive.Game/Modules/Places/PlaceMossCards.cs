@@ -20,6 +20,18 @@ internal sealed class PlaceMossCards : IDisposable
     private const string AtlasPath = "textures/places/moss-cards.png";
     /// <summary>Flat moss mats seen from above (make-grass-atlas.py --centre): a 2x2 atlas of patches.</summary>
     private const string MatsPath = "textures/places/moss-mats.png";
+    /// <summary>Icicle fringes (#10068, scripts/generate-icicles.py): a 2x2 atlas, the top row's icicles shorter than the bottom's.</summary>
+    private const string IciclesPath = "textures/places/icicles.png";
+    /// <summary>
+    /// Icicles hang from this share of the lips once the snow shown on the places is this deep (metres); the longer fringes
+    /// (the atlas's bottom row) join once it is <see cref="IciclesLongMetres"/>. A fringe is this wide (64 texels a metre, as the
+    /// atlas is painted) and stands a little proud of a moss curtain.
+    /// </summary>
+    private const float IciclesFromMetres = 0.02f, IciclesLongMetres = 0.1f, IcicleShare = 0.55f, IcicleWidth = 1f, IcicleStandoff = 0.045f;
+    /// <summary>Ice is smooth: it catches the light.</summary>
+    private const float IceRoughness = 0.3f;
+    /// <summary>Icicles hang only from a level top (its normal rises this much, not a rib's curve) with this much wall below it (metres).</summary>
+    private const float IcicleLevelTop = 0.9f, IcicleLeastDrop = 0.7f;
     /// <summary>
     /// On an overgrown place the cards' threshold falls by at most this much extra strength: beyond it the blanket covers the
     /// walls, and cards would only coat it.
@@ -57,8 +69,8 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
     private readonly SurfaceMoss moss;
-    private readonly PropMaterials materials;
-    private readonly Material material, mats;
+    private readonly PropMaterials materials, ice;
+    private readonly Material material, mats, icicles;
     private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops)> anchors = [];
 
     private enum Kind
@@ -68,6 +80,7 @@ internal sealed class PlaceMossCards : IDisposable
         Face,
         Mat,
         Cluster,
+        Icicle,
     }
     private MeshResource? mesh;
     private Appearance? appearance;
@@ -86,6 +99,8 @@ internal sealed class PlaceMossCards : IDisposable
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
         material = materials.For(PropMaterials.LeavesRole, AtlasPath);
         mats = materials.For(PropMaterials.LeavesRole, MatsPath);
+        ice = new PropMaterials(engine, _ => new PropMaterials.Finish(IceRoughness, 0, 0));
+        icicles = ice.For(PropMaterials.LeavesRole, IciclesPath);
     }
 
     /// <summary>A place on a piece where a card may grow: a point and the outward horizontal its face looks along, in the piece's metres.</summary>
@@ -98,7 +113,7 @@ internal sealed class PlaceMossCards : IDisposable
     internal int Cards { get; private set; }
 
     /// <summary>Cards laid by kind (curtain, cushion, face) and the face anchors considered, for the readout.</summary>
-    private readonly int[] byKind = new int[5];
+    private readonly int[] byKind = new int[6];
     private int faceAnchors;
 
     /// <summary>Lays the cards out again over the pieces standing now.</summary>
@@ -107,7 +122,7 @@ internal sealed class PlaceMossCards : IDisposable
         centre = about;
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];
-        List<uint> indices = [], matIndices = [];
+        List<uint> indices = [], matIndices = [], iceIndices = [];
         int cards = 0;
         Array.Clear(byKind);
         faceAnchors = 0;
@@ -117,6 +132,21 @@ internal sealed class PlaceMossCards : IDisposable
             float blanket = piece.Overgrowth > 0 ? moss.BlanketThreshold(piece.Overgrowth) : float.PositiveInfinity;
             if (cards >= MaximumCards) break;
             (Anchor[] lips, Anchor[] feet, Anchor[] faces, Anchor[] tops) = AnchorsOf(piece);
+            if (moss.Snow >= IciclesFromMetres)
+            {
+                // Icicles (#10068) along the lips wherever they freeze, moss or none.
+                foreach (Anchor lip in lips)
+                {
+                    if (lip.Normal.Y < IcicleLevelTop || lip.At.Y - piece.Sink < IcicleLeastDrop) continue;
+                    Vector3 at = piece.World + Vector3.Transform(lip.At * piece.Scale, piece.Rotation);
+                    float pick = Hash(at + new Vector3(0.37f, 0, 0.71f));
+                    if (pick >= IcicleShare || cards >= MaximumCards) continue;
+                    Icicle(at - centre, Vector3.Normalize(Vector3.Transform(lip.Out, piece.Rotation)), pick / IcicleShare, moss.Snow >= IciclesLongMetres, positions, normals, uvs, iceIndices);
+                    byKind[(int)Kind.Icicle]++;
+                    cards++;
+                }
+            }
+
             foreach ((Anchor[] list, Kind kind) in new[] { (lips, Kind.Curtain), (feet, Kind.Cushion), (faces, Kind.Face), (tops, Kind.Mat) })
             {
                 foreach (Anchor anchor in list)
@@ -166,8 +196,15 @@ internal sealed class PlaceMossCards : IDisposable
             bindings.Add(new(slot, mats));
         }
 
+        if (iceIndices.Count > 0)
+        {
+            uint slot = (uint)bindings.Count;
+            groups.Add(new(slot, (uint)(indices.Count + matIndices.Count), (uint)iceIndices.Count));
+            bindings.Add(new(slot, icicles));
+        }
+
         MeshResourceCreateRequest request = new(positions.ToArray(), normals.ToArray(), uvs.ToArray(), ReadOnlyMemory<Color>.Empty,
-            indices.Concat(matIndices).ToArray(), groups.ToArray(), bindings.ToArray());
+            indices.Concat(matIndices).Concat(iceIndices).ToArray(), groups.ToArray(), bindings.ToArray());
         mesh = engine.Graphics.CreateMeshResource(request);
         appearance = engine.Graphics.CreateMeshAppearance(mesh);
     }
@@ -227,6 +264,39 @@ internal sealed class PlaceMossCards : IDisposable
             // The quad's winding faces its normal: counter-clockwise seen from that side.
             Vector3 n = Vector3.Cross(corners[1] - corners[0], corners[3] - corners[0]);
             bool counter = Vector3.Dot(n, facing) > 0;
+            if (counter) indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
+            else indices.AddRange([first, first + 2, first + 1, first, first + 3, first + 2]);
+        }
+    }
+
+    /// <summary>
+    /// An icicle fringe hanging plumb from a lip, both windings, one of the atlas's cells: the top row's short icicles,
+    /// or once the snow lies deep any of the four. The fringe's band (the cell's base) sits at the lip.
+    /// </summary>
+    private static void Icicle(Vector3 at, Vector3 outward, float pick, bool lengthened, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
+    {
+        Vector3 across = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, outward));
+        int cell = (int)(Fraction(pick * 5.17f) * (lengthened ? 4 : 2)) & 3;
+        float u0 = (cell % 2) * 0.5f, vBase = cell < 2 ? 0.5f : 1f;
+        bool mirror = Fraction(pick * 3.71f) >= 0.5f;
+        float u1 = u0 + 0.5f;
+        if (mirror) (u0, u1) = (u1, u0);
+        Vector3 off = outward * IcicleStandoff;
+        Vector3 left = at + off - (across * (IcicleWidth / 2)), right = at + off + (across * (IcicleWidth / 2));
+        Vector3 down = -Vector3.UnitY * IcicleWidth;
+        Vector3[] corners = [left, right, right + down, left + down];
+        Vector2[] uv = [new(u0, vBase), new(u1, vBase), new(u1, vBase - 0.5f), new(u0, vBase - 0.5f)];
+        foreach (Vector3 facing in new[] { outward, -outward })
+        {
+            uint first = (uint)positions.Count;
+            for (int i = 0; i < 4; i++)
+            {
+                positions.Add(corners[i]);
+                normals.Add(facing);
+                uvs.Add(uv[i]);
+            }
+
+            bool counter = Vector3.Dot(Vector3.Cross(corners[1] - corners[0], corners[3] - corners[0]), facing) > 0;
             if (counter) indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
             else indices.AddRange([first, first + 2, first + 1, first, first + 3, first + 2]);
         }
@@ -425,12 +495,13 @@ internal sealed class PlaceMossCards : IDisposable
         retiring.Clear();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} mats={byKind[3]} clusters={byKind[4]} pieces={anchors.Count}");
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} mats={byKind[3]} clusters={byKind[4]} icicles={byKind[5]} pieces={anchors.Count}");
 
     public void Dispose()
     {
         Retire();
         AfterAppearanceSnapshot();
         materials.Dispose();
+        ice.Dispose();
     }
 }

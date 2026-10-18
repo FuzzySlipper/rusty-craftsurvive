@@ -7,10 +7,14 @@ public sealed class WeatherDebugModule : IDebugCommandModule
 {
     private readonly Func<WeatherModule> weatherSource;
     private readonly Func<SnowModule> snowSource;
+    private readonly Func<ColdModule> coldSource;
+    private readonly Func<SnowTracks> tracksSource;
     private WeatherModule weather => weatherSource();
 
-    internal WeatherDebugModule(Func<WeatherModule> weather, Func<SnowModule> snow)
+    internal WeatherDebugModule(Func<WeatherModule> weather, Func<SnowModule> snow, Func<ColdModule> cold, Func<SnowTracks> tracks)
     {
+        tracksSource = tracks ?? throw new ArgumentNullException(nameof(tracks));
+        coldSource = cold ?? throw new ArgumentNullException(nameof(cold));
         weatherSource = weather ?? throw new ArgumentNullException(nameof(weather));
         snowSource = snow ?? throw new ArgumentNullException(nameof(snow));
     }
@@ -32,6 +36,12 @@ public sealed class WeatherDebugModule : IDebugCommandModule
 
     [DebugCommand("craft.snow.readout", Description = "Reads the snow where the player stands (#10068): its depth, frost, the air against freezing, what falls, and the kept cells.")]
     public string Snow() => snowSource().Readout();
+
+    [DebugCommand("craft.cold.readout", Description = "Reads the cold's look around the player (#10068): how cold for breath, breaths shown, and the frost at the view's edges.")]
+    public string Cold() => coldSource().Readout();
+
+    [DebugCommand("craft.snow.tracks", Description = "Reads the footprints in the snow (#10068): prints lying of the pool, stamped so far, creatures walked, and how many at each fading stage.")]
+    public string Tracks() => tracksSource().Readout();
 
     [DebugCommand("craft.snow.lay", Description = "Assisted: lays the given metres of snow around the player at once (negative takes it away).")]
     public string Lay(double metres) => snowSource().Lay(metres);

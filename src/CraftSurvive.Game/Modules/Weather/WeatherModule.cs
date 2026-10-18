@@ -29,6 +29,15 @@ internal sealed class WeatherModule : IProductModule
     /// <summary>Puddles gather once the ground is this wet, and are as deep as it is wetter.</summary>
     private const float PuddlesAbove = 0.5f;
     private float groundWetness;
+    /// <summary>
+    /// Frozen ground (#10068): the wet stands still - nothing dries and no rain wets - and the puddles stand as ice; the
+    /// ground's own darkening is this share of its wetness, as ice is paler than wet earth.
+    /// </summary>
+    private const float FrozenWetShare = 0.35f;
+    private bool frozen;
+
+    /// <summary>Whether the air over the player is freezing (#10068), as the snow cover last read it: rain falls as snow, and the wet freezes.</summary>
+    internal Func<bool> Freezing { get; set; } = static () => false;
 
     private readonly Func<WorldTime> clock;
     private readonly Func<Vector3> playerWorld;
@@ -109,14 +118,18 @@ internal sealed class WeatherModule : IProductModule
         double hours = Hours;
         Vector3 at = playerWorld();
         WeatherLook target = WeatherLook.From(Here, Field.Flow(at.X, at.Z));
+        frozen = Freezing();
+        if (frozen && target.Fall == WeatherFall.Rain) target = target with { Fall = WeatherFall.Snow };
         double passed = double.IsNaN(lookedHours) ? double.PositiveInfinity : Math.Max(0, hours - lookedHours);
         float share = (float)(1 - Math.Exp(-passed / LookEaseHours));
         sky.Weather(sky.Look.Toward(target, share));
         // The ground wets in rain and dries slowly after it (rusty-engine #9744 draws it).
         float raining = target.Fall == WeatherFall.Rain ? target.FallDensity : 0f;
         float dryShare = (float)(1 - Math.Exp(-passed / DryingHours));
-        groundWetness = raining >= groundWetness ? groundWetness + ((raining - groundWetness) * share) : groundWetness + ((raining - groundWetness) * dryShare);
-        sky.Wetness(groundWetness, Math.Max(0f, (groundWetness - PuddlesAbove) / (1f - PuddlesAbove)));
+        if (!frozen)
+            groundWetness = raining >= groundWetness ? groundWetness + ((raining - groundWetness) * share) : groundWetness + ((raining - groundWetness) * dryShare);
+        float puddles = Math.Max(0f, (groundWetness - PuddlesAbove) / (1f - PuddlesAbove));
+        sky.Wetness(frozen ? groundWetness * FrozenWetShare : groundWetness, puddles);
         lookedHours = hours;
     }
 
@@ -134,7 +147,7 @@ internal sealed class WeatherModule : IProductModule
             + string.Create(CultureInfo.InvariantCulture,
             $"travelCost={e.TravelCost:F2} supplyUse={e.SupplyUse:F2} eventRisk={e.EventRisk:F2} wetting={e.Wetting:F2}/h chill={e.Chill:F2}/h harm={e.Harm:F2}/h sight={e.Sight:F2} ")
             + $"sheltered={Exposure.Sheltered} fronts={now.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
-            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2} falling={sky.Falling.Drops} underWater={sky.ViewSubmerged}");
+            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2} frozen={frozen} falling={sky.Falling.Drops} underWater={sky.ViewSubmerged}");
     }
 
     /// <summary>The fronts within reach of the player: where, which way they go, how strong, and when they would arrive.</summary>

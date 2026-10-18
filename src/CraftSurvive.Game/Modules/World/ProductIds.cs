@@ -132,6 +132,9 @@ internal static class ProductIds
     /// <summary>The place look study's variants (#9992), a test aid placed by live debug.</summary>
     internal const ulong PlaceStudyBase = 0x9_9000UL;
 
+    /// <summary>Footprints in the snow (#10068), one per pooled print (SnowTracks.PoolSize).</summary>
+    internal const ulong SnowTrackBase = 0x9_D000UL;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

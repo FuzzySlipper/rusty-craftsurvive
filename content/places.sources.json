@@ -80,5 +80,10 @@
   "sha256": "973a5c1477f03e5685f2b975fa3c2ebbda5e7c8d7a5071d6a1345c23e5c103d7",
   "stylise": "python3 scripts/stylise-texture.py <source> content/game/textures/places/ivy-blanket.png --size 128 --paint 1 --pull foliage,sage --pull-strength 0.25 --saturation 0.85 --brightness 0.9 --tile (one tile per 2 m on the blanket: 64 texels per metre, so a leaf is several texels)",
   "rejected": "seed 31: brighter, a stamped repeat of the same yellow leaf"
+ },
+ "icicles": {
+  "texture": "content/game/textures/places/icicles.png",
+  "generator": "procedural pixel art, no source images",
+  "assembly": "python3 scripts/generate-icicles.py content/game/textures/places/icicles.png (2x2 atlas of 64 px fringes at 64 texels a metre; seeded, so it repeats exactly)"
  }
 }

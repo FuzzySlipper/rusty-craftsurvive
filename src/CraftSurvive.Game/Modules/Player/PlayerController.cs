@@ -211,6 +211,9 @@ internal sealed class PlayerController : IDisposable
     internal Vector3 WorldEyePosition => WorldPosition + (Vector3.UnitY * PlayerBody.EyeOffset(motion.Stance));
 
     /// <summary>Where the player's capsule meets the ground, in world coordinates.</summary>
+    /// <summary>Whether the player stands on the ground (not falling, jumping or swimming).</summary>
+    internal bool Grounded => motion.Grounded;
+
     internal Vector3 WorldFeetPosition => WorldPosition - (Vector3.UnitY * (PlayerBody.Height(motion.Stance) / 2f));
 
     internal void Start()
