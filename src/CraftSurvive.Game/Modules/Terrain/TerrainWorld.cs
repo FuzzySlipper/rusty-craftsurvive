@@ -73,7 +73,7 @@ internal sealed class TerrainWorld : IDisposable
         presentation = new TerrainPresentation(engine, content, Moss);
         trees = new TerrainTrees(engine, content, frame);
         places = new Places.PlaceMeshes(engine, content, frame, recipe.Placement,
-            (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace, Moss);
+            (x, z) => recipe.ContinuousHeightAt((long)Math.Floor(x), (long)Math.Floor(z)) + PlaceGroundTopFace, Moss, recipe.Geography);
         Water = new Water.WaterModel(recipe);
         waterSurfaces = new Water.WaterSurfaces(engine, frame, Water);
         edits = new TerrainEditService(engine, overlayStore, policy, streamer, presentation, ui.Publish,

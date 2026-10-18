@@ -625,6 +625,18 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Kit quality.** The generated pieces (plain steles, cairn, rib, arches) keep some Pixal3D
     softness; the cave arch has a ragged lower lip (buried) and the cairn's stones are pillowy.
     One kit, no per-biome variants; per-site variety comes from layout, scale and turn only.
+- **Moss and overgrowth on places (#10044).** One field decides where growth sits: world-space clump noise on a
+  whole-texel lattice, times facing, a north and south bias, and each stone vertex's height moisture. The same field
+  drives the damp stain (`surface-moss.wgsl`), the painted cards (`PlaceMossCards`) and, on an overgrown place, the
+  ivy blanket (`ivy-blanket.wgsl`).
+  - **Overgrowth** comes from the site's climate: wet and warm country overgrows its places, a few of them heavily,
+    while deserts and frozen country stay clean. `craft.moss.overgrow` overrides it. Within a place, variation comes
+    from the field only; a dungeon-scale moisture spread is designed (on #10044 and #9833) but not built.
+  - **The field repeats** over its wrap period (about 1.9 km for places, 117 m for field stones). That is what keeps
+    it seamless when the frame origin moves; the repeat is not visible at those scales.
+  - **Not covered:** dungeon and cave surfaces (#9833); field stones get the stain only, no cards.
+  - **Cost:** an overgrown ruin carries about 800 cards and a blanket shell per piece. Offline renders put the
+    moss within a few milliseconds of none at 1080p, close up; this is not measured live.
   The terrain blend takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
 - **Trees are meshes on an invisible trunk core; forests follow climate only.** The recipe plants
   each tree (species from the flora catalog's ecology, stand, variant, size and turn) and writes only

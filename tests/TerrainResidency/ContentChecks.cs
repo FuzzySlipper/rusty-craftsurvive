@@ -21,6 +21,7 @@ internal static class ContentChecks
     internal static void Run()
     {
         PlaceKit();
+        MossField();
 
         // The staged atlas layout must satisfy the product's registry: every material block binds
         // tiles of its own name and face, no two tiles overlap, and every tile names a real block.
@@ -110,6 +111,33 @@ internal static class ContentChecks
                 Check.That(File.Exists(Path.Combine(root, "content/game", texture.Value!.GetValue<string>())),
                     $"the place kit's {piece} texture {texture.Value} must be installed");
             }
+        }
+    }
+
+    /// <summary>
+    /// The surface moss's field (#10044) is the world's own pattern: the same at a world point wherever the frame origin
+    /// stands, as the shaders read it (renderer-local position plus the origin wrapped by the grain's period), so it never
+    /// jumps when the origin moves.
+    /// </summary>
+    private static void MossField()
+    {
+        Random random = new(10044);
+        foreach (SurfaceMoss.Grain grain in new[] { SurfaceMoss.PlaceGrain, SurfaceMoss.FieldStoneGrain })
+        {
+            Check.That(grain.PeriodMetres is > 0 and < 10_000, $"a moss grain's wrap period stays small enough for the shader's precision, was {grain.PeriodMetres} m");
+            int differing = 0;
+            for (int i = 0; i < 2000; i++)
+            {
+                double x = (random.NextDouble() - 0.5) * 300_000, y = random.NextDouble() * 400, z = (random.NextDouble() - 0.5) * 300_000;
+                Vector3 normal = Vector3.Normalize(new((float)random.NextDouble() - 0.5f, (float)random.NextDouble(), (float)random.NextDouble() - 0.5f));
+                // The renderer sees the point near the origin: an origin within a few hundred metres of it, in any of many periods.
+                (long, long, long) a = ((long)x + random.Next(-200, 200), (long)y, (long)z + random.Next(-200, 200));
+                (long, long, long) b = ((long)x + random.Next(-200, 200), (long)y + 7, (long)z + random.Next(-200, 200));
+                float fa = SurfaceMoss.FieldAt(a, x, y, z, normal, grain), fb = SurfaceMoss.FieldAt(b, x, y, z, normal, grain);
+                if (Math.Abs(fa - fb) > 1e-4f) differing++;
+            }
+
+            Check.That(differing == 0, $"the moss field is the same at a world point for any frame origin ({grain}: {differing} of 2000 differed)");
         }
     }
 

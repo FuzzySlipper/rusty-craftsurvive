@@ -15,6 +15,7 @@
     <Compile Include="$(ProductModules)Content/BlockDefinition.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Content/BlockRegistry.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Content/BuildPalette.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/SurfaceMoss.cs" LinkBase="Product/Content" />
     <!-- The world generator is pure: link it whole. -->
     <Compile Include="$(ProductModules)WorldGen/*.cs" LinkBase="Product/WorldGen" />
     <EmbeddedResource Include="$(ProductModules)WorldGen/Designs/*.json" LogicalName="WorldGen.Designs.%(Filename)%(Extension)" />

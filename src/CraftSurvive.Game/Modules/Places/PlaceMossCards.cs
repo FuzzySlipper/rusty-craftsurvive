@@ -122,8 +122,8 @@ internal sealed class PlaceMossCards : IDisposable
                     Vector3 outward = Vector3.Normalize(Vector3.Transform(anchor.Out, piece.Rotation));
                     Vector3 normal = Vector3.Normalize(Vector3.Transform(anchor.Normal, piece.Rotation));
                     if (kind == Kind.Face) faceAnchors++;
-                    float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre);
-                    if (field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
+                    float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceGrain, SurfaceMoss.HeightMoisture(anchor.At.Y - piece.Sink));
+                    if (!float.IsFinite(field) || field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
                     float pick = Hash(at);
                     Kind laid = kind;
                     if (field >= blanket && kind is Kind.Face or Kind.Mat)
@@ -308,7 +308,9 @@ internal sealed class PlaceMossCards : IDisposable
         {
             Triangle tri = piece.Triangles[t];
             uint[] v = [tri.A, tri.B, tri.C];
-            faceNormal[t] = Vector3.Normalize(Vector3.Cross(p[v[1]] - p[v[0]], p[v[2]] - p[v[0]]));
+            Vector3 cross = Vector3.Cross(p[v[1]] - p[v[0]], p[v[2]] - p[v[0]]);
+            // A degenerate triangle has no normal; NaN would slip through every facing test below, so it faces nowhere.
+            faceNormal[t] = cross.LengthSquared() > 1e-12f ? Vector3.Normalize(cross) : Vector3.Zero;
             for (int e = 0; e < 3; e++)
             {
                 var key = EdgeKey(p[v[e]], p[v[(e + 1) % 3]]);
@@ -323,7 +325,7 @@ internal sealed class PlaceMossCards : IDisposable
         foreach (((long, long, long, long, long, long) key, List<int> faces) in edges)
         {
             int top = faces.FirstOrDefault(f => faceNormal[f].Y >= TopRise, -1);
-            int side = faces.FirstOrDefault(f => Math.Abs(faceNormal[f].Y) <= SideRise, -1);
+            int side = faces.FirstOrDefault(f => faceNormal[f] != Vector3.Zero && Math.Abs(faceNormal[f].Y) <= SideRise, -1);
             if (top < 0 || side < 0) continue;
             Vector3 a = new(key.Item1 / 1000f, key.Item2 / 1000f, key.Item3 / 1000f), b = new(key.Item4 / 1000f, key.Item5 / 1000f, key.Item6 / 1000f);
             Vector3 mid = (a + b) / 2;
@@ -336,7 +338,7 @@ internal sealed class PlaceMossCards : IDisposable
         for (int t = 0; t < piece.Triangles.Length; t++)
         {
             Vector3 n = faceNormal[t];
-            if (Math.Abs(n.Y) > SideRise) continue;
+            if (n == Vector3.Zero || Math.Abs(n.Y) > SideRise) continue;
             Triangle tri = piece.Triangles[t];
             Vector3 c = (p[tri.A] + p[tri.B] + p[tri.C]) / 3;
             float above = c.Y - piece.Sink;

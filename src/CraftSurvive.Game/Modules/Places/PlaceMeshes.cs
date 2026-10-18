@@ -37,8 +37,15 @@ internal sealed class PlaceMeshes : IDisposable
     private readonly IReadOnlyDictionary<string, PlaceKitPiece> kit;
     private readonly PlaceMossCards? cards;
     private readonly Dictionary<(string Piece, float Overgrowth), Loaded> loaded = [];
-    /// <summary>Overgrown places (#10044): extra moss strength by site id, authored for now by live debug.</summary>
+    /// <summary>Overgrown places set by live debug (#10044), over the climate's own choice.</summary>
     private readonly Dictionary<string, float> overgrowth = [];
+    private readonly Func<double, double, MapSample>? geography;
+
+    // A place's own overgrowth from its climate (#10044): moss needs water and some warmth. Wet country (moisture from
+    // OvergrowthMoistureFrom, full by OvergrowthMoistureFull) overgrows its places, frozen country barely, deserts not
+    // at all; within a wet region a site's own draw spreads the places from a little extra moss to the ivy-choked few.
+    private const double OvergrowthMoistureFrom = 0.45, OvergrowthMoistureFull = 0.85, OvergrowthColdFrom = 0.14, OvergrowthColdFull = 0.35;
+    private const float OvergrowthBase = 1f, OvergrowthSpread = 5f, OvergrowthStep = 0.5f;
     private readonly Dictionary<float, (Material Material, MaterialRequest Request)> blanketMaterials = [];
     private RenderResource? blanketTexture;
     private readonly List<Standing> standing = [];
@@ -49,8 +56,9 @@ internal sealed class PlaceMeshes : IDisposable
     private int layoutRevision, collidedRevision = -1;
 
     internal PlaceMeshes(IEngineContext engine, ProductContent content, WorldFrame frame, PoiPlacement placement, Func<double, double, double> groundTop,
-        SurfaceMoss? moss = null)
+        SurfaceMoss? moss = null, Func<double, double, MapSample>? geography = null)
     {
+        this.geography = geography;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.content = content ?? throw new ArgumentNullException(nameof(content));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
@@ -79,19 +87,53 @@ internal sealed class PlaceMeshes : IDisposable
     private PropMaterials MaterialsFor(float extra)
     {
         if (materials.TryGetValue(extra, out PropMaterials? found)) return found;
-        found = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.PlaceClumpMetres, MossOvergrowth: extra), moss: moss);
+        found = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.PlaceGrain, extra), moss: moss);
         materials[extra] = found;
         return found;
     }
 
-    /// <summary>Sets a site's overgrowth (0 to <see cref="SurfaceMoss.MaximumOvergrowth"/>; 0 is an ordinary place) and lays the places out again.</summary>
+    /// <summary>
+    /// A site's overgrowth from its climate and its own draw (#10044): 0 in dry or frozen country; in wet country from
+    /// <see cref="OvergrowthBase"/> to the full <see cref="SurfaceMoss.MaximumOvergrowth"/> for a few, in half steps (one
+    /// material set per step).
+    /// </summary>
+    internal float ClimateOvergrowth(PoiSite site)
+    {
+        if (geography is null) return 0;
+        MapSample here = geography(site.X + 0.5, site.Z + 0.5);
+        double wet = SmoothStep(OvergrowthMoistureFrom, OvergrowthMoistureFull, here.Moisture)
+            * SmoothStep(OvergrowthColdFrom, OvergrowthColdFull, here.Temperature);
+        if (wet <= 0) return 0;
+        // The site's own draw, squared so heavy overgrowth is rare.
+        double draw = SiteDraw(site.Id);
+        double extra = wet * (OvergrowthBase + (OvergrowthSpread * draw * draw));
+        return Math.Clamp(MathF.Round((float)extra / OvergrowthStep) * OvergrowthStep, 0, SurfaceMoss.MaximumOvergrowth);
+    }
+
+    private static double SiteDraw(string id)
+    {
+        uint h = 2166136261u;
+        foreach (char c in id) h = unchecked((h ^ c) * 16777619u);
+        h = unchecked((h ^ (h >> 15)) * 2246822519u);
+        return (h & 0xffffffu) / 16777215.0;
+    }
+
+    private static double SmoothStep(double from, double to, double x)
+    {
+        double t = Math.Clamp((x - from) / (to - from), 0, 1);
+        return t * t * (3 - (2 * t));
+    }
+
+    /// <summary>
+    /// Sets a site's overgrowth (0 to <see cref="SurfaceMoss.MaximumOvergrowth"/>) over its climate's, or returns it to
+    /// its climate's with a negative value, and lays the places out again.
+    /// </summary>
     internal string SetOvergrowth(string siteId, float extra)
     {
-        extra = Math.Clamp(extra, 0, SurfaceMoss.MaximumOvergrowth);
-        if (extra == 0) overgrowth.Remove(siteId);
-        else overgrowth[siteId] = extra;
+        if (extra < 0) overgrowth.Remove(siteId);
+        else overgrowth[siteId] = Math.Clamp(extra, 0, SurfaceMoss.MaximumOvergrowth);
         laidOutAt = (double.NaN, double.NaN);
-        return string.Join(' ', overgrowth.Select(o => $"{o.Key}={o.Value:F1}")) is { Length: > 0 } list ? $"overgrown {list}" : "overgrown none";
+        return string.Join(' ', overgrowth.Select(o => $"{o.Key}={o.Value:F1}")) is { Length: > 0 } list ? $"overgrown (set) {list}" : "overgrown (set) none";
     }
 
     /// <summary>Pieces standing now, for the readout.</summary>
@@ -109,7 +151,7 @@ internal sealed class PlaceMeshes : IDisposable
         {
             if (Math.Max(Math.Abs(site.X + 0.5 - player.X), Math.Abs(site.Z + 0.5 - player.Z)) > nearEdgeMetres) continue;
             double siteGround = groundTop(site.X + 0.5, site.Z + 0.5);
-            float extra = overgrowth.GetValueOrDefault(site.Id);
+            float extra = overgrowth.TryGetValue(site.Id, out float set) ? set : ClimateOvergrowth(site);
             foreach (PlacedPart part in PlaceLayouts.For(site))
             {
                 if (!kit.TryGetValue(part.Piece, out PlaceKitPiece? piece)) continue;
@@ -138,8 +180,14 @@ internal sealed class PlaceMeshes : IDisposable
     {
         if (loaded.TryGetValue((piece.Name, extra), out Loaded? found)) return found;
         PropMaterials stone = MaterialsFor(extra);
-        MeshResourceCreateRequest request = PropMesh.Read(content, piece.Model,
+        MeshResourceCreateRequest read = PropMesh.Read(content, piece.Model,
             (role, texture) => stone.For(role, texture ?? throw new InvalidOperationException($"CraftSurvive place piece '{piece.Name}' part '{role}' names no texture.")));
+        // The stone's vertex alpha carries its moisture (#10044): wet at the ground, drier up the piece (in its own metres
+        // above its sunk base, as PlaceMossCards reads it). Nothing about stone moves in the wind, so the alpha is free.
+        ReadOnlySpan<Vector3> at = read.Positions.Span;
+        Color[] colours = read.Colors.ToArray();
+        for (int i = 0; i < colours.Length; i++) colours[i] = colours[i] with { A = SurfaceMoss.HeightMoisture(at[i].Y - piece.Sink) / SurfaceMoss.MoistureScale };
+        MeshResourceCreateRequest request = read with { Colors = colours };
         MeshResource mesh = engine.Graphics.CreateMeshResource(request);
         ReadOnlySpan<uint> indices = request.Indices.Span;
         Triangle[] triangles = new Triangle[indices.Length / 3];
@@ -157,9 +205,9 @@ internal sealed class PlaceMeshes : IDisposable
         if (blanketMaterials.TryGetValue(extra, out var made)) return made.Material;
         blanketTexture ??= engine.Graphics.OpenResource(new RenderResourceRequest(BlanketTexturePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
         MaterialRequest request = new MaterialRequest(new Color(1, 1, 1, 1), blanketTexture, BlanketRoughness, new Color(1, 1, 1, 1), Vector3.Zero, 0, false)
-            with { Shader = moss!.BlanketShader(SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre, extra) };
+            with { Shader = moss!.BlanketShader(SurfaceMoss.PlaceGrain, extra) };
         Material material = engine.Graphics.CreateMaterial(request);
-        moss.Register(material, request, SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre, extra, blanket: true);
+        moss.Register(material, request, SurfaceMoss.PlaceGrain, extra, blanket: true);
         blanketMaterials[extra] = (material, request);
         return material;
     }
@@ -172,7 +220,9 @@ internal sealed class PlaceMeshes : IDisposable
     private static MeshResourceCreateRequest Blanket(MeshResourceCreateRequest piece, Material material)
     {
         ReadOnlySpan<Vector3> p = piece.Positions.Span, n = piece.Normals.Span;
+        ReadOnlySpan<Color> col = piece.Colors.Span;
         ReadOnlySpan<uint> idx = piece.Indices.Span;
+        List<Color> colours = [];
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];
         List<uint> indices = [];
@@ -189,6 +239,7 @@ internal sealed class PlaceMeshes : IDisposable
                 Vector3 at = p[(int)v] + (Vector3.Normalize(n[(int)v]) * BlanketOffset);
                 positions.Add(at);
                 normals.Add(n[(int)v]);
+                colours.Add(col[(int)v]);
                 Vector2 plane = abs.Y >= abs.X && abs.Y >= abs.Z ? new(at.X, at.Z) : abs.X >= abs.Z ? new(at.Z, -at.Y) : new(at.X, -at.Y);
                 uvs.Add(plane / BlanketTileMetres);
             }
@@ -196,7 +247,7 @@ internal sealed class PlaceMeshes : IDisposable
             indices.AddRange([first, first + 1, first + 2]);
         }
 
-        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), ReadOnlyMemory<Color>.Empty, indices.ToArray(),
+        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), colours.ToArray(), indices.ToArray(),
             new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
     }
 
@@ -247,7 +298,10 @@ internal sealed class PlaceMeshes : IDisposable
         return added;
     }
 
-    internal string Readout() => (cards?.Readout() ?? "mossCards=none") + " " + PieceReadout();
+    internal string Readout() => (cards?.Readout() ?? "mossCards=none") + " " + OvergrowthReadout() + " " + PieceReadout();
+
+    private string OvergrowthReadout() => "overgrowth " + string.Join(' ', standing.GroupBy(s => s.Site).Take(8)
+        .Select(g => string.Create(CultureInfo.InvariantCulture, $"{g.Key}={g.First().Piece.Overgrowth:F1}")));
 
     private string PieceReadout() =>
         string.Create(CultureInfo.InvariantCulture, $"places sites={sites.Count} pieces={standing.Count} kinds={loaded.Count} at={laidOutAt.X:F0},{laidOutAt.Z:F0} ")
