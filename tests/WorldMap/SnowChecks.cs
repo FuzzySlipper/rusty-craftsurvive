@@ -60,6 +60,42 @@ internal static class SnowChecks
         Check.That(calls > 1 && budgeted.Settled == 9, $"cells coming into reach settle over several updates, not at once ({calls} calls)");
         Check.That(Math.Abs(spread - atOnce) < 0.02, $"settling a little each update lays the same snow as at once ({spread:F4} m and {atOnce:F4} m)");
 
+        // A full store (R10068-2): with every kept cell visited recently, walking on into new ground keeps the party's cells
+        // and forgets old ones, never the cell just needed.
+        SnowCover full = new(near);
+        List<SnowCell> kept = [];
+        for (int i = 0; i < SnowCell.MostCells; i++) kept.Add(new SnowCell(i % 32, 1000 + (i / 32), 0.2, StartHours + 39));
+        full.Restore([.. kept.OrderBy(cell => cell.CellZ).ThenBy(cell => cell.CellX)], StartHours + 40);
+        bool walked = true;
+        for (int step = 0; step < 12; step++)
+        {
+            try { full.FollowAround(-50_000 + (step * SnowCover.CellMetres), 0, StartHours + 40 + step); full.DepthAt(-50_000 + (step * SnowCover.CellMetres), 0, StartHours + 40 + step); }
+            catch (KeyNotFoundException) { walked = false; }
+        }
+
+        Check.That(walked && full.Count <= SnowCell.MostCells, $"a full store keeps walking into new ground within its bound ({full.Count} cells)");
+
+        // Tracks fill in at the cap (R10068-4): with the snow as deep as it lies, a storm still falls into a fresh print and
+        // covers it within hours.
+        SnowCover capped = new(polar);
+        capped.Lay(0, 0, StartHours + 100, SnowCover.MostDepth);
+        double atStamp = capped.FallenAt(0, 0, StartHours + 100);
+        polar.Summon(WeatherKinds.Snowstorm, 0, 0, StartHours + 100);
+        int stage = 0;
+        double filledAfter = double.NaN;
+        for (double later = 0.5; later <= 6 && stage < TrackFading.Gone; later += 0.5)
+        {
+            double fallen = capped.FallenAt(0, 0, StartHours + 100 + later) - atStamp;
+            stage = TrackFading.StageOf(fallen, later, capped.DepthAt(0, 0, StartHours + 100 + later));
+            if (stage >= TrackFading.Gone) filledAfter = later;
+        }
+
+        polar.ClearSummoned();
+        Check.That(stage >= TrackFading.Gone && capped.DepthAt(0, 0, StartHours + 106) >= SnowCover.MostDepth - 0.01,
+            $"at the depth's cap a storm still fills a print, gone after {filledAfter} h, the depth staying at its cap");
+        Check.That(TrackFading.StageOf(0, 1, 0.005) == TrackFading.Gone && TrackFading.StageOf(0, 1, 0.3) == 0,
+            "a print goes once the snow under it melts out, and stands while it lies");
+
         Console.WriteLine(FormattableString.Invariant($"snow cover: storm {before:F3}->{during:F3} m, a day later {dayLater:F3} m; warm {laid:F3}->{thawed:F3} m; near freezing {reference:F4}/{continued:F4} m"));
         Check.That(Math.Abs(continued - resumed) < 1e-12, $"saved cells carry on exactly as they would have ({continued:F4} m, restored {resumed:F4} m)");
         Check.That(Math.Abs(reference - continued) < 0.01, $"the cover follows the weather, not how often it is asked ({reference:F4} m and {continued:F4} m)");

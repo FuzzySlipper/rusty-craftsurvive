@@ -49,9 +49,11 @@ internal sealed class SnowCover
 
     internal SnowCover(WeatherField field) => this.field = field ?? throw new ArgumentNullException(nameof(field));
 
-    private sealed class Cell(double depth, double hours)
+    private sealed class Cell(double depth, double hours, double touched)
     {
-        internal double Depth = depth, Hours = hours, Fallen, Touched = hours;
+        /// <summary>The snow lying, the hour it stands at, the snow that has fallen on it this session (all of it, even what the
+        /// cap blew off: tracks fill with it) and when the party last needed it.</summary>
+        internal double Depth = depth, Hours = hours, Fallen, Touched = touched;
         /// <summary>Still being worked out from the days before it came into reach.</summary>
         internal bool Settling;
     }
@@ -113,20 +115,25 @@ internal sealed class SnowCover
     internal void FollowAround(double x, double z, double hours)
     {
         (int cx, int cz) = CellOf(x, z);
+        List<(int X, int Z)> ring = new((2 * FollowedReach + 1) * (2 * FollowedReach + 1));
         for (int dz = -FollowedReach; dz <= FollowedReach; dz++)
             for (int dx = -FollowedReach; dx <= FollowedReach; dx++)
-                if (!cells.ContainsKey((cx + dx, cz + dz))) Begin(cx + dx, cz + dz, hours);
+            {
+                ring.Add((cx + dx, cz + dz));
+                if (cells.TryGetValue((cx + dx, cz + dz), out Cell? near)) near.Touched = hours;
+                else Begin(cx + dx, cz + dz, hours, forget: false);
+            }
 
+        Forget(ring);
         for (int budget = StepsPerFollow; budget > 0;)
         {
             (int X, int Z)? stalest = null;
             double behind = FollowHours;
-            for (int dz = -FollowedReach; dz <= FollowedReach; dz++)
-                for (int dx = -FollowedReach; dx <= FollowedReach; dx++)
-                {
-                    Cell cell = cells[(cx + dx, cz + dz)];
-                    if (hours - cell.Hours >= behind) (stalest, behind) = ((cx + dx, cz + dz), hours - cell.Hours);
-                }
+            foreach ((int X, int Z) near in ring)
+            {
+                Cell cell = cells[near];
+                if (hours - cell.Hours >= behind) (stalest, behind) = (near, hours - cell.Hours);
+            }
 
             if (stalest is not { } key) break;
             Cell due = cells[key];
@@ -137,11 +144,11 @@ internal sealed class SnowCover
     }
 
     /// <summary>A cell newly in reach, to be settled from the weather of the days before.</summary>
-    private Cell Begin(int cx, int cz, double hours)
+    private Cell Begin(int cx, int cz, double hours, bool forget = true)
     {
-        Cell cell = new(0, hours - (SettleDays * HoursPerDay)) { Settling = true };
+        Cell cell = new(0, hours - (SettleDays * HoursPerDay), hours) { Settling = true };
         cells[(cx, cz)] = cell;
-        Forget();
+        if (forget) Forget([(cx, cz)]);
         return cell;
     }
 
@@ -200,7 +207,7 @@ internal sealed class SnowCover
             double sun = air > Seasons.Freezing - SunMeltBelow ? SunMeltPerHour * WorldClock.Daylight(Fraction(mid)) * (1 - sample.Channels.Cloud) : 0;
             double melt = ((MeltPerWarmth * warmth) + sun) * dt;
             cell.Depth = Math.Max(0, cell.Depth + laid - melt);
-            cell.Fallen += laid;
+            cell.Fallen += falling;
             cell.Hours += dt;
             stepped++;
             taken++;
@@ -212,10 +219,12 @@ internal sealed class SnowCover
 
     private static double Fraction(double hours) => ((hours / HoursPerDay) % 1 + 1) % 1;
 
-    private void Forget()
+    /// <summary>Forgets the cells needed longest ago past <see cref="MostCells"/>, never one of <paramref name="kept"/> (the party's).</summary>
+    private void Forget(IReadOnlyCollection<(int X, int Z)> kept)
     {
         if (cells.Count <= MostCells) return;
-        foreach ((int, int) oldest in cells.OrderBy(pair => pair.Value.Touched).Take(cells.Count - MostCells).Select(pair => pair.Key).ToList())
+        foreach ((int, int) oldest in cells.Where(pair => !kept.Contains(pair.Key)).OrderBy(pair => pair.Value.Touched)
+            .Take(cells.Count - MostCells).Select(pair => pair.Key).ToList())
             cells.Remove(oldest);
     }
 
@@ -229,7 +238,7 @@ internal sealed class SnowCover
         cells.Clear();
         foreach (SnowCell cell in saved)
         {
-            if (cell.Hours <= hours) cells[(cell.CellX, cell.CellZ)] = new Cell(cell.Depth, cell.Hours);
+            if (cell.Hours <= hours) cells[(cell.CellX, cell.CellZ)] = new Cell(cell.Depth, cell.Hours, cell.Hours);
         }
     }
 
@@ -243,7 +252,7 @@ internal sealed class SnowCover
                 Cell cell = Follow(cx + dx, cz + dz, hours);
                 double laid = Math.Clamp(cell.Depth + metres, 0, MostDepth) - cell.Depth;
                 cell.Depth += laid;
-                if (laid > 0) cell.Fallen += laid;
+                if (metres > 0) cell.Fallen += metres;
             }
     }
 }

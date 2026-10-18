@@ -15,6 +15,12 @@ internal sealed class SnowModule : IProductModule
 {
     /// <summary>The cover is saved when the clock has moved this many game hours since it last was.</summary>
     internal const double SaveEveryHours = 2;
+    /// <summary>Snow this deep (metres) covers all of the open flat ground; less covers it in patches (the Engine's cover, 0 to 1).</summary>
+    internal const double FullCoverMetres = 0.12;
+
+    /// <summary>The scene's snow cover for a depth shown: none at 0, whole at <see cref="FullCoverMetres"/>.</summary>
+    internal static float CoverOf(double metres) => (float)Math.Clamp(metres / FullCoverMetres, 0, 1);
+
     /// <summary>The depth is told again once it has moved this far, in metres.</summary>
     private const double TellStepMetres = 0.002;
     /// <summary>

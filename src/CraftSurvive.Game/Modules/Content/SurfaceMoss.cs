@@ -102,7 +102,7 @@ internal sealed class SurfaceMoss : IDisposable
             new(Wrap(origin.X, period), Wrap(origin.Y, period), Wrap(origin.Z, period), Strength + overgrowth),
             new(a, b, c, d),
             new(grain.TexelsPerMetre, SideShare, LowestFacing, grain.VertexMoisture ? 1 : 0),
-            new(period, LichenAmount, Snow, StainDepth),
+            new(period, LichenAmount, 0, StainDepth),
         ];
     }
 
@@ -144,17 +144,11 @@ internal sealed class SurfaceMoss : IDisposable
         return Readout();
     }
 
-    /// <summary>The snow (#10068) the shaders lay on every place's and stone's tops, in metres (frost as a thin depth).</summary>
-    internal float Snow { get; private set; }
-
-    /// <summary>Sets the snow on every place and stone at once; the snow cover tells it as the party's depth moves.</summary>
-    internal void SetSnow(float metres)
-    {
-        float snow = Math.Max(0, metres);
-        if (snow == Snow) return;
-        Snow = snow;
-        Refresh();
-    }
+    /// <summary>
+    /// The snow lying where the party stands (#10068), in metres (frost as a thin depth), for the moss cards: the Engine's
+    /// scene-wide cover draws the snow itself, and the stain shader keeps off it.
+    /// </summary>
+    internal float Snow { get; set; }
 
     private void Refresh()
     {
@@ -219,29 +213,6 @@ internal sealed class SurfaceMoss : IDisposable
         // As the shader reads it: stored as an alpha (moisture / MoistureScale) and scaled back.
         float own = grain.VertexMoisture ? (vertexMoisture / MoistureScale) * MoistureScale : 1;
         return (clump + fray) * facing * sun * own;
-    }
-
-    // The shaders' snow (surface-moss.wgsl, ivy-blanket.wgsl), mirrored for SnowAt.
-    private const float SnowFullDepth = 0.15f, SnowUpFrom = 0.55f, SnowUpFull = 0.9f, SnowSpread = 0.6f;
-
-    /// <summary>Whether the shaders draw snow at a world point on a surface facing <paramref name="normal"/> now (mirrored exactly).</summary>
-    internal bool SnowAt(double worldX, double worldY, double worldZ, Vector3 normal, Grain grain) =>
-        SnowAtFor(origin, Snow, worldX, worldY, worldZ, normal, grain);
-
-    /// <summary>The shaders' snow with the frame origin at <paramref name="frameOrigin"/> and <paramref name="snow"/> metres lying.</summary>
-    internal static bool SnowAtFor((long X, long Y, long Z) frameOrigin, float snow, double worldX, double worldY, double worldZ, Vector3 normal, Grain grain)
-    {
-        if (snow <= 0) return false;
-        long period = grain.PeriodMetres;
-        double px = worldX - (period * Math.Floor(frameOrigin.X / (double)period));
-        double pz = worldZ - (period * Math.Floor(frameOrigin.Z / (double)period));
-        Vector3 n = Vector3.Normalize(normal), a = Vector3.Abs(n);
-        if (!(a.Y >= a.X && a.Y >= a.Z)) return false;
-        long tx = (long)Math.Floor(px * grain.TexelsPerMetre), ty = (long)Math.Floor(pz * grain.TexelsPerMetre);
-        (int b, _, int f, _) = grain.Lattice;
-        long periodTexels = period * grain.TexelsPerMetre;
-        float noise = (LatticeNoise(tx + (b * 23L), ty + (b * 61L), b, b, periodTexels) * 0.6f) + (LatticeNoise(tx + (f * 37L), ty + (f * 11L), f, f, periodTexels) * 0.4f);
-        return noise * SmoothStep(SnowUpFrom, SnowUpFull, n.Y) >= 1 - MathF.Pow(Math.Min(snow / SnowFullDepth, 1), SnowSpread);
     }
 
     /// <summary>As the shader's hash: the cell's two 32-bit coordinates, wrapping as WGSL's u32 arithmetic does.</summary>

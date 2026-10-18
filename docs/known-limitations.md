@@ -644,31 +644,26 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   and under any front once the air is freezing (climate, plus the season's swing, minus a front's cold). It melts
   with warmth and, near freezing, with sun.
   - **Settling and saving:** a cell new to the party is worked out from the eight days of weather before it, a few
-    steps each update. The cells are saved (`weather/snow`), so snow is still there a day later.
-  - **Follows the party only:** one depth, where the party stands, is drawn on every place and field stone. A ruin
-    across a cell's edge from the party shows the party's depth.
-  - **What the snow shows on:**
-    - Snow caps the tops of places and field stones, in the stain shader and the ivy blanket.
-    - It buries top mats and foot cushions; icicle cards hang from level lips.
-    - Frost is shown as a thin snow.
-    - The ground's own snow is still its terrain layer. Scene-wide snow cover on ground, trees, grass and built
-      pieces is rusty-engine #10069; projected decals are #10070.
-  - **Field stones update in steps:** their scatter copies keep the shader values they grew with. They regrow when
-    the snow crosses a step: about 11 ms, a handful of times a storm.
+    steps each update. The cells are saved (`weather/snow`, at most 1,024, the party's never forgotten).
+  - **Follows the party only:** one depth, where the party stands, sets the Engine's scene-wide snow cover
+    (`CameraView.SetSnow`, rusty-engine #10069; full at 12 cm, stepped at 32 texels a metre). It lies on the ground,
+    plants, places and field stones alike, so a ruin across a cell's edge shows the party's snow.
+  - **A full cover is plain white:** the snow terrain layer's own painting does not show through it.
+  - **Moss and lichen:** the moss stain and lichen keep off what the cover covers.
+  - **Cards:** icicle cards hang from level lips, and foot cushions are buried. The cards are laid again at three
+    depths, about 2 ms each.
   - **Frozen puddles:** in freezing air, rain falls as snow and the wet ground stops drying, with the puddles held.
-    The Engine has no ice look for puddles, so held puddles still look like water.
+    The Engine has no ice look for puddles yet (rusty-engine #10076), so held puddles still look like water.
   - **Breath and frost on the view:**
     - Breath is dust-puff particles, from the player and from creatures within 30 m. The offline scene snapshot does
       not carry bursts, so only live frames show it.
     - The frost on the view is drawn on a fixed 192x108 block grid, square on a 16:9 picture.
-  - **Footprints:**
-    - 320 pooled quads, boots for the player and paws (1.6x) for creatures. They fade as fresh snow falls and with
-      age, and are not saved.
-    - On the snow terrain's dented texture, small prints read best close up.
-  - **Cost:** a full pool in view adds about 0.04 ms to the world pass (offline, RX 9070 XT). Icicles and caps sit
-    within the shadow pass's noise, and the frost pass costs 0.03 ms. Following the cover costs under 0.3 ms an
-    update, but a long jump of the clock (a rest, `craft.world.pass`) catches the near cells up at once, up to about
-    30 ms.
+  - **Footprints:** 512 pooled Engine decals (rusty-engine #10070), boots for the player and paws (1.6x) for
+    creatures. They wrap slopes and steps, fade as fresh snow falls (counted past the depth's cap) and with age, and
+    are not saved.
+  - **Cost:** a full cover with 512 prints sits within the offline world pass's noise (about 0.1 ms, RX 9070 XT), and
+    the frost pass costs 0.03 ms. Following the cover costs under 0.3 ms an update, but a long jump of the clock (a
+    rest, `craft.world.pass`) catches the near cells up at once, up to about 30 ms.
 - **Trees are meshes on an invisible trunk core; forests follow climate only.** The recipe plants
   each tree (species from the flora catalog's ecology, stand, variant, size and turn) and writes only
   a short `TreeCore` column into the voxels, which bodies collide with and a blast can break. Trees are

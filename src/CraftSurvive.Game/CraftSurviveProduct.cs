@@ -166,7 +166,11 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => !player.InSeparateSpace && !player.HeadSubmerged,
             () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
         snow = new SnowModule(context.Engine, store, terrain.SaveIdentity, weather.Field, () => weather.Hours, () => player.WorldPosition,
-            () => weather.Here, depth => terrain.SetSnow((float)depth));
+            () => weather.Here, depth =>
+            {
+                terrain.SetSnow((float)depth);
+                sky.Snow(SnowModule.CoverOf(depth));
+            });
         weather.Freezing = () => snow.Air <= Modules.Water.Seasons.Freezing;
         riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater,
             new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));
@@ -198,7 +202,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
 
         tracks = new SnowTracks(context.Engine, frame, snow.Cover, () => weather.Hours,
             () => (player.WorldFeetPosition, player.Grounded, !player.InSeparateSpace && !player.HeadSubmerged),
-            () => creatures.AwakeWithin(player.WorldPosition, SnowTracks.CreatureMetres), (x, z) => terrain.GroundAt(x, z));
+            () => creatures.AwakeWithin(player.WorldPosition, SnowTracks.CreatureMetres));
 
         // The entity store runs after the edits, so it saves what a charge swept or a build placed this
         // update; feedback runs last, so it presents everything raised this update.
@@ -573,7 +577,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     }
 
     /// <summary>The overworld's water, studies, places and build pieces, unless the player is in a separate space (a dungeon or a study).</summary>
-    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts(), .. tracks.Facts];
+    private AppearanceFact[] OverworldFacts() => player.InSeparateSpace ? [] : [.. terrain.WaterFacts, .. terrain.StudyFacts, .. terrain.PlaceFacts, .. pieces.Facts()];
 
     /// <summary>The style test's travellers and the place study's variants, unless the player is in a separate space.</summary>
     private IEnumerable<AppearanceFact> StyleFacts() => player.InSeparateSpace ? [] : [.. styleTest.Facts, .. placeStudy.Facts];

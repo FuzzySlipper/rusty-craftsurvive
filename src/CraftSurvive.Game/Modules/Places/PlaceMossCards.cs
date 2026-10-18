@@ -157,9 +157,8 @@ internal sealed class PlaceMossCards : IDisposable
                     if (kind == Kind.Face) faceAnchors++;
                     float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceGrain, SurfaceMoss.HeightMoisture(anchor.At.Y - piece.Sink));
                     if (!float.IsFinite(field) || field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
-                    // Snow (#10068) buries a mat or a cluster on a top where the shader draws it, and the cushions at the feet once it lies deep.
+                    // Snow (#10068) buries the cushions at the feet once it lies deep; mats on tops take the Engine's cover as the stone does.
                     if (kind == Kind.Cushion && moss.Snow >= CushionsBuriedMetres) continue;
-                    if (kind == Kind.Mat && moss.SnowAt(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceGrain)) continue;
                     float pick = Hash(at);
                     Kind laid = kind;
                     if (field >= blanket && kind is Kind.Face or Kind.Mat)

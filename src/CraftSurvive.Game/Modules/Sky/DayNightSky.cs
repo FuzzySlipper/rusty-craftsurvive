@@ -421,6 +421,7 @@ internal sealed class DayNightSky : IDisposable
         if (disposed) return;
         wetGround = (Math.Clamp(wetness, 0f, 1f), Math.Clamp(puddles, 0f, 1f));
         ShowWetness();
+        ShowSnow();
     }
 
     /// <summary>
@@ -432,6 +433,25 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetWetness(underground || onMap ? new WetnessRequest(0f, 0f) : new WetnessRequest(wetGround.Wetness, wetGround.Puddles));
 
     private (float Wetness, float Puddles) wetGround;
+
+    /// <summary>The snow cover (#10068): how much of the open, up-facing world is snow, 0 to 1, as the snow owner tells it.</summary>
+    private float snowCover;
+    /// <summary>The cover's edge steps at the product's crunch rule: 32 texels a metre.</summary>
+    private const float SnowTexelsPerMetre = 32f;
+
+    /// <summary>Sets the scene's snow cover (#10068), 0 to 1: the Engine lays it on ground, plants, places and props alike.</summary>
+    internal void Snow(float cover)
+    {
+        if (disposed) return;
+        float clamped = Math.Clamp(cover, 0f, 1f);
+        if (clamped == snowCover) return;
+        snowCover = clamped;
+        ShowSnow();
+    }
+
+    /// <summary>Snow lies only in the open world, as the wet does: not underground, and not on the map's relief.</summary>
+    private void ShowSnow() =>
+        engine.CameraView.SetSnow(new SnowRequest(underground || onMap ? 0f : snowCover, Vector3.Zero, SnowTexelsPerMetre));
 
     /// <summary>The precipitation for the weather: its kind and density, blown along the flow, dimmed by night.</summary>
     private PrecipitationRequest Precipitation(WeatherLook w)
@@ -563,6 +583,7 @@ internal sealed class DayNightSky : IDisposable
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
+        ShowSnow();
         PlaceRegions();
         Veil();
         Weathered();
@@ -620,6 +641,7 @@ internal sealed class DayNightSky : IDisposable
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
+        ShowSnow();
         PlaceRegions();
         Weathered();
         if (!open) return;
@@ -814,6 +836,7 @@ internal sealed class DayNightSky : IDisposable
         Falling = NoPrecipitation;
         engine.CameraView.SetPrecipitation(Falling);
         engine.CameraView.SetWetness(new WetnessRequest(0f, 0f));
+        engine.CameraView.SetSnow(new SnowRequest(0f, Vector3.Zero, 0f));
         engine.CameraView.SetImageEffect(default);
         veil?.Dispose();
         veil = null;
