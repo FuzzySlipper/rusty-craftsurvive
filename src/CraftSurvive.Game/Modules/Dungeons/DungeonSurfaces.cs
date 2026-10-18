@@ -28,6 +28,9 @@ internal enum DungeonSurface
     /// </summary>
     Ruined,
 
+    /// <summary>Rock study (#10090): as <see cref="Smooth"/>, with the rock's vertices at the mean of their crossings (rounded) rather than keeping corners.</summary>
+    SoftVoxels,
+
     /// <summary>Rock study (#10090) route B: the rock is the Engine's mesh of the sculpted field, in the cave material.</summary>
     Mesh,
 
@@ -84,7 +87,7 @@ internal static class DungeonSurfaces
     /// <summary>The mode of every material not listed by <see cref="Materials"/>.</summary>
     internal static VoxelSurfaceMode SessionMode(DungeonSurface surface) => surface switch
     {
-        DungeonSurface.Smooth or DungeonSurface.Faceted or DungeonSurface.Ruined => VoxelSurfaceMode.DualContouring,
+        DungeonSurface.Smooth or DungeonSurface.Faceted or DungeonSurface.Ruined or DungeonSurface.SoftVoxels => VoxelSurfaceMode.DualContouring,
         _ => VoxelSurfaceMode.GreedyCubes,
     };
 
@@ -99,6 +102,7 @@ internal static class DungeonSurfaces
         SurfaceCharacter rock = surface switch
         {
             DungeonSurface.Smooth => new SurfaceCharacter(VertexPlacement.Sharp, WornCreaseDegrees, WornRoughness),
+            DungeonSurface.SoftVoxels => new SurfaceCharacter(VertexPlacement.Smooth, WornCreaseDegrees, WornRoughness),
             _ => new SurfaceCharacter(VertexPlacement.Sharp, FlatCreaseDegrees, ChiselledRoughness),
         };
         VoxelSurfaceMode rockMode = surface == DungeonSurface.Marched ? VoxelSurfaceMode.MarchingCubes : VoxelSurfaceMode.DualContouring;
@@ -122,6 +126,7 @@ internal static class DungeonSurfaces
         "faceted" => DungeonSurface.Faceted,
         "mc" => DungeonSurface.Marched,
         "ruined" => DungeonSurface.Ruined,
+        "dcsoft" => DungeonSurface.SoftVoxels,
         "mesh" => DungeonSurface.Mesh,
         "fine" => DungeonSurface.Fine,
         "pieced" => DungeonSurface.Pieced,
