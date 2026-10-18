@@ -86,7 +86,7 @@ internal sealed class DungeonSpace : IDisposable
             admitted.Add(chunk);
         }
 
-        DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities, DungeonSurfaces.Weathers(surface));
+        DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities, DungeonSurfaces.Weathers(surface), pinned: !layout.Natural);
 
         if (pending.Count == 0 && projection is null)
         {
@@ -112,7 +112,7 @@ internal sealed class DungeonSpace : IDisposable
         {
             // The Engine meshes at most a few million samples at once: the finer field goes in slabs along z that share
             // their boundary plane of samples, so neighbouring slabs' surfaces meet.
-            (int w, int h, int d, float[] values) = RockRoutes.Refine(rock, StudySeed);
+            (int w, int h, int d, float[] values) = layout.Shape is { } shape ? RockRoutes.Resample(rock, shape) : RockRoutes.Refine(rock, StudySeed);
             float spacing = 1f / RockRoutes.FineSamplesPerMetre;
             int slabDepth = Math.Max(2, RockRoutes.MostSamplesPerMesh / (w * h));
             generated = default;

@@ -293,7 +293,7 @@ internal sealed class DungeonModule : IProductModule
             return false;
         }
 
-        if (routes.Walkable || keepUnwalkable)
+        if (routes.Walkable || keepUnwalkable || loaded.Layout.Natural)
         {
             return true;
         }
@@ -373,7 +373,7 @@ internal sealed class DungeonModule : IProductModule
         return $"the next dungeon's voxels are surfaced {surface}";
     }
 
-    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave), v (chasm sketch) or s (shaft sketch).</summary>
+    /// <summary>Chooses how the next dungeon entered is generated: a (carve and stamp), b (modules), c (sculpted cave), v (chasm sketch) , s (shaft sketch) or n (natural cavern study).</summary>
     internal string Choose(string name)
     {
         DungeonApproach? chosen = name switch
@@ -383,6 +383,7 @@ internal sealed class DungeonModule : IProductModule
             "c" => DungeonApproach.SculptedCave,
             "v" => DungeonApproach.Vertical,
             "s" => DungeonApproach.Shaft,
+            "n" => DungeonApproach.Natural,
             _ => null,
         };
         if (chosen is not DungeonApproach next)
@@ -442,7 +443,10 @@ internal sealed class DungeonModule : IProductModule
 
         // A plan names its places loosely; the player is put on the standing cell that serves for one,
         // never inside the blocks around it.
-        if (walkable is null || DungeonWalk.Nearest(DungeonWalk.Reachable(walkable, plan.Arrival), at) is not DungeonCell stand)
+        // A natural study space is put exactly where asked: its floors are too uneven for the walk's standing places.
+        DungeonCell? standing = space?.Layout.Natural == true ? at
+            : walkable is null ? null : DungeonWalk.Nearest(DungeonWalk.Reachable(walkable, plan.Arrival), at);
+        if (standing is not DungeonCell stand)
         {
             return $"visit refused: nowhere to stand at the {place}";
         }

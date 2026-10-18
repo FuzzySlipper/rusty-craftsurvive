@@ -42,6 +42,9 @@ internal static class DungeonCollision
     /// <summary>A voxel's density without a sculpted one: the surface on the cube face between solid and empty.</summary>
     private const float FaceDensity = 0.5f;
 
+    /// <summary>An unpinned (natural) space's densities are held within a voxel of the surface, so a crossing lies where the field puts it.</summary>
+    private const float FreeDensityLimit = 1f;
+
     /// <summary>
     /// A dungeon's own session, with the world's blocks colliding as they do outside and its
     /// voxels surfaced as the look asks: cubes, or rock reconstructed beside grid-kept building.
@@ -85,7 +88,7 @@ internal static class DungeonCollision
     /// </summary>
     /// <param name="firstChunk">The chunk the volume's first chunk is admitted as; by default the one at <see cref="Origin"/> in metre voxels.</param>
     internal static void Admit(IEngineContext engine, SpatialSession session, DungeonVolume volume, IEnumerable<(int X, int Y, int Z)> chunks,
-        RockDensity? densities = null, bool weathered = false, (long X, long Y, long Z)? firstChunk = null)
+        RockDensity? densities = null, bool weathered = false, (long X, long Y, long Z)? firstChunk = null, bool pinned = true)
     {
         (long X, long Y, long Z) first = firstChunk ?? (
             (long)Origin.X / TerrainConstants.ChunkEdgeLength,
@@ -109,7 +112,9 @@ internal static class DungeonCollision
                     int cx = (x * edge) + (index % edge);
                     int cy = (y * edge) + (index / edge % edge);
                     int cz = (z * edge) + (index / (edge * edge));
-                    chunkDensities.Add(Density(volume, field, cx, cy, cz, (BlockId)material, weathered));
+                    chunkDensities.Add(pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered)
+                        : material == (ushort)BlockId.Air ? Math.Clamp(field.At(cx, cy, cz), DensityFloor, FreeDensityLimit)
+                        : Math.Clamp(field.At(cx, cy, cz), -FreeDensityLimit, -DensityFloor));
                 }
             }
 

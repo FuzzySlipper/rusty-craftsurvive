@@ -20,6 +20,15 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// </summary>
     internal RockDensity? Densities { get; init; }
 
+    /// <summary>
+    /// A space shaped freely for a study (#10090): its densities are not pinned to the grid for treads, and its routes are
+    /// not asked of the Engine before it is entered.
+    /// </summary>
+    internal bool Natural { get; init; }
+
+    /// <summary>The field the rock was sampled from, in layout metres (positive open), when it can be sampled finer.</summary>
+    internal Func<System.Numerics.Vector3, float>? Shape { get; init; }
+
     /// <summary>The most lights a dungeon hangs: the dungeon module's pool of retained lights.</summary>
     internal const int MaximumLights = 16;
 }

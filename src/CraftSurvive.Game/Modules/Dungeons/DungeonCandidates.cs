@@ -17,6 +17,9 @@ internal enum DungeonApproach
 
     /// <summary>S: the hand-placed shaft sketch of #7916: a deep open shaft with a ledge winding down it.</summary>
     Shaft,
+
+    /// <summary>N: the rock route study's natural cavern (#10090), shaped freely with no regard for routes.</summary>
+    Natural,
 }
 
 /// <summary>One generated dungeon: its layout, its plan, the generator's own verdict, and the voxel copy that was walked.</summary>
@@ -60,6 +63,9 @@ internal static class DungeonCandidates
             case DungeonApproach.Shaft:
                 var shaft = VerticalSampler.Shaft(seed);
                 return new DungeonCandidate(index, seed, shaft.Layout, shaft.Plan, shaft.Verdict, shaft.Walkable);
+            case DungeonApproach.Natural:
+                var natural = NaturalCavern.Generate(seed);
+                return new DungeonCandidate(index, seed, natural.Layout, natural.Plan, natural.Verdict, natural.Walkable);
             case DungeonApproach.SculptedCave:
                 var sculpted = SculptedCave.Generate(seed);
                 return new DungeonCandidate(index, seed, sculpted.Layout, sculpted.Plan, sculpted.Verdict, sculpted.Walkable);

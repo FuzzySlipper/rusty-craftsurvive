@@ -48,6 +48,24 @@ internal static class RockRoutes
         return (w, h, d, values);
     }
 
+    /// <summary>A field that can be evaluated anywhere, sampled at <see cref="FineSamplesPerMetre"/> over the rock's span from the first cell's centre.</summary>
+    internal static (int Width, int Height, int Depth, float[] Values) Resample(RockDensity rock, Func<Vector3, float> shape)
+    {
+        int s = FineSamplesPerMetre;
+        int w = ((rock.Width - 1) * s) + 1, h = ((rock.Height - 1) * s) + 1, d = ((rock.Depth - 1) * s) + 1;
+        float[] values = new float[w * h * d];
+        Parallel.For(0, d, z =>
+        {
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    values[(((z * h) + y) * w) + x] = shape(new Vector3(0.5f + (x / (float)s), 0.5f + (y / (float)s), 0.5f + (z / (float)s))) + OnSurfaceNudge;
+                }
+        });
+
+        return (w, h, d, values);
+    }
+
     private static float Trilinear(RockDensity rock, float x, float y, float z)
     {
         x = Math.Clamp(x, 0, rock.Width - 1);
