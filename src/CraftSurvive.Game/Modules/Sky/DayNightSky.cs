@@ -416,10 +416,11 @@ internal sealed class DayNightSky : IDisposable
     private float shownDaylight = 1f;
 
     /// <summary>How wet the ground looks (rusty-engine #9744): 0 dry to 1 soaked, and how much stands in puddles.</summary>
-    internal void Wetness(float wetness, float puddles)
+    /// <param name="frozen">How much of the puddles is ice (#10068, rusty-engine #10076), 0 water to 1 all ice.</param>
+    internal void Wetness(float wetness, float puddles, float frozen = 0f)
     {
         if (disposed) return;
-        wetGround = (Math.Clamp(wetness, 0f, 1f), Math.Clamp(puddles, 0f, 1f));
+        wetGround = (Math.Clamp(wetness, 0f, 1f), Math.Clamp(puddles, 0f, 1f), Math.Clamp(frozen, 0f, 1f));
         ShowWetness();
         ShowSnow();
     }
@@ -430,9 +431,9 @@ internal sealed class DayNightSky : IDisposable
     /// glossy blotches whose reflections swam as the camera orbited.
     /// </summary>
     private void ShowWetness() =>
-        engine.CameraView.SetWetness(underground || onMap ? new WetnessRequest(0f, 0f) : new WetnessRequest(wetGround.Wetness, wetGround.Puddles));
+        engine.CameraView.SetWetness(underground || onMap ? new WetnessRequest(0f, 0f) : new WetnessRequest(wetGround.Wetness, wetGround.Puddles, wetGround.Frozen));
 
-    private (float Wetness, float Puddles) wetGround;
+    private (float Wetness, float Puddles, float Frozen) wetGround;
 
     /// <summary>The snow cover (#10068): how much of the open, up-facing world is snow, 0 to 1, as the snow owner tells it.</summary>
     private float snowCover;

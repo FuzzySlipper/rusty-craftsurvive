@@ -34,7 +34,14 @@ internal sealed class WeatherModule : IProductModule
     /// ground's own darkening is this share of its wetness, as ice is paler than wet earth.
     /// </summary>
     private const float FrozenWetShare = 0.35f;
+    /// <summary>
+    /// Puddles freeze over this many game hours in freezing air, the ice growing in from their edges, and thaw over this
+    /// many once it is above freezing (rusty-engine #10076 draws the ice).
+    /// </summary>
+    private const double FreezeHours = 2, ThawHours = 1;
     private bool frozen;
+    /// <summary>How much of the puddles is ice, 0 to 1.</summary>
+    private float ice;
 
     /// <summary>Whether the air over the player is freezing (#10068), as the snow cover last read it: rain falls as snow, and the wet freezes.</summary>
     internal Func<bool> Freezing { get; set; } = static () => false;
@@ -126,10 +133,13 @@ internal sealed class WeatherModule : IProductModule
         // The ground wets in rain and dries slowly after it (rusty-engine #9744 draws it).
         float raining = target.Fall == WeatherFall.Rain ? target.FallDensity : 0f;
         float dryShare = (float)(1 - Math.Exp(-passed / DryingHours));
+        // Frozen ground neither dries nor wets: the water stands as ice until it thaws.
         if (!frozen)
             groundWetness = raining >= groundWetness ? groundWetness + ((raining - groundWetness) * share) : groundWetness + ((raining - groundWetness) * dryShare);
+        float iceShare = (float)(1 - Math.Exp(-passed / (frozen ? FreezeHours : ThawHours)));
+        ice += ((frozen ? 1f : 0f) - ice) * iceShare;
         float puddles = Math.Max(0f, (groundWetness - PuddlesAbove) / (1f - PuddlesAbove));
-        sky.Wetness(frozen ? groundWetness * FrozenWetShare : groundWetness, puddles);
+        sky.Wetness(groundWetness * (1f + ((FrozenWetShare - 1f) * ice)), puddles, ice);
         lookedHours = hours;
     }
 
@@ -147,7 +157,7 @@ internal sealed class WeatherModule : IProductModule
             + string.Create(CultureInfo.InvariantCulture,
             $"travelCost={e.TravelCost:F2} supplyUse={e.SupplyUse:F2} eventRisk={e.EventRisk:F2} wetting={e.Wetting:F2}/h chill={e.Chill:F2}/h harm={e.Harm:F2}/h sight={e.Sight:F2} ")
             + $"sheltered={Exposure.Sheltered} fronts={now.Fronts.Count} remembered={Field.Remembered} scale={Field.Scale.Lengths:F2} "
-            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2} frozen={frozen} falling={sky.Falling.Drops} underWater={sky.ViewSubmerged}");
+            + string.Create(CultureInfo.InvariantCulture, $"look=cloud:{sky.Look.Cloud:F2},murk:{sky.Look.Murk:F2},fall:{sky.Look.Fall}@{sky.Look.FallDensity:F2} wetGround={groundWetness:F2} frozen={frozen} ice={ice:F2} falling={sky.Falling.Drops} underWater={sky.ViewSubmerged}");
     }
 
     /// <summary>The fronts within reach of the player: where, which way they go, how strong, and when they would arrive.</summary>

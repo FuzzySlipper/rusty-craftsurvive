@@ -652,8 +652,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Moss and lichen:** the moss stain and lichen keep off what the cover covers.
   - **Cards:** icicle cards hang from level lips, and foot cushions are buried. The cards are laid again at three
     depths, about 2 ms each.
-  - **Frozen puddles:** in freezing air, rain falls as snow and the wet ground stops drying, with the puddles held.
-    The Engine has no ice look for puddles yet (rusty-engine #10076), so held puddles still look like water.
+  - **Frozen puddles:** in freezing air, rain falls as snow and the wet ground stops drying. The puddles freeze from
+    their edges in over about two game hours and thaw back over one once the air warms (`WetnessRequest.Frozen`,
+    rusty-engine #10076). The ice follows the air where the party stands, as the wetness does.
   - **Breath and frost on the view:**
     - Breath is dust-puff particles, from the player and from creatures within 30 m. The offline scene snapshot does
       not carry bursts, so only live frames show it.
