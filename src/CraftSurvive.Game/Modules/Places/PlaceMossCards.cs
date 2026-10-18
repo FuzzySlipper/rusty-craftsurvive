@@ -8,8 +8,9 @@ namespace CraftSurvive.Game.Modules.Places;
 
 /// <summary>
 /// Hanging moss and ivy on the places (#10044): painted alpha-cut cards, the depth the flat painted moss cannot
-/// give. A curtain hangs from a lip (an edge where a piece's top meets its side) and a cushion stands at a wall's
-/// foot, each only where the surface moss (<see cref="SurfaceMoss.Field"/>) is thick, so a card always
+/// give. A curtain hangs from a lip (an edge where a piece's top meets its side), a smaller one lies flat on a side
+/// face (ivy on a wall or a stele, in the heart of a painted patch), and a cushion stands at a wall's foot, each only
+/// where the surface moss (<see cref="SurfaceMoss.Field"/>) is thick, so a card always
 /// continues a painted patch. Every kit piece's lips and feet are found once from its own triangles; the
 /// cards of every place standing are one mesh, built again whenever the places are laid out again or the
 /// moss's strength changes, around its own centre so the frame origin can move under it.
@@ -19,6 +20,14 @@ internal sealed class PlaceMossCards : IDisposable
     private const string AtlasPath = "textures/places/moss-cards.png";
     /// <summary>How far above the threshold the moss must be for a card: cards continue thick moss, not every speck.</summary>
     private const float ThickMargin = 0.0f;
+    /// <summary>A card on a side face grows only this far into a painted patch, so its edge stays painted moss.</summary>
+    private const float FaceMargin = 0.0f;
+    /// <summary>Side faces are thinned more than lips: a patch carries a card or two, not a coat.</summary>
+    private const float FaceSpacing = 0.6f;
+    /// <summary>A card on a face: its width, and its hang as a share of the width.</summary>
+    private const float FaceMinimum = 0.3f, FaceMaximum = 0.6f, FaceHang = 1.3f;
+    /// <summary>A face card turns up to this many degrees about its face's normal, so its straight top edge never lines up with its neighbours'.</summary>
+    private const float FaceRollDegrees = 35f;
     /// <summary>A top is a face whose normal rises at least this much; a side, one this near the horizontal.</summary>
     private const float TopRise = 0.6f, SideRise = 0.35f;
     /// <summary>Lips and feet are thinned to one per this many metres (a piece's mesh edges are a few centimetres long).</summary>
@@ -38,7 +47,14 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly SurfaceMoss moss;
     private readonly PropMaterials materials;
     private readonly Material material;
-    private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet)> anchors = [];
+    private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces)> anchors = [];
+
+    private enum Kind
+    {
+        Curtain,
+        Cushion,
+        Face,
+    }
     private MeshResource? mesh;
     private Appearance? appearance;
     private readonly List<(MeshResource Mesh, Appearance Look)> retiring = [];
@@ -62,6 +78,10 @@ internal sealed class PlaceMossCards : IDisposable
 
     internal int Cards { get; private set; }
 
+    /// <summary>Cards laid by kind (curtain, cushion, face) and the face anchors considered, for the readout.</summary>
+    private readonly int[] byKind = new int[3];
+    private int faceAnchors;
+
     /// <summary>Lays the cards out again over the pieces standing now.</summary>
     internal void Lay(IReadOnlyList<Piece> pieces, Vector3 about)
     {
@@ -70,22 +90,26 @@ internal sealed class PlaceMossCards : IDisposable
         List<Vector2> uvs = [];
         List<uint> indices = [];
         int cards = 0;
+        Array.Clear(byKind);
+        faceAnchors = 0;
         float threshold = moss.Threshold + ThickMargin;
         foreach (Piece piece in pieces)
         {
             if (cards >= MaximumCards) break;
-            (Anchor[] lips, Anchor[] feet) = AnchorsOf(piece);
-            foreach ((Anchor[] list, bool hanging) in new[] { (lips, true), (feet, false) })
+            (Anchor[] lips, Anchor[] feet, Anchor[] faces) = AnchorsOf(piece);
+            foreach ((Anchor[] list, Kind kind) in new[] { (lips, Kind.Curtain), (feet, Kind.Cushion), (faces, Kind.Face) })
             {
                 foreach (Anchor anchor in list)
                 {
                     Vector3 at = piece.World + Vector3.Transform(anchor.At * piece.Scale, piece.Rotation);
                     Vector3 outward = Vector3.Normalize(Vector3.Transform(anchor.Out, piece.Rotation));
                     Vector3 normal = Vector3.Normalize(Vector3.Transform(anchor.Normal, piece.Rotation));
+                    if (kind == Kind.Face) faceAnchors++;
                     float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre);
-                    if (field < threshold || cards >= MaximumCards) continue;
+                    if (field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
                     float pick = Hash(at);
-                    Card(at - centre, outward, hanging, pick, positions, normals, uvs, indices);
+                    Card(at - centre, outward, normal, kind, pick, positions, normals, uvs, indices);
+                    byKind[(int)kind]++;
                     cards++;
                 }
             }
@@ -100,13 +124,36 @@ internal sealed class PlaceMossCards : IDisposable
         appearance = engine.Graphics.CreateMeshAppearance(mesh);
     }
 
-    /// <summary>One card: a curtain hanging down the face from a lip, or a cushion standing at a foot, both windings.</summary>
-    private static void Card(Vector3 at, Vector3 outward, bool hanging, float pick, List<Vector3> positions, List<Vector3> normals,
+    /// <summary>
+    /// One card, both windings: a curtain hanging down the face from a lip, a smaller curtain lying on a side face from
+    /// its anchor (centred on it), or a cushion standing at a foot.
+    /// </summary>
+    private static void Card(Vector3 at, Vector3 outward, Vector3 faceNormal, Kind kind, float pick, List<Vector3> positions, List<Vector3> normals,
         List<Vector2> uvs, List<uint> indices)
     {
+        // A face card lies on its face, which may lean or taper (a stele): it hangs down the face's own slope and
+        // stands off along the face's normal, instead of hanging plumb into the stone.
+        if (kind == Kind.Face) outward = Vector3.Normalize(faceNormal);
+        bool hanging = kind != Kind.Cushion;
         Vector3 across = Vector3.Normalize(Vector3.Cross(Vector3.UnitY, outward));
-        float width = hanging ? Lerp(CurtainMinimum, CurtainMaximum, pick) : Lerp(CushionMinimum, CushionMaximum, pick);
-        float height = width * (hanging ? CurtainHang : CushionRise);
+        float width = kind switch
+        {
+            Kind.Curtain => Lerp(CurtainMinimum, CurtainMaximum, pick),
+            Kind.Face => Lerp(FaceMinimum, FaceMaximum, pick),
+            _ => Lerp(CushionMinimum, CushionMaximum, pick),
+        };
+        float height = width * kind switch { Kind.Curtain => CurtainHang, Kind.Face => FaceHang, _ => CushionRise };
+        Vector3 down = -Vector3.UnitY;
+        if (kind == Kind.Face)
+        {
+            Vector3 slope = Vector3.Cross(across, outward);
+            down = slope.Y < 0 ? Vector3.Normalize(slope) : -Vector3.Normalize(slope);
+            Quaternion roll = Quaternion.CreateFromAxisAngle(outward, ((Fraction(pick * 13.7f) * 2) - 1) * FaceRollDegrees * MathF.PI / 180);
+            down = Vector3.Transform(down, roll);
+            across = Vector3.Transform(across, roll);
+            // It hangs from a little above its anchor, so the anchor is in its leafy upper part.
+            at -= down * (height * 0.3f);
+        }
         // Atlas (make-grass-atlas.py, 2x2, v counted down): curtains in the top row with their attached edge at the
         // cell's base (v 0.5), cushions in the bottom row standing on their base (v 1). A second pick mirrors one.
         bool second = Fraction(pick * 7.13f) >= 0.5f;
@@ -115,7 +162,7 @@ internal sealed class PlaceMossCards : IDisposable
         if (mirror) (u0, u1) = (u1, u0);
         Vector3 off = outward * (hanging ? Standoff : Standoff * 4);
         Vector3 baseLeft = at + off - (across * (width / 2)), baseRight = at + off + (across * (width / 2));
-        Vector3 rise = hanging ? -Vector3.UnitY * height : (Vector3.UnitY * height) + (outward * height * 0.15f);
+        Vector3 rise = hanging ? down * height : (Vector3.UnitY * height) + (outward * height * 0.15f);
         float vBase = hanging ? 0.5f : 1f, vEnd = hanging ? 0f : 0.5f;
         Vector3[] corners = [baseLeft, baseRight, baseRight + rise, baseLeft + rise];
         Vector2[] corner = [new(u0, vBase), new(u1, vBase), new(u1, vEnd), new(u0, vEnd)];
@@ -138,7 +185,7 @@ internal sealed class PlaceMossCards : IDisposable
     }
 
     /// <summary>A piece's lips and feet, found once from its triangles.</summary>
-    private (Anchor[] Lips, Anchor[] Feet) AnchorsOf(Piece piece)
+    private (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces) AnchorsOf(Piece piece)
     {
         if (anchors.TryGetValue(piece.Key, out var found)) return found;
         Vector3[] p = piece.Positions;
@@ -158,7 +205,8 @@ internal sealed class PlaceMossCards : IDisposable
             }
         }
 
-        List<Anchor> lips = [], feet = [];
+        List<Anchor> lips = [], feet = [], onFaces = [];
+        HashSet<(int, int, int)> faceTaken = [];
         HashSet<(int, int, int)> taken = [];
         foreach (((long, long, long, long, long, long) key, List<int> faces) in edges)
         {
@@ -180,13 +228,22 @@ internal sealed class PlaceMossCards : IDisposable
             Triangle tri = piece.Triangles[t];
             Vector3 c = (p[tri.A] + p[tri.B] + p[tri.C]) / 3;
             float above = c.Y - piece.Sink;
-            if (above < 0 || above > FootHeight) continue;
+            if (above < 0) continue;
+            Vector3 flat = Vector3.Normalize(new Vector3(n.X, 0, n.Z));
+            if (above > FootHeight)
+            {
+                // Higher up a side face: ivy lies on it, thinned more than lips.
+                (int, int, int) cell = ((int)Math.Floor(c.X / FaceSpacing), (int)Math.Floor(c.Y / FaceSpacing), (int)Math.Floor(c.Z / FaceSpacing));
+                if (faceTaken.Add(cell)) onFaces.Add(new(c, flat, n));
+                continue;
+            }
+
             Vector3 foot = new(c.X, piece.Sink, c.Z);
             if (!taken.Add(Cell(foot))) continue;
-            feet.Add(new(foot, Vector3.Normalize(new Vector3(n.X, 0, n.Z)), n));
+            feet.Add(new(foot, flat, n));
         }
 
-        var result = (lips.ToArray(), feet.ToArray());
+        var result = (lips.ToArray(), feet.ToArray(), onFaces.ToArray());
         anchors[piece.Key] = result;
         return result;
     }
@@ -237,7 +294,7 @@ internal sealed class PlaceMossCards : IDisposable
         retiring.Clear();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} pieces={anchors.Count}");
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} pieces={anchors.Count}");
 
     public void Dispose()
     {
