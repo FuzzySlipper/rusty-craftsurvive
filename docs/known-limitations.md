@@ -634,7 +634,9 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
     from the field only; a dungeon-scale moisture spread is designed (on #10044 and #9833) but not built.
   - **The field repeats** over its wrap period (about 1.9 km for places, 117 m for field stones). That is what keeps
     it seamless when the frame origin moves; the repeat is not visible at those scales.
-  - **Not covered:** dungeon and cave surfaces (#9833); field stones get the stain only, no cards.
+  - **Lichen** is the moss's opposite, in the stain shader: sparse grey-green and ochre spots on dry, sunny, high
+    stone, kept off the damp. One global amount; it does not follow climate yet.
+  - **Not covered:** dungeon and cave surfaces (#9833); field stones get the stain and lichen only, no cards.
   - **Cost:** an overgrown ruin carries about 800 cards and a blanket shell per piece. Offline renders put the
     moss within a few milliseconds of none at 1080p, close up; this is not measured live.
   The terrain blend takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).

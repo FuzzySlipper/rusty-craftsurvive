@@ -32,6 +32,9 @@ internal sealed class SurfaceMoss : IDisposable
     /// <summary>How much a vertical face holds, as a share of a top's.</summary>
     private const float SideShare = 0.85f;
 
+    /// <summary>Lichen's amount (surface-moss.wgsl): pale crusty spots on dry, sunny stone, the moss's opposite.</summary>
+    private const float LichenAmount = 1f;
+
     /// <summary>How much of the stain's tint (surface-moss.wgsl's STAIN_TINT) the fullest stain takes.</summary>
     private const float StainDepth = 1.0f;
 
@@ -99,7 +102,7 @@ internal sealed class SurfaceMoss : IDisposable
             new(Wrap(origin.X, period), Wrap(origin.Y, period), Wrap(origin.Z, period), Strength + overgrowth),
             new(a, b, c, d),
             new(grain.TexelsPerMetre, SideShare, LowestFacing, grain.VertexMoisture ? 1 : 0),
-            new(period, 0, 0, StainDepth),
+            new(period, LichenAmount, 0, StainDepth),
         ];
     }
 

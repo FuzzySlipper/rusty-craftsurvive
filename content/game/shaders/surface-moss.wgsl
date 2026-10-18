@@ -11,8 +11,12 @@
 //   [1] the lattice in texels per cell: broad clumps across, broad clumps down a side, fine across, fine down.
 //   [2] x: texels per metre; y: how much a vertical face holds; z: how far down a surface may face and hold
 //       moss; w: 1 when the vertex colour's alpha is the vertex's moisture.
-//   [3] x: the wrap period (whole metres; every lattice divides it, in texels); w: how much of the tint the
-//       fullest stain takes.
+//   [3] x: the wrap period (whole metres; every lattice divides it, in texels); y: lichen amount (0 none, 1 the
+//       default); w: how much of the tint the fullest stain takes.
+//
+// Lichen is the moss's opposite: small pale crusty spots on dry, sunny, high stone (crowns, south faces), kept off
+// the damp where the stain is. It is drawn crisp at texel scale, as painted spots, on the fine lattice (so it repeats
+// over the same period as the field), in a grey-green and an ochre.
 
 #import rusty::types::Surface
 #import rusty::material::material
@@ -24,6 +28,14 @@ const STAIN_FULL: f32 = 0.06;
 // The stain's tint (linear), multiplying the stone where it is fullest: darker and a little green, so warm stone
 // goes olive-grey under the moss without losing its painted marks.
 const STAIN_TINT: vec3<f32> = vec3<f32>(0.5, 0.64, 0.4);
+// Lichen: its two colours (linear: a pale grey-green and an ochre), how much of the stone it covers in each spot,
+// the dryness threshold its spots show above at full amount, and how much the stain holds it back.
+const LICHEN_PALE: vec3<f32> = vec3<f32>(0.30, 0.32, 0.22);
+const LICHEN_OCHRE: vec3<f32> = vec3<f32>(0.45, 0.30, 0.08);
+const LICHEN_COVER: f32 = 0.65;
+const LICHEN_AT: f32 = 1.05;
+const LICHEN_PER_AMOUNT: f32 = 0.10;
+const LICHEN_STAIN_LIMIT: f32 = 0.25;
 
 // --- The moss field (kept equal in surface-moss.wgsl, ivy-blanket.wgsl and SurfaceMoss.Field) ---
 // The field is read once per texel of the surface's dominant plane. Its noise lattice counts whole texels
@@ -117,24 +129,48 @@ fn field_at(world: vec3<f32>, n: vec3<f32>, vertex_moisture: f32) -> f32 {
 }
 // --- end of the moss field ---
 
+// Lichen at texel t: a spot of the fine lattice's noise where the stone is dry (the moss's wetness inverted), or 0.
+// Returns the spot's cover (0 none) and which colour (0 pale, 1 ochre).
+fn lichen(t: vec2<i32>, n: vec3<f32>, vertex_moisture: f32) -> vec2<f32> {
+    let amount = material.parameters[3].y;
+    if amount <= 0.0 || n.y < material.parameters[2].z {
+        return vec2<f32>(0.0);
+    }
+
+    let l = vec4<i32>(material.parameters[1]);
+    let fine = vec2<i32>(l.z, l.z);
+    let spot = lattice_noise(t + fine * vec2<i32>(41, 29), fine);
+    let wet = wetness(n, vertex_moisture) / max(mix(material.parameters[2].y, 1.0, smoothstep(0.0, 0.8, n.y)), 0.01);
+    let dry = clamp(2.0 - wet, 0.0, 2.0);
+    if spot * dry < LICHEN_AT - amount * LICHEN_PER_AMOUNT {
+        return vec2<f32>(0.0);
+    }
+
+    let colour = step(0.62, lattice_noise(t + fine * vec2<i32>(7, 53), vec2<i32>(l.x, l.x)));
+    return vec2<f32>(LICHEN_COVER, colour);
+}
+
 fn shade(surface: Surface) -> vec4<f32> {
     var s = surface;
     let strength = material.parameters[0].w;
-    if strength <= 0.0 {
-        return standard_shade(s);
-    }
-
-    let m = field_at(surface.world_position, normalize(surface.normal), surface.tint.a);
+    let n = normalize(surface.normal);
+    let texel = texel_of(surface.world_position, n);
+    let m = moss_field(texel.xy, texel.z == 1) * wetness(n, surface.tint.a);
     // Strength lowers the threshold. The cards grow above it; the stain starts STAIN_REACH below it.
     let threshold = 0.74 - strength * 0.09;
-    let stain = smoothstep(threshold - STAIN_REACH, threshold + STAIN_FULL, m);
-    if stain <= 0.0 {
-        return standard_shade(s);
-    }
-
+    let stain = select(0.0, smoothstep(threshold - STAIN_REACH, threshold + STAIN_FULL, m), strength > 0.0);
     let tint = mix(vec3<f32>(1.0), STAIN_TINT, stain * material.parameters[3].w);
     s.base = vec4<f32>(s.base.rgb * tint, s.base.a);
     // Damp stone is a little less rough.
     s.roughness = mix(s.roughness, s.roughness * 0.85, stain);
+
+    if stain < LICHEN_STAIN_LIMIT {
+        let spot = lichen(texel.xy, n, surface.tint.a);
+        if spot.x > 0.0 {
+            let colour = mix(LICHEN_PALE, LICHEN_OCHRE, spot.y);
+            s.base = vec4<f32>(mix(s.base.rgb, colour, spot.x), s.base.a);
+        }
+    }
+
     return standard_shade(s);
 }
