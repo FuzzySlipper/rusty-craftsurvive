@@ -104,6 +104,9 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>Sets a site's overgrowth (#10044): its moss deepens, its walls take the ivy blanket.</summary>
     internal string SetOvergrowth(string siteId, float extra) => places.SetOvergrowth(siteId, extra);
 
+    /// <summary>Whether a site's place meshes stand at a world point (x, z) now (#9992 review): the horizon hides its silhouette exactly then.</summary>
+    internal bool PlaceStands(System.Numerics.Vector2 at) => places.Stands(at);
+
     internal string PlacesReadout() => places.Readout() + string.Create(CultureInfo.InvariantCulture, $" colliders={PlaceColliders}");
 
     /// <summary>How many place pieces the walking collision holds, for the readout.</summary>
@@ -210,9 +213,15 @@ internal sealed class TerrainWorld : IDisposable
     {
         string readout = Moss.SetStrength(strength);
         places.RelayCards();
+        RegrowMossCopies();
+        return readout;
+    }
+
+    /// <summary>The scatter and its tiles grown again, so their copies of the moss materials take the materials' values now.</summary>
+    private void RegrowMossCopies()
+    {
         presentation.RegrowScatter();
         vegetationTiles?.Grow(presentation.ScatterKinds, (float)groundCoverMetres);
-        return readout;
     }
 
     /// <summary>
@@ -349,7 +358,9 @@ internal sealed class TerrainWorld : IDisposable
 
         trees.Follow(centerVoxel, recipe, MaterialAt, IsResident, EditRevision, streamer.ResidentCount);
         places.Follow(new Vector3(centerVoxel.X + 0.5f, centerVoxel.Y, centerVoxel.Z + 0.5f), NearEdgeMetres);
-        Moss.Follow(frame.Origin);
+        // The field stones' scatter copies keep the moss origin they were grown with (#10044 review): after a rebase they
+        // are grown again from the refreshed materials, so the stain and lichen stay put on the stones.
+        if (Moss.Follow(frame.Origin)) RegrowMossCopies();
         lastCentre = centerVoxel;
         // Ground cover and trees re-ask the tiles under the columns edited since the last follow.
         var changedColumns = overlayStore.Overlay.TakeChangedColumns();

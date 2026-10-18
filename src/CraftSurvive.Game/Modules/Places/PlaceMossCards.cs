@@ -129,6 +129,8 @@ internal sealed class PlaceMossCards : IDisposable
         foreach (Piece piece in pieces)
         {
             float threshold = moss.ThresholdAt(Math.Min(piece.Overgrowth, CardOvergrowthLimit)) + ThickMargin;
+            // No moss at all (strength 0 and no overgrowth), as the stain shader draws none: no moss cards either (#10044 review).
+            bool mossy = moss.Strength + piece.Overgrowth > 0;
             float blanket = piece.Overgrowth > 0 ? moss.BlanketThreshold(piece.Overgrowth) : float.PositiveInfinity;
             if (cards >= MaximumCards) break;
             (Anchor[] lips, Anchor[] feet, Anchor[] faces, Anchor[] tops) = AnchorsOf(piece);
@@ -149,6 +151,7 @@ internal sealed class PlaceMossCards : IDisposable
 
             foreach ((Anchor[] list, Kind kind) in new[] { (lips, Kind.Curtain), (feet, Kind.Cushion), (faces, Kind.Face), (tops, Kind.Mat) })
             {
+                if (!mossy) break;
                 foreach (Anchor anchor in list)
                 {
                     Vector3 at = piece.World + Vector3.Transform(anchor.At * piece.Scale, piece.Rotation);

@@ -105,6 +105,9 @@ internal sealed class HorizonLandmarks : IDisposable
     /// <param name="worldGround">The terrain's ground height at a world point (x, z), which the far field draws.</param>
     /// <param name="toLocal">A world point in the renderer's frame.</param>
     /// <param name="nearEdge">The near ground's edge from the player in metres: places within it are their own structures.</param>
+    /// <summary>Whether a site's own place meshes stand now at a world point (x, z): its silhouette gives way to them exactly then (#9992 review).</summary>
+    internal Func<Vector2, bool>? PlaceStands { get; init; }
+
     internal HorizonLandmarks(IEngineContext engine, ProductContent content, Func<IReadOnlyList<KnownPlace>> places, Func<Vector3> playerWorld,
         Func<double, double, double> worldGround, Func<Vector3, Vector3> toLocal, Func<double> nearEdge)
     {
@@ -141,7 +144,9 @@ internal sealed class HorizonLandmarks : IDisposable
             double near = nearEdge();
             foreach ((KnownPlace place, double distance, LandmarkBand band) in listed.Where(place => Of(place) is not null)
                 .Select(place => (Place: place, Distance: (double)Vector2.Distance(place.Position, here),
-                    Band: HorizonLandmarkRules.Band(place.Position.X - here.X, place.Position.Y - here.Y, near, reach)))
+                    Band: place.Site != PoiKind.None && PlaceStands is { } stands
+                        ? HorizonLandmarkRules.Band(place.Position.X - here.X, place.Position.Y - here.Y, reach, stands(place.Position))
+                        : HorizonLandmarkRules.Band(place.Position.X - here.X, place.Position.Y - here.Y, near, reach)))
                 .Where(entry => entry.Band != LandmarkBand.None)
                 .OrderBy(entry => entry.Distance).Take(MaximumLandmarks))
             {

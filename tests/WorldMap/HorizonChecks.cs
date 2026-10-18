@@ -60,6 +60,16 @@ internal static class HorizonChecks
         Check.That(HorizonLandmarkRules.Band(Reach, 0, Near, Reach) == LandmarkBand.Backdrop
             && HorizonLandmarkRules.Band(0, HorizonLandmarkRules.RangeMetres, Near, Reach) == LandmarkBand.Backdrop, "past the reach, in the backdrop");
         Check.That(HorizonLandmarkRules.Band(HorizonLandmarkRules.RangeMetres + 1, 0, Near, Reach) == LandmarkBand.None, "and not past its range");
+        // A site's silhouette gives way to its place meshes exactly while they stand (#9992 review): inside the near edge a
+        // site not (yet) standing keeps its silhouette, and a standing one draws none wherever it is.
+        Check.That(HorizonLandmarkRules.Band(Near - 1, 0, Reach, standing: false) == LandmarkBand.World
+            && HorizonLandmarkRules.Band(Near - 1, 0, Reach, standing: true) == LandmarkBand.None
+            && HorizonLandmarkRules.Band(Near + 1, 0, Reach, standing: true) == LandmarkBand.None
+            && HorizonLandmarkRules.Band(Reach, 0, Reach, standing: false) == LandmarkBand.Backdrop,
+            "a site's silhouette shows exactly when its place meshes do not stand");
+        Check.That(HorizonLandmarkRules.OnNearGround(Near - 1, Near - 1, Near) && !HorizonLandmarkRules.OnNearGround(Near, 0, Near)
+            && (HorizonLandmarkRules.Band(Near - 1, 0, Near, Reach) == LandmarkBand.None) == HorizonLandmarkRules.OnNearGround(Near - 1, 0, Near),
+            "the near places and the silhouettes share one square near edge");
         // The reviewed diagonals (R9781-1): radially past the reach, but still under the square far field.
         Check.That(HorizonLandmarkRules.Band(1088, 1088, Near, 1536) == LandmarkBand.World && HorizonLandmarkRules.Band(1450, 1450, Near, 2048) == LandmarkBand.World,
             "a place on the diagonal stays in the world while the far field covers it");

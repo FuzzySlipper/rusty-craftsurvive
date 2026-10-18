@@ -219,6 +219,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 frame.ToLocal, () => terrain.NearEdgeMetres)
             {
                 Daylight = () => double.IsNaN(sky.Daylight) ? 1 : sky.Daylight,
+                PlaceStands = at => terrain.PlaceStands(at),
             },
         };
         gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, cold, tracks, horizon];

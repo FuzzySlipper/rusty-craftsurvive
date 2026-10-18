@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Horizon;
 using CraftSurvive.Game.Modules.World;
 using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine;
@@ -51,6 +52,16 @@ internal sealed class PlaceMeshes : IDisposable
     private readonly List<Standing> standing = [];
     private readonly List<PoiSite> sites = [];
     private (double X, double Z) laidOutAt = (double.NaN, double.NaN);
+    /// <summary>Where and at which near edge the candidate sites were last gathered; the sites standing now, and where.</summary>
+    private (double X, double Z) gatheredAt = (double.NaN, double.NaN);
+    private double gatheredEdge = double.NaN;
+    private readonly HashSet<string> standingSites = [];
+    private readonly List<Vector2> standingAt = [];
+    /// <summary>A known place this near a standing site's centre is that site (metres).</summary>
+    private const float StandsWithinMetres = 4;
+
+    /// <summary>Whether a site's place meshes stand at a world point (x, z) now: what the horizon gives its silhouette way to.</summary>
+    internal bool Stands(Vector2 at) => standingAt.Any(site => Vector2.DistanceSquared(site, at) <= StandsWithinMetres * StandsWithinMetres);
     private (double X, double Z) collidedAt = (double.NaN, double.NaN);
     private (long X, long Y, long Z) collidedOrigin;
     private int layoutRevision, collidedRevision = -1;
@@ -140,16 +151,33 @@ internal sealed class PlaceMeshes : IDisposable
     internal int Pieces => standing.Count;
 
     /// <summary>Lays the places out again about the player when they have moved on: every site within the near ground.</summary>
+    /// <summary>
+    /// Keeps the places on the near ground standing (#9992 review): every call decides which sites stand by the one near
+    /// edge the horizon's silhouettes share (<see cref="HorizonLandmarkRules.OnNearGround"/>), at the player's position and
+    /// the edge as they are now, and lays the places out again only when that set changes. The candidate sites are
+    /// gathered again only after the player has moved <see cref="LayoutStepMetres"/>, or when the edge changes.
+    /// </summary>
     internal void Follow(Vector3 player, double nearEdgeMetres)
     {
-        if (!double.IsNaN(laidOutAt.X) && Math.Max(Math.Abs(player.X - laidOutAt.X), Math.Abs(player.Z - laidOutAt.Z)) < LayoutStepMetres) return;
-        laidOutAt = (player.X, player.Z);
-        sites.Clear();
-        placement.CollectSitesNear((long)Math.Floor(player.X), (long)Math.Floor(player.Z), nearEdgeMetres * Math.Sqrt(2), sites);
-        standing.Clear();
-        foreach (PoiSite site in sites)
+        if (double.IsNaN(gatheredAt.X) || nearEdgeMetres != gatheredEdge
+            || Math.Max(Math.Abs(player.X - gatheredAt.X), Math.Abs(player.Z - gatheredAt.Z)) >= LayoutStepMetres)
         {
-            if (Math.Max(Math.Abs(site.X + 0.5 - player.X), Math.Abs(site.Z + 0.5 - player.Z)) > nearEdgeMetres) continue;
+            gatheredAt = (player.X, player.Z);
+            gatheredEdge = nearEdgeMetres;
+            sites.Clear();
+            placement.CollectSitesNear((long)Math.Floor(player.X), (long)Math.Floor(player.Z), (nearEdgeMetres + LayoutStepMetres) * Math.Sqrt(2), sites);
+        }
+
+        List<PoiSite> near = [.. sites.Where(site => HorizonLandmarkRules.OnNearGround(site.X + 0.5 - player.X, site.Z + 0.5 - player.Z, nearEdgeMetres))];
+        if (!double.IsNaN(laidOutAt.X) && near.Count == standingSites.Count && near.All(site => standingSites.Contains(site.Id))) return;
+        laidOutAt = (player.X, player.Z);
+        standing.Clear();
+        standingSites.Clear();
+        standingAt.Clear();
+        foreach (PoiSite site in near)
+        {
+            standingSites.Add(site.Id);
+            standingAt.Add(new Vector2(site.X + 0.5f, site.Z + 0.5f));
             double siteGround = groundTop(site.X + 0.5, site.Z + 0.5);
             float extra = overgrowth.TryGetValue(site.Id, out float set) ? set : ClimateOvergrowth(site);
             foreach (PlacedPart part in PlaceLayouts.For(site))

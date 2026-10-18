@@ -35,10 +35,24 @@ internal static class HorizonLandmarkRules
     /// </summary>
     /// <param name="nearEdge">The near ground's edge from the player: its own structure is built within it.</param>
     /// <param name="reach">The far field's reach from the player: past it the backdrop is the ground.</param>
-    internal static LandmarkBand Band(double dx, double dz, double nearEdge, double reach)
+    internal static LandmarkBand Band(double dx, double dz, double nearEdge, double reach) =>
+        OnNearGround(dx, dz, nearEdge) ? LandmarkBand.None : Beyond(dx, dz, reach);
+
+    /// <summary>
+    /// The band of a place whose own structure the product draws when it stands near (a site's place meshes, #9992 review):
+    /// none while <paramref name="standing"/> (its meshes are drawn), and otherwise a silhouette even inside the near edge, so
+    /// the hand-off follows what is drawn and a place is never missing nor drawn twice.
+    /// </summary>
+    internal static LandmarkBand Band(double dx, double dz, double reach, bool standing) =>
+        standing ? LandmarkBand.None : Beyond(dx, dz, reach);
+
+    /// <summary>Whether a place at an offset (x, z) lies on the near ground, measured square: the one edge the near places and the silhouettes share.</summary>
+    internal static bool OnNearGround(double dx, double dz, double nearEdge) => Math.Max(Math.Abs(dx), Math.Abs(dz)) < nearEdge;
+
+    private static LandmarkBand Beyond(double dx, double dz, double reach)
     {
         double square = Math.Max(Math.Abs(dx), Math.Abs(dz));
-        return square < nearEdge || Math.Sqrt((dx * dx) + (dz * dz)) > RangeMetres ? LandmarkBand.None
+        return Math.Sqrt((dx * dx) + (dz * dz)) > RangeMetres ? LandmarkBand.None
             : square >= reach ? LandmarkBand.Backdrop
             : LandmarkBand.World;
     }

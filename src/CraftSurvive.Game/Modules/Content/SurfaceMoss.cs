@@ -128,12 +128,16 @@ internal sealed class SurfaceMoss : IDisposable
 
     internal void Unregister(Material material) => materials.Remove(material);
 
-    /// <summary>Refreshes the materials when the frame origin has moved.</summary>
-    internal void Follow((long X, long Y, long Z) frameOrigin)
+    /// <summary>
+    /// Refreshes the materials when the frame origin has moved, and says whether it had: copies made from them (the
+    /// scatter's field stones) keep the values they were made with, so their owner lays them again.
+    /// </summary>
+    internal bool Follow((long X, long Y, long Z) frameOrigin)
     {
-        if (frameOrigin == origin) return;
+        if (frameOrigin == origin) return false;
         origin = frameOrigin;
         Refresh();
+        return true;
     }
 
     /// <summary>Sets the moss's strength for every place at once (0 to <see cref="MaximumStrength"/>).</summary>
