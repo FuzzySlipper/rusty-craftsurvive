@@ -53,6 +53,13 @@ internal static class SnowChecks
         restored.Restore(carried.Capture(), StartHours + 10);
         double resumed = restored.DepthAt(1200, -800, StartHours + 30);
         double continued = carried.DepthAt(1200, -800, StartHours + 30);
+        SnowCover budgeted = new(near), direct = new(near);
+        int calls = 0;
+        do { budgeted.FollowAround(1200, -800, StartHours + 40); calls++; } while (budgeted.Settled < 9 && calls < 1000);
+        double spread = budgeted.DepthAt(1200, -800, StartHours + 40), atOnce = direct.DepthAt(1200, -800, StartHours + 40);
+        Check.That(calls > 1 && budgeted.Settled == 9, $"cells coming into reach settle over several updates, not at once ({calls} calls)");
+        Check.That(Math.Abs(spread - atOnce) < 0.02, $"settling a little each update lays the same snow as at once ({spread:F4} m and {atOnce:F4} m)");
+
         Console.WriteLine(FormattableString.Invariant($"snow cover: storm {before:F3}->{during:F3} m, a day later {dayLater:F3} m; warm {laid:F3}->{thawed:F3} m; near freezing {reference:F4}/{continued:F4} m"));
         Check.That(Math.Abs(continued - resumed) < 1e-12, $"saved cells carry on exactly as they would have ({continued:F4} m, restored {resumed:F4} m)");
         Check.That(Math.Abs(reference - continued) < 0.01, $"the cover follows the weather, not how often it is asked ({reference:F4} m and {continued:F4} m)");

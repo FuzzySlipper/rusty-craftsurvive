@@ -166,7 +166,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => !player.InSeparateSpace && !player.HeadSubmerged,
             () => terrain.CoveredAbove(frame.ToLocal(player.WorldEyePosition), ShelterReachMetres));
         snow = new SnowModule(context.Engine, store, terrain.SaveIdentity, weather.Field, () => weather.Hours, () => player.WorldPosition,
-            depth => terrain.SetSnow((float)depth));
+            () => weather.Here, depth => terrain.SetSnow((float)depth));
         weather.Freezing = () => snow.Air <= Modules.Water.Seasons.Freezing;
         riverStage = new Modules.Water.RiverStageModule(worlds.Current.Map, () => weather.Hours, terrain.RefreshWater,
             new Modules.Water.RiverStageStore(context.Engine, store, terrain.SaveIdentity));

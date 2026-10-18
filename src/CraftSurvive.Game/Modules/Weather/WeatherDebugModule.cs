@@ -43,6 +43,9 @@ public sealed class WeatherDebugModule : IDebugCommandModule
     [DebugCommand("craft.snow.tracks", Description = "Reads the footprints in the snow (#10068): prints lying of the pool, stamped so far, creatures walked, and how many at each fading stage.")]
     public string Tracks() => tracksSource().Readout();
 
+    [DebugCommand("craft.snow.fill", Description = "Assisted, for measuring: fills the whole footprint pool with fresh prints in rows around the player.")]
+    public string Fill() => tracksSource().Fill();
+
     [DebugCommand("craft.snow.lay", Description = "Assisted: lays the given metres of snow around the player at once (negative takes it away).")]
     public string Lay(double metres) => snowSource().Lay(metres);
 }

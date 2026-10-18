@@ -25,6 +25,10 @@ internal sealed class SnowCover
     private const double StepHours = 0.5, SettleStepHours = 2;
     /// <summary>A cell is carried on once the clock has moved this far past it (three game minutes).</summary>
     private const double FollowHours = 0.05;
+    /// <summary>Following around the party takes at most this many steps an update (each mostly a weather reading, about 0.13 ms).</summary>
+    private const int StepsPerFollow = 6;
+    /// <summary>A reader carries a cell on itself only once it is this far behind (game hours); the following keeps it nearer.</summary>
+    private const double ReadLagHours = 0.5;
     /// <summary>Snow builds at this many metres an hour under full precipitation: a long storm lays most of a metre.</summary>
     internal const double DepthPerHour = 0.05;
     /// <summary>Snow lies no deeper than this; above it, more falling is blown off.</summary>
@@ -41,13 +45,15 @@ internal sealed class SnowCover
 
     private readonly WeatherField field;
     private readonly Dictionary<(int X, int Z), Cell> cells = [];
-    private long settled, stepped;
+    private long settled, stepped, steppedTicks;
 
     internal SnowCover(WeatherField field) => this.field = field ?? throw new ArgumentNullException(nameof(field));
 
     private sealed class Cell(double depth, double hours)
     {
         internal double Depth = depth, Hours = hours, Fallen, Touched = hours;
+        /// <summary>Still being worked out from the days before it came into reach.</summary>
+        internal bool Settling;
     }
 
     internal int Count => cells.Count;
@@ -55,6 +61,9 @@ internal sealed class SnowCover
     /// <summary>Cells worked out from the weather before, and steps carried on, for the readout.</summary>
     internal long Settled => settled;
     internal long Stepped => stepped;
+
+    /// <summary>What a step costs on average (most of it reading the weather), in milliseconds, for the readout.</summary>
+    internal double StepMs => stepped == 0 ? 0 : steppedTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / stepped;
 
     internal static (int X, int Z) CellOf(double x, double z) => ((int)Math.Floor(x / CellMetres), (int)Math.Floor(z / CellMetres));
 
@@ -96,50 +105,91 @@ internal sealed class SnowCover
         return Follow(cx, cz, hours).Fallen;
     }
 
-    /// <summary>Carries every cell around a point on to the clock: the party's, so their snow is current.</summary>
+    /// <summary>
+    /// Keeps the cells around a point (the party's) on the clock within a budget of <see cref="StepsPerFollow"/> steps, the
+    /// cell furthest behind first: a cell newly in reach is settled a little each update instead of all at once, and the
+    /// cells' regular steps are spread over updates. The readers then find them current.
+    /// </summary>
     internal void FollowAround(double x, double z, double hours)
     {
         (int cx, int cz) = CellOf(x, z);
         for (int dz = -FollowedReach; dz <= FollowedReach; dz++)
             for (int dx = -FollowedReach; dx <= FollowedReach; dx++)
-                Follow(cx + dx, cz + dz, hours);
+                if (!cells.ContainsKey((cx + dx, cz + dz))) Begin(cx + dx, cz + dz, hours);
+
+        for (int budget = StepsPerFollow; budget > 0;)
+        {
+            (int X, int Z)? stalest = null;
+            double behind = FollowHours;
+            for (int dz = -FollowedReach; dz <= FollowedReach; dz++)
+                for (int dx = -FollowedReach; dx <= FollowedReach; dx++)
+                {
+                    Cell cell = cells[(cx + dx, cz + dz)];
+                    if (hours - cell.Hours >= behind) (stalest, behind) = ((cx + dx, cz + dz), hours - cell.Hours);
+                }
+
+            if (stalest is not { } key) break;
+            Cell due = cells[key];
+            budget -= Advance(key.X, key.Z, due, hours, behind > SettleStepHours * 3 ? SettleStepHours : StepHours, budget);
+            due.Touched = hours;
+            if (due.Settling && hours - due.Hours < FollowHours) Settle(due);
+        }
     }
 
+    /// <summary>A cell newly in reach, to be settled from the weather of the days before.</summary>
+    private Cell Begin(int cx, int cz, double hours)
+    {
+        Cell cell = new(0, hours - (SettleDays * HoursPerDay)) { Settling = true };
+        cells[(cx, cz)] = cell;
+        Forget();
+        return cell;
+    }
+
+    private void Settle(Cell cell)
+    {
+        cell.Settling = false;
+        cell.Fallen = 0;
+        settled++;
+    }
+
+    /// <summary>
+    /// A cell as a reader needs it: settled at once if it is new or still settling (after a teleport), and carried on if it
+    /// has fallen more than <see cref="ReadLagHours"/> behind; otherwise as it stands, as the budgeted following keeps it.
+    /// </summary>
     private Cell Follow(int cx, int cz, double hours)
     {
-        if (!cells.TryGetValue((cx, cz), out Cell? cell))
+        Cell cell = cells.TryGetValue((cx, cz), out Cell? known) ? known : Begin(cx, cz, hours);
+        if (cell.Settling)
         {
-            cell = new Cell(0, hours - (SettleDays * HoursPerDay));
-            Advance(cx, cz, cell, hours, SettleStepHours);
-            settled++;
-            cell.Fallen = 0;
-            cells[(cx, cz)] = cell;
-            Forget();
+            Advance(cx, cz, cell, hours, SettleStepHours, int.MaxValue);
+            Settle(cell);
         }
-        else if (hours - cell.Hours >= FollowHours)
+        else if (hours - cell.Hours > SettleDays * HoursPerDay)
         {
             // A long absence is settled again rather than stepped through.
-            if (hours - cell.Hours > SettleDays * HoursPerDay)
-            {
-                cell.Depth = 0;
-                cell.Hours = hours - (SettleDays * HoursPerDay);
-                Advance(cx, cz, cell, hours, SettleStepHours);
-            }
-            else
-            {
-                Advance(cx, cz, cell, hours, StepHours);
-            }
+            cell.Depth = 0;
+            cell.Hours = hours - (SettleDays * HoursPerDay);
+            Advance(cx, cz, cell, hours, SettleStepHours, int.MaxValue);
+        }
+        else if (hours - cell.Hours > ReadLagHours)
+        {
+            Advance(cx, cz, cell, hours, StepHours, int.MaxValue);
         }
 
         cell.Touched = hours;
         return cell;
     }
 
-    /// <summary>A cell's snow from its hour to <paramref name="hours"/>, in steps no longer than <paramref name="most"/>, each read at its middle.</summary>
-    private void Advance(int cx, int cz, Cell cell, double hours, double most)
+    /// <summary>
+    /// A cell's snow from its hour toward <paramref name="hours"/>, in steps no longer than <paramref name="most"/>, each read
+    /// at its middle, and at most <paramref name="steps"/> of them. Returns the steps taken.
+    /// </summary>
+    private int Advance(int cx, int cz, Cell cell, double hours, double most, int steps)
     {
         double x = (cx + 0.5) * CellMetres, z = (cz + 0.5) * CellMetres;
-        while (cell.Hours < hours)
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        int taken = 0;
+        while (cell.Hours < hours && taken < steps)
         {
             double dt = Math.Min(most, hours - cell.Hours), mid = cell.Hours + (dt / 2);
             EnvironmentSample sample = field.Sample(x, z, mid);
@@ -153,7 +203,11 @@ internal sealed class SnowCover
             cell.Fallen += laid;
             cell.Hours += dt;
             stepped++;
+            taken++;
         }
+
+        steppedTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        return taken;
     }
 
     private static double Fraction(double hours) => ((hours / HoursPerDay) % 1 + 1) % 1;

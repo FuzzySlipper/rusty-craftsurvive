@@ -640,6 +640,35 @@ records and superseded limits are in Den, project `rusty-craftsurvive`, under `h
   - **Cost:** an overgrown ruin carries about 800 cards and a blanket shell per piece. Offline renders put the
     moss within a few milliseconds of none at 1080p, close up; this is not measured live.
   The terrain blend takes up to sixteen layers (four a chunk); the fifth is dry meadow (#10041).
+- **Snow and cold (#10068).** The snow lying is a depth per 500 m cell (`SnowCover`). It builds under snow fronts,
+  and under any front once the air is freezing (climate, plus the season's swing, minus a front's cold). It melts
+  with warmth and, near freezing, with sun.
+  - **Settling and saving:** a cell new to the party is worked out from the eight days of weather before it, a few
+    steps each update. The cells are saved (`weather/snow`), so snow is still there a day later.
+  - **Follows the party only:** one depth, where the party stands, is drawn on every place and field stone. A ruin
+    across a cell's edge from the party shows the party's depth.
+  - **What the snow shows on:**
+    - Snow caps the tops of places and field stones, in the stain shader and the ivy blanket.
+    - It buries top mats and foot cushions; icicle cards hang from level lips.
+    - Frost is shown as a thin snow.
+    - The ground's own snow is still its terrain layer. Scene-wide snow cover on ground, trees, grass and built
+      pieces is rusty-engine #10069; projected decals are #10070.
+  - **Field stones update in steps:** their scatter copies keep the shader values they grew with. They regrow when
+    the snow crosses a step: about 11 ms, a handful of times a storm.
+  - **Frozen puddles:** in freezing air, rain falls as snow and the wet ground stops drying, with the puddles held.
+    The Engine has no ice look for puddles, so held puddles still look like water.
+  - **Breath and frost on the view:**
+    - Breath is dust-puff particles, from the player and from creatures within 30 m. The offline scene snapshot does
+      not carry bursts, so only live frames show it.
+    - The frost on the view is drawn on a fixed 192x108 block grid, square on a 16:9 picture.
+  - **Footprints:**
+    - 320 pooled quads, boots for the player and paws (1.6x) for creatures. They fade as fresh snow falls and with
+      age, and are not saved.
+    - On the snow terrain's dented texture, small prints read best close up.
+  - **Cost:** a full pool in view adds about 0.04 ms to the world pass (offline, RX 9070 XT). Icicles and caps sit
+    within the shadow pass's noise, and the frost pass costs 0.03 ms. Following the cover costs under 0.3 ms an
+    update, but a long jump of the clock (a rest, `craft.world.pass`) catches the near cells up at once, up to about
+    30 ms.
 - **Trees are meshes on an invisible trunk core; forests follow climate only.** The recipe plants
   each tree (species from the flora catalog's ecology, stand, variant, size and turn) and writes only
   a short `TreeCore` column into the voxels, which bodies collide with and a blast can break. Trees are

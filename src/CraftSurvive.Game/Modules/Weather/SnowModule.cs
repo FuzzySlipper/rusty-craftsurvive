@@ -29,12 +29,15 @@ internal sealed class SnowModule : IProductModule
     private readonly Func<double> hours;
     private readonly Func<Vector3> playerWorld;
     private readonly Action<double> depthChanged;
+    private readonly Func<EnvironmentSample> here;
     private double savedHours = double.NaN, toldDepth = double.NaN;
 
     /// <param name="depthChanged">Told the depth where the party stands, in metres, whenever it has moved.</param>
+    /// <param name="here">The weather over the player now, as the weather owner keeps it (sampled again only as the clock or the player moves).</param>
     internal SnowModule(IEngineContext? engine, ProductStore? store, SaveIdentity identity, WeatherField field, Func<double> hours,
-        Func<Vector3> playerWorld, Action<double> depthChanged)
+        Func<Vector3> playerWorld, Func<EnvironmentSample> here, Action<double> depthChanged)
     {
+        this.here = here ?? throw new ArgumentNullException(nameof(here));
         this.field = field ?? throw new ArgumentNullException(nameof(field));
         Cover = new SnowCover(field);
         this.hours = hours ?? throw new ArgumentNullException(nameof(hours));
@@ -70,8 +73,14 @@ internal sealed class SnowModule : IProductModule
 
     public void Dispose() => Save();
 
+    /// <summary>What following the cover cost on the update, for the readout: the last and the worst, in milliseconds.</summary>
+    private double lastFollowMs, worstFollowMs;
+    /// <summary>What telling the surfaces the depth cost (the places' materials, and the stones' regrowth at a step), last and worst.</summary>
+    private double lastTellMs, worstTellMs;
+
     private void Follow()
     {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         double now = hours();
         Vector3 at = playerWorld();
         Cover.FollowAround(at.X, at.Z, now);
@@ -80,16 +89,21 @@ internal sealed class SnowModule : IProductModule
         if (double.IsNaN(toldDepth) || Math.Abs(Shown - toldDepth) >= TellStepMetres)
         {
             toldDepth = Shown;
+            long telling = System.Diagnostics.Stopwatch.GetTimestamp();
             depthChanged(Shown);
+            lastTellMs = System.Diagnostics.Stopwatch.GetElapsedTime(telling).TotalMilliseconds;
+            worstTellMs = Math.Max(worstTellMs, lastTellMs);
         }
 
+        lastFollowMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        worstFollowMs = Math.Max(worstFollowMs, lastFollowMs);
         if (double.IsNaN(savedHours) || Math.Abs(now - savedHours) >= SaveEveryHours) Save();
     }
 
     /// <summary>Frost eases toward its target by the game time passed: full in still freezing air, none above freezing or while snow falls.</summary>
     private void GatherFrost(Vector3 at, double now)
     {
-        EnvironmentSample sample = field.Sample(at.X, at.Z, now);
+        EnvironmentSample sample = here();
         double air = Cover.Air(at.X, at.Z, now, sample);
         Air = air;
         Falling = SnowCover.Snowfall(sample, air);
@@ -131,6 +145,6 @@ internal sealed class SnowModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture,
             $"snow depth={Depth:F3}m frost={Frost:F2} shown={Shown:F3}m fallen={Cover.FallenAt(at.X, at.Z, now):F3}m air={air:F3} freezing={Water.Seasons.Freezing:F2} season={Water.Seasons.At(now)} falling={SnowCover.Snowfall(sample, air):F2} ")
             + string.Create(CultureInfo.InvariantCulture,
-            $"cells={Cover.Count} settled={Cover.Settled} steps={Cover.Stepped} saved={savedHours:F1} restore={slot?.RestoreOutcome ?? "none"} saves={slot?.Saves ?? 0} failure={slot?.LastFailure ?? "none"}");
+            $"followMs={lastFollowMs:F3} worstFollowMs={worstFollowMs:F2} tellMs={lastTellMs:F2} worstTellMs={worstTellMs:F2} cells={Cover.Count} settled={Cover.Settled} steps={Cover.Stepped} stepMs={Cover.StepMs:F3} saved={savedHours:F1} restore={slot?.RestoreOutcome ?? "none"} saves={slot?.Saves ?? 0} failure={slot?.LastFailure ?? "none"}");
     }
 }

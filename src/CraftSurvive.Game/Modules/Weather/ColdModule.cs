@@ -20,7 +20,7 @@ internal sealed class ColdModule : IProductModule
     /// <summary>Seconds between breaths at rest and sprinting, and a creature's (each its own phase).</summary>
     private const double BreathSeconds = 3.2, SprintBreathSeconds = 1.4, CreatureBreathSeconds = 2.6;
     /// <summary>The player's breath is shown this far ahead of their eyes and this far below them.</summary>
-    private const float BreathAhead = 0.45f, BreathBelowEyes = 0.18f;
+    private const float BreathAhead = 0.4f, BreathBelowEyes = 0.14f;
     /// <summary>A creature breathes this high above its feet; only creatures this near are watched.</summary>
     private const float CreatureMouthHeight = 1.55f;
     internal const double CreatureBreathMetres = 30;
@@ -33,8 +33,8 @@ internal sealed class ColdModule : IProductModule
     private static readonly BurstStyle Breath = new(
         "craftsurvive.breath", BurstLook.Puff, 6, 0.9f, 1.5f,
         new(-0.08f, 0.02f, -0.08f), new(0.08f, 0.14f, 0.08f), new(0f, 0.05f, 0f),
-        [(0f, 0.06f), (0.4f, 0.22f), (1f, 0.42f)],
-        [(0f, new(0.92f, 0.94f, 0.97f, 0.0f)), (0.15f, new(0.92f, 0.94f, 0.97f, 0.32f)), (1f, new(0.9f, 0.92f, 0.95f, 0f))]);
+        [(0f, 0.08f), (0.4f, 0.3f), (1f, 0.55f)],
+        [(0f, new(0.84f, 0.87f, 0.92f, 0.0f)), (0.15f, new(0.84f, 0.87f, 0.92f, 0.5f)), (1f, new(0.86f, 0.88f, 0.92f, 0f))]);
 
     private readonly IEngineContext engine;
     private readonly SnowModule snow;
@@ -107,8 +107,13 @@ internal sealed class ColdModule : IProductModule
 
         foreach ((int id, Vector3 feet) in creatures())
         {
-            double phase = (id * 0.618034 % 1) * CreatureBreathSeconds;
-            double last = creatureBreath.GetValueOrDefault(id, seconds - CreatureBreathSeconds + phase);
+            if (!creatureBreath.TryGetValue(id, out double last))
+            {
+                // A creature newly near takes its own phase, so a pack does not breathe as one.
+                creatureBreath[id] = seconds - (id * 0.618034 % 1 * CreatureBreathSeconds);
+                continue;
+            }
+
             if (seconds - last < CreatureBreathSeconds) continue;
             creatureBreath[id] = seconds;
             Emit(frame.ToLocal(feet.X, feet.Y + CreatureMouthHeight, feet.Z), Vector3.Zero, (ulong)id + 1);

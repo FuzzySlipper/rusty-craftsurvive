@@ -26,8 +26,8 @@ internal sealed class SnowTracks : IProductModule
     private const float PlayerStride = 0.75f, CreatureStride = 0.9f;
     /// <summary>Each foot falls this far either side of the way walked.</summary>
     private const float PlayerFootSpread = 0.12f, CreatureFootSpread = 0.14f;
-    /// <summary>A quad's side (metres): the atlas cell, 32 texels at 64 a metre.</summary>
-    private const float PrintMetres = 0.5f;
+    /// <summary>A quad's side (metres): the atlas cell, 32 texels at 64 a metre. A paw's quad is drawn this much larger: the creatures are big beasts.</summary>
+    private const float PrintMetres = 0.5f, PawScale = 1.6f;
     /// <summary>A print lies this far above the ground it was laid on, so it never fights the ground for depth.</summary>
     private const float Lift = 0.012f;
     /// <summary>The ground's slope is read this far around a print.</summary>
@@ -173,6 +173,24 @@ internal sealed class SnowTracks : IProductModule
         stamped++;
     }
 
+    /// <summary>For measuring (#10068): fills the whole pool with fresh prints in rows around the player, as a long trail would.</summary>
+    internal string Fill()
+    {
+        (Vector3 feet, _, _) = player();
+        double now = hours();
+        int side = (int)Math.Ceiling(Math.Sqrt(PoolSize));
+        for (int i = 0; i < PoolSize; i++)
+        {
+            Vector3 at = feet + new Vector3(((i % side) - (side / 2)) * FillSpacing, 0, ((i / side) - (side / 2)) * FillSpacing);
+            Stamp(at, -Vector2.UnitY, i % 2 == 0, 0, i % 3 == 0 ? Maker.Paw : Maker.Boot, now);
+        }
+
+        return Readout();
+    }
+
+    /// <summary>Filled prints stand this far apart (metres).</summary>
+    private const float FillSpacing = 0.6f;
+
     /// <summary>Each print's stage now: by the snow fallen into it and its age; gone once either says so or the snow under it melts.</summary>
     private void Fade(double now)
     {
@@ -198,7 +216,8 @@ internal sealed class SnowTracks : IProductModule
                 Print print = pool[i];
                 if (!print.Live) continue;
                 Appearance look = looks[((int)print.Maker * Stages) + print.Stage].Look;
-                Vector3 scale = new(print.Left ? -1 : 1, 1, 1);
+                float size = print.Maker == Maker.Paw ? PawScale : 1;
+                Vector3 scale = new(print.Left ? -size : size, 1, size);
                 yield return new AppearanceFact(ProductIds.SnowTrackBase + (ulong)i, false, 0,
                     new Transform(frame.ToLocal(print.At.X, print.At.Y, print.At.Z), print.Turn, scale), look, true, RenderLayer.Scene, ShadowCasting.None);
             }
