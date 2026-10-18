@@ -11,6 +11,9 @@ one cell.
 
     python3 scripts/make-grass-atlas.py OUT.png A.png B.png C.png D.png [--cell 256]
     python3 scripts/make-grass-atlas.py OUT.png A.png B.png C.png D.png --key magenta --ramps foliage,meadow,sky,snow,autumn
+
+With --centre a source is a top-down patch (the places' moss mats, #10044): no ground line is dropped, it keeps its
+proportions and sits in the middle of its cell.
 """
 import argparse
 import json
@@ -54,7 +57,7 @@ def key_alpha(rgb, key):
     return np.asarray(eroded, dtype=np.float64) / 255
 
 
-def tuft(path, cell, palette, key="white", pull=PULL_STRENGTH):
+def tuft(path, cell, palette, key="white", pull=PULL_STRENGTH, centre=False):
     rgb = np.asarray(Image.open(path).convert("RGB"), dtype=np.float64) / 255
     alpha = key_alpha(rgb, key)
     rows = np.where(alpha.max(1) > 0.5)[0]
@@ -63,7 +66,7 @@ def tuft(path, cell, palette, key="white", pull=PULL_STRENGTH):
     # Drop a painted ground line: wide, nearly full rows at the very bottom of the tuft.
     width = right - left + 1
     search = max(1, int(rgb.shape[0] * BASELINE_SEARCH))
-    while bottom > top and (bottom > rows[-1] - search) and (alpha[bottom, left:right + 1] > 0.5).mean() > BASELINE_SHARE:
+    while not centre and bottom > top and (bottom > rows[-1] - search) and (alpha[bottom, left:right + 1] > 0.5).mean() > BASELINE_SHARE:
         bottom -= 1
     rgb, alpha = rgb[top:bottom + 1, left:right + 1], alpha[top:bottom + 1, left:right + 1]
     # Pull colours toward the palette (nearest ramp colour, a little).
@@ -73,15 +76,15 @@ def tuft(path, cell, palette, key="white", pull=PULL_STRENGTH):
     image = Image.fromarray((np.concatenate([rgb, alpha[..., None]], -1) * 255 + 0.5).astype(np.uint8), "RGBA")
     usable = int(cell * (1 - 2 * MARGIN))
     scale = min(usable / image.width, usable / image.height)
-    scale_x = min(usable / image.width, scale * MAXIMUM_STRETCH)
-    scale_y = min(usable / image.height, scale * MAXIMUM_STRETCH)
+    scale_x = scale if centre else min(usable / image.width, scale * MAXIMUM_STRETCH)
+    scale_y = scale if centre else min(usable / image.height, scale * MAXIMUM_STRETCH)
     image = image.resize((max(1, int(image.width * scale_x)), max(1, int(image.height * scale_y))), Image.Resampling.LANCZOS)
     # Hard alpha for the mask: the material's cutoff decides coverage, so keep it crisp.
     a = np.asarray(image)[..., 3]
     out = np.asarray(image).copy()
     out[..., 3] = np.where(a >= 128, 255, 0)
     canvas = Image.new("RGBA", (cell, cell), (0, 0, 0, 0))
-    canvas.paste(Image.fromarray(out, "RGBA"), ((cell - image.width) // 2, cell - image.height))
+    canvas.paste(Image.fromarray(out, "RGBA"), ((cell - image.width) // 2, (cell - image.height) // 2 if centre else cell - image.height))
     return canvas
 
 
@@ -93,12 +96,13 @@ def main():
     parser.add_argument("--key", choices=("white", "magenta"), default="white", help="the sources' flat background")
     parser.add_argument("--ramps", default="meadow,foliage,autumn,snow", help="palette ramps the colours are pulled toward")
     parser.add_argument("--pull-strength", type=float, default=PULL_STRENGTH)
+    parser.add_argument("--centre", action="store_true", help="top-down patches: centred, proportions kept, no ground line")
     args = parser.parse_args()
     ramps = json.loads(PALETTE.read_text())["ramps"]
     palette = np.array([hex_rgb(c) for name in args.ramps.split(",") for c in ramps[name]])
     atlas = Image.new("RGBA", (args.cell * 2, args.cell * 2), (0, 0, 0, 0))
     for index, source in enumerate(args.sources):
-        atlas.paste(tuft(source, args.cell, palette, args.key, args.pull_strength), ((index % 2) * args.cell, (index // 2) * args.cell))
+        atlas.paste(tuft(source, args.cell, palette, args.key, args.pull_strength, args.centre), ((index % 2) * args.cell, (index // 2) * args.cell))
     atlas.save(args.output)
     print("make-grass-atlas " + " ".join(f"{Path(s).parent.name}/{Path(s).name}" for s in args.sources))
 

@@ -1,5 +1,5 @@
 {
- "purpose": "Place art outside the kit meshes (#10044): the hanging ivy and moss cards PlaceMossCards grows on the places' lips, side faces and wall feet where the surface moss is.",
+ "purpose": "Place art outside the kit meshes (#10044): the painted moss PlaceMossCards grows where the surface moss field is strong: ivy curtains on lips, ivy on side faces, cushions at wall feet, and flat mats on tops. The surface shader under them is only a soft damp stain.",
  "moss-cards": {
   "texture": "content/game/textures/places/moss-cards.png",
   "generator": "local Qwen-Image-2.1 text-to-image on the owner's RTX 5090 (asset-pipeline tools/texture-edit/qwen_edit.py --size 1024x1024)",
@@ -34,6 +34,41 @@
     "sha256": "f7709cd4cdc18c529a69105a9a82e2d5eed25c048abc1bea3abd82166c477c1e",
     "seed": 72,
     "prompt": "a low cushion clump of moss with a few small ferns and ivy leaves growing up from a straight base line along the bottom edge of the image, olive green and dark green, flat side view, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable shapes, soft shading, isolated on a pure flat magenta background, no ground, no soil, no shadow, no text, centered, fills the frame width"
+   }
+  ]
+ },
+ "moss-mats": {
+  "texture": "content/game/textures/places/moss-mats.png",
+  "generator": "local Qwen-Image-2.1 text-to-image on the owner's RTX 5090 (asset-pipeline tools/texture-edit/qwen_edit.py --size 1024x1024)",
+  "assembly": "python3 scripts/make-grass-atlas.py content/game/textures/places/moss-mats.png mat-s91 mat-s92 mat-s93 mat-s94 --cell 64 --key magenta --ramps foliage,sage,meadow --centre (top-down patches, centred, proportions kept; 64 px cells for patches about 0.45 to 0.85 m wide, near the crunch rule)",
+  "cells": [
+   {
+    "cell": 0,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/mat-s91.png",
+    "sha256": "7bedc14a4b6816806359de963288520504f0c61945fec743c4af1e5519ba755e",
+    "seed": 91,
+    "prompt": "top-down view looking straight down at a single flat irregular patch of thick green moss with a few tiny ivy leaves and small sprigs, ragged lobed uneven edges, olive green, dark green and a few yellow-green highlights, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable clumps, soft even light, isolated in the centre on a pure flat magenta background with wide margin, no stone, no ground, no shadow, no text"
+   },
+   {
+    "cell": 1,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/mat-s92.png",
+    "sha256": "d90ccf1edc3de63c9c8df3b40c56ec15eb8218387de26053088d39f2f079a066",
+    "seed": 92,
+    "prompt": "top-down view looking straight down at a single flat irregular patch of thick green moss with a few tiny ivy leaves and small sprigs, ragged lobed uneven edges, olive green, dark green and a few yellow-green highlights, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable clumps, soft even light, isolated in the centre on a pure flat magenta background with wide margin, no stone, no ground, no shadow, no text"
+   },
+   {
+    "cell": 2,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/mat-s93.png",
+    "sha256": "8edf3dd9294e9083e1c849d63c5ded1a98ffcd602c562c4bcb7cd923ed73f78c",
+    "seed": 93,
+    "prompt": "top-down view looking straight down at a single flat irregular patch of thick green moss with a few tiny ivy leaves and small sprigs, ragged lobed uneven edges, olive green, dark green and a few yellow-green highlights, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable clumps, soft even light, isolated in the centre on a pure flat magenta background with wide margin, no stone, no ground, no shadow, no text"
+   },
+   {
+    "cell": 3,
+    "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/mat-s94.png",
+    "sha256": "c9fb617068db09a97987ca99ce7a63afaffe327ff1361f2b97d96ad52bdd2f40",
+    "seed": 94,
+    "prompt": "top-down view looking straight down at a single flat irregular patch of thick green moss with a few tiny ivy leaves and small sprigs, ragged lobed uneven edges, olive green, dark green and a few yellow-green highlights, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable clumps, soft even light, isolated in the centre on a pure flat magenta background with wide margin, no stone, no ground, no shadow, no text"
    }
   ]
  }

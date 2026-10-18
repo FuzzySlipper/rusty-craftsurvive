@@ -5,7 +5,8 @@ using Rusty.Engine;
 namespace CraftSurvive.Game.Modules.Content;
 
 /// <summary>
-/// Surface moss (#10044): the one product shader that grows moss on stone places and field stones
+/// Surface moss (#10044): the one product shader that marks where moss grows on stone places and field stones,
+/// as a soft damp stain under the painted moss cards
 /// (content/game/shaders/surface-moss.wgsl), and the materials that draw with it. Its strength and colours
 /// are this owner's, so one change restyles every place. The shader reads world points (renderer-local
 /// position plus the frame origin, wrapped), so the materials are refreshed whenever the origin moves.
@@ -31,11 +32,12 @@ internal sealed class SurfaceMoss : IDisposable
     /// <summary>How much a vertical face holds, as a share of a top's.</summary>
     private const float SideShare = 0.85f;
 
-    // Between the palette's foliage and sage ramps (content/style/palette.json): an olive moss that sits in
-    // the warm stone rather than a grass green painted on it; dark and light moss, and a darker rim.
-    private static readonly Color Dark = Color.FromSrgbHex(0x515e36);
-    private static readonly Color Light = Color.FromSrgbHex(0x737c48);
-    private static readonly Color Rim = Color.FromSrgbHex(0x3a432b);
+    /// <summary>
+    /// The damp stain's tint, multiplying the stone where the stain is fullest (linear): darker and a little green,
+    /// so warm stone goes olive-grey under the moss without losing its painted marks; and how much of it the fullest stain takes.
+    /// </summary>
+    private static readonly Vector3 StainTint = new(0.5f, 0.64f, 0.4f);
+    private const float StainDepth = 1.0f;
 
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
@@ -54,8 +56,8 @@ internal sealed class SurfaceMoss : IDisposable
     internal MaterialShader Shader(float clumpMetres, int texelsPerMetre)
     {
         Vector4 at = new(Wrap(origin.X), Wrap(origin.Y), Wrap(origin.Z), Strength);
-        return new MaterialShader(shader, at, new(Dark.R, Dark.G, Dark.B, clumpMetres),
-            new(Light.R, Light.G, Light.B, LowestFacing), new(Rim.R, Rim.G, Rim.B, (texelsPerMetre * Pack) + SideShare));
+        return new MaterialShader(shader, at, new(StainTint, clumpMetres),
+            new(StainDepth, 0, 0, LowestFacing), new(0, 0, 0, (texelsPerMetre * Pack) + SideShare));
     }
 
     private static float Wrap(long metres) => ((metres % WrapMetres) + WrapMetres) % WrapMetres;

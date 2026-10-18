@@ -1,26 +1,28 @@
-// Surface moss (#10044): one shader grows moss on every stone place and field stone, so its style lives
-// here and every ruin, stele and boulder gets its own moss from where it stands.
+// Surface moss (#10044): the damp under the moss. One shader marks where moss grows on every stone place and
+// field stone, from where it stands, as a soft damp stain: the stone's own painted texture darkened and greened,
+// never painted over, so its texels and cracks show through. The moss itself is painted cards
+// (Modules/Places/PlaceMossCards: ivy curtains, flat mats, cushions) grown from the same field, where it is
+// strongest; the stain reaches a little wider, so every card sits on a damp patch that fades out around it.
 //
-// Moss collects where water and light sit: most on up-facing surfaces, some on sides in patches stretched
-// downward as water runs, none underneath; in clumps from world-space noise. It is
-// drawn as pixel art at the crunch rule's scale: the noise is read once per 1/32 m texel on the surface's
-// dominant plane, so a patch has crisp stepped edges like the painted textures beside it, and a patch's
-// edge texels are darker, as a painter would outline it.
+// Water and light sit most on up-facing surfaces, some on sides in patches stretched downward as water runs,
+// none underneath, in clumps from world-space noise read once per texel on the surface's dominant plane (the
+// crunch rule's 1/32 m), so the stain's soft edge steps like the painted textures beside it.
 //
 // material.parameters:
 //   [0] xyz: the frame origin (metres), wrapped to WRAP_METRES, so world_position + origin is a world point
 //       (wrapped, so a far-flung world keeps texel precision); w: strength (0 none, 1 accents, 2 moss, 3 overgrown).
-//   [1] rgb: the moss's dark colour (linear); w: clump scale (metres per clump).
-//   [2] rgb: the moss's light colour (linear); w: how far down a surface may face and still hold moss (normal y).
-//   [3] rgb: the patch rim's colour (linear); w: how much a vertical face holds, as a share of a top's,
-//       plus 1000 times the moss's texels per metre (32 by default: the crunch rule; a small prop asks for more,
-//       so a patch on a one-metre stone is more than a handful of texels).
+//   [1] rgb: the stain's tint, multiplying the stone where it is fullest; w: clump scale (metres per clump).
+//   [2] x: how much of the tint the fullest stain takes (0 to 1); w: how far down a surface may face and still hold moss.
+//   [3] w: how much a vertical face holds, as a share of a top's, plus 1000 times the texels per metre.
 
 #import rusty::types::Surface
 #import rusty::material::material
 #import rusty::shade::standard_shade
 
 const DEFAULT_TEXELS_PER_METRE: f32 = 32.0;
+// The stain begins this far below the cards' threshold, and is full this far above it.
+const STAIN_REACH: f32 = 0.08;
+const STAIN_FULL: f32 = 0.06;
 const PACK: f32 = 1000.0;
 
 // Texels per metre, packed into parameters[3].w above the side share.
@@ -103,28 +105,17 @@ fn shade(surface: Surface) -> vec4<f32> {
     let facing = select(0.0, mix(side, 1.0, smoothstep(0.0, 0.8, n.y)), n.y >= lowest);
     let scale = max(material.parameters[1].w, 0.05);
     let m = moss_field(q, plane, facing, scale);
-    // Strength lowers the threshold: accents at 1, moss at 2, overgrown at 3.
+    // Strength lowers the threshold: accents at 1, moss at 2, overgrown at 3. The cards grow above the threshold;
+    // the stain starts STAIN_REACH below it and is full STAIN_FULL above it.
     let threshold = 0.74 - strength * 0.09;
-    if m < threshold {
+    let stain = smoothstep(threshold - STAIN_REACH, threshold + STAIN_FULL, m);
+    if stain <= 0.0 {
         return standard_shade(s);
     }
 
-    // The rim: a texel next to one without moss (along the plane's axes) is the patch's outline.
-    let step_m = 1.0 / texels_per_metre();
-    let rim = min(min(moss_field(q + vec2<f32>(step_m, 0.0), plane, facing, scale),
-                      moss_field(q - vec2<f32>(step_m, 0.0), plane, facing, scale)),
-                  min(moss_field(q + vec2<f32>(0.0, step_m), plane, facing, scale),
-                      moss_field(q - vec2<f32>(0.0, step_m), plane, facing, scale))) < threshold;
-    // Light and dark moss in broad areas, read from a coarser noise so they form a few patches, not speckle.
-    let texel = (floor(q * texels_per_metre()) + 0.5) / texels_per_metre();
-    let tone = step(0.5, noise(texel / (scale * 0.45) + vec2<f32>(53.0, 7.0)));
-    var colour = mix(material.parameters[1].rgb, material.parameters[2].rgb, tone);
-    if rim {
-        colour = material.parameters[3].rgb;
-    }
-
-    s.base = vec4<f32>(colour, s.base.a);
-    s.roughness = 1.0;
-    s.metalness = 0.0;
+    let tint = mix(vec3<f32>(1.0), material.parameters[1].rgb, stain * material.parameters[2].x);
+    s.base = vec4<f32>(s.base.rgb * tint, s.base.a);
+    // Damp stone is a little less rough.
+    s.roughness = mix(s.roughness, s.roughness * 0.85, stain);
     return standard_shade(s);
 }

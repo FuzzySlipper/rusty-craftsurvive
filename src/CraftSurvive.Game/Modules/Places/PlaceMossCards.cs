@@ -18,6 +18,10 @@ namespace CraftSurvive.Game.Modules.Places;
 internal sealed class PlaceMossCards : IDisposable
 {
     private const string AtlasPath = "textures/places/moss-cards.png";
+    /// <summary>Flat moss mats seen from above (make-grass-atlas.py --centre): a 2x2 atlas of patches.</summary>
+    private const string MatsPath = "textures/places/moss-mats.png";
+    /// <summary>Mats on tops: one per this many metres, this wide, lying this far off the stone.</summary>
+    private const float MatSpacing = 0.55f, MatMinimum = 0.45f, MatMaximum = 0.85f, MatStandoff = 0.015f;
     /// <summary>How far above the threshold the moss must be for a card: cards continue thick moss, not every speck.</summary>
     private const float ThickMargin = 0.0f;
     /// <summary>A card on a side face grows only this far into a painted patch, so its edge stays painted moss.</summary>
@@ -46,14 +50,15 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly WorldFrame frame;
     private readonly SurfaceMoss moss;
     private readonly PropMaterials materials;
-    private readonly Material material;
-    private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces)> anchors = [];
+    private readonly Material material, mats;
+    private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops)> anchors = [];
 
     private enum Kind
     {
         Curtain,
         Cushion,
         Face,
+        Mat,
     }
     private MeshResource? mesh;
     private Appearance? appearance;
@@ -68,6 +73,7 @@ internal sealed class PlaceMossCards : IDisposable
         // Cards are the leaves role: alpha-cut, one-sided with both windings; nothing about them sways (stone holds them).
         materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
         material = materials.For(PropMaterials.LeavesRole, AtlasPath);
+        mats = materials.For(PropMaterials.LeavesRole, MatsPath);
     }
 
     /// <summary>A place on a piece where a card may grow: a point and the outward horizontal its face looks along, in the piece's metres.</summary>
@@ -79,7 +85,7 @@ internal sealed class PlaceMossCards : IDisposable
     internal int Cards { get; private set; }
 
     /// <summary>Cards laid by kind (curtain, cushion, face) and the face anchors considered, for the readout.</summary>
-    private readonly int[] byKind = new int[3];
+    private readonly int[] byKind = new int[4];
     private int faceAnchors;
 
     /// <summary>Lays the cards out again over the pieces standing now.</summary>
@@ -88,7 +94,7 @@ internal sealed class PlaceMossCards : IDisposable
         centre = about;
         List<Vector3> positions = [], normals = [];
         List<Vector2> uvs = [];
-        List<uint> indices = [];
+        List<uint> indices = [], matIndices = [];
         int cards = 0;
         Array.Clear(byKind);
         faceAnchors = 0;
@@ -96,8 +102,8 @@ internal sealed class PlaceMossCards : IDisposable
         foreach (Piece piece in pieces)
         {
             if (cards >= MaximumCards) break;
-            (Anchor[] lips, Anchor[] feet, Anchor[] faces) = AnchorsOf(piece);
-            foreach ((Anchor[] list, Kind kind) in new[] { (lips, Kind.Curtain), (feet, Kind.Cushion), (faces, Kind.Face) })
+            (Anchor[] lips, Anchor[] feet, Anchor[] faces, Anchor[] tops) = AnchorsOf(piece);
+            foreach ((Anchor[] list, Kind kind) in new[] { (lips, Kind.Curtain), (feet, Kind.Cushion), (faces, Kind.Face), (tops, Kind.Mat) })
             {
                 foreach (Anchor anchor in list)
                 {
@@ -108,7 +114,8 @@ internal sealed class PlaceMossCards : IDisposable
                     float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre);
                     if (field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
                     float pick = Hash(at);
-                    Card(at - centre, outward, normal, kind, pick, positions, normals, uvs, indices);
+                    if (kind == Kind.Mat) Mat(at - centre, normal, pick, positions, normals, uvs, matIndices);
+                    else Card(at - centre, outward, normal, kind, pick, positions, normals, uvs, indices);
                     byKind[(int)kind]++;
                     cards++;
                 }
@@ -119,7 +126,8 @@ internal sealed class PlaceMossCards : IDisposable
         Cards = cards;
         if (cards == 0) return;
         MeshResourceCreateRequest request = new(positions.ToArray(), normals.ToArray(), uvs.ToArray(), ReadOnlyMemory<Color>.Empty,
-            indices.ToArray(), new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
+            indices.Concat(matIndices).ToArray(), new MeshGroup[] { new(0, 0, (uint)indices.Count), new(1, (uint)indices.Count, (uint)matIndices.Count) },
+            new MeshMaterialBinding[] { new(0, material), new(1, mats) });
         mesh = engine.Graphics.CreateMeshResource(request);
         appearance = engine.Graphics.CreateMeshAppearance(mesh);
     }
@@ -184,8 +192,37 @@ internal sealed class PlaceMossCards : IDisposable
         }
     }
 
-    /// <summary>A piece's lips and feet, found once from its triangles.</summary>
-    private (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces) AnchorsOf(Piece piece)
+    /// <summary>
+    /// A flat moss mat lying on a top, turned at random about the top's normal and showing one of the mats atlas's four
+    /// patches; one winding, facing up off the stone.
+    /// </summary>
+    private static void Mat(Vector3 at, Vector3 normal, float pick, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
+    {
+        Vector3 n = Vector3.Normalize(normal);
+        Vector3 t = Vector3.Normalize(Vector3.Cross(MathF.Abs(n.X) < 0.9f ? Vector3.UnitX : Vector3.UnitZ, n));
+        Quaternion yaw = Quaternion.CreateFromAxisAngle(n, Fraction(pick * 5.31f) * MathF.Tau);
+        Vector3 u = Vector3.Transform(t, yaw), v = Vector3.Cross(n, u);
+        float half = Lerp(MatMinimum, MatMaximum, pick) / 2;
+        int cell = (int)(Fraction(pick * 9.17f) * 4) & 3;
+        float u0 = (cell % 2) * 0.5f, v0 = (cell / 2) * 0.5f;
+        Vector3 c = at + (n * MatStandoff);
+        Vector3[] corners = [c - (u * half) - (v * half), c + (u * half) - (v * half), c + (u * half) + (v * half), c - (u * half) + (v * half)];
+        Vector2[] uv = [new(u0, v0 + 0.5f), new(u0 + 0.5f, v0 + 0.5f), new(u0 + 0.5f, v0), new(u0, v0)];
+        uint first = (uint)positions.Count;
+        for (int i = 0; i < 4; i++)
+        {
+            positions.Add(corners[i]);
+            normals.Add(n);
+            uvs.Add(uv[i]);
+        }
+
+        bool counter = Vector3.Dot(Vector3.Cross(corners[1] - corners[0], corners[3] - corners[0]), n) > 0;
+        if (counter) indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
+        else indices.AddRange([first, first + 2, first + 1, first, first + 3, first + 2]);
+    }
+
+    /// <summary>A piece's lips, feet, side faces and tops, found once from its triangles.</summary>
+    private (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops) AnchorsOf(Piece piece)
     {
         if (anchors.TryGetValue(piece.Key, out var found)) return found;
         Vector3[] p = piece.Positions;
@@ -205,8 +242,8 @@ internal sealed class PlaceMossCards : IDisposable
             }
         }
 
-        List<Anchor> lips = [], feet = [], onFaces = [];
-        HashSet<(int, int, int)> faceTaken = [];
+        List<Anchor> lips = [], feet = [], onFaces = [], tops = [];
+        HashSet<(int, int, int)> faceTaken = [], topTaken = [];
         HashSet<(int, int, int)> taken = [];
         foreach (((long, long, long, long, long, long) key, List<int> faces) in edges)
         {
@@ -243,7 +280,18 @@ internal sealed class PlaceMossCards : IDisposable
             feet.Add(new(foot, flat, n));
         }
 
-        var result = (lips.ToArray(), feet.ToArray(), onFaces.ToArray());
+        for (int t = 0; t < piece.Triangles.Length; t++)
+        {
+            Vector3 n = faceNormal[t];
+            if (n.Y < TopRise) continue;
+            Triangle tri = piece.Triangles[t];
+            Vector3 c = (p[tri.A] + p[tri.B] + p[tri.C]) / 3;
+            if (c.Y < piece.Sink) continue;
+            (int, int, int) cell = ((int)Math.Floor(c.X / MatSpacing), (int)Math.Floor(c.Y / MatSpacing), (int)Math.Floor(c.Z / MatSpacing));
+            if (topTaken.Add(cell)) tops.Add(new(c, Vector3.UnitX, n));
+        }
+
+        var result = (lips.ToArray(), feet.ToArray(), onFaces.ToArray(), tops.ToArray());
         anchors[piece.Key] = result;
         return result;
     }
@@ -294,7 +342,7 @@ internal sealed class PlaceMossCards : IDisposable
         retiring.Clear();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} pieces={anchors.Count}");
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} mats={byKind[3]} pieces={anchors.Count}");
 
     public void Dispose()
     {
