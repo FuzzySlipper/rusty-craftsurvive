@@ -99,7 +99,10 @@ internal sealed class TerrainWorld : IDisposable
     private const double PlaceGroundTopFace = 1.0;
 
     /// <summary>The places' pieces standing about the player, for the appearance snapshot.</summary>
-    internal IEnumerable<AppearanceFact> PlaceFacts => [.. places.Facts, .. places.CardFacts];
+    internal IEnumerable<AppearanceFact> PlaceFacts => [.. places.Facts, .. places.BlanketFacts, .. places.CardFacts];
+
+    /// <summary>Sets a site's overgrowth (#10044): its moss deepens, its walls take the ivy blanket.</summary>
+    internal string SetOvergrowth(string siteId, float extra) => places.SetOvergrowth(siteId, extra);
 
     internal string PlacesReadout() => places.Readout() + string.Create(CultureInfo.InvariantCulture, $" colliders={PlaceColliders}");
 

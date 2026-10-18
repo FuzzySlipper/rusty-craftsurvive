@@ -24,7 +24,7 @@ internal sealed class PropMaterials : IDisposable
     /// than a wall, or it is all moss or bare, in a handful of blocks.
     /// </summary>
     internal readonly record struct Finish(float Roughness, float WindBend, float WindFlutter, float MossClumpMetres = 0,
-        int MossTexelsPerMetre = SurfaceMoss.PlaceTexelsPerMetre);
+        int MossTexelsPerMetre = SurfaceMoss.PlaceTexelsPerMetre, float MossOvergrowth = 0);
 
     private readonly IEngineContext engine;
     private readonly Func<string, Finish> finishFor;
@@ -66,9 +66,9 @@ internal sealed class PropMaterials : IDisposable
             WindFlutter = finish.WindFlutter,
         };
         bool mossy = finish.MossClumpMetres > 0 && moss is not null;
-        if (mossy) request = request with { Shader = moss!.Shader(finish.MossClumpMetres, finish.MossTexelsPerMetre) };
+        if (mossy) request = request with { Shader = moss!.Shader(finish.MossClumpMetres, finish.MossTexelsPerMetre, finish.MossOvergrowth) };
         material = engine.Graphics.CreateMaterial(request);
-        if (mossy) moss!.Register(material, request, finish.MossClumpMetres, finish.MossTexelsPerMetre);
+        if (mossy) moss!.Register(material, request, finish.MossClumpMetres, finish.MossTexelsPerMetre, finish.MossOvergrowth);
         materials[(role, texturePath)] = material;
         return material;
     }

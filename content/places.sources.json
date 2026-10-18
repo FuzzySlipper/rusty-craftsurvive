@@ -71,5 +71,14 @@
     "prompt": "top-down view looking straight down at a single flat irregular patch of thick green moss with a few tiny ivy leaves and small sprigs, ragged lobed uneven edges, olive green, dark green and a few yellow-green highlights, hand-painted game texture sprite in the style of Valheim and 2000s games, broad painterly brush strokes, chunky readable clumps, soft even light, isolated in the centre on a pure flat magenta background with wide margin, no stone, no ground, no shadow, no text"
    }
   ]
+ },
+ "ivy-blanket": {
+  "texture": "content/game/textures/places/ivy-blanket.png",
+  "generator": "Z-Image with ComfyUI-Universal-Seamless-Tiles on den-m5 (asset-pipeline tools/materials/tileable_gen.py --tiling seamless --size 1024 --seed 32), the ground textures' route",
+  "prompt": "A dense wall of ivy seen straight on: overlapping chunky ivy leaves packed edge to edge covering the whole frame, dark green and olive leaves with a few bright yellow-green leaves catching the light and small dark gaps of shadow between leaves. Seamless tileable square texture for a stylized fantasy survival game, flat orthographic, fills the whole frame edge to edge, continues evenly off all four edges with no focal point. Hand-painted painterly texture in the manner of Valheim and classic 2000s games: broad soft colour patches, readable medium-sized leaf shapes, economical brush marks, no photographic micro-detail, soft even lighting, no cast shadows, no stone, no sky, no text.",
+  "source": "/home/agent/dev/asset-pipeline/outputs/craftsurvive-content-pass/moss-10044/ivy-tile-s32.png",
+  "sha256": "973a5c1477f03e5685f2b975fa3c2ebbda5e7c8d7a5071d6a1345c23e5c103d7",
+  "stylise": "python3 scripts/stylise-texture.py <source> content/game/textures/places/ivy-blanket.png --size 128 --paint 1 --pull foliage,sage --pull-strength 0.25 --saturation 0.85 --brightness 0.9 --tile (one tile per 2 m on the blanket: 64 texels per metre, so a leaf is several texels)",
+  "rejected": "seed 31: brighter, a stamped repeat of the same yellow leaf"
  }
 }

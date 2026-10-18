@@ -14,6 +14,10 @@ namespace CraftSurvive.Game.Modules.Content;
 internal sealed class SurfaceMoss : IDisposable
 {
     private const string ShaderPath = "shaders/surface-moss.wgsl";
+    /// <summary>The ivy blanket over an overgrown place's walls (#10044), reading the same field.</summary>
+    private const string BlanketShaderPath = "shaders/ivy-blanket.wgsl";
+    /// <summary>A place's overgrowth adds to the strength, up to this much: 5 more covers most of a ruin's walls.</summary>
+    internal const float MaximumOvergrowth = 6;
     /// <summary>The origin is wrapped to this, as the shader's noise repeats every 4096 cells of a metre.</summary>
     private const long WrapMetres = 4096;
     /// <summary>Strength: 0 none, 1 accents, 2 moss, 3 overgrown.</summary>
@@ -40,31 +44,39 @@ internal sealed class SurfaceMoss : IDisposable
     private const float StainDepth = 1.0f;
 
     private readonly IEngineContext engine;
-    private readonly RenderResource shader;
-    private readonly Dictionary<Material, (MaterialRequest Request, float Clump, int Texels)> materials = [];
+    private readonly RenderResource shader, blanketShader;
+    private readonly Dictionary<Material, (MaterialRequest Request, float Clump, int Texels, float Overgrowth, bool Blanket)> materials = [];
     private (long X, long Y, long Z) origin;
 
     internal SurfaceMoss(IEngineContext engine)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
+        blanketShader = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketShaderPath)).Handle;
     }
 
     internal float Strength { get; private set; } = DefaultStrength;
 
-    /// <summary>The shader as a material carries it now.</summary>
-    internal MaterialShader Shader(float clumpMetres, int texelsPerMetre)
+    /// <summary>The stain as a material carries it now; <paramref name="overgrowth"/> adds to the strength for one place.</summary>
+    internal MaterialShader Shader(float clumpMetres, int texelsPerMetre, float overgrowth = 0)
     {
-        Vector4 at = new(Wrap(origin.X), Wrap(origin.Y), Wrap(origin.Z), Strength);
+        Vector4 at = new(Wrap(origin.X), Wrap(origin.Y), Wrap(origin.Z), Strength + overgrowth);
         return new MaterialShader(shader, at, new(StainTint, clumpMetres),
             new(StainDepth, 0, 0, LowestFacing), new(0, 0, 0, (texelsPerMetre * Pack) + SideShare));
+    }
+
+    /// <summary>The ivy blanket as a material carries it now, for a place with <paramref name="overgrowth"/>.</summary>
+    internal MaterialShader BlanketShader(float clumpMetres, int texelsPerMetre, float overgrowth)
+    {
+        Vector4 at = new(Wrap(origin.X), Wrap(origin.Y), Wrap(origin.Z), Strength + overgrowth);
+        return new MaterialShader(blanketShader, at, new(clumpMetres, texelsPerMetre, SideShare, LowestFacing), Vector4.Zero, Vector4.Zero);
     }
 
     private static float Wrap(long metres) => ((metres % WrapMetres) + WrapMetres) % WrapMetres;
 
     /// <summary>Keeps a material's shader current from now on; <paramref name="request"/> is the material as created.</summary>
-    internal void Register(Material material, MaterialRequest request, float clumpMetres, int texelsPerMetre) =>
-        materials[material] = (request, clumpMetres, texelsPerMetre);
+    internal void Register(Material material, MaterialRequest request, float clumpMetres, int texelsPerMetre, float overgrowth = 0, bool blanket = false) =>
+        materials[material] = (request, clumpMetres, texelsPerMetre, overgrowth, blanket);
 
     internal void Unregister(Material material) => materials.Remove(material);
 
@@ -86,9 +98,10 @@ internal sealed class SurfaceMoss : IDisposable
 
     private void Refresh()
     {
-        foreach ((Material material, (MaterialRequest request, float clump, int texels)) in materials)
+        foreach ((Material material, (MaterialRequest request, float clump, int texels, float overgrowth, bool blanket)) in materials)
         {
-            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, request with { Shader = Shader(clump, texels) }));
+            MaterialShader now = blanket ? BlanketShader(clump, texels, overgrowth) : Shader(clump, texels, overgrowth);
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, request with { Shader = now }));
         }
     }
 
@@ -97,7 +110,16 @@ internal sealed class SurfaceMoss : IDisposable
     private const float Streak = 2.2f, EdgeFray = 0.04f, ThresholdAtNone = 0.74f, ThresholdPerStrength = 0.09f;
 
     /// <summary>The threshold the shader draws moss above at the current strength.</summary>
-    internal float Threshold => ThresholdAtNone - (Strength * ThresholdPerStrength);
+    internal float Threshold => ThresholdAt(0);
+
+    /// <summary>The moss threshold for a place with <paramref name="overgrowth"/> on top of the strength.</summary>
+    internal float ThresholdAt(float overgrowth) => ThresholdAtNone - ((Strength + overgrowth) * ThresholdPerStrength);
+
+    // The blanket shader's constants (ivy-blanket.wgsl).
+    private const float BlanketAtNone = 1.40f, BlanketPerStrength = 0.12f;
+
+    /// <summary>The field the ivy blanket shows above, for a place with <paramref name="overgrowth"/>.</summary>
+    internal float BlanketThreshold(float overgrowth) => BlanketAtNone - ((Strength + overgrowth) * BlanketPerStrength);
 
     /// <summary>
     /// The shader's moss field at a world point on a surface facing <paramref name="normal"/>, before the threshold
@@ -154,5 +176,6 @@ internal sealed class SurfaceMoss : IDisposable
     {
         materials.Clear();
         shader.Dispose();
+        blanketShader.Dispose();
     }
 }

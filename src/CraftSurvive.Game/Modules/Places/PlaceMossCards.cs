@@ -20,6 +20,14 @@ internal sealed class PlaceMossCards : IDisposable
     private const string AtlasPath = "textures/places/moss-cards.png";
     /// <summary>Flat moss mats seen from above (make-grass-atlas.py --centre): a 2x2 atlas of patches.</summary>
     private const string MatsPath = "textures/places/moss-mats.png";
+    /// <summary>
+    /// On an overgrown place the cards' threshold falls by at most this much extra strength: beyond it the blanket covers the
+    /// walls, and cards would only coat it.
+    /// </summary>
+    private const float CardOvergrowthLimit = 1.5f;
+    /// <summary>Leaf clusters standing out of the blanket: this wide, tilted this many degrees out from the wall.</summary>
+    private const float ClusterMinimum = 0.45f, ClusterMaximum = 0.8f, ClusterTiltDegrees = 55f;
+
     /// <summary>Mats on tops: one per this many metres, this wide, lying this far off the stone.</summary>
     private const float MatSpacing = 0.55f, MatMinimum = 0.45f, MatMaximum = 0.85f, MatStandoff = 0.015f;
     /// <summary>How far above the threshold the moss must be for a card: cards continue thick moss, not every speck.</summary>
@@ -59,6 +67,7 @@ internal sealed class PlaceMossCards : IDisposable
         Cushion,
         Face,
         Mat,
+        Cluster,
     }
     private MeshResource? mesh;
     private Appearance? appearance;
@@ -80,12 +89,13 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly record struct Anchor(Vector3 At, Vector3 Out, Vector3 Normal);
 
     /// <summary>One piece standing, as the cards need it.</summary>
-    internal readonly record struct Piece(MeshResource Key, Vector3[] Positions, Triangle[] Triangles, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale);
+    internal readonly record struct Piece(MeshResource Key, Vector3[] Positions, Triangle[] Triangles, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale,
+        float Overgrowth = 0);
 
     internal int Cards { get; private set; }
 
     /// <summary>Cards laid by kind (curtain, cushion, face) and the face anchors considered, for the readout.</summary>
-    private readonly int[] byKind = new int[4];
+    private readonly int[] byKind = new int[5];
     private int faceAnchors;
 
     /// <summary>Lays the cards out again over the pieces standing now.</summary>
@@ -98,9 +108,10 @@ internal sealed class PlaceMossCards : IDisposable
         int cards = 0;
         Array.Clear(byKind);
         faceAnchors = 0;
-        float threshold = moss.Threshold + ThickMargin;
         foreach (Piece piece in pieces)
         {
+            float threshold = moss.ThresholdAt(Math.Min(piece.Overgrowth, CardOvergrowthLimit)) + ThickMargin;
+            float blanket = piece.Overgrowth > 0 ? moss.BlanketThreshold(piece.Overgrowth) : float.PositiveInfinity;
             if (cards >= MaximumCards) break;
             (Anchor[] lips, Anchor[] feet, Anchor[] faces, Anchor[] tops) = AnchorsOf(piece);
             foreach ((Anchor[] list, Kind kind) in new[] { (lips, Kind.Curtain), (feet, Kind.Cushion), (faces, Kind.Face), (tops, Kind.Mat) })
@@ -114,9 +125,17 @@ internal sealed class PlaceMossCards : IDisposable
                     float field = moss.Field(at.X, at.Y, at.Z, normal, SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre);
                     if (field < threshold + (kind == Kind.Face ? FaceMargin : 0) || cards >= MaximumCards) continue;
                     float pick = Hash(at);
-                    if (kind == Kind.Mat) Mat(at - centre, normal, pick, positions, normals, uvs, matIndices);
-                    else Card(at - centre, outward, normal, kind, pick, positions, normals, uvs, indices);
-                    byKind[(int)kind]++;
+                    Kind laid = kind;
+                    if (field >= blanket && kind is Kind.Face or Kind.Mat)
+                    {
+                        // Under the blanket a face card or a mat would be hidden: leaves stand out of it instead.
+                        laid = Kind.Cluster;
+                    }
+
+                    if (laid == Kind.Mat) Mat(at - centre, normal, pick, positions, normals, uvs, matIndices);
+                    else if (laid == Kind.Cluster) Cluster(at - centre, normal, pick, positions, normals, uvs, indices);
+                    else Card(at - centre, outward, normal, laid, pick, positions, normals, uvs, indices);
+                    byKind[(int)laid]++;
                     cards++;
                 }
             }
@@ -125,9 +144,24 @@ internal sealed class PlaceMossCards : IDisposable
         Retire();
         Cards = cards;
         if (cards == 0) return;
+        // The Engine refuses an empty group: one for the cards and one for the mats, each only if it has triangles.
+        List<MeshGroup> groups = [];
+        List<MeshMaterialBinding> bindings = [];
+        if (indices.Count > 0)
+        {
+            groups.Add(new(0, 0, (uint)indices.Count));
+            bindings.Add(new(0, material));
+        }
+
+        if (matIndices.Count > 0)
+        {
+            uint slot = (uint)bindings.Count;
+            groups.Add(new(slot, (uint)indices.Count, (uint)matIndices.Count));
+            bindings.Add(new(slot, mats));
+        }
+
         MeshResourceCreateRequest request = new(positions.ToArray(), normals.ToArray(), uvs.ToArray(), ReadOnlyMemory<Color>.Empty,
-            indices.Concat(matIndices).ToArray(), new MeshGroup[] { new(0, 0, (uint)indices.Count), new(1, (uint)indices.Count, (uint)matIndices.Count) },
-            new MeshMaterialBinding[] { new(0, material), new(1, mats) });
+            indices.Concat(matIndices).ToArray(), groups.ToArray(), bindings.ToArray());
         mesh = engine.Graphics.CreateMeshResource(request);
         appearance = engine.Graphics.CreateMeshAppearance(mesh);
     }
@@ -189,6 +223,47 @@ internal sealed class PlaceMossCards : IDisposable
             bool counter = Vector3.Dot(n, facing) > 0;
             if (counter) indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
             else indices.AddRange([first, first + 2, first + 1, first, first + 3, first + 2]);
+        }
+    }
+
+    /// <summary>
+    /// A leaf cluster standing out of the ivy blanket: two crossed curtain cards rooted at the surface, tilted out from it
+    /// toward the sky, so an overgrown wall has bulk and a broken outline rather than a flat wallpaper of ivy.
+    /// </summary>
+    private static void Cluster(Vector3 at, Vector3 normal, float pick, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
+    {
+        Vector3 n = Vector3.Normalize(normal);
+        // Out from the surface and up: on a wall, leaves lean out and droop; on a top, they stand up.
+        Vector3 up = Vector3.Normalize(Vector3.Lerp(n, Vector3.UnitY, 0.35f));
+        Vector3 side = Vector3.Normalize(Vector3.Cross(MathF.Abs(up.Y) < 0.95f ? Vector3.UnitY : Vector3.UnitX, up));
+        float width = Lerp(ClusterMinimum, ClusterMaximum, pick);
+        float spin = Fraction(pick * 4.7f) * MathF.PI;
+        bool second = Fraction(pick * 7.13f) >= 0.5f;
+        float u0 = second ? 0.5f : 0, u1 = u0 + 0.5f;
+        for (int cross = 0; cross < 2; cross++)
+        {
+            Quaternion turn = Quaternion.CreateFromAxisAngle(up, spin + (cross * MathF.PI / 2));
+            Vector3 across = Vector3.Transform(side, turn);
+            // Each card leans ClusterTiltDegrees away from the surface normal, toward its own side, so the pair splays.
+            Vector3 rise = Vector3.Normalize(Vector3.Transform(up, Quaternion.CreateFromAxisAngle(across, (cross == 0 ? 1 : -1) * ClusterTiltDegrees * MathF.PI / 360)));
+            Vector3 face = Vector3.Normalize(Vector3.Cross(across, rise));
+            Vector3[] corners = [at - (across * (width / 2)), at + (across * (width / 2)), at + (across * (width / 2)) + (rise * width * 0.8f), at - (across * (width / 2)) + (rise * width * 0.8f)];
+            // The curtain sprite's attached edge (v 0.5) at the root, its tendrils (v 0) at the tip.
+            Vector2[] uv = [new(u0, 0.5f), new(u1, 0.5f), new(u1, 0f), new(u0, 0f)];
+            foreach (Vector3 facing in new[] { face, -face })
+            {
+                uint first = (uint)positions.Count;
+                for (int i = 0; i < 4; i++)
+                {
+                    positions.Add(corners[i]);
+                    normals.Add(facing);
+                    uvs.Add(uv[i]);
+                }
+
+                bool counter = Vector3.Dot(Vector3.Cross(corners[1] - corners[0], corners[3] - corners[0]), facing) > 0;
+                if (counter) indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
+                else indices.AddRange([first, first + 2, first + 1, first, first + 3, first + 2]);
+            }
         }
     }
 
@@ -342,7 +417,7 @@ internal sealed class PlaceMossCards : IDisposable
         retiring.Clear();
     }
 
-    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} mats={byKind[3]} pieces={anchors.Count}");
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture, $"mossCards={Cards} curtains={byKind[0]} cushions={byKind[1]} faces={byKind[2]}/{faceAnchors} mats={byKind[3]} clusters={byKind[4]} pieces={anchors.Count}");
 
     public void Dispose()
     {

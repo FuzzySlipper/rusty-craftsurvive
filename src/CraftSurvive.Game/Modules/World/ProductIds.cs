@@ -123,6 +123,9 @@ internal static class ProductIds
 
     internal const ulong PlaceMeshLimit = 0x1000UL;
 
+    /// <summary>The overgrown places' ivy blankets (#10044), one per piece standing, at most <see cref="PlaceMeshLimit"/>.</summary>
+    internal const ulong PlaceBlanketBase = 0x9_C000UL;
+
     /// <summary>The places' hanging moss and ivy cards (#10044): one mesh for every place near the player.</summary>
     internal const ulong PlaceMossCardsObject = 0x9_B000UL;
 

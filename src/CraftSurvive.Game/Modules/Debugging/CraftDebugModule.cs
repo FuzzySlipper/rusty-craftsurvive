@@ -130,6 +130,9 @@ public sealed class CraftDebugModule : IDebugCommandModule
     [DebugCommand("craft.moss.strength", Description = "Tuning (#10044): sets the surface moss's strength on every stone place and field stone (0 none, 1 accents, 2 moss, 3 overgrown) and reads it.")]
     public string MossStrength(double strength) => terrain.SetMossStrength((float)strength);
 
+    [DebugCommand("craft.moss.overgrow", Description = "Prototype (#10044): makes one place overgrown by a site id (craft.places.readout lists them, e.g. poi:-1:0): extra moss strength 0 (ordinary) to 6, deepening its stain and covering its walls with the ivy blanket.")]
+    public string MossOvergrow(string siteId, double extra) => terrain.SetOvergrowth(siteId, (float)extra);
+
     [DebugCommand("craft.moss.readout", Description = "Reads the surface moss (#10044): its strength, the materials growing it and the origin it was last given.")]
     public string MossReadout() => terrain.Moss.Readout();
 

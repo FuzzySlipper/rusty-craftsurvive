@@ -31,10 +31,16 @@ internal sealed class PlaceMeshes : IDisposable
     private readonly WorldFrame frame;
     private readonly PoiPlacement placement;
     private readonly Func<double, double, double> groundTop;
-    private readonly PropMaterials materials;
+    private readonly SurfaceMoss? moss;
+    /// <summary>The stone's materials by the place's overgrowth: 0 for the ordinary places, one set per overgrown level.</summary>
+    private readonly Dictionary<float, PropMaterials> materials = [];
     private readonly IReadOnlyDictionary<string, PlaceKitPiece> kit;
     private readonly PlaceMossCards? cards;
-    private readonly Dictionary<string, Loaded> loaded = [];
+    private readonly Dictionary<(string Piece, float Overgrowth), Loaded> loaded = [];
+    /// <summary>Overgrown places (#10044): extra moss strength by site id, authored for now by live debug.</summary>
+    private readonly Dictionary<string, float> overgrowth = [];
+    private readonly Dictionary<float, (Material Material, MaterialRequest Request)> blanketMaterials = [];
+    private RenderResource? blanketTexture;
     private readonly List<Standing> standing = [];
     private readonly List<PoiSite> sites = [];
     private (double X, double Z) laidOutAt = (double.NaN, double.NaN);
@@ -50,16 +56,43 @@ internal sealed class PlaceMeshes : IDisposable
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         this.placement = placement ?? throw new ArgumentNullException(nameof(placement));
         this.groundTop = groundTop ?? throw new ArgumentNullException(nameof(groundTop));
-        // Every place is stone, and grows the surface moss (#10044).
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.PlaceClumpMetres), moss: moss);
+        this.moss = moss;
         kit = PlaceKit.Read(content);
         cards = moss is null ? null : new PlaceMossCards(engine, frame, moss);
     }
 
-    /// <summary>A piece's drawing and its collision shape (the mesh's own triangles, in its metres).</summary>
-    private sealed record Loaded(MeshResource Mesh, Appearance Appearance, Vector3[] Positions, Triangle[] Triangles, ulong Asset);
+    /// <summary>
+    /// A piece's drawing and its collision shape (the mesh's own triangles, in its metres); on an overgrown place, also
+    /// its ivy blanket (a shell over its walls).
+    /// </summary>
+    private sealed record Loaded(MeshResource Mesh, Appearance Appearance, Vector3[] Positions, Triangle[] Triangles, ulong Asset,
+        float Overgrowth, MeshResource? BlanketMesh, Appearance? Blanket);
 
     private sealed record Standing(string Site, Loaded Piece, float Sink, Vector3 World, Quaternion Rotation, Vector3 Scale);
+
+    // The ivy blanket (#10044): a shell this far off the stone, its seamless ivy tile repeating every BlanketTileMetres,
+    // over every face that does not face down further than BlanketLowest.
+    private const string BlanketTexturePath = "textures/places/ivy-blanket.png";
+    private const float BlanketOffset = 0.05f, BlanketTileMetres = 2f, BlanketLowest = -0.25f, BlanketRoughness = 0.95f;
+
+    /// <summary>Every place stone, growing the surface moss (#10044) at a place's overgrowth.</summary>
+    private PropMaterials MaterialsFor(float extra)
+    {
+        if (materials.TryGetValue(extra, out PropMaterials? found)) return found;
+        found = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0, SurfaceMoss.PlaceClumpMetres, MossOvergrowth: extra), moss: moss);
+        materials[extra] = found;
+        return found;
+    }
+
+    /// <summary>Sets a site's overgrowth (0 to <see cref="SurfaceMoss.MaximumOvergrowth"/>; 0 is an ordinary place) and lays the places out again.</summary>
+    internal string SetOvergrowth(string siteId, float extra)
+    {
+        extra = Math.Clamp(extra, 0, SurfaceMoss.MaximumOvergrowth);
+        if (extra == 0) overgrowth.Remove(siteId);
+        else overgrowth[siteId] = extra;
+        laidOutAt = (double.NaN, double.NaN);
+        return string.Join(' ', overgrowth.Select(o => $"{o.Key}={o.Value:F1}")) is { Length: > 0 } list ? $"overgrown {list}" : "overgrown none";
+    }
 
     /// <summary>Pieces standing now, for the readout.</summary>
     internal int Pieces => standing.Count;
@@ -76,12 +109,13 @@ internal sealed class PlaceMeshes : IDisposable
         {
             if (Math.Max(Math.Abs(site.X + 0.5 - player.X), Math.Abs(site.Z + 0.5 - player.Z)) > nearEdgeMetres) continue;
             double siteGround = groundTop(site.X + 0.5, site.Z + 0.5);
+            float extra = overgrowth.GetValueOrDefault(site.Id);
             foreach (PlacedPart part in PlaceLayouts.For(site))
             {
                 if (!kit.TryGetValue(part.Piece, out PlaceKitPiece? piece)) continue;
                 double ground = part.OnSiteGround ? siteGround : groundTop(part.X, part.Z);
                 // The sink scales with the piece: a stele scaled to its height carries its skirt along.
-                standing.Add(new(site.Id, Load(piece), piece.Sink, new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
+                standing.Add(new(site.Id, Load(piece, extra), piece.Sink, new Vector3((float)part.X, (float)(ground + part.Rise - (piece.Sink * part.Scale.Y)), (float)part.Z), part.Rotation, part.Scale));
             }
         }
 
@@ -91,7 +125,7 @@ internal sealed class PlaceMeshes : IDisposable
 
     /// <summary>Lays the hanging moss cards again over the pieces standing (#10044): after a layout, or when the moss changed.</summary>
     internal void LayCards(Vector3 about) => cards?.Lay([.. standing.Select(s => new PlaceMossCards.Piece(s.Piece.Mesh, s.Piece.Positions, s.Piece.Triangles,
-        s.Sink, s.World, s.Rotation, s.Scale))], new Vector3(about.X, standing.Count > 0 ? standing[0].World.Y : about.Y, about.Z));
+        s.Sink, s.World, s.Rotation, s.Scale, s.Piece.Overgrowth))], new Vector3(about.X, standing.Count > 0 ? standing[0].World.Y : about.Y, about.Z));
 
     /// <summary>Lays the cards again where they were last laid (the moss's strength changed).</summary>
     internal void RelayCards() => LayCards(new Vector3((float)laidOutAt.X, 0, (float)laidOutAt.Z));
@@ -100,19 +134,77 @@ internal sealed class PlaceMeshes : IDisposable
 
     internal void AfterAppearanceSnapshot() => cards?.AfterAppearanceSnapshot();
 
-    private Loaded Load(PlaceKitPiece piece)
+    private Loaded Load(PlaceKitPiece piece, float extra)
     {
-        if (loaded.TryGetValue(piece.Name, out Loaded? found)) return found;
+        if (loaded.TryGetValue((piece.Name, extra), out Loaded? found)) return found;
+        PropMaterials stone = MaterialsFor(extra);
         MeshResourceCreateRequest request = PropMesh.Read(content, piece.Model,
-            (role, texture) => materials.For(role, texture ?? throw new InvalidOperationException($"CraftSurvive place piece '{piece.Name}' part '{role}' names no texture.")));
+            (role, texture) => stone.For(role, texture ?? throw new InvalidOperationException($"CraftSurvive place piece '{piece.Name}' part '{role}' names no texture.")));
         MeshResource mesh = engine.Graphics.CreateMeshResource(request);
         ReadOnlySpan<uint> indices = request.Indices.Span;
         Triangle[] triangles = new Triangle[indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++) triangles[i] = new Triangle(indices[3 * i], indices[(3 * i) + 1], indices[(3 * i) + 2]);
-        Loaded result = new(mesh, engine.Graphics.CreateMeshAppearance(mesh), request.Positions.ToArray(), triangles, CollisionAssetBase + (ulong)loaded.Count);
-        loaded[piece.Name] = result;
+        MeshResource? blanketMesh = extra > 0 && moss is not null ? engine.Graphics.CreateMeshResource(Blanket(request, BlanketMaterial(extra))) : null;
+        Loaded result = new(mesh, engine.Graphics.CreateMeshAppearance(mesh), request.Positions.ToArray(), triangles, CollisionAssetBase + (ulong)loaded.Count,
+            extra, blanketMesh, blanketMesh is null ? null : engine.Graphics.CreateMeshAppearance(blanketMesh));
+        loaded[(piece.Name, extra)] = result;
         return result;
     }
+
+    /// <summary>The ivy blanket's material for a place's overgrowth: the seamless ivy tile, the blanket shader.</summary>
+    private Material BlanketMaterial(float extra)
+    {
+        if (blanketMaterials.TryGetValue(extra, out var made)) return made.Material;
+        blanketTexture ??= engine.Graphics.OpenResource(new RenderResourceRequest(BlanketTexturePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+        MaterialRequest request = new MaterialRequest(new Color(1, 1, 1, 1), blanketTexture, BlanketRoughness, new Color(1, 1, 1, 1), Vector3.Zero, 0, false)
+            with { Shader = moss!.BlanketShader(SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre, extra) };
+        Material material = engine.Graphics.CreateMaterial(request);
+        moss.Register(material, request, SurfaceMoss.PlaceClumpMetres, SurfaceMoss.PlaceTexelsPerMetre, extra, blanket: true);
+        blanketMaterials[extra] = (material, request);
+        return material;
+    }
+
+    /// <summary>
+    /// A piece's ivy blanket: its own triangles that do not face down, each vertex pushed out along its normal by
+    /// <see cref="BlanketOffset"/>, with the ivy tile projected on each triangle's dominant plane (in the piece's metres).
+    /// The blanket shader shows it only where the moss field is strong.
+    /// </summary>
+    private static MeshResourceCreateRequest Blanket(MeshResourceCreateRequest piece, Material material)
+    {
+        ReadOnlySpan<Vector3> p = piece.Positions.Span, n = piece.Normals.Span;
+        ReadOnlySpan<uint> idx = piece.Indices.Span;
+        List<Vector3> positions = [], normals = [];
+        List<Vector2> uvs = [];
+        List<uint> indices = [];
+        for (int t = 0; t + 2 < idx.Length; t += 3)
+        {
+            Vector3 a = p[(int)idx[t]], b = p[(int)idx[t + 1]], c = p[(int)idx[t + 2]];
+            Vector3 face = Vector3.Normalize(Vector3.Cross(b - a, c - a));
+            if (face.Y < BlanketLowest) continue;
+            Vector3 abs = Vector3.Abs(face);
+            uint first = (uint)positions.Count;
+            for (int k = 0; k < 3; k++)
+            {
+                uint v = idx[t + k];
+                Vector3 at = p[(int)v] + (Vector3.Normalize(n[(int)v]) * BlanketOffset);
+                positions.Add(at);
+                normals.Add(n[(int)v]);
+                Vector2 plane = abs.Y >= abs.X && abs.Y >= abs.Z ? new(at.X, at.Z) : abs.X >= abs.Z ? new(at.Z, -at.Y) : new(at.X, -at.Y);
+                uvs.Add(plane / BlanketTileMetres);
+            }
+
+            indices.AddRange([first, first + 1, first + 2]);
+        }
+
+        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), ReadOnlyMemory<Color>.Empty, indices.ToArray(),
+            new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
+    }
+
+    /// <summary>The overgrown places' ivy blankets, standing with their pieces.</summary>
+    internal IEnumerable<AppearanceFact> BlanketFacts => standing.Take((int)ProductIds.PlaceMeshLimit)
+        .Select((s, index) => (s, index)).Where(e => e.s.Piece.Blanket is not null)
+        .Select(e => new AppearanceFact(ProductIds.PlaceBlanketBase + (ulong)e.index, false, 0,
+            new Transform(frame.ToLocal(e.s.World.X, e.s.World.Y, e.s.World.Z), e.s.Rotation, e.s.Scale), e.s.Piece.Blanket!, true, RenderLayer.Scene, ShadowCasting.Cast));
 
     internal IEnumerable<AppearanceFact> Facts => standing.Take((int)ProductIds.PlaceMeshLimit).Select((s, index) =>
         new AppearanceFact(ProductIds.PlaceMeshBase + (ulong)index, false, 0, new Transform(frame.ToLocal(s.World.X, s.World.Y, s.World.Z), s.Rotation, s.Scale),
@@ -169,10 +261,21 @@ internal sealed class PlaceMeshes : IDisposable
         {
             piece.Appearance.Dispose();
             piece.Mesh.Dispose();
+            piece.Blanket?.Dispose();
+            piece.BlanketMesh?.Dispose();
         }
 
         loaded.Clear();
         cards?.Dispose();
-        materials.Dispose();
+        foreach ((Material material, _) in blanketMaterials.Values)
+        {
+            moss?.Unregister(material);
+            material.Dispose();
+        }
+
+        blanketMaterials.Clear();
+        blanketTexture?.Dispose();
+        foreach (PropMaterials stone in materials.Values) stone.Dispose();
+        materials.Clear();
     }
 }
