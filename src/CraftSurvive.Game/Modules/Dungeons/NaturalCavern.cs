@@ -81,18 +81,28 @@ internal static class NaturalCavern
     private readonly record struct Formation(float X, float Z, float Length, float Radius);
 
     /// <summary>The cavern as a study layout: the field as rock, the voxels as stone where it is solid, and its places.</summary>
-    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed)
+    /// <param name="voxelSize">The voxels' side in metres: the world's block, or finer for the micro-voxel study (#10094). The field is the same metres whatever it is.</param>
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d)
     {
-        DungeonVolume volume = new(ChunksX, ChunksY, ChunksZ, BlockId.Air);
+        int perMetre = (int)Math.Round(1d / voxelSize);
+        float size = (float)voxelSize;
+        DungeonVolume volume = new(ChunksX * perMetre, ChunksY * perMetre, ChunksZ * perMetre, BlockId.Air);
         int width = volume.SizeX, height = volume.SizeY, depth = volume.SizeZ;
         float[] values = new float[width * height * depth];
+        Parallel.For(0, depth, z =>
+        {
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    values[(((z * height) + y) * width) + x] = Open(new Vector3((x + 0.5f) * size, (y + 0.5f) * size, (z + 0.5f) * size));
+                }
+        });
+
         for (int z = 0; z < depth; z++)
             for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                 {
-                    float open = Open(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f));
-                    values[(((z * height) + y) * width) + x] = open;
-                    if (open < 0f)
+                    if (values[(((z * height) + y) * width) + x] < 0f)
                     {
                         volume.Set(x, y, z, BlockId.Stone);
                     }
@@ -104,12 +114,13 @@ internal static class NaturalCavern
         DungeonPlan plan = new(seed, 0, DungeonMix.MostlyCave, 1, arrival, shaftFoot,
             [arrival, Cell(OnFloor(22f, 28f, 16f)), Cell(OnFloor(48f, 25.5f, 15f)), shaftFoot, Cell(OnFloor(51f, 61f, 34f))], shaftFoot);
         Vector3 arrive = OnFloor(12f, 22f, 16f);
-        DungeonLayout layout = new("natural-cavern", new DungeonVolume(ChunksX, ChunksY, ChunksZ, BlockId.Air), arrive, OnFloor(10f, 22f, 16f),
+        DungeonLayout layout = new("natural-cavern", new DungeonVolume(ChunksX * perMetre, ChunksY * perMetre, ChunksZ * perMetre, BlockId.Air), arrive, OnFloor(10f, 22f, 16f),
             [.. LightPlaces.Select(place => OnFloor(place.X, place.Z, place.Y) + (Vector3.UnitY * LightAboveFloor))])
         {
             Rock = rock,
             Natural = true,
             Shape = Open,
+            VoxelSize = voxelSize,
         };
         return (layout, plan, new DungeonVerdict(true, "natural cavern study: routes not asked for", 0), volume);
     }

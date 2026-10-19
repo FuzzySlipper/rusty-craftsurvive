@@ -42,7 +42,7 @@ internal sealed class DungeonSpace : IDisposable
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        Session = DungeonCollision.CreateSession(engine, surface);
+        Session = DungeonCollision.CreateSession(engine, surface, layout.VoxelSize);
         pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
         totalChunks = pending.Count;
     }
@@ -86,7 +86,7 @@ internal sealed class DungeonSpace : IDisposable
             admitted.Add(chunk);
         }
 
-        DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities, DungeonSurfaces.Weathers(surface), pinned: !layout.Natural);
+        DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities, DungeonSurfaces.Weathers(surface), pinned: !layout.Natural, voxelSize: layout.VoxelSize);
 
         if (pending.Count == 0 && projection is null)
         {

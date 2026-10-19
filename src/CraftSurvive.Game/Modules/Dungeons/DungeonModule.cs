@@ -151,7 +151,8 @@ internal sealed class DungeonModule : IProductModule
                 DungeonSpace loading = space!;
                 try
                 {
-                    loading.Advance(ChunksPerUpdate);
+                    // A finer study grid (#10094) has many more chunks of the same metres; it loads them as fast per metre.
+                    loading.Advance((int)(ChunksPerUpdate / Math.Pow(loading.Layout.VoxelSize, 3)));
                 }
                 catch (EngineCallException refusal)
                 {
@@ -170,11 +171,11 @@ internal sealed class DungeonModule : IProductModule
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival));
                     sky.Underground(true, conditions.Time);
                     Light(loading.Layout.Lights);
-                    IndirectLight(loading.Layout.Volume);
+                    IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
                     entered++;
                     last = string.Create(CultureInfo.InvariantCulture,
-                        $"entered {loading.Layout.Name} (candidate {candidateIndex}): {loading.TotalChunks} chunks in {loading.LoadMilliseconds:F0} ms, routes checked in {routes!.PublishMilliseconds + routes.QueryMilliseconds:F0} ms");
+                        $"entered {loading.Layout.Name} (candidate {candidateIndex}): {loading.TotalChunks} chunks in {loading.LoadMilliseconds:F0} ms, routes checked in {(routes is null ? 0 : routes.PublishMilliseconds + routes.QueryMilliseconds):F0} ms");
                 }
 
                 break;
@@ -252,7 +253,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Generates one of the entrance's candidates and starts loading it.</summary>
     private string Load(int index)
     {
-        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index);
+        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index, DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize);
         candidateIndex = index;
         plan = candidate.Plan;
         walkable = candidate.Walkable;
@@ -283,6 +284,13 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     private bool Accept(DungeonSpace loaded)
     {
+        // A natural study space (#10090, #10094) is entered unchecked: its passages are for looking, and are checked by other means.
+        if (loaded.Layout.Natural)
+        {
+            routes = null;
+            return true;
+        }
+
         try
         {
             routes = DungeonRoutes.Check(engine, loaded.Session, walkable!, plan!, NavigationProfile.Player(engine.Spatial, walkable!));
@@ -293,7 +301,7 @@ internal sealed class DungeonModule : IProductModule
             return false;
         }
 
-        if (routes.Walkable || keepUnwalkable || loaded.Layout.Natural)
+        if (routes.Walkable || keepUnwalkable)
         {
             return true;
         }
@@ -349,6 +357,20 @@ internal sealed class DungeonModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture, $"dungeons entered use seed {chosen}");
     }
 
+    /// <summary>The natural cavern study's voxel side in metres (#10094): 1, or finer for micro-voxels.</summary>
+    private double studyVoxelSize = 1d;
+
+    internal string StudyVoxelSize(double metres)
+    {
+        if (metres is not (1d or 0.5d or 0.25d))
+        {
+            return "voxel size refused: 1, 0.5 or 0.25 metres";
+        }
+
+        studyVoxelSize = metres;
+        return string.Create(CultureInfo.InvariantCulture, $"the natural cavern study is built in {metres} m voxels");
+    }
+
     /// <summary>For studies (#10090): enter a candidate even when its routes fail, so looks compare on the same layout.</summary>
     private bool keepUnwalkable;
 
@@ -366,7 +388,7 @@ internal sealed class DungeonModule : IProductModule
     {
         if (DungeonSurfaces.Parse(name) is not DungeonSurface next)
         {
-            return $"surface refused: \"{name}\" is not cubes, dc, faceted, ruined, mc, mesh, fine or pieced";
+            return $"surface refused: \"{name}\" is not cubes, dc, faceted, ruined, mc, mesh, fine, pieced or micro";
         }
 
         surface = next;
@@ -744,9 +766,9 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>Asks for the probe volume over the dungeon's whole volume, in its session's frame.</summary>
-    private void IndirectLight(DungeonVolume volume)
+    private void IndirectLight(DungeonVolume volume, double voxelSize)
     {
-        Vector3 size = new(volume.SizeX, volume.SizeY, volume.SizeZ);
+        Vector3 size = new Vector3(volume.SizeX, volume.SizeY, volume.SizeZ) * (float)voxelSize;
         Vector3 centre = DungeonSpace.InSession(size / 2f);
         Vector3 extent = (size / 2f) + new Vector3(ProbeMarginMetres);
         engine.CameraView.SetIndirectLight(new IndirectLightRequest(centre, extent, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));

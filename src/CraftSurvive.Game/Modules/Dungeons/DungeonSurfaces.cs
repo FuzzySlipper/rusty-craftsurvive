@@ -37,6 +37,9 @@ internal enum DungeonSurface
     /// <summary>Route B, finer: the sculpted field resampled at half a metre with a little detail before meshing.</summary>
     Fine,
 
+    /// <summary>Micro-voxel study (#10094): every voxel a plain cube, rock included, for fine voxel sizes.</summary>
+    Micro,
+
     /// <summary>Route C: rock pieces dressing the walls and ceilings over route B's mesh, which stays the collision.</summary>
     Pieced,
 }
@@ -94,7 +97,7 @@ internal static class DungeonSurfaces
     /// <summary>Each bound block's surface under a look; empty for cubes.</summary>
     internal static VoxelMaterialSurface[] Materials(DungeonSurface surface)
     {
-        if (RockAsMesh(surface))
+        if (RockAsMesh(surface) || surface == DungeonSurface.Micro)
         {
             return [];
         }
@@ -130,6 +133,7 @@ internal static class DungeonSurfaces
         "mesh" => DungeonSurface.Mesh,
         "fine" => DungeonSurface.Fine,
         "pieced" => DungeonSurface.Pieced,
+        "micro" => DungeonSurface.Micro,
         _ => null,
     };
 }

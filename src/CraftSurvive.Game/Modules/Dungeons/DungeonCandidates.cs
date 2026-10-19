@@ -49,7 +49,8 @@ internal static class DungeonCandidates
         index == 0 ? entranceSeed : new DungeonRandom(entranceSeed ^ ((ulong)index * 0xD1B5_4A32_D192_ED03UL)).Next();
 
     /// <summary>Generates an entrance's candidate by an approach.</summary>
-    internal static DungeonCandidate Generate(DungeonApproach approach, ulong entranceSeed, int index)
+    /// <param name="voxelSize">The natural cavern study's voxel side in metres (#10094); other approaches are built in world blocks.</param>
+    internal static DungeonCandidate Generate(DungeonApproach approach, ulong entranceSeed, int index, double voxelSize = 1d)
     {
         ulong seed = Seed(entranceSeed, index);
         switch (approach)
@@ -64,7 +65,7 @@ internal static class DungeonCandidates
                 var shaft = VerticalSampler.Shaft(seed);
                 return new DungeonCandidate(index, seed, shaft.Layout, shaft.Plan, shaft.Verdict, shaft.Walkable);
             case DungeonApproach.Natural:
-                var natural = NaturalCavern.Generate(seed);
+                var natural = NaturalCavern.Generate(seed, voxelSize);
                 return new DungeonCandidate(index, seed, natural.Layout, natural.Plan, natural.Verdict, natural.Walkable);
             case DungeonApproach.SculptedCave:
                 var sculpted = SculptedCave.Generate(seed);

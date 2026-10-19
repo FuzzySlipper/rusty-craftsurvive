@@ -26,6 +26,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// </summary>
     internal bool Natural { get; init; }
 
+    /// <summary>The side of the layout's voxels in metres: the world's block, or finer for the micro-voxel study (#10094).</summary>
+    internal double VoxelSize { get; init; } = 1d;
+
     /// <summary>The field the rock was sampled from, in layout metres (positive open), when it can be sampled finer.</summary>
     internal Func<System.Numerics.Vector3, float>? Shape { get; init; }
 

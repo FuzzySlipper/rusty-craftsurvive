@@ -88,12 +88,16 @@ internal static class DungeonCollision
     /// </summary>
     /// <param name="firstChunk">The chunk the volume's first chunk is admitted as; by default the one at <see cref="Origin"/> in metre voxels.</param>
     internal static void Admit(IEngineContext engine, SpatialSession session, DungeonVolume volume, IEnumerable<(int X, int Y, int Z)> chunks,
-        RockDensity? densities = null, bool weathered = false, (long X, long Y, long Z)? firstChunk = null, bool pinned = true)
+        RockDensity? densities = null, bool weathered = false, (long X, long Y, long Z)? firstChunk = null, bool pinned = true,
+        double voxelSize = TerrainConstants.VoxelSize)
     {
+        double chunkMetres = TerrainConstants.ChunkEdgeLength * voxelSize;
         (long X, long Y, long Z) first = firstChunk ?? (
-            (long)Origin.X / TerrainConstants.ChunkEdgeLength,
-            (long)Origin.Y / TerrainConstants.ChunkEdgeLength,
-            (long)Origin.Z / TerrainConstants.ChunkEdgeLength);
+            (long)Math.Floor(Origin.X / chunkMetres),
+            (long)Math.Floor(Origin.Y / chunkMetres),
+            (long)Math.Floor(Origin.Z / chunkMetres));
+        // An unpinned field is in metres; the Engine's densities are in voxel units.
+        float perVoxel = (float)(1d / voxelSize);
         List<VoxelResidencyOperation> operations = [];
         List<uint> materials = [];
         List<float> chunkDensities = [];
@@ -113,8 +117,8 @@ internal static class DungeonCollision
                     int cy = (y * edge) + (index / edge % edge);
                     int cz = (z * edge) + (index / (edge * edge));
                     chunkDensities.Add(pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered)
-                        : material == (ushort)BlockId.Air ? Math.Clamp(field.At(cx, cy, cz), DensityFloor, FreeDensityLimit)
-                        : Math.Clamp(field.At(cx, cy, cz), -FreeDensityLimit, -DensityFloor));
+                        : material == (ushort)BlockId.Air ? Math.Clamp(field.At(cx, cy, cz) * perVoxel, DensityFloor, FreeDensityLimit)
+                        : Math.Clamp(field.At(cx, cy, cz) * perVoxel, -FreeDensityLimit, -DensityFloor));
                 }
             }
 
