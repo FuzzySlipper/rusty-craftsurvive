@@ -15,6 +15,23 @@ internal static class CaveEcology
     private static readonly Color FungiStem = new(0.35f, 0.32f, 0.26f, 1f), WormThread = new(0.6f, 0.62f, 0.6f, 1f), CrystalBody = new(0.3f, 0.22f, 0.4f, 1f);
     private const float FungiGlowStrength = 2.5f, WormGlowStrength = 3f, CrystalGlowStrength = 1.2f, GrowthRoughness = 0.6f;
 
+    // A great hall's lights (#10094): the giant fungi's stalks and caps and the vault blooms' glow.
+    internal static readonly Vector3 GiantGlow = new(0.15f, 0.6f, 1f), VaultGlow = new(0.7f, 0.85f, 1f);
+    private static readonly Color GiantStalk = new(0.42f, 0.4f, 0.36f, 1f);
+    private const float GiantGlowStrength = 1.1f, VaultGlowStrength = 1.2f;
+
+    // Giant fungi: stalk height and girth, cap radius, how much the stalk bends, and the small ones at its foot.
+    private const float GiantHeight = 6f, GiantGirth = 0.35f, GiantCap = 2.6f, GiantBend = 0.6f;
+    private const int GiantSegments = 6, FewestCompanions = 2, MostCompanions = 5;
+    private const float CompanionLeast = 0.25f, CompanionMost = 0.5f, CompanionSpread = 3.5f;
+
+    // Vault blooms: prisms per bloom, their lengths and widths, and how far they splay from hanging straight down.
+    private const int FewestVaultPrisms = 12, MostVaultPrisms = 22;
+    private const float ShortestVaultPrism = 1.5f, LongestVaultPrism = 5f, VaultPrismWidth = 0.35f, VaultSplay = 1.1f;
+
+    // Each hall light: how bright and how far it reaches.
+    private const float GiantIntensity = 220f, GiantRange = 35f, VaultIntensity = 2500f, VaultRange = 90f;
+
     // Fungi: caps per cluster, their spread and sizes.
     private const int FewestCaps = 5, MostCaps = 14;
     private const float CapSpread = 0.6f, SmallestCap = 0.05f, LargestCap = 0.16f;
@@ -32,7 +49,20 @@ internal static class CaveEcology
     {
         EcologyKind.GlowFungi => (FungiGlow, 2f, 4f),
         EcologyKind.GlowWorms => (WormGlow, 1.5f, 6f),
+        EcologyKind.GiantFungus => (GiantGlow, GiantIntensity, GiantRange),
+        EcologyKind.VaultBloom => (VaultGlow, VaultIntensity, VaultRange),
         _ => (CrystalGlow, 1f, 3f),
+    };
+
+    /// <summary>Whether a kind's light casts shadows: the vault's sun does, so the hall's pillars and giants throw them across its floor.</summary>
+    internal static bool Shadowed(EcologyKind kind) => kind == EcologyKind.VaultBloom;
+
+    /// <summary>Where a growth's light hangs, in layout metres: under a giant's cap, inside a vault bloom, else just off the growth.</summary>
+    internal static Vector3 LightAt(EcologyPlacement growth, float offset) => growth.Kind switch
+    {
+        EcologyKind.GiantFungus => growth.At + (growth.Normal * ((GiantHeight * growth.Size) - (GiantCap * growth.Size * 0.4f))),
+        EcologyKind.VaultBloom => growth.At + (growth.Normal * (ShortestVaultPrism * growth.Size)),
+        _ => growth.At + (growth.Normal * offset),
     };
 
     /// <summary>The growths of every kind as meshes (one per kind: a plain group and a glowing group), positioned in the session.</summary>
@@ -52,6 +82,8 @@ internal static class CaveEcology
             {
                 EcologyKind.GlowFungi => (FungiStem, FungiGlow, FungiGlowStrength),
                 EcologyKind.GlowWorms => (WormThread, WormGlow, WormGlowStrength),
+                EcologyKind.GiantFungus => (GiantStalk, GiantGlow, GiantGlowStrength),
+                EcologyKind.VaultBloom => (CrystalBody, VaultGlow, VaultGlowStrength),
                 _ => (CrystalBody, CrystalGlow, CrystalGlowStrength),
             };
             Material plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
@@ -71,6 +103,12 @@ internal static class CaveEcology
                         break;
                     case EcologyKind.GlowWorms:
                         Worms(plainPart, glowPart, at, growth.Size, random);
+                        break;
+                    case EcologyKind.GiantFungus:
+                        Giant(plainPart, glowPart, at, growth.Size, random);
+                        break;
+                    case EcologyKind.VaultBloom:
+                        VaultBloom(glowPart, at, growth.Size, random);
                         break;
                     default:
                         Crystals(glowPart, at, growth.Normal, growth.Size, random);
@@ -98,6 +136,51 @@ internal static class CaveEcology
             Vector3 top = foot + (up * cap * 1.6f);
             stems.Prism(foot, top, cap * 0.22f, 5);
             caps.Dome(top, up, cap, 6);
+        }
+    }
+
+    /// <summary>A giant fungus: a bending stalk under a broad glowing cap, with a few small ones at its foot.</summary>
+    private static void Giant(Builder stalks, Builder caps, Vector3 at, float size, Random random)
+    {
+        float height = GiantHeight * size, girth = GiantGirth * size, cap = GiantCap * size;
+        Vector3 lean = new(((float)random.NextDouble() - 0.5f) * GiantBend, 0f, ((float)random.NextDouble() - 0.5f) * GiantBend);
+        Vector3 Along(float t) => at + new Vector3(0f, height * t, 0f) + (lean * height * t * t * 0.3f);
+        for (int i = 0; i < GiantSegments; i++)
+        {
+            float t0 = i / (float)GiantSegments, t1 = (i + 1) / (float)GiantSegments;
+            // Thicker at the foot, as a stalk that carries a great cap.
+            stalks.Prism(Along(t0), Along(t1) + new Vector3(0f, 0.05f, 0f), girth * (1.6f - (0.7f * t0)), 8);
+        }
+
+        Vector3 top = Along(1f);
+        Vector3 up = Vector3.Normalize(Vector3.UnitY + (lean * 0.4f));
+        caps.Dome(top - (up * cap * 0.15f), up, cap, 12);
+        int companions = FewestCompanions + random.Next(MostCompanions - FewestCompanions + 1);
+        for (int i = 0; i < companions; i++)
+        {
+            float a = (float)random.NextDouble() * MathF.Tau, r = (0.5f + (float)random.NextDouble()) * CompanionSpread * size * 0.5f;
+            float small = size * (CompanionLeast + ((CompanionMost - CompanionLeast) * (float)random.NextDouble()));
+            Vector3 foot = at + new Vector3(MathF.Cos(a) * r, -0.1f, MathF.Sin(a) * r);
+            Vector3 head = foot + new Vector3(0f, GiantHeight * small, 0f);
+            stalks.Prism(foot, head, GiantGirth * small * 1.3f, 6);
+            caps.Dome(head, Vector3.UnitY, GiantCap * small, 8);
+        }
+    }
+
+    /// <summary>A great crystal bloom hanging from a vault: long prisms splaying down and out, all aglow.</summary>
+    private static void VaultBloom(Builder prisms, Vector3 at, float size, Random random)
+    {
+        int count = FewestVaultPrisms + random.Next(MostVaultPrisms - FewestVaultPrisms + 1);
+        for (int i = 0; i < count; i++)
+        {
+            float a = (float)random.NextDouble() * MathF.Tau, splay = VaultSplay * MathF.Sqrt((float)random.NextDouble());
+            Vector3 lean = Vector3.Normalize(new Vector3(MathF.Cos(a) * splay, -1f, MathF.Sin(a) * splay));
+            float length = (ShortestVaultPrism + ((LongestVaultPrism - ShortestVaultPrism) * (float)random.NextDouble())) * size;
+            float width = VaultPrismWidth * size * (0.6f + (0.6f * (float)random.NextDouble()));
+            Vector3 foot = at + new Vector3(0f, 0.3f, 0f);
+            Vector3 shoulder = foot + (lean * length * 0.8f);
+            prisms.Prism(foot, shoulder, width, 6);
+            prisms.Cone(shoulder, shoulder + (lean * length * 0.2f), width, 6);
         }
     }
 

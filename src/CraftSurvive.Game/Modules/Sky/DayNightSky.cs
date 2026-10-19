@@ -575,7 +575,8 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     /// <param name="skyOpen">Underground but open to the sky somewhere (a tiankeng): the sky's panorama and the sun shine in through the opening,
     /// with no fill and no sky light, so only what the opening lets in is lit.</param>
-    internal void Underground(bool below, WorldTime time, bool skyOpen = false)
+    /// <param name="hallHaze">Underground in a great hall (#10094): thin air carrying a faint haze of the hall's own lights, so its far lights and walls stay in view.</param>
+    internal void Underground(bool below, WorldTime time, bool skyOpen = false, bool hallHaze = false)
     {
         if (disposed)
         {
@@ -584,6 +585,7 @@ internal sealed class DayNightSky : IDisposable
 
         underground = below;
         skylit = below && skyOpen;
+        hazed = below && hallHaze;
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
@@ -615,6 +617,17 @@ internal sealed class DayNightSky : IDisposable
 
     /// <summary>Fog under an opening: thin and one density at every height, so the rim and the sky above stay in view while the cave's far reaches still close to the dark.</summary>
     private const float SkylitFogDensity = 0.012f;
+
+    /// <summary>Underground in a great hall: the air is thin and faintly lit by the hall's own lights.</summary>
+    private bool hazed;
+
+    /// <summary>
+    /// A great hall's air (owner, 2026-10-19: distant lights that filter through like an underground sky): thin fog the colour
+    /// of the hall's light scattered in its air, very dim, so the far giants and the vault's blooms glow through it and the
+    /// far walls fade into it rather than into black.
+    /// </summary>
+    private static readonly Color HallHaze = new(0.012f, 0.026f, 0.045f, 1f);
+    private const float HallHazeDensity = 0.012f;
 
     private void RelightUnderground() => Relight(
         Off,
@@ -973,6 +986,11 @@ internal sealed class DayNightSky : IDisposable
         else if (underground && skylit)
         {
             engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, studyFog ?? SkylitFogDensity));
+        }
+        else if (underground && hazed)
+        {
+            engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(HallHaze));
+            engine.CameraView.SetFog(new(FogMode.ExponentialSquared, HallHaze, 0f, 0f, studyFog ?? HallHazeDensity));
         }
         else if (underground)
         {

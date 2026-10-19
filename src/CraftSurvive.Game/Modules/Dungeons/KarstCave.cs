@@ -142,6 +142,13 @@ internal static class KarstCave
         /// <summary>Collapse: great rooms where ceilings fell, with boulder slopes.</summary>
         Breakdown,
 
+        /// <summary>
+        /// A great hall, rare: a long age of slow water under a thick cap opened one vast vaulted room, its floor heaped and
+        /// terraced, its roof held up by remnant pillars - big enough to have weather of its own light (owner, 2026-10-19:
+        /// a rare larger cavern lit by large, bright, distant sources, like an underground sky).
+        /// </summary>
+        GreatHall,
+
         /// <summary>A collapse through to the surface: a great shaft open to the sky, its floor a boulder slope under daylight.</summary>
         Tiankeng,
     }
@@ -245,6 +252,198 @@ internal static class KarstCave
         }
 
         return null;
+    }
+
+    // A great hall (owner, 2026-10-19: rare, vast, lit like an underground sky): how often a cave has one, its reach
+    // across the floor and height, how far its middle wanders from the space's, the floor's level, roll and terraces,
+    // the walls' wobble and bands at the beds, where the vault springs from the walls, its pillars, and its boulders.
+    private const float GreatHallChance = 0.1f;
+    private const float HallLeast = 30f, HallMost = 38f, HallWander = 6f, HallHighest = 46f, HallLowest = 36f;
+    private const float HallFloorLeast = 5f, HallFloorMost = 9f, HallFloorRoll = 2.2f, HallFloorFrequency = 0.05f, HallTerrace = 0.9f, HallTerraceShare = 0.6f;
+    private const float HallWobble = 0.06f, HallWobbleFrequency = 0.07f, HallBand = 1.2f, HallSpring = 0.3f, HallBlend = 2f;
+    private const int FewestPillars = 2, MostPillars = 4;
+    private const float PillarLeast = 2f, PillarMost = 4.2f, PillarFlare = 0.8f, PillarFootFlare = 4f, PillarHeadFlare = 6f, PillarApart = 16f, PillarBlend = 1.5f;
+    private const int HallFewestBoulders = 30, HallMostBoulders = 50;
+    private const float HallBoulder = 3.2f;
+
+    /// <summary>
+    /// A great hall: an elliptical room filling much of the space, its walls standing up from a rolling, terraced floor
+    /// and curving over into a vault banded at the beds, held up by a few remnant pillars flared at foot and head, with
+    /// boulders heaped against its walls. Older passages that crossed its place open into it.
+    /// </summary>
+    internal sealed record Hall(Vector2 Centre, float RadiusX, float RadiusZ, float Turn, float Floor, float Height, (Vector2 At, float Radius)[] Pillars)
+    {
+        /// <summary>How far out a place lies across the floor: 0 at the middle, 1 at the foot of the walls.</summary>
+        internal float Reach(float x, float z)
+        {
+            Vector2 d = new Vector2(x, z) - Centre;
+            float cos = MathF.Cos(Turn), sin = MathF.Sin(Turn);
+            Vector2 q = new(((d.X * cos) - (d.Y * sin)) / RadiusX, ((d.X * sin) + (d.Y * cos)) / RadiusZ);
+            return q.Length();
+        }
+
+        /// <summary>The vault's height over a place, before its bands and wobble.</summary>
+        internal float RoofAt(float reach) => Floor + (Height * (HallSpring + ((1f - HallSpring) * MathF.Sqrt(MathF.Max(0f, 1f - (reach * reach))))));
+    }
+
+    private static Hall GreatHall(float[] open, float[] beds, ulong seed, DungeonRandom random)
+    {
+        float size = Between(random, HallLeast, HallMost);
+        float aspect = Between(random, 0.8f, 1f);
+        Vector2 centre = new((FieldX * FieldStep * 0.5f) + Between(random, -HallWander, HallWander), (FieldZ * FieldStep * 0.5f) + Between(random, -HallWander, HallWander));
+        // Kept off the space's sides, so the walls are the hall's and not the edge's.
+        float room = MathF.Min(MathF.Min(centre.X, (FieldX * FieldStep) - centre.X), MathF.Min(centre.Y, (FieldZ * FieldStep) - centre.Y)) - RindMetres - 3f;
+        float radiusX = MathF.Min(size, room), radiusZ = MathF.Min(size * aspect, room);
+        float floor = Between(random, HallFloorLeast, HallFloorMost);
+        float height = MathF.Min(Between(random, HallLowest, HallHighest), (FieldY * FieldStep) - RindMetres - 4f - floor);
+        float turn = Between(random, 0f, MathF.PI);
+        List<(Vector2 At, float Radius)> pillars = [];
+        int wanted = FewestPillars + (int)(random.Next() % (ulong)(MostPillars - FewestPillars + 1));
+        for (int attempt = 0; attempt < wanted * 8 && pillars.Count < wanted; attempt++)
+        {
+            float a = Between(random, 0f, MathF.Tau), r = Between(random, 0.25f, 0.7f);
+            Vector2 at = centre + new Vector2(MathF.Cos(a) * r * radiusX, MathF.Sin(a) * r * radiusZ);
+            if (pillars.All(p => Vector2.Distance(p.At, at) >= PillarApart))
+            {
+                pillars.Add((at, Between(random, PillarLeast, PillarMost)));
+            }
+        }
+
+        Hall hall = new(centre, radiusX, radiusZ, turn, floor, height, [.. pillars]);
+        Parallel.For(0, FieldZ, z =>
+        {
+            for (int y = 0; y < FieldY; y++)
+                for (int x = 0; x < FieldX; x++)
+                {
+                    int index = FieldIndex(x, y, z);
+                    Vector3 p = FieldCentre(index);
+                    float reach = hall.Reach(p.X, p.Z);
+                    if (reach > 1.3f || p.Y > floor + height + 4f)
+                    {
+                        continue;
+                    }
+
+                    float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
+                    float nearest = 9f;
+                    foreach (float bed in beds)
+                    {
+                        nearest = MathF.Min(nearest, MathF.Abs(bedY - bed));
+                    }
+
+                    // The walls: upright to where the vault springs, then curving over; wobbling, and stepped back at the beds.
+                    float t = Math.Clamp((p.Y - floor) / height, 0f, 1f);
+                    float wall = t <= HallSpring ? 1f : MathF.Sqrt(MathF.Max(0f, 1f - MathF.Pow((t - HallSpring) / (1f - HallSpring), 2f)));
+                    wall += HallWobble * NaturalCavern.Signed(NaturalCavern.Noise(p * HallWobbleFrequency, seed ^ 0x4A01UL));
+                    float across = MathF.Min(radiusX, radiusZ);
+                    float walls = ((wall - reach) * across) + (HallBand * MathF.Max(0f, 1f - nearest));
+                    // The vault itself, read upward, so its crown is as round as its sides.
+                    float roof = hall.RoofAt(reach) + (HallBand * MathF.Max(0f, 1f - nearest)) - p.Y;
+                    // The floor: rolling, and stepped in rimstone terraces over part of it.
+                    float ground = floor + (HallFloorRoll * NaturalCavern.Signed(NaturalCavern.Noise(new Vector3(p.X, 0f, p.Z) * HallFloorFrequency, seed ^ 0x4A02UL)));
+                    float terraced = MathF.Round(ground / HallTerrace) * HallTerrace;
+                    float terraces = NaturalCavern.SmoothStep(0.45f, 0.6f, NaturalCavern.Noise(new Vector3(p.X, 7f, p.Z) * HallFloorFrequency, seed ^ 0x4A03UL)) * HallTerraceShare;
+                    ground += (terraced - ground) * terraces;
+                    // The walls and the vault meet in one surface; the vault read upward grades the crown, the walls read across grade the sides.
+                    float shape = MathF.Min(MathF.Min(walls, roof), p.Y - ground);
+                    float value = NaturalCavern.SmoothMax(open[index], shape, HallBlend);
+                    // The pillars: what did not dissolve, flared where it meets the floor and the vault.
+                    foreach ((Vector2 at, float radius) in pillars)
+                    {
+                        float top = hall.RoofAt(hall.Reach(at.X, at.Y));
+                        float flare = 1f + (PillarFlare * (MathF.Exp(-(p.Y - floor) / PillarFootFlare) + MathF.Exp(-(top - p.Y) / PillarHeadFlare)));
+                        float girth = radius * flare * (1f + (0.15f * NaturalCavern.Signed(NaturalCavern.Noise(p * 0.2f, seed ^ 0x4A04UL))));
+                        value = NaturalCavern.SmoothMin(value, Vector2.Distance(new Vector2(p.X, p.Z), at) - girth, PillarBlend);
+                    }
+
+                    open[index] = Math.Clamp(value, -FieldLimit, FieldLimit);
+                }
+        });
+
+        // Boulders heaped against the walls, where the vault shed its slabs.
+        int boulders = HallFewestBoulders + (int)(random.Next() % (ulong)(HallMostBoulders - HallFewestBoulders + 1));
+        for (int i = 0; i < boulders; i++)
+        {
+            float a = Between(random, 0f, MathF.Tau), r = Between(random, 0.65f, 0.92f);
+            float cos = MathF.Cos(-turn), sin = MathF.Sin(-turn);
+            Vector2 local = new(MathF.Cos(a) * r * radiusX, MathF.Sin(a) * r * radiusZ);
+            Vector2 at = centre + new Vector2((local.X * cos) - (local.Y * sin), (local.X * sin) + (local.Y * cos));
+            Block(open, new Vector3(at.X, floor + (height * HallSpring * 0.5f), at.Y), random, HallBoulder);
+        }
+
+        return hall;
+    }
+
+    // The hall's light (owner, 2026-10-19: large, bright, distant sources, every one a thing to see): giant glowing fungi
+    // standing on its floor, a few great crystal blooms hanging from its vault, and glow-worms spread over the vault like
+    // stars; how many of each, how far apart, and how far in from the walls.
+    private const int FewestGiants = 5, MostGiants = 9, FewestVaultBlooms = 1, MostVaultBlooms = 3, MostHallStars = 30;
+    private const float GiantsApart = 9f, GiantsWithin = 0.85f, GiantClearOfPillar = 3f, VaultBloomsWithin = 0.5f, VaultBloomsApart = 14f;
+    private const float StarsApart = 5f, StarsWithin = 0.9f;
+
+    private static IEnumerable<EcologyPlacement> HallGrowths(float[] open, Hall hall, ulong seed, DungeonRandom random)
+    {
+        List<EcologyPlacement> growths = [];
+        Vector2 Within(float share)
+        {
+            float a = Between(random, 0f, MathF.Tau), r = share * MathF.Sqrt(Between(random, 0f, 1f));
+            float cos = MathF.Cos(-hall.Turn), sin = MathF.Sin(-hall.Turn);
+            Vector2 local = new(MathF.Cos(a) * r * hall.RadiusX, MathF.Sin(a) * r * hall.RadiusZ);
+            return hall.Centre + new Vector2((local.X * cos) - (local.Y * sin), (local.X * sin) + (local.Y * cos));
+        }
+
+        uint Seed() => (uint)(random.Next() >> 32);
+        int giants = FewestGiants + (int)(random.Next() % (ulong)(MostGiants - FewestGiants + 1));
+        for (int attempt = 0; attempt < giants * 10 && growths.Count < giants; attempt++)
+        {
+            Vector2 at = Within(GiantsWithin);
+            if (hall.Pillars.Any(p => Vector2.Distance(p.At, at) < p.Radius * (1f + PillarFlare) + GiantClearOfPillar)
+                || growths.Any(g => Vector2.Distance(new Vector2(g.At.X, g.At.Z), at) < GiantsApart))
+            {
+                continue;
+            }
+
+            Vector3 foot = Floor(open, new Vector3(at.X, hall.Floor + (hall.Height * HallSpring), at.Y));
+            if (foot.Y < hall.Floor + (hall.Height * HallSpring * 0.6f))
+            {
+                growths.Add(new EcologyPlacement(EcologyKind.GiantFungus, foot, Vector3.UnitY, Between(random, 0.7f, 1.4f), Seed()));
+            }
+        }
+
+        int blooms = FewestVaultBlooms + (int)(random.Next() % (ulong)(MostVaultBlooms - FewestVaultBlooms + 1));
+        for (int attempt = 0; attempt < blooms * 10 && growths.Count(g => g.Kind == EcologyKind.VaultBloom) < blooms; attempt++)
+        {
+            Vector2 at = Within(VaultBloomsWithin);
+            if (growths.Any(g => g.Kind == EcologyKind.VaultBloom && Vector2.Distance(new Vector2(g.At.X, g.At.Z), at) < VaultBloomsApart)
+                || hall.Pillars.Any(p => Vector2.Distance(p.At, at) < p.Radius * (1f + PillarFlare) + GiantClearOfPillar))
+            {
+                continue;
+            }
+
+            Vector3 top = Ceiling(open, new Vector3(at.X, hall.Floor + (hall.Height * HallSpring), at.Y));
+            if (top.Y > hall.Floor + (hall.Height * 0.6f))
+            {
+                growths.Add(new EcologyPlacement(EcologyKind.VaultBloom, top, -Vector3.UnitY, Between(random, 1f, 1.6f), Seed()));
+            }
+        }
+
+        // A hall always has its sun: failing a clear place, the vault over its middle.
+        if (!growths.Any(g => g.Kind == EcologyKind.VaultBloom))
+        {
+            Vector3 top = Ceiling(open, new Vector3(hall.Centre.X, hall.Floor + (hall.Height * HallSpring), hall.Centre.Y));
+            growths.Add(new EcologyPlacement(EcologyKind.VaultBloom, top, -Vector3.UnitY, Between(random, 1f, 1.6f), Seed()));
+        }
+
+        for (int attempt = 0; attempt < MostHallStars * 6 && growths.Count(g => g.Kind == EcologyKind.GlowWorms) < MostHallStars; attempt++)
+        {
+            Vector2 at = Within(StarsWithin);
+            Vector3 top = Ceiling(open, new Vector3(at.X, hall.Floor + (hall.Height * HallSpring), at.Y));
+            if (top.Y > hall.Floor + (hall.Height * 0.5f) && !growths.Any(g => g.Kind != EcologyKind.GiantFungus && Vector3.Distance(g.At, top) < StarsApart))
+            {
+                growths.Add(new EcologyPlacement(EcologyKind.GlowWorms, top, -Vector3.UnitY, Between(random, 1.2f, 2f), Seed()));
+            }
+        }
+
+        return growths;
     }
 
     // Ecology (#10129): how far apart growths of a kind stand, how many a cave may have, how damp a quiet floor must be
@@ -368,6 +567,8 @@ internal static class KarstCave
         internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
         internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
+        /// <summary>The great hall, when the cave has one.</summary>
+        internal required Hall? GreatHall { get; init; }
         internal required bool SkyOpen { get; init; }
         /// <summary>The era each field sample was opened in (<see cref="Unformed"/> where never), and the samples sediment filled.</summary>
         internal required byte[] Formed { get; init; }
@@ -510,9 +711,9 @@ internal static class KarstCave
         internal required int Formations { get; init; }
     }
 
-    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d)
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, bool? hall = null)
     {
-        Result cave = Build(seed);
+        Result cave = Build(seed, hall);
         Func<Vector3, float> shape = cave.At;
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, cave.RockAt);
         // The arrival is underground, at the foot of the first sink, even when the surface is open above it.
@@ -549,6 +750,7 @@ internal static class KarstCave
             Shape = shape,
             VoxelSize = voxelSize,
             SkyOpen = cave.SkyOpen,
+            GreatHall = cave.GreatHall is not null,
             Ecology = cave.Ecology,
         };
         return (layout, plan, new DungeonVerdict(true, Readout(cave), 0), volume);
@@ -556,12 +758,12 @@ internal static class KarstCave
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
     /// <summary>Generates the cave: the rock, the water's rounds through it, the shapes it leaves, and the passages checked.</summary>
-    internal static Result Build(ulong seed)
+    internal static Result Build(ulong seed, bool? hall = null)
     {
         long started = Stopwatch.GetTimestamp();
         DungeonRandom random = new(seed);
@@ -578,7 +780,7 @@ internal static class KarstCave
 
         // The cave's history: a few eras drawn without repeats, in the order they happen, the water table falling from
         // one to the next. A cave always has an era of flowing water.
-        Era[] eras = DrawEras(random);
+        Era[] eras = DrawEras(random, hall);
         float[] tables = [.. eras.Select((_, i) => eras.Length == 1 ? LowestTable : HighestTable + ((LowestTable - HighestTable) * i / (eras.Length - 1)))];
         float finalTable = tables[^1];
 
@@ -594,6 +796,7 @@ internal static class KarstCave
         List<(Vector3 At, float Share, int Era)> passages0 = [];
         Vector3? sponge = null;
         (Vector3 Floor, float Radius)? tiankeng = null;
+        Hall? greatHall = null;
         bool skyOpen = false;
         Vector3 spring = new((GridX - 2.5f) * GridCell, finalTable - 2f, GridZ * GridCell * 0.5f);
         int carved = 0;
@@ -623,6 +826,9 @@ internal static class KarstCave
                     break;
                 case Era.Breakdown:
                     Collapses(open, beds, passages0, index, random, chambers);
+                    break;
+                case Era.GreatHall:
+                    greatHall = GreatHall(open, beds, seed, random);
                     break;
                 case Era.Tiankeng:
                     tiankeng = Tiankeng(open, beds, passages0, seed, random);
@@ -679,6 +885,10 @@ internal static class KarstCave
         }
 
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed);
+        if (greatHall is Hall builtHall)
+        {
+            ecology.AddRange(HallGrowths(open, builtHall, seed, random));
+        }
 
         // A feature's place is the most open point near it, so its light and its view stand in the space, not in rock.
         sponge = sponge is Vector3 found ? MostOpenNear(open, found, SpongeRadii.Y) : null;
@@ -704,6 +914,7 @@ internal static class KarstCave
             Eras = eras,
             Ecology = ecology,
             Tiankeng = tiankeng,
+            GreatHall = greatHall,
             SkyOpen = skyOpen,
             Formed = formed,
             Sediment = sediment,
@@ -744,9 +955,9 @@ internal static class KarstCave
     }
 
     /// <summary>A cave's eras: between the fewest and most, no kind twice, in the order they happen, at least one flowing.</summary>
-    private static Era[] DrawEras(DungeonRandom random)
+    private static Era[] DrawEras(DungeonRandom random, bool? hall)
     {
-        List<Era> pool = [.. Enum.GetValues<Era>()];
+        List<Era> pool = [.. Enum.GetValues<Era>().Where(era => era != Era.GreatHall)];
         int count = FewestEras + (int)(random.Next() % (ulong)(MostEras - FewestEras + 1));
         List<Era> drawn = [];
         for (int i = 0; i < count; i++)
@@ -761,6 +972,12 @@ internal static class KarstCave
             drawn[0] = Chance(random, 0.5f) ? Era.Phreatic : Era.VadoseCanyons;
         }
 
+        // A great hall is rare, and drawn apart from the rest; a study may ask for one or rule it out.
+        if (hall ?? Chance(random, GreatHallChance))
+        {
+            drawn.Add(Era.GreatHall);
+        }
+
         // Eras that work on passages already there (floods backing up, sediment, fractures opened from them, collapse) come
         // after the first era that opened any; with only a late stream, they follow the stream.
         List<Era> ordered = [.. drawn.Distinct().OrderBy(era => era)];
@@ -772,7 +989,7 @@ internal static class KarstCave
     }
 
     /// <summary>Eras that act on passages an earlier era opened.</summary>
-    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown or Era.Tiankeng;
+    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown or Era.GreatHall or Era.Tiankeng;
 
     /// <summary>
     /// A flowing era: the active sinks' water takes the cheapest way to the era's spring, round after round, the ways

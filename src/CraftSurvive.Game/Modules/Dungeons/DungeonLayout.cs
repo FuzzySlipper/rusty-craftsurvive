@@ -29,6 +29,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>Whether the space opens to the sky (a cave with a tiankeng, #10094): the sky and the sun reach in through its openings.</summary>
     internal bool SkyOpen { get; init; }
 
+    /// <summary>Whether a natural space has a great hall, whose air carries a haze of its lights (#10094).</summary>
+    internal bool GreatHall { get; init; }
+
     /// <summary>The cave's living light (#10129): where its glowing growths stand, in layout metres; empty for built dungeons.</summary>
     internal IReadOnlyList<EcologyPlacement> Ecology { get; init; } = [];
 

@@ -172,14 +172,15 @@ internal sealed class DungeonModule : IProductModule
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival), loading.Layout.Natural);
                     // The open world is not drawn while away: it costs nothing and cannot show through an opening to the sky.
                     terrain.DrawOpenWorld(false);
-                    sky.Underground(true, conditions.Time, loading.Layout.SkyOpen);
+                    sky.Underground(true, conditions.Time, loading.Layout.SkyOpen, loading.Layout.GreatHall);
                     Light(Darkness.Torches switch
                     {
                         TorchShare.All => loading.Layout.Lights,
                         TorchShare.Sparse => [.. loading.Layout.Lights.Where((_, i) => i % SparseTorchEvery == 0)],
                         _ => [],
                     });
-                    sky.StudyLight(Darkness.Fill ?? -1f, Darkness.Fog ?? -1f);
+                    // A great hall keeps its own thin air, whatever the darkness treatment's fog.
+                    sky.StudyLight(Darkness.Fill ?? -1f, loading.Layout.GreatHall ? -1f : Darkness.Fog ?? -1f);
                     GrowthLights(loading.Layout.Ecology);
                     IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
@@ -265,7 +266,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Generates one of the entrance's candidates and starts loading it.</summary>
     private string Load(int index)
     {
-        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index, DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize);
+        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index, DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize, studyHall);
         candidateIndex = index;
         plan = candidate.Plan;
         walkable = candidate.Walkable;
@@ -378,19 +379,28 @@ internal sealed class DungeonModule : IProductModule
 
     /// <summary>
     /// Lights the strongest growths: small, coloured, unshadowed lights a little off each, so the light around a glowing
-    /// thing is that thing's. Glow-worm curtains and fungi first (they are the cave's life), then crystals.
+    /// thing is that thing's. A great hall's vault blooms (shadowed: the hall's sun) and giant fungi first, then glow-worm
+    /// curtains and fungi (the cave's life), then crystals.
     /// </summary>
     private void GrowthLights(IReadOnlyList<EcologyPlacement> growths)
     {
-        EcologyPlacement[] lit = [.. growths.OrderBy(g => g.Kind switch { EcologyKind.GlowWorms => 0, EcologyKind.GlowFungi => 1, _ => 2 }).ThenByDescending(g => g.Size).Take(MostGrowthLights)];
+        EcologyPlacement[] lit = [.. growths.OrderBy(g => g.Kind switch
+            {
+                EcologyKind.VaultBloom => 0,
+                EcologyKind.GiantFungus => 1,
+                EcologyKind.GlowWorms => 2,
+                EcologyKind.GlowFungi => 3,
+                _ => 4,
+            }).ThenByDescending(g => g.Size).Take(MostGrowthLights)];
         for (int slot = 0; slot < MostGrowthLights; slot++)
         {
             bool on = slot < lit.Length;
             (Vector3 colour, float intensity, float range) = on ? CaveEcology.LightOf(lit[slot].Kind) : (Vector3.One, 0f, 1f);
-            Vector3 at = on ? DungeonSpace.InSession(lit[slot].At + (lit[slot].Normal * GrowthLightOffset)) : Vector3.Zero;
+            Vector3 at = on ? DungeonSpace.InSession(CaveEcology.LightAt(lit[slot], GrowthLightOffset)) : Vector3.Zero;
+            LightShadowIntent shadow = on && CaveEcology.Shadowed(lit[slot].Kind) ? LightShadowIntent.Requested : LightShadowIntent.Disabled;
             LightRequest request = new(ProductIds.DungeonGrowthLightBase + (ulong)slot, false, 0UL,
                 new LightDescriptor(LightKind.Point, colour, intensity, on, at, -Vector3.UnitY, true, range, LightDecay, 0f, 0f,
-                    LightShadowIntent.Disabled, LightShadowResolution, LightShadowPriority, true));
+                    shadow, LightShadowResolution, LightShadowPriority, true));
             if (growthLights[slot] is Light light)
             {
                 engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
@@ -569,6 +579,29 @@ internal sealed class DungeonModule : IProductModule
         }
 
         return material;
+    }
+
+    /// <summary>For the great hall study (#10094): whether karst caves have a great hall - always, never, or by chance (null).</summary>
+    private bool? studyHall;
+
+    internal string StudyHall(string choice)
+    {
+        switch (choice)
+        {
+            case "on":
+                studyHall = true;
+                break;
+            case "off":
+                studyHall = false;
+                break;
+            case "auto":
+                studyHall = null;
+                break;
+            default:
+                return $"great hall refused: \"{choice}\" is not on, off or auto";
+        }
+
+        return $"karst caves entered next: great hall {choice}";
     }
 
     /// <summary>The natural cavern study's voxel side in metres (#10094): 1, or finer for micro-voxels.</summary>

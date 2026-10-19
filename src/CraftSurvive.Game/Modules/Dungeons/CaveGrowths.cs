@@ -13,6 +13,12 @@ internal enum EcologyKind
 
     /// <summary>Faintly glowing prisms on old, dry levels: almost the only thing there.</summary>
     CrystalBloom,
+
+    /// <summary>A great hall's giant fungus: a tall stalk under a broad cap glowing from beneath, lighting the floor round it.</summary>
+    GiantFungus,
+
+    /// <summary>A great hall's crystal bloom hanging from the vault: the brightest light there, a sun for the hall.</summary>
+    VaultBloom,
 }
 
 /// <summary>One growth: what it is, where it stands, which way its surface faces, how big it is, and its own seed.</summary>
