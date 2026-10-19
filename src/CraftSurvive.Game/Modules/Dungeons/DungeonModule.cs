@@ -406,11 +406,12 @@ internal sealed class DungeonModule : IProductModule
             "v" => DungeonApproach.Vertical,
             "s" => DungeonApproach.Shaft,
             "n" => DungeonApproach.Natural,
+            "k" => DungeonApproach.Karst,
             _ => null,
         };
         if (chosen is not DungeonApproach next)
         {
-            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules), c (sculpted cave), v (chasm sketch) or s (shaft sketch)";
+            return $"approach refused: \"{name}\" is not a (carve and stamp), b (modules), c (sculpted cave), v (chasm sketch), s (shaft sketch), n (natural cavern study) or k (karst cave study)";
         }
 
         approach = next;

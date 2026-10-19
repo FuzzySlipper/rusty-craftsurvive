@@ -20,6 +20,9 @@ internal enum DungeonApproach
 
     /// <summary>N: the rock route study's natural cavern (#10090), shaped freely with no regard for routes.</summary>
     Natural,
+
+    /// <summary>K: the cave generator study (#10094), a cave made by water in bedded, jointed rock.</summary>
+    Karst,
 }
 
 /// <summary>One generated dungeon: its layout, its plan, the generator's own verdict, and the voxel copy that was walked.</summary>
@@ -64,6 +67,9 @@ internal static class DungeonCandidates
             case DungeonApproach.Shaft:
                 var shaft = VerticalSampler.Shaft(seed);
                 return new DungeonCandidate(index, seed, shaft.Layout, shaft.Plan, shaft.Verdict, shaft.Walkable);
+            case DungeonApproach.Karst:
+                var karst = KarstCave.Generate(seed, voxelSize);
+                return new DungeonCandidate(index, seed, karst.Layout, karst.Plan, karst.Verdict, karst.Walkable);
             case DungeonApproach.Natural:
                 var natural = NaturalCavern.Generate(seed, voxelSize);
                 return new DungeonCandidate(index, seed, natural.Layout, natural.Plan, natural.Verdict, natural.Walkable);

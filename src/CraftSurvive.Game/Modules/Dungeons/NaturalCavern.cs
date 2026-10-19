@@ -84,37 +84,13 @@ internal static class NaturalCavern
     /// <param name="voxelSize">The voxels' side in metres: the world's block, or finer for the micro-voxel study (#10094). The field is the same metres whatever it is.</param>
     internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d)
     {
-        int perMetre = (int)Math.Round(1d / voxelSize);
-        float size = (float)voxelSize;
-        DungeonVolume volume = new(ChunksX * perMetre, ChunksY * perMetre, ChunksZ * perMetre, BlockId.Air);
-        int width = volume.SizeX, height = volume.SizeY, depth = volume.SizeZ;
-        float[] values = new float[width * height * depth];
-        Parallel.For(0, depth, z =>
-        {
-            for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                {
-                    values[(((z * height) + y) * width) + x] = Open(new Vector3((x + 0.5f) * size, (y + 0.5f) * size, (z + 0.5f) * size));
-                }
-        });
-
-        for (int z = 0; z < depth; z++)
-            for (int y = 0; y < height; y++)
-                for (int x = 0; x < width; x++)
-                {
-                    if (values[(((z * height) + y) * width) + x] < 0f)
-                    {
-                        volume.Set(x, y, z, BlockId.Stone);
-                    }
-                }
-
-        RockDensity rock = new(width, height, depth, values);
+        (DungeonVolume volume, RockDensity rock) = StudyField.Sample(Open, ChunksX, ChunksY, ChunksZ, voxelSize);
         DungeonCell arrival = Cell(OnFloor(12f, 22f, 16f));
         DungeonCell shaftFoot = Cell(OnFloor(ShaftAxis.X, ShaftAxis.Y - 4f, 14f));
         DungeonPlan plan = new(seed, 0, DungeonMix.MostlyCave, 1, arrival, shaftFoot,
             [arrival, Cell(OnFloor(22f, 28f, 16f)), Cell(OnFloor(48f, 25.5f, 15f)), shaftFoot, Cell(OnFloor(51f, 61f, 34f))], shaftFoot);
         Vector3 arrive = OnFloor(12f, 22f, 16f);
-        DungeonLayout layout = new("natural-cavern", new DungeonVolume(ChunksX * perMetre, ChunksY * perMetre, ChunksZ * perMetre, BlockId.Air), arrive, OnFloor(10f, 22f, 16f),
+        DungeonLayout layout = new("natural-cavern", new DungeonVolume(volume.ChunksX, volume.ChunksY, volume.ChunksZ, BlockId.Air), arrive, OnFloor(10f, 22f, 16f),
             [.. LightPlaces.Select(place => OnFloor(place.X, place.Z, place.Y) + (Vector3.UnitY * LightAboveFloor))])
         {
             Rock = rock,
@@ -125,21 +101,9 @@ internal static class NaturalCavern
         return (layout, plan, new DungeonVerdict(true, "natural cavern study: routes not asked for", 0), volume);
     }
 
-    /// <summary>The first open place above the floor found looking down from a height, at a column's middle.</summary>
-    private static Vector3 OnFloor(float x, float z, float fromY)
-    {
-        for (float y = fromY; y > 1f; y -= 0.1f)
-        {
-            if (Open(new Vector3(x, y, z)) < 0f)
-            {
-                return new Vector3(x, y + 0.1f, z);
-            }
-        }
+    private static Vector3 OnFloor(float x, float z, float fromY) => StudyField.OnFloor(Open, x, z, fromY);
 
-        return new Vector3(x, fromY, z);
-    }
-
-    private static DungeonCell Cell(Vector3 p) => new((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y + 0.5f), (int)MathF.Floor(p.Z));
+    private static DungeonCell Cell(Vector3 p) => StudyField.Cell(p);
 
     /// <summary>The field at a point of the layout, in metres: positive in the open, negative in rock.</summary>
     internal static float Open(Vector3 p)
@@ -331,24 +295,24 @@ internal static class NaturalCavern
 
     private static float Square(float v) => v * v;
 
-    private static float Signed(float unit) => (unit * 2f) - 1f;
+    internal static float Signed(float unit) => (unit * 2f) - 1f;
 
-    private static float SmoothStep(float edge0, float edge1, float x)
+    internal static float SmoothStep(float edge0, float edge1, float x)
     {
         float t = Math.Clamp((x - edge0) / (edge1 - edge0), 0f, 1f);
         return t * t * (3f - (2f * t));
     }
 
-    private static float SmoothMin(float a, float b, float k)
+    internal static float SmoothMin(float a, float b, float k)
     {
         float h = Math.Clamp(0.5f + (0.5f * (b - a) / k), 0f, 1f);
         return b + ((a - b) * h) - (k * h * (1f - h));
     }
 
-    private static float SmoothMax(float a, float b, float k) => -SmoothMin(-a, -b, k);
+    internal static float SmoothMax(float a, float b, float k) => -SmoothMin(-a, -b, k);
 
     /// <summary>Smooth value noise in [0, 1].</summary>
-    private static float Noise(Vector3 p, ulong seed)
+    internal static float Noise(Vector3 p, ulong seed)
     {
         int ix = (int)MathF.Floor(p.X), iy = (int)MathF.Floor(p.Y), iz = (int)MathF.Floor(p.Z);
         float fx = p.X - ix, fy = p.Y - iy, fz = p.Z - iz;
@@ -361,7 +325,7 @@ internal static class NaturalCavern
             Lerp(Lerp(L(0, 0, 1), L(1, 0, 1), fx), Lerp(L(0, 1, 1), L(1, 1, 1), fx), fy), fz);
     }
 
-    private static float Hash(ulong seed, int x, int y, int z)
+    internal static float Hash(ulong seed, int x, int y, int z)
     {
         ulong h = seed ^ ((ulong)(uint)x * 0x9E37_79B1UL) ^ ((ulong)(uint)y * 0x85EB_CA77UL << 17) ^ ((ulong)(uint)z * 0xC2B2_AE3DUL << 31);
         h ^= h >> 33;
