@@ -192,6 +192,54 @@ internal static class KarstCave
         internal required List<Vector3> MainRoute { get; init; }
         internal required Vector3? MazeAt { get; init; }
         internal required Era[] Eras { get; init; }
+        /// <summary>The era each field sample was opened in (<see cref="Unformed"/> where never), and the samples sediment filled.</summary>
+        internal required byte[] Formed { get; init; }
+        internal required bool[] Sediment { get; init; }
+        /// <summary>The last era that carried water through the cave: what it opened is the active level.</summary>
+        internal required int LastFlowEra { get; init; }
+
+        /// <summary>
+        /// The rock a solid voxel is made of, from the age of the space it faces: washed rock on the active level (opened by
+        /// the last flowing era, or within reach of today's water), patinated rock on levels dry for two eras or more,
+        /// sediment where it settled, plain rock between (#10094).
+        /// </summary>
+        internal BlockId RockAt(Vector3 p)
+        {
+            int x = Math.Clamp((int)(p.X / FieldStep), 0, FieldX - 1), y = Math.Clamp((int)(p.Y / FieldStep), 0, FieldY - 1), z = Math.Clamp((int)(p.Z / FieldStep), 0, FieldZ - 1);
+            if (Sediment[FieldIndex(x, y, z)])
+            {
+                return SedimentRock;
+            }
+
+            // The youngest opening beside the voxel is the space its face looks into.
+            int faces = -1;
+            for (int dz = -1; dz <= 1; dz++)
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, ny = y + dy, nz = z + dz;
+                        if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                        {
+                            continue;
+                        }
+
+                        byte era = Formed[FieldIndex(nx, ny, nz)];
+                        if (era != Unformed && Open[FieldIndex(nx, ny, nz)] > 0f)
+                        {
+                            faces = Math.Max(faces, era);
+                        }
+                    }
+
+            if (faces < 0)
+            {
+                return PlainRock;
+            }
+
+            int age = Eras.Length - 1 - faces;
+            return faces == LastFlowEra || p.Y < FinalTable + WetReach ? WashedRock
+                : age >= PatinaAfterEras ? PatinatedRock
+                : PlainRock;
+        }
         internal required Vector3[] Rifts { get; init; }
         internal required Vector3? Sponge { get; init; }
         /// <summary>Where the water table stands now: above it the cave is open to the air.</summary>
@@ -272,7 +320,7 @@ internal static class KarstCave
     {
         Result cave = Build(seed);
         Func<Vector3, float> shape = cave.At;
-        (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize);
+        (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, cave.RockAt);
         Vector3 arrive = StudyField.OnFloor(shape, cave.SinkPoints[0].X, cave.SinkPoints[0].Z, cave.SinkPoints[0].Y);
         Vector3 spring = StudyField.OnFloor(shape, cave.Spring.X, cave.Spring.Z, cave.Spring.Y + 1f);
         // The lights: the arrival and the spring, a light at each feature off the way (the maze, bedding rooms, then
@@ -282,7 +330,7 @@ internal static class KarstCave
             .. cave.Rifts, .. cave.BeddingRooms, .. cave.Chambers];
         foreach (Vector3 feature in features.Take(MostFeatureLights))
         {
-            lights.Add(StudyField.OnFloor(shape, feature.X, feature.Z, feature.Y + LightAboveFloor) + (Vector3.UnitY * LightAboveFloor));
+            lights.Add(StudyField.OnFloor(shape, feature.X, feature.Z, feature.Y) + (Vector3.UnitY * LightAboveFloor));
         }
 
         int routeLights = MostLights - lights.Count;
@@ -338,6 +386,7 @@ internal static class KarstCave
 
         float[] open = new float[FieldX * FieldY * FieldZ];
         Array.Fill(open, -FieldLimit);
+        bool[] sediment = new bool[open.Length];
         // The era each open sample was first opened in, for what age does to it later.
         byte[] formed = new byte[open.Length];
         Array.Fill(formed, Unformed);
@@ -370,7 +419,7 @@ internal static class KarstCave
                     sponge = Hypogene(open, seed, random);
                     break;
                 case Era.Infill:
-                    Infill(open, formed, (byte)index, seed);
+                    Infill(open, formed, sediment, (byte)index, seed);
                     break;
                 case Era.Breakdown:
                     Collapses(open, beds, passages0, index, random, chambers);
@@ -425,6 +474,10 @@ internal static class KarstCave
             }
         }
 
+        // A feature's place is the most open point near it, so its light and its view stand in the space, not in rock.
+        sponge = sponge is Vector3 found ? MostOpenNear(open, found, SpongeRadii.Y) : null;
+        Vector3[] riftPlaces = [.. rifts.Select(r => MostOpenNear(open, r, RiftRise))];
+        Vector3[] mazePlaces = [.. mazes.Select(m => MostOpenNear(open, m, MazeTop))];
         return new Result
         {
             Open = open,
@@ -436,14 +489,17 @@ internal static class KarstCave
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,
-            MazeAt = mazes.Count > 0 ? mazes[0] : null,
+            MazeAt = mazePlaces.Length > 0 ? mazePlaces[0] : null,
             BeddingRooms = [.. beddingRooms],
             Passages = [.. passages],
             Conduits = carved,
             Seed = seed,
             Formations = formations,
             Eras = eras,
-            Rifts = [.. rifts],
+            Formed = formed,
+            Sediment = sediment,
+            LastFlowEra = Array.FindLastIndex(eras, Flows),
+            Rifts = riftPlaces,
             Sponge = sponge,
             FinalTable = finalTable,
             Milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
@@ -451,6 +507,32 @@ internal static class KarstCave
     }
 
     private const byte Unformed = byte.MaxValue;
+
+    /// <summary>
+    /// The rock blocks the age classes are drawn with (each bound to its own look of the cave rock): plain, washed by the
+    /// active water, patinated by long dry ages, and sediment.
+    /// </summary>
+    internal const BlockId PlainRock = BlockId.Stone, WashedRock = BlockId.Gravel, PatinatedRock = BlockId.Bedrock, SedimentRock = BlockId.Dirt;
+
+    /// <summary>How far above today's water table rock still counts as the active level, and how many dry eras make a patina.</summary>
+    private const float WetReach = 3f;
+    private const int PatinaAfterEras = 2;
+
+    /// <summary>The most open sample within a reach of a place (the place itself when nothing near is open).</summary>
+    private static Vector3 MostOpenNear(float[] open, Vector3 near, float reach)
+    {
+        Vector3 best = near;
+        float most = 0f;
+        ForBox(near, new Vector3(reach), (index, p) =>
+        {
+            if (open[index] > most)
+            {
+                most = open[index];
+                best = p;
+            }
+        });
+        return best;
+    }
 
     /// <summary>A cave's eras: between the fewest and most, no kind twice, in the order they happen, at least one flowing.</summary>
     private static Era[] DrawEras(DungeonRandom random)
@@ -699,7 +781,7 @@ internal static class KarstCave
     }
 
     /// <summary>Sediment: the floors of passages older than this era filled flat, deeper in some places than others.</summary>
-    private static void Infill(float[] open, byte[] formed, byte era, ulong seed)
+    private static void Infill(float[] open, byte[] formed, bool[] sediment, byte era, ulong seed)
     {
         Parallel.For(0, FieldZ, z =>
         {
@@ -734,6 +816,7 @@ internal static class KarstCave
                         }
 
                         open[above] = MathF.Min(open[above], FieldCentre(above).Y - surface);
+                        sediment[above] |= open[above] <= 0f;
                     }
                 }
             }

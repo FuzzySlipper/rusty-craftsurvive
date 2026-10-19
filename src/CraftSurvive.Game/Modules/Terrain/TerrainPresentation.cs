@@ -111,8 +111,8 @@ internal sealed class TerrainPresentation : IDisposable
     /// Draws another session with the same block materials: a separate space built from the same
     /// atlas. The caller owns the projection and disposes it with the session.
     /// </summary>
-    /// <param name="rock">The material the space's rock blocks draw in; the cave rock by default.</param>
-    internal VoxelScenePresentation ProjectAnother(SpatialSession session, Material? rock = null) =>
+    /// <param name="rock">The material each of the space's rock blocks draws in; the cave rock for any not given.</param>
+    internal VoxelScenePresentation ProjectAnother(SpatialSession session, IReadOnlyDictionary<BlockId, Material>? rock = null) =>
         engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             session,
             SeparateBindings(rock),
@@ -129,9 +129,9 @@ internal sealed class TerrainPresentation : IDisposable
         (ground ?? throw new InvalidOperationException("Terrain ground materials are unavailable.")).PlainWithShader(CaveRockName, shader);
 
     /// <summary>A separate space's bindings: the world's blocks unblended, its rock in the cave rock.</summary>
-    private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings(Material? rock) =>
+    private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings(IReadOnlyDictionary<BlockId, Material>? rock) =>
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
-            ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? rock ?? CaveRock
+            ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? rock?.GetValueOrDefault(block.Id) ?? CaveRock
                 : ground?.For(block.Id, blend: false) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     /// <summary>Re-meshes the projection after the scene or the world origin changed.</summary>

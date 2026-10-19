@@ -263,7 +263,7 @@ internal sealed class DungeonModule : IProductModule
             space = DungeonSurfaces.RockAsMesh(surface)
                 ? new DungeonSpace(engine, terrain, candidate.Layout,
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
-                : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface);
+                : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface, RockByAge());
         }
         catch (EngineCallException refusal)
         {
@@ -368,7 +368,7 @@ internal sealed class DungeonModule : IProductModule
     private static readonly Vector4 DefaultRockPixels = new(0.06f, 2f, 2f, 0.6f);
     private Vector4? rockDetail = DefaultRockDetail;
     private RenderResource? rockDetailShader;
-    private readonly Dictionary<(Vector4 Detail, bool Palette, Vector4 Pixels), Material> rockDetailMaterials = [];
+    private readonly Dictionary<(Vector4 Detail, bool Palette, Vector4 Pixels, Vector4 Age), Material> rockDetailMaterials = [];
     /// <summary>The detail shader's colour cell (metres) and facet step count; zero for none and the default.</summary>
     private Vector4 rockPixels = DefaultRockPixels;
     /// <summary>Whether the detail shader also replaces the painted texture's colour with the cave's own palette.</summary>
@@ -403,7 +403,35 @@ internal sealed class DungeonModule : IProductModule
         return palette ? "the next dungeon's voxel rock takes the cave palette" : "the next dungeon's voxel rock takes its painted texture's colour";
     }
 
-    private Material? StudyRockDetail()
+    private Material? StudyRockDetail() => RockLook(Vector4.Zero);
+
+    /// <summary>
+    /// The cave rock's look for each age class (#10094): what a voxel's rock block says of the space it faces - plain,
+    /// washed by the active water, patinated by long dry ages, or sediment - as the shader's age parameters.
+    /// </summary>
+    private static readonly (BlockId Block, Vector4 Age)[] AgeLooks =
+    [
+        (KarstCave.PlainRock, Vector4.Zero),
+        (KarstCave.WashedRock, new Vector4(0f, 1f, 0f, 0f)),
+        (KarstCave.PatinatedRock, new Vector4(1f, 0f, 0f, 0f)),
+        (KarstCave.SedimentRock, new Vector4(0f, 0f, 1f, 0f)),
+    ];
+
+    private Dictionary<BlockId, Material>? RockByAge()
+    {
+        Dictionary<BlockId, Material> looks = [];
+        foreach ((BlockId block, Vector4 age) in AgeLooks)
+        {
+            if (RockLook(age) is Material look)
+            {
+                looks[block] = look;
+            }
+        }
+
+        return looks.Count > 0 ? looks : null;
+    }
+
+    private Material? RockLook(Vector4 age)
     {
         if (rockDetail is null && !rockPalette)
         {
@@ -411,13 +439,13 @@ internal sealed class DungeonModule : IProductModule
         }
 
         Vector4 detail = rockDetail ?? Vector4.Zero;
-        if (!rockDetailMaterials.TryGetValue((detail, rockPalette, rockPixels), out Material? material))
+        if (!rockDetailMaterials.TryGetValue((detail, rockPalette, rockPixels, age), out Material? material))
         {
             rockDetailShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(RockDetailShaderPath)).Handle;
             // The palette needs the layout's height (the session lies below the open world) and the beds' dip.
             Vector4 palette = rockPalette ? new Vector4(1f, -DungeonCollision.Origin.Y, KarstCave.BedDip.X, KarstCave.BedDip.Y) : Vector4.Zero;
-            material = terrain.CaveRockWithShader(new MaterialShader(rockDetailShader, detail, palette, rockPixels, Vector4.Zero));
-            rockDetailMaterials[(detail, rockPalette, rockPixels)] = material;
+            material = terrain.CaveRockWithShader(new MaterialShader(rockDetailShader, detail, palette, rockPixels, age));
+            rockDetailMaterials[(detail, rockPalette, rockPixels, age)] = material;
         }
 
         return material;

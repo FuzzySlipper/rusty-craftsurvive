@@ -11,7 +11,9 @@ internal static class StudyField
 {
     /// <summary>The field sampled at each voxel's centre (in metres, positive open), and the voxels as stone where it is solid.</summary>
     /// <param name="chunksX">The span in one-metre chunks; a finer voxel has more chunks over the same metres.</param>
-    internal static (DungeonVolume Volume, RockDensity Rock) Sample(Func<Vector3, float> open, int chunksX, int chunksY, int chunksZ, double voxelSize)
+    /// <param name="rock">Which rock block a solid voxel is, by where it is; stone when not given.</param>
+    internal static (DungeonVolume Volume, RockDensity Rock) Sample(Func<Vector3, float> open, int chunksX, int chunksY, int chunksZ, double voxelSize,
+        Func<Vector3, BlockId>? rock = null)
     {
         int perMetre = (int)Math.Round(1d / voxelSize);
         float size = (float)voxelSize;
@@ -33,7 +35,7 @@ internal static class StudyField
                 {
                     if (values[(((z * height) + y) * width) + x] < 0f)
                     {
-                        volume.Set(x, y, z, BlockId.Stone);
+                        volume.Set(x, y, z, rock?.Invoke(new Vector3((x + 0.5f) * size, (y + 0.5f) * size, (z + 0.5f) * size)) ?? BlockId.Stone);
                     }
                 }
 
