@@ -182,6 +182,7 @@ internal sealed class DungeonModule : IProductModule
                     // A great hall keeps its own thin air, whatever the darkness treatment's fog.
                     sky.StudyLight(Darkness.Fill ?? -1f, loading.Layout.GreatHall ? -1f : Darkness.Fog ?? -1f);
                     GrowthLights(loading.Layout.Ecology);
+                    Mist(loading.Layout.Mist);
                     IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
                     entered++;
@@ -410,6 +411,30 @@ internal sealed class DungeonModule : IProductModule
                 growthLights[slot] = engine.Graphics.CreateLight(request);
             }
         }
+    }
+
+    // --- A great hall's mist (#10094) ---
+
+    /// <summary>How thick a hall's floor mist is at its heart, the colour it scatters, how softly it fades at its edge, and how its drifting cells thin it.</summary>
+    private const float MistDensity = 0.12f, MistEdge = 0.6f, MistNoiseScale = 6f, MistNoiseStrength = 0.6f;
+    private static readonly Vector3 MistAlbedo = new(0.85f, 0.9f, 1f), MistDrift = new(0.15f, 0f, 0.05f);
+    private int mistPlaced;
+
+    /// <summary>Lays a natural space's low mist (lit only by the lights within it), or clears it.</summary>
+    private void Mist(IReadOnlyList<MistVolume> mist)
+    {
+        for (int i = 0; i < mist.Count; i++)
+        {
+            engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, DungeonSpace.InSession(mist[i].Centre),
+                mist[i].HalfExtents, mist[i].YawDegrees, MistDensity, MistAlbedo, Vector3.Zero, MistEdge, MistNoiseScale, MistNoiseStrength, MistDrift));
+        }
+
+        for (int i = mist.Count; i < mistPlaced; i++)
+        {
+            engine.CameraView.RemoveFogVolume(new FogVolumeRemoval(ProductIds.DungeonMistBase + (uint)i));
+        }
+
+        mistPlaced = mist.Count;
     }
 
     // --- The darkness study (#10091) ---
@@ -950,6 +975,7 @@ internal sealed class DungeonModule : IProductModule
     {
         Light([]);
         GrowthLights([]);
+        Mist([]);
         engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
         Retire();
         plan = null;

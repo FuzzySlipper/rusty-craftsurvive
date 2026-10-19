@@ -586,6 +586,7 @@ internal sealed class DayNightSky : IDisposable
         underground = below;
         skylit = below && skyOpen;
         hazed = below && hallHaze;
+        HallAir(hazed);
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
@@ -628,6 +629,39 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     private static readonly Color HallHaze = new(0.012f, 0.026f, 0.045f, 1f);
     private const float HallHazeDensity = 0.012f;
+
+    // A great hall's lit air (#10094): the medium the volumetric fog fills it with - how thick, the colour it scatters, how
+    // much it glows toward a light it is looked through, and how far the fog grid reaches - and the fog quality used there.
+    private const float HallMediumDensity = 0.006f, HallMediumAnisotropy = 0.5f, HallMediumDistance = 90f;
+    private static readonly Vector3 HallMediumAlbedo = new(0.85f, 0.9f, 1f);
+    private const VolumetricFogQuality HallFogQuality = VolumetricFogQuality.Low;
+
+    /// <summary>The volumetric fog setting before a great hall turned it on, restored on leaving; null while not in a hall.</summary>
+    private VolumetricFogQuality? volumetricBefore;
+
+    /// <summary>
+    /// A great hall's air lit by its own lights (owner, 2026-10-19: haze giving large spaces a diffuse glow): the volumetric
+    /// fog's medium fills the hall, so every light in it - the vault's blooms, the giants, the lantern - glows in the air
+    /// round it and its shadows fall through the air as shafts. Nothing in the air glows of itself: its light is the lights'.
+    /// </summary>
+    private void HallAir(bool on)
+    {
+        RendererSettingsRequest now = engine.RendererSettings.Read().Requested;
+        if (on)
+        {
+            volumetricBefore ??= now.VolumetricFog;
+            engine.RendererSettings.Set(now with { VolumetricFog = HallFogQuality });
+            engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: HallMediumDensity, Albedo: HallMediumAlbedo, Anisotropy: HallMediumAnisotropy,
+                BaseHeight: 0f, FalloffHeight: 0f, Distance: HallMediumDistance, Ambient: 0f));
+        }
+        else if (volumetricBefore is VolumetricFogQuality before)
+        {
+            engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: 0f, Albedo: HallMediumAlbedo, Anisotropy: 0f,
+                BaseHeight: 0f, FalloffHeight: 0f, Distance: HallMediumDistance, Ambient: 0f));
+            engine.RendererSettings.Set(now with { VolumetricFog = before });
+            volumetricBefore = null;
+        }
+    }
 
     private void RelightUnderground() => Relight(
         Off,

@@ -109,6 +109,9 @@ internal static class ProductIds
     /// <summary>The player's lantern in a dungeon, for the darkness study (#10091).</summary>
     internal const ulong DungeonLanternLight = 0x2F0UL;
 
+    /// <summary>A natural space's mist volumes (#10094) are this base plus their index (fog volumes are their own id space).</summary>
+    internal const uint DungeonMistBase = 0x100U;
+
     /// <summary>Retained fire emitters: three per lamp slot and per dungeon torch slot (#9547).</summary>
     internal const ulong LampFireBase = 0x300UL;
     internal const ulong DungeonFireBase = 0x400UL;

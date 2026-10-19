@@ -373,6 +373,13 @@ internal static class KarstCave
         return hall;
     }
 
+    // The mist lying on a hall's floor: how far over the floor it spreads, how deep it lies, and how high its middle sits.
+    private const float MistSpread = 0.95f, MistDepth = 4f, MistAboveFloor = 1f;
+
+    /// <summary>The mist on a hall's floor: a broad, shallow ellipsoid filling the hall's lower metres.</summary>
+    private static MistVolume HallMist(Hall hall) => new(new Vector3(hall.Centre.X, hall.Floor + MistAboveFloor, hall.Centre.Y),
+        new Vector3(hall.RadiusX * MistSpread, MistDepth, hall.RadiusZ * MistSpread), -hall.Turn * 180f / MathF.PI);
+
     // The hall's light (owner, 2026-10-19: large, bright, distant sources, every one a thing to see): giant glowing fungi
     // standing on its floor, a few great crystal blooms hanging from its vault, and glow-worms spread over the vault like
     // stars; how many of each, how far apart, and how far in from the walls.
@@ -751,6 +758,7 @@ internal static class KarstCave
             VoxelSize = voxelSize,
             SkyOpen = cave.SkyOpen,
             GreatHall = cave.GreatHall is not null,
+            Mist = cave.GreatHall is Hall mistHall ? [HallMist(mistHall)] : [],
             Ecology = cave.Ecology,
         };
         return (layout, plan, new DungeonVerdict(true, Readout(cave), 0), volume);

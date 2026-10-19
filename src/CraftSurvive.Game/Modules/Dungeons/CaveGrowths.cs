@@ -21,5 +21,8 @@ internal enum EcologyKind
     VaultBloom,
 }
 
+/// <summary>A low mist lying in a natural space (#10094), in layout metres: an ellipsoid turned about the vertical.</summary>
+internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees);
+
 /// <summary>One growth: what it is, where it stands, which way its surface faces, how big it is, and its own seed.</summary>
 internal readonly record struct EcologyPlacement(EcologyKind Kind, Vector3 At, Vector3 Normal, float Size, uint Seed);
