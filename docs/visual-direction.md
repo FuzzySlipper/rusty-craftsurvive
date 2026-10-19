@@ -224,8 +224,11 @@ historical region, an industrial aesthetic or a glowing ancient-machine motif.
   stay readable.
   - Their built parts are textured kit meshes on a grid, like the overworld's
     places.
-  - Their rock may stay carved voxels or become pieced or procedural meshes,
-    chosen by testing look and cost.
+  - Their caves are layered, not one rock texture: an editable voxel
+    structure shaped by water, reshaped to seat the ruins, then dressed with
+    instanced geological features (columns, stalagmites, curtains, breakdown,
+    crystals, rimstone, gravel), several cave ground materials and growth where
+    light and moisture allow. Detail comes from the features, not the mesher.
   - Nothing of the earlier faceted dungeon look is assumed. That includes how
     darkness is made (owner, 2026-10-18; see the atlas's Combat & Delving).
 
