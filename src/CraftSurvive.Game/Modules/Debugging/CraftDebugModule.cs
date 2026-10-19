@@ -51,6 +51,13 @@ public sealed class CraftDebugModule : IDebugCommandModule
         return player.DebugReadout();
     }
 
+    [DebugCommand("craft.player.climbprobe", Description = "Assisted (#10126): reads the natural face toward a heading (degrees: 0 faces -z, 90 faces +x) as a climber would - whether it can be held, how high it goes, the grip, and what stops it - without climbing.")]
+    public string ClimbProbe(float headingDegrees)
+    {
+        float r = headingDegrees * MathF.PI / 180f;
+        return player.DescribeClimb(new System.Numerics.Vector3(MathF.Sin(r), 0f, -MathF.Cos(r)));
+    }
+
     [DebugCommand("craft.player.readout", Description = "Reads the latest admitted player input, fixed-step, motion, and pose facts.")]
     public string ReadPlayer() => player.DebugReadout();
 

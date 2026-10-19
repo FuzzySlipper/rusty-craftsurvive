@@ -602,6 +602,41 @@ Check.That(PlayerClimb.Find(0.3, 0, 0.5, new Vector2(-1f, 0f), 1f, ClimbGrip.Tak
     && Math.Abs(west.X - (PlayerConstants.CapsuleRadius + PlayerClimb.StandoffMetres)) < 1e-9,
     "a face toward negative X must be held from its positive side");
 
+// Natural faces (#10126): the rock itself limits a climb. Samples every half metre up from the feet.
+ClimbSample Rock(double h, BlockId block, float normalY = 0f) => new(h, 0.1, new Vector3(MathF.Sqrt(1f - (normalY * normalY)), normalY, 0f), block);
+ClimbSample Air(double h) => new(h, null, Vector3.Zero, BlockId.Air);
+ClimbFace wall = ClimbHolds.Read([Rock(0.25, BlockId.Stone), Rock(0.75, BlockId.Stone), Rock(1.25, BlockId.Stone), Rock(1.75, BlockId.Stone), Air(2.25)]);
+Check.That(wall.Holdable && wall.TopsOut && Math.Abs(wall.TopHeight - 2.25) < 1e-9 && wall.Grip == 1f && wall.Stop == ClimbStop.None,
+    $"a dry rock face with open air above must be held and topped out at its ledge, got {wall}");
+ClimbFace overhang = ClimbHolds.Read([Rock(0.25, BlockId.Stone), Rock(0.75, BlockId.Stone), Rock(1.25, BlockId.Stone, -0.5f), Air(1.75)]);
+Check.That(overhang.Holdable && !overhang.TopsOut && overhang.Stop == ClimbStop.Overhang && Math.Abs(overhang.TopHeight - 0.75) < 1e-9,
+    $"rock leaning out must stop the climb below it, got {overhang}");
+ClimbFace leaning = ClimbHolds.Read([Rock(0.25, BlockId.Stone) with { Distance = 0.6 }, Rock(0.75, BlockId.Stone) with { Distance = 0.55 },
+    Rock(1.25, BlockId.Stone) with { Distance = 0.5 }, Rock(1.75, BlockId.Stone) with { Distance = 0.1 }, Air(2.25)]);
+Check.That(leaning.Stop == ClimbStop.Overhang && Math.Abs(leaning.TopHeight - 1.25) < 1e-9,
+    $"a face coming closer by more than the overhang lean must stop the climb below it, got {leaning}");
+ClimbFace stepped = ClimbHolds.Read([Rock(0.25, BlockId.Stone) with { Distance = 0.5 }, Rock(0.75, BlockId.Stone) with { Distance = 0.1 },
+    Rock(1.25, BlockId.Stone) with { Distance = 0.5 }, Rock(1.75, BlockId.Stone) with { Distance = 0.4 }, Air(2.25)]);
+Check.That(stepped.TopsOut, $"a voxel face's half-metre steps must not read as an overhang, got {stepped}");
+ClimbFace washed = ClimbHolds.Read([Rock(0.25, BlockId.Stone), Rock(0.75, BlockId.Gravel), Rock(1.25, BlockId.Stone), Air(1.75)]);
+Check.That(washed.TopsOut && Math.Abs(washed.Grip - 0.4f) < 1e-6,
+    $"washed wet rock on the way must make the poorest hold the grip, got {washed}");
+ClimbFace loose = ClimbHolds.Read([Rock(0.25, BlockId.Dirt), Rock(0.75, BlockId.Dirt), Air(1.25)]);
+Check.That(!loose.Holdable && loose.Stop == ClimbStop.Loose, $"loose sediment must give no hold, got {loose}");
+ClimbFace looseAbove = ClimbHolds.Read([Rock(0.25, BlockId.Stone), Rock(0.75, BlockId.Stone), Rock(1.25, BlockId.Dirt), Air(1.75)]);
+Check.That(looseAbove.Holdable && !looseAbove.TopsOut && looseAbove.Stop == ClimbStop.Loose,
+    $"a climb must stop below loose ground, got {looseAbove}");
+ClimbFace slope = ClimbHolds.Read([Rock(0.25, BlockId.Stone, 0.9f), Rock(0.75, BlockId.Stone, 0.9f), Air(1.25)]);
+Check.That(!slope.Holdable && slope.Stop == ClimbStop.NoFace, $"walkable ground in front must not be a face to hold, got {slope}");
+ClimbFace lies = ClimbHolds.Read([Rock(0.25, BlockId.Stone), Rock(0.75, BlockId.Stone), Rock(1.25, BlockId.Stone, 0.9f)]);
+Check.That(lies.TopsOut && Math.Abs(lies.TopHeight - 1.25) < 1e-9, $"a face lying back into a slope must top out there, got {lies}");
+ClimbFace startsHigh = ClimbHolds.Read([Air(0.25), Air(0.75), Air(1.25), Air(1.75), Rock(2.25, BlockId.Stone)]);
+Check.That(!startsHigh.Holdable, $"a face that starts above reach must not be held, got {startsHigh}");
+PlayerStamina slick = new(100), dry = new(100);
+slick.Tick(PlayerExertion.Climbing, 1d, 0.4f);
+dry.Tick(PlayerExertion.Climbing, 1d);
+Check.That(Math.Abs((100f - slick.Current) - ((100f - dry.Current) / 0.4f)) < 1e-3, "a poor hold must drain stamina by its inverse");
+
 // Stamina: climbing spends it, faster than hanging; only the ground gives it back; taking hold
 // needs a share of the bar; and a full bar's reach is what climbing speed and drain make it.
 const double StaminaStep = 1d / 60d;

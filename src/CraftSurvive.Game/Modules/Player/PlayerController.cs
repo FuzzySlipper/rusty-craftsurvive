@@ -407,6 +407,12 @@ internal sealed class PlayerController : IDisposable
             : terrain.PickFromView(EyePosition(), aimForward);
     }
 
+    /// <summary>Whether the player is in natural rock, climbed by reading the rock (#10126).</summary>
+    private bool climbsNaturalRock;
+
+    /// <summary>A diagnostic read of the natural face in front of the player, without climbing (#10126).</summary>
+    internal string DescribeClimb(Vector3 forward) => climb.Describe(Session, playerLocal, forward);
+
     /// <summary>Whether the player is in a separate space (a dungeon) rather than the open world.</summary>
     internal bool InSeparateSpace => away is not null;
 
@@ -415,8 +421,10 @@ internal sealed class PlayerController : IDisposable
     /// streamed, with its origin at zero, so its local and global coordinates agree. Where the player
     /// stood in the open world is kept to come back to, and is what the continuation saves meanwhile.
     /// </summary>
-    internal void EnterSeparateSpace(SpatialSession session, Vector3 standingFeet)
+    /// <param name="naturalRock">Whether the space's faces are natural rock (a generated cave, #10126), climbed by reading the rock rather than its blocks.</param>
+    internal void EnterSeparateSpace(SpatialSession session, Vector3 standingFeet, bool naturalRock = false)
     {
+        climbsNaturalRock = naturalRock;
         EnsureStarted();
         if (away is not null)
         {
@@ -446,6 +454,7 @@ internal sealed class PlayerController : IDisposable
         if (away is SeparateSpace space)
         {
             away = null;
+            climbsNaturalRock = false;
             Place(space.Return);
         }
         landscapeSpace?.Dispose();
@@ -657,7 +666,7 @@ internal sealed class PlayerController : IDisposable
             motion = receipt.Motion;
             Stamina.Tick(
                 climbHeld ? PlayerStamina.OnFace(frame.PlanarIntent.Y) : motion.Grounded ? PlayerExertion.Resting : PlayerExertion.Airborne,
-                PlayerConstants.ControllerStepSeconds);
+                PlayerConstants.ControllerStepSeconds, climbsNaturalRock && climb.LastFace is ClimbFace held ? held.Grip : 1f);
             WorldOriginReadout origin = engine.WorldOrigin.Read(new WorldOriginReadRequest(Session));
             playerGlobal = PlayerWorldPosition.FromLocal(origin, playerLocal);
             lastClearLocal = playerLocal;
@@ -755,8 +764,9 @@ internal sealed class PlayerController : IDisposable
         }
 
         swimCurrent.Step(stepSeconds, null, Rpg.CharacterRules.SwimStroke(Sheet.Attributes));
-        if (!jumpPending && climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance,
-                lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement))
+        if (!jumpPending && (climbsNaturalRock
+                ? climb.TryClimbNatural(Session, playerLocal, motion.Stance, lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)
+                : climb.TryClimb(Session, playerGlobal, playerLocal, motion.Stance, lookReceipt.Forward, frame.PlanarIntent.Y, grip, out movement)))
         {
             return new CharacterControllerCommand(
                 movement, frame.PlanarIntent, look.YawRadians, jumpPending, frame.JumpHeld,

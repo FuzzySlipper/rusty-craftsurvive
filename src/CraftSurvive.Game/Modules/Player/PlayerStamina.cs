@@ -35,6 +35,9 @@ internal sealed class PlayerStamina
     /// <summary>Stamina regained per second while standing on the ground.</summary>
     internal const float RecoveryPerSecond = 12f;
 
+    /// <summary>The poorest hold counted: grip below it drains no faster (a hold that poor cannot be taken at all).</summary>
+    private const float PoorestGrip = 0.1f;
+
     /// <summary>The share of a full bar needed to take hold of a face.</summary>
     internal const float TakeHoldShare = 0.25f;
 
@@ -68,12 +71,14 @@ internal sealed class PlayerStamina
         MathF.Abs(verticalIntent) > ClimbingIntent ? PlayerExertion.Climbing : PlayerExertion.Hanging;
 
     /// <summary>Spends or regains stamina for a span of time spent exerting the body one way.</summary>
-    internal void Tick(PlayerExertion exertion, double seconds)
+    /// <param name="grip">How good the holds are, 0 to 1 (#10126): on poorer holds a climber spends stamina faster, by its inverse.</param>
+    internal void Tick(PlayerExertion exertion, double seconds, float grip = 1f)
     {
+        float poorer = 1f / Math.Clamp(grip, PoorestGrip, 1f);
         float change = exertion switch
         {
-            PlayerExertion.Climbing => -ClimbDrainPerSecond,
-            PlayerExertion.Hanging => -HangDrainPerSecond,
+            PlayerExertion.Climbing => -ClimbDrainPerSecond * poorer,
+            PlayerExertion.Hanging => -HangDrainPerSecond * poorer,
             PlayerExertion.Resting => RecoveryPerSecond,
             _ => 0f,
         };
