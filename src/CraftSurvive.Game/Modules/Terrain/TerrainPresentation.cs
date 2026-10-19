@@ -111,10 +111,11 @@ internal sealed class TerrainPresentation : IDisposable
     /// Draws another session with the same block materials: a separate space built from the same
     /// atlas. The caller owns the projection and disposes it with the session.
     /// </summary>
-    internal VoxelScenePresentation ProjectAnother(SpatialSession session) =>
+    /// <param name="rock">The material the space's rock blocks draw in; the cave rock by default.</param>
+    internal VoxelScenePresentation ProjectAnother(SpatialSession session, Material? rock = null) =>
         engine.VoxelScenePresentation.ProjectSceneDirectional(new ProjectVoxelSceneDirectionalRequest(
             session,
-            SeparateBindings(),
+            SeparateBindings(rock),
             FaceMaterialBindings(skipRock: ground is not null)));
 
     /// <summary>The cave rock (#10090): a dungeon's rock blocks are drawn in it, as its rock meshes are.</summary>
@@ -123,10 +124,14 @@ internal sealed class TerrainPresentation : IDisposable
     /// <summary>The cave rock's authored, triplanar material.</summary>
     internal Material CaveRock => (ground ?? throw new InvalidOperationException("Terrain ground materials are unavailable.")).Plain(CaveRockName);
 
+    /// <summary>The cave rock drawn through a product shader (#10094); the caller keeps it for as long as it is drawn, the set disposes it.</summary>
+    internal Material CaveRockWithShader(MaterialShader shader) =>
+        (ground ?? throw new InvalidOperationException("Terrain ground materials are unavailable.")).PlainWithShader(CaveRockName, shader);
+
     /// <summary>A separate space's bindings: the world's blocks unblended, its rock in the cave rock.</summary>
-    private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings() =>
+    private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings(Material? rock) =>
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
-            ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? CaveRock
+            ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? rock ?? CaveRock
                 : ground?.For(block.Id, blend: false) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     /// <summary>Re-meshes the projection after the scene or the world origin changed.</summary>

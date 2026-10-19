@@ -25,6 +25,8 @@ internal sealed class TerrainGroundMaterials : IDisposable
     private const float Zero = 0f;
     private readonly List<RenderResource> textures = [];
     private readonly Dictionary<string, Material> materials = [];
+    /// <summary>Each map's catalog material, texture and triplanar sharpness, so a copy of it can be made with a shader.</summary>
+    private readonly Dictionary<string, (string Material, RenderResource Texture, float Sharpness)> sources = [];
     private AuthoredCatalog? catalog;
     private Material? blended;
     private readonly List<Material> sets = [];
@@ -83,6 +85,7 @@ internal sealed class TerrainGroundMaterials : IDisposable
                 RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(
                     map.Path, map.Nearest ? TextureFilter.Nearest : TextureFilter.Linear, TextureWrap.Repeat)).Handle;
                 textures.Add(texture);
+                sources.Add(map.Name, (map.Material, texture, map.Sharpness));
                 materials.Add(map.Name, engine.Graphics.CreateAuthoredMaterial(
                     new AuthoredMaterialAppearanceRequest(catalog, map.Material, texture) { TriplanarSharpness = map.Sharpness }));
             }
@@ -109,6 +112,20 @@ internal sealed class TerrainGroundMaterials : IDisposable
             materials[names[0]], names.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
         sets.Add(layered);
         return layered;
+    }
+
+    /// <summary>One map of the set on its own drawn through a product shader (the cave rock's detail study, #10094). Disposed with the set.</summary>
+    internal Material PlainWithShader(string name, MaterialShader shader)
+    {
+        (string material, RenderResource texture, float sharpness) = sources[name];
+        Material shaded = engine.Graphics.CreateAuthoredMaterial(
+            new AuthoredMaterialAppearanceRequest(catalog ?? throw new ObjectDisposedException(nameof(TerrainGroundMaterials)), material, texture)
+            {
+                TriplanarSharpness = sharpness,
+                Shader = shader,
+            });
+        sets.Add(shaded);
+        return shaded;
     }
 
     /// <summary>One map of the set on its own, unblended.</summary>

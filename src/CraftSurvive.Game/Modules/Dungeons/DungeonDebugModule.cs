@@ -19,6 +19,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.studylight", Description = "Assisted, for studies (#10090): sets the underground fill light and fog density (negative restores the game's own), so shapes can be seen and compared.")]
     public string StudyLight(float fill, float fogDensity) => dungeons.StudyLight(fill, fogDensity);
 
+    [DebugCommand("craft.dungeon.rockdetail", Description = "Assisted, for the cave detail study (#10094): draws the next dungeon's voxel rock through a detail shader - grain strength, grain frequency (per metre), facet size (metres) and facet strength; all 0 draws it plainly.")]
+    public string RockDetail(float grain, float frequency, float facet, float facetStrength) => dungeons.StudyRockDetail(grain, frequency, facet, facetStrength);
+
     [DebugCommand("craft.dungeon.voxelsize", Description = "Assisted, for the micro-voxel study (#10094): the natural cavern study's (approach n) voxel side, 1, 0.5 or 0.25 metres, for voxel surfaces.")]
     public string VoxelSize(double metres) => dungeons.StudyVoxelSize(metres);
 

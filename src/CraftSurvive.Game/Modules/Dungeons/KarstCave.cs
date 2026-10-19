@@ -66,6 +66,16 @@ internal static class KarstCave
     // A joint maze: a block of rock whose close joints all dissolved into a grid of narrow, tall fissures.
     private const float MazeHalf = 12f, MazeSpacing = 3.2f, MazeTop = 4.5f, MazeFissureFoot = 0.55f, MazeFissureTop = 0.32f, MazeOpenShare = 0.72f;
 
+    // Formations where water drips: from open joints under a ceiling above the water table, a stalactite hangs and often a
+    // stalagmite rises under it; in a low gap the two have met in a column.
+    private const float FormationChance = 0.4f, StalagmiteChance = 0.65f, ColumnGap = 4f, ColumnChance = 0.35f, FormationApart = 1.6f;
+    private const int MostFormations = 70;
+    private const float LeastGap = 1.6f, LongestReach = 14f, FormationBlend = 0.3f, FormationWobble = 0.18f;
+
+    // Detail finer than the field's samples, added wherever the field is read: a micro term only voxels finer than the
+    // field (or the mesh) show.
+    private const float MicroAmplitude = 0.12f, MicroFrequency = 1.1f, FinerAmplitude = 0.05f, FinerFrequency = 2.4f;
+
     // Above the water table: sharp ridged grain, and soft partings eaten back into notches between harder beds.
     private const float JagAmplitude = 0.55f, JagFrequency = 0.33f, NotchDepth = 0.5f, NotchHalfHeight = 0.45f;
 
@@ -108,7 +118,19 @@ internal static class KarstCave
         internal required double Milliseconds { get; init; }
 
         /// <summary>The field anywhere in the layout, trilinear between its samples.</summary>
-        internal float At(Vector3 p) => Trilinear(Open, p);
+        internal float At(Vector3 p)
+        {
+            float open = Trilinear(Open, p);
+            return MathF.Abs(open) > 1f ? open
+                : open + (MicroAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * MicroFrequency, Seed ^ 0xA01UL)))
+                    + (FinerAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * FinerFrequency, Seed ^ 0xA02UL)));
+        }
+
+        /// <summary>The cave's seed, for its micro term.</summary>
+        internal required ulong Seed { get; init; }
+
+        /// <summary>How many stalactites, stalagmites and columns the drip left.</summary>
+        internal required int Formations { get; init; }
     }
 
     internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d)
@@ -146,7 +168,7 @@ internal static class KarstCave
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: {cave.Conduits} conduits, {cave.Chambers.Length} chambers, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
@@ -262,6 +284,8 @@ internal static class KarstCave
             Breakdown(open, chamber, random);
         }
 
+        int formations = Drip(open, joint, random);
+
         Roughen(open, seed, beds);
         Enclose(open);
 
@@ -315,6 +339,8 @@ internal static class KarstCave
             BeddingRooms = [.. beddingRooms],
             Passages = [.. passages],
             Conduits = carved,
+            Seed = seed,
+            Formations = formations,
             Milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
         };
     }
@@ -508,6 +534,91 @@ internal static class KarstCave
             shape = MathF.Min(shape, MathF.Min(p.Y - floor, floor + MazeTop - p.Y));
             shape = MathF.Min(shape, MazeHalf - MathF.Max(MathF.Abs(d.X), MathF.Abs(d.Y)));
             open[index] = NaturalCavern.SmoothMax(open[index], shape, 0.3f);
+        });
+    }
+
+    /// <summary>
+    /// Grows formations where water drips: at open joints under a ceiling, above the water table, a stalactite hanging a
+    /// share of the gap and often a stalagmite under it; in a low gap a column. Returns how many were grown.
+    /// </summary>
+    private static int Drip(float[] open, bool[] joint, DungeonRandom random)
+    {
+        List<Vector3> grown = [];
+        int count = 0;
+        for (int i = 0; i < joint.Length && grown.Count < MostFormations; i++)
+        {
+            Vector3 c = GridCentre(i);
+            if (!joint[i] || c.Y <= WaterTables[^1] || Trilinear(open, c) <= 0f || !Chance(random, FormationChance))
+            {
+                continue;
+            }
+
+            Vector3 at = c + new Vector3(Between(random, -0.8f, 0.8f), 0f, Between(random, -0.8f, 0.8f));
+            float? ceiling = Reach(open, at, 1f), floor = Reach(open, at, -1f);
+            if (ceiling is not float top || floor is not float foot || top - foot < LeastGap || grown.Any(g => Vector2.Distance(new(g.X, g.Z), new(at.X, at.Z)) < FormationApart))
+            {
+                continue;
+            }
+
+            grown.Add(at);
+            float gap = top - foot;
+            if (gap < ColumnGap && Chance(random, ColumnChance))
+            {
+                Formation(open, at, foot - 0.4f, top + 0.4f, Between(random, 0.35f, 0.6f), Between(random, 0.9f, 1.5f), column: true);
+                count++;
+                continue;
+            }
+
+            float hang = gap * Between(random, 0.15f, 0.45f);
+            Formation(open, at, top - hang, top + 0.4f, 0f, Between(random, 0.25f, 0.5f) + (hang * 0.12f), column: false);
+            count++;
+            if (Chance(random, StalagmiteChance))
+            {
+                float rise = MathF.Min(gap - hang - 0.6f, gap * Between(random, 0.1f, 0.35f));
+                if (rise > 0.3f)
+                {
+                    Formation(open, at, foot - 0.4f, foot + rise, Between(random, 0.4f, 0.8f) + (rise * 0.15f), 0f, column: false);
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>How far the rock is straight up (1) or down (-1) from an open place, or null beyond reach.</summary>
+    private static float? Reach(float[] open, Vector3 from, float way)
+    {
+        for (float d = 0f; d < LongestReach; d += FieldStep * 0.5f)
+        {
+            if (Trilinear(open, from + new Vector3(0f, way * d, 0f)) <= 0f)
+            {
+                return from.Y + (way * d);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Grows one formation between two heights: its radius goes from <paramref name="lowRadius"/> at the bottom to
+    /// <paramref name="highRadius"/> at the top (a stalactite narrows to nothing below, a stalagmite above); a column is
+    /// wide at both ends and waisted where its two halves met. Its outline wobbles a little, like flowstone.
+    /// </summary>
+    private static void Formation(float[] open, Vector3 at, float low, float high, float lowRadius, float highRadius, bool column)
+    {
+        float widest = MathF.Max(lowRadius, highRadius) + 0.5f;
+        ForBox(new Vector3(at.X, (low + high) * 0.5f, at.Z), new Vector3(widest + 0.5f, ((high - low) * 0.5f) + 0.5f, widest + 0.5f), (index, p) =>
+        {
+            float t = Math.Clamp((p.Y - low) / MathF.Max(0.1f, high - low), 0f, 1f);
+            float radius = column
+                ? lowRadius + ((highRadius - lowRadius) * MathF.Pow(MathF.Abs((2f * t) - 1f), 1.4f))
+                : lowRadius + ((highRadius - lowRadius) * MathF.Pow(t, lowRadius > highRadius ? 0.7f : 1.6f));
+            float angle = MathF.Atan2(p.Z - at.Z, p.X - at.X);
+            radius *= 1f + (FormationWobble * MathF.Sin((angle * 5f) + (p.Y * 1.7f)));
+            float inside = radius - Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(at.X, at.Z));
+            inside = MathF.Min(inside, MathF.Min(p.Y - low, high - p.Y) + 0.2f);
+            open[index] = NaturalCavern.SmoothMin(open[index], -inside, FormationBlend);
         });
     }
 

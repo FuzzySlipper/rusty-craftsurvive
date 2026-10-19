@@ -90,7 +90,8 @@ internal sealed class DungeonSpace : IDisposable
 
         if (pending.Count == 0 && projection is null)
         {
-            projection = terrain.ProjectSeparateSpace(Session);
+            // A voxel look's rock may be drawn in a study material (#10094); a mesh look's material is its mesh's.
+            projection = terrain.ProjectSeparateSpace(Session, DungeonSurfaces.RockAsMesh(surface) ? null : rockMaterial);
             if (layout.Rock is RockDensity rock)
             {
                 BuildRock(rock);

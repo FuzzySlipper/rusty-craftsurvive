@@ -263,7 +263,7 @@ internal sealed class DungeonModule : IProductModule
             space = DungeonSurfaces.RockAsMesh(surface)
                 ? new DungeonSpace(engine, terrain, candidate.Layout,
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
-                : new DungeonSpace(engine, terrain, candidate.AllVoxels, null, surface);
+                : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface);
         }
         catch (EngineCallException refusal)
         {
@@ -355,6 +355,41 @@ internal sealed class DungeonModule : IProductModule
 
         seedOverride = chosen;
         return string.Create(CultureInfo.InvariantCulture, $"dungeons entered use seed {chosen}");
+    }
+
+    /// <summary>The cave detail study (#10094): the shader the voxel rock is drawn through, its parameters, and the materials made for it.</summary>
+    private const string RockDetailShaderPath = "shaders/cave-rock-detail.wgsl";
+    private Vector4? rockDetail;
+    private RenderResource? rockDetailShader;
+    private readonly Dictionary<Vector4, Material> rockDetailMaterials = [];
+
+    /// <summary>
+    /// Draws the next dungeon's voxel rock through the detail shader: grain strength and frequency (per metre), facet
+    /// size (metres, 0 for none) and facet strength; all zero draws it plainly again.
+    /// </summary>
+    internal string StudyRockDetail(float grain, float frequency, float facet, float facetStrength)
+    {
+        rockDetail = grain == 0f && facet == 0f ? null : new Vector4(grain, frequency, facet, facetStrength);
+        return rockDetail is Vector4 v
+            ? string.Create(CultureInfo.InvariantCulture, $"the next dungeon's voxel rock has grain {v.X} at {v.Y}/m and facets {v.Z} m at {v.W}")
+            : "the next dungeon's voxel rock is drawn plainly";
+    }
+
+    private Material? StudyRockDetail()
+    {
+        if (rockDetail is not Vector4 detail)
+        {
+            return null;
+        }
+
+        if (!rockDetailMaterials.TryGetValue(detail, out Material? material))
+        {
+            rockDetailShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(RockDetailShaderPath)).Handle;
+            material = terrain.CaveRockWithShader(new MaterialShader(rockDetailShader, detail, Vector4.Zero, Vector4.Zero, Vector4.Zero));
+            rockDetailMaterials[detail] = material;
+        }
+
+        return material;
     }
 
     /// <summary>The natural cavern study's voxel side in metres (#10094): 1, or finer for micro-voxels.</summary>

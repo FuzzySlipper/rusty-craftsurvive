@@ -40,6 +40,9 @@ internal enum DungeonSurface
     /// <summary>Micro-voxel study (#10094): every voxel a plain cube, rock included, for fine voxel sizes.</summary>
     Micro,
 
+    /// <summary>Soft micro-voxels (#10094): rock dual contoured with Blocky placement, jostled and creased, for fine voxel sizes.</summary>
+    SoftMicro,
+
     /// <summary>Route C: rock pieces dressing the walls and ceilings over route B's mesh, which stays the collision.</summary>
     Pieced,
 }
@@ -62,6 +65,9 @@ internal static class DungeonSurfaces
 
     /// <summary>How far weathered building blocks' vertices are jostled, in cells.</summary>
     private const float WeatheredRoughness = 0.06f;
+
+    /// <summary>Soft micro-voxels: blocks kept but each vertex jostled this far (in cells), and edges shaded smoothly up to this angle.</summary>
+    private const float SoftMicroRoughness = 0.18f, SoftMicroCreaseDegrees = 35f;
 
     /// <summary>Flat shading: every facet its own normal.</summary>
     private const float FlatCreaseDegrees = 0f;
@@ -90,7 +96,7 @@ internal static class DungeonSurfaces
     /// <summary>The mode of every material not listed by <see cref="Materials"/>.</summary>
     internal static VoxelSurfaceMode SessionMode(DungeonSurface surface) => surface switch
     {
-        DungeonSurface.Smooth or DungeonSurface.Faceted or DungeonSurface.Ruined or DungeonSurface.SoftVoxels => VoxelSurfaceMode.DualContouring,
+        DungeonSurface.Smooth or DungeonSurface.Faceted or DungeonSurface.Ruined or DungeonSurface.SoftVoxels or DungeonSurface.SoftMicro => VoxelSurfaceMode.DualContouring,
         _ => VoxelSurfaceMode.GreedyCubes,
     };
 
@@ -106,6 +112,7 @@ internal static class DungeonSurfaces
         {
             DungeonSurface.Smooth => new SurfaceCharacter(VertexPlacement.Sharp, WornCreaseDegrees, WornRoughness),
             DungeonSurface.SoftVoxels => new SurfaceCharacter(VertexPlacement.Smooth, WornCreaseDegrees, WornRoughness),
+            DungeonSurface.SoftMicro => new SurfaceCharacter(VertexPlacement.Blocky, SoftMicroCreaseDegrees, SoftMicroRoughness),
             _ => new SurfaceCharacter(VertexPlacement.Sharp, FlatCreaseDegrees, ChiselledRoughness),
         };
         VoxelSurfaceMode rockMode = surface == DungeonSurface.Marched ? VoxelSurfaceMode.MarchingCubes : VoxelSurfaceMode.DualContouring;
@@ -134,6 +141,7 @@ internal static class DungeonSurfaces
         "fine" => DungeonSurface.Fine,
         "pieced" => DungeonSurface.Pieced,
         "micro" => DungeonSurface.Micro,
+        "softmicro" => DungeonSurface.SoftMicro,
         _ => null,
     };
 }
