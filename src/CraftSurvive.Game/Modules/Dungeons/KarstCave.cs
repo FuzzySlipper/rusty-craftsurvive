@@ -52,6 +52,23 @@ internal static class KarstCave
     private const float ChamberWiden = 2.3f, ChamberHeight = 1.5f, ChamberFlow = 0.25f;
     private const float SedimentFill = 0.45f, ShapeBlend = 0.8f;
 
+    /// <summary>How much a conduit's radius swells and pinches along its length, and over what distance.</summary>
+    private const float WidthRoll = 0.55f, WidthFrequency = 0.11f;
+
+    // Breakdown: how many fallen blocks a chamber holds, their sizes, and the chance a large open-air passage has fallen in.
+    private const int FewestBlocks = 6, MostBlocks = 15;
+    private const float SmallestBlock = 0.5f, LargestBlock = 1.9f, BlockRounding = 0.25f, CollapseChance = 0.3f, CollapseFlow = 0.3f;
+
+    // Bedding rooms: broad, low rooms spread along a flooded parting, held up by pillars of what did not dissolve.
+    private const float BeddingRoomFlow = 0.15f, BeddingRoomChance = 0.5f, BeddingRoomLeast = 6f, BeddingRoomMost = 12f;
+    private const float BeddingRoomLow = 0.8f, BeddingRoomHigh = 1.25f, PillarFrequency = 0.3f, PillarShare = 0.62f, BeddingRoomApart = 18f;
+
+    // A joint maze: a block of rock whose close joints all dissolved into a grid of narrow, tall fissures.
+    private const float MazeHalf = 12f, MazeSpacing = 3.2f, MazeTop = 4.5f, MazeFissureFoot = 0.55f, MazeFissureTop = 0.32f, MazeOpenShare = 0.72f;
+
+    // Above the water table: sharp ridged grain, and soft partings eaten back into notches between harder beds.
+    private const float JagAmplitude = 0.55f, JagFrequency = 0.33f, NotchDepth = 0.5f, NotchHalfHeight = 0.45f;
+
     // The rock's own unevenness: swells and a grain, scalloped harder where water fell freely.
     private const float SwellAmplitude = 0.5f, SwellFrequency = 0.13f, GrainAmplitude = 0.22f, GrainFrequency = 0.5f, VadoseGrain = 1.6f;
 
@@ -84,6 +101,8 @@ internal static class KarstCave
         internal required Vector3 Spring { get; init; }
         internal required Vector3[] Chambers { get; init; }
         internal required List<Vector3> MainRoute { get; init; }
+        internal required Vector3? MazeAt { get; init; }
+        internal required Vector3[] BeddingRooms { get; init; }
         internal required Passage[] Passages { get; init; }
         internal required int Conduits { get; init; }
         internal required double Milliseconds { get; init; }
@@ -193,7 +212,7 @@ internal static class KarstCave
             float share = MathF.Sqrt(flow / mostFlow);
             float radius = NarrowestRadius + ((WidestRadius - NarrowestRadius) * share);
             Vector3 from = GridCentre(a), to = GridCentre(b);
-            Conduit(open, from, to, radius, share, WaterTables[stage], parting[a] && parting[b]);
+            Conduit(open, from, to, radius * Swell(from, seed), radius * Swell(to, seed), share, WaterTables[stage], parting[a] && parting[b]);
             foreach (int end in (ReadOnlySpan<int>)[a, b])
             {
                 (int degree, float most) = nodes.GetValueOrDefault(end);
@@ -202,9 +221,19 @@ internal static class KarstCave
         }
 
         List<Vector3> chambers = [];
-        foreach ((int node, (int degree, float flow)) in nodes)
+        List<Vector3> beddingRooms = [];
+        foreach ((int node, (int degree, float flow)) in nodes.OrderBy(n => n.Key))
         {
-            if (degree >= 3 && flow >= ChamberFlow * mostFlow)
+            Vector3 at = GridCentre(node);
+            bool collapsed = at.Y > WaterTables[^1] && flow >= CollapseFlow * mostFlow && Chance(random, CollapseChance);
+            if (parting[node] && at.Y < WaterTables[0] && Inside(at, BeddingRoomMost) && flow >= BeddingRoomFlow * mostFlow && Chance(random, BeddingRoomChance)
+                && beddingRooms.All(r => Vector3.Distance(r, at) > BeddingRoomApart))
+            {
+                beddingRooms.Add(at);
+                BeddingRoom(open, at, Between(random, BeddingRoomLeast, BeddingRoomMost), Between(random, BeddingRoomLow, BeddingRoomHigh), seed);
+            }
+
+            if ((degree >= 3 && flow >= ChamberFlow * mostFlow) || collapsed)
             {
                 Vector3 centre = GridCentre(node);
                 if (chambers.All(c => Vector3.Distance(c, centre) > WidestRadius * ChamberWiden * 2f))
@@ -215,7 +244,25 @@ internal static class KarstCave
             }
         }
 
-        Roughen(open, seed);
+        Vector3? maze = null;
+        if (nodes.Count > 0)
+        {
+            // The maze lies off a conduit of the middle level, away from where the player comes in.
+            Vector3[] middle = [.. nodes.Keys.OrderBy(k => k).Select(GridCentre)
+                .Where(c => c.Y > WaterTables[^1] && c.Y < WaterTables[0] && Inside(c, MazeHalf) && Vector3.Distance(c, sinks[0]) > MazeHalf * 2f)];
+            if (middle.Length > 0)
+            {
+                maze = middle[(int)(random.Next() % (ulong)middle.Length)];
+                Maze(open, maze.Value, Between(random, 0f, MathF.PI), seed);
+            }
+        }
+
+        foreach (Vector3 chamber in chambers)
+        {
+            Breakdown(open, chamber, random);
+        }
+
+        Roughen(open, seed, beds);
         Enclose(open);
 
         // The water's fields for later passes.
@@ -264,6 +311,8 @@ internal static class KarstCave
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,
+            MazeAt = maze,
+            BeddingRooms = [.. beddingRooms],
             Passages = [.. passages],
             Conduits = carved,
             Milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
@@ -366,29 +415,34 @@ internal static class KarstCave
     }
 
     /// <summary>Opens one conduit between two grid cells, shaped by where it lies and which way it runs.</summary>
-    private static void Conduit(float[] open, Vector3 from, Vector3 to, float radius, float share, float waterTable, bool alongParting)
+    private static void Conduit(float[] open, Vector3 from, Vector3 to, float radius, float radiusTo, float share, float waterTable, bool alongParting)
     {
+        float taper = radiusTo / radius;
         Vector3 mid = (from + to) * 0.5f;
         Vector3 run = to - from;
         bool vadose = mid.Y > waterTable;
         bool falls = MathF.Abs(run.Y) > 0.7f * run.Length();
         if (vadose && falls)
         {
-            StampCapsule(open, from, to, radius * ShaftWiden, Vector3.One, 0f);
+            StampCapsule(open, from, to, radius * ShaftWiden, taper, Vector3.One, 0f);
         }
         else if (vadose)
         {
             // A canyon: the falling water cut down below its first tube, deeper the more of it there was.
             float stretch = 1f + (CanyonStretch * share);
-            StampCapsule(open, from, to, radius * 0.75f, new Vector3(1f, stretch, 1f), radius * 0.75f * (stretch - 1f));
+            StampCapsule(open, from, to, radius * 0.75f, taper, new Vector3(1f, stretch, 1f), radius * 0.75f * (stretch - 1f));
         }
         else
         {
             // Along a parting the tube spreads into a wide, low bedding-plane passage.
             Vector3 scale = alongParting ? new Vector3(PartingWiden, PartingFlatten, PartingWiden) : new Vector3(TubeWiden, TubeFlatten, TubeWiden);
-            StampCapsule(open, from, to, radius, scale, 0f, sediment: true);
+            StampCapsule(open, from, to, radius, taper, scale, 0f, sediment: true);
         }
     }
+
+    /// <summary>How much a conduit swells or pinches at a place: the same for every conduit meeting there, so they join.</summary>
+    private static float Swell(Vector3 at, ulong seed) =>
+        1f + (WidthRoll * NaturalCavern.Signed(NaturalCavern.Noise(at * WidthFrequency, seed ^ 0x701UL)));
 
     /// <summary>Opens a breakdown chamber: wide and low, its ceiling fallen back to the bedding plane above.</summary>
     private static void Chamber(float[] open, Vector3 centre, float radius, float[] beds)
@@ -405,11 +459,102 @@ internal static class KarstCave
         });
     }
 
-    /// <summary>Opens a capsule from a to b, scaled per axis, its middle offset downward; with sediment, its lower part filled flat.</summary>
-    private static void StampCapsule(float[] open, Vector3 a, Vector3 b, float radius, Vector3 scale, float down, bool sediment = false)
+    /// <summary>
+    /// Opens a bedding room: a broad, low space along a flooded parting, its outline irregular, its floor flat with
+    /// sediment, and pillars left standing where the rock did not dissolve.
+    /// </summary>
+    private static void BeddingRoom(float[] open, Vector3 centre, float radius, float halfHeight, ulong seed)
+    {
+        ForBox(centre, new Vector3(radius * 1.4f, halfHeight + 1f, radius * 1.4f), (index, p) =>
+        {
+            Vector2 d = new(p.X - centre.X, p.Z - centre.Z);
+            float outline = radius * (1f + (0.35f * NaturalCavern.Signed(NaturalCavern.Noise(new Vector3(p.X, 0f, p.Z) * 0.12f, seed ^ 0x801UL))));
+            float shape = NaturalCavern.SmoothMin(outline - d.Length(), halfHeight - MathF.Abs(p.Y - centre.Y), 0.5f);
+            float pillar = NaturalCavern.Noise(new Vector3(p.X, 0f, p.Z) * PillarFrequency, seed ^ 0x802UL);
+            shape = MathF.Min(shape, (PillarShare - pillar) * 6f);
+            open[index] = NaturalCavern.SmoothMax(open[index], shape, ShapeBlend);
+        });
+    }
+
+    /// <summary>
+    /// Opens a joint maze: two crossing sets of close joints, turned to the rock's grain, dissolved into narrow fissures
+    /// along most of their segments, wider at the foot where water ran than at the top.
+    /// </summary>
+    private static void Maze(float[] open, Vector3 centre, float angle, ulong seed)
+    {
+        Vector2 u = new(MathF.Cos(angle), MathF.Sin(angle)), v = new(-u.Y, u.X);
+        float floor = centre.Y - 1f;
+        ForBox(centre + new Vector3(0f, MazeTop * 0.5f, 0f), new Vector3(MazeHalf * 1.5f, (MazeTop * 0.5f) + 2f, MazeHalf * 1.5f), (index, p) =>
+        {
+            Vector2 d = new(p.X - centre.X, p.Z - centre.Z);
+            float a = Vector2.Dot(d, u) / MazeSpacing, b = Vector2.Dot(d, v) / MazeSpacing;
+            float rise = Math.Clamp((p.Y - floor) / MazeTop, 0f, 1f);
+            float half = (MazeFissureFoot + ((MazeFissureTop - MazeFissureFoot) * rise)) / MazeSpacing;
+            // Half a spacing is as far as a sample can be from a joint: with neither segment dissolved, the fissure is shut.
+            float best = 0.5f;
+            // A joint along a (fixed a) and one along b (fixed b); each segment between crossings dissolved or not by its hash.
+            int ka = (int)MathF.Round(a), kb = (int)MathF.Round(b);
+            if (NaturalCavern.Hash(seed ^ 0x901UL, ka, (int)MathF.Floor(b), 0) < MazeOpenShare)
+            {
+                best = MathF.Min(best, MathF.Abs(a - ka));
+            }
+
+            if (NaturalCavern.Hash(seed ^ 0x902UL, kb, (int)MathF.Floor(a), 1) < MazeOpenShare)
+            {
+                best = MathF.Min(best, MathF.Abs(b - kb));
+            }
+
+            float shape = (half - best) * MazeSpacing;
+            shape = MathF.Min(shape, MathF.Min(p.Y - floor, floor + MazeTop - p.Y));
+            shape = MathF.Min(shape, MazeHalf - MathF.Max(MathF.Abs(d.X), MathF.Abs(d.Y)));
+            open[index] = NaturalCavern.SmoothMax(open[index], shape, 0.3f);
+        });
+    }
+
+    /// <summary>Drops fallen blocks on a chamber's floor: rounded boxes of rock, turned and sized at random, lying where they landed.</summary>
+    private static void Breakdown(float[] open, Vector3 chamber, DungeonRandom random)
+    {
+        int blocks = FewestBlocks + (int)(random.Next() % (ulong)(MostBlocks - FewestBlocks + 1));
+        for (int i = 0; i < blocks; i++)
+        {
+            float angle = Between(random, 0f, MathF.Tau), reach = Between(random, 0f, WidestRadius * ChamberWiden * 0.8f);
+            Vector3 at = chamber + new Vector3(MathF.Cos(angle) * reach, 0f, MathF.Sin(angle) * reach);
+            if (Trilinear(open, at) <= 0f)
+            {
+                continue;
+            }
+
+            // Fall to the floor: the first rock below.
+            float y = at.Y;
+            while (y > 1f && Trilinear(open, new Vector3(at.X, y, at.Z)) > 0f)
+            {
+                y -= FieldStep;
+            }
+
+            Vector3 half = new(Between(random, SmallestBlock, LargestBlock), Between(random, SmallestBlock * 0.7f, LargestBlock * 0.6f), Between(random, SmallestBlock, LargestBlock));
+            Vector3 centre = new(at.X, y + (half.Y * 0.7f), at.Z);
+            float turn = Between(random, 0f, MathF.PI), cos = MathF.Cos(turn), sin = MathF.Sin(turn);
+            float tilt = Between(random, -0.25f, 0.25f);
+            ForBox(centre, new Vector3(MathF.Max(half.X, half.Z) * 1.5f, half.Y * 1.6f, MathF.Max(half.X, half.Z) * 1.5f), (index, p) =>
+            {
+                Vector3 q = p - centre;
+                q = new Vector3((q.X * cos) - (q.Z * sin), q.Y + (tilt * q.X), (q.X * sin) + (q.Z * cos));
+                Vector3 outside = Vector3.Max(Vector3.Abs(q) - half, Vector3.Zero);
+                float inside = MathF.Min(MathF.Max(MathF.Abs(q.X) - half.X, MathF.Max(MathF.Abs(q.Y) - half.Y, MathF.Abs(q.Z) - half.Z)), 0f);
+                float distance = outside.Length() + inside - BlockRounding;
+                open[index] = NaturalCavern.SmoothMin(open[index], distance, 0.25f);
+            });
+        }
+    }
+
+    /// <summary>
+    /// Opens a capsule from a to b, its radius going from <paramref name="radius"/> to <paramref name="taper"/> times it, scaled
+    /// per axis, its middle offset downward; with sediment, its lower part filled flat.
+    /// </summary>
+    private static void StampCapsule(float[] open, Vector3 a, Vector3 b, float radius, float taper, Vector3 scale, float down, bool sediment = false)
     {
         Vector3 offset = new(0f, -down, 0f);
-        Vector3 reach = (scale * radius) + new Vector3(0f, down, 0f) + Vector3.One;
+        Vector3 reach = (scale * radius * MathF.Max(1f, taper)) + new Vector3(0f, down, 0f) + Vector3.One;
         Vector3 low = Vector3.Min(a, b) - reach, high = Vector3.Max(a, b) + reach;
         float least = MathF.Min(scale.X, MathF.Min(scale.Y, scale.Z));
         ForBox((low + high) * 0.5f, (high - low) * 0.5f, (index, p) =>
@@ -417,11 +562,12 @@ internal static class KarstCave
             Vector3 q = p - offset;
             Vector3 ab = (b - a) / scale, aq = (q - a) / scale;
             float t = Math.Clamp(Vector3.Dot(aq, ab) / MathF.Max(1e-4f, ab.LengthSquared()), 0f, 1f);
-            float shape = (radius - (aq - (ab * t)).Length()) * least;
+            float here = radius * (1f + ((taper - 1f) * t));
+            float shape = (here - (aq - (ab * t)).Length()) * least;
             if (sediment)
             {
                 float axisY = a.Y + ((b.Y - a.Y) * t);
-                shape = NaturalCavern.SmoothMin(shape, p.Y - (axisY - (radius * scale.Y * (1f - SedimentFill))), 0.4f);
+                shape = NaturalCavern.SmoothMin(shape, p.Y - (axisY - (here * scale.Y * (1f - SedimentFill))), 0.4f);
             }
 
             open[index] = NaturalCavern.SmoothMax(open[index], shape, ShapeBlend);
@@ -436,7 +582,7 @@ internal static class KarstCave
     }
 
     /// <summary>Unevenness on every open surface: broad swells and a grain, harder where water fell freely.</summary>
-    private static void Roughen(float[] open, ulong seed)
+    private static void Roughen(float[] open, ulong seed, float[] beds)
     {
         Parallel.For(0, FieldZ, z =>
         {
@@ -450,10 +596,26 @@ internal static class KarstCave
                     }
 
                     Vector3 p = FieldCentre(index);
-                    float grain = p.Y > WaterTables[^1] ? GrainAmplitude * VadoseGrain : GrainAmplitude;
-                    open[index] = Math.Clamp(open[index]
-                        + (SwellAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * SwellFrequency, seed ^ 0x601UL)))
-                        + (grain * NaturalCavern.Signed(NaturalCavern.Noise(p * GrainFrequency, seed ^ 0x602UL))), -FieldLimit, FieldLimit);
+                    bool vadose = p.Y > WaterTables[^1];
+                    float grain = vadose ? GrainAmplitude * VadoseGrain : GrainAmplitude;
+                    float rough = (SwellAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * SwellFrequency, seed ^ 0x601UL)))
+                        + (grain * NaturalCavern.Signed(NaturalCavern.Noise(p * GrainFrequency, seed ^ 0x602UL)));
+                    if (vadose)
+                    {
+                        // Ridged noise: sharp crests and creases rather than swells.
+                        float ridge = 1f - MathF.Abs(NaturalCavern.Signed(NaturalCavern.Noise(p * JagFrequency, seed ^ 0x603UL)));
+                        rough += JagAmplitude * ((ridge * 2f) - 1f);
+                        float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
+                        float nearest = float.MaxValue;
+                        foreach (float bed in beds)
+                        {
+                            nearest = MathF.Min(nearest, MathF.Abs(bedY - bed));
+                        }
+
+                        rough += NotchDepth * MathF.Max(0f, 1f - (nearest / NotchHalfHeight));
+                    }
+
+                    open[index] = Math.Clamp(open[index] + rough, -FieldLimit, FieldLimit);
                 }
         });
     }
@@ -772,6 +934,15 @@ internal static class KarstCave
         return Lerp(Lerp(Lerp(L(0, 0, 0), L(1, 0, 0), tx), Lerp(L(0, 1, 0), L(1, 1, 0), tx), ty),
             Lerp(Lerp(L(0, 0, 1), L(1, 0, 1), tx), Lerp(L(0, 1, 1), L(1, 1, 1), tx), ty), tz);
     }
+
+    /// <summary>Whether a feature this far across fits at a place without reaching the rind at the space's sides.</summary>
+    private static bool Inside(Vector3 at, float reach)
+    {
+        float margin = reach + RindMetres + GridCell;
+        return at.X > margin && at.Z > margin && at.X < (GridX * GridCell) - margin && at.Z < (GridZ * GridCell) - margin;
+    }
+
+    private static bool Chance(DungeonRandom random, float chance) => Between(random, 0f, 1f) < chance;
 
     private static float Between(DungeonRandom random, float low, float high) => low + ((high - low) * ((random.Next() >> 40) / (float)(1UL << 24)));
 
