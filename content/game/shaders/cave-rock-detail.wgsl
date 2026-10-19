@@ -11,6 +11,10 @@
 // forms: the forms are the geometry's and the grain's), y what to add to a world height for the layout's height,
 // zw the beds' dip along x and z (KarstCave.BedDip), so the strata bands follow the beds the water followed.
 //
+// material.parameters[2]: x the size of a colour cell (metres, 0 none): the palette read once per cell, so each
+// cell is one flat colour (with facets of the same size, each facet a lit 3D pixel); y how many steps the facets'
+// normals snap to (0 for FACET_STEPS; fewer is flatter and chunkier).
+//
 // The palette is colour only, at sizes no form is drawn at: bands along the beds, broad mottling and mineral
 // staining, a texel-fine speckle, and floors (where sediment settled) and the still-flooded depths darker and muddier.
 
@@ -59,9 +63,9 @@ fn grained(n: vec3<f32>, p: vec3<f32>, strength: f32, frequency: f32) -> vec3<f3
 }
 
 // The surface as facets: the normal snapped to coarse steps, then tilted by a direction fixed per cell.
-fn faceted(n: vec3<f32>, p: vec3<f32>, size: f32, strength: f32) -> vec3<f32> {
+fn faceted(n: vec3<f32>, p: vec3<f32>, size: f32, strength: f32, steps: f32) -> vec3<f32> {
     let cell = vec3<i32>(floor(p / size));
-    let snapped = normalize(round(n * FACET_STEPS) / FACET_STEPS + n * 0.001);
+    let snapped = normalize(round(n * steps) / steps + n * 0.001);
     let tilt = vec3<f32>(hash3(cell), hash3(cell + vec3<i32>(71, 13, 5)), hash3(cell + vec3<i32>(9, 57, 113))) * 2.0 - 1.0;
     let sideways = tilt - dot(tilt, snapped) * snapped;
     return normalize(snapped + strength * sideways);
@@ -105,14 +109,21 @@ fn palette(p: vec3<f32>, n: vec3<f32>, frame: vec4<f32>) -> vec3<f32> {
 fn shade(surface: Surface) -> vec4<f32> {
     let detail = material.parameters[0];
     let colouring = material.parameters[1];
+    let pixels = material.parameters[2];
     var s = surface;
     if (colouring.x > 0.0) {
-        s.base = vec4<f32>(palette(s.world_position, s.normal, colouring), s.base.a);
+        // With colour cells, the palette is read at the cell's centre, so the cell is one flat colour.
+        var at = s.world_position;
+        if (pixels.x > 0.0) {
+            at = (floor(at / pixels.x) + vec3<f32>(0.5)) * pixels.x;
+        }
+        s.base = vec4<f32>(palette(at, s.normal, colouring), s.base.a);
         let height = s.world_position.y + colouring.y;
         s.roughness = mix(s.roughness, 0.5, 1.0 - smoothstep(WET_BELOW - 3.0, WET_BELOW + 1.0, height));
     }
     if (detail.z > 0.0) {
-        s.normal = faceted(s.normal, s.world_position, detail.z, detail.w);
+        let steps = select(FACET_STEPS, pixels.y, pixels.y > 0.0);
+        s.normal = faceted(s.normal, s.world_position, detail.z, detail.w, steps);
     }
     if (detail.x > 0.0) {
         s.normal = grained(s.normal, s.world_position, detail.x, detail.y);

@@ -361,7 +361,9 @@ internal sealed class DungeonModule : IProductModule
     private const string RockDetailShaderPath = "shaders/cave-rock-detail.wgsl";
     private Vector4? rockDetail;
     private RenderResource? rockDetailShader;
-    private readonly Dictionary<(Vector4 Detail, bool Palette), Material> rockDetailMaterials = [];
+    private readonly Dictionary<(Vector4 Detail, bool Palette, Vector4 Pixels), Material> rockDetailMaterials = [];
+    /// <summary>The detail shader's colour cell (metres) and facet step count; zero for none and the default.</summary>
+    private Vector4 rockPixels;
     /// <summary>Whether the detail shader also replaces the painted texture's colour with the cave's own palette.</summary>
     private bool rockPalette;
 
@@ -375,6 +377,13 @@ internal sealed class DungeonModule : IProductModule
         return rockDetail is Vector4 v
             ? string.Create(CultureInfo.InvariantCulture, $"the next dungeon's voxel rock has grain {v.X} at {v.Y}/m and facets {v.Z} m at {v.W}")
             : "the next dungeon's voxel rock is drawn plainly";
+    }
+
+    /// <summary>The detail shader's colour cell (metres, 0 none: each cell one flat colour) and facet step count (0 the default).</summary>
+    internal string StudyRockPixels(float colourCell, float facetSteps)
+    {
+        rockPixels = new Vector4(colourCell, facetSteps, 0f, 0f);
+        return string.Create(CultureInfo.InvariantCulture, $"the next dungeon's voxel rock has colour cells of {colourCell} m and facets in {facetSteps} steps");
     }
 
     /// <summary>Colours the next dungeon's voxel rock from the cave's own palette (strata, mottling, wet floors) instead of the painted texture.</summary>
@@ -392,13 +401,13 @@ internal sealed class DungeonModule : IProductModule
         }
 
         Vector4 detail = rockDetail ?? Vector4.Zero;
-        if (!rockDetailMaterials.TryGetValue((detail, rockPalette), out Material? material))
+        if (!rockDetailMaterials.TryGetValue((detail, rockPalette, rockPixels), out Material? material))
         {
             rockDetailShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(RockDetailShaderPath)).Handle;
             // The palette needs the layout's height (the session lies below the open world) and the beds' dip.
             Vector4 palette = rockPalette ? new Vector4(1f, -DungeonCollision.Origin.Y, KarstCave.BedDip.X, KarstCave.BedDip.Y) : Vector4.Zero;
-            material = terrain.CaveRockWithShader(new MaterialShader(rockDetailShader, detail, palette, Vector4.Zero, Vector4.Zero));
-            rockDetailMaterials[(detail, rockPalette)] = material;
+            material = terrain.CaveRockWithShader(new MaterialShader(rockDetailShader, detail, palette, rockPixels, Vector4.Zero));
+            rockDetailMaterials[(detail, rockPalette, rockPixels)] = material;
         }
 
         return material;

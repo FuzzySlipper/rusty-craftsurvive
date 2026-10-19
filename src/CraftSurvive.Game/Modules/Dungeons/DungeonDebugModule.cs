@@ -25,6 +25,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.rockpalette", Description = "Assisted, for the cave detail study (#10094): true colours the next dungeon's voxel rock from the cave's own palette (strata, mottling, wet floors) instead of its painted texture.")]
     public string RockPalette(bool palette) => dungeons.StudyRockPalette(palette);
 
+    [DebugCommand("craft.dungeon.rockpixels", Description = "Assisted, for the cave detail study (#10094): the detail shader's colour cell in metres (0 none; each cell one flat colour of the palette) and its facets' normal steps (0 the default).")]
+    public string RockPixels(float colourCell, float facetSteps) => dungeons.StudyRockPixels(colourCell, facetSteps);
+
     [DebugCommand("craft.dungeon.voxelsize", Description = "Assisted, for the micro-voxel study (#10094): the natural cavern study's (approach n) voxel side, 1, 0.5 or 0.25 metres, for voxel surfaces.")]
     public string VoxelSize(double metres) => dungeons.StudyVoxelSize(metres);
 

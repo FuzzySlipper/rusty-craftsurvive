@@ -76,6 +76,15 @@ internal static class KarstCave
     // field (or the mesh) show.
     private const float MicroAmplitude = 0.12f, MicroFrequency = 1.1f, FinerAmplitude = 0.05f, FinerFrequency = 2.4f;
 
+    // Fine forms (#10094), below the field's half-metre samples: scallops (dishes in flow-worn rock, their packing and
+    // depth), laminae ledges (their spacing and how far they step), pits, and flowstone ripples where water drips.
+    private const float FlowFrom = 0.02f, FlowFull = 0.2f, DripFrom = 0.1f, DripFull = 0.5f;
+    private static readonly Vector3 ScallopSize = new(0.6f, 0.4f, 0.6f);
+    private const float ScallopReach = 0.55f, ScallopDepth = 0.09f;
+    private const float LaminaSpacing = 0.45f, LedgeDepth = 0.06f, LaminaPatchFrequency = 0.15f;
+    private const float PitSpacing = 0.3f, PitShare = 0.25f, PitReach = 0.45f, PitDepth = 0.08f;
+    private const float RippleFrequency = 12f, RippleHeight = 0.06f;
+
     // Above the water table: sharp ridged grain, and soft partings eaten back into notches between harder beds.
     private const float JagAmplitude = 0.55f, JagFrequency = 0.33f, NotchDepth = 0.5f, NotchHalfHeight = 0.45f;
 
@@ -121,9 +130,60 @@ internal static class KarstCave
         internal float At(Vector3 p)
         {
             float open = Trilinear(Open, p);
-            return MathF.Abs(open) > 1f ? open
-                : open + (MicroAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * MicroFrequency, Seed ^ 0xA01UL)))
-                    + (FinerAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * FinerFrequency, Seed ^ 0xA02UL)));
+            if (MathF.Abs(open) > 1f)
+            {
+                return open;
+            }
+
+            open += (MicroAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * MicroFrequency, Seed ^ 0xA01UL)))
+                + (FinerAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * FinerFrequency, Seed ^ 0xA02UL)));
+            return open + FineForms(p);
+        }
+
+        /// <summary>
+        /// The forms finer than the field's samples, from what the water did where: scallops where it flowed, little
+        /// ledges along the laminae and pits where the rock stood in air, flowstone ripples where it dripped (metres,
+        /// positive opening the rock).
+        /// </summary>
+        private float FineForms(Vector3 p)
+        {
+            float flowed = SmoothStep(FlowFrom, FlowFull, GridTrilinear(Flow, p));
+            float dripped = SmoothStep(DripFrom, DripFull, MathF.Max(GridTrilinear(Drip, p),
+                MathF.Max(GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f)), GridTrilinear(Drip, p + new Vector3(0f, 2f * GridCell, 0f)))));
+            bool aired = p.Y > WaterTables[^1];
+            float forms = 0f;
+
+            // Scallops: shallow dishes packed over the walls, longer along the flow (level) than across it.
+            if (flowed > 0f)
+            {
+                float f1 = Worley(p / ScallopSize, Seed ^ 0xB01UL, out _);
+                forms += ScallopDepth * flowed * MathF.Max(0f, 1f - (f1 * f1 / (ScallopReach * ScallopReach)));
+            }
+
+            if (aired)
+            {
+                // Laminae: thin beds eaten back unevenly, a sawtooth of little ledges along the dip.
+                float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
+                float saw = (bedY / LaminaSpacing) - MathF.Floor(bedY / LaminaSpacing);
+                float laminated = SmoothStep(0.45f, 0.7f, NaturalCavern.Noise(p * LaminaPatchFrequency, Seed ^ 0xB02UL));
+                forms += LedgeDepth * laminated * ((saw * 2f) - 1f);
+
+                // Pits: a few small cups where the rock weathered in air.
+                float f1 = Worley(p / PitSpacing, Seed ^ 0xB03UL, out float which);
+                if (which < PitShare)
+                {
+                    forms += PitDepth * MathF.Max(0f, 1f - (f1 / PitReach));
+                }
+            }
+
+            // Flowstone: deposited rock in ripples down the walls where the water dripped.
+            if (dripped > 0f)
+            {
+                float wave = 0.5f + (0.5f * MathF.Sin((p.Y * RippleFrequency) + (3f * NaturalCavern.Noise(p * 0.6f, Seed ^ 0xB04UL))));
+                forms -= RippleHeight * dripped * wave;
+            }
+
+            return forms;
         }
 
         /// <summary>The cave's seed, for its micro term.</summary>
@@ -1031,6 +1091,52 @@ internal static class KarstCave
                     int index = FieldIndex(x, y, z);
                     visit(index, FieldCentre(index));
                 }
+    }
+
+    /// <summary>A field on the 2 m structural grid, read anywhere (trilinear between cell centres).</summary>
+    private static float GridTrilinear(float[] grid, Vector3 p)
+    {
+        float fx = Math.Clamp((p.X / GridCell) - 0.5f, 0f, GridX - 1.001f);
+        float fy = Math.Clamp((p.Y / GridCell) - 0.5f, 0f, GridY - 1.001f);
+        float fz = Math.Clamp((p.Z / GridCell) - 0.5f, 0f, GridZ - 1.001f);
+        int x0 = (int)fx, y0 = (int)fy, z0 = (int)fz;
+        float tx = fx - x0, ty = fy - y0, tz = fz - z0;
+        float L(int dx, int dy, int dz) => grid[GridIndex(x0 + dx, y0 + dy, z0 + dz)];
+        static float Lerp(float a, float b, float t) => a + ((b - a) * t);
+        return Lerp(Lerp(Lerp(L(0, 0, 0), L(1, 0, 0), tx), Lerp(L(0, 1, 0), L(1, 1, 0), tx), ty),
+            Lerp(Lerp(L(0, 0, 1), L(1, 0, 1), tx), Lerp(L(0, 1, 1), L(1, 1, 1), tx), ty), tz);
+    }
+
+    /// <summary>
+    /// Cellular (Worley) noise: the distance from a point to the nearest of one jittered feature point per unit cell, and
+    /// that nearest point's own hash in [0, 1) (so a share of the cells can be picked out).
+    /// </summary>
+    private static float Worley(Vector3 p, ulong seed, out float which)
+    {
+        int cx = (int)MathF.Floor(p.X), cy = (int)MathF.Floor(p.Y), cz = (int)MathF.Floor(p.Z);
+        float best = float.MaxValue;
+        which = 0f;
+        for (int dz = -1; dz <= 1; dz++)
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int x = cx + dx, y = cy + dy, z = cz + dz;
+                    Vector3 feature = new(x + NaturalCavern.Hash(seed, x, y, z), y + NaturalCavern.Hash(seed ^ 0x11UL, x, y, z), z + NaturalCavern.Hash(seed ^ 0x22UL, x, y, z));
+                    float distance = Vector3.Distance(p, feature);
+                    if (distance < best)
+                    {
+                        best = distance;
+                        which = NaturalCavern.Hash(seed ^ 0x33UL, x, y, z);
+                    }
+                }
+
+        return best;
+    }
+
+    private static float SmoothStep(float edge0, float edge1, float x)
+    {
+        float t = Math.Clamp((x - edge0) / (edge1 - edge0), 0f, 1f);
+        return t * t * (3f - (2f * t));
     }
 
     private static float Trilinear(float[] field, Vector3 p)
