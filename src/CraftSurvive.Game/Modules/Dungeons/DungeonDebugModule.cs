@@ -28,6 +28,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.rockpixels", Description = "Assisted, for the cave detail study (#10094): the detail shader's colour cell in metres (0 none; each cell one flat colour of the palette), its facets' normal steps (0 the default), what cells do toward a screen pixel (0 nothing, 1 fade, 2 grow) and how much neighbouring facets lean alike (0 to 1).")]
     public string RockPixels(float colourCell, float facetSteps, float distance, float coherence) => dungeons.StudyRockPixels(colourCell, facetSteps, distance, coherence);
 
+    [DebugCommand("craft.dungeon.darkness", Description = "Assisted, for the darkness study (#10091): the next dungeon's darkness treatment - today, lights (torches, no fill), lantern (the player's lantern alone), fakery (low fill, dark fog, lantern, mineral glints) or mix (sparse torches, lantern, glints).")]
+    public string Darkness(string name) => dungeons.StudyDarkness(name);
+
     [DebugCommand("craft.dungeon.voxelsize", Description = "Assisted, for the micro-voxel study (#10094): the natural cavern study's (approach n) voxel side, 1, 0.5 or 0.25 metres, for voxel surfaces.")]
     public string VoxelSize(double metres) => dungeons.StudyVoxelSize(metres);
 

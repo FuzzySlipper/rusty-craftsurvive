@@ -21,6 +21,8 @@
 // Cells lie on the surface, not in world cubes: each is a square of the plane the surface most faces (x, y or z),
 // so a wall shows square cells instead of the ragged cuts of cubes through it.
 //
+// material.parameters[3].w: mineral glints (#10091): a few colour cells catch light as faint cool sparks, so the dark
+// keeps a little texture where nothing lights it; their strength (0 none).
 // material.parameters[3]: the rock's age class (#10094), one of: x patina (levels dry for ages: darker, warmer, stained,
 // a pale calcite crust on what faces down), y washed (the active level: cleaner, cooler, wetter and glossier, its facets
 // softened by the water), z sediment (settled silt and mud: its own colour, fine and flat).
@@ -155,6 +157,10 @@ const WASHED_TINT: vec3<f32> = vec3<f32>(1.12, 1.12, 1.15);
 const MUD: vec3<f32> = vec3<f32>(0.05, 0.038, 0.026);
 const WASHED_ROUGHNESS: f32 = 0.45;
 const SEDIMENT_FACETS: f32 = 0.3;
+// Glints: the share of colour cells that glint, their colour (linear emission), and how much more a washed face glints.
+const GLINT_SHARE: f32 = 0.012;
+const GLINT_COLOUR: vec3<f32> = vec3<f32>(0.035, 0.045, 0.06);
+const GLINT_WASHED: f32 = 2.0;
 
 fn aged(colour: vec3<f32>, p: vec3<f32>, n: vec3<f32>, age: vec4<f32>) -> vec3<f32> {
     var c = colour;
@@ -210,6 +216,12 @@ fn shade(surface: Surface) -> vec4<f32> {
             colour = mix(colour, cell_colour, cell_keep(size, footprint, pixels.z));
         }
         s.base = vec4<f32>(aged(colour, s.world_position, s.normal, material.parameters[3]), s.base.a);
+        if (material.parameters[3].w > 0.0 && pixels.x > 0.0) {
+            let size = cell_size(pixels.x, footprint, pixels.z);
+            let spark = hash3(cell_index(s.world_position, axis, size) + vec3<i32>(401, 17, 3));
+            let share = GLINT_SHARE * select(1.0, GLINT_WASHED, material.parameters[3].y > 0.0);
+            s.emission = s.emission + GLINT_COLOUR * material.parameters[3].w * step(1.0 - share, spark);
+        }
         if (material.parameters[3].y > 0.0) {
             s.roughness = min(s.roughness, WASHED_ROUGHNESS);
         }

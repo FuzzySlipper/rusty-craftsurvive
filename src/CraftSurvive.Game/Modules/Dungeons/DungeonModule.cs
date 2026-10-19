@@ -140,6 +140,7 @@ internal sealed class DungeonModule : IProductModule
         switch (state)
         {
             case DungeonState.Outside:
+                CarryLantern();
                 if (step.Step >= nextSearchStep)
                 {
                     nearbyEntrance = NearestEntrance();
@@ -170,7 +171,13 @@ internal sealed class DungeonModule : IProductModule
                 {
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival));
                     sky.Underground(true, conditions.Time);
-                    Light(loading.Layout.Lights);
+                    Light(Darkness.Torches switch
+                    {
+                        TorchShare.All => loading.Layout.Lights,
+                        TorchShare.Sparse => [.. loading.Layout.Lights.Where((_, i) => i % SparseTorchEvery == 0)],
+                        _ => [],
+                    });
+                    sky.StudyLight(Darkness.Fill ?? -1f, Darkness.Fog ?? -1f);
                     IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
                     entered++;
@@ -184,8 +191,10 @@ internal sealed class DungeonModule : IProductModule
                 {
                     // A defeat or a teleport took the player out: the dungeon is let go.
                     Close("carried out of the dungeon");
+                    break;
                 }
 
+                CarryLantern();
                 break;
         }
 
@@ -357,6 +366,75 @@ internal sealed class DungeonModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture, $"dungeons entered use seed {chosen}");
     }
 
+    // --- The darkness study (#10091) ---
+
+    /// <summary>What a darkness treatment lights a dungeon with: which torches burn, the fill and fog (null: the game's), the player's lantern, and how strongly the rock's mineral glints catch.</summary>
+    internal enum TorchShare { All, Sparse, None }
+
+    internal sealed record DarknessTreatment(string Name, TorchShare Torches, float? Fill, float? Fog, bool Lantern, float Glint);
+
+    /// <summary>
+    /// The treatments compared (#10091; owner, 2026-10-18: darkness can be literally no lights, controlled fakery with
+    /// darker fog, or a mix): today's torches, fill and fog; the torches alone; the player's lantern alone in true dark;
+    /// controlled fakery - a low readable fill, fog closing to black, the lantern, mineral glints; and a mix of sparse
+    /// torches with the lantern and glints.
+    /// </summary>
+    private static readonly DarknessTreatment[] Treatments =
+    [
+        new("today", TorchShare.All, null, null, false, 0f),
+        new("lights", TorchShare.All, 0f, 0.03f, false, 0f),
+        new("lantern", TorchShare.None, 0f, 0.06f, true, 0f),
+        new("fakery", TorchShare.None, 0.3f, 0.07f, true, 1f),
+        new("mix", TorchShare.Sparse, 0.08f, 0.05f, true, 0.6f),
+    ];
+
+    private const int SparseTorchEvery = 3;
+    private DarknessTreatment Darkness { get; set; } = Treatments[0];
+
+    /// <summary>Chooses the next dungeon's darkness treatment (today, lights, lantern, fakery or mix).</summary>
+    internal string StudyDarkness(string name)
+    {
+        if (Treatments.FirstOrDefault(t => t.Name == name) is not DarknessTreatment chosen)
+        {
+            return $"darkness refused: \"{name}\" is not {string.Join(", ", Treatments.Select(t => t.Name))}";
+        }
+
+        Darkness = chosen;
+        return $"the next dungeon's darkness is {chosen}";
+    }
+
+    // The lantern: a warm light carried at the hip, shadowed, reaching a modest distance (its range also names it in captures).
+    private static readonly Vector3 LanternColour = new(1f, 0.74f, 0.42f);
+    private const float LanternIntensity = 18f;
+    internal const float LanternRange = 13.5f;
+    private static readonly Vector3 LanternBelowEye = new(0f, -0.5f, 0f);
+    private Light? lantern;
+    private bool lanternLit;
+
+    /// <summary>Keeps the lantern at the player while inside with a lantern treatment, and puts it out once otherwise.</summary>
+    private void CarryLantern()
+    {
+        bool on = Darkness.Lantern && state == DungeonState.Inside;
+        if (!on && !lanternLit)
+        {
+            return;
+        }
+
+        lanternLit = on;
+
+        LightRequest request = new(ProductIds.DungeonLanternLight, false, 0UL,
+            new LightDescriptor(LightKind.Point, LanternColour, LanternIntensity, on, on ? player.WorldEyePosition + LanternBelowEye : Vector3.Zero,
+                -Vector3.UnitY, true, LanternRange, LightDecay, 0f, 0f, LightShadowIntent.Requested, LightShadowResolution, LightShadowPriority, true));
+        if (lantern is Light held)
+        {
+            engine.Graphics.UpdateLight(new LightUpdateRequest(held, request));
+        }
+        else
+        {
+            lantern = engine.Graphics.CreateLight(request);
+        }
+    }
+
     /// <summary>The cave detail study (#10094): the shader the voxel rock is drawn through, its parameters, and the materials made for it.</summary>
     private const string RockDetailShaderPath = "shaders/cave-rock-detail.wgsl";
     /// <summary>
@@ -403,7 +481,7 @@ internal sealed class DungeonModule : IProductModule
         return palette ? "the next dungeon's voxel rock takes the cave palette" : "the next dungeon's voxel rock takes its painted texture's colour";
     }
 
-    private Material? StudyRockDetail() => RockLook(Vector4.Zero);
+    private Material? StudyRockDetail() => RockLook(new Vector4(0f, 0f, 0f, Darkness.Glint));
 
     /// <summary>
     /// The cave rock's look for each age class (#10094): what a voxel's rock block says of the space it faces - plain,
@@ -422,7 +500,7 @@ internal sealed class DungeonModule : IProductModule
         Dictionary<BlockId, Material> looks = [];
         foreach ((BlockId block, Vector4 age) in AgeLooks)
         {
-            if (RockLook(age) is Material look)
+            if (RockLook(age with { W = Darkness.Glint }) is Material look)
             {
                 looks[block] = look;
             }
