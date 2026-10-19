@@ -18,7 +18,16 @@ internal static class CaveEcology
     // A great hall's lights (#10094): the giant fungi's stalks and caps and the vault blooms' glow.
     internal static readonly Vector3 GiantGlow = new(0.15f, 0.6f, 1f), VaultGlow = new(0.5f, 0.72f, 1f);
     private static readonly Color GiantStalk = new(0.42f, 0.4f, 0.36f, 1f);
-    private const float GiantGlowStrength = 1.1f, VaultGlowStrength = 3f;
+
+    /// <summary>
+    /// A giant's cap is dark on top and glows only in its gills beneath (owner, 2026-10-19), and the gills take almost no light,
+    /// so the giant's own light - hung inside its cap on the stalk's axis, where every face seen turns away from it or meets it edge-on - lights
+    /// the floor round it without burning the fungus out.
+    /// </summary>
+    private static readonly Color GiantCapTop = new(0.07f, 0.08f, 0.11f, 1f), GiantGillAlbedo = new(0.015f, 0.02f, 0.03f, 1f);
+    private const int GiantGills = 28, CompanionGills = 14;
+    private const float GillDepth = 0.35f, GillInner = 1.2f, LightInsideCap = 0.08f;
+    private const float GiantGlowStrength = 2f, VaultGlowStrength = 3f;
 
     /// <summary>
     /// A vault bloom's crystals take almost no light (their colour is their own glow), so the hall's sun hanging under them
@@ -64,10 +73,10 @@ internal static class CaveEcology
     /// <summary>Whether a kind's light casts shadows: the vault's sun does, so the hall's pillars and giants throw them across its floor.</summary>
     internal static bool Shadowed(EcologyKind kind) => kind == EcologyKind.VaultBloom;
 
-    /// <summary>Where a growth's light hangs, in layout metres: under a giant's cap, below a vault bloom's tips, else just off the growth.</summary>
+    /// <summary>Where a growth's light hangs, in layout metres: inside a giant's cap, below a vault bloom's tips, else just off the growth.</summary>
     internal static Vector3 LightAt(EcologyPlacement growth, float offset) => growth.Kind switch
     {
-        EcologyKind.GiantFungus => growth.At + (growth.Normal * ((GiantHeight * growth.Size) - (GiantCap * growth.Size * 0.4f))),
+        EcologyKind.GiantFungus => GiantStalkTop(growth.At, growth.Size, new Random((int)growth.Seed)).Top - (Vector3.UnitY * GiantCap * growth.Size * LightInsideCap),
         EcologyKind.VaultBloom => growth.At + (growth.Normal * ((LongestVaultPrism * growth.Size) + VaultLightBelowTips)),
         _ => growth.At + (growth.Normal * offset),
     };
@@ -94,12 +103,17 @@ internal static class CaveEcology
                 _ => (CrystalBody, CrystalGlow, CrystalGlowStrength),
             };
             Material plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
-            Color lit = kind == EcologyKind.VaultBloom ? VaultCrystalAlbedo : new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f);
+            Color lit = kind switch
+            {
+                EcologyKind.VaultBloom => VaultCrystalAlbedo,
+                EcologyKind.GiantFungus => GiantGillAlbedo,
+                _ => new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f),
+            };
             Material glowing = engine.Graphics.CreateMaterial(new MaterialRequest(lit, default,
                 GrowthRoughness, new Color(1f, 1f, 1f, 1f), glow, strength, false));
             materials.Add(plain);
             materials.Add(glowing);
-            Builder plainPart = new(), glowPart = new();
+            Builder plainPart = new(), glowPart = new(), topPart = new();
             foreach (EcologyPlacement growth in these)
             {
                 Random random = new((int)growth.Seed);
@@ -113,7 +127,7 @@ internal static class CaveEcology
                         Worms(plainPart, glowPart, at, growth.Size, random);
                         break;
                     case EcologyKind.GiantFungus:
-                        Giant(plainPart, glowPart, at, growth.Size, random);
+                        Giant(plainPart, topPart, glowPart, at, growth.Size, random);
                         break;
                     case EcologyKind.VaultBloom:
                         VaultBloom(glowPart, at, growth.Size, random);
@@ -124,7 +138,15 @@ internal static class CaveEcology
                 }
             }
 
-            meshes.Add(Merge(plainPart, glowPart, plain, glowing));
+            List<(Builder, Material)> parts = [(plainPart, plain), (glowPart, glowing)];
+            if (topPart.Indices.Count > 0)
+            {
+                Material top = engine.Graphics.CreateMaterial(new MaterialRequest(GiantCapTop, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
+                materials.Add(top);
+                parts.Add((topPart, top));
+            }
+
+            meshes.Add(Merge(parts));
         }
 
         return meshes;
@@ -147,11 +169,18 @@ internal static class CaveEcology
         }
     }
 
-    /// <summary>A giant fungus: a bending stalk under a broad glowing cap, with a few small ones at its foot.</summary>
-    private static void Giant(Builder stalks, Builder caps, Vector3 at, float size, Random random)
+    /// <summary>A giant's stalk: its lean and the top it carries the cap on (read from the giant's seed first, so its light can find it).</summary>
+    private static (Vector3 Lean, Vector3 Top) GiantStalkTop(Vector3 at, float size, Random random)
+    {
+        Vector3 lean = new(((float)random.NextDouble() - 0.5f) * GiantBend, 0f, ((float)random.NextDouble() - 0.5f) * GiantBend);
+        return (lean, at + new Vector3(0f, GiantHeight * size, 0f) + (lean * GiantHeight * size * 0.3f));
+    }
+
+    /// <summary>A giant fungus: a bending stalk under a broad dark cap with glowing gills beneath, with a few small ones at its foot.</summary>
+    private static void Giant(Builder stalks, Builder tops, Builder gills, Vector3 at, float size, Random random)
     {
         float height = GiantHeight * size, girth = GiantGirth * size, cap = GiantCap * size;
-        Vector3 lean = new(((float)random.NextDouble() - 0.5f) * GiantBend, 0f, ((float)random.NextDouble() - 0.5f) * GiantBend);
+        (Vector3 lean, Vector3 top) = GiantStalkTop(at, size, random);
         Vector3 Along(float t) => at + new Vector3(0f, height * t, 0f) + (lean * height * t * t * 0.3f);
         for (int i = 0; i < GiantSegments; i++)
         {
@@ -160,9 +189,8 @@ internal static class CaveEcology
             stalks.Prism(Along(t0), Along(t1) + new Vector3(0f, 0.05f, 0f), girth * (1.6f - (0.7f * t0)), 8);
         }
 
-        Vector3 top = Along(1f);
         Vector3 up = Vector3.Normalize(Vector3.UnitY + (lean * 0.4f));
-        caps.Dome(top - (up * cap * 0.15f), up, cap, 12);
+        Cap(tops, gills, top - (up * cap * 0.15f), up, cap, girth, 12, GiantGills);
         int companions = FewestCompanions + random.Next(MostCompanions - FewestCompanions + 1);
         for (int i = 0; i < companions; i++)
         {
@@ -171,7 +199,24 @@ internal static class CaveEcology
             Vector3 foot = at + new Vector3(MathF.Cos(a) * r, -0.1f, MathF.Sin(a) * r);
             Vector3 head = foot + new Vector3(0f, GiantHeight * small, 0f);
             stalks.Prism(foot, head, GiantGirth * small * 1.3f, 6);
-            caps.Dome(head, Vector3.UnitY, GiantCap * small, 8);
+            Cap(tops, gills, head, Vector3.UnitY, GiantCap * small, GiantGirth * small * 1.3f, 8, CompanionGills);
+        }
+    }
+
+    /// <summary>A cap: a dark dome over radial gill fins hanging from its underside, from the stalk out to near the rim.</summary>
+    private static void Cap(Builder tops, Builder gills, Vector3 centre, Vector3 up, float radius, float stalk, int sides, int fins)
+    {
+        tops.Dome(centre, up, radius, sides);
+        (Vector3 u, Vector3 v) = Tangents(up);
+        float depth = radius * GillDepth;
+        for (int i = 0; i < fins; i++)
+        {
+            float a = i * MathF.Tau / fins;
+            Vector3 out_ = (u * MathF.Cos(a)) + (v * MathF.Sin(a));
+            Vector3 inner = centre + (out_ * stalk * GillInner), outer = centre + (out_ * radius * 0.95f);
+            // Deepest a little in from the rim, closing up to the cap at both ends.
+            Vector3 low = centre + (out_ * radius * 0.45f) - (up * depth);
+            gills.Triangle(inner - (up * 0.02f), low, outer - (up * 0.02f));
         }
     }
 
@@ -230,28 +275,30 @@ internal static class CaveEcology
         return (u, Vector3.Cross(normal, u));
     }
 
-    private static MeshResourceCreateRequest Merge(Builder plain, Builder glowing, Material plainMaterial, Material glowingMaterial)
+    /// <summary>The parts of a kind's mesh, each drawn in its own material; empty parts are left out (the Engine refuses empty groups).</summary>
+    private static MeshResourceCreateRequest Merge(IReadOnlyList<(Builder Part, Material Material)> parts)
     {
-        uint offset = (uint)plain.Positions.Count;
-        Vector3[] positions = [.. plain.Positions, .. glowing.Positions];
-        Vector3[] normals = [.. plain.Normals, .. glowing.Normals];
-        uint[] indices = [.. plain.Indices, .. glowing.Indices.Select(i => i + offset)];
-        // A kind with no plain part (crystals glow throughout) has only its glowing group: the Engine refuses empty groups.
+        List<Vector3> positions = [], normals = [];
+        List<uint> indices = [];
         List<MeshGroup> groups = [];
         List<MeshMaterialBinding> bindings = [];
-        if (plain.Indices.Count > 0)
+        foreach ((Builder part, Material material) in parts)
         {
-            groups.Add(new MeshGroup(0, 0, (uint)plain.Indices.Count));
-            bindings.Add(new MeshMaterialBinding(0, plainMaterial));
+            if (part.Indices.Count == 0)
+            {
+                continue;
+            }
+
+            uint offset = (uint)positions.Count;
+            uint slot = (uint)groups.Count;
+            groups.Add(new MeshGroup(slot, (uint)indices.Count, (uint)part.Indices.Count));
+            bindings.Add(new MeshMaterialBinding(slot, material));
+            positions.AddRange(part.Positions);
+            normals.AddRange(part.Normals);
+            indices.AddRange(part.Indices.Select(i => i + offset));
         }
 
-        if (glowing.Indices.Count > 0)
-        {
-            groups.Add(new MeshGroup(1, (uint)plain.Indices.Count, (uint)glowing.Indices.Count));
-            bindings.Add(new MeshMaterialBinding(1, glowingMaterial));
-        }
-
-        return new MeshResourceCreateRequest(positions, normals, new Vector2[positions.Length], ReadOnlyMemory<Color>.Empty, indices,
+        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), new Vector2[positions.Count], ReadOnlyMemory<Color>.Empty, indices.ToArray(),
             groups.ToArray(), bindings.ToArray());
     }
 
@@ -262,7 +309,7 @@ internal static class CaveEcology
         internal List<Vector3> Normals { get; } = [];
         internal List<uint> Indices { get; } = [];
 
-        private void Triangle(Vector3 a, Vector3 b, Vector3 c)
+        internal void Triangle(Vector3 a, Vector3 b, Vector3 c)
         {
             Vector3 n = Vector3.Cross(b - a, c - a);
             n = n.LengthSquared() > 1e-12f ? Vector3.Normalize(n) : Vector3.UnitY;
