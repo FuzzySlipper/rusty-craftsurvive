@@ -156,6 +156,11 @@ const CALCITE: vec3<f32> = vec3<f32>(0.16, 0.15, 0.13);
 const WASHED_TINT: vec3<f32> = vec3<f32>(1.12, 1.12, 1.15);
 const MUD: vec3<f32> = vec3<f32>(0.05, 0.038, 0.026);
 const WASHED_ROUGHNESS: f32 = 0.45;
+// Algae and slime on the active level (#10129): a mottled green-brown film on washed rock that faces up or out, where
+// the water keeps it wet; not on what faces down.
+const ALGAE: vec3<f32> = vec3<f32>(0.035, 0.055, 0.025);
+const ALGAE_SHARE: f32 = 0.55;
+const ALGAE_FREQUENCY: f32 = 0.6;
 const SEDIMENT_FACETS: f32 = 0.3;
 // Glints: the share of colour cells that glint, their colour (linear emission), and how much more a washed face glints.
 const GLINT_SHARE: f32 = 0.012;
@@ -173,6 +178,8 @@ fn aged(colour: vec3<f32>, p: vec3<f32>, n: vec3<f32>, age: vec4<f32>) -> vec3<f
     if (age.y > 0.0) {
         // Washed: the mottling evened out, lighter and cooler.
         c = mix(c, vec3<f32>(dot(c, vec3<f32>(0.33))), 0.35) * WASHED_TINT;
+        let film = smoothstep(0.45, 0.7, value_noise(p * ALGAE_FREQUENCY + vec3<f32>(11.0, 5.0, 23.0))) * smoothstep(-0.2, 0.3, n.y);
+        c = mix(c, ALGAE, ALGAE_SHARE * film);
     }
     if (age.z > 0.0) {
         c = MUD * (0.85 + 0.3 * value_noise(p * 2.0));

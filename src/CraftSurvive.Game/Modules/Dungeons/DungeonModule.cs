@@ -180,6 +180,7 @@ internal sealed class DungeonModule : IProductModule
                         _ => [],
                     });
                     sky.StudyLight(Darkness.Fill ?? -1f, Darkness.Fog ?? -1f);
+                    GrowthLights(loading.Layout.Ecology);
                     IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
                     entered++;
@@ -366,6 +367,39 @@ internal sealed class DungeonModule : IProductModule
 
         seedOverride = chosen;
         return string.Create(CultureInfo.InvariantCulture, $"dungeons entered use seed {chosen}");
+    }
+
+    // --- The cave's living light (#10129) ---
+
+    /// <summary>How many of a cave's growths give light (the rest only glow), and how far above a growth its light hangs.</summary>
+    private const int MostGrowthLights = 24;
+    private const float GrowthLightOffset = 0.35f;
+    private readonly Light?[] growthLights = new Light?[MostGrowthLights];
+
+    /// <summary>
+    /// Lights the strongest growths: small, coloured, unshadowed lights a little off each, so the light around a glowing
+    /// thing is that thing's. Glow-worm curtains and fungi first (they are the cave's life), then crystals.
+    /// </summary>
+    private void GrowthLights(IReadOnlyList<EcologyPlacement> growths)
+    {
+        EcologyPlacement[] lit = [.. growths.OrderBy(g => g.Kind switch { EcologyKind.GlowWorms => 0, EcologyKind.GlowFungi => 1, _ => 2 }).ThenByDescending(g => g.Size).Take(MostGrowthLights)];
+        for (int slot = 0; slot < MostGrowthLights; slot++)
+        {
+            bool on = slot < lit.Length;
+            (Vector3 colour, float intensity, float range) = on ? CaveEcology.LightOf(lit[slot].Kind) : (Vector3.One, 0f, 1f);
+            Vector3 at = on ? DungeonSpace.InSession(lit[slot].At + (lit[slot].Normal * GrowthLightOffset)) : Vector3.Zero;
+            LightRequest request = new(ProductIds.DungeonGrowthLightBase + (ulong)slot, false, 0UL,
+                new LightDescriptor(LightKind.Point, colour, intensity, on, at, -Vector3.UnitY, true, range, LightDecay, 0f, 0f,
+                    LightShadowIntent.Disabled, LightShadowResolution, LightShadowPriority, true));
+            if (growthLights[slot] is Light light)
+            {
+                engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
+            }
+            else if (on)
+            {
+                growthLights[slot] = engine.Graphics.CreateLight(request);
+            }
+        }
     }
 
     // --- The darkness study (#10091) ---
@@ -882,6 +916,7 @@ internal sealed class DungeonModule : IProductModule
     private void Close(string outcome)
     {
         Light([]);
+        GrowthLights([]);
         engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
         Retire();
         plan = null;

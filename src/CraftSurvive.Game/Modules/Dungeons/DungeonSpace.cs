@@ -29,6 +29,10 @@ internal sealed class DungeonSpace : IDisposable
     private Appearance? rockAppearance;
     /// <summary>Route C's rock pieces (#10090): merged meshes and their appearances.</summary>
     private readonly List<(MeshResource Mesh, Appearance Look)> pieces = [];
+    /// <summary>The cave's living light (#10129): one mesh per kind of growth, and the materials made for them.</summary>
+    private readonly List<(MeshResource Mesh, Appearance Look)> growths = [];
+    private readonly List<Material> growthMaterials = [];
+
     /// <summary>Route B's finer rock (#10090), meshed in slabs; the first is also <see cref="rockMesh"/>.</summary>
     private readonly List<(MeshResource Mesh, Appearance Look)> slabs = [];
     private readonly int totalChunks;
@@ -66,7 +70,11 @@ internal sealed class DungeonSpace : IDisposable
     internal int TotalChunks => totalChunks;
 
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot; nothing when its rock is voxels.</summary>
-    internal IEnumerable<AppearanceFact> AppearanceFacts => rockAppearance is Appearance appearance
+    internal IEnumerable<AppearanceFact> AppearanceFacts =>
+        [.. RockFacts, .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
+            new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene))];
+
+    private IEnumerable<AppearanceFact> RockFacts => rockAppearance is Appearance appearance
         ? [new AppearanceFact(ProductIds.DungeonRockObject, false, 0UL, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), appearance, true, RenderLayer.Scene),
             .. slabs.Skip(1).Select((slab, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0x800 + (ulong)index, false, 0UL,
                 new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), slab.Look, true, RenderLayer.Scene)),
@@ -96,9 +104,15 @@ internal sealed class DungeonSpace : IDisposable
         {
             // A voxel look's rock may be drawn in a study material (#10094); a mesh look's material is its mesh's.
             projection = terrain.ProjectSeparateSpace(Session, DungeonSurfaces.RockAsMesh(surface) ? null : voxelRock);
-            if (layout.Rock is RockDensity rock)
+            if (layout.Rock is RockDensity rock && DungeonSurfaces.RockAsMesh(surface))
             {
                 BuildRock(rock);
+            }
+
+            foreach (MeshResourceCreateRequest request in CaveEcology.Meshes(engine, layout.Ecology, DungeonCollision.Origin, growthMaterials))
+            {
+                MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+                growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
             }
         }
 
@@ -189,6 +203,19 @@ internal sealed class DungeonSpace : IDisposable
 
     public void Dispose()
     {
+        foreach ((MeshResource mesh, Appearance look) in growths)
+        {
+            look.Dispose();
+            mesh.Dispose();
+        }
+
+        growths.Clear();
+        foreach (Material material in growthMaterials)
+        {
+            material.Dispose();
+        }
+
+        growthMaterials.Clear();
         foreach ((MeshResource mesh, Appearance look) in pieces)
         {
             look.Dispose();

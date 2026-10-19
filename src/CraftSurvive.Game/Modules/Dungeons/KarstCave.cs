@@ -247,6 +247,103 @@ internal static class KarstCave
         return null;
     }
 
+    // Ecology (#10129): how far apart growths of a kind stand, how many a cave may have, how damp a quiet floor must be
+    // for fungi, how near running water glow-worms hang and how clear the drop below them must be, and how long dry a
+    // level must be for crystals.
+    private const float FungiApart = 3f, WormsApart = 4f, CrystalsApart = 8f;
+    private const int MostFungi = 25, MostWorms = 15, MostCrystals = 8;
+    private const float FungiDamp = 0.15f, QuietFlow = 0.15f, WormsNearFlow = 0.05f, WormsClearBelow = 2.5f;
+    private const int CrystalsAfterEras = 2;
+    private const float EcologyStep = 1f;
+
+    /// <summary>
+    /// Where the cave's life grows, from what the water did (#10129): fungi on floors where it is damp (water drips or
+    /// stands) but nothing runs, glow-worms on ceilings over running water with room below them to hang, crystals on old
+    /// dry levels; each kind spaced apart and capped, chosen by hash so a seed always grows the same cave.
+    /// </summary>
+    private static List<EcologyPlacement> Ecology(float[] open, byte[] formed, float[] flow, float[] drip, float[] standing, int eras, float finalTable, ulong seed)
+    {
+        List<(EcologyKind Kind, Vector3 At, Vector3 Normal, float Rank)> candidates = [];
+        float Open(Vector3 p) => Trilinear(open, p);
+        for (float z = 2f; z < GridZ * GridCell - 2f; z += EcologyStep)
+            for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
+                for (float x = 2f; x < GridX * GridCell - 2f; x += EcologyStep)
+                {
+                    Vector3 p = new(x, y, z);
+                    if (Open(p) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    float damp = MathF.Max(GridTrilinear(drip, p), GridTrilinear(standing, p));
+                    float running = GridTrilinear(flow, p);
+                    float rank = NaturalCavern.Hash(seed ^ 0x1E01UL, (int)x, (int)y, (int)z);
+                    int sample = FieldIndex(Math.Clamp((int)(x / FieldStep), 0, FieldX - 1), Math.Clamp((int)(y / FieldStep), 0, FieldY - 1), Math.Clamp((int)(z / FieldStep), 0, FieldZ - 1));
+                    int age = formed[sample] == Unformed ? 0 : eras - 1 - formed[sample];
+                    // A floor just below: fungi where it is damp and still.
+                    if (Open(p - new Vector3(0f, EcologyStep, 0f)) <= 0f && damp >= FungiDamp && running < QuietFlow)
+                    {
+                        candidates.Add((EcologyKind.GlowFungi, Floor(open, p), Vector3.UnitY, rank));
+                    }
+
+                    // A ceiling just above with a clear drop below: glow-worms over running water.
+                    if (Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && running >= WormsNearFlow && Open(p - new Vector3(0f, WormsClearBelow, 0f)) > 0f)
+                    {
+                        candidates.Add((EcologyKind.GlowWorms, Ceiling(open, p), -Vector3.UnitY, rank));
+                    }
+
+                    // A wall beside, on a level long dry: crystals.
+                    if (age >= CrystalsAfterEras && p.Y > finalTable && damp < FungiDamp && Wall(open, p) is Vector3 wallNormal)
+                    {
+                        candidates.Add((EcologyKind.CrystalBloom, p - (wallNormal * 0.45f), wallNormal, rank));
+                    }
+                }
+
+        List<EcologyPlacement> chosen = [];
+        foreach ((EcologyKind kind, float apart, int most) in new[] { (EcologyKind.GlowFungi, FungiApart, MostFungi), (EcologyKind.GlowWorms, WormsApart, MostWorms), (EcologyKind.CrystalBloom, CrystalsApart, MostCrystals) })
+        {
+            foreach ((EcologyKind _, Vector3 at, Vector3 normal, float rank) in candidates.Where(c => c.Kind == kind).OrderByDescending(c => c.Rank))
+            {
+                if (chosen.Count(c => c.Kind == kind) >= most || chosen.Any(c => c.Kind == kind && Vector3.Distance(c.At, at) < apart))
+                {
+                    continue;
+                }
+
+                chosen.Add(new EcologyPlacement(kind, at, normal, 0.7f + (0.6f * rank), (uint)(rank * uint.MaxValue)));
+            }
+        }
+
+        return chosen;
+    }
+
+    /// <summary>The floor under an open place: the first rock looking down.</summary>
+    private static Vector3 Floor(float[] open, Vector3 p)
+    {
+        while (p.Y > 1f && Trilinear(open, p) > 0f) p.Y -= 0.1f;
+        return p + new Vector3(0f, 0.08f, 0f);
+    }
+
+    /// <summary>The ceiling over an open place: the first rock looking up.</summary>
+    private static Vector3 Ceiling(float[] open, Vector3 p)
+    {
+        while (p.Y < GridY * GridCell && Trilinear(open, p) > 0f) p.Y += 0.1f;
+        return p - new Vector3(0f, 0.05f, 0f);
+    }
+
+    /// <summary>The open-facing normal of a wall within half a metre beside a place, or null when none is.</summary>
+    private static Vector3? Wall(float[] open, Vector3 p)
+    {
+        foreach (Vector3 side in (ReadOnlySpan<Vector3>)[Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ])
+        {
+            if (Trilinear(open, p + (side * 0.5f)) <= 0f)
+            {
+                return -side;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>A joint plane: a point on it, its normal across the floor, the heights it spans and how far it runs.</summary>
     private readonly record struct JointPlane(Vector2 Point, Vector2 Normal, float Low, float High, float Reach);
 
@@ -267,6 +364,8 @@ internal static class KarstCave
         internal required List<Vector3> MainRoute { get; init; }
         internal required Vector3? MazeAt { get; init; }
         internal required Era[] Eras { get; init; }
+        /// <summary>The cave's living (and mineral) light: where each growth stands (#10129).</summary>
+        internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
         internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
         internal required bool SkyOpen { get; init; }
@@ -450,6 +549,7 @@ internal static class KarstCave
             Shape = shape,
             VoxelSize = voxelSize,
             SkyOpen = cave.SkyOpen,
+            Ecology = cave.Ecology,
         };
         return (layout, plan, new DungeonVerdict(true, Readout(cave), 0), volume);
     }
@@ -578,6 +678,8 @@ internal static class KarstCave
             }
         }
 
+        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed);
+
         // A feature's place is the most open point near it, so its light and its view stand in the space, not in rock.
         sponge = sponge is Vector3 found ? MostOpenNear(open, found, SpongeRadii.Y) : null;
         Vector3[] riftPlaces = [.. rifts.Select(r => MostOpenNear(open, r, RiftRise))];
@@ -600,6 +702,7 @@ internal static class KarstCave
             Seed = seed,
             Formations = formations,
             Eras = eras,
+            Ecology = ecology,
             Tiankeng = tiankeng,
             SkyOpen = skyOpen,
             Formed = formed,
