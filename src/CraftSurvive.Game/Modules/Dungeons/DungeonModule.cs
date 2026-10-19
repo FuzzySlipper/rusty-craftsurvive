@@ -170,7 +170,9 @@ internal sealed class DungeonModule : IProductModule
                 if (loading.Loaded)
                 {
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival));
-                    sky.Underground(true, conditions.Time);
+                    // The open world is not drawn while away: it costs nothing and cannot show through an opening to the sky.
+                    terrain.DrawOpenWorld(false);
+                    sky.Underground(true, conditions.Time, loading.Layout.SkyOpen);
                     Light(Darkness.Torches switch
                     {
                         TorchShare.All => loading.Layout.Lights,
@@ -885,6 +887,7 @@ internal sealed class DungeonModule : IProductModule
         plan = null;
         walkable = null;
         state = DungeonState.Outside;
+        terrain.DrawOpenWorld(true);
         sky.Underground(false, conditions.Time);
         nextSearchStep = 0;
         last = outcome;

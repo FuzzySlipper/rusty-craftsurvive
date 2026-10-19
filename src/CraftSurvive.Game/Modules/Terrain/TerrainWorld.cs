@@ -186,6 +186,9 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>Draws a separate space's session with this world's block materials; the caller disposes the projection.</summary>
+    /// <summary>Draws the open world's terrain or not (not while the player is away in a separate space).</summary>
+    internal void DrawOpenWorld(bool drawn) => presentation.Drawn(drawn);
+
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate, IReadOnlyDictionary<BlockId, Material>? rock = null) => presentation.ProjectAnother(separate, rock);
 
     /// <summary>The cave rock drawn through a product shader, for the cave detail study (#10094).</summary>

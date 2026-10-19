@@ -134,6 +134,19 @@ internal sealed class TerrainPresentation : IDisposable
             ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? rock?.GetValueOrDefault(block.Id) ?? CaveRock
                 : ground?.For(block.Id, blend: false) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
+    /// <summary>
+    /// Draws the open world's terrain (and its scatters and statics) or not. Away in a separate space it is moved to the
+    /// backdrop layer, which nothing draws while the backdrop is unlinked there: it neither costs a frame nor shows
+    /// through a dungeon's opening to the sky, kilometres above (#10094).
+    /// </summary>
+    internal void Drawn(bool drawn)
+    {
+        if (projection is VoxelScenePresentation current)
+        {
+            engine.VoxelScenePresentation.SetLayer(new VoxelSceneLayerRequest(current, drawn ? RenderLayer.Scene : RenderLayer.Backdrop));
+        }
+    }
+
     /// <summary>Re-meshes the projection after the scene or the world origin changed.</summary>
     internal VoxelScenePresentationReadout Refresh()
     {

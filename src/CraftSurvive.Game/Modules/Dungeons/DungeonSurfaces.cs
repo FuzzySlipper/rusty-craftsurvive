@@ -121,7 +121,8 @@ internal static class DungeonSurfaces
             : (VoxelSurfaceMode.DualContouring, new SurfaceCharacter(VertexPlacement.Blocky, FlatCreaseDegrees, 0f));
         SurfaceCharacter weathered = new(VertexPlacement.Sharp, FlatCreaseDegrees, WeatheredRoughness);
         return BlockRegistry.BoundBlocks
-            .Select(block => IsRock(block.Id)
+            // Turf under a cave's open sky (#10094) is natural ground, shaped as the rock is, not kept on the grid.
+            .Select(block => IsRock(block.Id) || block.Id == BlockId.Grass
                 ? new VoxelMaterialSurface(block.Slot, rockMode, rock)
                 : Weathers(surface) && Wears(block.Id)
                     ? new VoxelMaterialSurface(block.Slot, VoxelSurfaceMode.DualContouring, weathered)

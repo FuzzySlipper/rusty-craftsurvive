@@ -141,6 +141,9 @@ internal static class KarstCave
 
         /// <summary>Collapse: great rooms where ceilings fell, with boulder slopes.</summary>
         Breakdown,
+
+        /// <summary>A collapse through to the surface: a great shaft open to the sky, its floor a boulder slope under daylight.</summary>
+        Tiankeng,
     }
 
     /// <summary>The eras that carry water from the sinks to a spring; a cave always has one.</summary>
@@ -172,6 +175,78 @@ internal static class KarstCave
     private const int FewestBoulders = 20, MostBoulders = 35;
     private const float LargestBoulder = 3f, BoulderSlopeShare = 0.7f;
 
+    // A tiankeng: the ground surface it opens through (open air above, the plateau's level and roll), its radius and how
+    // deep under the surface its floor may lie, the bell of its walls, the bands at the beds, and the boulders on its floor.
+    private const float SurfaceLevel = 57f, SurfaceRoll = 2.5f, SurfaceFrequency = 0.04f, SurfaceBlend = 1f;
+    private const float TiankengLeast = 9f, TiankengMost = 14f, TiankengShallowest = 8f, TiankengDeepest = 45f;
+    private const float TiankengBell = 0.25f, TiankengBand = 0.6f, TiankengWobble = 0.15f;
+    private const int TiankengFewestBoulders = 40, TiankengMostBoulders = 60;
+    private const float TiankengBoulder = 3.5f;
+    /// <summary>How far down from the surface the plateau's ground and the tiankeng's floor are soil rather than rock.</summary>
+    private const float SoilDepth = 1.5f;
+
+    /// <summary>How far under an open surface the arrival is sought, at the foot of the first sink's shaft.</summary>
+    private const float SinkDepthBelowSurface = 4f;
+
+    /// <summary>How high above its floor centre the tiankeng's floor counts as ground (its boulder heap and soil slope).</summary>
+    private const float TiankengFloorSoil = 6f;
+
+    /// <summary>The plateau's ground height over a place, for a cave with a tiankeng.</summary>
+    internal static float SurfaceAt(float x, float z, ulong seed) =>
+        SurfaceLevel + (SurfaceRoll * NaturalCavern.Signed(NaturalCavern.Noise(new Vector3(x * SurfaceFrequency, 0f, z * SurfaceFrequency), seed ^ 0xF01UL)));
+
+    /// <summary>
+    /// The tiankeng: the ground surface is laid with open air above it, and the largest older passage at a depth the
+    /// shaft can span collapses through to it - a wide shaft, its walls banded at the beds and a little belled below, its
+    /// floor heaped with what fell. Returns its floor centre and radius, or null when no passage lies where one could open.
+    /// </summary>
+    private static (Vector3 Floor, float Radius)? Tiankeng(float[] open, float[] beds, List<(Vector3 At, float Share, int Era)> passages, ulong seed, DungeonRandom random)
+    {
+        Parallel.For(0, FieldZ, z =>
+        {
+            for (int y = 0; y < FieldY; y++)
+                for (int x = 0; x < FieldX; x++)
+                {
+                    int index = FieldIndex(x, y, z);
+                    Vector3 p = FieldCentre(index);
+                    open[index] = NaturalCavern.SmoothMax(open[index], p.Y - SurfaceAt(p.X, p.Z, seed), SurfaceBlend);
+                }
+        });
+
+        float radius = Between(random, TiankengLeast, TiankengMost);
+        foreach ((Vector3 at, float _, int _) in passages.Where(p => Inside(p.At, radius + 4f)).OrderByDescending(p => p.Share))
+        {
+            float surface = SurfaceAt(at.X, at.Z, seed);
+            if (surface - at.Y < TiankengShallowest || surface - at.Y > TiankengDeepest)
+            {
+                continue;
+            }
+
+            float bottom = at.Y - 2f, top = surface + 3f;
+            ForBox(new Vector3(at.X, (bottom + top) * 0.5f, at.Z), new Vector3(radius * (1f + TiankengBell) + 3f, ((top - bottom) * 0.5f) + 2f, radius * (1f + TiankengBell) + 3f), (index, p) =>
+            {
+                float t = Math.Clamp((p.Y - bottom) / (top - bottom), 0f, 1f);
+                float angle = MathF.Atan2(p.Z - at.Z, p.X - at.X);
+                float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
+                float nearest = beds.Select(b => MathF.Abs(bedY - b)).DefaultIfEmpty(9f).Min();
+                float wall = radius * (1f + (TiankengBell * (1f - t)) + (TiankengWobble * NaturalCavern.Signed(NaturalCavern.Noise(new Vector3(angle * 2f, p.Y * 0.08f, 0f), seed ^ 0xF02UL))))
+                    + (TiankengBand * MathF.Max(0f, 1f - nearest));
+                float shape = MathF.Min(wall - Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(at.X, at.Z)), p.Y - bottom);
+                open[index] = NaturalCavern.SmoothMax(open[index], shape, 1f);
+            });
+            int boulders = TiankengFewestBoulders + (int)(random.Next() % (ulong)(TiankengMostBoulders - TiankengFewestBoulders + 1));
+            for (int i = 0; i < boulders; i++)
+            {
+                float a = Between(random, 0f, MathF.Tau), r = radius * MathF.Sqrt(Between(random, 0f, 0.8f));
+                Block(open, new Vector3(at.X + (MathF.Cos(a) * r), surface - 1f, at.Z + (MathF.Sin(a) * r)), random, TiankengBoulder);
+            }
+
+            return (new Vector3(at.X, bottom, at.Z), radius);
+        }
+
+        return null;
+    }
+
     /// <summary>A joint plane: a point on it, its normal across the floor, the heights it spans and how far it runs.</summary>
     private readonly record struct JointPlane(Vector2 Point, Vector2 Normal, float Low, float High, float Reach);
 
@@ -192,6 +267,9 @@ internal static class KarstCave
         internal required List<Vector3> MainRoute { get; init; }
         internal required Vector3? MazeAt { get; init; }
         internal required Era[] Eras { get; init; }
+        /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
+        internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
+        internal required bool SkyOpen { get; init; }
         /// <summary>The era each field sample was opened in (<see cref="Unformed"/> where never), and the samples sediment filled.</summary>
         internal required byte[] Formed { get; init; }
         internal required bool[] Sediment { get; init; }
@@ -209,6 +287,23 @@ internal static class KarstCave
             if (Sediment[FieldIndex(x, y, z)])
             {
                 return SedimentRock;
+            }
+
+            // Under the sky: the plateau's ground and the tiankeng's floor are soil and turf, not cave rock.
+            if (SkyOpen)
+            {
+                bool openAbove = y + 1 < FieldY && Open[FieldIndex(x, y + 1, z)] > 0f;
+                bool underSky = p.Y > SurfaceAt(p.X, p.Z, Seed) - SoilDepth
+                    || (Tiankeng is (Vector3 floor, float radius) && Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(floor.X, floor.Z)) < radius && p.Y < floor.Y + TiankengFloorSoil);
+                if (underSky && openAbove)
+                {
+                    return BlockId.Grass;
+                }
+
+                if (underSky)
+                {
+                    return BlockId.Dirt;
+                }
             }
 
             // The youngest opening beside the voxel is the space its face looks into.
@@ -321,7 +416,9 @@ internal static class KarstCave
         Result cave = Build(seed);
         Func<Vector3, float> shape = cave.At;
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, cave.RockAt);
-        Vector3 arrive = StudyField.OnFloor(shape, cave.SinkPoints[0].X, cave.SinkPoints[0].Z, cave.SinkPoints[0].Y);
+        // The arrival is underground, at the foot of the first sink, even when the surface is open above it.
+        float below = cave.SkyOpen ? MathF.Min(cave.SinkPoints[0].Y, SurfaceAt(cave.SinkPoints[0].X, cave.SinkPoints[0].Z, seed) - SinkDepthBelowSurface) : cave.SinkPoints[0].Y;
+        Vector3 arrive = StudyField.OnFloor(shape, cave.SinkPoints[0].X, cave.SinkPoints[0].Z, below);
         Vector3 spring = StudyField.OnFloor(shape, cave.Spring.X, cave.Spring.Z, cave.Spring.Y + 1f);
         // The lights: the arrival and the spring, a light at each feature off the way (the maze, bedding rooms, then
         // chambers), and the rest spread along the main route.
@@ -352,13 +449,14 @@ internal static class KarstCave
             Natural = true,
             Shape = shape,
             VoxelSize = voxelSize,
+            SkyOpen = cave.SkyOpen,
         };
         return (layout, plan, new DungeonVerdict(true, Readout(cave), 0), volume);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: eras {string.Join("+", cave.Eras)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
@@ -395,6 +493,8 @@ internal static class KarstCave
         List<Vector3> chambers = [], beddingRooms = [], mazes = [], rifts = [];
         List<(Vector3 At, float Share, int Era)> passages0 = [];
         Vector3? sponge = null;
+        (Vector3 Floor, float Radius)? tiankeng = null;
+        bool skyOpen = false;
         Vector3 spring = new((GridX - 2.5f) * GridCell, finalTable - 2f, GridZ * GridCell * 0.5f);
         int carved = 0;
         for (int index = 0; index < eras.Length; index++)
@@ -424,6 +524,10 @@ internal static class KarstCave
                 case Era.Breakdown:
                     Collapses(open, beds, passages0, index, random, chambers);
                     break;
+                case Era.Tiankeng:
+                    tiankeng = Tiankeng(open, beds, passages0, seed, random);
+                    skyOpen = true;
+                    break;
             }
 
             for (int i = 0; i < open.Length; i++)
@@ -443,7 +547,7 @@ internal static class KarstCave
         int formations = Drip(open, joint, formed, eras.Length, finalTable, random);
 
         Roughen(open, seed, beds, finalTable);
-        Enclose(open);
+        Enclose(open, skyOpen);
 
         // The water's fields for later passes: the flow is the last flowing era's, the water still at work.
         float drainedTable = finalTable - DrainedBelowTable;
@@ -496,6 +600,8 @@ internal static class KarstCave
             Seed = seed,
             Formations = formations,
             Eras = eras,
+            Tiankeng = tiankeng,
+            SkyOpen = skyOpen,
             Formed = formed,
             Sediment = sediment,
             LastFlowEra = Array.FindLastIndex(eras, Flows),
@@ -563,7 +669,7 @@ internal static class KarstCave
     }
 
     /// <summary>Eras that act on passages an earlier era opened.</summary>
-    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown;
+    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown or Era.Tiankeng;
 
     /// <summary>
     /// A flowing era: the active sinks' water takes the cheapest way to the era's spring, round after round, the ways
@@ -1254,7 +1360,8 @@ internal static class KarstCave
     }
 
     /// <summary>Keeps a rind of rock inside the volume's sides, so the cave never opens onto the edge of the space.</summary>
-    private static void Enclose(float[] open)
+    /// <param name="skyOpen">Whether the top is left open to the sky (a cave with a surface).</param>
+    private static void Enclose(float[] open, bool skyOpen)
     {
         Vector3 size = new(FieldX * FieldStep, FieldY * FieldStep, FieldZ * FieldStep);
         Parallel.For(0, FieldZ, z =>
@@ -1265,7 +1372,7 @@ internal static class KarstCave
                     int index = FieldIndex(x, y, z);
                     Vector3 p = FieldCentre(index);
                     Vector3 far = size - p;
-                    float edge = MathF.Min(MathF.Min(MathF.Min(p.X, far.X), MathF.Min(p.Y, far.Y)), MathF.Min(p.Z, far.Z));
+                    float edge = MathF.Min(MathF.Min(MathF.Min(p.X, far.X), skyOpen ? p.Y : MathF.Min(p.Y, far.Y)), MathF.Min(p.Z, far.Z));
                     open[index] = MathF.Min(open[index], edge - RindMetres);
                 }
         });

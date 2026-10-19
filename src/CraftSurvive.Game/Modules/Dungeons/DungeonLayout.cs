@@ -26,6 +26,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// </summary>
     internal bool Natural { get; init; }
 
+    /// <summary>Whether the space opens to the sky (a cave with a tiankeng, #10094): the sky and the sun reach in through its openings.</summary>
+    internal bool SkyOpen { get; init; }
+
     /// <summary>The side of the layout's voxels in metres: the world's block, or finer for the micro-voxel study (#10094).</summary>
     internal double VoxelSize { get; init; } = 1d;
 

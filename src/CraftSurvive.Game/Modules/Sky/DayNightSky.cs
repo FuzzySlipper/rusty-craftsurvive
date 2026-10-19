@@ -573,7 +573,9 @@ internal sealed class DayNightSky : IDisposable
     /// Goes underground or comes back up. Underground the sky is a dark background and the sun is
     /// out; coming back up shows the sky for the time of day again.
     /// </summary>
-    internal void Underground(bool below, WorldTime time)
+    /// <param name="skyOpen">Underground but open to the sky somewhere (a tiankeng): the sky's panorama and the sun shine in through the opening,
+    /// with no fill and no sky light, so only what the opening lets in is lit.</param>
+    internal void Underground(bool below, WorldTime time, bool skyOpen = false)
     {
         if (disposed)
         {
@@ -581,6 +583,7 @@ internal sealed class DayNightSky : IDisposable
         }
 
         underground = below;
+        skylit = below && skyOpen;
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
@@ -601,7 +604,17 @@ internal sealed class DayNightSky : IDisposable
         engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         Eyes(0f);
         RelightUnderground();
+        if (skylit)
+        {
+            Show(time);
+        }
     }
+
+    /// <summary>Underground under an opening to the sky (#10094): the sky drawn behind the rock and the sun let in, nothing else.</summary>
+    private bool skylit;
+
+    /// <summary>Fog under an opening: thin and one density at every height, so the rim and the sky above stay in view while the cave's far reaches still close to the dark.</summary>
+    private const float SkylitFogDensity = 0.012f;
 
     private void RelightUnderground() => Relight(
         Off,
@@ -621,6 +634,11 @@ internal sealed class DayNightSky : IDisposable
         {
             RelightUnderground();
             Veil();
+        }
+
+        if (skylit)
+        {
+            litDaylight = double.NaN;
         }
 
         return string.Create(System.Globalization.CultureInfo.InvariantCulture,
@@ -783,12 +801,30 @@ internal sealed class DayNightSky : IDisposable
     /// </summary>
     internal void Show(WorldTime time)
     {
-        if (underground || onMap || disposed)
+        if ((underground && !skylit) || onMap || disposed)
         {
             return;
         }
 
         double daylight = WorldClock.Daylight(time.DayFraction);
+        if (skylit)
+        {
+            // Only the sun and the sky's panorama: no fill and no sky shadow light, so what the opening does not admit stays dark.
+            SkyBlend open = Twilight.Blend(time.DayFraction, heldVividness ?? Twilight.Vividness(time.Day, Twilight.Rising(time.DayFraction)));
+            engine.CameraView.SetSkyBackgroundBlend(new SkyBackgroundBlendRequest(panoramas[open.From], panoramas[open.To], open.Amount));
+            if (sun is null || double.IsNaN(litDaylight) || Math.Abs(daylight - litDaylight) >= RelightStep)
+            {
+                Relight(Sunlight(time.DayFraction), SkyShadow(0d, Vector3.Zero) with { Intensity = 0f, ShadowIntent = LightShadowIntent.Disabled },
+                    LightDescriptor.Hemisphere(NightSkyColour, NightGroundColour, 0f, enabled: false), Off);
+                // The sky itself (its atmosphere, sun disc and haze) as in the open; then the cave's own fog over it.
+                Air(time, daylight, open, observer(), 0f, uniformFog: true);
+                engine.CameraView.SetSkyLight(new SkyLightRequest(0f));
+                Veil();
+                litDaylight = daylight;
+            }
+
+            return;
+        }
         float vividness = heldVividness ?? Twilight.Vividness(time.Day, Twilight.Rising(time.DayFraction));
         SkyBlend blend = Twilight.Blend(time.DayFraction, vividness);
         if (!submerged)
@@ -934,6 +970,10 @@ internal sealed class DayNightSky : IDisposable
             engine.CameraView.SetStars(default);
             engine.CameraView.SetSunShafts(new SunShaftsRequest(0f, 0f));
         }
+        else if (underground && skylit)
+        {
+            engine.CameraView.SetFog(new(FogMode.ExponentialSquared, UndergroundFog, 0f, 0f, studyFog ?? SkylitFogDensity));
+        }
         else if (underground)
         {
             engine.CameraView.SetBackgroundColor(new SetBackgroundColorRequest(UndergroundBackground));
@@ -942,7 +982,8 @@ internal sealed class DayNightSky : IDisposable
     }
 
     /// <summary>The air in the open: the horizon's fog, haze toward the sun, its disc, and its shafts when it is low.</summary>
-    private void Air(WorldTime time, double daylight, SkyBlend blend, Vector3 eyes, float moonShare)
+    /// <param name="uniformFog">Fog at one density at every height (under a cave's opening, so anything far beyond the opening fades whatever its height).</param>
+    private void Air(WorldTime time, double daylight, SkyBlend blend, Vector3 eyes, float moonShare, bool uniformFog = false)
     {
         double dayFraction = time.DayFraction;
         double elevation = WorldClock.SunElevation(dayFraction);
@@ -971,7 +1012,7 @@ internal sealed class DayNightSky : IDisposable
         // The sky's sun is always the real sun, so the moon's lit limb faces it; by night it shows no disc.
         bool sunUp = SunInSky(elevation);
         engine.CameraView.SetAtmosphere(new AtmosphereRequest(
-            eyes.Y - FogBaseBelowEyesMetres, FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk), ToColor(hazeColour), hazeExponent,
+            eyes.Y - FogBaseBelowEyesMetres, uniformFog ? 0f : FogFalloffHeightMetres + (MurkFogFalloffMetres * w.Murk), ToColor(hazeColour), hazeExponent,
             sunUp ? SunDisc(elevation) : 0f,
             sunUp ? (SunHalo + (LowSunHalo * warmth)) * (1f - w.Cloud) : 0f,
             sunUp ? (DaySunRadiance + ((LowSunRadiance - DaySunRadiance) * warmth)) * (1f - w.Cloud) : 0f,
