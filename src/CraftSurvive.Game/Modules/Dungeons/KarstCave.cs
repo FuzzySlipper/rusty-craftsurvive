@@ -470,8 +470,18 @@ internal static class KarstCave
             drawn[0] = Chance(random, 0.5f) ? Era.Phreatic : Era.VadoseCanyons;
         }
 
-        return [.. drawn.Distinct().OrderBy(era => era)];
+        // Eras that work on passages already there (floods backing up, sediment, fractures opened from them, collapse) come
+        // after the first era that opened any; with only a late stream, they follow the stream.
+        List<Era> ordered = [.. drawn.Distinct().OrderBy(era => era)];
+        int first = ordered.FindIndex(era => Flows(era) || era == Era.Hypogene);
+        List<Era> waiting = [.. ordered.Take(first).Where(NeedsPassages)];
+        ordered.RemoveAll(waiting.Contains);
+        ordered.InsertRange(ordered.FindIndex(era => Flows(era) || era == Era.Hypogene) + 1, waiting);
+        return [.. ordered];
     }
+
+    /// <summary>Eras that act on passages an earlier era opened.</summary>
+    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown;
 
     /// <summary>
     /// A flowing era: the active sinks' water takes the cheapest way to the era's spring, round after round, the ways
