@@ -7,6 +7,12 @@
 //
 // material.parameters[0]: x grain strength (0 none), y grain frequency (cycles per metre), z facet size (metres,
 // 0 none), w facet strength (how far each facet tilts from the surface, 0 to 1).
+// material.parameters[1]: x 1 to colour the rock from the cave's palette instead of its painted texture (no drawn
+// forms: the forms are the geometry's and the grain's), y what to add to a world height for the layout's height,
+// zw the beds' dip along x and z (KarstCave.BedDip), so the strata bands follow the beds the water followed.
+//
+// The palette is colour only, at sizes no form is drawn at: bands along the beds, broad mottling and mineral
+// staining, a texel-fine speckle, and floors (where sediment settled) and the still-flooded depths darker and muddier.
 
 #import rusty::types::Surface
 #import rusty::material::material
@@ -61,9 +67,50 @@ fn faceted(n: vec3<f32>, p: vec3<f32>, size: f32, strength: f32) -> vec3<f32> {
     return normalize(snapped + strength * sideways);
 }
 
+// The palette (linear albedo), near the painted cave rock's own mean (0.065) so the light reads the same.
+const LIMESTONE: vec3<f32> = vec3<f32>(0.088, 0.075, 0.058);
+const GREY_BED: vec3<f32> = vec3<f32>(0.060, 0.061, 0.060);
+const PARTING: vec3<f32> = vec3<f32>(0.032, 0.029, 0.027);
+const OCHRE: vec3<f32> = vec3<f32>(0.100, 0.062, 0.030);
+const SEDIMENT: vec3<f32> = vec3<f32>(0.048, 0.037, 0.026);
+// Beds a few metres thick; partings show as thin dark lines between some of them.
+const BED_FREQUENCY: f32 = 0.22;
+const PARTING_SHARE: f32 = 0.08;
+const MOTTLE_FREQUENCY: f32 = 0.35;
+const STAIN_FREQUENCY: f32 = 0.12;
+// The speckle's cell (metres): finer than any form, so it reads as the stone's grain of colour.
+const SPECKLE: f32 = 0.04;
+// Below this layout height the cave still stands in water's reach: wetter, muddier, glossier.
+const WET_BELOW: f32 = 17.0;
+
+fn palette(p: vec3<f32>, n: vec3<f32>, frame: vec4<f32>) -> vec3<f32> {
+    let height = p.y + frame.y;
+    let bed = height - frame.z * p.x - frame.w * p.z;
+    let band = value_noise(vec3<f32>(bed * BED_FREQUENCY, 0.5, 0.5));
+    var colour = mix(GREY_BED, LIMESTONE, smoothstep(0.3, 0.7, band));
+    // A parting where the band's own phase is near a whole bed.
+    let phase = fract(bed * BED_FREQUENCY * 2.0);
+    colour = mix(colour, PARTING, (1.0 - smoothstep(0.0, PARTING_SHARE, min(phase, 1.0 - phase))) * step(0.5, hash3(vec3<i32>(i32(floor(bed * BED_FREQUENCY * 2.0)), 3, 7))));
+    let mottle = value_noise(p * MOTTLE_FREQUENCY);
+    colour = colour * (0.85 + 0.3 * mottle);
+    colour = mix(colour, OCHRE, 0.45 * smoothstep(0.6, 0.85, value_noise(p * STAIN_FREQUENCY + vec3<f32>(31.0, 7.0, 11.0))));
+    let speckle = hash3(vec3<i32>(floor(p / SPECKLE)));
+    colour = colour * (0.94 + 0.12 * speckle);
+    // Sediment on what faces up, and the wet depths.
+    colour = mix(colour, SEDIMENT, 0.6 * smoothstep(0.55, 0.9, n.y));
+    let wet = 1.0 - smoothstep(WET_BELOW - 3.0, WET_BELOW + 1.0, height);
+    return colour * (1.0 - 0.35 * wet);
+}
+
 fn shade(surface: Surface) -> vec4<f32> {
     let detail = material.parameters[0];
+    let colouring = material.parameters[1];
     var s = surface;
+    if (colouring.x > 0.0) {
+        s.base = vec4<f32>(palette(s.world_position, s.normal, colouring), s.base.a);
+        let height = s.world_position.y + colouring.y;
+        s.roughness = mix(s.roughness, 0.5, 1.0 - smoothstep(WET_BELOW - 3.0, WET_BELOW + 1.0, height));
+    }
     if (detail.z > 0.0) {
         s.normal = faceted(s.normal, s.world_position, detail.z, detail.w);
     }

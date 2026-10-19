@@ -30,7 +30,7 @@ internal static class KarstCave
     private const float BedSpacingLeast = 3.5f, BedSpacingMost = 7f, PartingSolubility = 3f, JointSolubility = 2.2f;
     private const int Joints = 7;
     private const float JointLongest = 40f;
-    private static readonly Vector2 BedDip = new(0.05f, 0.025f);
+    internal static readonly Vector2 BedDip = new(0.05f, 0.025f);
     private const float SolubilityRoll = 0.3f;
 
     // The water: the water table falls in stages as the valley cuts down, each stage leaving a level of the cave behind;
