@@ -31,7 +31,10 @@ internal sealed record NavigationProfile(string Name, CollisionNavigationConfig 
     /// off the drops the generator's walk allows, steps what its controller steps, and jumps up a
     /// ledge its own jump clears, with the jump's headroom and arc checked by the Engine (#9123).
     /// </summary>
-    internal static NavigationProfile Player(ISpatialService spatial, DungeonVolume volume)
+    internal static NavigationProfile Player(ISpatialService spatial, DungeonVolume volume) => Player(spatial, volume.SizeX, volume.SizeZ);
+
+    /// <summary>The player's profile over a space this many metres across (in one-metre navigation cells).</summary>
+    internal static NavigationProfile Player(ISpatialService spatial, int sizeX, int sizeZ)
     {
         CollisionNavigationConfig defaults = spatial.DefaultCollisionNavigationConfig();
         CharacterControllerConfig body = PlayerBody.Configure(spatial.DefaultCharacterControllerConfig());
@@ -40,7 +43,7 @@ internal sealed record NavigationProfile(string Name, CollisionNavigationConfig 
             GridId = GridId,
             CellSize = TerrainConstants.VoxelSize,
             ChunkSize = (uint)TerrainConstants.ChunkEdgeLength,
-            MaximumCells = checked((uint)(volume.SizeX * volume.SizeZ)),
+            MaximumCells = checked((uint)(sizeX * sizeZ)),
             Character = body,
             JumpLedges = true,
             JumpGapCells = JumpGapCells,
@@ -148,6 +151,42 @@ internal static class DungeonRoutes
     }
 
     /// <summary>
+    /// The route check for a natural study space (#10094), whose uneven floors the voxel walk does not read: navigation
+    /// published over the space's metres for a profile, and a route asked from the arrival to every place the plan names
+    /// and from the last back, each from and to the cell the plan gives.
+    /// </summary>
+    internal static DungeonRouteVerdict CheckNatural(IEngineContext engine, SpatialSession session, Vector3 extent, DungeonPlan plan, NavigationProfile profile)
+    {
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        CollisionNavigationReplaceReceipt published = engine.Spatial.ReplaceCollisionNavigation(new CollisionNavigationReplaceRequest(
+            session, DungeonCollision.Origin, DungeonCollision.Origin + extent, profile.Config));
+        double publishMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        started = System.Diagnostics.Stopwatch.GetTimestamp();
+        List<DungeonRoute> routes = [];
+        foreach ((string name, DungeonCell from, DungeonCell to) in Promised(plan))
+        {
+            // A place is stood at the support navigation found nearest it: its cell is only roughly on uneven rock.
+            if (StandingNear(engine, session, from) is not Vector3 start)
+            {
+                routes.Add(new DungeonRoute(name, from, to, NavigationPathOutcome.StartNotWalkable, 0, null));
+                continue;
+            }
+
+            if (StandingNear(engine, session, to) is not Vector3 goal)
+            {
+                routes.Add(new DungeonRoute(name, from, to, NavigationPathOutcome.GoalNotWalkable, 0, null));
+                continue;
+            }
+
+            NavigationStepResult step = engine.Spatial.EvaluateNavigationStep(new NavigationStepRequest(session, start, goal, QueryStepMetres, QueryMaxVisited));
+            routes.Add(new DungeonRoute(name, from, to, step.Outcome, step.Path.Length, step.NearestPresent ? InLayout(step.NearestCell) : null));
+        }
+
+        return new DungeonRouteVerdict(profile, routes, published.WalkableCellCount, publishMs,
+            System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+    }
+
+    /// <summary>
     /// For each route the Engine refused, the generator's walk of it and the first step along that
     /// walk the Engine cannot make on its own, with the Engine's reason and the blocks around it. The
     /// walk is over the same voxel copy <see cref="Check"/> read. Uses the navigation already published.
@@ -195,6 +234,46 @@ internal static class DungeonRoutes
         CollisionNavigationEdgeReadout edge = engine.Spatial.ExplainCollisionNavigationEdge(new CollisionNavigationEdgeRequest(session, start, end));
         return string.Create(CultureInfo.InvariantCulture,
             $"{outcome}; edge {edge.Outcome}{(edge.Admitted ? " (admitted)" : string.Empty)} from {fromColumn} to {toColumn}");
+    }
+
+    /// <summary>How far around a natural place's cell a standing support is looked for, across and up or down.</summary>
+    private const int StandingSearchCells = 2;
+    private const double StandingSearchHeight = 1.5d;
+
+    /// <summary>
+    /// Where a body stands nearest a natural place: of the supports navigation found in the columns around the cell,
+    /// the one nearest the cell's floor, as feet in the session; null when there is none.
+    /// </summary>
+    private static Vector3? StandingNear(IEngineContext engine, SpatialSession session, DungeonCell cell)
+    {
+        Vector3 floor = DungeonCollision.InSession(new Vector3(cell.X + 0.5f, cell.Y, cell.Z + 0.5f));
+        Vector3? best = null;
+        float nearest = float.MaxValue;
+        for (int dz = -StandingSearchCells; dz <= StandingSearchCells; dz++)
+        {
+            for (int dx = -StandingSearchCells; dx <= StandingSearchCells; dx++)
+            {
+                long x = (long)MathF.Floor(floor.X) + dx, z = (long)MathF.Floor(floor.Z) + dz;
+                CollisionNavigationColumnResult column = engine.Spatial.ExplainCollisionNavigationColumn(new CollisionNavigationColumnRequest(session, x, z));
+                foreach (CollisionNavigationSample sample in column.Samples.Span)
+                {
+                    if (sample.Outcome != CollisionNavigationSampleOutcome.Support || Math.Abs(sample.StandingY - floor.Y) > StandingSearchHeight)
+                    {
+                        continue;
+                    }
+
+                    Vector3 feet = new(x + 0.5f, (float)sample.StandingY, z + 0.5f);
+                    float distance = Vector3.Distance(feet, floor);
+                    if (distance < nearest)
+                    {
+                        nearest = distance;
+                        best = feet;
+                    }
+                }
+            }
+        }
+
+        return best;
     }
 
     /// <summary>The support standing for a cell - the column's surface nearest its floor - and how the column reads there.</summary>

@@ -359,13 +359,20 @@ internal sealed class DungeonModule : IProductModule
 
     /// <summary>The cave detail study (#10094): the shader the voxel rock is drawn through, its parameters, and the materials made for it.</summary>
     private const string RockDetailShaderPath = "shaders/cave-rock-detail.wgsl";
-    private Vector4? rockDetail;
+    /// <summary>
+    /// Dungeon rock's default look (owner, 2026-10-19): 3D pixels - facets 6 cm across leaning half a unit in two steps,
+    /// each one flat colour of the cave palette, growing with distance so they stay a few screen pixels across, leaning
+    /// partly with their neighbours.
+    /// </summary>
+    private static readonly Vector4 DefaultRockDetail = new(0f, 3f, 0.06f, 0.5f);
+    private static readonly Vector4 DefaultRockPixels = new(0.06f, 2f, 2f, 0.6f);
+    private Vector4? rockDetail = DefaultRockDetail;
     private RenderResource? rockDetailShader;
     private readonly Dictionary<(Vector4 Detail, bool Palette, Vector4 Pixels), Material> rockDetailMaterials = [];
     /// <summary>The detail shader's colour cell (metres) and facet step count; zero for none and the default.</summary>
-    private Vector4 rockPixels;
+    private Vector4 rockPixels = DefaultRockPixels;
     /// <summary>Whether the detail shader also replaces the painted texture's colour with the cave's own palette.</summary>
-    private bool rockPalette;
+    private bool rockPalette = true;
 
     /// <summary>
     /// Draws the next dungeon's voxel rock through the detail shader: grain strength and frequency (per metre), facet
@@ -559,6 +566,15 @@ internal sealed class DungeonModule : IProductModule
         if (state != DungeonState.Inside || space is null || plan is null || walkable is null)
         {
             return "validate refused: not in a dungeon";
+        }
+
+        if (space.Layout.Natural)
+        {
+            // A natural space's places are its own cells in metres; its navigation spans its metres, whatever its voxels.
+            Vector3 extent = new Vector3(space.Layout.Volume.SizeX, space.Layout.Volume.SizeY, space.Layout.Volume.SizeZ) * (float)space.Layout.VoxelSize;
+            DungeonRouteVerdict natural = DungeonRoutes.CheckNatural(engine, space.Session, extent, plan,
+                NavigationProfile.Player(engine.Spatial, (int)extent.X, (int)extent.Z));
+            return natural.ToString();
         }
 
         DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, space.Session, walkable, plan, NavigationProfile.Player(engine.Spatial, walkable));

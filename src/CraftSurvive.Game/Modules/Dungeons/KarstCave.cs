@@ -101,6 +101,9 @@ internal static class KarstCave
     private const int MostLights = DungeonLayout.MaximumLights;
     private const float LightAboveFloor = 1.2f;
 
+    /// <summary>How many of the lights go to features off the main route (the maze, bedding rooms, chambers).</summary>
+    private const int MostFeatureLights = 6;
+
     /// <summary>Water moves level (with diagonals across the floor) or straight up and down: down joints, along partings, not on slants.</summary>
     private static readonly (int X, int Y, int Z)[] AroundWater = [(1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1), (1, 0, 1), (1, 0, -1), (-1, 0, 1), (-1, 0, -1), (0, 1, 0), (0, -1, 0)];
     private static readonly (int X, int Y, int Z)[] Around6 = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)];
@@ -200,16 +203,22 @@ internal static class KarstCave
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize);
         Vector3 arrive = StudyField.OnFloor(shape, cave.SinkPoints[0].X, cave.SinkPoints[0].Z, cave.SinkPoints[0].Y);
         Vector3 spring = StudyField.OnFloor(shape, cave.Spring.X, cave.Spring.Z, cave.Spring.Y + 1f);
-        List<Vector3> lights = [];
-        int step = Math.Max(1, cave.MainRoute.Count / (MostLights - 2));
-        for (int i = step / 2; i < cave.MainRoute.Count && lights.Count < MostLights - 2; i += step)
+        // The lights: the arrival and the spring, a light at each feature off the way (the maze, bedding rooms, then
+        // chambers), and the rest spread along the main route.
+        List<Vector3> lights = [arrive + (Vector3.UnitY * LightAboveFloor), spring + (Vector3.UnitY * LightAboveFloor)];
+        Vector3[] features = [.. (cave.MazeAt is Vector3 maze ? [maze] : Array.Empty<Vector3>()), .. cave.BeddingRooms, .. cave.Chambers];
+        foreach (Vector3 feature in features.Take(MostFeatureLights))
+        {
+            lights.Add(StudyField.OnFloor(shape, feature.X, feature.Z, feature.Y + LightAboveFloor) + (Vector3.UnitY * LightAboveFloor));
+        }
+
+        int routeLights = MostLights - lights.Count;
+        int step = Math.Max(1, cave.MainRoute.Count / Math.Max(1, routeLights));
+        for (int i = step / 2; i < cave.MainRoute.Count && lights.Count < MostLights; i += step)
         {
             Vector3 on = cave.MainRoute[i];
             lights.Add(StudyField.OnFloor(shape, on.X, on.Z, on.Y) + (Vector3.UnitY * LightAboveFloor));
         }
-
-        lights.Add(arrive + (Vector3.UnitY * LightAboveFloor));
-        lights.Add(spring + (Vector3.UnitY * LightAboveFloor));
         DungeonCell arrival = StudyField.Cell(arrive);
         DungeonCell springCell = StudyField.Cell(spring);
         DungeonPlan plan = new(seed, 0, DungeonMix.MostlyCave, 1, arrival, springCell,
