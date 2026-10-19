@@ -380,10 +380,13 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>The detail shader's colour cell (metres, 0 none: each cell one flat colour) and facet step count (0 the default).</summary>
-    internal string StudyRockPixels(float colourCell, float facetSteps)
+    /// <param name="distance">What cells do as they shrink toward a screen pixel: 0 nothing, 1 fade, 2 grow.</param>
+    /// <param name="coherence">How much neighbouring facets lean the same way, 0 to 1.</param>
+    internal string StudyRockPixels(float colourCell, float facetSteps, float distance, float coherence)
     {
-        rockPixels = new Vector4(colourCell, facetSteps, 0f, 0f);
-        return string.Create(CultureInfo.InvariantCulture, $"the next dungeon's voxel rock has colour cells of {colourCell} m and facets in {facetSteps} steps");
+        rockPixels = new Vector4(colourCell, facetSteps, distance, coherence);
+        return string.Create(CultureInfo.InvariantCulture,
+            $"the next dungeon's voxel rock has colour cells of {colourCell} m, facets in {facetSteps} steps, distance mode {distance}, coherence {coherence}");
     }
 
     /// <summary>Colours the next dungeon's voxel rock from the cave's own palette (strata, mottling, wet floors) instead of the painted texture.</summary>

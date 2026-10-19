@@ -13,7 +13,13 @@
 //
 // material.parameters[2]: x the size of a colour cell (metres, 0 none): the palette read once per cell, so each
 // cell is one flat colour (with facets of the same size, each facet a lit 3D pixel); y how many steps the facets'
-// normals snap to (0 for FACET_STEPS; fewer is flatter and chunkier).
+// normals snap to (0 for FACET_STEPS; fewer is flatter and chunkier); z what cells do as they shrink toward a screen
+// pixel: 0 nothing, 1 fade (to the smooth surface and colour), 2 grow (doubling, so a cell stays a few pixels across);
+// w how much neighbouring facets lean the same way (0 each its own, 1 a smooth swell), so a broad face steps in
+// terraces rather than a checker.
+//
+// Cells lie on the surface, not in world cubes: each is a square of the plane the surface most faces (x, y or z),
+// so a wall shows square cells instead of the ragged cuts of cubes through it.
 //
 // The palette is colour only, at sizes no form is drawn at: bands along the beds, broad mottling and mineral
 // staining, a texel-fine speckle, and floors (where sediment settled) and the still-flooded depths darker and muddier.
@@ -62,11 +68,62 @@ fn grained(n: vec3<f32>, p: vec3<f32>, strength: f32, frequency: f32) -> vec3<f3
     return normalize(n - strength * along);
 }
 
-// The surface as facets: the normal snapped to coarse steps, then tilted by a direction fixed per cell.
-fn faceted(n: vec3<f32>, p: vec3<f32>, size: f32, strength: f32, steps: f32) -> vec3<f32> {
-    let cell = vec3<i32>(floor(p / size));
+// A cell is this many screen pixels across at least before it grows (grow), or by the time it has faded (fade).
+const PIXELS_PER_CELL: f32 = 3.0;
+// The coherent part of a facet's lean varies over this many cells.
+const LEAN_CELLS: f32 = 5.0;
+
+// Which plane a surface most faces: 0 is x (the yz plane), 1 y, 2 z.
+fn facing(n: vec3<f32>) -> i32 {
+    let a = abs(n);
+    if (a.x >= a.y && a.x >= a.z) { return 0; }
+    if (a.y >= a.z) { return 1; }
+    return 2;
+}
+
+fn in_plane(p: vec3<f32>, axis: i32) -> vec2<f32> {
+    if (axis == 0) { return p.yz; }
+    if (axis == 1) { return p.xz; }
+    return p.xy;
+}
+
+// A point's cell on the plane its surface faces: the cell's index (with the plane, so cells of different planes
+// differ) and the cell's centre in the world, at the point's own depth.
+fn cell_index(p: vec3<f32>, axis: i32, size: f32) -> vec3<i32> {
+    let c = floor(in_plane(p, axis) / size);
+    return vec3<i32>(i32(c.x), i32(c.y), axis * 104729);
+}
+
+fn cell_centre(p: vec3<f32>, axis: i32, size: f32) -> vec3<f32> {
+    let c = (floor(in_plane(p, axis) / size) + vec2<f32>(0.5)) * size;
+    if (axis == 0) { return vec3<f32>(p.x, c.x, c.y); }
+    if (axis == 1) { return vec3<f32>(c.x, p.y, c.y); }
+    return vec3<f32>(c.x, c.y, p.z);
+}
+
+// A cell's size where a screen pixel covers `footprint` metres: unchanged, or doubled until it spans a few pixels.
+fn cell_size(size: f32, footprint: f32, mode: f32) -> f32 {
+    if (mode < 1.5) { return size; }
+    return size * exp2(max(0.0, ceil(log2(footprint * PIXELS_PER_CELL / size))));
+}
+
+// How much of a cell's effect is kept: all of it, or fading out as the cell shrinks toward a pixel.
+fn cell_keep(size: f32, footprint: f32, mode: f32) -> f32 {
+    if (mode < 0.5 || mode > 1.5) { return 1.0; }
+    return 1.0 - smoothstep(size / PIXELS_PER_CELL, size, footprint * PIXELS_PER_CELL);
+}
+
+// The surface as facets: the normal snapped to coarse steps, then leant by a direction fixed per cell, part its own
+// and part a swell shared with its neighbours.
+fn faceted(n: vec3<f32>, p: vec3<f32>, size: f32, strength: f32, steps: f32, coherence: f32) -> vec3<f32> {
+    let axis = facing(n);
+    let cell = cell_index(p, axis, size);
+    let centre = cell_centre(p, axis, size);
     let snapped = normalize(round(n * steps) / steps + n * 0.001);
-    let tilt = vec3<f32>(hash3(cell), hash3(cell + vec3<i32>(71, 13, 5)), hash3(cell + vec3<i32>(9, 57, 113))) * 2.0 - 1.0;
+    let own = vec3<f32>(hash3(cell), hash3(cell + vec3<i32>(71, 13, 5)), hash3(cell + vec3<i32>(9, 57, 113)));
+    let q = centre / (size * LEAN_CELLS);
+    let swell = vec3<f32>(value_noise(q), value_noise(q + vec3<f32>(19.0, 7.0, 3.0)), value_noise(q + vec3<f32>(5.0, 31.0, 11.0)));
+    let tilt = mix(own, swell, coherence) * 2.0 - 1.0;
     let sideways = tilt - dot(tilt, snapped) * snapped;
     return normalize(snapped + strength * sideways);
 }
@@ -111,19 +168,25 @@ fn shade(surface: Surface) -> vec4<f32> {
     let colouring = material.parameters[1];
     let pixels = material.parameters[2];
     var s = surface;
+    // How many metres one screen pixel covers here, for the cells' fade or growth.
+    let footprint = max(length(dpdx(s.world_position)), length(dpdy(s.world_position)));
+    let axis = facing(s.normal);
     if (colouring.x > 0.0) {
         // With colour cells, the palette is read at the cell's centre, so the cell is one flat colour.
-        var at = s.world_position;
+        var colour = palette(s.world_position, s.normal, colouring);
         if (pixels.x > 0.0) {
-            at = (floor(at / pixels.x) + vec3<f32>(0.5)) * pixels.x;
+            let size = cell_size(pixels.x, footprint, pixels.z);
+            let cell_colour = palette(cell_centre(s.world_position, axis, size), s.normal, colouring);
+            colour = mix(colour, cell_colour, cell_keep(size, footprint, pixels.z));
         }
-        s.base = vec4<f32>(palette(at, s.normal, colouring), s.base.a);
+        s.base = vec4<f32>(colour, s.base.a);
         let height = s.world_position.y + colouring.y;
         s.roughness = mix(s.roughness, 0.5, 1.0 - smoothstep(WET_BELOW - 3.0, WET_BELOW + 1.0, height));
     }
     if (detail.z > 0.0) {
         let steps = select(FACET_STEPS, pixels.y, pixels.y > 0.0);
-        s.normal = faceted(s.normal, s.world_position, detail.z, detail.w, steps);
+        let size = cell_size(detail.z, footprint, pixels.z);
+        s.normal = faceted(s.normal, s.world_position, size, detail.w * cell_keep(size, footprint, pixels.z), steps, pixels.w);
     }
     if (detail.x > 0.0) {
         s.normal = grained(s.normal, s.world_position, detail.x, detail.y);

@@ -229,6 +229,10 @@ historical region, an industrial aesthetic or a glowing ancient-machine motif.
     instanced geological features (columns, stalagmites, curtains, breakdown,
     crystals, rimstone, gravel), several cave ground materials and growth where
     light and moisture allow. Detail comes from the features, not the mesher.
+  - Cave rock reads as 3D pixel art: small lit facets of flat colour on the
+    smooth voxel surface, coloured by a palette with no painted forms (strata,
+    staining, wetness), so detail never comes from a picture of rock (owner,
+    2026-10-19).
   - Nothing of the earlier faceted dungeon look is assumed. That includes how
     darkness is made (owner, 2026-10-18; see the atlas's Combat & Delving).
 
