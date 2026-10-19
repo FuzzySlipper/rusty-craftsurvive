@@ -389,7 +389,13 @@ internal sealed class DungeonModule : IProductModule
     ];
 
     private const int SparseTorchEvery = 3;
-    private DarknessTreatment Darkness { get; set; } = Treatments[0];
+    /// <summary>
+    /// Dungeons' darkness (owner, 2026-10-19): the player's lantern alone - no placed torches, no fill, no glints. Light always
+    /// has a source the player can see; ruins will bring their own (relic lights) and caves their own (their ecology).
+    /// </summary>
+    private const string DefaultDarkness = "lantern";
+
+    private DarknessTreatment Darkness { get; set; } = Treatments.First(t => t.Name == DefaultDarkness);
 
     /// <summary>Chooses the next dungeon's darkness treatment (today, lights, lantern, fakery or mix).</summary>
     internal string StudyDarkness(string name)
