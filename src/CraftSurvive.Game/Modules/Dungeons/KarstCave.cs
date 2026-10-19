@@ -33,12 +33,15 @@ internal static class KarstCave
     internal static readonly Vector2 BedDip = new(0.05f, 0.025f);
     private const float SolubilityRoll = 0.3f;
 
-    // The water: the water table falls in stages as the valley cuts down, each stage leaving a level of the cave behind;
-    // below where it stands now the cave is still flooded.
-    private static readonly float[] WaterTables = [44f, 30f, 17f];
-    private const float DrainedTable = 10f;
+    // The water: a cave lives through a few eras drawn from the kinds below, the water table falling from era to era as
+    // the valley cuts down; below where it stands now the cave is still flooded.
+    private const float HighestTable = 46f, LowestTable = 15f, DrainedBelowTable = 6f;
+    private const int FewestEras = 3, MostEras = 5;
     private const int Sinks = 6;
     private const int RoundsPerStage = 10;
+    /// <summary>The share of the sinks feeding any one era: sinks are captured and abandoned between eras.</summary>
+    private const float SinkActiveChance = 0.7f;
+    private const int FewestActiveSinks = 2;
     /// <summary>Moving through plain rock rather than along a parting (sideways) or a joint (up or down) costs this much more.</summary>
     private const float AcrossBeds = 2.2f, AcrossJoints = 7f;
     /// <summary>How much cheaper a conduit gets per unit of water through it, and how much each round's costs are jostled.</summary>
@@ -69,7 +72,10 @@ internal static class KarstCave
     // Formations where water drips: from open joints under a ceiling above the water table, a stalactite hangs and often a
     // stalagmite rises under it; in a low gap the two have met in a column.
     private const float FormationChance = 0.4f, StalagmiteChance = 0.65f, ColumnGap = 4f, ColumnChance = 0.35f, FormationApart = 1.6f;
-    private const int MostFormations = 70;
+    private const int MostFormations = 90;
+    /// <summary>A passage opened this many eras ago is fully decorated; one opened in the last era gets this share of formations.</summary>
+    private const int DecoratedAfterEras = 2;
+    private const float YoungDecoration = 0.25f;
     private const float LeastGap = 1.6f, LongestReach = 14f, FormationBlend = 0.3f, FormationWobble = 0.18f;
 
     // Detail finer than the field's samples, added wherever the field is read: a micro term only voxels finer than the
@@ -108,6 +114,67 @@ internal static class KarstCave
     private static readonly (int X, int Y, int Z)[] AroundWater = [(1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1), (1, 0, 1), (1, 0, -1), (-1, 0, 1), (-1, 0, -1), (0, 1, 0), (0, -1, 0)];
     private static readonly (int X, int Y, int Z)[] Around6 = [(1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)];
 
+    /// <summary>
+    /// The kinds of era a cave may have lived through, in the order they happen when drawn together: each a different
+    /// water regime, leaving its own kind of passage (#10094; the owner's note: passages are the surviving records of
+    /// different water regimes at different times).
+    /// </summary>
+    internal enum Era
+    {
+        /// <summary>Water rising from below: spongework of joined bubbles and domed cupolas, with no sinks.</summary>
+        Hypogene,
+
+        /// <summary>Water filling the rock: rounded tubes and wide bedding passages that loop and branch.</summary>
+        Phreatic,
+
+        /// <summary>Floods backing up: a grid of narrow fissures along close joints.</summary>
+        FloodMaze,
+
+        /// <summary>Sediment settling: older passages' floors filled flat, some passages choked.</summary>
+        Infill,
+
+        /// <summary>Water working the fractures: straight, tall, angular rifts along joints.</summary>
+        JointRifts,
+
+        /// <summary>A stream above a falling water table: canyons and shafts, and keyholes cut down into older tubes.</summary>
+        VadoseCanyons,
+
+        /// <summary>Collapse: great rooms where ceilings fell, with boulder slopes.</summary>
+        Breakdown,
+    }
+
+    /// <summary>The eras that carry water from the sinks to a spring; a cave always has one.</summary>
+    private static bool Flows(Era era) => era is Era.Phreatic or Era.VadoseCanyons;
+
+    // Keyholes: the slot a later stream cuts below an older tube, as a share of the tube's radius, and how deep.
+    private const float KeyholeWidth = 0.4f, KeyholeDepth = 2.5f, KeyholeDepthPerFlow = 3f;
+
+    // Rifts: how many, how far past the touched part of a joint they run, how far they rise, their half-width and jag.
+    private const int MostRifts = 4;
+    private const float RiftReach = 6f, RiftRise = 7f, RiftNarrowest = 0.35f, RiftWidest = 0.7f, RiftJag = 1.5f, RiftEdge = 0.15f;
+
+    // Hypogene: the spongework's extent, bubble spacing and radii, and the cupolas rising from it.
+    private static readonly Vector3 SpongeRadii = new(13f, 6f, 13f);
+    private const float SpongeCell = 3.2f, SmallestBubble = 1.7f, LargestBubble = 2.5f, SpongeLowest = 8f, SpongeHighest = 20f;
+    private const int Cupolas = 3;
+    private static readonly Vector3 CupolaRadii = new(2.5f, 6f, 2.5f);
+
+    // Flood mazes: how many, and how near the era's water table they lie.
+    private const int MostMazes = 2;
+    private const float MazeNearTable = 6f;
+
+    // Infill: how deep sediment settles on older floors.
+    private const float LeastInfill = 0.6f, MostInfill = 2.2f, InfillFrequency = 0.08f, InfillShareOfSpan = 0.4f;
+
+    // Great collapses: how many, their size, and the boulders piled on one side.
+    private const int MostCollapses = 3;
+    private const float CollapseLeast = 4f, CollapseMost = 6f, CollapseApart = 20f;
+    private const int FewestBoulders = 20, MostBoulders = 35;
+    private const float LargestBoulder = 3f, BoulderSlopeShare = 0.7f;
+
+    /// <summary>A joint plane: a point on it, its normal across the floor, the heights it spans and how far it runs.</summary>
+    private readonly record struct JointPlane(Vector2 Point, Vector2 Normal, float Low, float High, float Reach);
+
     /// <summary>A passage route's widest way: its narrowest clearance before and after widening, and how much was widened.</summary>
     internal readonly record struct Passage(string Name, float Before, float After, int Widened, float Metres);
 
@@ -124,6 +191,11 @@ internal static class KarstCave
         internal required Vector3[] Chambers { get; init; }
         internal required List<Vector3> MainRoute { get; init; }
         internal required Vector3? MazeAt { get; init; }
+        internal required Era[] Eras { get; init; }
+        internal required Vector3[] Rifts { get; init; }
+        internal required Vector3? Sponge { get; init; }
+        /// <summary>Where the water table stands now: above it the cave is open to the air.</summary>
+        internal required float FinalTable { get; init; }
         internal required Vector3[] BeddingRooms { get; init; }
         internal required Passage[] Passages { get; init; }
         internal required int Conduits { get; init; }
@@ -153,7 +225,7 @@ internal static class KarstCave
             float flowed = SmoothStep(FlowFrom, FlowFull, GridTrilinear(Flow, p));
             float dripped = SmoothStep(DripFrom, DripFull, MathF.Max(GridTrilinear(Drip, p),
                 MathF.Max(GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f)), GridTrilinear(Drip, p + new Vector3(0f, 2f * GridCell, 0f)))));
-            bool aired = p.Y > WaterTables[^1];
+            bool aired = p.Y > FinalTable;
             float forms = 0f;
 
             // Scallops: shallow dishes packed over the walls, longer along the flow (level) than across it.
@@ -206,7 +278,8 @@ internal static class KarstCave
         // The lights: the arrival and the spring, a light at each feature off the way (the maze, bedding rooms, then
         // chambers), and the rest spread along the main route.
         List<Vector3> lights = [arrive + (Vector3.UnitY * LightAboveFloor), spring + (Vector3.UnitY * LightAboveFloor)];
-        Vector3[] features = [.. (cave.MazeAt is Vector3 maze ? [maze] : Array.Empty<Vector3>()), .. cave.BeddingRooms, .. cave.Chambers];
+        Vector3[] features = [.. (cave.Sponge is Vector3 sponge ? [sponge] : Array.Empty<Vector3>()), .. (cave.MazeAt is Vector3 maze ? [maze] : Array.Empty<Vector3>()),
+            .. cave.Rifts, .. cave.BeddingRooms, .. cave.Chambers];
         foreach (Vector3 feature in features.Take(MostFeatureLights))
         {
             lights.Add(StudyField.OnFloor(shape, feature.X, feature.Z, feature.Y + LightAboveFloor) + (Vector3.UnitY * LightAboveFloor));
@@ -237,7 +310,7 @@ internal static class KarstCave
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
@@ -246,105 +319,70 @@ internal static class KarstCave
     {
         long started = Stopwatch.GetTimestamp();
         DungeonRandom random = new(seed);
-        float[] solubility = Rock(random, seed, out bool[] joint, out bool[] parting, out float[] beds);
+        float[] solubility = Rock(random, seed, out bool[] joint, out bool[] parting, out float[] beds, out JointPlane[] planes);
 
-        // Where water enters and leaves.
+        // Where water enters.
         Vector3[] sinks = new Vector3[Sinks];
         for (int i = 0; i < Sinks; i++)
         {
             sinks[i] = new Vector3(Between(random, 8f, (GridX * GridCell) - 30f), (GridY - 2.5f) * GridCell, Between(random, 8f, (GridZ * GridCell) - 8f));
         }
 
-        // Each stage's spring rises where the valley's floor then was, at the cave's far side.
-        Vector3[] springs = [.. WaterTables.Select(table => new Vector3((GridX - 2.5f) * GridCell, table - 2f, Between(random, 16f, (GridZ * GridCell) - 16f)))];
-        Vector3 spring = springs[^1];
         float[] discharge = [.. Enumerable.Range(0, Sinks).Select(_ => Between(random, 0.5f, 1.5f))];
 
-        // The rounds: each sink's water takes the cheapest way to the stage's spring, and the ways taken grow. A conduit
-        // keeps the stage it was made in, which says whether it was flooded (a tube) or open to the air (a canyon or shaft).
-        float[] conduit = new float[GridX * GridY * GridZ];
-        Dictionary<(int Stage, int A, int B), float> edgeFlow = [];
-        for (int stage = 0; stage < WaterTables.Length; stage++)
-        {
-            int springCell = GridIndex(springs[stage]);
-            for (int round = 0; round < RoundsPerStage; round++)
-            {
-                int[] towardSpring = Drain(solubility, joint, parting, conduit, springCell, WaterTables[stage], seed, (stage * RoundsPerStage) + round);
-                for (int s = 0; s < Sinks; s++)
-                {
-                    int at = GridIndex(sinks[s]);
-                    for (int guard = 0; at != springCell && towardSpring[at] >= 0 && guard < conduit.Length; guard++)
-                    {
-                        int next = towardSpring[at];
-                        (int, int, int) edge = (stage, at, next);
-                        edgeFlow[edge] = edgeFlow.GetValueOrDefault(edge) + discharge[s];
-                        conduit[next] += discharge[s] * ConduitGain;
-                        conduit[at] += discharge[s] * ConduitGain;
-                        at = next;
-                    }
-                }
-            }
-        }
+        // The cave's history: a few eras drawn without repeats, in the order they happen, the water table falling from
+        // one to the next. A cave always has an era of flowing water.
+        Era[] eras = DrawEras(random);
+        float[] tables = [.. eras.Select((_, i) => eras.Length == 1 ? LowestTable : HighestTable + ((LowestTable - HighestTable) * i / (eras.Length - 1)))];
+        float finalTable = tables[^1];
 
-        // The shapes the water left.
         float[] open = new float[FieldX * FieldY * FieldZ];
         Array.Fill(open, -FieldLimit);
-        float mostFlow = edgeFlow.Values.DefaultIfEmpty(1f).Max();
-        Dictionary<int, (int Degree, float Flow)> nodes = [];
+        // The era each open sample was first opened in, for what age does to it later.
+        byte[] formed = new byte[open.Length];
+        Array.Fill(formed, Unformed);
+        float[] conduit = new float[GridX * GridY * GridZ];
+        float[] activeFlow = new float[conduit.Length];
+        List<Vector3> chambers = [], beddingRooms = [], mazes = [], rifts = [];
+        List<(Vector3 At, float Share, int Era)> passages0 = [];
+        Vector3? sponge = null;
+        Vector3 spring = new((GridX - 2.5f) * GridCell, finalTable - 2f, GridZ * GridCell * 0.5f);
         int carved = 0;
-        foreach (((int stage, int a, int b), float flow) in edgeFlow)
+        for (int index = 0; index < eras.Length; index++)
         {
-            if (flow < LeastFlowCarved)
+            float[] before = (float[])open.Clone();
+            float table = tables[index];
+            switch (eras[index])
             {
-                continue;
+                case Era.Phreatic:
+                case Era.VadoseCanyons:
+                    spring = new Vector3((GridX - 2.5f) * GridCell, table - 2f, Between(random, 16f, (GridZ * GridCell) - 16f));
+                    carved += Flow(eras[index], index, open, solubility, joint, parting, beds, conduit, activeFlow, sinks, discharge, spring, table,
+                        seed, random, chambers, beddingRooms, passages0);
+                    break;
+                case Era.JointRifts:
+                    Rifts(open, planes, conduit, table, seed, rifts);
+                    break;
+                case Era.FloodMaze:
+                    FloodMazes(open, passages0, sinks[0], table, seed, random, mazes);
+                    break;
+                case Era.Hypogene:
+                    sponge = Hypogene(open, seed, random);
+                    break;
+                case Era.Infill:
+                    Infill(open, formed, (byte)index, seed);
+                    break;
+                case Era.Breakdown:
+                    Collapses(open, beds, passages0, index, random, chambers);
+                    break;
             }
 
-            carved++;
-            float share = MathF.Sqrt(flow / mostFlow);
-            float radius = NarrowestRadius + ((WidestRadius - NarrowestRadius) * share);
-            Vector3 from = GridCentre(a), to = GridCentre(b);
-            Conduit(open, from, to, radius * Swell(from, seed), radius * Swell(to, seed), share, WaterTables[stage], parting[a] && parting[b]);
-            foreach (int end in (ReadOnlySpan<int>)[a, b])
+            for (int i = 0; i < open.Length; i++)
             {
-                (int degree, float most) = nodes.GetValueOrDefault(end);
-                nodes[end] = (degree + 1, MathF.Max(most, flow));
-            }
-        }
-
-        List<Vector3> chambers = [];
-        List<Vector3> beddingRooms = [];
-        foreach ((int node, (int degree, float flow)) in nodes.OrderBy(n => n.Key))
-        {
-            Vector3 at = GridCentre(node);
-            bool collapsed = at.Y > WaterTables[^1] && flow >= CollapseFlow * mostFlow && Chance(random, CollapseChance);
-            if (parting[node] && at.Y < WaterTables[0] && Inside(at, BeddingRoomMost) && flow >= BeddingRoomFlow * mostFlow && Chance(random, BeddingRoomChance)
-                && beddingRooms.All(r => Vector3.Distance(r, at) > BeddingRoomApart))
-            {
-                beddingRooms.Add(at);
-                BeddingRoom(open, at, Between(random, BeddingRoomLeast, BeddingRoomMost), Between(random, BeddingRoomLow, BeddingRoomHigh), seed);
-            }
-
-            if ((degree >= 3 && flow >= ChamberFlow * mostFlow) || collapsed)
-            {
-                Vector3 centre = GridCentre(node);
-                if (chambers.All(c => Vector3.Distance(c, centre) > WidestRadius * ChamberWiden * 2f))
+                if (before[i] <= 0f && open[i] > 0f)
                 {
-                    chambers.Add(centre);
-                    Chamber(open, centre, NarrowestRadius + ((WidestRadius - NarrowestRadius) * MathF.Sqrt(flow / mostFlow)), beds);
+                    formed[i] = (byte)index;
                 }
-            }
-        }
-
-        Vector3? maze = null;
-        if (nodes.Count > 0)
-        {
-            // The maze lies off a conduit of the middle level, away from where the player comes in.
-            Vector3[] middle = [.. nodes.Keys.OrderBy(k => k).Select(GridCentre)
-                .Where(c => c.Y > WaterTables[^1] && c.Y < WaterTables[0] && Inside(c, MazeHalf) && Vector3.Distance(c, sinks[0]) > MazeHalf * 2f)];
-            if (middle.Length > 0)
-            {
-                maze = middle[(int)(random.Next() % (ulong)middle.Length)];
-                Maze(open, maze.Value, Between(random, 0f, MathF.PI), seed);
             }
         }
 
@@ -353,19 +391,13 @@ internal static class KarstCave
             Breakdown(open, chamber, random);
         }
 
-        int formations = Drip(open, joint, random);
+        int formations = Drip(open, joint, formed, eras.Length, finalTable, random);
 
-        Roughen(open, seed, beds);
+        Roughen(open, seed, beds, finalTable);
         Enclose(open);
 
-        // The water's fields for later passes.
-        float[] flowField = new float[conduit.Length];
-        foreach (((_, int a, int b), float flow) in edgeFlow)
-        {
-            flowField[a] = MathF.Max(flowField[a], flow / mostFlow);
-            flowField[b] = MathF.Max(flowField[b], flow / mostFlow);
-        }
-
+        // The water's fields for later passes: the flow is the last flowing era's, the water still at work.
+        float drainedTable = finalTable - DrainedBelowTable;
         float[] drip = new float[conduit.Length];
         float[] standing = new float[conduit.Length];
         for (int i = 0; i < conduit.Length; i++)
@@ -373,8 +405,8 @@ internal static class KarstCave
             Vector3 c = GridCentre(i);
             bool openHere = Trilinear(open, c) > 0f;
             bool ceilingAbove = Trilinear(open, c + new Vector3(0f, GridCell, 0f)) < 0f;
-            drip[i] = openHere && ceilingAbove && joint[i] && c.Y > DrainedTable ? 1f : 0f;
-            standing[i] = openHere && c.Y < DrainedTable ? 1f : 0f;
+            drip[i] = openHere && ceilingAbove && joint[i] && c.Y > drainedTable ? 1f : 0f;
+            standing[i] = openHere && c.Y < drainedTable ? 1f : 0f;
         }
 
         // Passage: the widest way from the first sink to the spring and to every other sink, widened where a body would not fit.
@@ -397,25 +429,344 @@ internal static class KarstCave
         {
             Open = open,
             Clearance = clearance,
-            Flow = flowField,
+            Flow = activeFlow,
             Drip = drip,
             Standing = standing,
             SinkPoints = sinks,
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,
-            MazeAt = maze,
+            MazeAt = mazes.Count > 0 ? mazes[0] : null,
             BeddingRooms = [.. beddingRooms],
             Passages = [.. passages],
             Conduits = carved,
             Seed = seed,
             Formations = formations,
+            Eras = eras,
+            Rifts = [.. rifts],
+            Sponge = sponge,
+            FinalTable = finalTable,
             Milliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds,
         };
     }
 
+    private const byte Unformed = byte.MaxValue;
+
+    /// <summary>A cave's eras: between the fewest and most, no kind twice, in the order they happen, at least one flowing.</summary>
+    private static Era[] DrawEras(DungeonRandom random)
+    {
+        List<Era> pool = [.. Enum.GetValues<Era>()];
+        int count = FewestEras + (int)(random.Next() % (ulong)(MostEras - FewestEras + 1));
+        List<Era> drawn = [];
+        for (int i = 0; i < count; i++)
+        {
+            int pick = (int)(random.Next() % (ulong)pool.Count);
+            drawn.Add(pool[pick]);
+            pool.RemoveAt(pick);
+        }
+
+        if (!drawn.Any(Flows))
+        {
+            drawn[0] = Chance(random, 0.5f) ? Era.Phreatic : Era.VadoseCanyons;
+        }
+
+        return [.. drawn.Distinct().OrderBy(era => era)];
+    }
+
+    /// <summary>
+    /// A flowing era: the active sinks' water takes the cheapest way to the era's spring, round after round, the ways
+    /// taken growing; then the shapes it leaves. A phreatic era leaves tubes and bedding rooms; a vadose era canyons and
+    /// shafts, and where its stream follows an older tube it cuts a slot down through that tube's floor - a keyhole.
+    /// Returns how many conduits it opened.
+    /// </summary>
+    private static int Flow(Era era, int index, float[] open, float[] solubility, bool[] joint, bool[] parting, float[] beds, float[] conduit,
+        float[] activeFlow, Vector3[] sinks, float[] discharge, Vector3 spring, float table, ulong seed, DungeonRandom random,
+        List<Vector3> chambers, List<Vector3> beddingRooms, List<(Vector3 At, float Share, int Era)> passages)
+    {
+        float[] conduitBefore = (float[])conduit.Clone();
+        bool[] active = [.. sinks.Select(_ => Chance(random, SinkActiveChance))];
+        for (int i = 0; i < FewestActiveSinks; i++)
+        {
+            active[i] = true;
+        }
+
+        int springCell = GridIndex(spring);
+        Dictionary<(int A, int B), float> edgeFlow = [];
+        for (int round = 0; round < RoundsPerStage; round++)
+        {
+            int[] towardSpring = Drain(solubility, joint, parting, conduit, springCell, table, seed, (index * RoundsPerStage) + round);
+            for (int s = 0; s < sinks.Length; s++)
+            {
+                if (!active[s])
+                {
+                    continue;
+                }
+
+                int at = GridIndex(sinks[s]);
+                for (int guard = 0; at != springCell && towardSpring[at] >= 0 && guard < conduit.Length; guard++)
+                {
+                    int next = towardSpring[at];
+                    edgeFlow[(at, next)] = edgeFlow.GetValueOrDefault((at, next)) + discharge[s];
+                    conduit[next] += discharge[s] * ConduitGain;
+                    conduit[at] += discharge[s] * ConduitGain;
+                    at = next;
+                }
+            }
+        }
+
+        float mostFlow = edgeFlow.Values.DefaultIfEmpty(1f).Max();
+        Array.Clear(activeFlow);
+        Dictionary<int, (int Degree, float Flow)> nodes = [];
+        int carved = 0;
+        foreach (((int a, int b), float flow) in edgeFlow)
+        {
+            activeFlow[a] = MathF.Max(activeFlow[a], flow / mostFlow);
+            activeFlow[b] = MathF.Max(activeFlow[b], flow / mostFlow);
+            if (flow < LeastFlowCarved)
+            {
+                continue;
+            }
+
+            carved++;
+            float share = MathF.Sqrt(flow / mostFlow);
+            float radius = NarrowestRadius + ((WidestRadius - NarrowestRadius) * share);
+            Vector3 from = GridCentre(a), to = GridCentre(b);
+            if (era == Era.VadoseCanyons && conduitBefore[a] > 0f && conduitBefore[b] > 0f)
+            {
+                Keyhole(open, from, to, radius * Swell(from, seed), share);
+            }
+            else
+            {
+                Conduit(open, from, to, radius * Swell(from, seed), radius * Swell(to, seed), share, era == Era.Phreatic ? table + 8f : table, parting[a] && parting[b]);
+            }
+
+            foreach (int end in (ReadOnlySpan<int>)[a, b])
+            {
+                (int degree, float most) = nodes.GetValueOrDefault(end);
+                nodes[end] = (degree + 1, MathF.Max(most, flow));
+            }
+        }
+
+        foreach ((int node, (int degree, float flow)) in nodes.OrderBy(n => n.Key))
+        {
+            Vector3 at = GridCentre(node);
+            passages.Add((at, MathF.Sqrt(flow / mostFlow), index));
+            if (era == Era.Phreatic && parting[node] && Inside(at, BeddingRoomMost) && flow >= BeddingRoomFlow * mostFlow && Chance(random, BeddingRoomChance)
+                && beddingRooms.All(r => Vector3.Distance(r, at) > BeddingRoomApart))
+            {
+                beddingRooms.Add(at);
+                BeddingRoom(open, at, Between(random, BeddingRoomLeast, BeddingRoomMost), Between(random, BeddingRoomLow, BeddingRoomHigh), seed);
+            }
+
+            if (degree >= 3 && flow >= ChamberFlow * mostFlow && chambers.All(c => Vector3.Distance(c, at) > WidestRadius * ChamberWiden * 2f))
+            {
+                chambers.Add(at);
+                Chamber(open, at, NarrowestRadius + ((WidestRadius - NarrowestRadius) * MathF.Sqrt(flow / mostFlow)), beds);
+            }
+        }
+
+        return carved;
+    }
+
+    /// <summary>The slot a later stream cuts down through an older tube's floor: narrow, tall, deeper the more water it carried.</summary>
+    private static void Keyhole(float[] open, Vector3 from, Vector3 to, float radius, float share)
+    {
+        float slot = radius * KeyholeWidth;
+        float depth = KeyholeDepth + (KeyholeDepthPerFlow * share);
+        float stretch = depth / slot;
+        StampCapsule(open, from, to, slot, 1f, new Vector3(1f, stretch, 1f), (radius * 0.5f) + (depth * 0.5f));
+    }
+
+    /// <summary>
+    /// Rifts: where water reached a joint, it opened the joint itself - straight, tall and narrow, angular at its edges -
+    /// along the joint past where it was touched and up toward the joint's top. The joints most touched are opened.
+    /// </summary>
+    private static void Rifts(float[] open, JointPlane[] planes, float[] conduit, float table, ulong seed, List<Vector3> rifts)
+    {
+        List<(JointPlane Plane, float Least, float Most, float Low, float High, int Touched)> touched = [];
+        foreach (JointPlane plane in planes)
+        {
+            Vector2 along = new(-plane.Normal.Y, plane.Normal.X);
+            float least = float.MaxValue, most = float.MinValue, low = float.MaxValue, high = float.MinValue;
+            int count = 0;
+            for (int i = 0; i < conduit.Length; i++)
+            {
+                Vector3 c = GridCentre(i);
+                Vector2 d = new Vector2(c.X, c.Z) - plane.Point;
+                if (MathF.Abs(Vector2.Dot(d, plane.Normal)) >= GridCell * 0.5f || c.Y < plane.Low || c.Y > plane.High
+                    || MathF.Abs(Vector2.Dot(d, along)) > plane.Reach || (conduit[i] <= 0f && Trilinear(open, c) <= 0f))
+                {
+                    continue;
+                }
+
+                float t = Vector2.Dot(d, along);
+                least = MathF.Min(least, t);
+                most = MathF.Max(most, t);
+                low = MathF.Min(low, c.Y);
+                high = MathF.Max(high, c.Y);
+                count++;
+            }
+
+            if (count > 0)
+            {
+                touched.Add((plane, least, most, low, high, count));
+            }
+        }
+
+        foreach ((JointPlane plane, float least, float most, float low, float high, int _) in touched.OrderByDescending(t => t.Touched).Take(MostRifts))
+        {
+            Vector2 along = new(-plane.Normal.Y, plane.Normal.X);
+            float from = MathF.Max(-plane.Reach, least - RiftReach), to = MathF.Min(plane.Reach, most + RiftReach);
+            float bottom = MathF.Max(plane.Low, low - 1f), top = MathF.Min(plane.High, MathF.Max(high, table) + RiftRise);
+            Vector2 mid2 = plane.Point + (along * ((from + to) * 0.5f));
+            Vector3 middle = new(mid2.X, (bottom + top) * 0.5f, mid2.Y);
+            rifts.Add(new Vector3(mid2.X, bottom + 1f, mid2.Y));
+            float halfLength = (to - from) * 0.5f;
+            ForBox(middle, new Vector3(halfLength + 2f, ((top - bottom) * 0.5f) + 2f, halfLength + 2f), (index, p) =>
+            {
+                Vector2 d = new Vector2(p.X, p.Z) - plane.Point;
+                float across = MathF.Abs(Vector2.Dot(d, plane.Normal));
+                float t = Vector2.Dot(d, along) - ((from + to) * 0.5f);
+                float half = RiftNarrowest + ((RiftWidest - RiftNarrowest) * NaturalCavern.Noise(new Vector3(t * 0.15f, p.Y * 0.2f, 0f), seed ^ 0xC01UL));
+                float roof = top - (RiftJag * NaturalCavern.Noise(new Vector3(t * 0.3f, 0f, 0f), seed ^ 0xC02UL));
+                float shape = MathF.Min(MathF.Min(half - across, halfLength - MathF.Abs(t)), MathF.Min(p.Y - bottom, roof - p.Y));
+                open[index] = NaturalCavern.SmoothMax(open[index], shape, RiftEdge);
+            });
+        }
+    }
+
+    /// <summary>Flood mazes: grids of narrow fissures at conduits near the era's water table, away from where the player comes in.</summary>
+    private static void FloodMazes(float[] open, List<(Vector3 At, float Share, int Era)> passages, Vector3 arrival, float table, ulong seed,
+        DungeonRandom random, List<Vector3> mazes)
+    {
+        Vector3[] near = [.. passages.Select(p => p.At).Where(c => MathF.Abs(c.Y - table) < MazeNearTable && Inside(c, MazeHalf) && Vector3.Distance(c, arrival) > MazeHalf * 2f)];
+        for (int i = 0; i < MostMazes; i++)
+        {
+            Vector3 centre = near.Length > 0 ? near[(int)(random.Next() % (ulong)near.Length)]
+                : new Vector3(Between(random, MazeHalf + 4f, (GridX * GridCell) - MazeHalf - 4f), table, Between(random, MazeHalf + 4f, (GridZ * GridCell) - MazeHalf - 4f));
+            if (mazes.Any(m => Vector3.Distance(m, centre) < MazeHalf * 2f))
+            {
+                continue;
+            }
+
+            mazes.Add(centre);
+            Maze(open, centre, Between(random, 0f, MathF.PI), seed ^ (ulong)(i * 0x9E37));
+        }
+    }
+
+    /// <summary>
+    /// Hypogene spongework: water rising from below dissolved a cluster of joined bubbles low in the rock, domed cupolas
+    /// rising from its top, and a riser carried it up to the rest of the cave. Returns the cluster's centre.
+    /// </summary>
+    private static Vector3 Hypogene(float[] open, ulong seed, DungeonRandom random)
+    {
+        float margin = SpongeRadii.X + RindMetres + 2f;
+        Vector3 centre = new(Between(random, margin, (GridX * GridCell) - margin), Between(random, SpongeLowest, SpongeHighest), Between(random, margin, (GridZ * GridCell) - margin));
+        ForBox(centre, SpongeRadii + new Vector3(2f), (index, p) =>
+        {
+            float f1 = Worley(p / SpongeCell, seed ^ 0xD01UL, out float which);
+            float bubble = SmallestBubble + ((LargestBubble - SmallestBubble) * which) - (f1 * SpongeCell);
+            float inside = (1f - ((p - centre) / SpongeRadii).Length()) * SpongeRadii.Y;
+            open[index] = NaturalCavern.SmoothMax(open[index], MathF.Min(bubble, inside), 0.5f);
+        });
+        for (int i = 0; i < Cupolas; i++)
+        {
+            Vector3 dome = centre + new Vector3(Between(random, -SpongeRadii.X * 0.6f, SpongeRadii.X * 0.6f), SpongeRadii.Y * 0.7f, Between(random, -SpongeRadii.Z * 0.6f, SpongeRadii.Z * 0.6f));
+            ForBox(dome, CupolaRadii + Vector3.One, (index, p) =>
+                open[index] = NaturalCavern.SmoothMax(open[index], (1f - ((p - dome) / CupolaRadii).Length()) * CupolaRadii.X, 0.6f));
+        }
+
+        // The riser: up from the cluster to the nearest open space above it.
+        Vector3 top = centre + new Vector3(0f, SpongeRadii.Y, 0f);
+        float reach = top.Y;
+        while (reach < (GridY * GridCell) - RindMetres - 2f && Trilinear(open, new Vector3(top.X, reach, top.Z)) <= 0f)
+        {
+            reach += FieldStep;
+        }
+
+        StampCapsule(open, top, new Vector3(top.X, reach + 1f, top.Z), NarrowestRadius * 1.6f, 1f, Vector3.One, 0f);
+        return centre;
+    }
+
+    /// <summary>Sediment: the floors of passages older than this era filled flat, deeper in some places than others.</summary>
+    private static void Infill(float[] open, byte[] formed, byte era, ulong seed)
+    {
+        Parallel.For(0, FieldZ, z =>
+        {
+            for (int x = 0; x < FieldX; x++)
+            {
+                for (int y = 1; y < FieldY; y++)
+                {
+                    int index = FieldIndex(x, y, z);
+                    // A floor: an older open sample on rock.
+                    if (open[index] <= 0f || open[FieldIndex(x, y - 1, z)] > 0f || formed[index] >= era)
+                    {
+                        continue;
+                    }
+
+                    Vector3 p = FieldCentre(index);
+                    // Sediment fills at most a share of the opening above the floor, so small voids keep their shape.
+                    int span = 0;
+                    while (y + span < FieldY && open[FieldIndex(x, y + span, z)] > 0f)
+                    {
+                        span++;
+                    }
+
+                    float depth = MathF.Min(InfillShareOfSpan * span * FieldStep,
+                        LeastInfill + ((MostInfill - LeastInfill) * NaturalCavern.Noise(new Vector3(p.X, 0f, p.Z) * InfillFrequency, seed ^ 0xE01UL)));
+                    float surface = p.Y - (FieldStep * 0.5f) + depth;
+                    for (int up = y; up < FieldY && FieldCentre(FieldIndex(x, up, z)).Y < surface + 1f; up++)
+                    {
+                        int above = FieldIndex(x, up, z);
+                        if (open[above] <= 0f && up > y)
+                        {
+                            break;
+                        }
+
+                        open[above] = MathF.Min(open[above], FieldCentre(above).Y - surface);
+                    }
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// Great collapses: the largest older passages' ceilings fell back to the beds above, leaving vast rooms with boulder
+    /// slopes piled toward one side.
+    /// </summary>
+    private static void Collapses(float[] open, float[] beds, List<(Vector3 At, float Share, int Era)> passages, int era, DungeonRandom random, List<Vector3> chambers)
+    {
+        List<Vector3> fallen = [];
+        foreach ((Vector3 at, float share, int _) in passages.Where(p => p.Era < era && Inside(p.At, CollapseMost * ChamberWiden)).OrderByDescending(p => p.Share))
+        {
+            if (fallen.Count >= MostCollapses)
+            {
+                break;
+            }
+
+            if (fallen.Any(f => Vector3.Distance(f, at) < CollapseApart))
+            {
+                continue;
+            }
+
+            fallen.Add(at);
+            chambers.Add(at);
+            float radius = Between(random, CollapseLeast, CollapseMost) * (0.7f + (0.3f * share));
+            Chamber(open, at, radius, beds);
+            // The boulder slope: blocks thrown toward one side, each landing on what fell before it.
+            float side = Between(random, 0f, MathF.Tau);
+            int boulders = FewestBoulders + (int)(random.Next() % (ulong)(MostBoulders - FewestBoulders + 1));
+            for (int i = 0; i < boulders; i++)
+            {
+                float toward = Chance(random, BoulderSlopeShare) ? side + Between(random, -0.6f, 0.6f) : Between(random, 0f, MathF.Tau);
+                Vector3 drop = at + new Vector3(MathF.Cos(toward), 0f, MathF.Sin(toward)) * Between(random, 0f, radius * ChamberWiden * 0.8f) + new Vector3(0f, radius, 0f);
+                Block(open, drop, random, LargestBoulder);
+            }
+        }
+    }
+
     /// <summary>How readily each grid cell dissolves: the host rock, more along bed partings and joints. Also the joints and bed heights.</summary>
-    private static float[] Rock(DungeonRandom random, ulong seed, out bool[] joint, out bool[] parting, out float[] beds)
+    private static float[] Rock(DungeonRandom random, ulong seed, out bool[] joint, out bool[] parting, out float[] beds, out JointPlane[] planes)
     {
         List<float> partings = [];
         for (float y = Between(random, 1f, BedSpacingMost); y < GridY * GridCell; y += Between(random, BedSpacingLeast, BedSpacingMost))
@@ -431,6 +782,7 @@ internal static class KarstCave
             return (new Vector2(Between(random, 0f, GridX * GridCell), Between(random, 0f, GridZ * GridCell)),
                 new Vector2(MathF.Cos(angle), MathF.Sin(angle)), low, low + Between(random, 15f, GridY * GridCell), Between(random, 15f, JointLongest));
         })];
+        planes = [.. joints.Select(j => new JointPlane(j.Point, j.Normal, j.Low, j.High, j.Reach))];
         float[] solubility = new float[GridX * GridY * GridZ];
         joint = new bool[solubility.Length];
         parting = new bool[solubility.Length];
@@ -610,14 +962,17 @@ internal static class KarstCave
     /// Grows formations where water drips: at open joints under a ceiling, above the water table, a stalactite hanging a
     /// share of the gap and often a stalagmite under it; in a low gap a column. Returns how many were grown.
     /// </summary>
-    private static int Drip(float[] open, bool[] joint, DungeonRandom random)
+    private static int Drip(float[] open, bool[] joint, byte[] formed, int eras, float finalTable, DungeonRandom random)
     {
         List<Vector3> grown = [];
         int count = 0;
         for (int i = 0; i < joint.Length && grown.Count < MostFormations; i++)
         {
             Vector3 c = GridCentre(i);
-            if (!joint[i] || c.Y <= WaterTables[^1] || Trilinear(open, c) <= 0f || !Chance(random, FormationChance))
+            // Older, drier passages are more decorated: the chance grows with the eras since the passage was opened.
+            int sample = FieldIndex(Math.Clamp((int)(c.X / FieldStep), 0, FieldX - 1), Math.Clamp((int)(c.Y / FieldStep), 0, FieldY - 1), Math.Clamp((int)(c.Z / FieldStep), 0, FieldZ - 1));
+            float dry = formed[sample] == Unformed ? 0f : Math.Clamp((eras - 1 - formed[sample]) / (float)DecoratedAfterEras, 0f, 1f);
+            if (!joint[i] || c.Y <= finalTable || Trilinear(open, c) <= 0f || !Chance(random, FormationChance * (YoungDecoration + ((1f - YoungDecoration) * dry))))
             {
                 continue;
             }
@@ -698,33 +1053,38 @@ internal static class KarstCave
         for (int i = 0; i < blocks; i++)
         {
             float angle = Between(random, 0f, MathF.Tau), reach = Between(random, 0f, WidestRadius * ChamberWiden * 0.8f);
-            Vector3 at = chamber + new Vector3(MathF.Cos(angle) * reach, 0f, MathF.Sin(angle) * reach);
-            if (Trilinear(open, at) <= 0f)
-            {
-                continue;
-            }
-
-            // Fall to the floor: the first rock below.
-            float y = at.Y;
-            while (y > 1f && Trilinear(open, new Vector3(at.X, y, at.Z)) > 0f)
-            {
-                y -= FieldStep;
-            }
-
-            Vector3 half = new(Between(random, SmallestBlock, LargestBlock), Between(random, SmallestBlock * 0.7f, LargestBlock * 0.6f), Between(random, SmallestBlock, LargestBlock));
-            Vector3 centre = new(at.X, y + (half.Y * 0.7f), at.Z);
-            float turn = Between(random, 0f, MathF.PI), cos = MathF.Cos(turn), sin = MathF.Sin(turn);
-            float tilt = Between(random, -0.25f, 0.25f);
-            ForBox(centre, new Vector3(MathF.Max(half.X, half.Z) * 1.5f, half.Y * 1.6f, MathF.Max(half.X, half.Z) * 1.5f), (index, p) =>
-            {
-                Vector3 q = p - centre;
-                q = new Vector3((q.X * cos) - (q.Z * sin), q.Y + (tilt * q.X), (q.X * sin) + (q.Z * cos));
-                Vector3 outside = Vector3.Max(Vector3.Abs(q) - half, Vector3.Zero);
-                float inside = MathF.Min(MathF.Max(MathF.Abs(q.X) - half.X, MathF.Max(MathF.Abs(q.Y) - half.Y, MathF.Abs(q.Z) - half.Z)), 0f);
-                float distance = outside.Length() + inside - BlockRounding;
-                open[index] = NaturalCavern.SmoothMin(open[index], distance, 0.25f);
-            });
+            Block(open, chamber + new Vector3(MathF.Cos(angle) * reach, 0f, MathF.Sin(angle) * reach), random, LargestBlock);
         }
+    }
+
+    /// <summary>One fallen block: a rounded box of rock, turned and sized at random, dropped from a place onto whatever is below it.</summary>
+    private static void Block(float[] open, Vector3 at, DungeonRandom random, float largest)
+    {
+        if (Trilinear(open, at) <= 0f)
+        {
+            return;
+        }
+
+        // Fall to the floor: the first rock below.
+        float y = at.Y;
+        while (y > 1f && Trilinear(open, new Vector3(at.X, y, at.Z)) > 0f)
+        {
+            y -= FieldStep;
+        }
+
+        Vector3 half = new(Between(random, SmallestBlock, largest), Between(random, SmallestBlock * 0.7f, largest * 0.6f), Between(random, SmallestBlock, largest));
+        Vector3 centre = new(at.X, y + (half.Y * 0.7f), at.Z);
+        float turn = Between(random, 0f, MathF.PI), cos = MathF.Cos(turn), sin = MathF.Sin(turn);
+        float tilt = Between(random, -0.25f, 0.25f);
+        ForBox(centre, new Vector3(MathF.Max(half.X, half.Z) * 1.5f, half.Y * 1.6f, MathF.Max(half.X, half.Z) * 1.5f), (index, p) =>
+        {
+            Vector3 q = p - centre;
+            q = new Vector3((q.X * cos) - (q.Z * sin), q.Y + (tilt * q.X), (q.X * sin) + (q.Z * cos));
+            Vector3 outside = Vector3.Max(Vector3.Abs(q) - half, Vector3.Zero);
+            float inside = MathF.Min(MathF.Max(MathF.Abs(q.X) - half.X, MathF.Max(MathF.Abs(q.Y) - half.Y, MathF.Abs(q.Z) - half.Z)), 0f);
+            float distance = outside.Length() + inside - BlockRounding;
+            open[index] = NaturalCavern.SmoothMin(open[index], distance, 0.25f);
+        });
     }
 
     /// <summary>
@@ -762,7 +1122,7 @@ internal static class KarstCave
     }
 
     /// <summary>Unevenness on every open surface: broad swells and a grain, harder where water fell freely.</summary>
-    private static void Roughen(float[] open, ulong seed, float[] beds)
+    private static void Roughen(float[] open, ulong seed, float[] beds, float finalTable)
     {
         Parallel.For(0, FieldZ, z =>
         {
@@ -776,7 +1136,7 @@ internal static class KarstCave
                     }
 
                     Vector3 p = FieldCentre(index);
-                    bool vadose = p.Y > WaterTables[^1];
+                    bool vadose = p.Y > finalTable;
                     float grain = vadose ? GrainAmplitude * VadoseGrain : GrainAmplitude;
                     float rough = (SwellAmplitude * NaturalCavern.Signed(NaturalCavern.Noise(p * SwellFrequency, seed ^ 0x601UL)))
                         + (grain * NaturalCavern.Signed(NaturalCavern.Noise(p * GrainFrequency, seed ^ 0x602UL)));
