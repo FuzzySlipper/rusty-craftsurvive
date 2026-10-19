@@ -16,9 +16,16 @@ internal static class CaveEcology
     private const float FungiGlowStrength = 2.5f, WormGlowStrength = 3f, CrystalGlowStrength = 1.2f, GrowthRoughness = 0.6f;
 
     // A great hall's lights (#10094): the giant fungi's stalks and caps and the vault blooms' glow.
-    internal static readonly Vector3 GiantGlow = new(0.15f, 0.6f, 1f), VaultGlow = new(0.7f, 0.85f, 1f);
+    internal static readonly Vector3 GiantGlow = new(0.15f, 0.6f, 1f), VaultGlow = new(0.5f, 0.72f, 1f);
     private static readonly Color GiantStalk = new(0.42f, 0.4f, 0.36f, 1f);
-    private const float GiantGlowStrength = 1.1f, VaultGlowStrength = 1.2f;
+    private const float GiantGlowStrength = 1.1f, VaultGlowStrength = 3f;
+
+    /// <summary>
+    /// A vault bloom's crystals take almost no light (their colour is their own glow), so the hall's sun hanging under them
+    /// does not burn them to white; and how far below the longest crystal's tip that light hangs, so it lies outside them.
+    /// </summary>
+    private static readonly Color VaultCrystalAlbedo = new(0.015f, 0.02f, 0.03f, 1f);
+    private const float VaultLightBelowTips = 4f;
 
     // Giant fungi: stalk height and girth, cap radius, how much the stalk bends, and the small ones at its foot.
     private const float GiantHeight = 6f, GiantGirth = 0.35f, GiantCap = 2.6f, GiantBend = 0.6f;
@@ -30,7 +37,7 @@ internal static class CaveEcology
     private const float ShortestVaultPrism = 1.5f, LongestVaultPrism = 5f, VaultPrismWidth = 0.35f, VaultSplay = 1.1f;
 
     // Each hall light: how bright and how far it reaches.
-    private const float GiantIntensity = 220f, GiantRange = 35f, VaultIntensity = 2500f, VaultRange = 90f;
+    private const float GiantIntensity = 220f, GiantRange = 35f, VaultIntensity = 1500f, VaultRange = 90f;
 
     // Fungi: caps per cluster, their spread and sizes.
     private const int FewestCaps = 5, MostCaps = 14;
@@ -57,11 +64,11 @@ internal static class CaveEcology
     /// <summary>Whether a kind's light casts shadows: the vault's sun does, so the hall's pillars and giants throw them across its floor.</summary>
     internal static bool Shadowed(EcologyKind kind) => kind == EcologyKind.VaultBloom;
 
-    /// <summary>Where a growth's light hangs, in layout metres: under a giant's cap, inside a vault bloom, else just off the growth.</summary>
+    /// <summary>Where a growth's light hangs, in layout metres: under a giant's cap, below a vault bloom's tips, else just off the growth.</summary>
     internal static Vector3 LightAt(EcologyPlacement growth, float offset) => growth.Kind switch
     {
         EcologyKind.GiantFungus => growth.At + (growth.Normal * ((GiantHeight * growth.Size) - (GiantCap * growth.Size * 0.4f))),
-        EcologyKind.VaultBloom => growth.At + (growth.Normal * (ShortestVaultPrism * growth.Size)),
+        EcologyKind.VaultBloom => growth.At + (growth.Normal * ((LongestVaultPrism * growth.Size) + VaultLightBelowTips)),
         _ => growth.At + (growth.Normal * offset),
     };
 
@@ -87,7 +94,8 @@ internal static class CaveEcology
                 _ => (CrystalBody, CrystalGlow, CrystalGlowStrength),
             };
             Material plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
-            Material glowing = engine.Graphics.CreateMaterial(new MaterialRequest(new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f), default,
+            Color lit = kind == EcologyKind.VaultBloom ? VaultCrystalAlbedo : new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f);
+            Material glowing = engine.Graphics.CreateMaterial(new MaterialRequest(lit, default,
                 GrowthRoughness, new Color(1f, 1f, 1f, 1f), glow, strength, false));
             materials.Add(plain);
             materials.Add(glowing);
