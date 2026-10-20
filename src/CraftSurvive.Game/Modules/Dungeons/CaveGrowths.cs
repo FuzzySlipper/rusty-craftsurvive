@@ -22,6 +22,9 @@ internal enum EcologyKind
 
     /// <summary>Still water glowing of the life in it (#10129): its light hangs over the water; the water itself is the glowing thing.</summary>
     LuminousPool,
+
+    /// <summary>Tree roots hanging in a curtain from a ceiling close under the surface (#10129): life from above; they give no light.</summary>
+    RootCurtain,
 }
 
 /// <summary>

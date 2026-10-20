@@ -50,6 +50,12 @@ internal static class CaveEcology
     internal static readonly Vector3 PoolGlow = new(0.1f, 0.55f, 0.75f);
     private const float PoolIntensity = 4f, PoolRange = 8f, PoolLightAbove = 0.4f;
 
+    // Root curtains (#10129): the roots' colour (linear, a dark bark brown), how many strands a curtain has, how far
+    // they spread, how long they hang, how thick they start, how they wander and fork as they hang.
+    private static readonly Color RootColour = new(0.07f, 0.05f, 0.035f, 1f);
+    private const int FewestRoots = 25, MostRootStrands = 60, RootSegments = 5;
+    private const float RootSpread = 1.4f, ShortestRoot = 0.4f, LongestRoot = 2.6f, RootWidth = 0.03f, RootWander = 0.22f, RootForkChance = 0.35f;
+
     // Each hall light: how bright and how far it reaches.
     private const float GiantIntensity = 220f, GiantRange = 35f, VaultIntensity = 1500f, VaultRange = 90f;
 
@@ -75,6 +81,9 @@ internal static class CaveEcology
         EcologyKind.LuminousPool => (PoolGlow, PoolIntensity, PoolRange),
         _ => (CrystalGlow, 1f, 3f),
     };
+
+    /// <summary>Whether a kind of growth gives light at all (roots do not).</summary>
+    internal static bool GivesLight(EcologyKind kind) => kind != EcologyKind.RootCurtain;
 
     /// <summary>Whether a kind's light casts shadows: the vault's sun does, so the hall's pillars and giants throw them across its floor.</summary>
     internal static bool Shadowed(EcologyKind kind) => kind == EcologyKind.VaultBloom;
@@ -108,6 +117,7 @@ internal static class CaveEcology
                 EcologyKind.GlowWorms => (WormThread, WormGlow, WormGlowStrength),
                 EcologyKind.GiantFungus => (GiantStalk, GiantGlow, GiantGlowStrength),
                 EcologyKind.VaultBloom => (CrystalBody, VaultGlow, VaultGlowStrength),
+                EcologyKind.RootCurtain => (RootColour, Vector3.Zero, 0f),
                 _ => (CrystalBody, CrystalGlow, CrystalGlowStrength),
             };
             Material plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
@@ -139,6 +149,9 @@ internal static class CaveEcology
                         break;
                     case EcologyKind.VaultBloom:
                         VaultBloom(glowPart, at, growth.Size, random);
+                        break;
+                    case EcologyKind.RootCurtain:
+                        Roots(plainPart, at, growth.Size, random);
                         break;
                     default:
                         Crystals(glowPart, at, growth.Normal, growth.Size, random);
@@ -225,6 +238,39 @@ internal static class CaveEcology
             // Deepest a little in from the rim, closing up to the cap at both ends.
             Vector3 low = centre + (out_ * radius * 0.45f) - (up * depth);
             gills.Triangle(inner - (up * 0.02f), low, outer - (up * 0.02f));
+        }
+    }
+
+    /// <summary>A curtain of roots hanging from a ceiling: strands tapering as they hang, wandering a little, some forking.</summary>
+    private static void Roots(Builder strands, Vector3 at, float size, Random random)
+    {
+        int count = FewestRoots + random.Next(MostRootStrands - FewestRoots + 1);
+        for (int i = 0; i < count; i++)
+        {
+            float a = (float)random.NextDouble() * MathF.Tau, r = RootSpread * size * MathF.Sqrt((float)random.NextDouble());
+            Vector3 top = at + new Vector3(MathF.Cos(a) * r, 0.05f, MathF.Sin(a) * r);
+            float length = (ShortestRoot + ((LongestRoot - ShortestRoot) * (float)Math.Pow(random.NextDouble(), 1.5))) * size;
+            Strand(strands, top, length, RootWidth * (0.6f + (0.8f * (float)random.NextDouble())), random, fork: true);
+        }
+    }
+
+    /// <summary>One root strand hanging down from a point, tapering, wandering a little; it may fork once.</summary>
+    private static void Strand(Builder strands, Vector3 from, float length, float width, Random random, bool fork)
+    {
+        Vector3 at = from;
+        Vector3 drift = Vector3.Zero;
+        for (int s = 0; s < RootSegments; s++)
+        {
+            float t = s / (float)RootSegments;
+            drift += new Vector3(((float)random.NextDouble() - 0.5f) * RootWander, 0f, ((float)random.NextDouble() - 0.5f) * RootWander);
+            Vector3 next = at + new Vector3(drift.X, -length / RootSegments, drift.Z);
+            strands.Prism(at, next, width * (1f - (0.75f * t)), 4);
+            if (fork && s == 1 && random.NextDouble() < RootForkChance)
+            {
+                Strand(strands, next, length * 0.5f, width * 0.6f, random, fork: false);
+            }
+
+            at = next;
         }
     }
 

@@ -1209,6 +1209,12 @@ internal static class KarstCave
     private const int MostFungi = 25, MostWorms = 15, MostCrystals = 8;
     private const float FungiDamp = 0.15f, QuietFlow = 0.15f, WormsNearFlow = 0.05f, WormsClearBelow = 2.5f;
     private const int CrystalsAfterEras = 2;
+
+    // Root curtains (#10129): tree roots hang from ceilings close under the surface - within this many metres of it
+    // (the plateau's ground over a cave open to the sky, else the top of the space), over a clear drop - spaced apart
+    // and capped.
+    private const float RootsUnderSurface = 7f, RootsClearBelow = 2f, RootsApart = 3.5f;
+    private const int MostRoots = 14;
     private const float EcologyStep = 1f;
 
     /// <summary>
@@ -1216,7 +1222,8 @@ internal static class KarstCave
     /// stands) but nothing runs, glow-worms on ceilings over running water with room below them to hang, crystals on old
     /// dry levels; each kind spaced apart and capped, chosen by hash so a seed always grows the same cave.
     /// </summary>
-    private static List<EcologyPlacement> Ecology(float[] open, byte[] formed, float[] flow, float[] drip, float[] standing, int eras, float finalTable, ulong seed)
+    private static List<EcologyPlacement> Ecology(float[] open, byte[] formed, float[] flow, float[] drip, float[] standing, int eras, float finalTable, ulong seed,
+        bool skyOpen)
     {
         List<(EcologyKind Kind, Vector3 At, Vector3 Normal, float Rank)> candidates = [];
         float Open(Vector3 p) => Trilinear(open, p);
@@ -1247,6 +1254,17 @@ internal static class KarstCave
                         candidates.Add((EcologyKind.GlowWorms, Ceiling(open, p), -Vector3.UnitY, rank));
                     }
 
+                    // A ceiling just under the surface, with room below: tree roots grown down through the rock.
+                    float ground = skyOpen ? SurfaceAt(p.X, p.Z, seed) : FieldY * FieldStep;
+                    if (Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p - new Vector3(0f, RootsClearBelow, 0f)) > 0f && ground - p.Y < RootsUnderSurface)
+                    {
+                        Vector3 roof = Ceiling(open, p);
+                        if (ground - roof.Y < RootsUnderSurface)
+                        {
+                            candidates.Add((EcologyKind.RootCurtain, roof, -Vector3.UnitY, rank));
+                        }
+                    }
+
                     // A wall beside, on a level long dry: crystals.
                     if (age >= CrystalsAfterEras && p.Y > finalTable && damp < FungiDamp && Wall(open, p) is Vector3 wallNormal)
                     {
@@ -1255,7 +1273,8 @@ internal static class KarstCave
                 }
 
         List<EcologyPlacement> chosen = [];
-        foreach ((EcologyKind kind, float apart, int most) in new[] { (EcologyKind.GlowFungi, FungiApart, MostFungi), (EcologyKind.GlowWorms, WormsApart, MostWorms), (EcologyKind.CrystalBloom, CrystalsApart, MostCrystals) })
+        foreach ((EcologyKind kind, float apart, int most) in new[] { (EcologyKind.GlowFungi, FungiApart, MostFungi), (EcologyKind.GlowWorms, WormsApart, MostWorms),
+            (EcologyKind.CrystalBloom, CrystalsApart, MostCrystals), (EcologyKind.RootCurtain, RootsApart, MostRoots) })
         {
             foreach ((EcologyKind _, Vector3 at, Vector3 normal, float rank) in candidates.Where(c => c.Kind == kind).OrderByDescending(c => c.Rank))
             {
@@ -1771,7 +1790,7 @@ internal static class KarstCave
             }
         }
 
-        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed);
+        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen);
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
         waterZones.AddRange(PerchedWater(open, routePaths, finalTable, waterZones));

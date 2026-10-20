@@ -390,7 +390,7 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     private void GrowthLights(IReadOnlyList<EcologyPlacement> growths)
     {
-        EcologyPlacement[] lit = [.. growths.OrderBy(g => g.Kind switch
+        EcologyPlacement[] lit = [.. growths.Where(g => CaveEcology.GivesLight(g.Kind)).OrderBy(g => g.Kind switch
             {
                 EcologyKind.VaultBloom => 0,
                 EcologyKind.GiantFungus => 1,
