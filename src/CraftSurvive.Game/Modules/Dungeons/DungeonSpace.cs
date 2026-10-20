@@ -31,6 +31,9 @@ internal sealed class DungeonSpace : IDisposable
     private readonly List<(MeshResource Mesh, Appearance Look)> pieces = [];
     /// <summary>The cave's living light (#10129): one mesh per kind of growth, and the materials made for them.</summary>
     private readonly List<(MeshResource Mesh, Appearance Look)> growths = [];
+
+    /// <summary>A chasm's waterfalls (#10094), once the space is drawn; null before, or for a space without them.</summary>
+    internal CaveWaterfalls? Waterfalls { get; private set; }
     private readonly List<Material> growthMaterials = [];
 
     /// <summary>Route B's finer rock (#10090), meshed in slabs; the first is also <see cref="rockMesh"/>.</summary>
@@ -113,6 +116,17 @@ internal sealed class DungeonSpace : IDisposable
             {
                 MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                 growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+            }
+
+            if (layout.Waterfalls.Count > 0)
+            {
+                Waterfalls = new CaveWaterfalls(engine, layout.Waterfalls);
+                // The sheets are drawn as the growths are, owned here with them.
+                foreach (MeshResourceCreateRequest request in Waterfalls.SheetRequests())
+                {
+                    MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                }
             }
 
             if (layout.Abyss is (Vector3 abyssAt, float abyssRadius))
@@ -246,6 +260,9 @@ internal sealed class DungeonSpace : IDisposable
         }
 
         growths.Clear();
+        // After the meshes drawn in its materials.
+        Waterfalls?.Dispose();
+        Waterfalls = null;
         foreach (Material material in growthMaterials)
         {
             material.Dispose();

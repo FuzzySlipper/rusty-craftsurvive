@@ -389,6 +389,80 @@ internal static class KarstCave
         return new ChasmShape(centre, radius, [.. ledges], [.. bridges]);
     }
 
+    // Waterfalls (owner, 2026-10-20): how many streams may fall into a chasm, how much water a window's passage must still
+    // carry to pour, how far apart their lips must be, and how fast the sky's light falls off below the surface.
+    private const int MostWaterfalls = 3;
+    private const float WaterfallLeastFlow = 0.05f, WaterfallsApart = 8f, SkyLightFalloff = 25f, WaterfallClear = 1.2f, LeastDrop = 4f;
+
+    /// <summary>
+    /// The streams falling into a chasm: windows of cut passages that still carry water (the last flowing era's), each
+    /// pouring over the lip of its passage's floor and falling until it lands on a ledge or the chasm's foot, or on into the
+    /// abyss. The wettest windows first; a chasm always has at least one, from its wettest window.
+    /// </summary>
+    private static Waterfall[] Waterfalls(float[] open, float[] flow, List<(Vector3 At, float Share, int Era)> passages, ChasmShape chasm, ulong seed)
+    {
+        float outer = (chasm.Radius * (1f + ChasmWobble)) + ChasmBand + 2f;
+        List<(Waterfall Fall, float Wet)> found = [];
+        foreach ((Vector3 at, float _, int _) in passages)
+        {
+            Vector2 radial = new Vector2(at.X, at.Z) - chasm.Centre;
+            float r = radial.Length();
+            if (r < chasm.Radius * 0.6f || r > outer + 4f)
+            {
+                continue;
+            }
+
+            Vector2 u = radial / r;
+            Vector3 behind = new(chasm.Centre.X + (u.X * outer), at.Y, chasm.Centre.Y + (u.Y * outer));
+            if (Trilinear(open, behind) <= 0f)
+            {
+                continue;
+            }
+
+            Vector3 floor = Floor(open, behind);
+            float wet = GridTrilinear(flow, behind + new Vector3(0f, 0.5f, 0f));
+            // The lip: inward along the passage's floor until there is nothing under it.
+            Vector3? lip = null;
+            for (float step = 0f; step < outer; step += 0.25f)
+            {
+                Vector3 p = floor + new Vector3(-u.X * step, 0.3f, -u.Y * step);
+                if (Trilinear(open, p) <= 0f)
+                {
+                    break;
+                }
+
+                // A lip only where the water would fall clear: open air below, a little out from it, for a real drop.
+                Vector3 beyond = p + new Vector3(-u.X * WaterfallClear, 0f, -u.Y * WaterfallClear);
+                if (Trilinear(open, p - new Vector3(0f, 1.3f, 0f)) > 0f && Enumerable.Range(1, (int)(LeastDrop / 0.5f)).All(k => Trilinear(open, beyond - new Vector3(0f, k * 0.5f, 0f)) > 0f))
+                {
+                    lip = p - new Vector3(0f, 0.3f, 0f);
+                    break;
+                }
+            }
+
+            if (lip is not Vector3 edge || found.Any(f => Vector3.Distance(f.Fall.Lip, edge) < WaterfallsApart))
+            {
+                continue;
+            }
+
+            Vector3 pour = new(-u.X, 0f, -u.Y);
+            float y = edge.Y - 1f;
+            Vector3 falling = edge + (pour * WaterfallClear);
+            while (y > FieldStep && Trilinear(open, new Vector3(falling.X, y, falling.Z)) > 0f)
+            {
+                y -= 0.25f;
+            }
+
+            bool lands = y > FieldStep;
+            float sky = MathF.Exp(-MathF.Max(0f, SurfaceAt(edge.X, edge.Z, seed) - edge.Y) / SkyLightFalloff);
+            found.Add((new Waterfall(edge, pour, edge.Y - (lands ? y : 0f), lands, Math.Clamp(wet, 0f, 1f), sky), wet));
+        }
+
+        // Wettest first; the wettest always pours, so a chasm has at least one stream.
+        Waterfall[] wettest = [.. found.OrderByDescending(f => f.Wet).Where((f, i) => i == 0 || f.Wet >= WaterfallLeastFlow).Take(MostWaterfalls).Select(f => f.Fall)];
+        return wettest;
+    }
+
     /// <summary>An angle wrapped into 0 to a full turn.</summary>
     private static float Wrap(float angle) => ((angle % MathF.Tau) + MathF.Tau) % MathF.Tau;
 
@@ -739,6 +813,9 @@ internal static class KarstCave
         internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
         internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
+        /// <summary>Streams falling into the chasm from the passages it cut.</summary>
+        internal required Waterfall[] Waterfalls { get; init; }
+
         /// <summary>The chasm, when the cave has one.</summary>
         internal required ChasmShape? Chasm { get; init; }
 
@@ -927,6 +1004,7 @@ internal static class KarstCave
             SkyOpen = cave.SkyOpen,
             GreatHall = cave.GreatHall is not null,
             Mist = cave.GreatHall is Hall mistHall ? [HallMist(mistHall)] : [],
+            Waterfalls = cave.Waterfalls,
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
         };
@@ -935,7 +1013,7 @@ internal static class KarstCave
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges, {cave.Waterfalls.Length} waterfalls ({string.Join(" ", cave.Waterfalls.Select(w => $"{w.Drop:F0}m{(w.Lands ? "" : "+abyss")}"))})" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
@@ -1088,6 +1166,7 @@ internal static class KarstCave
         }
 
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed);
+        Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         if (greatHall is Hall builtHall)
         {
             ecology.AddRange(HallGrowths(open, builtHall, seed, random));
@@ -1119,6 +1198,7 @@ internal static class KarstCave
             Tiankeng = tiankeng,
             GreatHall = greatHall,
             Chasm = chasm,
+            Waterfalls = waterfalls,
             SkyOpen = skyOpen,
             Formed = formed,
             Sediment = sediment,

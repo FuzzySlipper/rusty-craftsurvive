@@ -21,6 +21,13 @@ internal enum EcologyKind
     VaultBloom,
 }
 
+/// <summary>
+/// A stream falling from a passage's window into a chasm (#10094), in layout metres: the lip it pours over, which way it
+/// pours (across the floor), how far it falls to where it lands (or to the bottom of the space, when it falls on into the
+/// abyss), how much water it carries (0 to 1), and how much of the sky's light reaches the lip (0 to 1).
+/// </summary>
+internal readonly record struct Waterfall(Vector3 Lip, Vector3 Out, float Drop, bool Lands, float Flow, float SkyShare);
+
 /// <summary>A low mist lying in a natural space (#10094), in layout metres: an ellipsoid turned about the vertical.</summary>
 internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees);
 

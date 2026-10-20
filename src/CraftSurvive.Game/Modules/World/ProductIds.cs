@@ -116,6 +116,9 @@ internal static class ProductIds
     internal const ulong LampFireBase = 0x300UL;
     internal const ulong DungeonFireBase = 0x400UL;
 
+    /// <summary>A chasm's waterfalls (#10094): their stream and spray emitters, two per fall.</summary>
+    internal const ulong DungeonWaterfallBase = 0x480UL;
+
     /// <summary>The composed town study: drawing, selectable services and foreground blockers.</summary>
     internal const ulong TownAppearanceBase = 0x9_0000UL;
 

@@ -201,6 +201,8 @@ internal sealed class DungeonModule : IProductModule
 
                 CarryLantern();
                 CatchFall();
+                // Waterfall spray is not lit by the Engine: it is shown at the light that reaches it (the day's, in a chasm open to the sky).
+                space?.Waterfalls?.Light((float)WorldClock.Daylight(conditions.Time.DayFraction));
                 break;
         }
 
@@ -990,7 +992,7 @@ internal sealed class DungeonModule : IProductModule
             : string.Empty;
         string entrance = nearbyEntrance is PoiSite site ? $"{site.X},{site.Z}" : "none";
         string layout = plan is DungeonPlan current2
-            ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}] {space?.RockReadout}"
+            ? $" plan=[{current2.Mix} floors={current2.Floors} attempt={current2.Attempt} arrival={current2.Arrival} breach={current2.Breach} loot={current2.Loot}] {space?.RockReadout} {space?.Waterfalls?.Readout}"
             : string.Empty;
         return $"dungeon approach={approach} surface={surface} state={state} candidate={candidateIndex}{loading}{layout} routes=[{routes}] candidatesRefused={candidatesRefused} nearbyEntrance={entrance} entered={entered} refused={refused} last={last}";
     }
