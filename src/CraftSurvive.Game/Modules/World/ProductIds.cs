@@ -22,6 +22,12 @@ internal static class ProductIds
     /// <summary>A sculpted dungeon's rock mesh: one appearance object.</summary>
     internal const ulong DungeonRockObject = 0x3_0000UL;
 
+    /// <summary>A modular dungeon's kit pieces (#10089): one appearance object each, this base plus the piece's index.</summary>
+    internal const ulong DungeonKitObject = 0x3_2000UL;
+
+    /// <summary>How many kit pieces a dungeon may draw: the ids below the next range.</summary>
+    internal const int DungeonKitObjects = 0x1000;
+
     /// <summary>The expedition's sled, standing where the party left it (#9473).</summary>
     internal const ulong SledObject = 0x3_1000UL;
 

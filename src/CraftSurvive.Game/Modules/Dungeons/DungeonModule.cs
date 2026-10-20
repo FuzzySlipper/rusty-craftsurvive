@@ -288,7 +288,7 @@ internal sealed class DungeonModule : IProductModule
                 ? new DungeonSpace(engine, terrain, candidate.Layout,
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
-                    candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(), caveLayers: candidate.AllVoxels.Natural);
+                    candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural);
         }
         catch (EngineCallException refusal)
         {
@@ -645,9 +645,17 @@ internal sealed class DungeonModule : IProductModule
     private Material? StudyRockDetail() => RockLook(new Vector4(0f, 0f, 0f, Darkness.Glint));
 
     /// <summary>A built dungeon's rock blocks, all in the cave rock's one palette look (the cave's own materials are a natural cave's).</summary>
-    private Dictionary<BlockId, Material>? PlainRock() => StudyRockDetail() is Material look
-        ? CaveMaterials.Layers.Where(l => DungeonSurfaces.IsRock(l.Block)).ToDictionary(l => l.Block, _ => look)
+    /// <param name="kitted">
+    /// Whether the dungeon's building is kit pieces (#10089): what of it stays voxels (stairs, rubble, broken walls) is then
+    /// drawn as the rock is, not in the placeholder brick and planks.
+    /// </param>
+    private Dictionary<BlockId, Material>? PlainRock(bool kitted = false) => StudyRockDetail() is Material look
+        ? CaveMaterials.Layers.Where(l => DungeonSurfaces.IsRock(l.Block)).Select(l => l.Block)
+            .Concat(kitted ? KitLeftovers : []).Distinct().ToDictionary(block => block, _ => look)
         : null;
+
+    /// <summary>The building blocks a kitted dungeon may still hold as voxels.</summary>
+    private static readonly BlockId[] KitLeftovers = [BlockId.Brick, BlockId.Planks, BlockId.Cobblestone, BlockId.Gravel];
 
     /// <param name="glint">The shader's last parameter vector: only its w (mineral glints) is read.</param>
     private Material? RockLook(Vector4 glint)

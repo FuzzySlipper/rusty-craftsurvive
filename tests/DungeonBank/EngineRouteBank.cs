@@ -147,6 +147,11 @@ internal static class EngineRouteBank
                     mesh = DungeonCollision.MeshRock(engine, rock, material, out _);
                     DungeonCollision.AdmitRock(engine, session, mesh);
                 }
+                else if (layout.Kit.Count > 0)
+                {
+                    // The kit stands where its voxels were taken out (#10089): it collides as the game collides it.
+                    KitCollision.Admit(engine, session, layout.Kit);
+                }
 
                 double buildMs = clock.Elapsed.TotalMilliseconds;
                 foreach (ProfileFor profileFor in profiles)

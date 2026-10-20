@@ -32,7 +32,7 @@ internal sealed record DungeonCandidate(int Index, ulong Seed, DungeonLayout Lay
     /// The candidate as voxels throughout, for a reconstructed surface: the walked copy (sculpted
     /// rock as stone where its density is solid) with the sculpted field as the voxels' densities.
     /// </summary>
-    internal DungeonLayout AllVoxels => Layout with { Volume = Walkable, Rock = null, Densities = Layout.Rock };
+    internal DungeonLayout AllVoxels => Layout with { Volume = Layout.KitDrawn ?? Walkable, Rock = null, Densities = Layout.Rock };
 }
 
 /// <summary>

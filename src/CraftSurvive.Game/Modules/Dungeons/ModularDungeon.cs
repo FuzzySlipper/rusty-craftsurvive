@@ -140,6 +140,7 @@ internal static class ModularDungeon
         (RockDensity rock, DungeonVolume building, DungeonVolume walkable) = SculptedRock.Sculpt(volume, arrivalCell, seed, climbs);
         DungeonVerdict verdict = CarveAndStamp.Check(walkable, plan);
         List<Vector3> lights = [.. Lights(placed, moduleLights)];
+        (IReadOnlyList<KitPlacement> kit, DungeonVolume kitDrawn) = DungeonKit.Fit(walkable, placed);
         DungeonLayout layout = new(
             $"modular-{seed:x}",
             building,
@@ -148,6 +149,8 @@ internal static class ModularDungeon
             lights)
         {
             Rock = rock,
+            Kit = kit,
+            KitDrawn = kitDrawn,
         };
         return (layout, plan, verdict, walkable, placed);
     }

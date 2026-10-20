@@ -36,6 +36,9 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>A cave's lakes' and pools' surfaces (#10094): their material, while the space draws them.</summary>
     private CaveWaterSurfaces? waterSurfaces;
 
+    /// <summary>A modular dungeon's kit pieces (#10089), drawn and collided while the space is loaded.</summary>
+    private DungeonKitLook? kit;
+
     /// <summary>A cave's moss and ivy cards (#10092): their materials, while the space draws them.</summary>
     private CaveMossCards? mossCards;
 
@@ -83,7 +86,7 @@ internal sealed class DungeonSpace : IDisposable
 
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot; nothing when its rock is voxels.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts =>
-        [.. RockFacts, .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
+        [.. RockFacts, .. kit?.Facts ?? [], .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
             new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene)),
             .. forest.Select((plant, index) => new AppearanceFact(ProductIds.DungeonRockObject + ForestObjects + (ulong)index, false, 0UL,
                 plant.Place, plant.Look, true, RenderLayer.Scene))];
@@ -160,6 +163,14 @@ internal sealed class DungeonSpace : IDisposable
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                     growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
                 }
+            }
+
+            if (layout.Kit.Count > 0 && !DungeonSurfaces.RockAsMesh(surface))
+            {
+                // The kit stands where its building's voxels were taken out (DungeonKit): it draws and collides in their place.
+                kit = new DungeonKitLook(engine, terrain.Content, layout.Kit);
+                kit.Collide(Session);
+                RockReadout = $"{RockReadout} kit={kit.Count}";
             }
 
             if (layout.MossCards.Count > 0)
@@ -320,6 +331,8 @@ internal sealed class DungeonSpace : IDisposable
         waterSurfaces = null;
         mossCards?.Dispose();
         mossCards = null;
+        kit?.Dispose();
+        kit = null;
         foreach (Material material in growthMaterials)
         {
             material.Dispose();

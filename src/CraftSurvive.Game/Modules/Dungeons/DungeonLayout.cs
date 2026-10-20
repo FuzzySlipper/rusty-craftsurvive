@@ -38,6 +38,12 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>The forest growing into a natural space's openings to the sky (#10129): trees, understory and ferns on its turf.</summary>
     internal IReadOnlyList<ForestPlacement> Forest { get; init; } = [];
 
+    /// <summary>A modular dungeon's kit pieces (#10089): its building's floors, vaults and walls as kit meshes.</summary>
+    internal IReadOnlyList<KitPlacement> Kit { get; init; } = [];
+
+    /// <summary>The voxels drawn and collided once the kit stands in its building: the walkable volume less the voxels the pieces took.</summary>
+    internal DungeonVolume? KitDrawn { get; init; }
+
     /// <summary>The moss and ivy cards on a cave's rock (#10092).</summary>
     internal IReadOnlyList<MossCard> MossCards { get; init; } = [];
 
