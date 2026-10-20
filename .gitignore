@@ -9,6 +9,8 @@
 /.runtime/
 /.idea/
 /.vscode/
+local/
+docs/evidence/
 *.log
 .codex/
 maplab-out/
