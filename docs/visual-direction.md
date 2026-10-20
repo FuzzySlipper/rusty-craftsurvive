@@ -168,6 +168,8 @@ small practical expedition gear. The ancient openings, tapered ribs and
 ceramic-like insets are an approved architectural vocabulary to develop. They do
 not fix every ruin's doorway or settle the civilization's lore.
 
+The [ancients set](style-references/ancients/README.md) holds two images that set the language of the ancients' ruins (owner, 2026-10-20). Whim gives the vocabulary: impossible, whimsical proportions, slot-and-eye doorways, shell alcoves, hung spheres, cosmic ceramic mosaics, and one light discordant technology element. Bones gives the ruin state: the same grandeur reduced to its ribs. Who the ancients were is in the design atlas. They are not an Earth antiquity: no Greek, Roman, Egyptian, Gothic or elvish forms. The dungeon kit (#10089) builds from this set.
+
 The [town set](style-references/town/README.md) holds eight references for warm,
 inhabited sanctuaries: a lowland port, a rainy upriver town and a small
 high-country refuge, with establishing views, closer views and interface
