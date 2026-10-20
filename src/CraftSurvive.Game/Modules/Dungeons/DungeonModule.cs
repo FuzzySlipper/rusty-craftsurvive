@@ -1041,7 +1041,7 @@ internal sealed class DungeonModule : IProductModule
                 $"{zone.SurfaceColumns.Min(c => c.X):F1},{zone.SurfaceColumns.Min(c => c.Y):F1}..{zone.SurfaceColumns.Max(c => c.X):F1},{zone.SurfaceColumns.Max(c => c.Y):F1}");
             string mouths = string.Join(";", zone.Mouths.Select(m => string.Create(CultureInfo.InvariantCulture, $"{m.X:F1},{m.Y:F1},{m.Z:F1}")));
             return string.Create(CultureInfo.InvariantCulture,
-                $"z{i} {zone.Kind} surface={zone.Surface:F2} columns={zone.SurfaceColumns.Count} cells={zone.Cells.Count} extent={extent} mouths={mouths}");
+                $"z{i} {zone.Kind}{(zone.Luminous ? " luminous" : "")} surface={zone.Surface:F2} columns={zone.SurfaceColumns.Count} cells={zone.Cells.Count} extent={extent} mouths={mouths}");
         }).Prepend($"zones={zones.Count}"));
     }
 
