@@ -263,7 +263,8 @@ internal sealed class WorldMap
 
     internal static MapSample Channel(MapSample broad, RiverInfluence river)
     {
-        double quiet = Ease(river.HalfWidth, MapRivers.QuietDistance(river.HalfWidth), river.Distance);
+        // Local relief stays off the bank's slope, so no hollow of it dips the bank below the water (#10180).
+        double quiet = Ease(river.HalfWidth + river.Bank, MapRivers.QuietDistance(river.HalfWidth), river.Distance);
         if (river.InChannel)
         {
             double across = river.Distance / river.HalfWidth;

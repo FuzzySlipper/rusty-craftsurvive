@@ -73,9 +73,12 @@ internal readonly record struct TerrainGeneratorContract(ulong Seed, uint Versio
     /// ground a lush, dry or (in deep desert only) sand topsoil by climate, adds the dry grass block, and makes the
     /// arrival wet lowland (#10041); version 39 takes the places out of the voxels - standing stones, ruins,
     /// arches, entrance platforms and vantage courses are kit meshes now, and the voxels keep only the cave
-    /// recess, the shaft and the vantage lamp (#9992).
+    /// recess, the shaft and the vantage lamp (#9992); version 40 sits small rivers in the land (#10180): the walked
+    /// network's water stands at an open lake's own level over its bed and its outflow cuts the sill to it, region
+    /// tiles raise their ground to the floors the network filled and hold a small stream's ground as far out as a
+    /// large river's, and local relief stays off a river's bank.
     /// </summary>
-    internal const uint CurrentVersion = 39;
+    internal const uint CurrentVersion = 40;
 
     private const string GenerationScope = "craftsurvive.terrain";
 

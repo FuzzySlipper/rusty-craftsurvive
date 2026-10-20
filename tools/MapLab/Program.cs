@@ -40,6 +40,13 @@ const string Usage = """
                    water, the worst flood and its floodplain drawn from before the storm to the water going down;
                    writes floods-SEED.txt and floods-SEED.png
 
+    MapLab --channel SEED --size METRES [--at X,Z ...] [--around X,Z[,RADIUS]] [--lakes] [--out DIR]
+
+      --channel    how the walked rivers sit in the land (#10180): cross-sections of the reach nearest each --at point
+                   (the network's surface, the tiles' ground and the walking ground), and with --around a census of
+                   the small reaches within a radius (default 8000 m): embankments, trenches and gorges; --lakes
+                   lists the continent's lakes; writes channels-SEED.txt
+
     MapLab --towns SEEDS --size METRES [--design ...] [--recipe ...] [--out DIR]
 
       --towns      the network and settlement census (#9875) over seeds: the walked drainage as data (reaches by
@@ -68,6 +75,13 @@ if (options.ContainsKey("floods") && options.ContainsKey("size"))
     // Floods over the year (#9880): the worst flood's floodplain from before the storm to the water going down.
     int floodSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
     return FloodRun.Run(options, floodSize, LoadDesign(floodSize), options.TryGetValue("out", out List<string>? floodOut) ? floodOut[0] : "maplab-out");
+}
+
+if (options.ContainsKey("channel") && options.ContainsKey("size"))
+{
+    // How the walked rivers sit in the land (#10180): cross-sections at points, and a census of small reaches.
+    int channelSize = int.Parse(options["size"][0], CultureInfo.InvariantCulture);
+    return ChannelRun.Run(options, channelSize, LoadDesign(channelSize), options.TryGetValue("out", out List<string>? channelOut) ? channelOut[0] : "maplab-out");
 }
 
 if (options.ContainsKey("boats") && options.ContainsKey("size"))

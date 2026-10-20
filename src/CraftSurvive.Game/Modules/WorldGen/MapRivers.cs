@@ -242,6 +242,33 @@ internal sealed class MapRivers
         return best;
     }
 
+    /// <summary>
+    /// The surface of the river whose centreline comes closest to a point, if one comes within a radius, and
+    /// how close: unlike <see cref="Nearest"/>, it reaches beyond a river's quiet banks, so a region tile can
+    /// hold its ground at a small stream's surface as far out as it holds a large river's (#10180).
+    /// </summary>
+    internal (double Distance, double Surface)? Closest(double x, double z, double radius)
+    {
+        (double Distance, double Surface)? best = null;
+        long cx0 = Cell(x - radius), cx1 = Cell(x + radius), cz0 = Cell(z - radius), cz1 = Cell(z + radius);
+        for (long cz = cz0; cz <= cz1; cz++)
+        for (long cx = cx0; cx <= cx1; cx++)
+        {
+            if (!buckets.TryGetValue(Key(cx, cz), out (int Start, int Count) range)) continue;
+            for (int e = range.Start; e < range.Start + range.Count; e++)
+            {
+                (int r, int s) = entries[e];
+                RiverPoint a = reaches[r][s], b = reaches[r][s + 1];
+                double dx = b.X - a.X, dz = b.Z - a.Z, lengthSquared = dx * dx + dz * dz;
+                double t = lengthSquared > 0 ? Math.Clamp(((x - a.X) * dx + (z - a.Z) * dz) / lengthSquared, 0, 1) : 0;
+                double distance = Math.Sqrt(Square(x - a.X - dx * t) + Square(z - a.Z - dz * t));
+                if (distance > radius || (best is { } found && distance >= found.Distance)) continue;
+                best = (distance, a.Surface + (b.Surface - a.Surface) * t);
+            }
+        }
+        return best;
+    }
+
     private static long Cell(double v) => (long)Math.Floor(v / BucketSize);
     private static long Key(long x, long z) => unchecked((x << 32) ^ (z & 0xFFFF_FFFFL));
     private static double Square(double v) => v * v;

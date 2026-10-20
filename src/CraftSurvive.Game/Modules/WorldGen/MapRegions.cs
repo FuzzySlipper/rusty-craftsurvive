@@ -222,6 +222,14 @@ internal sealed class MapRegions
     /// </summary>
     internal MapSample Sample(double x, double z)
     {
+        MapSample blended = Blended(x, z);
+        // Every tile shapes the network's reaches identically, so the owning tile's share answers for all.
+        return Tile(TileAt(x, z)).Rivers.Nearest(x, z) is RiverInfluence river ? WorldMap.Channel(blended, river) : blended;
+    }
+
+    /// <summary>The tiles' blended geography at a world position, before the network's rivers are drawn over it.</summary>
+    internal MapSample Blended(double x, double z)
+    {
         if (!double.IsFinite(x) || !double.IsFinite(z)) throw new ArgumentOutOfRangeException(nameof(x));
         (int X, int Z) own = TileAt(x, z);
         Span<(int Tile, double Weight)> across = stackalloc (int, double)[2], along = stackalloc (int, double)[2];
@@ -238,9 +246,7 @@ internal sealed class MapRegions
             h += w * s.Elevation; t += w * s.Temperature; m += w * s.Moisture;
             r += w * s.Rock; d += w * s.Detail; p += w * s.Protection;
         }
-        MapSample blended = new(h, t, m, r, d, p, LakeSurface: continent.LakeLevelAt(x, z));
-        // Every tile shapes the network's reaches identically, so the owning tile's share answers for all.
-        return Tile(own).Rivers.Nearest(x, z) is RiverInfluence river ? WorldMap.Channel(blended, river) : blended;
+        return new(h, t, m, r, d, p, LakeSurface: continent.LakeLevelAt(x, z));
     }
 
     /// <summary>The tiles along one axis whose blend reaches an offset from the owning tile's centre, with weights summing to one.</summary>
@@ -384,6 +390,12 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
                 height[i] = Math.Max(GenerationConstants.MinimumTerrainHeight, river.Surface);
                 outlet[i] = true;
             }
+            // A small stream's banks end inside the hold, where Nearest no longer sees it: it holds as far out (#10180).
+            else if (rivers.Closest(x, z, RiverHoldMetres) is { } stream)
+            {
+                height[i] = Math.Max(GenerationConstants.MinimumTerrainHeight, stream.Surface);
+                outlet[i] = true;
+            }
             outlet[i] |= sea[i] || grid.IsEdge(i);
             hardness[i] = Math.Clamp(continent.HardnessAt(x, z), 0, 1);
             rain[i] = RegionRelief.Rain(broad);
@@ -395,8 +407,14 @@ internal sealed record RegionTile(WorldMap Map, MapRivers Rivers)
         MapErosion.Evolve(relief, _ => rain, ErosionSteps, ErosionSteps);
         double[] h = relief.Height;
         for (int i = 0; i < count; i++)
-            if (!outlet[i])
-                h[i] = Math.Clamp(RegionRelief.LimitIncision(h[i], surface[i], incision[i]), GenerationConstants.MinimumTerrainHeight, scale.MaximumElevation - 1);
+        {
+            if (outlet[i]) continue;
+            h[i] = RegionRelief.LimitIncision(h[i], surface[i], incision[i]);
+            // The network's rivers cross its filled hollows at their spill, so the tile's ground rises to that floor (#10180).
+            (double floor, double share) = drainage.Aggraded(centre.X + grid.X(i), centre.Z + grid.Z(i));
+            if (floor > h[i]) h[i] += share * (floor - h[i]);
+            h[i] = Math.Clamp(h[i], GenerationConstants.MinimumTerrainHeight, scale.MaximumElevation - 1);
+        }
         MapErosion.Relax(grid, h, outlet, TalusSlope, TalusIterations);
 
         MapFlow.Fill(grid, h, outlet, MapFlow.FillGradient);

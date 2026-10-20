@@ -135,3 +135,24 @@ the boat waiting at the open water nearest the start.
 Output: `boats.txt` (each journey's hours, how much faster than walking, and the kilometres afloat,
 or why walking wins; the median gain per craft) and `boats-SEED.png` (land by height, canoe rivers
 blue and rapids red, each canoe journey with its water legs cyan and its walked legs orange).
+
+## River seats (#10180)
+
+```bash
+dotnet run --project tools/MapLab -c Release -- --channel 13 --size 390000 --at -106250,36000 --around -106250,36000,6000 --out /tmp/channels
+```
+
+How a continent's walked rivers sit in the land:
+- `--at X,Z` (repeatable): the reach nearest the point, with its network nodes (the network's surface, the
+  relief it was eroded from, how far its routing filled a hollow, the tiles' ground and any lake's level)
+  and cross-sections along it. Each section has the tiles' ground, the walking ground (with local relief)
+  and the water (`L` for a lake's).
+- `--around X,Z[,RADIUS]`: a census of the small reaches (at most 8 m wide) within the radius:
+  - perched: the lower dry bank 4 m out lies more than 0.5 m below the water (an embankment);
+  - trenched: the centre is more than 1.5 m deeper than the river's size asks;
+  - incised: even the lower bank stands more than 4 m above the water (a gorge).
+
+  It also says where the perched ones are: in a lake's basin, or where the network filled a hollow.
+- `--lakes`: the continent's lakes with their levels.
+
+Output: `channels-SEED.txt`.
