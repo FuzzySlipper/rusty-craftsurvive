@@ -129,7 +129,7 @@ internal sealed class DungeonSpace : IDisposable
             if (layout.Waterfalls.Count > 0)
             {
                 Waterfalls = new CaveWaterfalls(engine, layout.Waterfalls);
-                // The sheets are drawn as the growths are, owned here with them.
+                // The sheets are published with the growths: an appearance draws only while a published fact names it.
                 foreach (MeshResourceCreateRequest request in Waterfalls.SheetRequests())
                 {
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);

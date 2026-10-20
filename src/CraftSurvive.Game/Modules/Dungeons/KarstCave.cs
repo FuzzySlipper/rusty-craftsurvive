@@ -899,6 +899,13 @@ internal static class KarstCave
             }
 
             int age = Eras.Length - 1 - faces;
+            // A floor within the water's reach, where it runs quietly or stands, is mud.
+            bool facesUp = y + 1 < FieldY && Open[FieldIndex(x, y + 1, z)] > 0f;
+            if (facesUp && p.Y < FinalTable + WetReach && GridTrilinear(Flow, p + new Vector3(0f, FieldStep, 0f)) < MudQuietFlow)
+            {
+                return SedimentRock;
+            }
+
             // Older rock under dripping water is coated in flowstone.
             if (faces != LastFlowEra && age >= 1 && GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f)) >= FlowstoneDrip)
             {
@@ -1258,7 +1265,10 @@ internal static class KarstCave
     internal const BlockId SiltRock = BlockId.Sand, FlowstoneRock = BlockId.Flowstone, RubbleRock = BlockId.Rubble;
 
     /// <summary>Where water drips at least this much (the 2 m drip field, 0 to 1), older rock is coated in flowstone.</summary>
-    private const float FlowstoneDrip = 0.3f;
+    private const float FlowstoneDrip = 0.12f;
+
+    /// <summary>A floor within the water's reach where it runs slower than this (the active flow, 0 to 1) is mud: the stream beds stay washed rock.</summary>
+    private const float MudQuietFlow = 0.15f;
 
     /// <summary>Marks the samples a pass filled with rock (open before, solid after): what fell, or what grew.</summary>
     private static void MarkFilled(float[] before, float[] open, bool[] mark)

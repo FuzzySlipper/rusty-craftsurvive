@@ -88,8 +88,8 @@ internal sealed class CaveWaterfalls : IDisposable
     }
 
     /// <summary>
-    /// The sheets' meshes, for the space to draw with its other meshes (an appearance made here was never drawn, though the
-    /// same mesh and material made by the space are; the space owns them, these materials stay here).
+    /// The sheets' meshes, for the space to draw with its growths: an appearance draws only while a published appearance
+    /// fact names it, and the space publishes its own (rusty-engine #10172). These materials stay here.
     /// </summary>
     internal IEnumerable<MeshResourceCreateRequest> SheetRequests() => falls.Select((fall, i) => Sheet(fall, sheetMaterials[i]));
 
