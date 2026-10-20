@@ -14,6 +14,9 @@ internal sealed record GroundTextureSet(string Root, IReadOnlyList<string> Layer
 
     /// <summary>The building study's maps (#9684, scripts/generate-construction-textures.py): timber, stone and roof.</summary>
     internal static GroundTextureSet Construction { get; } = new("textures/construction/", ["planks", "timber", "masonry", "shingles"], "construction");
+
+    /// <summary>The cave's ground materials (#10095, scripts/generate-cave-materials.py), in their terrain layers' order.</summary>
+    internal static GroundTextureSet Cave { get; } = new("textures/cave-materials/", Dungeons.CaveMaterials.Names, "cave");
 }
 
 /// <summary>Authored repeating terrain maps. Engine owns texture sampling and triplanar blending.</summary>
@@ -110,6 +113,19 @@ internal sealed class TerrainGroundMaterials : IDisposable
     {
         Material layered = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(
             materials[names[0]], names.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
+        sets.Add(layered);
+        return layered;
+    }
+
+    /// <summary>
+    /// The set's terrain-layer material with its base drawn through a product shader (the cave's materials, #10095): the
+    /// Engine blends the layers' maps by the voxels' terrain layer weights and the shader shades what they give.
+    /// Disposed with the set.
+    /// </summary>
+    internal Material LayeredWithShader(IReadOnlyList<string> names, MaterialShader shader)
+    {
+        Material layered = engine.Graphics.CreateTerrainLayerMaterial(new TerrainLayerMaterialRequest(
+            PlainWithShader(names[0], shader), names.Skip(1).Select(name => materials[name]).ToArray(), Settings.Contrast));
         sets.Add(layered);
         return layered;
     }

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "limestone",
+    "width": 128,
+    "height": 128,
+    "sha256": "bb6d211faeb55ed952c959956892416f8625daafccc3fe6f26ee763a3b9fe795",
+    "metresPerTile": 6,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "washed",
+    "width": 128,
+    "height": 128,
+    "sha256": "10b089ad9a1ea50e9714fc3c90ae954f1b4208144d10418672ed78235c76aec5",
+    "metresPerTile": 5,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "patinated",
+    "width": 128,
+    "height": 128,
+    "sha256": "277815f0b91e1e01ec1e045ff96200866b6a08e5c6331b9eb02d9f9dc64069ea",
+    "metresPerTile": 4,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "mud",
+    "width": 128,
+    "height": 128,
+    "sha256": "bbe32e1e783ede0e3c8ec17c20e3a60c5da7b123ea9bc393c24e78ec46c5236b",
+    "metresPerTile": 4,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "silt",
+    "width": 128,
+    "height": 128,
+    "sha256": "1f9b7809b8f173f2a1eafc900a75930f6abd8e0c73db4f93b9d36de0f47eb3f6",
+    "metresPerTile": 5,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "rubble",
+    "width": 128,
+    "height": 128,
+    "sha256": "46481a0bc279cbdde5234a6205274e58d53268160646fa48a65c584d80de3b84",
+    "metresPerTile": 3,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "flowstone",
+    "width": 128,
+    "height": 128,
+    "sha256": "064b38992651deadad918dbca5a5d85fbcdc9fb0f885a335b1c5b633bf96cfe4",
+    "metresPerTile": 3,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "turf",
+    "width": 128,
+    "height": 128,
+    "sha256": "fe681ee629d65d3ad138cd683f9a88bd70817eca342bbe64fb1a34e236777303",
+    "metresPerTile": 4,
+    "triplanarSharpness": 4
+  }
+]

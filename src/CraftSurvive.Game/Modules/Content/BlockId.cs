@@ -26,4 +26,18 @@ internal enum BlockId : ushort
     Snow = 15,
     /// <summary>Sun-dried meadow (#10041): open ground where the climate is dry, between lush grass and desert sand.</summary>
     DryGrass = 16,
+
+    // The cave's own rock (#10095), placed by the cave generator only.
+
+    /// <summary>Rock the active water keeps washed: clean, cool and wet.</summary>
+    WashedRock = 17,
+
+    /// <summary>Rock on levels dry for ages: darker, warmer, stained.</summary>
+    PatinatedRock = 18,
+
+    /// <summary>Calcite laid down by dripping water: pale, banded flowstone and the formations.</summary>
+    Flowstone = 19,
+
+    /// <summary>Fallen blocks and boulders: breakdown rubble, freshly broken.</summary>
+    Rubble = 20,
 }

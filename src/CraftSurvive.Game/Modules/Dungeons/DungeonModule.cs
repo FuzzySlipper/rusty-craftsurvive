@@ -280,7 +280,8 @@ internal sealed class DungeonModule : IProductModule
             space = DungeonSurfaces.RockAsMesh(surface)
                 ? new DungeonSpace(engine, terrain, candidate.Layout,
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
-                : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface, RockByAge());
+                : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
+                    rockLayers && candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : RockByAge(), caveLayers: rockLayers && candidate.AllVoxels.Natural);
         }
         catch (EngineCallException refusal)
         {
@@ -573,6 +574,31 @@ internal sealed class DungeonModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture,
             $"the next dungeon's voxel rock has colour cells of {colourCell} m, facets in {facetSteps} steps, distance mode {distance}, coherence {coherence}");
     }
+
+    /// <summary>
+    /// Whether a natural cave's rock is drawn in the cave's ground materials (#10095): each rock block its own material map,
+    /// blended where they meet, under the cave shader's strata, 3D pixels and grain; false draws the age classes (#10094).
+    /// </summary>
+    private bool rockLayers = true;
+
+    internal string StudyRockLayers(bool layers)
+    {
+        rockLayers = layers;
+        return layers ? "the next natural cave's rock takes the cave's ground materials, blended" : "the next natural cave's rock takes the age classes' palette";
+    }
+
+    /// <summary>The cave's materials as one blended material for every rock block, drawn through the cave shader in its layered mode.</summary>
+    private Dictionary<BlockId, Material> CaveLayers(double voxelSize)
+    {
+        rockDetailShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(RockDetailShaderPath)).Handle;
+        Vector4 colouring = new(LayeredColouring, -DungeonCollision.Origin.Y, KarstCave.BedDip.X, KarstCave.BedDip.Y);
+        Material layered = terrain.CaveLayersWithShader(new MaterialShader(rockDetailShader, rockDetail ?? Vector4.Zero, colouring, rockPixels,
+            new Vector4(0f, 0f, 0f, Darkness.Glint)), voxelSize);
+        return CaveMaterials.Layers.ToDictionary(l => l.Block, _ => layered);
+    }
+
+    /// <summary>The cave shader's colouring mode for the layered materials: the blended maps' colour under the strata.</summary>
+    private const float LayeredColouring = 2f;
 
     /// <summary>Colours the next dungeon's voxel rock from the cave's own palette (strata, mottling, wet floors) instead of the painted texture.</summary>
     internal string StudyRockPalette(bool palette)

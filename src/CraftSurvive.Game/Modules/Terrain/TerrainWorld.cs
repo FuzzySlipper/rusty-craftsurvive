@@ -205,6 +205,10 @@ internal sealed class TerrainWorld : IDisposable
     /// <summary>The cave rock drawn through a product shader, for the cave detail study (#10094).</summary>
     internal Material CaveRockWithShader(MaterialShader shader) => presentation.CaveRockWithShader(shader);
 
+    internal Material CaveLayersWithShader(MaterialShader shader, double voxelSize) => presentation.CaveLayersWithShader(shader, voxelSize);
+
+    internal void ConfigureCaveLayers(SpatialSession session) => presentation.ConfigureCaveLayers(session);
+
     /// <summary>The cave rock's material (#10090), for a dungeon's rock meshes.</summary>
     internal Material CaveRockMaterial => presentation.CaveRock;
 

@@ -1,10 +1,10 @@
 {
   "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:af8b9ead1e389b7d0aa6d92ba348550812d12dddfe5200d41ecd0946380ecf7e",
+  "contentHash": "sha256:3bda3ca1c8cbfc06f3f9f9f6b53126fe13159cfbb24d3d0dc50ca3bd9ea156d2",
   "extent": [
     256,
-    320
+    384
   ],
   "tileExtent": [
     64,
@@ -181,6 +181,46 @@
       "contentMin": [
         0,
         256
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "washed-rock",
+      "block": "washed-rock",
+      "face": "base",
+      "contentMin": [
+        64,
+        256
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "patinated-rock",
+      "block": "patinated-rock",
+      "face": "base",
+      "contentMin": [
+        128,
+        256
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "flowstone",
+      "block": "flowstone",
+      "face": "base",
+      "contentMin": [
+        192,
+        256
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "rubble",
+      "block": "rubble",
+      "face": "base",
+      "contentMin": [
+        0,
+        320
       ],
       "authored": "scripts/generate-terrain-atlas.mjs"
     }

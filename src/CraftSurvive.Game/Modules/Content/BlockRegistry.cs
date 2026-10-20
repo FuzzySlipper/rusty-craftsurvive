@@ -98,6 +98,28 @@ internal static class BlockRegistry
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
             BlastResistance: 0.6f, LightEmission: 0f, LightAttenuation: 1f,
             Climbable: true),
+
+        // The cave's own rock (#10095): drawn in caves by the cave materials; their atlas tiles (tinted stone) are
+        // stand-ins, as they are never placed in the open world.
+        new(BlockId.WashedRock, "washed-rock", "washed-rock", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.PatinatedRock, "patinated-rock", "patinated-rock", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.Flowstone, "flowstone", "flowstone", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1.2f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.Rubble, "rubble", "rubble", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
     ];
 
     /// <summary>Every block, air first, in slot order.</summary>

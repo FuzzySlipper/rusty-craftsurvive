@@ -14,11 +14,16 @@ internal sealed class TerrainPresentation : IDisposable
     private TerrainGroundMaterials? ground;
     private TerrainScatter? scatter;
     private VoxelScenePresentation? projection;
+    private readonly ProductContent content;
+
+    /// <summary>The cave's ground materials (#10095), one set per voxel size (a map's repeat is counted in voxels), made when first asked for.</summary>
+    private readonly Dictionary<double, TerrainGroundMaterials> caveGrounds = [];
 
     /// <summary>Authored content is admitted at product create, so every later projection can bind it.</summary>
     internal TerrainPresentation(IEngineContext engine, ProductContent content, SurfaceMoss? moss = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        this.content = content ?? throw new ArgumentNullException(nameof(content));
         atlas = new TerrainAtlasCatalog(engine, content);
         try
         {
@@ -128,6 +133,29 @@ internal sealed class TerrainPresentation : IDisposable
     internal Material CaveRockWithShader(MaterialShader shader) =>
         (ground ?? throw new InvalidOperationException("Terrain ground materials are unavailable.")).PlainWithShader(CaveRockName, shader);
 
+    /// <summary>The cave's materials blended as terrain layers and drawn through a product shader (#10095); disposed with the set.</summary>
+    internal Material CaveLayersWithShader(MaterialShader shader, double voxelSize)
+    {
+        if (!caveGrounds.TryGetValue(voxelSize, out TerrainGroundMaterials? set))
+        {
+            set = new TerrainGroundMaterials(engine, content, voxelSize, GroundTextureSet.Cave);
+            caveGrounds[voxelSize] = set;
+        }
+
+        return set.LayeredWithShader(GroundTextureSet.Cave.LayerNames, shader);
+    }
+
+    /// <summary>Names a separate space's rock blocks as the cave's terrain layers, so where they meet they blend (#10095).</summary>
+    internal void ConfigureCaveLayers(SpatialSession session)
+    {
+        (BlockId Block, int Layer)[] layers = Dungeons.CaveMaterials.Layers;
+        engine.Voxel.ConfigureTerrainLayers(new VoxelTerrainLayerRequest(session,
+            layers.Select(l => (uint)BlockRegistry.Get(l.Block).Slot).ToArray(), CaveTransitionCells, layers.Select(l => (uint)l.Layer).ToArray()));
+    }
+
+    /// <summary>How many voxels a cave material's blend reaches across.</summary>
+    private const uint CaveTransitionCells = 2;
+
     /// <summary>A separate space's bindings: the world's blocks unblended, its rock in the cave rock.</summary>
     private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings(IReadOnlyDictionary<BlockId, Material>? rock) =>
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
@@ -158,6 +186,12 @@ internal sealed class TerrainPresentation : IDisposable
 
     public void Dispose()
     {
+        foreach (TerrainGroundMaterials set in caveGrounds.Values)
+        {
+            set.Dispose();
+        }
+
+        caveGrounds.Clear();
         // The projection lets go of the appearances its scatters grow first.
         projection?.Dispose();
         projection = null;

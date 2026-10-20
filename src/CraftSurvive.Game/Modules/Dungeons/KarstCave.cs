@@ -825,6 +825,10 @@ internal static class KarstCave
         /// <summary>The era each field sample was opened in (<see cref="Unformed"/> where never), and the samples sediment filled.</summary>
         internal required byte[] Formed { get; init; }
         internal required bool[] Sediment { get; init; }
+
+        /// <summary>The samples fallen rock filled (rubble) and formations grew in (flowstone), #10095.</summary>
+        internal required bool[] Rubble { get; init; }
+        internal required bool[] Flowstone { get; init; }
         /// <summary>The last era that carried water through the cave: what it opened is the active level.</summary>
         internal required int LastFlowEra { get; init; }
 
@@ -836,9 +840,21 @@ internal static class KarstCave
         internal BlockId RockAt(Vector3 p)
         {
             int x = Math.Clamp((int)(p.X / FieldStep), 0, FieldX - 1), y = Math.Clamp((int)(p.Y / FieldStep), 0, FieldY - 1), z = Math.Clamp((int)(p.Z / FieldStep), 0, FieldZ - 1);
-            if (Sediment[FieldIndex(x, y, z)])
+            int here = FieldIndex(x, y, z);
+            if (Sediment[here])
             {
-                return SedimentRock;
+                // Mud where the water still reaches, dry silt above it.
+                return p.Y < FinalTable + WetReach ? SedimentRock : SiltRock;
+            }
+
+            if (Rubble[here])
+            {
+                return RubbleRock;
+            }
+
+            if (Flowstone[here])
+            {
+                return FlowstoneRock;
             }
 
             // Under the sky: the plateau's ground and the tiankeng's floor are soil and turf, not cave rock.
@@ -883,6 +899,12 @@ internal static class KarstCave
             }
 
             int age = Eras.Length - 1 - faces;
+            // Older rock under dripping water is coated in flowstone.
+            if (faces != LastFlowEra && age >= 1 && GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f)) >= FlowstoneDrip)
+            {
+                return FlowstoneRock;
+            }
+
             return faces == LastFlowEra || p.Y < FinalTable + WetReach ? WashedRock
                 : age >= PatinaAfterEras ? PatinatedRock
                 : PlainRock;
@@ -1062,6 +1084,8 @@ internal static class KarstCave
         float[] open = new float[FieldX * FieldY * FieldZ];
         Array.Fill(open, -FieldLimit);
         bool[] sediment = new bool[open.Length];
+        // What fell (breakdown, collapses, boulders) and what grew (formations), for the rock it is made of (#10095).
+        bool[] rubble = new bool[open.Length], flowstone = new bool[open.Length];
         // The era each open sample was first opened in, for what age does to it later.
         byte[] formed = new byte[open.Length];
         Array.Fill(formed, Unformed);
@@ -1124,14 +1148,24 @@ internal static class KarstCave
                     formed[i] = (byte)index;
                 }
             }
+
+            if (eras[index] is Era.Breakdown or Era.GreatHall or Era.Tiankeng)
+            {
+                MarkFilled(before, open, rubble);
+            }
         }
 
+        float[] beforeBreakdown = (float[])open.Clone();
         foreach (Vector3 chamber in chambers)
         {
             Breakdown(open, chamber, random);
         }
 
+        MarkFilled(beforeBreakdown, open, rubble);
+
+        float[] beforeDrip = (float[])open.Clone();
         int formations = Drip(open, joint, formed, eras.Length, finalTable, random);
+        MarkFilled(beforeDrip, open, flowstone);
 
         Roughen(open, seed, beds, finalTable);
         Enclose(open, skyOpen, chasm);
@@ -1202,6 +1236,8 @@ internal static class KarstCave
             SkyOpen = skyOpen,
             Formed = formed,
             Sediment = sediment,
+            Rubble = rubble,
+            Flowstone = flowstone,
             LastFlowEra = Array.FindLastIndex(eras, Flows),
             Rifts = riftPlaces,
             Sponge = sponge,
@@ -1216,7 +1252,25 @@ internal static class KarstCave
     /// The rock blocks the age classes are drawn with (each bound to its own look of the cave rock): plain, washed by the
     /// active water, patinated by long dry ages, and sediment.
     /// </summary>
-    internal const BlockId PlainRock = BlockId.Stone, WashedRock = BlockId.Gravel, PatinatedRock = BlockId.Bedrock, SedimentRock = BlockId.Dirt;
+    internal const BlockId PlainRock = BlockId.Stone, WashedRock = BlockId.WashedRock, PatinatedRock = BlockId.PatinatedRock, SedimentRock = BlockId.Dirt;
+
+    // The cave's other materials (#10095): silt (sediment above the water's reach, dry), flowstone and rubble.
+    internal const BlockId SiltRock = BlockId.Sand, FlowstoneRock = BlockId.Flowstone, RubbleRock = BlockId.Rubble;
+
+    /// <summary>Where water drips at least this much (the 2 m drip field, 0 to 1), older rock is coated in flowstone.</summary>
+    private const float FlowstoneDrip = 0.3f;
+
+    /// <summary>Marks the samples a pass filled with rock (open before, solid after): what fell, or what grew.</summary>
+    private static void MarkFilled(float[] before, float[] open, bool[] mark)
+    {
+        for (int i = 0; i < open.Length; i++)
+        {
+            if (before[i] > 0f && open[i] <= 0f)
+            {
+                mark[i] = true;
+            }
+        }
+    }
 
     /// <summary>How far above today's water table rock still counts as the active level, and how many dry eras make a patina.</summary>
     private const float WetReach = 3f;

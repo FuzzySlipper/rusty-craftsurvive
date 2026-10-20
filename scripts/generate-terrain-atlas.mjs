@@ -13,8 +13,9 @@ const ATLAS_PATH = 'content/game/textures/terrain-atlas.png';
 const METADATA_PATH = 'content/game/textures/terrain-atlas.json';
 const TILE = 64;
 const GRID = 4;
-// A fifth row holds the blocks added after the V1 floor (#10041: dry grass).
-const ROWS = 5;
+// A fifth row holds the blocks added after the V1 floor (#10041: dry grass; #10095: the cave's own rock, which
+// runs on into a sixth). The cave rock's tiles are stand-ins: caves draw it in their own materials.
+const ROWS = 6;
 const EXTENT = TILE * GRID;
 const HEIGHT = TILE * ROWS;
 
@@ -184,7 +185,17 @@ const painters = {
   snow: (x, y) => shade([242, 246, 250, 255], 0.97 + noise(hash('snow'), x >> 1, y) * 0.05),
   // The grass top, sun-dried, as scripts/make-dry-meadow.py dries the walking ground's meadow (#10041).
   'dry-grass': (x, y) => dried(sourcePixel(0, 0, x, y)),
+  // The cave's own rock (#10095): the stone tile tinted as each is drawn in caves.
+  'washed-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.95, 1.0, 1.06]),
+  'patinated-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.88, 0.74, 0.58]),
+  flowstone: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.45, 1.36, 1.2]),
+  rubble: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.1, 1.08, 1.04]),
 };
+
+function tint([r, g, b, a], [tr, tg, tb]) {
+  const byte = (value) => Math.max(0, Math.min(255, Math.round(value)));
+  return [byte(r * tr), byte(g * tg), byte(b * tb), a];
+}
 
 function sourcePixel(x0, y0, x, y) {
   const at = ((y0 + y) * previous.width + x0 + x) * 4;
@@ -229,6 +240,10 @@ const layout = [
   { id: 'bedrock', block: 'bedrock', face: 'base', at: [TILE * 2, TILE * 3] },
   { id: 'snow', block: 'snow', face: 'base', at: [TILE * 3, TILE * 3] },
   { id: 'dry-grass', block: 'dry-grass', face: 'base', at: [0, TILE * 4] },
+  { id: 'washed-rock', block: 'washed-rock', face: 'base', at: [TILE, TILE * 4] },
+  { id: 'patinated-rock', block: 'patinated-rock', face: 'base', at: [TILE * 2, TILE * 4] },
+  { id: 'flowstone', block: 'flowstone', face: 'base', at: [TILE * 3, TILE * 4] },
+  { id: 'rubble', block: 'rubble', face: 'base', at: [0, TILE * 5] },
 ];
 
 // The source tiles keep their coordinates in every atlas so far (128 and 256 wide), so they copy across.

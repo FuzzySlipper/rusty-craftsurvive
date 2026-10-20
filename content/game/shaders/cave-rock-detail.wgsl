@@ -8,7 +8,9 @@
 // material.parameters[0]: x grain strength (0 none), y grain frequency (cycles per metre), z facet size (metres,
 // 0 none), w facet strength (how far each facet tilts from the surface, 0 to 1).
 // material.parameters[1]: x 1 to colour the rock from the cave's palette instead of its painted texture (no drawn
-// forms: the forms are the geometry's and the grain's), y what to add to a world height for the layout's height,
+// forms: the forms are the geometry's and the grain's), or 2 for the cave's ground materials (#10095): the colour is the
+// blended material maps' (each a calm, near-flat map; its alpha how dry it is), and the strata, mottling and speckle
+// only modulate it, so every material shows the same beds; y what to add to a world height for the layout's height,
 // zw the beds' dip along x and z (KarstCave.BedDip), so the strata bands follow the beds the water followed.
 //
 // material.parameters[2]: x the size of a colour cell (metres, 0 none): the palette read once per cell, so each
@@ -206,6 +208,26 @@ fn palette(p: vec3<f32>, n: vec3<f32>, frame: vec4<f32>) -> vec3<f32> {
     return colour * (1.0 - 0.35 * wet);
 }
 
+// The ground materials' strata (#10095): the palette's beds, partings, mottling and speckle as a brightness around 1,
+// over whatever material the rock is.
+const STRATA_LOW: f32 = 0.86;
+const STRATA_HIGH: f32 = 1.1;
+const STRATA_PARTING: f32 = 0.6;
+// A wet material (its map's alpha below 1) is glossier and darker.
+const WET_ROUGHNESS: f32 = 0.3;
+const WET_DARKEN: f32 = 0.3;
+
+fn strata(p: vec3<f32>, frame: vec4<f32>) -> f32 {
+    let height = p.y + frame.y;
+    let bed = height - frame.z * p.x - frame.w * p.z;
+    let band = value_noise(vec3<f32>(bed * BED_FREQUENCY, 0.5, 0.5));
+    var shade = mix(STRATA_LOW, STRATA_HIGH, smoothstep(0.3, 0.7, band));
+    let phase = fract(bed * BED_FREQUENCY * 2.0);
+    shade = mix(shade, STRATA_PARTING, (1.0 - smoothstep(0.0, PARTING_SHARE, min(phase, 1.0 - phase))) * step(0.5, hash3(vec3<i32>(i32(floor(bed * BED_FREQUENCY * 2.0)), 3, 7))));
+    shade = shade * (0.88 + 0.24 * value_noise(p * MOTTLE_FREQUENCY));
+    return shade * (0.94 + 0.12 * hash3(vec3<i32>(floor(p / SPECKLE))));
+}
+
 fn shade(surface: Surface) -> vec4<f32> {
     let detail = material.parameters[0];
     let colouring = material.parameters[1];
@@ -214,7 +236,22 @@ fn shade(surface: Surface) -> vec4<f32> {
     // How many metres one screen pixel covers here, for the cells' fade or growth.
     let footprint = max(length(dpdx(s.world_position)), length(dpdy(s.world_position)));
     let axis = facing(s.normal);
-    if (colouring.x > 0.0) {
+    if (colouring.x > 1.5) {
+        // The ground materials: the blended maps' colour, under the strata read once per colour cell.
+        var light = strata(s.world_position, colouring);
+        if (pixels.x > 0.0) {
+            let size = cell_size(pixels.x, footprint, pixels.z);
+            light = mix(light, strata(cell_centre(s.world_position, axis, size), colouring), cell_keep(size, footprint, pixels.z));
+        }
+        let wet = 1.0 - s.base.a;
+        s.base = vec4<f32>(s.base.rgb * light * (1.0 - WET_DARKEN * wet), 1.0);
+        s.roughness = mix(s.roughness, WET_ROUGHNESS, wet);
+        if (material.parameters[3].w > 0.0 && pixels.x > 0.0) {
+            let size = cell_size(pixels.x, footprint, pixels.z);
+            let spark = hash3(cell_index(s.world_position, axis, size) + vec3<i32>(401, 17, 3));
+            s.emission = s.emission + GLINT_COLOUR * material.parameters[3].w * step(1.0 - GLINT_SHARE * (1.0 + wet), spark);
+        }
+    } else if (colouring.x > 0.0) {
         // With colour cells, the palette is read at the cell's centre, so the cell is one flat colour.
         var colour = palette(s.world_position, s.normal, colouring);
         if (pixels.x > 0.0) {

@@ -72,7 +72,8 @@ internal static class DungeonSurfaces
     /// <summary>Flat shading: every facet its own normal.</summary>
     private const float FlatCreaseDegrees = 0f;
 
-    private static readonly BlockId[] Rock = [BlockId.Stone, BlockId.Dirt, BlockId.Gravel, BlockId.Bedrock];
+    private static readonly BlockId[] Rock = [BlockId.Stone, BlockId.Dirt, BlockId.Gravel, BlockId.Bedrock,
+        BlockId.Sand, BlockId.WashedRock, BlockId.PatinatedRock, BlockId.Flowstone, BlockId.Rubble];
 
     /// <summary>
     /// The building blocks that weather: masonry walls. Floors, stairs and timber (planks,

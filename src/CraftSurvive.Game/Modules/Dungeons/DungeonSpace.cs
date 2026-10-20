@@ -24,6 +24,7 @@ internal sealed class DungeonSpace : IDisposable
     private readonly Queue<(int X, int Y, int Z)> pending;
     private readonly Material? rockMaterial;
     private readonly IReadOnlyDictionary<BlockId, Material>? voxelRock;
+    private readonly bool caveLayers;
     private readonly DungeonSurface surface;
     private MeshResource? rockMesh;
     private Appearance? rockAppearance;
@@ -43,11 +44,13 @@ internal sealed class DungeonSpace : IDisposable
     private long loadTicks;
 
     /// <param name="surface">How the space's voxels are surfaced; drawn with the world's block materials whatever it is.</param>
+    /// <param name="caveLayers">Whether the rock blocks are the cave's ground materials, blended as terrain layers (#10095).</param>
     /// <param name="voxelRock">For a voxel look, the material each rock block draws in (#10094: the cave rock's age classes).</param>
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
-        DungeonSurface surface = DungeonSurface.Cubes, IReadOnlyDictionary<BlockId, Material>? voxelRock = null)
+        DungeonSurface surface = DungeonSurface.Cubes, IReadOnlyDictionary<BlockId, Material>? voxelRock = null, bool caveLayers = false)
     {
         this.voxelRock = voxelRock;
+        this.caveLayers = caveLayers;
         this.surface = surface;
         this.rockMaterial = rockMaterial;
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
@@ -106,6 +109,11 @@ internal sealed class DungeonSpace : IDisposable
         if (pending.Count == 0 && projection is null)
         {
             // A voxel look's rock may be drawn in a study material (#10094); a mesh look's material is its mesh's.
+            if (caveLayers)
+            {
+                terrain.ConfigureCaveLayers(Session);
+            }
+
             projection = terrain.ProjectSeparateSpace(Session, DungeonSurfaces.RockAsMesh(surface) ? null : voxelRock);
             if (layout.Rock is RockDensity rock && DungeonSurfaces.RockAsMesh(surface))
             {

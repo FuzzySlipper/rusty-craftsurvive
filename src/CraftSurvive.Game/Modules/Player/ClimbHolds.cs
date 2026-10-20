@@ -55,16 +55,17 @@ internal static class ClimbHolds
     /// <summary>A hold must be found within this much above the feet for a climber to take hold.</summary>
     internal const double TakeHoldBelow = 1.5d;
 
-    /// <summary>How good each rock is to hold, 0 to 1: dry rock and old patinated rock hold well, turf less, washed wet rock poorly, loose sediment not at all.</summary>
+    /// <summary>How good each rock is to hold, 0 to 1: dry rock, old patinated rock and rubble hold well, smooth flowstone and turf less, washed wet rock poorly, loose mud and silt not at all.</summary>
     internal static float Grip(BlockId block) => block switch
     {
-        BlockId.Gravel => WashedGrip,
-        BlockId.Dirt => 0f,
+        BlockId.Gravel or BlockId.WashedRock => WashedGrip,
+        BlockId.Flowstone => FlowstoneGrip,
+        BlockId.Dirt or BlockId.Sand => 0f,
         BlockId.Grass => TurfGrip,
         _ => BlockRegistry.Get(block).Climbable ? 1f : 0f,
     };
 
-    private const float WashedGrip = 0.4f, TurfGrip = 0.6f;
+    private const float WashedGrip = 0.4f, TurfGrip = 0.6f, FlowstoneGrip = 0.7f;
 
     /// <summary>
     /// Reads the samples up the face (lowest first) into a verdict. The climb runs up while the face is a face, holds and
