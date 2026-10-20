@@ -50,6 +50,33 @@ six ingredients from it, and not its Norse setting, creatures or building kit.
   few stone colours plus the accent's own. The comparison is in the Den task for overworld places
   as meshes (#9992); the recipe is in asset-pipeline `legacy/experiments/stele-place-study/`.
 
+### Style pillar: meshes are painted, then drawn as 3D pixel art (owner, 2026-10-20)
+
+This is how CraftSurvive textures its meshes. It came out of the dungeon kit (#10089); places and props should
+move to it as they are reworked.
+
+1. **Exact shape first.** Author the geometry for the job: in Blender for anything that must fit a grid or be
+   walked, or generated (Pixal3D, TRELLIS) and cleaned for organic props. Give it its material zones (stone,
+   ceramic, metal) and UV charts at a uniform density.
+2. **Painted on lit views, the light taken out.** Render the piece lit, in its material colours, so the forms
+   show. Then have an image model (Qwen) repaint each view after a concept of the piece, divide the light back out,
+   and bake the views onto the UVs. A flat, unlit view fails: with no forms to follow, the model pastes the
+   reference in.
+3. **Reduced as pixel art.** Reduce to 32 texels per metre, keeping dark line work one crisp texel wide, in a few
+   colours per material plus the accents' own.
+4. **Drawn as 3D pixel art.** In game, each painted texel is a small lit facet. The facets fade out before a texel
+   shrinks to a screen pixel, so they never shimmer.
+5. **Calmed with distance, not blurred.** As texels shrink on screen, a texel's difference from its neighbourhood is
+   turned down, while dark line work (joints, cracks, outlines) keeps its contrast. The drawing holds at range, and
+   the fine speckle that would read as noise quietens.
+
+Busy is welcome here when it is authored. The owner liked the Qwen paint's density: it reads as hand-made 3D pixel
+art, not as a texture wrapped over the mesh. The failure to avoid is a tiled or procedural texture repeating
+across a mesh.
+
+The recipe is asset-pipeline `legacy/experiments/dungeon-kit/`, and the shader is `content/game/shaders/kit-stone.wgsl`.
+The comparisons are on Den #10089.
+
 ### 2. Air and light carry the mood
 
 The mood of a place comes mostly from its atmosphere, not from repainting its
