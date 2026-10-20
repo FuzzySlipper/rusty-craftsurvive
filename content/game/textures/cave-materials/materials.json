@@ -62,5 +62,29 @@
     "sha256": "fe681ee629d65d3ad138cd683f9a88bd70817eca342bbe64fb1a34e236777303",
     "metresPerTile": 4,
     "triplanarSharpness": 4
+  },
+  {
+    "id": "moss",
+    "width": 128,
+    "height": 128,
+    "sha256": "476ae5fe6f174959282b4562fa1d06d32647b06846693513573cad3aaf98dc29",
+    "metresPerTile": 3,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "slime",
+    "width": 128,
+    "height": 128,
+    "sha256": "dac8ea76a540d7651dca530a2c91823c2bf035e17f53db83c62e2ff59f4eeeb0",
+    "metresPerTile": 3,
+    "triplanarSharpness": 4
+  },
+  {
+    "id": "moonmilk",
+    "width": 128,
+    "height": 128,
+    "sha256": "7aa29d552cadbea4c86bccdea4d5382d48321c7c26ed2319a92f806c3aaaca72",
+    "metresPerTile": 3,
+    "triplanarSharpness": 4
   }
 ]

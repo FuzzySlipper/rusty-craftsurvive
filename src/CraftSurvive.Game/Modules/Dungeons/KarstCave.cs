@@ -1384,14 +1384,61 @@ internal static class KarstCave
             }
 
             // Older rock under dripping water is coated in flowstone.
-            if (faces != LastFlowEra && age >= 1 && GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f)) >= FlowstoneDrip)
+            float drip = GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f));
+            if (faces != LastFlowEra && age >= 1 && drip >= FlowstoneDrip)
             {
                 return FlowstoneRock;
             }
 
-            return faces == LastFlowEra || p.Y < FinalTable + WetReach ? WashedRock
+            bool washed = faces == LastFlowEra || p.Y < FinalTable + WetReach;
+            // Life on the rock (#10129), in patches: slime where the water keeps it wet (not on what faces down), moss where
+            // light reaches, moonmilk on long-dry rock under a light drip.
+            bool facesDown = y > 0 && Open[FieldIndex(x, y - 1, z)] > 0f && !facesUp;
+            if (washed && !facesDown && Patch(p, SlimeFrequency, 0x5A1UL) > SlimeAbove)
+            {
+                return SlimeRock;
+            }
+
+            if (Lit(p) && Patch(p, MossFrequency, 0x5A2UL) > MossAbove)
+            {
+                return MossRock;
+            }
+
+            if (!washed && age >= PatinaAfterEras && drip >= MoonmilkDrip && Patch(p, MoonmilkFrequency, 0x5A3UL) > MoonmilkAbove)
+            {
+                return MoonmilkRock;
+            }
+
+            return washed ? WashedRock
                 : age >= PatinaAfterEras ? PatinatedRock
                 : PlainRock;
+        }
+
+        /// <summary>A patchy noise for where growth takes (0 to 1).</summary>
+        private float Patch(Vector3 p, float frequency, ulong salt) => NaturalCavern.Noise(p * frequency, Seed ^ salt);
+
+        /// <summary>
+        /// Whether light reaches rock (#10129): near a sink, where the surface's water (and light) comes in, or under a
+        /// tiankeng's or a chasm's opening, within reach of the sky's light down its walls.
+        /// </summary>
+        private bool Lit(Vector3 p)
+        {
+            foreach (Vector3 sink in SinkPoints)
+            {
+                if (Vector3.DistanceSquared(sink, p) < MossNearSink * MossNearSink)
+                {
+                    return true;
+                }
+            }
+
+            if (!SkyOpen || SurfaceAt(p.X, p.Z, Seed) - p.Y > MossBelowSky)
+            {
+                return false;
+            }
+
+            Vector2 at = new(p.X, p.Z);
+            return (Tiankeng is (Vector3 floor, float radius) && Vector2.Distance(at, new Vector2(floor.X, floor.Z)) < radius + MossBeyondOpening)
+                || (Chasm is ChasmShape chasm && Vector2.Distance(at, chasm.Centre) < chasm.Radius * (1f + ChasmWobble) + ChasmBand + MossBeyondOpening);
         }
         internal required Vector3[] Rifts { get; init; }
         internal required Vector3? Sponge { get; init; }
@@ -1748,6 +1795,15 @@ internal static class KarstCave
 
     // The cave's other materials (#10095): silt (sediment above the water's reach, dry), flowstone and rubble.
     internal const BlockId SiltRock = BlockId.Sand, FlowstoneRock = BlockId.Flowstone, RubbleRock = BlockId.Rubble;
+
+    // The cave's growth (#10129): its blocks, how large its patches are (cycles per metre) and how much of the rock each
+    // takes where it can grow (above this patch noise: slime takes about half the wet rock, moss most lit rock, moonmilk
+    // a little of the dry), how light a drip moonmilk wants, and where light reaches - how near a sink, how far below
+    // the sky, and how far past an opening's rim.
+    internal const BlockId MossRock = BlockId.MossyRock, SlimeRock = BlockId.SlimyRock, MoonmilkRock = BlockId.Moonmilk;
+    private const float SlimeFrequency = 0.6f, SlimeAbove = 0.45f, MossFrequency = 0.35f, MossAbove = 0.35f;
+    private const float MoonmilkFrequency = 0.5f, MoonmilkAbove = 0.4f, MoonmilkDrip = 0.02f;
+    private const float MossNearSink = 8f, MossBelowSky = 25f, MossBeyondOpening = 3f;
 
     /// <summary>Where water drips at least this much (the 2 m drip field, 0 to 1), older rock is coated in flowstone.</summary>
     private const float FlowstoneDrip = 0.12f;

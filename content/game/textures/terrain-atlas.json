@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "image": "terrain-atlas.png",
-  "contentHash": "sha256:3bda3ca1c8cbfc06f3f9f9f6b53126fe13159cfbb24d3d0dc50ca3bd9ea156d2",
+  "contentHash": "sha256:323c361089969e3a632bdda2d096657e8725d05fc7e86ce51af628c0b9e622a3",
   "extent": [
     256,
     384
@@ -220,6 +220,36 @@
       "face": "base",
       "contentMin": [
         0,
+        320
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "mossy-rock",
+      "block": "mossy-rock",
+      "face": "base",
+      "contentMin": [
+        64,
+        320
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "slimy-rock",
+      "block": "slimy-rock",
+      "face": "base",
+      "contentMin": [
+        128,
+        320
+      ],
+      "authored": "scripts/generate-terrain-atlas.mjs"
+    },
+    {
+      "id": "moonmilk",
+      "block": "moonmilk",
+      "face": "base",
+      "contentMin": [
+        192,
         320
       ],
       "authored": "scripts/generate-terrain-atlas.mjs"

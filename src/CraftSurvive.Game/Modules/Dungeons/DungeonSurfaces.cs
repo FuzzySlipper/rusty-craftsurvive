@@ -73,7 +73,8 @@ internal static class DungeonSurfaces
     private const float FlatCreaseDegrees = 0f;
 
     private static readonly BlockId[] Rock = [BlockId.Stone, BlockId.Dirt, BlockId.Gravel, BlockId.Bedrock,
-        BlockId.Sand, BlockId.WashedRock, BlockId.PatinatedRock, BlockId.Flowstone, BlockId.Rubble];
+        BlockId.Sand, BlockId.WashedRock, BlockId.PatinatedRock, BlockId.Flowstone, BlockId.Rubble,
+        BlockId.MossyRock, BlockId.SlimyRock, BlockId.Moonmilk];
 
     /// <summary>
     /// The building blocks that weather: masonry walls. Floors, stairs and timber (planks,

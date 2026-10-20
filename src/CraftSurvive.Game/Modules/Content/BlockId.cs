@@ -40,4 +40,15 @@ internal enum BlockId : ushort
 
     /// <summary>Fallen blocks and boulders: breakdown rubble, freshly broken.</summary>
     Rubble = 20,
+
+    // The cave's growth (#10129): life coating the rock where the cave's fields let it grow.
+
+    /// <summary>Moss on rock where light reaches: under the sky's openings and about the entrances.</summary>
+    MossyRock = 21,
+
+    /// <summary>A slime of algae and bacteria on rock the active water keeps wet: slippery.</summary>
+    SlimyRock = 22,
+
+    /// <summary>Moonmilk: a pale, pasty microbial deposit on long-dry rock under a light drip.</summary>
+    Moonmilk = 23,
 }

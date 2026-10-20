@@ -1,6 +1,7 @@
 """Draw the cave's ground materials (#10095).
 
-Underground is not one material called rock: each of the cave's materials gets its own map, and the
+Underground is not one material called rock: each of the cave's materials gets its own map (its growth
+too: moss, slime and moonmilk, #10129), and the
 Engine blends them where they meet on the smooth rock (CaveMaterials, TerrainPresentation). The maps
 are calm and near flat, one material's colour with only a soft, broad variation and at most one
 quiet feature (stains, flowstone banding, silt ripples, fracture lines), since the cave shader adds
@@ -39,6 +40,10 @@ MATERIALS = {
     "rubble": ((128, 124, 116), 0.12, 1.00, 3, "fracture"),
     "flowstone": ((196, 182, 158), 0.08, 0.70, 3, "band"),
     "turf": ((70, 84, 44), 0.14, 0.90, 4, None),
+    # The cave's growth (#10129): moss where light reaches, a slick slime on wet rock, pale moonmilk on old damp rock.
+    "moss": ((62, 92, 40), 0.16, 0.80, 3, "stain"),
+    "slime": ((58, 64, 36), 0.10, 0.20, 3, None),
+    "moonmilk": ((214, 210, 196), 0.06, 0.60, 3, "stain"),
 }
 
 

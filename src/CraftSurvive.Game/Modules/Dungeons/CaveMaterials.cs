@@ -11,7 +11,7 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 internal static class CaveMaterials
 {
     /// <summary>The cave's material maps, base first: the order of the terrain layers.</summary>
-    internal static readonly string[] Names = ["limestone", "washed", "patinated", "mud", "silt", "rubble", "flowstone", "turf"];
+    internal static readonly string[] Names = ["limestone", "washed", "patinated", "mud", "silt", "rubble", "flowstone", "turf", "moss", "slime", "moonmilk"];
 
     /// <summary>Each rock block and the layer (an index into <see cref="Names"/>) it draws in.</summary>
     internal static readonly (BlockId Block, int Layer)[] Layers =
@@ -24,5 +24,8 @@ internal static class CaveMaterials
         (BlockId.Rubble, 5),
         (BlockId.Flowstone, 6),
         (BlockId.Grass, 7),
+        (BlockId.MossyRock, 8),
+        (BlockId.SlimyRock, 9),
+        (BlockId.Moonmilk, 10),
     ];
 }

@@ -120,6 +120,22 @@ internal static class BlockRegistry
             Solid: true, Collidable: true, Occludes: true, Replaceable: false,
             BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f,
             Climbable: true),
+
+        // The cave's growth (#10129): rock coated in life; their atlas tiles are stand-ins as the cave rock's are.
+        new(BlockId.MossyRock, "mossy-rock", "mossy-rock", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.SlimyRock, "slimy-rock", "slimy-rock", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1.5f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
+
+        new(BlockId.Moonmilk, "moonmilk", "moonmilk", null, BlockTransparency.Opaque,
+            Solid: true, Collidable: true, Occludes: true, Replaceable: false,
+            BlastResistance: 1f, LightEmission: 0f, LightAttenuation: 1f,
+            Climbable: true),
     ];
 
     /// <summary>Every block, air first, in slot order.</summary>

@@ -60,12 +60,15 @@ internal static class ClimbHolds
     {
         BlockId.Gravel or BlockId.WashedRock => WashedGrip,
         BlockId.Flowstone => FlowstoneGrip,
+        BlockId.SlimyRock => SlimeGrip,
+        BlockId.Moonmilk => MoonmilkGrip,
+        BlockId.MossyRock => MossGrip,
         BlockId.Dirt or BlockId.Sand => 0f,
         BlockId.Grass => TurfGrip,
         _ => BlockRegistry.Get(block).Climbable ? 1f : 0f,
     };
 
-    private const float WashedGrip = 0.4f, TurfGrip = 0.6f, FlowstoneGrip = 0.7f;
+    private const float WashedGrip = 0.4f, TurfGrip = 0.6f, FlowstoneGrip = 0.7f, SlimeGrip = 0.2f, MoonmilkGrip = 0.5f, MossGrip = 0.8f;
 
     /// <summary>
     /// Reads the samples up the face (lowest first) into a verdict. The climb runs up while the face is a face, holds and

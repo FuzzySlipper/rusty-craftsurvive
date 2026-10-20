@@ -190,6 +190,10 @@ const painters = {
   'patinated-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.88, 0.74, 0.58]),
   flowstone: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.45, 1.36, 1.2]),
   rubble: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.1, 1.08, 1.04]),
+  // The cave's growth (#10129): stone tinted as moss, slime and moonmilk.
+  'mossy-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.55, 0.85, 0.45]),
+  'slimy-rock': (x, y) => tint(sourcePixel(TILE, TILE, x, y), [0.6, 0.65, 0.4]),
+  moonmilk: (x, y) => tint(sourcePixel(TILE, TILE, x, y), [1.6, 1.58, 1.5]),
 };
 
 function tint([r, g, b, a], [tr, tg, tb]) {
@@ -244,6 +248,9 @@ const layout = [
   { id: 'patinated-rock', block: 'patinated-rock', face: 'base', at: [TILE * 2, TILE * 4] },
   { id: 'flowstone', block: 'flowstone', face: 'base', at: [TILE * 3, TILE * 4] },
   { id: 'rubble', block: 'rubble', face: 'base', at: [0, TILE * 5] },
+  { id: 'mossy-rock', block: 'mossy-rock', face: 'base', at: [TILE, TILE * 5] },
+  { id: 'slimy-rock', block: 'slimy-rock', face: 'base', at: [TILE * 2, TILE * 5] },
+  { id: 'moonmilk', block: 'moonmilk', face: 'base', at: [TILE * 3, TILE * 5] },
 ];
 
 // The source tiles keep their coordinates in every atlas so far (128 and 256 wide), so they copy across.
