@@ -1050,10 +1050,11 @@ internal static class KarstCave
     private const float SumpMistDensity = 0.25f, SumpMistStep = 2.5f, MouthMistRise = 1.2f;
 
     /// <summary>
-    /// The faint light a sump's mist gives of itself (owner to decide, 2026-10-20): unlit, a mist shows only where a light
-    /// reaches it, so its mouth is dark from a few metres off; with this faint glow the mouth reads as a pale wall of haze.
+    /// The faint light a sump's mist gives of itself (owner, 2026-10-20: a faint teal glow; white was harsh): unlit, a mist
+    /// shows only where a light reaches it, so its mouth is dark from a few metres off; with this glow the mouth reads as a
+    /// pale wall of haze.
     /// </summary>
-    private static readonly Vector3 SumpMistGlow = new(0.1f, 0.1f, 0.1f);
+    private static readonly Vector3 SumpMistGlow = new(0f, 0.1f, 0.1f);
     private static readonly Vector3 SumpMistSize = new(2.8f, 2.4f, 2.8f), MouthMistSize = new(4f, 2.5f, 4f);
 
     /// <summary>A sump's mist: volumes along its way through and over each mouth, so the mouth reads as whiteness from outside.</summary>
