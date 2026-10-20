@@ -43,6 +43,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.centrepiece", Description = "Assisted, for the centrepiece studies (#10094): what the next karst caves (approach k) are built round - hall (a great hall), chasm (a bottomless chasm open to the sky), none, or auto (chance).")]
     public string Centrepiece(string choice) => dungeons.StudyCentrepiece(choice);
 
+    [DebugCommand("craft.dungeon.kitpaint", Description = "Assisted, for the kit paint study (#10089): plain (painted from the geometry) or qwen (Qwen projected on lit views), for the next dungeon entered.")]
+    public string KitPaint(string choice) => dungeons.StudyKitPaint(choice);
+
     [DebugCommand("craft.dungeon.keepunwalkable", Description = "Assisted, for studies (#10090): true enters a dungeon candidate even when its routes fail (to compare looks on one layout); false restores refusal.")]
     public string KeepUnwalkable(bool keep) => dungeons.KeepUnwalkable(keep);
 

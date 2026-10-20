@@ -27,7 +27,8 @@ internal sealed class DungeonKitLook : IDisposable
     private readonly Dictionary<KitPiece, (MeshResource Mesh, Appearance Look)> pieces = [];
     private readonly List<(KitPiece Piece, Transform Place)> placed = [];
 
-    internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements)
+    /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "qwen"), or null for its own.</param>
+    internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements, string? paint = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
@@ -38,7 +39,7 @@ internal sealed class DungeonKitLook : IDisposable
         foreach (KitPiece piece in placements.Select(p => p.Piece).Distinct())
         {
             MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, models[DungeonKit.Name(piece)], (role, texture) =>
-                materials.For(role, texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."))));
+                materials.For(role, Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint))));
             pieces[piece] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
@@ -48,6 +49,10 @@ internal sealed class DungeonKitLook : IDisposable
             placed.Add((p.Piece, new Transform(at, turn, scale)));
         }
     }
+
+    /// <summary>A kit texture's path in a study's paint folder (beside it, the same name), or as it is.</summary>
+    private static string Painted(string texture, string? paint) =>
+        paint is null ? texture : $"{Path.GetDirectoryName(texture)!.Replace('\\', '/')}/{paint}/{Path.GetFileName(texture)}";
 
     internal int Count => placed.Count;
 

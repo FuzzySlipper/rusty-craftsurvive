@@ -39,6 +39,9 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>A modular dungeon's kit pieces (#10089), drawn and collided while the space is loaded.</summary>
     private DungeonKitLook? kit;
 
+    /// <summary>The kit paint study's texture folder (#10089), or null for the kit's own textures.</summary>
+    private readonly string? kitPaint;
+
     /// <summary>A cave's moss and ivy cards (#10092): their materials, while the space draws them.</summary>
     private CaveMossCards? mossCards;
 
@@ -56,8 +59,10 @@ internal sealed class DungeonSpace : IDisposable
     /// <param name="caveLayers">Whether the rock blocks are the cave's ground materials, blended as terrain layers (#10095).</param>
     /// <param name="voxelRock">For a voxel look, the material each rock block draws in (#10094: the cave rock's age classes).</param>
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
-        DungeonSurface surface = DungeonSurface.Cubes, IReadOnlyDictionary<BlockId, Material>? voxelRock = null, bool caveLayers = false)
+        DungeonSurface surface = DungeonSurface.Cubes, IReadOnlyDictionary<BlockId, Material>? voxelRock = null, bool caveLayers = false,
+        string? kitPaint = null)
     {
+        this.kitPaint = kitPaint;
         this.voxelRock = voxelRock;
         this.caveLayers = caveLayers;
         this.surface = surface;
@@ -168,7 +173,7 @@ internal sealed class DungeonSpace : IDisposable
             if (layout.Kit.Count > 0 && !DungeonSurfaces.RockAsMesh(surface))
             {
                 // The kit stands where its building's voxels were taken out (DungeonKit): it draws and collides in their place.
-                kit = new DungeonKitLook(engine, terrain.Content, layout.Kit);
+                kit = new DungeonKitLook(engine, terrain.Content, layout.Kit, kitPaint);
                 kit.Collide(Session);
                 RockReadout = $"{RockReadout} kit={kit.Count}";
             }

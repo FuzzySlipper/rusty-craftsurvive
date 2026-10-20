@@ -288,7 +288,8 @@ internal sealed class DungeonModule : IProductModule
                 ? new DungeonSpace(engine, terrain, candidate.Layout,
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
-                    candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural);
+                    candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural,
+                    kitPaint: kitPaint);
         }
         catch (EngineCallException refusal)
         {
@@ -680,6 +681,20 @@ internal sealed class DungeonModule : IProductModule
 
     /// <summary>For the centrepiece studies (#10094): what karst caves are built round - a great hall, a chasm, neither - or chance (null).</summary>
     private KarstCave.Centrepiece? studyCentre;
+
+    /// <summary>The kit paint study (#10089): the folder of the kit's textures the next dungeon draws with, or null for the kit's own.</summary>
+    private string? kitPaint;
+
+    internal string StudyKitPaint(string choice)
+    {
+        kitPaint = choice switch
+        {
+            "qwen" => "qwen",
+            "plain" => null,
+            _ => kitPaint,
+        };
+        return $"kit paint={kitPaint ?? "plain"} (from the next entry)";
+    }
 
     internal string StudyCentrepiece(string choice)
     {
