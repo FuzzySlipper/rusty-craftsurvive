@@ -14,7 +14,7 @@
     <Compile Include="$(ProductModules)World/ProductIds.cs;$(ProductModules)World/WorldFrame.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/ProductUiPublisher.cs" LinkBase="Product/World" />
     <Compile Include="$(ProductModules)World/ProductUiProjection.cs" LinkBase="Product/World" />
-    <Compile Include="$(ProductModules)Content/PropMesh.cs;$(ProductModules)Content/PropMaterials.cs" LinkBase="Product/Content" />
+    <Compile Include="$(ProductModules)Content/PropMesh.cs;$(ProductModules)Content/PropMaterials.cs;$(ProductModules)Content/SurfaceMoss.cs" LinkBase="Product/Content" />
     <None Include="../../content/game/towns/**/*" Link="Content/towns/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../content/game/models/scatter/fern-1.prop-mesh.json" Link="Content/models/scatter/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../content/game/textures/fire-smoke.png" Link="Content/textures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

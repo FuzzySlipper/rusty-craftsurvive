@@ -175,6 +175,22 @@ internal sealed class FarField : IDisposable
             with { Session = walking(), Anchor = new WorldOriginGlobalPosition(0, 0, 0, 0, 0, 0) });
         streamer = new HeightfieldStreamer(engine, heightfield, sampler, CommitsPerUpdate);
         focus = (worldX, worldZ);
+        if (!visible)
+        {
+            engine.Heightfield.SetVisible(new HeightfieldVisibilityRequest(heightfield, false));
+        }
+    }
+
+    /// <summary>Whether the far ground is drawn; hidden, it keeps its tiles and focus, so showing it again costs nothing.</summary>
+    private bool visible = true;
+
+    internal void Show(bool drawn)
+    {
+        visible = drawn;
+        if (heightfield is not null)
+        {
+            engine.Heightfield.SetVisible(new HeightfieldVisibilityRequest(heightfield, drawn));
+        }
     }
 
     private void Release()

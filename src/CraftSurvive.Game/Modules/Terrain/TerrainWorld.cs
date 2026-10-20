@@ -186,8 +186,19 @@ internal sealed class TerrainWorld : IDisposable
     }
 
     /// <summary>Draws a separate space's session with this world's block materials; the caller disposes the projection.</summary>
-    /// <summary>Draws the open world's terrain or not (not while the player is away in a separate space).</summary>
-    internal void DrawOpenWorld(bool drawn) => presentation.Drawn(drawn);
+    /// <summary>
+    /// Draws the open world or not (not while the player is away in a separate space, #10130): its voxel terrain, far ground
+    /// and vegetation fields. Hidden they keep their tiles, so coming back costs nothing; nothing of them shows through an
+    /// opening to the sky, and nothing of them is drawn or shadowed.
+    /// </summary>
+    internal void DrawOpenWorld(bool drawn)
+    {
+        presentation.Drawn(drawn);
+        farField?.Show(drawn);
+        vegetationTiles?.Show(drawn);
+        treeTiles?.Show(drawn);
+        plantTiles?.Show(drawn);
+    }
 
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate, IReadOnlyDictionary<BlockId, Material>? rock = null) => presentation.ProjectAnother(separate, rock);
 

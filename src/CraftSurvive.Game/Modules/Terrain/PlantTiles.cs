@@ -234,6 +234,13 @@ internal sealed class PlantTiles : IDisposable
             + Field("floor", engine.Vegetation.Read(floor), floorStreamer);
     }
 
+    /// <summary>Draws the plants and the forest floor or not; hidden, they keep their tiles, so showing them again costs nothing.</summary>
+    internal void Show(bool drawn)
+    {
+        engine.Vegetation.SetVisible(new VegetationVisibilityRequest(plants, drawn));
+        engine.Vegetation.SetVisible(new VegetationVisibilityRequest(floor, drawn));
+    }
+
     public void Dispose()
     {
         plantStreamer.Dispose();

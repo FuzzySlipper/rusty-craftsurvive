@@ -154,6 +154,13 @@ internal sealed class VegetationTiles : IDisposable
             + Field("far", engine.Vegetation.Read(far), farStreamer);
     }
 
+    /// <summary>Draws the mid and far vegetation or not; hidden, they keep their tiles, so showing them again costs nothing.</summary>
+    internal void Show(bool drawn)
+    {
+        engine.Vegetation.SetVisible(new VegetationVisibilityRequest(mid, drawn));
+        engine.Vegetation.SetVisible(new VegetationVisibilityRequest(far, drawn));
+    }
+
     public void Dispose()
     {
         midStreamer.Dispose();
