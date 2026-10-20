@@ -50,6 +50,14 @@ Read the packaged SDK's C# guidance when changing the product/Engine boundary.
   (`rusty dev`, the only normal loader), reports it (`rusty status`) and moves
   it (`rusty update`). Do not install or substitute a package or runtime pack
   by hand.
+- The pin also moves by itself. The `engine-pair` workflow
+  (`.github/workflows/engine-pair.yml`, every six hours, or on demand) proposes
+  the newest published pair. If the product builds, passes the managed checks
+  and serves on it, the workflow commits the pin change straight to `main` as
+  `github-actions[bot]` ("Adopt Engine pair ..."). Otherwise it leaves the pin
+  and opens an `engine-pair-update` issue. So expect a pin commit on `main` you
+  did not make: pull with `--rebase` before pushing, then `rusty install` the
+  new pair before building or starting `rusty dev`.
 - During joint Engine/product work, do not keep this product on an older
   known-good pair after the intended Engine revision advances. Update the
   declared revision; if its exact pair has not been staged yet, leave the

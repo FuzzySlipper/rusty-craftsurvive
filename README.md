@@ -99,6 +99,13 @@ and whether it is installed. Move it only with `rusty update`, which lists the
 release notes to read. `Directory.Build.props` also declares the pair's feed, so
 plain `dotnet run` of the focused checks resolves exactly the pinned SDK.
 
+The pin also advances automatically. The `engine-pair` workflow
+(`.github/workflows/engine-pair.yml`) runs every six hours. Each run builds,
+checks and serves the product on the newest published pair. If all three pass,
+it commits the new pin to `main` as `github-actions[bot]`. If any fails, it
+opens an `engine-pair-update` issue and leaves the pin. After pulling such a
+commit, run `rusty install` before building.
+
 Engine contributors can opt into a source build only with an explicit Engine
 source path. `rusty dev --engine-source` supplies the matching MSBuild override
 properties automatically:
