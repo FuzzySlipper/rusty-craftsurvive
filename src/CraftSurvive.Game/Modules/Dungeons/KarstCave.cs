@@ -657,6 +657,9 @@ internal static class KarstCave
     /// </summary>
     private const float SumpHeadroom = 2.2f, LeastSumpRun = 8f;
 
+    /// <summary>A sump is its way through: the body's water within this reach of the way; the rest of the body is still water beside it.</summary>
+    private const float SumpReach = 3f;
+
     /// <summary>Still water held above the table no bigger than this many samples (about 1000 m3), so water stays a feature, not the cave.</summary>
     private const int MostPerchedStill = 8000;
 
@@ -733,12 +736,24 @@ internal static class KarstCave
                 float length = path.Zip(path.Skip(1), Vector3.Distance).Sum();
                 if (drowned && length >= LeastSumpLength)
                 {
-                    zones.Add(new WaterZone(WaterZoneKind.MistSump, level, cells, columns, mouths, path));
+                    // The sump: the water along its way through; what the dip's water fills beyond reach of it is still water.
+                    List<int> sump = [.. body.Where(k => path.Any(q => Vector3.DistanceSquared(q, FieldCentre(k)) < SumpReach * SumpReach))];
+                    HashSet<int> inSump = [.. sump];
+                    List<int> rest = [.. body.Where(k => !inSump.Contains(k))];
+                    zones.Add(new WaterZone(WaterZoneKind.MistSump, level, Cells(sump), Columns(sump), mouths, path));
+                    if (rest.Count <= MostPerchedStill && Columns(rest) is { Length: > 0 } still)
+                    {
+                        zones.Add(new WaterZone(still.Length * FieldStep * FieldStep >= LakeArea ? WaterZoneKind.Lake : WaterZoneKind.Pool, level, Cells(rest), still, mouths, []));
+                    }
                 }
                 else if (columns.Length > 0)
                 {
                     zones.Add(new WaterZone(columns.Length * FieldStep * FieldStep >= LakeArea ? WaterZoneKind.Lake : WaterZoneKind.Pool, level, cells, columns, mouths, []));
                 }
+
+                HashSet<int> Cells(List<int> samples) => [.. samples.Select(k => WaterZone.CellKey(FieldCentre(k)))];
+                Vector2[] Columns(List<int> samples) => [.. samples.Where(k => FieldCell3(k).Y == topRow && open[k + FieldX] > 0f)
+                    .Select(k => { Vector3 c = FieldCentre(k); return new Vector2(c.X, c.Z); })];
             }
         }
 
