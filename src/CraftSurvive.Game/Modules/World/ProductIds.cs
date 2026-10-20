@@ -112,6 +112,9 @@ internal static class ProductIds
     /// <summary>A cave's living lights (#10129): this base plus their slot.</summary>
     internal const ulong DungeonGrowthLightBase = 0x220UL;
 
+    /// <summary>A dungeon kit's relic lights (#10089): this base plus their slot.</summary>
+    internal const ulong DungeonRelicLightBase = 0x260UL;
+
     /// <summary>The player's lantern in a dungeon, for the darkness study (#10091).</summary>
     internal const ulong DungeonLanternLight = 0x2F0UL;
 

@@ -54,12 +54,17 @@ internal sealed class DungeonKitLook : IDisposable
         this.look = look;
         shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
-        Dictionary<string, string> models = manifest.RootElement.GetProperty("pieces").EnumerateArray()
-            .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.GetProperty("model").GetString()!);
-        foreach (KitPiece piece in placements.Select(p => p.Piece).Distinct())
+        Dictionary<string, JsonElement> entries = manifest.RootElement.GetProperty("pieces").EnumerateArray()
+            .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.Clone());
+        foreach (KitPiece piece in placements.Select(p => p.Piece).Concat(placements.Select(p => DungeonKit.Collider(p.Piece))).Distinct())
         {
-            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, models[DungeonKit.Name(piece)], (role, texture) =>
-                Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint))));
+            JsonElement entry = entries[DungeonKit.Name(piece)];
+            // A glowing piece (the relic's glow) draws in a plain emissive material of its own colour, not the stone.
+            Vector3? glow = entry.TryGetProperty("emission", out JsonElement e)
+                ? new Vector3(e[0].GetSingle(), e[1].GetSingle(), e[2].GetSingle()) : null;
+            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, entry.GetProperty("model").GetString()!, (role, texture) =>
+                glow is Vector3 light ? Glowing(light)
+                    : Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint))));
             pieces[piece] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
@@ -83,6 +88,20 @@ internal sealed class DungeonKitLook : IDisposable
         materials.Add((material, texture));
         return material;
     }
+
+    /// <summary>A plain emissive material, for a piece that is a light's visible source.</summary>
+    private Material Glowing(Vector3 emission)
+    {
+        Color pale = new(emission.X, emission.Y, emission.Z, 1f);
+        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(pale, default(RenderResourceReference), 1f, pale, emission, GlowIntensity, false));
+        glowing.Add(material);
+        return material;
+    }
+
+    /// <summary>How brightly a glowing piece shines in its emission colour.</summary>
+    private const float GlowIntensity = 2.5f;
+
+    private readonly List<Material> glowing = [];
 
     private MaterialRequest Request(RenderResource texture)
     {
@@ -116,14 +135,14 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>The pieces that collide (<see cref="DungeonKit.Collides"/>) as static collision: one asset per piece, an instance per placement.</summary>
     internal void Collide(SpatialSession session)
     {
-        List<KitPiece> kinds = [.. pieces.Keys.Where(DungeonKit.Collides)];
+        List<KitPiece> kinds = [.. placed.Where(p => DungeonKit.Collides(p.Piece)).Select(p => DungeonKit.Collider(p.Piece)).Distinct()];
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(
             session,
             kinds.Select((kind, i) => new StaticMeshAsset(AssetBase + (ulong)i, new MeshResourceReference(pieces[kind].Mesh), 0, 0, 0, 0)).ToArray(),
             ReadOnlyMemory<Vector3>.Empty,
             ReadOnlyMemory<Triangle>.Empty,
             placed.Where(p => DungeonKit.Collides(p.Piece))
-                .Select((p, i) => new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(p.Piece), p.Place)).ToArray()));
+                .Select((p, i) => new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(DungeonKit.Collider(p.Piece)), p.Place)).ToArray()));
     }
 
     /// <summary>Disposes the pieces after the snapshot that last named them, then their materials.</summary>
@@ -142,6 +161,12 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         materials.Clear();
+        foreach (Material material in glowing)
+        {
+            material.Dispose();
+        }
+
+        glowing.Clear();
         foreach (RenderResource texture in textures.Values)
         {
             texture.Dispose();

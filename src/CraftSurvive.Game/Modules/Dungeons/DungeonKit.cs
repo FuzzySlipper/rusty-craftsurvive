@@ -11,6 +11,27 @@ internal enum KitPiece
     Wall,
     WallDoor,
     Corner,
+
+    /// <summary>A wall with an overscaled scalloped shell alcove and a seat (Whim).</summary>
+    WallAlcove,
+
+    /// <summary>A wall with a round ceramic mosaic in a brass ring (Whim's ringed moons).</summary>
+    WallRoundel,
+
+    /// <summary>A stone sphere hung from the vault on one rib (Whim), in a hall's middle.</summary>
+    Sphere,
+
+    /// <summary>The relic: a row of straight dark rods on a plinth, untouched by the erosion (Whim's discordant technology).</summary>
+    Relic,
+
+    /// <summary>The relic's cold glow between its rods, drawn in its own emissive material: the source of the relic's light.</summary>
+    RelicGlow,
+
+    /// <summary>A corner rib snapped off at half its height, a fallen piece at its foot (Bones).</summary>
+    CornerBroken,
+
+    /// <summary>A stair flight drawn over the voxel flight that still carries the walking.</summary>
+    Stair,
 }
 
 /// <summary>
@@ -36,11 +57,29 @@ internal static class DungeonKit
     /// <summary>A piece's own frame: its interior is this wide (the cell less its two walls).</summary>
     private const float PieceInterior = Cell - 2;
 
-    /// <summary>The kit fitted to a dungeon, and its volume less the voxels the pieces stand in.</summary>
-    internal static (IReadOnlyList<KitPlacement> Pieces, DungeonVolume Drawn) Fit(DungeonVolume volume, IReadOnlyList<PlacedModule> modules)
+    // Variety (#10089): the share of plain walls that are alcove or roundel walls instead, and of corner ribs that are
+    // broken; a building module at least this many cells across hangs a sphere in its middle.
+    private const double AlcoveShare = 0.12, RoundelShare = 0.08, BrokenShare = 0.2;
+    private const int SphereCells = 2;
+
+    // A relic stands this far out from its cell's middle towards a corner (clear of the middle the routes aim at and the
+    // doors in the walls' middles), its glow this high over the floor.
+    private const float RelicOut = 1.6f, GlowHeight = 1.05f;
+
+    // The stairs the kit draws: a module's name, and its voxel flight's foot corner in the module's canvas
+    // (DungeonModules.Stair and Gallery, ModuleCanvas.StairsNorth).
+    private static readonly (string Module, int X, int Z)[] Flights = [("stair", 2, 1), ("gallery", (2 * Cell) - 4, (2 * Cell) - 5 - Storey)];
+
+    /// <summary>
+    /// The kit fitted to a dungeon, its volume less the voxels the pieces stand in, and where its relics glow (layout
+    /// metres): one relic in every building cell a light of the layout hangs in, which then lights from its relic.
+    /// </summary>
+    internal static (IReadOnlyList<KitPlacement> Pieces, DungeonVolume Drawn, IReadOnlyList<Vector3> Relics) Fit(DungeonVolume volume,
+        IReadOnlyList<PlacedModule> modules, IReadOnlyList<Vector3> lights, ulong seed)
     {
         DungeonVolume drawn = Copy(volume);
         List<KitPlacement> pieces = [];
+        List<Vector3> relics = [];
         List<(int X0, int X1, int Y0, int Y1, int Z0, int Z1)> cleared = [];
         foreach (PlacedModule module in modules.Where(m => m.Shape.Kind == ModuleKind.Building))
         {
@@ -91,7 +130,9 @@ internal static class DungeonKit
                         ModuleFace.West => (!north, !south),
                         _ => (!south, !north),
                     };
-                    pieces.Add(WallPiece(door ? KitPiece.WallDoor : KitPiece.Wall, origin, face, before, after));
+                    double pick = Pick(seed, cx, cy, cz, (int)face);
+                    KitPiece kind = door ? KitPiece.WallDoor : pick < AlcoveShare ? KitPiece.WallAlcove : pick < AlcoveShare + RoundelShare ? KitPiece.WallRoundel : KitPiece.Wall;
+                    pieces.Add(WallPiece(kind, origin, face, before, after));
                     cleared.Add(WallSlab(ox, oy, oz, face, before, after));
                 }
 
@@ -99,9 +140,49 @@ internal static class DungeonKit
                 {
                     if (a && b)
                     {
-                        pieces.Add(new KitPlacement(KitPiece.Corner, origin, turn, Vector2.One, Vector2.Zero));
+                        KitPiece corner = Pick(seed, cx, cy, cz, 10 + (int)(turn * 2f)) < BrokenShare ? KitPiece.CornerBroken : KitPiece.Corner;
+                        pieces.Add(new KitPlacement(corner, origin, turn, Vector2.One, Vector2.Zero));
                     }
                 }
+
+                // A relic where the layout hangs a light over this cell's floor, out towards a corner.
+                if (lights.Any(l => l.X >= ox && l.X < ox + Cell && l.Z >= oz && l.Z < oz + Cell && l.Y >= oy && l.Y < oy + Storey))
+                {
+                    // The four spots out towards the corners, from one the seed picks: the first on clear floor (not in a
+                    // stair's flight, a balcony's void or a heap) takes the relic.
+                    int first = (int)(Pick(seed, cx, cy, cz, 20) * 4);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        int corner = (first + k) % 4;
+                        float sx = corner % 2 == 0 ? -1f : 1f, sz = corner < 2 ? -1f : 1f;
+                        Vector3 at = origin + new Vector3(sx * RelicOut, 0f, sz * RelicOut);
+                        if (!ClearFloor(volume, at, oy))
+                        {
+                            continue;
+                        }
+
+                        float turn = MathF.Atan2(-sx, -sz);
+                        pieces.Add(new KitPlacement(KitPiece.Relic, at, turn, Vector2.One, Vector2.Zero));
+                        pieces.Add(new KitPlacement(KitPiece.RelicGlow, at, turn, Vector2.One, Vector2.Zero));
+                        relics.Add(at + new Vector3(0f, GlowHeight, 0f));
+                        break;
+                    }
+                }
+            }
+
+            int width = module.Width, depth = module.Depth;
+            Vector3 moduleCentre = new((module.X * Cell) + (width * Cell / 2f), (module.Y * Storey) + ModularDungeon.BaseY, (module.Z * Cell) + (depth * Cell / 2f));
+            if (module.Shape.Height == 1 && Math.Min(width, depth) >= SphereCells)
+            {
+                pieces.Add(new KitPlacement(KitPiece.Sphere, moduleCentre, 0f, Vector2.One, Vector2.Zero));
+            }
+
+            foreach ((string _, int fx, int fz) in Flights.Where(f => f.Module == module.Shape.Name))
+            {
+                // The flight's foot corner, turned as the module was stamped (ModularDungeon.Turn), and its climb along the turned north.
+                (float wx, float wz) = TurnPoint(fx, fz, module.Shape.Width * Cell, module.Shape.Depth * Cell, module.Turns);
+                Vector3 foot = new((module.X * Cell) + wx, (module.Y * Storey) + ModularDungeon.BaseY, (module.Z * Cell) + wz);
+                pieces.Add(new KitPlacement(KitPiece.Stair, foot, module.Turns * MathF.PI / 2f, Vector2.One, Vector2.Zero));
             }
         }
 
@@ -110,15 +191,74 @@ internal static class DungeonKit
             drawn.Fill(new DungeonCell(x0, y0, z0), new DungeonCell(x1, y1, z1), BlockId.Air);
         }
 
-        return (pieces, drawn);
+        return (pieces, drawn, relics);
+    }
+
+    /// <summary>Whether a relic's spot has floor under it and the room's headroom over it, a metre round.</summary>
+    private static bool ClearFloor(DungeonVolume volume, Vector3 at, int oy)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                int x = (int)MathF.Floor(at.X) + dx, z = (int)MathF.Floor(at.Z) + dz;
+                if (volume.At(x, oy, z) == BlockId.Air)
+                {
+                    return false;
+                }
+
+                for (int y = oy + 1; y <= oy + RelicHeadroom; y++)
+                {
+                    if (volume.At(x, y, z) != BlockId.Air)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+        return true;
+    }
+
+    /// <summary>The air a relic needs over its floor, in voxels.</summary>
+    private const int RelicHeadroom = 3;
+
+    /// <summary>A point of a module's canvas (continuous metres) after the module's quarter turns, as ModularDungeon.Turn turns its cells.</summary>
+    private static (float X, float Z) TurnPoint(float x, float z, float width, float depth, int turns) => (turns % 4) switch
+    {
+        1 => (z, width - x),
+        2 => (width - x, depth - z),
+        3 => (depth - z, x),
+        _ => (x, z),
+    };
+
+    /// <summary>A placement's own draw, from the seed and where it is.</summary>
+    private static double Pick(ulong seed, int x, int y, int z, int salt)
+    {
+        ulong h = seed ^ ((ulong)(uint)x * 0x9E3779B97F4A7C15UL) ^ ((ulong)(uint)y * 0xC2B2AE3D27D4EB4FUL) ^ ((ulong)(uint)z * 0x165667B19E3779F9UL) ^ ((ulong)(uint)salt * 0xD6E8FEB86659FD93UL);
+        h ^= h >> 33;
+        h *= 0xFF51AFD7ED558CCDUL;
+        h ^= h >> 33;
+        return (h >> 11) / (double)(1UL << 53);
     }
 
     /// <summary>
     /// Whether a piece collides. The floor's voxels stay under the floor piece and carry the floor, so the floor piece only
     /// draws: colliding it too would stack two floors a few centimetres apart in every column of the navigation. The vault
-    /// draws only for the same reason (its top meets the floor of any storey above).
+    /// draws only for the same reason (its top meets the floor of any storey above), as does the stair over its voxel
+    /// flight; the sphere hangs over heads, the relic is a little thing in a corner (its plinth and caps would stack
+    /// walkable layers over the floor), and its glow is light.
     /// </summary>
-    internal static bool Collides(KitPiece piece) => piece is not (KitPiece.Floor or KitPiece.Vault);
+    internal static bool Collides(KitPiece piece) => piece is not (KitPiece.Floor or KitPiece.Vault or KitPiece.Stair or KitPiece.Sphere or KitPiece.Relic or KitPiece.RelicGlow);
+
+    /// <summary>
+    /// The piece whose shape a piece collides as: an alcove or roundel wall as the plain wall, a broken rib as the whole
+    /// one, so the variety is seen but the routes meet the shapes they were checked against.
+    /// </summary>
+    internal static KitPiece Collider(KitPiece piece) => piece switch
+    {
+        KitPiece.WallAlcove or KitPiece.WallRoundel => KitPiece.Wall,
+        KitPiece.CornerBroken => KitPiece.Corner,
+        _ => piece,
+    };
 
     /// <summary>Where a placed piece stands in the dungeon's session: its position (its cell's base centre, shifted in its own frame), turn and stretch.</summary>
     internal static (Vector3 At, Quaternion Turn, Vector3 Scale) Place(KitPlacement placement)
@@ -135,6 +275,13 @@ internal static class DungeonKit
         KitPiece.Vault => "vault",
         KitPiece.Wall => "wall",
         KitPiece.WallDoor => "wall-door",
+        KitPiece.WallAlcove => "wall-alcove",
+        KitPiece.WallRoundel => "wall-roundel",
+        KitPiece.Sphere => "sphere",
+        KitPiece.Relic => "relic",
+        KitPiece.RelicGlow => "relic-glow",
+        KitPiece.CornerBroken => "corner-broken",
+        KitPiece.Stair => "stair",
         _ => "corner",
     };
 

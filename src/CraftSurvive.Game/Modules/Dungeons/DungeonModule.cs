@@ -182,6 +182,7 @@ internal sealed class DungeonModule : IProductModule
                     // A great hall keeps its own thin air, whatever the darkness treatment's fog.
                     sky.StudyLight(Darkness.Fill ?? -1f, loading.Layout.GreatHall ? -1f : Darkness.Fog ?? -1f);
                     GrowthLights(loading.Layout.Ecology);
+                    RelicLights(loading.Layout.Relics);
                     Mist(loading.Layout.Mist);
                     player.SeparateWater = StillWater(loading.Layout.WaterZones);
                     IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
@@ -243,6 +244,8 @@ internal sealed class DungeonModule : IProductModule
         // The living lights and the lantern too: a module replaced with the world would leave them owning their ids (#10178).
         foreach (Light? light in growthLights) light?.Dispose();
         Array.Clear(growthLights);
+        foreach (Light? light in relicLights) light?.Dispose();
+        Array.Clear(relicLights);
         lantern?.Dispose();
         lantern = null;
         lanternLit = false;
@@ -389,6 +392,34 @@ internal sealed class DungeonModule : IProductModule
     private const int MostGrowthLights = 24;
     private const float GrowthLightOffset = 0.35f;
     private readonly Light?[] growthLights = new Light?[MostGrowthLights];
+
+    // The kit's relics (#10089; owner, 2026-10-19: the ruins' light comes from their relics, light magic-tech): each a small
+    // cold light from its glow, unshadowed, whatever the darkness treatment; at most so many.
+    private const int MostRelicLights = 16;
+    private static readonly Vector3 RelicColour = new(0.55f, 0.85f, 0.9f);
+    private const float RelicIntensity = 3f, RelicRange = 6f;
+    private readonly Light?[] relicLights = new Light?[MostRelicLights];
+
+    /// <summary>Lights the kit's relics (none for a space without a kit), switching off the slots it does not need.</summary>
+    private void RelicLights(IReadOnlyList<Vector3> relics)
+    {
+        for (int slot = 0; slot < MostRelicLights; slot++)
+        {
+            bool on = slot < relics.Count;
+            Vector3 at = on ? DungeonSpace.InSession(relics[slot]) : Vector3.Zero;
+            LightRequest request = new(ProductIds.DungeonRelicLightBase + (ulong)slot, false, 0UL,
+                new LightDescriptor(LightKind.Point, RelicColour, on ? RelicIntensity : 0f, on, at, -Vector3.UnitY, true, RelicRange, LightDecay, 0f, 0f,
+                    LightShadowIntent.Disabled, LightShadowResolution, LightShadowPriority, true));
+            if (relicLights[slot] is Light light)
+            {
+                engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
+            }
+            else if (on)
+            {
+                relicLights[slot] = engine.Graphics.CreateLight(request);
+            }
+        }
+    }
 
     /// <summary>
     /// Lights the strongest growths: small, coloured, unshadowed lights a little off each, so the light around a glowing
@@ -1082,6 +1113,21 @@ internal sealed class DungeonModule : IProductModule
             string.Create(CultureInfo.InvariantCulture, $"{c.At.X:F1},{c.At.Y:F1},{c.At.Z:F1}/{c.Out.X:F1},{c.Out.Z:F1}")));
     }
 
+    /// <summary>The kit pieces of the loaded dungeon (#10089): how many of each, and with a piece's name some of its placements.</summary>
+    internal string KitReadout(string piece)
+    {
+        if (space is not DungeonSpace current)
+        {
+            return "no dungeon is loaded";
+        }
+
+        IReadOnlyList<KitPlacement> kit = current.Layout.Kit;
+        string counts = string.Join(" ", kit.GroupBy(p => p.Piece).Select(g => $"{DungeonKit.Name(g.Key)}={g.Count()}"));
+        KitPlacement[] these = [.. kit.Where(p => DungeonKit.Name(p.Piece) == piece)];
+        return these.Length == 0 ? $"kit={kit.Count} {counts}" : $"kit={kit.Count} {counts} | " + string.Join(" ", these.Take(CardsListed).Select(p =>
+            string.Create(CultureInfo.InvariantCulture, $"{p.Origin.X:F1},{p.Origin.Y:F1},{p.Origin.Z:F1}/{p.Turn * 180f / MathF.PI:F0}")));
+    }
+
     /// <summary>How many anchors the cards readout lists at most.</summary>
     private const int CardsListed = 16;
 
@@ -1119,6 +1165,7 @@ internal sealed class DungeonModule : IProductModule
     {
         Light([]);
         GrowthLights([]);
+        RelicLights([]);
         Mist([]);
         player.SeparateWater = null;
         engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));

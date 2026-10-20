@@ -46,6 +46,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.kitpaint", Description = "Assisted, for the kit paint study (#10089): qwen (the kit's own: Qwen projected on lit views) or plain (painted from the geometry), for the next dungeon entered.")]
     public string KitPaint(string choice) => dungeons.StudyKitPaint(choice);
 
+    [DebugCommand("craft.dungeon.kit", Description = "Reads the loaded dungeon's kit (#10089): how many of each piece, and with a piece's name (wall-alcove, sphere, relic, stair ...) some of its placements and turns, in layout metres.")]
+    public string Kit(string piece = "") => dungeons.KitReadout(piece);
+
     [DebugCommand("craft.dungeon.kitlook", Description = "Assisted, for the kit stone study (#10089): texel facet strength, snap steps, coherence, then calming from and full (texels per pixel), its mip and amount (0..1); now and for later dungeons.")]
     public string KitLook(float strength, float steps, float coherence, float calmFrom, float calmFull, float calmMip, float calm) =>
         dungeons.StudyKitLook(strength, steps, coherence, calmFrom, calmFull, calmMip, calm);

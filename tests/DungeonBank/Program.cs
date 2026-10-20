@@ -452,6 +452,47 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(!alongFloor.Contains(chasmSockets[0].Stand), "the chasm's floor must not walk up to its bridge");
 }
 
+// The dungeon kit (#10089): every stair flight it draws lies on its voxel flight (each tread's top over a voxel step with
+// air above it), and every relic stands on floor.
+{
+    int flights = 0, treads = 0, relics = 0, relicsOnFloor = 0;
+    // A tread's step (hundreds), whether its voxel step is there (tens) and whether air is over it (units: 1 is not).
+    Dictionary<int, (int Good, int All)> byStep = [];
+    for (ulong kitSeed = 1; kitSeed <= 16; kitSeed++)
+    {
+        var kitDungeon = ModularDungeon.Generate(kitSeed);
+        DungeonVolume solid = kitDungeon.Walkable;
+        foreach (KitPlacement piece in kitDungeon.Layout.Kit)
+        {
+            (System.Numerics.Vector3 at, System.Numerics.Quaternion turn, _) = DungeonKit.Place(piece);
+            System.Numerics.Vector3 Layout(System.Numerics.Vector3 local) => at + System.Numerics.Vector3.Transform(local, turn) - DungeonCollision.InSession(System.Numerics.Vector3.Zero);
+            bool Solid(System.Numerics.Vector3 p) => solid.At((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y), (int)MathF.Floor(p.Z)) != BlockId.Air;
+            if (piece.Piece == KitPiece.Stair)
+            {
+                flights++;
+                for (int k = 0; k < 6; k++)
+                {
+                    System.Numerics.Vector3 under = Layout(new(1.5f, 1.5f + k, k + 0.5f)), over = Layout(new(1.5f, 2.5f + k, k + 0.5f));
+                    bool good = Solid(under) && !Solid(over);
+                    treads += good ? 1 : 0;
+                    int step = k * 100 + (Solid(under) ? 10 : 0) + (Solid(over) ? 1 : 0);
+                    (int g, int a) = byStep.GetValueOrDefault(step);
+                    byStep[step] = (g + (good ? 1 : 0), a + 1);
+                }
+            }
+            else if (piece.Piece == KitPiece.Relic)
+            {
+                relics++;
+                relicsOnFloor += Solid(Layout(new(0f, 0.5f, 0f))) && !Solid(Layout(new(0f, 1.5f, 0f))) ? 1 : 0;
+            }
+        }
+    }
+
+    Console.WriteLine($"kit: {flights} stair flights, {treads}/{flights * 6} treads on their voxel steps (misses by step/solid/roofed: {string.Join(", ", byStep.Where(t => t.Value.Good < t.Value.All).OrderBy(t => t.Key).Select(t => $"{t.Key:000}: {t.Value.All - t.Value.Good}"))}); {relicsOnFloor}/{relics} relics on floor");
+    Check.That(flights > 0 && treads == flights * 6, "every kit stair flight must lie on its voxel flight");
+    Check.That(relicsOnFloor == relics, "every kit relic must stand on floor with air over it");
+}
+
 // The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the
 // way back only by a climb - both the walk and the Engine refuse it.
 {

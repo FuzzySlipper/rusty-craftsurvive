@@ -17,7 +17,7 @@ internal static class KitCollision
     {
         string models = Path.Combine(ContentRoot(), "models", "dungeon-kit");
         placements = [.. placements.Where(p => DungeonKit.Collides(p.Piece))];
-        List<KitPiece> kinds = [.. placements.Select(p => p.Piece).Distinct()];
+        List<KitPiece> kinds = [.. placements.Select(p => DungeonKit.Collider(p.Piece)).Distinct()];
         List<Vector3> vertices = [];
         List<Triangle> triangles = [];
         List<StaticMeshAsset> assets = [];
@@ -49,7 +49,7 @@ internal static class KitCollision
             placements.Select((p, i) =>
             {
                 (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
-                return new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(p.Piece), new Transform(at, turn, scale));
+                return new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(DungeonKit.Collider(p.Piece)), new Transform(at, turn, scale));
             }).ToArray()));
     }
 

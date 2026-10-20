@@ -44,6 +44,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>The voxels drawn and collided once the kit stands in its building: the walkable volume less the voxels the pieces took.</summary>
     internal DungeonVolume? KitDrawn { get; init; }
 
+    /// <summary>Where the kit's relics glow (#10089), in layout metres: each a small cold light of its own, whatever the darkness.</summary>
+    internal IReadOnlyList<Vector3> Relics { get; init; } = [];
+
     /// <summary>The moss and ivy cards on a cave's rock (#10092).</summary>
     internal IReadOnlyList<MossCard> MossCards { get; init; } = [];
 

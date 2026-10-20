@@ -617,14 +617,13 @@ internal static class DungeonModules
         ],
         (canvas, random) => canvas.Rooms(BlockId.Planks));
 
+    /// <summary>
+    /// A passage: one cell with doors at its two ends and whole walls at its sides. Its walls are the cell's own (the kit's,
+    /// #10089), not the thick inner walls it once narrowed itself with.
+    /// </summary>
     internal static DungeonModuleShape Corridor { get; } = new("corridor", ModuleKind.Building, 1, 1, 1,
         [new(0, 0, 0, ModuleFace.North, SocketKind.Door), new(0, 0, 0, ModuleFace.South, SocketKind.Door)],
-        (canvas, random) =>
-        {
-            canvas.Rooms(BlockId.Cobblestone);
-            canvas.Fill(1, 1, 1, 2, Storey - 1, Cell - 2, BlockId.Brick);
-            canvas.Fill(Cell - 3, 1, 1, Cell - 2, Storey - 1, Cell - 2, BlockId.Brick);
-        });
+        (canvas, random) => canvas.Rooms(BlockId.Cobblestone));
 
     internal static DungeonModuleShape Hall { get; } = new("hall", ModuleKind.Building, 2, 1, 2,
         [

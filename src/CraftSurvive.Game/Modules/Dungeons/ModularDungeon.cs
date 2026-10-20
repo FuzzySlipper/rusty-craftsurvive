@@ -140,7 +140,7 @@ internal static class ModularDungeon
         (RockDensity rock, DungeonVolume building, DungeonVolume walkable) = SculptedRock.Sculpt(volume, arrivalCell, seed, climbs);
         DungeonVerdict verdict = CarveAndStamp.Check(walkable, plan);
         List<Vector3> lights = [.. Lights(placed, moduleLights)];
-        (IReadOnlyList<KitPlacement> kit, DungeonVolume kitDrawn) = DungeonKit.Fit(walkable, placed);
+        (IReadOnlyList<KitPlacement> kit, DungeonVolume kitDrawn, IReadOnlyList<Vector3> relics) = DungeonKit.Fit(walkable, placed, lights, seed);
         DungeonLayout layout = new(
             $"modular-{seed:x}",
             building,
@@ -151,6 +151,7 @@ internal static class ModularDungeon
             Rock = rock,
             Kit = kit,
             KitDrawn = kitDrawn,
+            Relics = relics,
         };
         return (layout, plan, verdict, walkable, placed);
     }
@@ -260,8 +261,9 @@ internal static class ModularDungeon
     }
 
     /// <summary>
-    /// Opens a join between two modules: a doorway two wide and three tall, or a cave mouth four wide
-    /// and four tall, through both modules' walls, with floor under it.
+    /// Opens a join between two modules: a doorway two wide and three tall through exactly the two modules' walls (the
+    /// kit's keyhole doors, #10089: deeper, it ate the foot of a stair and roofed a stair's top with its floor), or a cave
+    /// mouth four wide and four tall reaching on into both modules, with floor under it.
     /// </summary>
     private static void Open(DungeonVolume volume, int cellX, int cellY, int cellZ, ModuleFace face, SocketKind kind)
     {
@@ -275,7 +277,7 @@ internal static class ModularDungeon
         int boundaryZ = centreZ + (dz * ModuleCanvas.CellSize / 2);
         for (int across = -half; across < half; across++)
         {
-            for (int through = -3; through <= 2; through++)
+            for (int through = kind == SocketKind.Door ? -1 : -3; through <= (kind == SocketKind.Door ? 0 : 2); through++)
             {
                 int x = dx != 0 ? boundaryX + through : centreX + across;
                 int z = dz != 0 ? boundaryZ + through : centreZ + across;
