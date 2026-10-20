@@ -19,6 +19,9 @@ internal enum EcologyKind
 
     /// <summary>A great hall's crystal bloom hanging from the vault: the brightest light there, a sun for the hall.</summary>
     VaultBloom,
+
+    /// <summary>Still water glowing of the life in it (#10129): its light hangs over the water; the water itself is the glowing thing.</summary>
+    LuminousPool,
 }
 
 /// <summary>

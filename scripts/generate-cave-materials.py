@@ -41,7 +41,7 @@ MATERIALS = {
     "flowstone": ((196, 182, 158), 0.08, 0.70, 3, "band"),
     "turf": ((70, 84, 44), 0.14, 0.90, 4, None),
     # The cave's growth (#10129): moss where light reaches, a slick slime on wet rock, pale moonmilk on old damp rock.
-    "moss": ((62, 92, 40), 0.16, 0.80, 3, "stain"),
+    "moss": ((70, 78, 52), 0.14, 0.80, 3, "stain"),
     "slime": ((58, 64, 36), 0.10, 0.20, 3, None),
     "moonmilk": ((214, 210, 196), 0.06, 0.60, 3, "stain"),
 }

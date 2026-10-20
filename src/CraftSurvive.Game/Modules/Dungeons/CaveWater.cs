@@ -23,8 +23,9 @@ internal enum WaterZoneKind
 /// route checks), in layout metres: its kind, the height of its water's surface, the 1 m cells it fills, the columns of
 /// its open surface (each mouth for a sump), and for a sump a path through it from one mouth to the next.
 /// </summary>
+/// <param name="Luminous">Still water deep in the dark that glows of the life in it (#10129): its surface lit from within, with a light of its own.</param>
 internal sealed record WaterZone(WaterZoneKind Kind, float Surface, IReadOnlySet<int> Cells, IReadOnlyList<Vector2> SurfaceColumns,
-    IReadOnlyList<Vector3> Mouths, IReadOnlyList<Vector3> Path)
+    IReadOnlyList<Vector3> Mouths, IReadOnlyList<Vector3> Path, bool Luminous = false)
 {
     /// <summary>The 1 m cell key of a place (layouts span at most 1024 m on a side).</summary>
     internal static int CellKey(Vector3 p) => (int)MathF.Floor(p.X) + ((int)MathF.Floor(p.Y) * CellSpan) + ((int)MathF.Floor(p.Z) * CellSpan * CellSpan);

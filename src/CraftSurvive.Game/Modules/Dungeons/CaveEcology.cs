@@ -45,6 +45,11 @@ internal static class CaveEcology
     private const int FewestVaultPrisms = 12, MostVaultPrisms = 22;
     private const float ShortestVaultPrism = 1.5f, LongestVaultPrism = 5f, VaultPrismWidth = 0.35f, VaultSplay = 1.1f;
 
+    // A luminous pool (#10129): its glow (linear; the water's emission is this, the light's colour too), the light's
+    // brightness and reach (scaled by the pool's size), and its height over the water.
+    internal static readonly Vector3 PoolGlow = new(0.1f, 0.55f, 0.75f);
+    private const float PoolIntensity = 4f, PoolRange = 8f, PoolLightAbove = 0.4f;
+
     // Each hall light: how bright and how far it reaches.
     private const float GiantIntensity = 220f, GiantRange = 35f, VaultIntensity = 1500f, VaultRange = 90f;
 
@@ -67,6 +72,7 @@ internal static class CaveEcology
         EcologyKind.GlowWorms => (WormGlow, 1.5f, 6f),
         EcologyKind.GiantFungus => (GiantGlow, GiantIntensity, GiantRange),
         EcologyKind.VaultBloom => (VaultGlow, VaultIntensity, VaultRange),
+        EcologyKind.LuminousPool => (PoolGlow, PoolIntensity, PoolRange),
         _ => (CrystalGlow, 1f, 3f),
     };
 
@@ -78,6 +84,7 @@ internal static class CaveEcology
     {
         EcologyKind.GiantFungus => GiantStalkTop(growth.At, growth.Size, new Random((int)growth.Seed)).Top - (Vector3.UnitY * GiantCap * growth.Size * LightInsideCap),
         EcologyKind.VaultBloom => growth.At + (growth.Normal * ((LongestVaultPrism * growth.Size) + VaultLightBelowTips)),
+        EcologyKind.LuminousPool => growth.At + (growth.Normal * PoolLightAbove),
         _ => growth.At + (growth.Normal * offset),
     };
 
@@ -89,7 +96,8 @@ internal static class CaveEcology
         foreach (EcologyKind kind in Enum.GetValues<EcologyKind>())
         {
             EcologyPlacement[] these = [.. growths.Where(g => g.Kind == kind)];
-            if (these.Length == 0)
+            // A luminous pool's glowing thing is its water (CaveWaterSurfaces): it has a light here, no mesh.
+            if (these.Length == 0 || kind == EcologyKind.LuminousPool)
             {
                 continue;
             }

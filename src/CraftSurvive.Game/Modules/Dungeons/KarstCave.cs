@@ -760,6 +760,42 @@ internal static class KarstCave
         return zones;
     }
 
+    // Luminous pools (#10129): the share of still water deep in the dark that glows, the most a cave has, how far from a
+    // sink (and the light about it) and how far below an open sky they must lie, and the light's height over the water.
+    private const float LuminousChance = 0.45f, LuminousFromSink = 12f, LuminousBelowSky = 25f;
+    private const int MostLuminous = 3;
+
+    /// <summary>
+    /// Marks some of the cave's still water as luminous (#10129): lakes and pools away from the entrances and the sky's
+    /// light, chosen by the seed, a few at most; each gets a growth placement for its light, at the middle of its surface.
+    /// </summary>
+    private static void Luminous(List<WaterZone> zones, List<EcologyPlacement> ecology, Vector3[] sinks, bool skyOpen, ulong seed)
+    {
+        int glowing = 0;
+        for (int i = 0; i < zones.Count && glowing < MostLuminous; i++)
+        {
+            WaterZone zone = zones[i];
+            if (zone.Kind is not (WaterZoneKind.Lake or WaterZoneKind.Pool) || zone.SurfaceColumns.Count == 0)
+            {
+                continue;
+            }
+
+            Vector2 middle = zone.SurfaceColumns.Aggregate(Vector2.Zero, (a, c) => a + c) / zone.SurfaceColumns.Count;
+            Vector3 at = new(middle.X, zone.Surface, middle.Y);
+            bool dark = sinks.All(s => Vector3.Distance(s, at) > LuminousFromSink) && (!skyOpen || SurfaceAt(at.X, at.Z, seed) - at.Y > LuminousBelowSky);
+            float roll = NaturalCavern.Hash(seed ^ 0x1E05UL, (int)at.X, (int)at.Y, (int)at.Z);
+            if (!dark || roll > LuminousChance)
+            {
+                continue;
+            }
+
+            zones[i] = zone with { Luminous = true };
+            float area = zone.SurfaceColumns.Count * FieldStep * FieldStep;
+            ecology.Add(new EcologyPlacement(EcologyKind.LuminousPool, at, Vector3.UnitY, MathF.Min(2f, 0.6f + (MathF.Sqrt(area) * 0.1f)), (uint)(roll * uint.MaxValue)));
+            glowing++;
+        }
+    }
+
     /// <summary>The field sample a place lies in, or -1 outside the field.</summary>
     private static int SampleAt(Vector3 p)
     {
@@ -1739,6 +1775,7 @@ internal static class KarstCave
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
         waterZones.AddRange(PerchedWater(open, routePaths, finalTable, waterZones));
+        Luminous(waterZones, ecology, sinks, skyOpen, seed);
         if (greatHall is Hall builtHall)
         {
             ecology.AddRange(HallGrowths(open, builtHall, seed, random));
@@ -1797,13 +1834,13 @@ internal static class KarstCave
     internal const BlockId SiltRock = BlockId.Sand, FlowstoneRock = BlockId.Flowstone, RubbleRock = BlockId.Rubble;
 
     // The cave's growth (#10129): its blocks, how large its patches are (cycles per metre) and how much of the rock each
-    // takes where it can grow (above this patch noise: slime takes about half the wet rock, moss most lit rock, moonmilk
+    // takes where it can grow (above this patch noise: slime takes about half the wet rock, moss a third of lit rock, moonmilk
     // a little of the dry), how light a drip moonmilk wants, and where light reaches - how near a sink, how far below
     // the sky, and how far past an opening's rim.
     internal const BlockId MossRock = BlockId.MossyRock, SlimeRock = BlockId.SlimyRock, MoonmilkRock = BlockId.Moonmilk;
-    private const float SlimeFrequency = 0.6f, SlimeAbove = 0.45f, MossFrequency = 0.35f, MossAbove = 0.35f;
+    private const float SlimeFrequency = 0.6f, SlimeAbove = 0.45f, MossFrequency = 0.35f, MossAbove = 0.55f;
     private const float MoonmilkFrequency = 0.5f, MoonmilkAbove = 0.4f, MoonmilkDrip = 0.02f;
-    private const float MossNearSink = 8f, MossBelowSky = 25f, MossBeyondOpening = 3f;
+    private const float MossNearSink = 6f, MossBelowSky = 20f, MossBeyondOpening = 2f;
 
     /// <summary>Where water drips at least this much (the 2 m drip field, 0 to 1), older rock is coated in flowstone.</summary>
     private const float FlowstoneDrip = 0.12f;

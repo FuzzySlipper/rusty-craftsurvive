@@ -394,6 +394,7 @@ internal sealed class DungeonModule : IProductModule
             {
                 EcologyKind.VaultBloom => 0,
                 EcologyKind.GiantFungus => 1,
+                EcologyKind.LuminousPool => 2,
                 EcologyKind.GlowWorms => 2,
                 EcologyKind.GlowFungi => 3,
                 _ => 4,
@@ -402,6 +403,12 @@ internal sealed class DungeonModule : IProductModule
         {
             bool on = slot < lit.Length;
             (Vector3 colour, float intensity, float range) = on ? CaveEcology.LightOf(lit[slot].Kind) : (Vector3.One, 0f, 1f);
+            if (on && lit[slot].Kind == EcologyKind.LuminousPool)
+            {
+                // A larger glowing pool lights more of the cave round it.
+                intensity *= lit[slot].Size;
+                range *= lit[slot].Size;
+            }
             Vector3 at = on ? DungeonSpace.InSession(CaveEcology.LightAt(lit[slot], GrowthLightOffset)) : Vector3.Zero;
             LightShadowIntent shadow = on && CaveEcology.Shadowed(lit[slot].Kind) ? LightShadowIntent.Requested : LightShadowIntent.Disabled;
             LightRequest request = new(ProductIds.DungeonGrowthLightBase + (ulong)slot, false, 0UL,

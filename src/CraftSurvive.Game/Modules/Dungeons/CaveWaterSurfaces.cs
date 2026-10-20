@@ -20,7 +20,10 @@ internal sealed class CaveWaterSurfaces : IDisposable
 
     private readonly IEngineContext engine;
     private RenderResource? foam, ripples;
-    private Material? material;
+    private Material? material, luminous;
+
+    /// <summary>How strongly a luminous pool's water glows (#10129), in its glow's colour.</summary>
+    private const float LuminousGlow = 0.35f;
 
     internal CaveWaterSurfaces(IEngineContext engine) => this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
 
@@ -29,7 +32,7 @@ internal sealed class CaveWaterSurfaces : IDisposable
     {
         foreach (WaterZone zone in zones.Where(z => z.Kind is WaterZoneKind.Lake or WaterZoneKind.Pool && z.SurfaceColumns.Count > 0))
         {
-            yield return Surface(zone, Material());
+            yield return Surface(zone, zone.Luminous ? Luminous() : Material());
         }
     }
 
@@ -40,6 +43,15 @@ internal sealed class CaveWaterSurfaces : IDisposable
         Color white = new(1f, 1f, 1f, 1f);
         return material ??= engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), Roughness, white, Vector3.Zero, 0f, false)
             with { AlphaMode = MaterialAlphaMode.Blend, Water = TerrainAtlasCatalog.WaterLook(foam, ripples) });
+    }
+
+    /// <summary>The water look glowing from within, for a luminous pool: the water is the source the eye traces its light to.</summary>
+    private Material Luminous()
+    {
+        Material();
+        Color white = new(1f, 1f, 1f, 1f);
+        return luminous ??= engine.Graphics.CreateMaterial(new MaterialRequest(white, default(RenderResourceReference), Roughness, white,
+            CaveEcology.PoolGlow, LuminousGlow, false) with { AlphaMode = MaterialAlphaMode.Blend, Water = TerrainAtlasCatalog.WaterLook(foam!, ripples!) });
     }
 
     private static MeshResourceCreateRequest Surface(WaterZone zone, Material material)
@@ -67,7 +79,8 @@ internal sealed class CaveWaterSurfaces : IDisposable
     public void Dispose()
     {
         material?.Dispose();
-        material = null;
+        luminous?.Dispose();
+        material = luminous = null;
         foam?.Dispose();
         ripples?.Dispose();
         foam = ripples = null;
