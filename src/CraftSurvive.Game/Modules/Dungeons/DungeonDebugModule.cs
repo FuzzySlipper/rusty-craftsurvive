@@ -34,8 +34,8 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.voxelsize", Description = "Assisted, for the micro-voxel study (#10094): the natural cavern study's (approach n) voxel side, 1, 0.5 or 0.25 metres, for voxel surfaces.")]
     public string VoxelSize(double metres) => dungeons.StudyVoxelSize(metres);
 
-    [DebugCommand("craft.dungeon.hall", Description = "Assisted, for the great hall study (#10094): on gives the next karst caves (approach k) a great hall, off rules one out, auto leaves it to chance.")]
-    public string Hall(string choice) => dungeons.StudyHall(choice);
+    [DebugCommand("craft.dungeon.centrepiece", Description = "Assisted, for the centrepiece studies (#10094): what the next karst caves (approach k) are built round - hall (a great hall), chasm (a bottomless chasm open to the sky), none, or auto (chance).")]
+    public string Centrepiece(string choice) => dungeons.StudyCentrepiece(choice);
 
     [DebugCommand("craft.dungeon.keepunwalkable", Description = "Assisted, for studies (#10090): true enters a dungeon candidate even when its routes fail (to compare looks on one layout); false restores refusal.")]
     public string KeepUnwalkable(bool keep) => dungeons.KeepUnwalkable(keep);

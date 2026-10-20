@@ -53,8 +53,8 @@ internal static class DungeonCandidates
 
     /// <summary>Generates an entrance's candidate by an approach.</summary>
     /// <param name="voxelSize">The natural cavern study's voxel side in metres (#10094); other approaches are built in world blocks.</param>
-    /// <param name="hall">For the great hall study (#10094): true gives a karst cave a great hall, false rules one out, null leaves it to chance.</param>
-    internal static DungeonCandidate Generate(DungeonApproach approach, ulong entranceSeed, int index, double voxelSize = 1d, bool? hall = null)
+    /// <param name="centrepiece">For the centrepiece studies (#10094): what a karst cave is built round - a great hall, a chasm or neither - or null for chance.</param>
+    internal static DungeonCandidate Generate(DungeonApproach approach, ulong entranceSeed, int index, double voxelSize = 1d, KarstCave.Centrepiece? centrepiece = null)
     {
         ulong seed = Seed(entranceSeed, index);
         switch (approach)
@@ -69,7 +69,7 @@ internal static class DungeonCandidates
                 var shaft = VerticalSampler.Shaft(seed);
                 return new DungeonCandidate(index, seed, shaft.Layout, shaft.Plan, shaft.Verdict, shaft.Walkable);
             case DungeonApproach.Karst:
-                var karst = KarstCave.Generate(seed, voxelSize, hall);
+                var karst = KarstCave.Generate(seed, voxelSize, centrepiece);
                 return new DungeonCandidate(index, seed, karst.Layout, karst.Plan, karst.Verdict, karst.Walkable);
             case DungeonApproach.Natural:
                 var natural = NaturalCavern.Generate(seed, voxelSize);

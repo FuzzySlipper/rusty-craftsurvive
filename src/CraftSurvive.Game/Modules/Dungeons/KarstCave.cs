@@ -143,6 +143,13 @@ internal static class KarstCave
         Breakdown,
 
         /// <summary>
+        /// A chasm, rare: a great pit at the middle of the system, open to the sky and falling past the bottom of the space,
+        /// which cuts through what the water opened before it - older passages end at windows in its walls or cross it on
+        /// natural bridges, and ledges step down its walls where the harder beds stand out (owner, 2026-10-20).
+        /// </summary>
+        Chasm,
+
+        /// <summary>
         /// A great hall, rare: a long age of slow water under a thick cap opened one vast vaulted room, its floor heaped and
         /// terraced, its roof held up by remnant pillars - big enough to have weather of its own light (owner, 2026-10-19:
         /// a rare larger cavern lit by large, bright, distant sources, like an underground sky).
@@ -202,6 +209,18 @@ internal static class KarstCave
     internal static float SurfaceAt(float x, float z, ulong seed) =>
         SurfaceLevel + (SurfaceRoll * NaturalCavern.Signed(NaturalCavern.Noise(new Vector3(x * SurfaceFrequency, 0f, z * SurfaceFrequency), seed ^ 0xF01UL)));
 
+    /// <summary>The ground surface over a cave open to the sky: open air above the plateau's rolling ground.</summary>
+    private static void LaySurface(float[] open, ulong seed) => Parallel.For(0, FieldZ, z =>
+    {
+        for (int y = 0; y < FieldY; y++)
+            for (int x = 0; x < FieldX; x++)
+            {
+                int index = FieldIndex(x, y, z);
+                Vector3 p = FieldCentre(index);
+                open[index] = NaturalCavern.SmoothMax(open[index], p.Y - SurfaceAt(p.X, p.Z, seed), SurfaceBlend);
+            }
+    });
+
     /// <summary>
     /// The tiankeng: the ground surface is laid with open air above it, and the largest older passage at a depth the
     /// shaft can span collapses through to it - a wide shaft, its walls banded at the beds and a little belled below, its
@@ -209,17 +228,7 @@ internal static class KarstCave
     /// </summary>
     private static (Vector3 Floor, float Radius)? Tiankeng(float[] open, float[] beds, List<(Vector3 At, float Share, int Era)> passages, ulong seed, DungeonRandom random)
     {
-        Parallel.For(0, FieldZ, z =>
-        {
-            for (int y = 0; y < FieldY; y++)
-                for (int x = 0; x < FieldX; x++)
-                {
-                    int index = FieldIndex(x, y, z);
-                    Vector3 p = FieldCentre(index);
-                    open[index] = NaturalCavern.SmoothMax(open[index], p.Y - SurfaceAt(p.X, p.Z, seed), SurfaceBlend);
-                }
-        });
-
+        LaySurface(open, seed);
         float radius = Between(random, TiankengLeast, TiankengMost);
         foreach ((Vector3 at, float _, int _) in passages.Where(p => Inside(p.At, radius + 4f)).OrderByDescending(p => p.Share))
         {
@@ -252,6 +261,162 @@ internal static class KarstCave
         }
 
         return null;
+    }
+
+    /// <summary>What a cave is built round, if anything: a great hall or a chasm (each rare), for studies to ask for.</summary>
+    internal enum Centrepiece { None, GreatHall, Chasm }
+
+    // A chasm (owner, 2026-10-20: a very deep chasm at the middle of the system, the water's passages crossing it or making
+    // their way down its sides): how often a cave has one, its radius and how far its middle wanders, how its wall wobbles
+    // and is notched at the beds, how far the sinks keep from it, and how far below the space a body is lost to it.
+    private const float ChasmChance = 0.08f, ChasmLeast = 11f, ChasmMost = 16f, ChasmWander = 6f, ChasmWobble = 0.12f, ChasmWobbleFrequency = 0.06f;
+    private const float ChasmBand = 0.8f, ChasmBlend = 1f, SinkClearOfChasm = 6f;
+    // Its ledges: at which beds (the chance each bed stands out), how far out and how thick, over how much of the round,
+    // and how they taper at their ends.
+    private const float LedgeChance = 0.75f, LedgeLeast = 1.2f, LedgeMost = 2.6f, LedgeThickness = 1.4f, LedgeArcLeast = 1.6f, LedgeArcMost = 3.6f, LedgeTaper = 0.35f;
+    // Its natural bridges: how many, how wide and thick, how much thicker at their ends (their arch), how far apart in
+    // height their ends may be, and how far round the chasm one must reach to cross it.
+    private const int MostBridges = 3;
+    private const float BridgeHalfWidth = 1.4f, BridgeThickness = 1.3f, BridgeArch = 2f, BridgeLevel = 4f, BridgeAcross = 2.1f, BridgeBelowPassage = 0.9f;
+
+    /// <summary>A chasm: its middle across the floor and radius, the ledges on its walls (their top, reach and the arc of the round they span), and its bridges.</summary>
+    internal sealed record ChasmShape(Vector2 Centre, float Radius, (float Top, float Reach, float From, float To)[] Ledges, (Vector3 From, Vector3 To)[] Bridges);
+
+    /// <summary>
+    /// The chasm: a great round pit at the middle, from the surface down past the bottom of the space, its wall wobbling and
+    /// notched back at the partings. Where a harder bed stands out, a ledge runs part way round its wall, the ledges of
+    /// successive beds overlapping round the chasm so a way down its sides may step from one to the next. Older passages it
+    /// cut through end at windows in its walls; where two such windows face each other across it at nearly one level, the
+    /// rock under the passage held as a natural bridge, arched thicker at its ends.
+    /// </summary>
+    private static ChasmShape Chasm(float[] open, float[] beds, List<(Vector3 At, float Share, int Era)> passages, Vector2 centre, float radius, ulong seed, DungeonRandom random)
+    {
+        float surface = SurfaceAt(centre.X, centre.Y, seed);
+        List<(float Top, float Reach, float From, float To)> ledges = [];
+        float turn = Between(random, 0f, MathF.Tau);
+        foreach (float bed in beds.OrderByDescending(b => b))
+        {
+            float top = bed + (BedDip.X * centre.X) + (BedDip.Y * centre.Y);
+            if (top > surface - 3f || top < 2f || !Chance(random, LedgeChance))
+            {
+                continue;
+            }
+
+            // Each ledge starts round from where the one above ended, so they overlap into a way down.
+            float arc = Between(random, LedgeArcLeast, LedgeArcMost);
+            float from = turn - Between(random, 0.3f, 0.9f);
+            ledges.Add((top, Between(random, LedgeLeast, LedgeMost), from, from + arc));
+            turn = from + arc;
+        }
+
+        Parallel.For(0, FieldZ, z =>
+        {
+            for (int y = 0; y < FieldY; y++)
+                for (int x = 0; x < FieldX; x++)
+                {
+                    int index = FieldIndex(x, y, z);
+                    Vector3 p = FieldCentre(index);
+                    Vector2 d = new Vector2(p.X, p.Z) - centre;
+                    float across = d.Length();
+                    if (across > radius * 1.6f)
+                    {
+                        continue;
+                    }
+
+                    float angle = MathF.Atan2(d.Y, d.X);
+                    float bedY = p.Y - (BedDip.X * p.X) - (BedDip.Y * p.Z);
+                    float nearest = 9f;
+                    foreach (float bed in beds)
+                    {
+                        nearest = MathF.Min(nearest, MathF.Abs(bedY - bed));
+                    }
+
+                    float wall = radius * (1f + (ChasmWobble * NaturalCavern.Signed(NaturalCavern.Noise(new Vector3(MathF.Cos(angle) * 4f, p.Y * ChasmWobbleFrequency, MathF.Sin(angle) * 4f), seed ^ 0xC401UL))))
+                        + (ChasmBand * MathF.Max(0f, 1f - nearest));
+                    foreach ((float top, float reach, float from, float to) in ledges)
+                    {
+                        if (p.Y > top || p.Y < top - LedgeThickness)
+                        {
+                            continue;
+                        }
+
+                        // How far into the ledge's arc this angle lies (the round wraps), tapering at both ends.
+                        float into = Wrap(angle - from);
+                        if (into > to - from)
+                        {
+                            continue;
+                        }
+
+                        float taper = MathF.Min(NaturalCavern.SmoothStep(0f, LedgeTaper, into), NaturalCavern.SmoothStep(0f, LedgeTaper, (to - from) - into));
+                        // Thinner toward its lip, as rock undercut below a harder bed.
+                        float undercut = (top - p.Y) / LedgeThickness;
+                        wall -= reach * taper * (1f - (0.5f * undercut));
+                    }
+
+                    open[index] = Math.Clamp(NaturalCavern.SmoothMax(open[index], wall - across, ChasmBlend), -FieldLimit, FieldLimit);
+                }
+        });
+
+        // Bridges: windows of older passages facing each other across the chasm at nearly one level.
+        List<(Vector3 From, Vector3 To)> bridges = [];
+        Vector3[] windows = [.. passages.Select(p => p.At).Where(a =>
+        {
+            float r = Vector2.Distance(new Vector2(a.X, a.Z), centre);
+            return r > radius * 0.8f && r < radius + 4f && a.Y < surface - 4f;
+        })];
+        foreach (Vector3 a in windows.OrderBy(_ => random.Next()))
+        {
+            if (bridges.Count >= MostBridges)
+            {
+                break;
+            }
+
+            float aAngle = MathF.Atan2(a.Z - centre.Y, a.X - centre.X);
+            Vector3? partner = windows.Where(b => MathF.Abs(b.Y - a.Y) < BridgeLevel && MathF.Abs(Wrap(MathF.Atan2(b.Z - centre.Y, b.X - centre.X) - aAngle + MathF.PI) - MathF.PI) > BridgeAcross)
+                .Select(b => (Vector3?)b).FirstOrDefault();
+            if (partner is not Vector3 b || bridges.Any(x => MathF.Abs(x.From.Y - a.Y) < LedgeThickness * 2f))
+            {
+                continue;
+            }
+
+            // Ends set into the wall beyond each window, a passage's floor below its middle.
+            Vector3 from = Rim(a, centre, radius + 2.5f) - new Vector3(0f, BridgeBelowPassage, 0f);
+            Vector3 to = Rim(b, centre, radius + 2.5f) - new Vector3(0f, BridgeBelowPassage, 0f);
+            bridges.Add((from, to));
+            Bridge(open, from, to);
+        }
+
+        return new ChasmShape(centre, radius, [.. ledges], [.. bridges]);
+    }
+
+    /// <summary>An angle wrapped into 0 to a full turn.</summary>
+    private static float Wrap(float angle) => ((angle % MathF.Tau) + MathF.Tau) % MathF.Tau;
+
+    /// <summary>A point carried out across the floor to a distance from a middle, at its own height.</summary>
+    private static Vector3 Rim(Vector3 at, Vector2 centre, float distance)
+    {
+        Vector2 d = new Vector2(at.X, at.Z) - centre;
+        Vector2 r = centre + (Vector2.Normalize(d) * distance);
+        return new Vector3(r.X, at.Y, r.Y);
+    }
+
+    /// <summary>A natural bridge: a slab of rock between two ends, its top along them, its underside arched up between thick ends.</summary>
+    private static void Bridge(float[] open, Vector3 from, Vector3 to)
+    {
+        Vector3 span = to - from;
+        Vector2 flat = new(span.X, span.Z);
+        float length = flat.Length();
+        Vector2 along = flat / length;
+        ForBox((from + to) * 0.5f, new Vector3((MathF.Abs(span.X) * 0.5f) + 4f, (MathF.Abs(span.Y) * 0.5f) + BridgeThickness + BridgeArch + 2f, (MathF.Abs(span.Z) * 0.5f) + 4f), (index, p) =>
+        {
+            Vector2 q = new Vector2(p.X, p.Z) - new Vector2(from.X, from.Z);
+            float t = Math.Clamp(Vector2.Dot(q, along) / length, 0f, 1f);
+            float side = MathF.Abs((q.X * along.Y) - (q.Y * along.X));
+            float top = from.Y + (span.Y * t);
+            float bottom = top - BridgeThickness - (BridgeArch * (1f - (4f * t * (1f - t))));
+            float solid = MathF.Max(side - BridgeHalfWidth, MathF.Max(p.Y - top, bottom - p.Y));
+            open[index] = MathF.Min(open[index], solid);
+        });
     }
 
     // A great hall (owner, 2026-10-19: rare, vast, lit like an underground sky): how often a cave has one, its reach
@@ -574,6 +739,9 @@ internal static class KarstCave
         internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
         internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
+        /// <summary>The chasm, when the cave has one.</summary>
+        internal required ChasmShape? Chasm { get; init; }
+
         /// <summary>The great hall, when the cave has one.</summary>
         internal required Hall? GreatHall { get; init; }
         internal required bool SkyOpen { get; init; }
@@ -718,9 +886,9 @@ internal static class KarstCave
         internal required int Formations { get; init; }
     }
 
-    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, bool? hall = null)
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, Centrepiece? centrepiece = null)
     {
-        Result cave = Build(seed, hall);
+        Result cave = Build(seed, centrepiece);
         Func<Vector3, float> shape = cave.At;
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, cave.RockAt);
         // The arrival is underground, at the foot of the first sink, even when the surface is open above it.
@@ -759,6 +927,7 @@ internal static class KarstCave
             SkyOpen = cave.SkyOpen,
             GreatHall = cave.GreatHall is not null,
             Mist = cave.GreatHall is Hall mistHall ? [HallMist(mistHall)] : [],
+            Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
         };
         return (layout, plan, new DungeonVerdict(true, Readout(cave), 0), volume);
@@ -766,12 +935,12 @@ internal static class KarstCave
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
     /// <summary>Generates the cave: the rock, the water's rounds through it, the shapes it leaves, and the passages checked.</summary>
-    internal static Result Build(ulong seed, bool? hall = null)
+    internal static Result Build(ulong seed, Centrepiece? centrepiece = null)
     {
         long started = Stopwatch.GetTimestamp();
         DungeonRandom random = new(seed);
@@ -788,7 +957,27 @@ internal static class KarstCave
 
         // The cave's history: a few eras drawn without repeats, in the order they happen, the water table falling from
         // one to the next. A cave always has an era of flowing water.
-        Era[] eras = DrawEras(random, hall);
+        Era[] eras = DrawEras(random, centrepiece);
+        // A chasm's place is chosen before the water runs, so no sink opens over it.
+        (Vector2 Centre, float Radius)? chasmAt = null;
+        if (eras.Contains(Era.Chasm))
+        {
+            Vector2 middle = new((FieldX * FieldStep * 0.5f) + Between(random, -ChasmWander, ChasmWander), (FieldZ * FieldStep * 0.5f) + Between(random, -ChasmWander, ChasmWander));
+            float radius = Between(random, ChasmLeast, ChasmMost);
+            chasmAt = (middle, radius);
+            for (int i = 0; i < sinks.Length; i++)
+            {
+                Vector2 from = new Vector2(sinks[i].X, sinks[i].Z) - middle;
+                float keep = radius * (1f + ChasmWobble) + SinkClearOfChasm;
+                if (from.Length() < keep)
+                {
+                    Vector2 away = from.LengthSquared() > 1e-4f ? Vector2.Normalize(from) : Vector2.UnitX;
+                    Vector2 moved = middle + (away * keep);
+                    sinks[i] = new Vector3(Math.Clamp(moved.X, 8f, (GridX * GridCell) - 8f), sinks[i].Y, Math.Clamp(moved.Y, 8f, (GridZ * GridCell) - 8f));
+                }
+            }
+        }
+
         float[] tables = [.. eras.Select((_, i) => eras.Length == 1 ? LowestTable : HighestTable + ((LowestTable - HighestTable) * i / (eras.Length - 1)))];
         float finalTable = tables[^1];
 
@@ -805,6 +994,7 @@ internal static class KarstCave
         Vector3? sponge = null;
         (Vector3 Floor, float Radius)? tiankeng = null;
         Hall? greatHall = null;
+        ChasmShape? chasm = null;
         bool skyOpen = false;
         Vector3 spring = new((GridX - 2.5f) * GridCell, finalTable - 2f, GridZ * GridCell * 0.5f);
         int carved = 0;
@@ -835,6 +1025,11 @@ internal static class KarstCave
                 case Era.Breakdown:
                     Collapses(open, beds, passages0, index, random, chambers);
                     break;
+                case Era.Chasm:
+                    LaySurface(open, seed);
+                    chasm = Chasm(open, beds, passages0, chasmAt!.Value.Centre, chasmAt.Value.Radius, seed, random);
+                    skyOpen = true;
+                    break;
                 case Era.GreatHall:
                     greatHall = GreatHall(open, beds, seed, random);
                     break;
@@ -861,7 +1056,7 @@ internal static class KarstCave
         int formations = Drip(open, joint, formed, eras.Length, finalTable, random);
 
         Roughen(open, seed, beds, finalTable);
-        Enclose(open, skyOpen);
+        Enclose(open, skyOpen, chasm);
 
         // The water's fields for later passes: the flow is the last flowing era's, the water still at work.
         float drainedTable = finalTable - DrainedBelowTable;
@@ -923,6 +1118,7 @@ internal static class KarstCave
             Ecology = ecology,
             Tiankeng = tiankeng,
             GreatHall = greatHall,
+            Chasm = chasm,
             SkyOpen = skyOpen,
             Formed = formed,
             Sediment = sediment,
@@ -963,9 +1159,9 @@ internal static class KarstCave
     }
 
     /// <summary>A cave's eras: between the fewest and most, no kind twice, in the order they happen, at least one flowing.</summary>
-    private static Era[] DrawEras(DungeonRandom random, bool? hall)
+    private static Era[] DrawEras(DungeonRandom random, Centrepiece? centrepiece)
     {
-        List<Era> pool = [.. Enum.GetValues<Era>().Where(era => era != Era.GreatHall)];
+        List<Era> pool = [.. Enum.GetValues<Era>().Where(era => era is not (Era.GreatHall or Era.Chasm))];
         int count = FewestEras + (int)(random.Next() % (ulong)(MostEras - FewestEras + 1));
         List<Era> drawn = [];
         for (int i = 0; i < count; i++)
@@ -980,10 +1176,18 @@ internal static class KarstCave
             drawn[0] = Chance(random, 0.5f) ? Era.Phreatic : Era.VadoseCanyons;
         }
 
-        // A great hall is rare, and drawn apart from the rest; a study may ask for one or rule it out.
-        if (hall ?? Chance(random, GreatHallChance))
+        // A centrepiece - a great hall or a chasm - is rare, drawn apart from the rest; a study may ask for one or rule both out.
+        // A chasm is the cave's opening to the sky: no tiankeng beside it.
+        float roll = Between(random, 0f, 1f);
+        Centrepiece centre = centrepiece ?? (roll < GreatHallChance ? Centrepiece.GreatHall : roll < GreatHallChance + ChasmChance ? Centrepiece.Chasm : Centrepiece.None);
+        if (centre == Centrepiece.GreatHall)
         {
             drawn.Add(Era.GreatHall);
+        }
+        else if (centre == Centrepiece.Chasm)
+        {
+            drawn.Remove(Era.Tiankeng);
+            drawn.Add(Era.Chasm);
         }
 
         // Eras that work on passages already there (floods backing up, sediment, fractures opened from them, collapse) come
@@ -997,7 +1201,7 @@ internal static class KarstCave
     }
 
     /// <summary>Eras that act on passages an earlier era opened.</summary>
-    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown or Era.GreatHall or Era.Tiankeng;
+    private static bool NeedsPassages(Era era) => era is Era.FloodMaze or Era.Infill or Era.JointRifts or Era.Breakdown or Era.Chasm or Era.GreatHall or Era.Tiankeng;
 
     /// <summary>
     /// A flowing era: the active sinks' water takes the cheapest way to the era's spring, round after round, the ways
@@ -1689,7 +1893,8 @@ internal static class KarstCave
 
     /// <summary>Keeps a rind of rock inside the volume's sides, so the cave never opens onto the edge of the space.</summary>
     /// <param name="skyOpen">Whether the top is left open to the sky (a cave with a surface).</param>
-    private static void Enclose(float[] open, bool skyOpen)
+    /// <param name="chasm">A chasm, which falls through the bottom of the space: no rind under it.</param>
+    private static void Enclose(float[] open, bool skyOpen, ChasmShape? chasm)
     {
         Vector3 size = new(FieldX * FieldStep, FieldY * FieldStep, FieldZ * FieldStep);
         Parallel.For(0, FieldZ, z =>
@@ -1700,7 +1905,9 @@ internal static class KarstCave
                     int index = FieldIndex(x, y, z);
                     Vector3 p = FieldCentre(index);
                     Vector3 far = size - p;
-                    float edge = MathF.Min(MathF.Min(MathF.Min(p.X, far.X), skyOpen ? p.Y : MathF.Min(p.Y, far.Y)), MathF.Min(p.Z, far.Z));
+                    bool bottomless = chasm is ChasmShape c && Vector2.Distance(new Vector2(p.X, p.Z), c.Centre) < c.Radius * (1f + ChasmWobble) + ChasmBand;
+                    float below = bottomless ? float.MaxValue : p.Y, above = skyOpen ? float.MaxValue : far.Y;
+                    float edge = MathF.Min(MathF.Min(MathF.Min(p.X, far.X), MathF.Min(below, above)), MathF.Min(p.Z, far.Z));
                     open[index] = MathF.Min(open[index], edge - RindMetres);
                 }
         });

@@ -32,6 +32,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>Whether a natural space has a great hall, whose air carries a haze of its lights (#10094).</summary>
     internal bool GreatHall { get; init; }
 
+    /// <summary>A chasm's opening through the bottom of the space (#10094): its middle at the bottom, in layout metres, and its radius; null for none.</summary>
+    internal (Vector3 Centre, float Radius)? Abyss { get; init; }
+
     /// <summary>Low mist lying in a natural space (a great hall's floor), lit by its lights through the volumetric fog.</summary>
     internal IReadOnlyList<MistVolume> Mist { get; init; } = [];
 

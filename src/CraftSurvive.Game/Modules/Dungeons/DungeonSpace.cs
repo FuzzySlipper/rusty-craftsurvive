@@ -114,9 +114,45 @@ internal sealed class DungeonSpace : IDisposable
                 MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                 growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
             }
+
+            if (layout.Abyss is (Vector3 abyssAt, float abyssRadius))
+            {
+                MeshResource mesh = engine.Graphics.CreateMeshResource(AbyssFloor(InSession(abyssAt) - (Vector3.UnitY * AbyssDepth), abyssRadius * AbyssWiden));
+                growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+            }
         }
 
         loadTicks += Stopwatch.GetTimestamp() - started;
+    }
+
+    // A chasm's depths (#10094): what the eye meets looking down it is black, not the sky drawn behind the world - an unlit
+    // black floor this far below the space, far wider than the opening so no slant past it finds the sky, out of any light's reach.
+    private const float AbyssDepth = 25f, AbyssWiden = 8f;
+    private const int AbyssSides = 24;
+
+    private MeshResourceCreateRequest AbyssFloor(Vector3 centre, float radius)
+    {
+        Material black = engine.Graphics.CreateMaterial(new MaterialRequest(new Color(0f, 0f, 0f, 1f), default, 1f, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
+        growthMaterials.Add(black);
+        Vector3[] positions = new Vector3[AbyssSides + 1];
+        positions[0] = centre;
+        for (int i = 0; i < AbyssSides; i++)
+        {
+            float a = i * MathF.Tau / AbyssSides;
+            positions[i + 1] = centre + new Vector3(MathF.Cos(a) * radius, 0f, MathF.Sin(a) * radius);
+        }
+
+        uint[] indices = new uint[AbyssSides * 3];
+        for (int i = 0; i < AbyssSides; i++)
+        {
+            // Facing up, toward an eye looking down the chasm.
+            indices[(i * 3) + 0] = 0;
+            indices[(i * 3) + 1] = (uint)(((i + 1) % AbyssSides) + 1);
+            indices[(i * 3) + 2] = (uint)(i + 1);
+        }
+
+        return new MeshResourceCreateRequest(positions, Enumerable.Repeat(Vector3.UnitY, positions.Length).ToArray(), new Vector2[positions.Length], ReadOnlyMemory<Color>.Empty, indices,
+            new[] { new MeshGroup(0, 0, (uint)indices.Length) }, new[] { new MeshMaterialBinding(0, black) });
     }
 
     /// <summary>

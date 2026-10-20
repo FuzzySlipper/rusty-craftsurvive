@@ -200,6 +200,7 @@ internal sealed class DungeonModule : IProductModule
                 }
 
                 CarryLantern();
+                CatchFall();
                 break;
         }
 
@@ -267,7 +268,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Generates one of the entrance's candidates and starts loading it.</summary>
     private string Load(int index)
     {
-        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index, DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize, studyHall);
+        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index, DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize, studyCentre);
         candidateIndex = index;
         plan = candidate.Plan;
         walkable = candidate.Walkable;
@@ -411,6 +412,26 @@ internal sealed class DungeonModule : IProductModule
                 growthLights[slot] = engine.Graphics.CreateLight(request);
             }
         }
+    }
+
+    // --- Falling out of a space (#10094) ---
+
+    /// <summary>How far below a space's bottom a falling body counts as lost (a chasm falls through the bottom of the space).</summary>
+    private const float LostBelowSpace = 30f;
+
+    /// <summary>
+    /// A placeholder until falling has its own rules (#10171: death or injury, and where one comes to): a player who falls out of the
+    /// bottom of a space - down a chasm - is set back at its arrival rather than falling forever.
+    /// </summary>
+    private void CatchFall()
+    {
+        if (space is not DungeonSpace current || player.WorldFeetPosition.Y > DungeonSpace.InSession(Vector3.Zero).Y - LostBelowSpace)
+        {
+            return;
+        }
+
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(current.Layout.Arrival));
+        last = "fell out of the space: set back at its arrival (a placeholder until falling has its own rules, #10171)";
     }
 
     // --- A great hall's mist (#10094) ---
@@ -606,27 +627,30 @@ internal sealed class DungeonModule : IProductModule
         return material;
     }
 
-    /// <summary>For the great hall study (#10094): whether karst caves have a great hall - always, never, or by chance (null).</summary>
-    private bool? studyHall;
+    /// <summary>For the centrepiece studies (#10094): what karst caves are built round - a great hall, a chasm, neither - or chance (null).</summary>
+    private KarstCave.Centrepiece? studyCentre;
 
-    internal string StudyHall(string choice)
+    internal string StudyCentrepiece(string choice)
     {
         switch (choice)
         {
-            case "on":
-                studyHall = true;
+            case "hall":
+                studyCentre = KarstCave.Centrepiece.GreatHall;
                 break;
-            case "off":
-                studyHall = false;
+            case "chasm":
+                studyCentre = KarstCave.Centrepiece.Chasm;
+                break;
+            case "none":
+                studyCentre = KarstCave.Centrepiece.None;
                 break;
             case "auto":
-                studyHall = null;
+                studyCentre = null;
                 break;
             default:
-                return $"great hall refused: \"{choice}\" is not on, off or auto";
+                return $"centrepiece refused: \"{choice}\" is not hall, chasm, none or auto";
         }
 
-        return $"karst caves entered next: great hall {choice}";
+        return $"karst caves entered next: centrepiece {choice}";
     }
 
     /// <summary>The natural cavern study's voxel side in metres (#10094): 1, or finer for micro-voxels.</summary>
