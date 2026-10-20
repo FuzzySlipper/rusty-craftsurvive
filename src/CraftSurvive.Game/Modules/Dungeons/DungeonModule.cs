@@ -289,7 +289,7 @@ internal sealed class DungeonModule : IProductModule
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
                     candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural,
-                    kitPaint: kitPaint);
+                    kitPaint: kitPaint, kitLook: kitLook);
         }
         catch (EngineCallException refusal)
         {
@@ -682,18 +682,29 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>For the centrepiece studies (#10094): what karst caves are built round - a great hall, a chasm, neither - or chance (null).</summary>
     private KarstCave.Centrepiece? studyCentre;
 
-    /// <summary>The kit paint study (#10089): the folder of the kit's textures the next dungeon draws with, or null for the kit's own.</summary>
+    /// <summary>The kit paint study (#10089): the folder of the kit's textures the next dungeon draws with, or null for the kit's own (Qwen's).</summary>
     private string? kitPaint;
+
+    /// <summary>The kit stone shader's settings (#10089), for the space loaded and the next.</summary>
+    private DungeonKitLook.Look kitLook = DungeonKitLook.Look.Default;
 
     internal string StudyKitPaint(string choice)
     {
         kitPaint = choice switch
         {
-            "qwen" => "qwen",
-            "plain" => null,
+            "plain" => "plain",
+            "qwen" => null,
             _ => kitPaint,
         };
-        return $"kit paint={kitPaint ?? "plain"} (from the next entry)";
+        return $"kit paint={kitPaint ?? "qwen"} (from the next entry)";
+    }
+
+    /// <summary>Tunes the kit stone shader now and for later dungeons (#10089): facet strength, steps, coherence; calm from, full, mip, amount.</summary>
+    internal string StudyKitLook(float strength, float steps, float coherence, float calmFrom, float calmFull, float calmMip, float calm)
+    {
+        kitLook = new DungeonKitLook.Look(strength, steps, coherence, calmFrom, calmFull, calmMip, calm);
+        space?.TuneKit(kitLook);
+        return $"kit look={kitLook}";
     }
 
     internal string StudyCentrepiece(string choice)

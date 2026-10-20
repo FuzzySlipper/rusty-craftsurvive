@@ -42,6 +42,12 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>The kit paint study's texture folder (#10089), or null for the kit's own textures.</summary>
     private readonly string? kitPaint;
 
+    /// <summary>The kit stone shader's settings for this space (#10089).</summary>
+    private readonly DungeonKitLook.Look kitLook;
+
+    /// <summary>Retunes the kit's stone shader now, when the space has a kit (a study).</summary>
+    internal void TuneKit(DungeonKitLook.Look look) => kit?.Tune(look);
+
     /// <summary>A cave's moss and ivy cards (#10092): their materials, while the space draws them.</summary>
     private CaveMossCards? mossCards;
 
@@ -60,9 +66,10 @@ internal sealed class DungeonSpace : IDisposable
     /// <param name="voxelRock">For a voxel look, the material each rock block draws in (#10094: the cave rock's age classes).</param>
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
         DungeonSurface surface = DungeonSurface.Cubes, IReadOnlyDictionary<BlockId, Material>? voxelRock = null, bool caveLayers = false,
-        string? kitPaint = null)
+        string? kitPaint = null, DungeonKitLook.Look? kitLook = null)
     {
         this.kitPaint = kitPaint;
+        this.kitLook = kitLook ?? DungeonKitLook.Look.Default;
         this.voxelRock = voxelRock;
         this.caveLayers = caveLayers;
         this.surface = surface;
@@ -173,7 +180,7 @@ internal sealed class DungeonSpace : IDisposable
             if (layout.Kit.Count > 0 && !DungeonSurfaces.RockAsMesh(surface))
             {
                 // The kit stands where its building's voxels were taken out (DungeonKit): it draws and collides in their place.
-                kit = new DungeonKitLook(engine, terrain.Content, layout.Kit, kitPaint);
+                kit = new DungeonKitLook(engine, terrain.Content, layout.Kit, kitLook, kitPaint);
                 kit.Collide(Session);
                 RockReadout = $"{RockReadout} kit={kit.Count}";
             }

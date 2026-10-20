@@ -22,24 +22,44 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>The kit's collision asset and instance ids, clear of the rock's.</summary>
     private const ulong AssetBase = 0x4000UL, InstanceBase = 0x10_0000UL;
 
+    private const string ShaderPath = "shaders/kit-stone.wgsl";
+
+    /// <summary>
+    /// The kit stone shader's settings (kit-stone.wgsl): the texture's width in texels, the texel facets' strength, snap
+    /// steps and how much neighbours lean together; then where calming begins and is full (texels per screen pixel), the
+    /// mip the neighbourhood's mean is read from, and how far fine contrast is turned down at full calm.
+    /// </summary>
+    internal readonly record struct Look(float FacetStrength, float FacetSteps, float FacetCoherence, float CalmFrom, float CalmFull, float CalmMip, float Calm)
+    {
+        internal static Look Default { get; } = new(0.6f, 0f, 0.4f, 0.35f, 1.2f, 2f, 0.7f);
+    }
+
+    /// <summary>The kit's textures are this many texels across (512 at 32 texels/m over the 16 m an atlas spans).</summary>
+    private const float TextureTexels = 512f;
+
     private readonly IEngineContext engine;
-    private readonly PropMaterials materials;
+    private readonly RenderResource shader;
+    private readonly Dictionary<string, RenderResource> textures = [];
+    private readonly List<(Material Material, RenderResource Texture)> materials = [];
+    private Look look;
     private readonly Dictionary<KitPiece, (MeshResource Mesh, Appearance Look)> pieces = [];
     private readonly List<(KitPiece Piece, Transform Place)> placed = [];
 
-    /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "qwen"), or null for its own.</param>
-    internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements, string? paint = null)
+    /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "plain", painted from the geometry), or null for its own.</param>
+    /// <param name="look">The kit stone shader's settings (a study may tune them).</param>
+    internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements, Look look, string? paint = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         ArgumentNullException.ThrowIfNull(content);
-        materials = new PropMaterials(engine, _ => new PropMaterials.Finish(Roughness, 0, 0));
+        this.look = look;
+        shader = engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath)).Handle;
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         Dictionary<string, string> models = manifest.RootElement.GetProperty("pieces").EnumerateArray()
             .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.GetProperty("model").GetString()!);
         foreach (KitPiece piece in placements.Select(p => p.Piece).Distinct())
         {
             MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, models[DungeonKit.Name(piece)], (role, texture) =>
-                materials.For(role, Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint))));
+                Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint))));
             pieces[piece] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
@@ -47,6 +67,40 @@ internal sealed class DungeonKitLook : IDisposable
         {
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
             placed.Add((p.Piece, new Transform(at, turn, scale)));
+        }
+    }
+
+    /// <summary>A material for a kit texture: the texture as its base colour, nearest with mipmaps, under the kit stone shader.</summary>
+    private Material Material(string path)
+    {
+        if (!textures.TryGetValue(path, out RenderResource? texture))
+        {
+            texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+            textures[path] = texture;
+        }
+
+        Material material = engine.Graphics.CreateMaterial(Request(texture));
+        materials.Add((material, texture));
+        return material;
+    }
+
+    private MaterialRequest Request(RenderResource texture)
+    {
+        Color white = new(1f, 1f, 1f, 1f);
+        return new MaterialRequest(white, texture, Roughness, white, Vector3.Zero, 0f, false)
+        {
+            Shader = new MaterialShader(shader, new Vector4(TextureTexels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
+                new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), Vector4.Zero, Vector4.Zero, texture, default(RenderResourceReference)),
+        };
+    }
+
+    /// <summary>Retunes the kit stone shader on every piece now (a study).</summary>
+    internal void Tune(Look next)
+    {
+        look = next;
+        foreach ((Material material, RenderResource texture) in materials)
+        {
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, Request(texture)));
         }
     }
 
@@ -82,6 +136,18 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         pieces.Clear();
-        materials.Dispose();
+        foreach ((Material material, RenderResource _) in materials)
+        {
+            material.Dispose();
+        }
+
+        materials.Clear();
+        foreach (RenderResource texture in textures.Values)
+        {
+            texture.Dispose();
+        }
+
+        textures.Clear();
+        shader.Dispose();
     }
 }
