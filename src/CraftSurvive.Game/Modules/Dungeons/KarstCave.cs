@@ -796,6 +796,80 @@ internal static class KarstCave
         }
     }
 
+    // A sinkhole forest (#10129; owner's reference: the Vietnamese and Chinese tiankeng with forests growing into them):
+    // the flora of a damp, sheltered hollow - trees, understory, ground plants - each on its own jittered grid (its
+    // spacing and the share of its places it takes), on the turf under an opening and on the plateau round its rim, out
+    // this far past it; trees want this much clear air above them.
+    private static readonly (string[] Species, float Spacing, float Share, float Least, float Most)[] ForestLayers =
+    [
+        (["alder", "beech", "laurel", "willow"], 5.5f, 0.6f, 0.7f, 1.1f),
+        (["hazel", "holly", "bush"], 3f, 0.4f, 0.8f, 1.2f),
+        (["fern", "woodland-flowers"], 1.4f, 0.55f, 0.7f, 1.3f),
+    ];
+    private const float ForestBeyondRim = 12f, TreeClearAbove = 5f;
+    private const int MostForest = 400;
+
+    /// <summary>
+    /// The forest growing into a cave's openings to the sky (#10129): on every turf column under or round a tiankeng's or
+    /// a chasm's opening, each layer of the hollow's flora on its own jittered grid, the turf found looking down from the
+    /// plateau; trees only where the air above them is clear. The surface's voxels say what is turf.
+    /// </summary>
+    private static List<ForestPlacement> SinkholeForest(Result cave)
+    {
+        List<(Vector2 Centre, float Radius)> openings = [];
+        if (cave.Tiankeng is (Vector3 floor, float radius))
+        {
+            openings.Add((new Vector2(floor.X, floor.Z), radius));
+        }
+
+        if (cave.Chasm is ChasmShape chasm)
+        {
+            openings.Add((chasm.Centre, chasm.Radius * (1f + ChasmWobble) + ChasmBand));
+        }
+
+        List<ForestPlacement> forest = [];
+        for (int layer = 0; layer < ForestLayers.Length && forest.Count < MostForest; layer++)
+        {
+            (string[] species, float spacing, float share, float least, float most) = ForestLayers[layer];
+            float span = FieldX * FieldStep;
+            for (float gz = spacing * 0.5f; gz < span && forest.Count < MostForest; gz += spacing)
+                for (float gx = spacing * 0.5f; gx < span && forest.Count < MostForest; gx += spacing)
+                {
+                    float roll = NaturalCavern.Hash(cave.Seed ^ (0xF0A1UL + (ulong)layer), (int)(gx * 4f), layer, (int)(gz * 4f));
+                    if (roll > share)
+                    {
+                        continue;
+                    }
+
+                    float jx = NaturalCavern.Hash(cave.Seed ^ 0xF0B1UL, (int)(gx * 4f), layer, (int)(gz * 4f)) - 0.5f;
+                    float jz = NaturalCavern.Hash(cave.Seed ^ 0xF0B2UL, (int)(gx * 4f), layer, (int)(gz * 4f)) - 0.5f;
+                    Vector2 at = new(gx + (jx * spacing * 0.8f), gz + (jz * spacing * 0.8f));
+                    if (!openings.Any(o => Vector2.Distance(at, o.Centre) < o.Radius + ForestBeyondRim))
+                    {
+                        continue;
+                    }
+
+                    // The turf: the first rock looking down from above the plateau, if it is turf.
+                    Vector3 ground = Floor(cave.Open, new Vector3(at.X, MathF.Min(FieldY * FieldStep - 1f, SurfaceAt(at.X, at.Y, cave.Seed) + 2f), at.Y));
+                    if (ground.Y <= 1f || cave.RockAt(ground - new Vector3(0f, FieldStep, 0f)) != BlockId.Grass)
+                    {
+                        continue;
+                    }
+
+                    if (layer == 0 && Trilinear(cave.Open, ground + new Vector3(0f, TreeClearAbove, 0f)) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    float pick = NaturalCavern.Hash(cave.Seed ^ 0xF0C1UL, (int)(gx * 4f), layer, (int)(gz * 4f));
+                    forest.Add(new ForestPlacement(species[(int)(pick * species.Length) % species.Length], (int)(pick * 977f) % 4, ground - new Vector3(0f, 0.1f, 0f),
+                        roll * 360f / share, least + ((most - least) * jx + (most - least) * 0.5f)));
+                }
+        }
+
+        return forest;
+    }
+
     /// <summary>The field sample a place lies in, or -1 outside the field.</summary>
     private static int SampleAt(Vector3 p)
     {
@@ -1616,6 +1690,7 @@ internal static class KarstCave
                 .Concat(cave.WaterZones.Where(z => z.Kind == WaterZoneKind.MistSump).SelectMany(SumpMist)).Take(MostMistVolumes)],
             Waterfalls = cave.Waterfalls,
             WaterZones = cave.WaterZones,
+            Forest = cave.SkyOpen ? SinkholeForest(cave) : [],
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
         };

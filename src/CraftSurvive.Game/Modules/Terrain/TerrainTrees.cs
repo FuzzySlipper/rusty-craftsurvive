@@ -47,7 +47,11 @@ internal sealed class TerrainTrees : IDisposable
     private static readonly Color White = new(1, 1, 1, 1);
 
     private readonly IEngineContext engine;
+    private readonly ProductContent content;
     private readonly WorldFrame frame;
+
+    /// <summary>Plants other than trees drawn outside the vegetation fields (a cave's sinkhole forest, #10129), each loaded once.</summary>
+    private readonly Dictionary<(ushort Species, int Variant), Appearance> plantLooks = [];
     private readonly Material bark, leaves;
     /// <summary>Materials for textured parts (procedural trees, #9685).</summary>
     private readonly PropMaterials textured;
@@ -73,6 +77,7 @@ internal sealed class TerrainTrees : IDisposable
     internal TerrainTrees(IEngineContext engine, ProductContent content, WorldFrame frame)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        this.content = content ?? throw new ArgumentNullException(nameof(content));
         this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
         textured = new PropMaterials(engine, role => role == LeavesRole
             ? new PropMaterials.Finish(LeafRoughness, LeafWindBend, LeafWindFlutter)
@@ -121,6 +126,33 @@ internal sealed class TerrainTrees : IDisposable
     internal IReadOnlyDictionary<ushort, Appearance[]> NearMeshes => kinds;
     internal IReadOnlyDictionary<ushort, Appearance[]> FarMeshes => farKinds;
 
+
+    /// <summary>
+    /// The look of any flora catalog species' variant by name (#10129: a cave's sinkhole forest draws the world's own flora):
+    /// a tree's near mesh, or a plant's mesh loaded once in the trees' materials; null for a name the catalog lacks. The
+    /// variant wraps round the species' variants.
+    /// </summary>
+    internal Appearance? FloraLook(string name, int variant)
+    {
+        if (FloraCatalog.Shared.Species.FirstOrDefault(s => s.Name == name) is not FloraSpecies species || species.Variants.Count == 0)
+        {
+            return null;
+        }
+
+        int which = variant % species.Variants.Count;
+        if (kinds.TryGetValue(species.Id, out Appearance[]? trees))
+        {
+            return trees[which % trees.Length];
+        }
+
+        if (!plantLooks.TryGetValue((species.Id, which), out Appearance? look))
+        {
+            look = Load(content, ModelsFolder + species.Folder + "/" + species.Variants[which]);
+            plantLooks[(species.Id, which)] = look;
+        }
+
+        return look;
+    }
 
     /// <summary>The world moved: the crowns are rebuilt in the new local frame on the next follow.</summary>
     internal void Invalidate() => stale = true;
@@ -231,6 +263,12 @@ internal sealed class TerrainTrees : IDisposable
 
     public void Dispose()
     {
+        foreach (Appearance look in plantLooks.Values)
+        {
+            look.Dispose();
+        }
+
+        plantLooks.Clear();
         foreach (Appearance[] variants in kinds.Values)
         {
             foreach (Appearance appearance in variants)

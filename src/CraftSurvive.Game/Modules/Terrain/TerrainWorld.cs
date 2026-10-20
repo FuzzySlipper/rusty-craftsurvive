@@ -416,6 +416,9 @@ internal sealed class TerrainWorld : IDisposable
 
     internal string TreesReadout() => trees.Readout();
 
+    /// <summary>A flora catalog species' look by name and variant, for flora drawn outside the world's fields (a cave's forest, #10129).</summary>
+    internal Appearance? FloraLook(string species, int variant) => trees.FloraLook(species, variant);
+
     /// <summary>The kept logs and stumps nearest a point (#10034), for aimed checks; "none" before the plants have streamed.</summary>
     internal string DeadwoodNearest(string kind, double x, double z, int count) => plantTiles?.Nearest(kind, x, z, count) ?? "none";
 

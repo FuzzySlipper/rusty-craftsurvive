@@ -41,5 +41,11 @@ internal readonly record struct Waterfall(Vector3 Lip, Vector3 Out, float Drop, 
 /// </summary>
 internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees, float Density, Vector3 Glow = default);
 
+/// <summary>
+/// One plant of a cave's forest under its sky (#10129), in layout metres: the flora catalog species by name, which of its
+/// variants, where its foot stands, its turn about the vertical (degrees) and its size.
+/// </summary>
+internal readonly record struct ForestPlacement(string Species, int Variant, Vector3 At, float YawDegrees, float Scale);
+
 /// <summary>One growth: what it is, where it stands, which way its surface faces, how big it is, and its own seed.</summary>
 internal readonly record struct EcologyPlacement(EcologyKind Kind, Vector3 At, Vector3 Normal, float Size, uint Seed);

@@ -81,7 +81,15 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot; nothing when its rock is voxels.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts =>
         [.. RockFacts, .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
-            new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene))];
+            new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene)),
+            .. forest.Select((plant, index) => new AppearanceFact(ProductIds.DungeonRockObject + ForestObjects + (ulong)index, false, 0UL,
+                plant.Place, plant.Look, true, RenderLayer.Scene))];
+
+    /// <summary>The forest growing into the space's openings (#10129): the world's flora looks (not this space's to dispose), each placed.</summary>
+    private readonly List<(Appearance Look, Transform Place)> forest = [];
+
+    /// <summary>Where the forest's object ids start past the rock's (at most <see cref="KarstCave"/>'s 400 plants, below the next range).</summary>
+    private const ulong ForestObjects = 0xE00;
 
     private IEnumerable<AppearanceFact> RockFacts => rockAppearance is Appearance appearance
         ? [new AppearanceFact(ProductIds.DungeonRockObject, false, 0UL, new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), appearance, true, RenderLayer.Scene),
@@ -148,6 +156,15 @@ internal sealed class DungeonSpace : IDisposable
                 {
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                     growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                }
+            }
+
+            foreach (ForestPlacement plant in layout.Forest)
+            {
+                if (terrain.FloraLook(plant.Species, plant.Variant) is Appearance look)
+                {
+                    forest.Add((look, new Transform(InSession(plant.At), Quaternion.CreateFromAxisAngle(Vector3.UnitY, plant.YawDegrees * MathF.PI / 180f),
+                        new Vector3(plant.Scale))));
                 }
             }
 
