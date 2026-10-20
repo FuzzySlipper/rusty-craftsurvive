@@ -240,6 +240,12 @@ internal sealed class DungeonModule : IProductModule
         fires.Dispose();
         foreach (Light? light in pool) light?.Dispose();
         Array.Clear(pool);
+        // The living lights and the lantern too: a module replaced with the world would leave them owning their ids (#10178).
+        foreach (Light? light in growthLights) light?.Dispose();
+        Array.Clear(growthLights);
+        lantern?.Dispose();
+        lantern = null;
+        lanternLit = false;
     }
 
     /// <summary>Starts loading the dungeon behind the entrance the player stands at.</summary>
