@@ -25,9 +25,7 @@
 //
 // material.parameters[3].w: mineral glints (#10091): a few colour cells catch light as faint cool sparks, so the dark
 // keeps a little texture where nothing lights it; their strength (0 none).
-// material.parameters[3]: the rock's age class (#10094), one of: x patina (levels dry for ages: darker, warmer, stained,
-// a pale calcite crust on what faces down), y washed (the active level: cleaner, cooler, wetter and glossier, its facets
-// softened by the water), z sediment (settled silt and mud: its own colour, fine and flat).
+// (The age classes that once rode in parameters[3].xyz are now the cave's own materials, #10095: xyz are unused.)
 //
 // The palette is colour only, at sizes no form is drawn at: bands along the beds, broad mottling and mineral
 // staining, a texel-fine speckle, and floors (where sediment settled) and the still-flooded depths darker and muddier.
@@ -151,43 +149,9 @@ const STAIN_FREQUENCY: f32 = 0.12;
 const SPECKLE: f32 = 0.04;
 // Below this layout height the cave still stands in water's reach: wetter, muddier, glossier.
 const WET_BELOW: f32 = 17.0;
-// The age classes: patina darkens and warms the rock and crusts what faces down with calcite; washing lightens and
-// cools it and polishes it; sediment is mud.
-const PATINA_TINT: vec3<f32> = vec3<f32>(0.78, 0.66, 0.5);
-const CALCITE: vec3<f32> = vec3<f32>(0.16, 0.15, 0.13);
-const WASHED_TINT: vec3<f32> = vec3<f32>(1.12, 1.12, 1.15);
-const MUD: vec3<f32> = vec3<f32>(0.05, 0.038, 0.026);
-const WASHED_ROUGHNESS: f32 = 0.45;
-// Algae and slime on the active level (#10129): a mottled green-brown film on washed rock that faces up or out, where
-// the water keeps it wet; not on what faces down.
-const ALGAE: vec3<f32> = vec3<f32>(0.035, 0.055, 0.025);
-const ALGAE_SHARE: f32 = 0.55;
-const ALGAE_FREQUENCY: f32 = 0.6;
-const SEDIMENT_FACETS: f32 = 0.3;
 // Glints: the share of colour cells that glint, their colour (linear emission), and how much more a washed face glints.
 const GLINT_SHARE: f32 = 0.012;
 const GLINT_COLOUR: vec3<f32> = vec3<f32>(0.035, 0.045, 0.06);
-const GLINT_WASHED: f32 = 2.0;
-
-fn aged(colour: vec3<f32>, p: vec3<f32>, n: vec3<f32>, age: vec4<f32>) -> vec3<f32> {
-    var c = colour;
-    if (age.x > 0.0) {
-        let stain = value_noise(p * 0.5 + vec3<f32>(3.0, 9.0, 1.0));
-        c = c * mix(vec3<f32>(1.0), PATINA_TINT, 0.6 + 0.4 * stain);
-        // Calcite crust where water once dripped and dried: on ceilings and what hangs.
-        c = mix(c, CALCITE, smoothstep(-0.3, -0.8, n.y) * (0.5 + 0.5 * value_noise(p * 1.3)));
-    }
-    if (age.y > 0.0) {
-        // Washed: the mottling evened out, lighter and cooler.
-        c = mix(c, vec3<f32>(dot(c, vec3<f32>(0.33))), 0.35) * WASHED_TINT;
-        let film = smoothstep(0.45, 0.7, value_noise(p * ALGAE_FREQUENCY + vec3<f32>(11.0, 5.0, 23.0))) * smoothstep(-0.2, 0.3, n.y);
-        c = mix(c, ALGAE, ALGAE_SHARE * film);
-    }
-    if (age.z > 0.0) {
-        c = MUD * (0.85 + 0.3 * value_noise(p * 2.0));
-    }
-    return c;
-}
 
 fn palette(p: vec3<f32>, n: vec3<f32>, frame: vec4<f32>) -> vec3<f32> {
     let height = p.y + frame.y;
@@ -259,15 +223,11 @@ fn shade(surface: Surface) -> vec4<f32> {
             let cell_colour = palette(cell_centre(s.world_position, axis, size), s.normal, colouring);
             colour = mix(colour, cell_colour, cell_keep(size, footprint, pixels.z));
         }
-        s.base = vec4<f32>(aged(colour, s.world_position, s.normal, material.parameters[3]), s.base.a);
+        s.base = vec4<f32>(colour, s.base.a);
         if (material.parameters[3].w > 0.0 && pixels.x > 0.0) {
             let size = cell_size(pixels.x, footprint, pixels.z);
             let spark = hash3(cell_index(s.world_position, axis, size) + vec3<i32>(401, 17, 3));
-            let share = GLINT_SHARE * select(1.0, GLINT_WASHED, material.parameters[3].y > 0.0);
-            s.emission = s.emission + GLINT_COLOUR * material.parameters[3].w * step(1.0 - share, spark);
-        }
-        if (material.parameters[3].y > 0.0) {
-            s.roughness = min(s.roughness, WASHED_ROUGHNESS);
+            s.emission = s.emission + GLINT_COLOUR * material.parameters[3].w * step(1.0 - GLINT_SHARE, spark);
         }
         let height = s.world_position.y + colouring.y;
         s.roughness = mix(s.roughness, 0.5, 1.0 - smoothstep(WET_BELOW - 3.0, WET_BELOW + 1.0, height));
@@ -275,9 +235,7 @@ fn shade(surface: Surface) -> vec4<f32> {
     if (detail.z > 0.0) {
         let steps = select(FACET_STEPS, pixels.y, pixels.y > 0.0);
         let size = cell_size(detail.z, footprint, pixels.z);
-        // Sediment lies flat: its facets barely lean.
-        let lean = select(1.0, SEDIMENT_FACETS, material.parameters[3].z > 0.0);
-        s.normal = faceted(s.normal, s.world_position, size, detail.w * lean * cell_keep(size, footprint, pixels.z), steps, pixels.w);
+        s.normal = faceted(s.normal, s.world_position, size, detail.w * cell_keep(size, footprint, pixels.z), steps, pixels.w);
     }
     if (detail.x > 0.0) {
         s.normal = grained(s.normal, s.world_position, detail.x, detail.y);
