@@ -135,6 +135,42 @@ if (args is ["modulecheck"])
     return 0;
 }
 
+if (args is ["kitpieces", string kitPiecesSeed, string kitPieceName])
+{
+    // kitpieces <seed> <piece>: where approach B's kit puts a piece for a seed, and each hall's plan at its pillars' row
+    // (B brick, # other building or rock, . air).
+    var kitPieces = ModularDungeon.Generate(ulong.Parse(kitPiecesSeed, System.Globalization.CultureInfo.InvariantCulture));
+    foreach (KitPlacement piece in kitPieces.Layout.Kit.Where(p => DungeonKit.Name(p.Piece) == kitPieceName))
+    {
+        Console.WriteLine($"{piece.Origin} turn={piece.Turn:F2}");
+    }
+
+    foreach (PlacedModule module in kitPieces.Modules.Where(m => m.Shape.Name == "breach"))
+    {
+        // The breach's walls, row by row from the floor up (. air, B building, r rock), each face as a line.
+        int by = (module.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY, bx = module.X * ModuleCanvas.CellSize, bz = module.Z * ModuleCanvas.CellSize;
+        Console.WriteLine($"breach/{module.Turns} at {bx},{by},{bz}");
+        char Mark(BlockId block) => block == BlockId.Air ? '.' : DungeonSurfaces.IsRock(block) ? 'r' : 'B';
+        for (int y = by + ModuleCanvas.StoreyHeight - 1; y >= by; y--)
+        {
+            Console.WriteLine($"y{y - by} S {string.Concat(Enumerable.Range(bx, 8).Select(x => Mark(kitPieces.Walkable.At(x, y, bz))))} N {string.Concat(Enumerable.Range(bx, 8).Select(x => Mark(kitPieces.Walkable.At(x, y, bz + 7))))} W {string.Concat(Enumerable.Range(bz, 8).Select(z => Mark(kitPieces.Walkable.At(bx, y, z))))} E {string.Concat(Enumerable.Range(bz, 8).Select(z => Mark(kitPieces.Walkable.At(bx + 7, y, z))))}");
+        }
+    }
+
+    foreach (PlacedModule module in kitPieces.Modules.Where(m => m.Shape.Name is "hall" or "great-hall"))
+    {
+        Console.WriteLine($"{module.Shape.Name}/{module.Turns} at {module.X * ModuleCanvas.CellSize},{(module.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY},{module.Z * ModuleCanvas.CellSize}");
+        int oy = (module.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY;
+        for (int z = module.Z * ModuleCanvas.CellSize; z < (module.Z + module.Depth) * ModuleCanvas.CellSize; z++)
+        {
+            Console.WriteLine(string.Concat(Enumerable.Range(module.X * ModuleCanvas.CellSize, module.Width * ModuleCanvas.CellSize).Select(x =>
+                kitPieces.Walkable.At(x, oy + 2, z) == BlockId.Air ? '.' : kitPieces.Walkable.At(x, oy + 2, z) == BlockId.Brick ? 'B' : '#')));
+        }
+    }
+
+    return 0;
+}
+
 if (args is ["modules", string moduleSeed])
 {
     var result = ModularDungeon.Candidate(ulong.Parse(moduleSeed, System.Globalization.CultureInfo.InvariantCulture), 0);
@@ -453,9 +489,11 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
 }
 
 // The dungeon kit (#10089): every stair flight it draws lies on its voxel flight (each tread's top over a voxel step with
-// air above it), and every relic stands on floor.
+// air above it), every relic stands on floor, every pillar stands where a column of building voxels stood, and the
+// pillars, breaches and great sphere are found at all.
 {
-    int flights = 0, treads = 0, relics = 0, relicsOnFloor = 0;
+    int flights = 0, treads = 0, relics = 0, relicsOnFloor = 0, pillars = 0, pillarsOnColumns = 0;
+    Dictionary<KitPiece, int> found = [];
     // A tread's step (hundreds), whether its voxel step is there (tens) and whether air is over it (units: 1 is not).
     Dictionary<int, (int Good, int All)> byStep = [];
     for (ulong kitSeed = 1; kitSeed <= 16; kitSeed++)
@@ -464,6 +502,7 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
         DungeonVolume solid = kitDungeon.Walkable;
         foreach (KitPlacement piece in kitDungeon.Layout.Kit)
         {
+            found[piece.Piece] = found.GetValueOrDefault(piece.Piece) + 1;
             (System.Numerics.Vector3 at, System.Numerics.Quaternion turn, _) = DungeonKit.Place(piece);
             System.Numerics.Vector3 Layout(System.Numerics.Vector3 local) => at + System.Numerics.Vector3.Transform(local, turn) - DungeonCollision.InSession(System.Numerics.Vector3.Zero);
             bool Solid(System.Numerics.Vector3 p) => solid.At((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y), (int)MathF.Floor(p.Z)) != BlockId.Air;
@@ -485,12 +524,25 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
                 relics++;
                 relicsOnFloor += Solid(Layout(new(0f, 0.5f, 0f))) && !Solid(Layout(new(0f, 1.5f, 0f))) ? 1 : 0;
             }
+            else if (piece.Piece is KitPiece.Pillar or KitPiece.PillarGreat)
+            {
+                // A pillar's column was building voxels from the floor up (at its middle and, for a great one, two storeys
+                // up), and the kit's drawn volume no longer has them.
+                pillars++;
+                float top = piece.Piece == KitPiece.Pillar ? 4.5f : 10.5f;
+                pillarsOnColumns += Solid(Layout(new(0f, 1.5f, 0f))) && Solid(Layout(new(0f, top, 0f)))
+                    && kitDungeon.Layout.KitDrawn!.At((int)MathF.Floor(Layout(new(0f, 2.5f, 0f)).X), (int)MathF.Floor(Layout(new(0f, 2.5f, 0f)).Y), (int)MathF.Floor(Layout(new(0f, 2.5f, 0f)).Z)) == BlockId.Air ? 1 : 0;
+            }
         }
     }
 
     Console.WriteLine($"kit: {flights} stair flights, {treads}/{flights * 6} treads on their voxel steps (misses by step/solid/roofed: {string.Join(", ", byStep.Where(t => t.Value.Good < t.Value.All).OrderBy(t => t.Key).Select(t => $"{t.Key:000}: {t.Value.All - t.Value.Good}"))}); {relicsOnFloor}/{relics} relics on floor");
     Check.That(flights > 0 && treads == flights * 6, "every kit stair flight must lie on its voxel flight");
     Check.That(relicsOnFloor == relics, "every kit relic must stand on floor with air over it");
+    Console.WriteLine($"kit pieces over 16 seeds: {string.Join(" ", found.OrderBy(f => f.Key).Select(f => $"{DungeonKit.Name(f.Key)}={f.Value}"))}; {pillarsOnColumns}/{pillars} pillars on their columns");
+    Check.That(pillars > 0 && pillarsOnColumns == pillars, "every kit pillar must stand where its voxel column stood, and take it");
+    Check.That(found.GetValueOrDefault(KitPiece.PillarGreat) > 0 && found.GetValueOrDefault(KitPiece.WallBreach) > 0 && found.GetValueOrDefault(KitPiece.SphereGreat) > 0,
+        "the kit must find great pillars, breaches and the great hall's sphere");
 }
 
 // The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the

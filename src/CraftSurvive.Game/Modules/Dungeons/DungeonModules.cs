@@ -712,8 +712,13 @@ internal static class DungeonModules
             canvas.Rooms(BlockId.Planks);
             for (int x = 0; x < Cell; x++)
             {
+                // The break spans the room between the side walls, which stand whole (the kit's breached wall hangs
+                // between them, #10089); every column still draws its height, so the layouts after it are unchanged.
                 int top = 2 + random.Range(1, 3);
-                canvas.Fill(x, 1, 0, x, top, 1, BlockId.Air);
+                if (x > 0 && x < Cell - 1)
+                {
+                    canvas.Fill(x, 1, 0, x, top, 1, BlockId.Air);
+                }
             }
 
             canvas.Fill(1, 1, 2, 2, 1, 3, BlockId.Gravel);

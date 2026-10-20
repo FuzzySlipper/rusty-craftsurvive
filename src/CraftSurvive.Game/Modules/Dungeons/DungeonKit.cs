@@ -32,6 +32,24 @@ internal enum KitPiece
 
     /// <summary>A stair flight drawn over the voxel flight that still carries the walking.</summary>
     Stair,
+
+    /// <summary>A free-standing column a storey tall (Whim: a twisting rounded square, pinched under a ceramic band, flaring into the vault).</summary>
+    Pillar,
+
+    /// <summary>The great hall's column: the pillar at 2 m across and two storeys tall.</summary>
+    PillarGreat,
+
+    /// <summary>The great hall's sphere: a big ball on a long curving rib from the upper vault, a brass ring orbiting it.</summary>
+    SphereGreat,
+
+    /// <summary>A wall whose lower part has burst into the cave (Bones): the cove and the panel's top over a ragged break, and the pilasters' stumps.</summary>
+    WallBreach,
+
+    /// <summary>The breach's fallen pieces lying just inside it.</summary>
+    BreachRubble,
+
+    /// <summary>A floor some of whose slabs are lifted at one edge (Bones).</summary>
+    FloorHeaved,
 }
 
 /// <summary>
@@ -59,8 +77,19 @@ internal static class DungeonKit
 
     // Variety (#10089): the share of plain walls that are alcove or roundel walls instead, and of corner ribs that are
     // broken; a building module at least this many cells across hangs a sphere in its middle.
-    private const double AlcoveShare = 0.12, RoundelShare = 0.08, BrokenShare = 0.2;
+    private const double AlcoveShare = 0.12, RoundelShare = 0.08, BrokenShare = 0.2, HeavedShare = 0.25;
     private const int SphereCells = 2;
+
+    // A great hall (two storeys, at least this many cells across) hangs its own sphere, if its middle is clear.
+    private const int GreatSphereCells = 3;
+
+    // A breached wall: its lowest rows at least this share air (burst open, not rock that has pushed in), and its top
+    // row at least this share building (a rock or two may have pushed in there).
+    private const double BreachOpen = 0.9, BreachTop = 0.6;
+
+    // A pillar is a free-standing column of building voxels: one voxel across and a storey tall, or two across and two
+    // storeys tall (the great hall's). It is found at this row over a storey's floor.
+    private const int PillarRow = 2, GreatPillar = 2;
 
     // A relic stands this far out from its cell's middle towards a corner (clear of the middle the routes aim at and the
     // doors in the walls' middles), its glow this high over the floor.
@@ -81,6 +110,8 @@ internal static class DungeonKit
         List<KitPlacement> pieces = [];
         List<Vector3> relics = [];
         List<(int X0, int X1, int Y0, int Y1, int Z0, int Z1)> cleared = [];
+        // Boxes whose building voxels only go (rock sculpted into them stays).
+        List<(int X0, int X1, int Y0, int Y1, int Z0, int Z1)> breached = [];
         foreach (PlacedModule module in modules.Where(m => m.Shape.Kind == ModuleKind.Building))
         {
             foreach ((int cx, int cy, int cz) in module.Cells())
@@ -104,7 +135,8 @@ internal static class DungeonKit
                     {
                         // The floor's voxels stay, just under the floor piece, so the floor walks as it did and stays one surface
                         // with any voxel floor beside it. The piece spans the whole cell, under the walls' curved recesses too.
-                        pieces.Add(Spread(piece, origin, 0, Cell - 1, 0, Cell - 1));
+                        KitPiece floor = Pick(seed, cx, cy, cz, 30) < HeavedShare ? KitPiece.FloorHeaved : KitPiece.Floor;
+                        pieces.Add(Spread(floor, origin, 0, Cell - 1, 0, Cell - 1));
                     }
                     else
                     {
@@ -119,6 +151,15 @@ internal static class DungeonKit
                 {
                     if (!stands)
                     {
+                        // A wall on the module's edge that has burst open below (the breach into the cave) is the breached
+                        // wall: what hangs on stands in for its voxels, and its fallen pieces lie inside.
+                        if (OnEdge(module, cx, cz, face) && Breached(volume, ox, oy, oz, face))
+                        {
+                            pieces.Add(WallPiece(KitPiece.WallBreach, origin, face, false, false));
+                            pieces.Add(new KitPlacement(KitPiece.BreachRubble, origin, Turn(face), Vector2.One, Vector2.Zero));
+                            breached.Add(WallSlab(ox, oy, oz, face, false, false));
+                        }
+
                         continue;
                     }
 
@@ -176,6 +217,17 @@ internal static class DungeonKit
             {
                 pieces.Add(new KitPlacement(KitPiece.Sphere, moduleCentre, 0f, Vector2.One, Vector2.Zero));
             }
+            else if (module.Shape.Height == 2 && Math.Min(width, depth) >= GreatSphereCells
+                && Clear(volume, (int)moduleCentre.X, (int)moduleCentre.Y + 1, (int)moduleCentre.Y + (2 * Storey) - 2, (int)moduleCentre.Z))
+            {
+                pieces.Add(new KitPlacement(KitPiece.SphereGreat, moduleCentre, 0f, Vector2.One, Vector2.Zero));
+            }
+
+            foreach ((KitPiece piece, Vector3 at, (int X0, int X1, int Y0, int Y1, int Z0, int Z1) box) in Pillars(volume, module))
+            {
+                pieces.Add(new KitPlacement(piece, at, (int)(Pick(seed, (int)at.X, (int)at.Y, (int)at.Z, 40) * 4) * MathF.PI / 2f, Vector2.One, Vector2.Zero));
+                cleared.Add(box);
+            }
 
             foreach ((string _, int fx, int fz) in Flights.Where(f => f.Module == module.Shape.Name))
             {
@@ -191,7 +243,103 @@ internal static class DungeonKit
             drawn.Fill(new DungeonCell(x0, y0, z0), new DungeonCell(x1, y1, z1), BlockId.Air);
         }
 
+        foreach ((int x0, int x1, int y0, int y1, int z0, int z1) in breached)
+        {
+            for (int x = x0; x <= x1; x++)
+                for (int y = y0; y <= y1; y++)
+                    for (int z = z0; z <= z1; z++)
+                    {
+                        if (Building(drawn.At(x, y, z)))
+                        {
+                            drawn.Set(x, y, z, BlockId.Air);
+                        }
+                    }
+        }
+
         return (pieces, drawn, relics);
+    }
+
+    /// <summary>
+    /// A building module's free-standing columns, found at <see cref="PillarRow"/> over its lowest floor: a lone building
+    /// voxel a storey tall is a pillar, a 2 x 2 two storeys tall a great pillar. Each with where it stands (its column's
+    /// centre at the floor block's bottom) and the voxels it takes; anything else (a stair, a heap, a wall) is not one.
+    /// </summary>
+    private static IEnumerable<(KitPiece Piece, Vector3 At, (int X0, int X1, int Y0, int Y1, int Z0, int Z1) Box)> Pillars(DungeonVolume volume, PlacedModule module)
+    {
+        int x0 = (module.X * Cell) + 1, x1 = ((module.X + module.Width) * Cell) - 2;
+        int z0 = (module.Z * Cell) + 1, z1 = ((module.Z + module.Depth) * Cell) - 2;
+        int oy = (module.Y * Storey) + ModularDungeon.BaseY, row = oy + PillarRow;
+        HashSet<(int, int)> seen = [];
+        for (int x = x0; x <= x1; x++)
+            for (int z = z0; z <= z1; z++)
+            {
+                if (seen.Contains((x, z)) || !Building(volume.At(x, row, z)))
+                {
+                    continue;
+                }
+
+                // The column's footprint: its building voxels joined at this row, given up on past a great pillar's size.
+                List<(int X, int Z)> foot = [];
+                Stack<(int X, int Z)> open = new([(x, z)]);
+                while (open.Count > 0 && foot.Count <= GreatPillar * GreatPillar)
+                {
+                    (int px, int pz) = open.Pop();
+                    if (px < x0 || px > x1 || pz < z0 || pz > z1 || !seen.Add((px, pz)) || !Building(volume.At(px, row, pz)))
+                    {
+                        continue;
+                    }
+
+                    foot.Add((px, pz));
+                    open.Push((px + 1, pz));
+                    open.Push((px - 1, pz));
+                    open.Push((px, pz + 1));
+                    open.Push((px, pz - 1));
+                }
+
+                int minX = foot.Min(f => f.X), minZ = foot.Min(f => f.Z);
+                bool square = foot.Count == GreatPillar * GreatPillar && foot.Max(f => f.X) == minX + 1 && foot.Max(f => f.Z) == minZ + 1;
+                if (foot.Count == 1 && Standing(volume, foot, oy + 1, oy + Storey - 2))
+                {
+                    yield return (KitPiece.Pillar, new Vector3(minX + 0.5f, oy, minZ + 0.5f), (minX, minX, oy + 1, oy + Storey - 2, minZ, minZ));
+                }
+                else if (square && module.Shape.Height >= 2 && Standing(volume, foot, oy + 1, oy + (2 * Storey) - 2))
+                {
+                    yield return (KitPiece.PillarGreat, new Vector3(minX + 1f, oy, minZ + 1f), (minX, minX + 1, oy + 1, oy + (2 * Storey) - 2, minZ, minZ + 1));
+                }
+            }
+    }
+
+    /// <summary>Whether every voxel of a footprint is building from one row to another.</summary>
+    private static bool Standing(DungeonVolume volume, List<(int X, int Z)> foot, int y0, int y1) =>
+        foot.All(f => Enumerable.Range(y0, y1 - y0 + 1).All(y => Building(volume.At(f.X, y, f.Z))));
+
+    /// <summary>Whether a column of voxels is air from one row to another.</summary>
+    private static bool Clear(DungeonVolume volume, int x, int y0, int y1, int z) =>
+        Enumerable.Range(y0, y1 - y0 + 1).All(y => volume.At(x, y, z) == BlockId.Air);
+
+    /// <summary>Whether a cell's face is on its module's edge (not between two of its own cells).</summary>
+    private static bool OnEdge(PlacedModule module, int cx, int cz, ModuleFace face) => face switch
+    {
+        ModuleFace.South => cz == module.Z,
+        ModuleFace.North => cz == module.Z + module.Depth - 1,
+        ModuleFace.West => cx == module.X,
+        _ => cx == module.X + module.Width - 1,
+    };
+
+    /// <summary>Whether a wall has burst open below (its lowest rows nearly all air) while its top row stands.</summary>
+    private static bool Breached(DungeonVolume volume, int ox, int oy, int oz, ModuleFace face)
+    {
+        (int x0, int x1, int _, int _, int z0, int z1) = WallSlab(ox, oy, oz, face, false, false);
+        int air = 0, total = 0;
+        for (int x = x0; x <= x1; x++)
+            for (int y = oy + 1; y <= oy + 2; y++)
+                for (int z = z0; z <= z1; z++)
+                {
+                    total++;
+                    air += volume.At(x, y, z) == BlockId.Air ? 1 : 0;
+                }
+
+        return air >= BreachOpen * total && Share(volume, x0, x1, oy + Storey - 1, oy + Storey - 1, z0, z1) >= BreachTop;
     }
 
     /// <summary>Whether a relic's spot has floor under it and the room's headroom over it, a metre round.</summary>
@@ -244,10 +392,11 @@ internal static class DungeonKit
     /// Whether a piece collides. The floor's voxels stay under the floor piece and carry the floor, so the floor piece only
     /// draws: colliding it too would stack two floors a few centimetres apart in every column of the navigation. The vault
     /// draws only for the same reason (its top meets the floor of any storey above), as does the stair over its voxel
-    /// flight; the sphere hangs over heads, the relic is a little thing in a corner (its plinth and caps would stack
+    /// flight, and a heaved floor and a breach's fallen pieces, which lie on the floor's voxels; the spheres hang over heads, the relic is a little thing in a corner (its plinth and caps would stack
     /// walkable layers over the floor), and its glow is light.
     /// </summary>
-    internal static bool Collides(KitPiece piece) => piece is not (KitPiece.Floor or KitPiece.Vault or KitPiece.Stair or KitPiece.Sphere or KitPiece.Relic or KitPiece.RelicGlow);
+    internal static bool Collides(KitPiece piece) => piece is not (KitPiece.Floor or KitPiece.FloorHeaved or KitPiece.Vault or KitPiece.Stair
+        or KitPiece.Sphere or KitPiece.SphereGreat or KitPiece.Relic or KitPiece.RelicGlow or KitPiece.BreachRubble);
 
     /// <summary>
     /// The piece whose shape a piece collides as: an alcove or roundel wall as the plain wall, a broken rib as the whole
@@ -282,6 +431,12 @@ internal static class DungeonKit
         KitPiece.RelicGlow => "relic-glow",
         KitPiece.CornerBroken => "corner-broken",
         KitPiece.Stair => "stair",
+        KitPiece.Pillar => "pillar",
+        KitPiece.PillarGreat => "pillar-great",
+        KitPiece.SphereGreat => "sphere-great",
+        KitPiece.WallBreach => "wall-breach",
+        KitPiece.BreachRubble => "breach-rubble",
+        KitPiece.FloorHeaved => "floor-heaved",
         _ => "corner",
     };
 

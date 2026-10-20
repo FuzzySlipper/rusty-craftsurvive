@@ -152,6 +152,7 @@ internal static class ModularDungeon
             Kit = kit,
             KitDrawn = kitDrawn,
             Relics = relics,
+            Modules = placed,
         };
         return (layout, plan, verdict, walkable, placed);
     }

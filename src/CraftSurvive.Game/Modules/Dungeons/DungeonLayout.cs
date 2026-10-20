@@ -41,6 +41,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>A modular dungeon's kit pieces (#10089): its building's floors, vaults and walls as kit meshes.</summary>
     internal IReadOnlyList<KitPlacement> Kit { get; init; } = [];
 
+    /// <summary>A modular dungeon's placed modules, for readouts (where each stands).</summary>
+    internal IReadOnlyList<PlacedModule> Modules { get; init; } = [];
+
     /// <summary>The voxels drawn and collided once the kit stands in its building: the walkable volume less the voxels the pieces took.</summary>
     internal DungeonVolume? KitDrawn { get; init; }
 

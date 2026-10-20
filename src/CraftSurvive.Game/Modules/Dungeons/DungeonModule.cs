@@ -1121,12 +1121,22 @@ internal sealed class DungeonModule : IProductModule
             return "no dungeon is loaded";
         }
 
+        if (piece == ModulesListed)
+        {
+            // Each building module's name, turns and voxel box (layout metres), to find a piece's room.
+            return string.Join(" | ", current.Layout.Modules.Where(m => m.Shape.Kind == ModuleKind.Building).Select(m => string.Create(CultureInfo.InvariantCulture,
+                $"{m.Shape.Name}/{m.Turns} {m.X * ModuleCanvas.CellSize},{(m.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY},{m.Z * ModuleCanvas.CellSize}+{m.Width * ModuleCanvas.CellSize}x{m.Shape.Height * ModuleCanvas.StoreyHeight}x{m.Depth * ModuleCanvas.CellSize}")));
+        }
+
         IReadOnlyList<KitPlacement> kit = current.Layout.Kit;
         string counts = string.Join(" ", kit.GroupBy(p => p.Piece).Select(g => $"{DungeonKit.Name(g.Key)}={g.Count()}"));
         KitPlacement[] these = [.. kit.Where(p => DungeonKit.Name(p.Piece) == piece)];
         return these.Length == 0 ? $"kit={kit.Count} {counts}" : $"kit={kit.Count} {counts} | " + string.Join(" ", these.Take(CardsListed).Select(p =>
             string.Create(CultureInfo.InvariantCulture, $"{p.Origin.X:F1},{p.Origin.Y:F1},{p.Origin.Z:F1}/{p.Turn * 180f / MathF.PI:F0}")));
     }
+
+    /// <summary>The kit readout's argument that lists the building modules instead of a piece.</summary>
+    private const string ModulesListed = "modules";
 
     /// <summary>How many anchors the cards readout lists at most.</summary>
     private const int CardsListed = 16;
