@@ -17,9 +17,9 @@ namespace CraftSurvive.Game.Modules.Places;
 /// </summary>
 internal sealed class PlaceMossCards : IDisposable
 {
-    private const string AtlasPath = "textures/places/moss-cards.png";
+    internal const string AtlasPath = "textures/places/moss-cards.png";
     /// <summary>Flat moss mats seen from above (make-grass-atlas.py --centre): a 2x2 atlas of patches.</summary>
-    private const string MatsPath = "textures/places/moss-mats.png";
+    internal const string MatsPath = "textures/places/moss-mats.png";
     /// <summary>Icicle fringes (#10068, scripts/generate-icicles.py): a 2x2 atlas, the top row's icicles shorter than the bottom's.</summary>
     private const string IciclesPath = "textures/places/icicles.png";
     /// <summary>
@@ -73,7 +73,8 @@ internal sealed class PlaceMossCards : IDisposable
     private readonly Material material, mats, icicles;
     private readonly Dictionary<MeshResource, (Anchor[] Lips, Anchor[] Feet, Anchor[] Faces, Anchor[] Tops)> anchors = [];
 
-    private enum Kind
+    /// <summary>What a card is; a cave grows the first four on its rock too (#10092).</summary>
+    internal enum Kind
     {
         Curtain,
         Cushion,
@@ -215,7 +216,7 @@ internal sealed class PlaceMossCards : IDisposable
     /// One card, both windings: a curtain hanging down the face from a lip, a smaller curtain lying on a side face from
     /// its anchor (centred on it), or a cushion standing at a foot.
     /// </summary>
-    private static void Card(Vector3 at, Vector3 outward, Vector3 faceNormal, Kind kind, float pick, List<Vector3> positions, List<Vector3> normals,
+    internal static void Card(Vector3 at, Vector3 outward, Vector3 faceNormal, Kind kind, float pick, List<Vector3> positions, List<Vector3> normals,
         List<Vector2> uvs, List<uint> indices)
     {
         // A face card lies on its face, which may lean or taper (a stele): it hangs down the face's own slope and
@@ -349,7 +350,7 @@ internal sealed class PlaceMossCards : IDisposable
     /// A flat moss mat lying on a top, turned at random about the top's normal and showing one of the mats atlas's four
     /// patches; one winding, facing up off the stone.
     /// </summary>
-    private static void Mat(Vector3 at, Vector3 normal, float pick, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
+    internal static void Mat(Vector3 at, Vector3 normal, float pick, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
     {
         Vector3 n = Vector3.Normalize(normal);
         Vector3 t = Vector3.Normalize(Vector3.Cross(MathF.Abs(n.X) < 0.9f ? Vector3.UnitX : Vector3.UnitZ, n));

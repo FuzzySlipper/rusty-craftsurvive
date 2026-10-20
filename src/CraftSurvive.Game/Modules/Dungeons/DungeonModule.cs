@@ -1027,6 +1027,30 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>The loaded cave's water zones (#10094, #10178): each one's kind, surface, open area, the extent of its open surface and its mouths, in layout metres.</summary>
+    /// <summary>The moss and ivy cards on the loaded cave's rock (#10092): how many of each kind, and every nth of one kind's anchors.</summary>
+    internal string CardsReadout(string kind)
+    {
+        if (space is not DungeonSpace current)
+        {
+            return "no dungeon is loaded";
+        }
+
+        IReadOnlyList<MossCard> cards = current.Layout.MossCards;
+        string counts = string.Join(" ", Enum.GetValues<MossCardKind>().Select(k => $"{k}={cards.Count(c => c.Kind == k)}"));
+        if (!Enum.TryParse(kind, true, out MossCardKind wanted))
+        {
+            return $"cards={cards.Count} {counts}";
+        }
+
+        MossCard[] these = [.. cards.Where(c => c.Kind == wanted)];
+        int every = Math.Max(1, these.Length / CardsListed);
+        return $"cards={cards.Count} {counts} | " + string.Join(" ", these.Where((_, i) => i % every == 0).Take(CardsListed).Select(c =>
+            string.Create(CultureInfo.InvariantCulture, $"{c.At.X:F1},{c.At.Y:F1},{c.At.Z:F1}/{c.Out.X:F1},{c.Out.Z:F1}")));
+    }
+
+    /// <summary>How many anchors the cards readout lists at most.</summary>
+    private const int CardsListed = 16;
+
     internal string WaterReadout()
     {
         if (space is not DungeonSpace current)

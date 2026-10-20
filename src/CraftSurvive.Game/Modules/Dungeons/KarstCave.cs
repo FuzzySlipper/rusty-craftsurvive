@@ -816,17 +816,7 @@ internal static class KarstCave
     /// </summary>
     private static List<ForestPlacement> SinkholeForest(Result cave)
     {
-        List<(Vector2 Centre, float Radius)> openings = [];
-        if (cave.Tiankeng is (Vector3 floor, float radius))
-        {
-            openings.Add((new Vector2(floor.X, floor.Z), radius));
-        }
-
-        if (cave.Chasm is ChasmShape chasm)
-        {
-            openings.Add((chasm.Centre, chasm.Radius * (1f + ChasmWobble) + ChasmBand));
-        }
-
+        List<(Vector2 Centre, float Radius)> openings = Openings(cave);
         List<ForestPlacement> forest = [];
         for (int layer = 0; layer < ForestLayers.Length && forest.Count < MostForest; layer++)
         {
@@ -868,6 +858,200 @@ internal static class KarstCave
         }
 
         return forest;
+    }
+
+    /// <summary>A cave's openings to the sky, in plan: a tiankeng's, a chasm's.</summary>
+    private static List<(Vector2 Centre, float Radius)> Openings(Result cave)
+    {
+        List<(Vector2 Centre, float Radius)> openings = [];
+        if (cave.Tiankeng is (Vector3 floor, float radius))
+        {
+            openings.Add((new Vector2(floor.X, floor.Z), radius));
+        }
+
+        if (cave.Chasm is ChasmShape chasm)
+        {
+            openings.Add((chasm.Centre, chasm.Radius * (1f + ChasmWobble) + ChasmBand));
+        }
+
+        return openings;
+    }
+
+    // Moss and ivy cards (#10092; #10044's painted cards): grown where the cave's moss is, more of them the wetter the
+    // rock - the generator's drip and standing water are the cave's moisture volume, and light is the moss's other need
+    // (Result.Lit) - and ivy down an opening's walls from its rim, over whatever rock. The surface is looked for on a
+    // lattice this fine, a card's anchor at most one in each cell this wide; each kind takes its share of the anchors
+    // (scaled by wetness from a dry share to 1), and a cave grows at most so many. A wall takes no card of its own: the
+    // moss rock is the wall's moss, small wall cards read as specks on it, and a curtain's straight top on a bare wall as a box.
+    private const float CardStep = 0.5f, CardApart = 0.55f;
+    private const float MatShare = 0.7f, CushionShare = 0.6f, CurtainShare = 0.8f;
+    private const float DryCardShare = 0.45f, WetCardDamp = 0.3f;
+    // Ivy hangs from an opening's rim this far down its walls, and this far out past the opening's edge.
+    private const float IvyBelowRim = 6f, IvyBeyondOpening = 1.5f;
+    // Ivy from a rim's lip hangs in a chain of at most this many curtains, each this far below the last (less than the
+    // shortest curtain's hang, so they overlap).
+    private const int IvyChain = 4;
+    private const float IvyLink = 1f;
+    // An opening's cliff: the rock this far behind a wall is solid up to this far under the plateau, at so many heights.
+    private const float IvyCliffBehind = 0.6f, IvyCliffTop = 0.8f;
+    private const int IvyCliffSamples = 3;
+    // A floor faces up this much, a wall is this near the horizontal; a lip has air over the rock this near above its
+    // anchor and a clear drop this deep in front; a foot has a floor this near below.
+    private const float CardTopRise = 0.6f, CardSideRise = 0.35f, LipAbove = 0.5f, LipDrop = 1f, FootBelow = 0.5f;
+    private const int MostCards = 1200;
+    private const float MossPatchReach = 0.6f;
+
+    /// <summary>
+    /// The moss and ivy cards on a cave's rock (#10092): on the lattice, every place just inside the open air near the
+    /// rock is moved onto the surface; there, under the light the moss needs or on an opening's cliff, a mossy floor takes
+    /// a mat, a mossy wall a cushion at its foot and a curtain over its lip, and a cliff's lip ivy hanging down it in a
+    /// chain of curtains, whatever the rock.
+    /// </summary>
+    private static List<MossCard> MossCards(Result cave)
+    {
+        List<(Vector2 Centre, float Radius)> openings = cave.SkyOpen ? Openings(cave) : [];
+        float top = FieldY * FieldStep;
+        List<(Vector3 Min, Vector3 Max)> boxes = [.. cave.SinkPoints.Select(s => (s - new Vector3(MossNearSink), s + new Vector3(MossNearSink)))];
+        foreach ((Vector2 centre, float radius) in openings)
+        {
+            float reach = radius + MathF.Max(MossBeyondOpening, IvyBeyondOpening);
+            // Down only as far as the light reaches the moss from the lowest of the plateau round the opening.
+            float lowest = new[] { Vector2.Zero, Vector2.UnitX, -Vector2.UnitX, Vector2.UnitY, -Vector2.UnitY }
+                .Min(d => SurfaceAt(centre.X + (d.X * reach), centre.Y + (d.Y * reach), cave.Seed));
+            float floor = MathF.Max(0f, lowest - MathF.Max(MossBelowSky, IvyBelowRim) - CardStep);
+            boxes.Add((new Vector3(centre.X - reach, floor, centre.Y - reach), new Vector3(centre.X + reach, top, centre.Y + reach)));
+        }
+
+        bool InIvy(Vector3 p)
+        {
+            float below = SurfaceAt(p.X, p.Z, cave.Seed) - p.Y;
+            return below >= 0f && below < IvyBelowRim
+                && openings.Any(o => Vector2.Distance(new Vector2(p.X, p.Z), o.Centre) < o.Radius + IvyBeyondOpening);
+        }
+
+        float Open(Vector3 p) => Trilinear(cave.Open, p);
+
+        // A cliff of the opening, not a boulder on its floor: the rock behind a wall stands solid up to near the plateau.
+        bool Cliff(Vector3 p, Vector3 normal)
+        {
+            Vector3 behind = new Vector3(-normal.X, 0f, -normal.Z) * IvyCliffBehind;
+            float rise = SurfaceAt(p.X, p.Z, cave.Seed) - IvyCliffTop - p.Y;
+            for (int k = 1; k <= IvyCliffSamples; k++)
+            {
+                if (Open(p + behind + (Vector3.UnitY * (rise * k / IvyCliffSamples))) > 0f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Moss thick enough for a card: the rock under the anchor and round it, this far out across the surface, is all moss,
+        // so a card sits in a patch rather than alone on bare rock.
+        bool MossPatch(Vector3 p, Vector3 normal)
+        {
+            Vector3 under = p - (normal * (FieldStep * 0.5f));
+            Vector3 u = Vector3.Normalize(Vector3.Cross(MathF.Abs(normal.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX, normal)), v = Vector3.Cross(normal, u);
+            return cave.RockAt(under) == MossRock && cave.RockAt(under + (u * MossPatchReach)) == MossRock && cave.RockAt(under - (u * MossPatchReach)) == MossRock
+                && cave.RockAt(under + (v * MossPatchReach)) == MossRock && cave.RockAt(under - (v * MossPatchReach)) == MossRock;
+        }
+
+        HashSet<(int, int, int)> taken = [];
+        List<MossCard> cards = [];
+        foreach ((Vector3 min, Vector3 max) in boxes)
+        {
+            for (float z = MathF.Max(1f, min.Z); z < MathF.Min(FieldZ * FieldStep - 1f, max.Z) && cards.Count < MostCards; z += CardStep)
+                for (float y = MathF.Max(1f, min.Y); y < MathF.Min(top - 1f, max.Y) && cards.Count < MostCards; y += CardStep)
+                    for (float x = MathF.Max(1f, min.X); x < MathF.Min(FieldX * FieldStep - 1f, max.X) && cards.Count < MostCards; x += CardStep)
+                    {
+                        Vector3 p = new(x, y, z);
+                        float o = Open(p);
+                        if (o <= 0f || o > CardStep)
+                        {
+                            continue;
+                        }
+
+                        Vector3 g = new(Open(p + Vector3.UnitX * 0.1f) - Open(p - Vector3.UnitX * 0.1f), Open(p + Vector3.UnitY * 0.1f) - Open(p - Vector3.UnitY * 0.1f),
+                            Open(p + Vector3.UnitZ * 0.1f) - Open(p - Vector3.UnitZ * 0.1f));
+                        if (g.LengthSquared() < 1e-8f)
+                        {
+                            continue;
+                        }
+
+                        // Onto the surface the rock is drawn at (the field with its finer forms), a few steps along the normal.
+                        Vector3 n = Vector3.Normalize(g), s = p;
+                        for (int step = 0; step < 3; step++)
+                        {
+                            s -= n * cave.At(s) * 0.8f;
+                        }
+
+                        if (!taken.Add(((int)MathF.Floor(s.X / CardApart), (int)MathF.Floor(s.Y / CardApart), (int)MathF.Floor(s.Z / CardApart))))
+                        {
+                            continue;
+                        }
+
+                        bool ivy = openings.Count > 0 && InIvy(s) && Cliff(s, n);
+                        bool mossy = MossPatch(s, n);
+                        if (!ivy && !mossy)
+                        {
+                            continue;
+                        }
+
+                        int cx = (int)(s.X * 4f), cy = (int)(s.Y * 4f), cz = (int)(s.Z * 4f);
+                        float roll = NaturalCavern.Hash(cave.Seed ^ 0xC4D1UL, cx, cy, cz), pick = NaturalCavern.Hash(cave.Seed ^ 0xC4D2UL, cx, cy, cz);
+                        float damp = MathF.Max(GridTrilinear(cave.Drip, s), GridTrilinear(cave.Standing, s));
+                        float wet = DryCardShare + ((1f - DryCardShare) * Math.Clamp(damp / WetCardDamp, 0f, 1f));
+                        if (n.Y > CardTopRise)
+                        {
+                            if (mossy && roll < MatShare * wet)
+                            {
+                                cards.Add(new MossCard(MossCardKind.Mat, s, Vector3.Zero, n, pick));
+                            }
+
+                            continue;
+                        }
+
+                        if (MathF.Abs(n.Y) > CardSideRise)
+                        {
+                            continue;
+                        }
+
+                        Vector3 outward = Vector3.Normalize(new Vector3(n.X, 0f, n.Z));
+                        // A lip: air over the rock behind the wall, just above, and a clear drop in front. Its curtain hangs from the edge.
+                        float edge = 0f;
+                        while (edge < LipAbove && Open(s - (outward * 0.3f) + (Vector3.UnitY * edge)) <= 0f)
+                        {
+                            edge += 0.1f;
+                        }
+
+                        bool lip = edge < LipAbove && Open(s + (outward * 0.4f) - (Vector3.UnitY * LipDrop)) > 0f;
+                        bool foot = Open(s + (outward * 0.3f) - (Vector3.UnitY * FootBelow)) <= 0f;
+                        if (lip && roll < (ivy ? 1f : CurtainShare * wet))
+                        {
+                            Vector3 lipAt = s + (Vector3.UnitY * edge);
+                            cards.Add(new MossCard(MossCardKind.Curtain, lipAt, outward, n, pick));
+                            // Ivy hangs on down the cliff in a chain, each curtain's ragged end over the next one's top, while
+                            // the wall goes on below (rock behind, air in front).
+                            for (int link = 1; ivy && link < IvyChain; link++)
+                            {
+                                Vector3 below = lipAt - (Vector3.UnitY * (IvyLink * link));
+                                if (Open(below - (outward * 0.3f)) > 0f || Open(below + (outward * 0.4f)) <= 0f)
+                                {
+                                    break;
+                                }
+
+                                cards.Add(new MossCard(MossCardKind.Curtain, below, outward, n, NaturalCavern.Hash(cave.Seed ^ 0xC4D3UL, cx, cy - link, cz)));
+                            }
+                        }
+                        else if (foot && mossy && roll < CushionShare * wet)
+                        {
+                            cards.Add(new MossCard(MossCardKind.Cushion, Floor(cave.Open, s + (outward * 0.35f)), outward, Vector3.UnitY, pick));
+                        }
+                    }
+        }
+
+        return cards;
     }
 
     /// <summary>The field sample a place lies in, or -1 outside the field.</summary>
@@ -1676,6 +1860,8 @@ internal static class KarstCave
         DungeonPlan plan = new(seed, 0, DungeonMix.MostlyCave, 1, arrival, springCell,
             [arrival, .. cave.SinkPoints.Skip(1).Select(s => StudyField.Cell(StudyField.OnFloor(shape, s.X, s.Z, s.Y))),
                 .. cave.Chambers.Select(c => StudyField.Cell(StudyField.OnFloor(shape, c.X, c.Z, c.Y))), springCell], springCell);
+        long cardsFrom = Stopwatch.GetTimestamp();
+        List<MossCard> cards = MossCards(cave);
         DungeonLayout layout = new($"karst-cave-{seed:x}", new DungeonVolume(volume.ChunksX, volume.ChunksY, volume.ChunksZ, BlockId.Air),
             arrive, arrive + new Vector3(0.5f, 0f, 0f), lights)
         {
@@ -1691,10 +1877,13 @@ internal static class KarstCave
             Waterfalls = cave.Waterfalls,
             WaterZones = cave.WaterZones,
             Forest = cave.SkyOpen ? SinkholeForest(cave) : [],
+            MossCards = cards,
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
         };
-        return (layout, plan, new DungeonVerdict(true, Readout(cave), 0), volume);
+        string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
+        return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
+            $"{Readout(cave)} mossCards={cards.Count} ({grown}) in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>

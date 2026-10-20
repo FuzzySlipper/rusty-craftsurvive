@@ -47,5 +47,24 @@ internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, 
 /// </summary>
 internal readonly record struct ForestPlacement(string Species, int Variant, Vector3 At, float YawDegrees, float Scale);
 
+/// <summary>What a moss or ivy card on a cave's rock is (#10092).</summary>
+internal enum MossCardKind
+{
+    /// <summary>A mat lying on a mossy floor.</summary>
+    Mat,
+
+    /// <summary>A cushion standing at a mossy wall's foot.</summary>
+    Cushion,
+
+    /// <summary>A curtain hanging over a lip: moss, or ivy over an opening's rim.</summary>
+    Curtain,
+}
+
+/// <summary>
+/// One moss or ivy card on a cave's rock (#10092; the overworld's painted cards, #10044), in layout metres: what card,
+/// where it is anchored, the horizontal its face looks out along, the surface's normal there, and its pick (size, cell).
+/// </summary>
+internal readonly record struct MossCard(MossCardKind Kind, Vector3 At, Vector3 Out, Vector3 Normal, float Pick);
+
 /// <summary>One growth: what it is, where it stands, which way its surface faces, how big it is, and its own seed.</summary>
 internal readonly record struct EcologyPlacement(EcologyKind Kind, Vector3 At, Vector3 Normal, float Size, uint Seed);
