@@ -16,6 +16,18 @@ internal sealed class WaterVisualMaterial : IDisposable
     private const string ShaderPath = "shaders/water-flow.wgsl";
     private const float OriginalRoughness = 0.1f, FlowRoughness = 0.18f, ShallowOpacity = 0.48f;
     private const float FlowShorelineWidth = 0.14f, FlowFoamThreshold = 0.75f;
+
+    /// <summary>
+    /// How far the waves can move a vertex (metres; the gale's crest and its lean, with the swell), so the flat tiles cull by
+    /// bounds grown that far and a displaced crest at the view's edge stays drawn (#10178).
+    /// </summary>
+    private const float WaveDisplacementBound = 2f;
+
+    /// <summary>
+    /// The shader lights the water by the waves' own normal (displace_normal) and its own ripples, so the Engine's water look
+    /// adds none of its ripples to it; the Engine-only comparison keeps them (#10178).
+    /// </summary>
+    private const float ShaderRipplesOnly = 0f;
     private static readonly Color White = new(1, 1, 1, 1);
 
     /// <summary>The comparison modes, each a keyword variant of the one shader (none for the waves).</summary>
@@ -23,7 +35,7 @@ internal sealed class WaterVisualMaterial : IDisposable
 
     private readonly IEngineContext engine;
     private readonly WorldFrame frame;
-    private readonly RenderResource foam, ripples;
+    private readonly RenderResource foam, ripples, flatNormal;
     private RenderResource shader;
     private int mode;
     private Vector4 waveBounds, wind, phasesLow, phasesHigh;
@@ -35,6 +47,7 @@ internal sealed class WaterVisualMaterial : IDisposable
         this.waveBounds = waveBounds;
         foam = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterFoamContentPath);
         ripples = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterRipplesContentPath);
+        flatNormal = TerrainAtlasCatalog.OpenTexture(engine, TerrainAtlasCatalog.WaterFlatNormalContentPath);
         shader = Open(mode);
         Material = engine.Graphics.CreateMaterial(Request());
     }
@@ -88,13 +101,16 @@ internal sealed class WaterVisualMaterial : IDisposable
         default(RenderResourceReference), Baseline ? OriginalRoughness : FlowRoughness, White, Vector3.Zero, 0, false)
     {
         AlphaMode = MaterialAlphaMode.Blend,
+        // A flat normal map of its own, so the Engine takes the normal scale for its ripples too (none: the shader's own).
+        NormalMap = Baseline ? default(RenderResourceReference) : flatNormal,
+        NormalScale = Baseline ? 1f : ShaderRipplesOnly,
         Water = Baseline ? TerrainAtlasCatalog.WaterLook(foam, ripples)
             : TerrainAtlasCatalog.WaterLook(foam, ripples) with
             {
                 ShorelineWidth = FlowShorelineWidth,
                 FoamThreshold = FlowFoamThreshold,
             },
-        Shader = new MaterialShader(shader, wind, phasesLow, phasesHigh, waveBounds),
+        Shader = new MaterialShader(shader, wind, phasesLow, phasesHigh, waveBounds) { DisplacementBound = Displaces ? WaveDisplacementBound : 0f },
     };
 
     private void Refresh() => engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(Material, Request()));
@@ -103,6 +119,7 @@ internal sealed class WaterVisualMaterial : IDisposable
     {
         Material.Dispose();
         shader.Dispose();
+        flatNormal.Dispose();
         ripples.Dispose();
         foam.Dispose();
     }

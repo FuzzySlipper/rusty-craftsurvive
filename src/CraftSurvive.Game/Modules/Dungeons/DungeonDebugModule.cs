@@ -16,6 +16,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.readout", Description = "Reads where the player stands with dungeons: state, loading progress and cost, the nearby entrance.")]
     public string Readout() => dungeons.Readout();
 
+    [DebugCommand("craft.dungeon.water", Description = "Reads the loaded cave's water zones (#10094): kind, surface height, open columns, cells, the extent of the open surface and its mouths, in layout metres.")]
+    public string Water() => dungeons.WaterReadout();
+
     [DebugCommand("craft.dungeon.studylight", Description = "Assisted, for studies (#10090): sets the underground fill light and fog density (negative restores the game's own), so shapes can be seen and compared.")]
     public string StudyLight(float fill, float fogDensity) => dungeons.StudyLight(fill, fogDensity);
 

@@ -291,6 +291,34 @@ if (args is ["sections", string sectionApproach, string sectionSeed, string sect
     return 0;
 }
 
+if (args is ["water", string waterFrom, string waterTo])
+{
+    // water <from> <to>: each karst cave's (no centrepiece, half-metre voxels) still water and how its drawn surface
+    // meets the rock (#10178): every open column drawn, and no drawn column standing in open air outside the water.
+    int faults = 0;
+    for (ulong seed = ulong.Parse(waterFrom, System.Globalization.CultureInfo.InvariantCulture); seed <= ulong.Parse(waterTo, System.Globalization.CultureInfo.InvariantCulture); seed++)
+    {
+        DungeonLayout cave = KarstCave.Generate(seed, 0.5, KarstCave.Centrepiece.None).Layout;
+        foreach ((WaterZone zone, int index) in cave.WaterZones.Select((z, i) => (z, i)).Where(p => p.z.Kind is WaterZoneKind.Lake or WaterZoneKind.Pool))
+        {
+            Func<System.Numerics.Vector3, float> shape = cave.Shape ?? throw new InvalidOperationException("a karst cave has a shape");
+            HashSet<(int X, int Z)> drawn = CaveWaterShore.Columns(zone, shape);
+            int openColumns = zone.SurfaceColumns.Count;
+            bool covers = zone.SurfaceColumns.All(c => drawn.Contains((CaveWaterShore.Index(c.X), CaveWaterShore.Index(c.Y))));
+            int rock = drawn.Count(c => shape(CaveWaterShore.At(c, zone.Surface - CaveWaterShore.ProbeBelow)) <= 0f);
+            // A drawn column open at the water's level but outside the zone's cells would be water hanging in the air.
+            int hanging = drawn.Count(c => shape(CaveWaterShore.At(c, zone.Surface - CaveWaterShore.ProbeBelow)) > 0f
+                && !zone.Contains(CaveWaterShore.At(c, zone.Surface - CaveWaterShore.ProbeBelow)) && !zone.Contains(CaveWaterShore.At(c, zone.Surface - CaveWaterShore.ProbeBelow - 1f)));
+            bool good = covers && hanging == 0;
+            faults += good ? 0 : 1;
+            Console.WriteLine(System.FormattableString.Invariant(
+                $"seed {seed} z{index} {zone.Kind} surface={zone.Surface:F2} open={openColumns} drawn={drawn.Count} underRockOrShore={rock} hanging={hanging} covers={covers}{(good ? string.Empty : " FAULT")}"));
+        }
+    }
+
+    return faults == 0 ? 0 : 1;
+}
+
 if (args is ["census", string censusSeeds])
 {
     // census <seeds>: which modules approach B's dungeons use, and the seeds that show each.

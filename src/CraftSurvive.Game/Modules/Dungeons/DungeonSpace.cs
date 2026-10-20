@@ -152,7 +152,7 @@ internal sealed class DungeonSpace : IDisposable
             {
                 // Published with the growths: an appearance draws only while a published fact names it.
                 waterSurfaces = new CaveWaterSurfaces(engine);
-                foreach (MeshResourceCreateRequest request in waterSurfaces.Requests(layout.WaterZones))
+                foreach (MeshResourceCreateRequest request in waterSurfaces.Requests(layout.WaterZones, layout.Shape))
                 {
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                     growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));

@@ -38,6 +38,9 @@ internal sealed class TerrainAtlasCatalog : IDisposable
     // scripts/generate-water-textures.py).
     internal const string WaterFoamContentPath = "textures/water-foam.png";
     internal const string WaterRipplesContentPath = "textures/water-ripples.png";
+    // A flat normal map (#10178): the Engine scales a water material's ripples by its NormalScale only when the material
+    // has a normal map of its own (otherwise at full strength), so a water look that tunes or removes them takes this one.
+    internal const string WaterFlatNormalContentPath = "textures/water-flat-normal.png";
     // The water's colours are linear as the Engine draws them (#9844), tuned by eye.
     private static readonly Color WaterShallowColor = new(0.22f, 0.5f, 0.45f, 1f);
     private static readonly Color WaterDeepColor = new(0.02f, 0.07f, 0.16f, 1f);

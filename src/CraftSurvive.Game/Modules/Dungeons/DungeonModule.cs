@@ -1026,6 +1026,25 @@ internal sealed class DungeonModule : IProductModule
         return scene;
     }
 
+    /// <summary>The loaded cave's water zones (#10094, #10178): each one's kind, surface, open area, the extent of its open surface and its mouths, in layout metres.</summary>
+    internal string WaterReadout()
+    {
+        if (space is not DungeonSpace current)
+        {
+            return "no dungeon is loaded";
+        }
+
+        IReadOnlyList<WaterZone> zones = current.Layout.WaterZones;
+        return string.Join(" | ", zones.Select((zone, i) =>
+        {
+            string extent = zone.SurfaceColumns.Count == 0 ? "none" : string.Create(CultureInfo.InvariantCulture,
+                $"{zone.SurfaceColumns.Min(c => c.X):F1},{zone.SurfaceColumns.Min(c => c.Y):F1}..{zone.SurfaceColumns.Max(c => c.X):F1},{zone.SurfaceColumns.Max(c => c.Y):F1}");
+            string mouths = string.Join(";", zone.Mouths.Select(m => string.Create(CultureInfo.InvariantCulture, $"{m.X:F1},{m.Y:F1},{m.Z:F1}")));
+            return string.Create(CultureInfo.InvariantCulture,
+                $"z{i} {zone.Kind} surface={zone.Surface:F2} columns={zone.SurfaceColumns.Count} cells={zone.Cells.Count} extent={extent} mouths={mouths}");
+        }).Prepend($"zones={zones.Count}"));
+    }
+
     internal string Readout()
     {
         string loading = space is DungeonSpace current

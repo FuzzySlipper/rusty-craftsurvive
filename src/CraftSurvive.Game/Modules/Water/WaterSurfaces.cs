@@ -13,7 +13,8 @@ namespace CraftSurvive.Game.Modules.Water;
 /// foam at the shore, ripples). Tiles about the player are built from the water owner's samples, a few
 /// an update, nearest first; a tile is retired when it falls behind, and disposed only after the next
 /// snapshot - which no longer holds it - has been published (<see cref="AfterAppearanceSnapshot"/>). A cell is drawn where any corner is wet, and a dry corner takes its
-/// wet neighbour's surface, so the plane runs on under the rising shore and the ground hides it there.
+/// wet neighbour's surface, so the plane runs on under the rising shore and the ground hides it there - or its own ground,
+/// a little under it, where that lies lower than the water (#10178).
 /// When the river stage moves on (#9878, <see cref="Refresh"/>), the tiles that hold a river or lake are
 /// sampled again, a few an update, and rebuilt in place only where the water changed; a frozen cell is
 /// drawn as ice, and the ice is also kept as triangles the walking session collides with (<see cref="Ice"/>).
@@ -34,6 +35,9 @@ internal sealed class WaterSurfaces : IDisposable
     internal static readonly Color IceColour = new(0.62f, 0.72f, 0.8f, 1);
     internal const float IceRoughness = 0.45f;
 
+    /// <summary>How far under its own ground a dry shore corner lower than its water's surface is drawn (metres).</summary>
+    private const double ShoreSink = 0.1;
+
     /// <summary>Two water tops closer than this (metres) draw the same.</summary>
     private const double TopResolution = 0.02;
 
@@ -50,6 +54,8 @@ internal sealed class WaterSurfaces : IDisposable
     private readonly WaterFlowStudy flowStudy;
     private readonly SeaState sea = new();
     private int built, retired, refreshed;
+    /// <summary>Dry shore corners last built lower than their water (into their own ground), over the tiles built so far.</summary>
+    private long sunkCorners;
     private long revision;
 
     /// <summary>A drawn tile; its ice, if any, as triangles over vertices relative to the corner.</summary>
@@ -75,7 +81,7 @@ internal sealed class WaterSurfaces : IDisposable
             tile.Look, true, RenderLayer.Scene, ShadowCasting.None))];
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} sea=[{sea.Readout()}] {flowStudy.Readout()}");
+        $"waterTiles={tiles.Count} drawn={tiles.Values.Count(t => t is not null)} quads={tiles.Values.OfType<Tile>().Sum(t => t.Quads)} iceQuads={tiles.Values.OfType<Tile>().Sum(t => t.IceQuads)} built={built} refreshed={refreshed} sunkCorners={sunkCorners} retired={retired} stale={sampled.Values.Count(s => s.Staged && s.Revision != revision)} outer={outerMetres:F0} radiusTiles={TileRadius(outerMetres)} visual={visual?.Mode ?? "waves"} sea=[{sea.Readout()}] {flowStudy.Readout()}");
 
     internal string SetVisual(string mode) => (visual ??= new(engine, frame, waveBounds)).SetMode(mode);
 
@@ -299,7 +305,10 @@ internal sealed class WaterSurfaces : IDisposable
             }
 
             near[v] = !double.IsNegativeInfinity(best);
-            top[v] = best;
+            // Where the dry ground lies below that surface (a bank lip lower than the river, a levee's crest),
+            // the corner goes down into the ground instead, so no sheet of water hangs over the dry bank (#10178).
+            top[v] = Math.Min(best, samples[v].Bed - ShoreSink);
+            if (near[v] && top[v] < best) sunkCorners++;
         }
 
         Dictionary<int, uint> index = [];

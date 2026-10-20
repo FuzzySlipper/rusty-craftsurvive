@@ -1,6 +1,8 @@
 """Deterministic foam and ripple textures for CraftSurvive's water (#9540, from the Engine lighting fixture): water-foam.png, a tiling mottle of
 bright patches over dark (read as the foam mask), and water-ripples.png, a tiling tangent-space normal map
-of crossed low waves. No runtime image generation."""
+of crossed low waves; and water-flat-normal.png, a flat normal map (#10178): a water material given it as its own
+normal map takes its NormalScale for the ripple map too (without a normal map the Engine ripples at full strength).
+No runtime image generation."""
 import math, struct, zlib
 from pathlib import Path
 
@@ -38,4 +40,6 @@ def ripples(x,y):
 out=Path(__file__).resolve().parent.parent/'content'/'game'/'textures'
 png(out/'water-foam.png',SIZE,SIZE,foam)
 png(out/'water-ripples.png',SIZE,SIZE,ripples)
-print('wrote water-foam.png and water-ripples.png')
+FLAT_SIZE=4
+png(out/'water-flat-normal.png',FLAT_SIZE,FLAT_SIZE,lambda x,y:(128,128,255,255))
+print('wrote water-foam.png, water-ripples.png and water-flat-normal.png')

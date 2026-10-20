@@ -88,23 +88,22 @@ fn train_phase(i: i32) -> f32 {
     return material.parameters[2][i - 4];
 }
 
-fn displace(vertex: Vertex) -> vec3<f32> {
-#ifdef FLAT
-    return vertex.world_position;
-#else
-#ifdef VELOCITY
-    return vertex.world_position;
-#else
-#ifdef BASELINE
-    return vertex.world_position;
-#else
+// The waves at a vertex: how far they move it, and the surface's slope there (the closed-form
+// normal of the same sum, unnormalized), so the water is lit smoothly rather than per triangle.
+struct Waves {
+    offset: vec3<f32>,
+    normal: vec3<f32>,
+}
+
+fn waves(vertex: Vertex) -> Waves {
+    var result = Waves(vec3<f32>(0.0), vec3<f32>(0.0, 1.0, 0.0));
     let p = vertex.world_position.xz;
     let world_p = p + material.parameters[0].xy;
     let bounds = material.parameters[3];
     let edge = min(min(world_p.x - bounds.x, world_p.y - bounds.y), min(bounds.z - world_p.x, bounds.w - world_p.y));
     // Only the outer boundary fades: internal tile edges share the identical wave function.
     let share = vertex.color.a * smoothstep(0.0, EDGE_FADE_METRES, edge);
-    if share <= 0.0 { return vertex.world_position; }
+    if share <= 0.0 { return result; }
     let wind_velocity = material.parameters[0].zw;
     let speed = length(wind_velocity);
     let wind = wind_velocity / max(speed, 1e-6);
@@ -123,7 +122,6 @@ fn displace(vertex: Vertex) -> vec3<f32> {
     }
     // Hs is four times the surface's standard deviation; a train of amplitude a has variance a^2/2.
     let scale = select(0.0, height / (2.0 * sqrt(2.0) * sqrt(sum)), sum > 0.0);
-    var offset = vec3<f32>(0.0);
     for (var i = 0; i < TRAIN_COUNT; i++) {
         let k = TAU / wavelengths[i];
         var amplitude = min(weights[i] * scale, STEEPNESS / k);
@@ -134,9 +132,42 @@ fn displace(vertex: Vertex) -> vec3<f32> {
         let direction = vec2<f32>(wind.x * c - wind.y * s, wind.x * s + wind.y * c);
         let theta = k * dot(direction, p) + train_phase(i);
         let sideways = CHOPPINESS * amplitude * cos(theta);
-        offset += vec3<f32>(direction.x * sideways, amplitude * sin(theta), direction.y * sideways);
+        result.offset += vec3<f32>(direction.x * sideways, amplitude * sin(theta), direction.y * sideways);
+        // A Gerstner train's normal: the height's slope along its direction, less the crest's lean.
+        let slope = k * amplitude * cos(theta);
+        result.normal -= vec3<f32>(direction.x * slope, CHOPPINESS * k * amplitude * sin(theta), direction.y * slope);
     }
-    return vertex.world_position + offset;
+    return result;
+}
+
+fn displace(vertex: Vertex) -> vec3<f32> {
+#ifdef FLAT
+    return vertex.world_position;
+#else
+#ifdef VELOCITY
+    return vertex.world_position;
+#else
+#ifdef BASELINE
+    return vertex.world_position;
+#else
+    return vertex.world_position + waves(vertex).offset;
+#endif
+#endif
+#endif
+}
+
+// The mesh normal carries wave data (fetch, swell), so the water's own normal is up, or the waves'.
+fn displace_normal(vertex: Vertex) -> vec3<f32> {
+#ifdef FLAT
+    return vec3<f32>(0.0, 1.0, 0.0);
+#else
+#ifdef VELOCITY
+    return vec3<f32>(0.0, 1.0, 0.0);
+#else
+#ifdef BASELINE
+    return vec3<f32>(0.0, 1.0, 0.0);
+#else
+    return waves(vertex).normal;
 #endif
 #endif
 #endif
@@ -180,11 +211,10 @@ fn flowing_foam(p: vec2<f32>, current: vec2<f32>, time: f32, offset: f32) -> f32
 
 fn shade(surface: Surface) -> vec4<f32> {
 #ifdef BASELINE
-    // The original material was opaque, including at the shore; keep that comparison intact. The mesh
-    // normal carries wave data (fetch, swell), so the flat water's own normal is up.
+    // The original material was opaque, including at the shore; keep that comparison intact. Its
+    // normal is up (displace_normal).
     var original = surface;
     original.base.a = 1.0;
-    original.normal = vec3<f32>(0.0, 1.0, 0.0);
     return standard_shade(original);
 #else
     let current = surface.uv;
@@ -209,13 +239,8 @@ fn shade(surface: Surface) -> vec4<f32> {
         * (1.0 + clamp(speed / FAST_CURRENT, 0.0, 1.0));
     var water = surface;
     let slope = (broad + fine * FINE_WEIGHT * fine_fade) * strength;
-    var geometry_normal = vec3<f32>(0.0, 1.0, 0.0);
-#ifndef FLAT
-    // The displacement hook returns position only. Screen derivatives give the normal of the
-    // actual one-metre triangles, including shore/boundary attenuation and sloping rivers.
-    let geometric = normalize(cross(dpdx(surface.world_position), dpdy(surface.world_position)));
-    geometry_normal = select(-geometric, geometric, geometric.y >= 0.0);
-#endif
+    // The waves' own normal (displace_normal), interpolated smoothly across the one-metre triangles.
+    let geometry_normal = normalize(surface.normal);
     water.normal = normalize(geometry_normal + vec3<f32>(slope.x, 0.0, slope.y));
     // Sparse moving foam; the built-in depth intersection foam is already in surface.base.
     let foam_pattern = flowing_foam(p, current, time, patches);
