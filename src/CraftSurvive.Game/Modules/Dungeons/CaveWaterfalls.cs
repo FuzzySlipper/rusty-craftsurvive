@@ -24,7 +24,7 @@ internal sealed class CaveWaterfalls : IDisposable
     private const float SheetRoughness = 0.12f, AbyssSheet = 25f;
 
     /// <summary>
-    /// The sheet is cut from a strand texture (masked, not blended: the Engine does not draw blended product meshes): how
+    /// The sheet is cut from a strand texture (masked; blended product meshes do draw, as the cave water shows, so a translucent sheet is untried, not refused): how
     /// much of a strand's alpha shows, and how many metres across and down one repeat of the texture covers.
     /// </summary>
     private const float StrandCutoff = 0.5f, StrandsAcross = 1.5f, StrandsDown = 4f;
