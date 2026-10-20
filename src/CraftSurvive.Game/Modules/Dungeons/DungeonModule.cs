@@ -633,7 +633,7 @@ internal sealed class DungeonModule : IProductModule
 
     /// <summary>A built dungeon's rock blocks, all in the cave rock's one palette look (the cave's own materials are a natural cave's).</summary>
     private Dictionary<BlockId, Material>? PlainRock() => StudyRockDetail() is Material look
-        ? CaveMaterials.Layers.ToDictionary(l => l.Block, _ => look)
+        ? CaveMaterials.Layers.Where(l => DungeonSurfaces.IsRock(l.Block)).ToDictionary(l => l.Block, _ => look)
         : null;
 
     /// <param name="glint">The shader's last parameter vector: only its w (mineral glints) is read.</param>

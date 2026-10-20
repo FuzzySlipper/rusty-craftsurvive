@@ -156,10 +156,14 @@ internal sealed class TerrainPresentation : IDisposable
     /// <summary>How many voxels a cave material's blend reaches across.</summary>
     private const uint CaveTransitionCells = 2;
 
-    /// <summary>A separate space's bindings: the world's blocks unblended, its rock in the cave rock.</summary>
+    /// <summary>
+    /// A separate space's bindings: a block the space names a material for draws in it (a cave's materials, turf under its
+    /// sky included, #10095); other rock in the cave rock; the world's other blocks unblended.
+    /// </summary>
     private ReadOnlyMemory<VoxelSceneMaterialBinding> SeparateBindings(IReadOnlyDictionary<BlockId, Material>? rock) =>
         BlockRegistry.BoundBlocks.Select(block => new VoxelSceneMaterialBinding(block.Slot,
-            ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? rock?.GetValueOrDefault(block.Id) ?? CaveRock
+            ground is not null && rock is not null && rock.TryGetValue(block.Id, out Material? chosen) ? chosen
+                : ground is not null && Dungeons.DungeonSurfaces.IsRock(block.Id) ? CaveRock
                 : ground?.For(block.Id, blend: false) ?? Atlas.BaseMaterial(block.Id))).ToArray();
 
     /// <summary>
