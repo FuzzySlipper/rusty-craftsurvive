@@ -33,6 +33,9 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>The cave's living light (#10129): one mesh per kind of growth, and the materials made for them.</summary>
     private readonly List<(MeshResource Mesh, Appearance Look)> growths = [];
 
+    /// <summary>A cave's lakes' and pools' surfaces (#10094): their material, while the space draws them.</summary>
+    private CaveWaterSurfaces? waterSurfaces;
+
     /// <summary>A chasm's waterfalls (#10094), once the space is drawn; null before, or for a space without them.</summary>
     internal CaveWaterfalls? Waterfalls { get; private set; }
     private readonly List<Material> growthMaterials = [];
@@ -131,6 +134,17 @@ internal sealed class DungeonSpace : IDisposable
                 Waterfalls = new CaveWaterfalls(engine, layout.Waterfalls);
                 // The sheets are published with the growths: an appearance draws only while a published fact names it.
                 foreach (MeshResourceCreateRequest request in Waterfalls.SheetRequests())
+                {
+                    MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                }
+            }
+
+            if (layout.WaterZones.Any(z => z.Kind is WaterZoneKind.Lake or WaterZoneKind.Pool))
+            {
+                // Published with the growths: an appearance draws only while a published fact names it.
+                waterSurfaces = new CaveWaterSurfaces(engine);
+                foreach (MeshResourceCreateRequest request in waterSurfaces.Requests(layout.WaterZones))
                 {
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);
                     growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
@@ -271,6 +285,8 @@ internal sealed class DungeonSpace : IDisposable
         // After the meshes drawn in its materials.
         Waterfalls?.Dispose();
         Waterfalls = null;
+        waterSurfaces?.Dispose();
+        waterSurfaces = null;
         foreach (Material material in growthMaterials)
         {
             material.Dispose();

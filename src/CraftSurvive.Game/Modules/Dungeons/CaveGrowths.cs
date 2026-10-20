@@ -28,8 +28,12 @@ internal enum EcologyKind
 /// </summary>
 internal readonly record struct Waterfall(Vector3 Lip, Vector3 Out, float Drop, bool Lands, float Flow, float SkyShare);
 
-/// <summary>A low mist lying in a natural space (#10094), in layout metres: an ellipsoid turned about the vertical.</summary>
-internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees);
+/// <summary>
+/// A mist lying in a natural space (#10094), in layout metres: an ellipsoid turned about the vertical, how thick it is at
+/// its heart (extinction per metre: a great hall's floor mist is thin, a sump's heavy), and the light it gives of itself
+/// per unit of density (linear; none for a hall's floor mist, a faint glow for a sump's, so its mouth reads from outside).
+/// </summary>
+internal readonly record struct MistVolume(Vector3 Centre, Vector3 HalfExtents, float YawDegrees, float Density, Vector3 Glow = default);
 
 /// <summary>One growth: what it is, where it stands, which way its surface faces, how big it is, and its own seed.</summary>
 internal readonly record struct EcologyPlacement(EcologyKind Kind, Vector3 At, Vector3 Normal, float Size, uint Seed);

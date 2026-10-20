@@ -413,6 +413,12 @@ internal sealed class PlayerController : IDisposable
     /// <summary>A diagnostic read of the natural face in front of the player, without climbing (#10126).</summary>
     internal string DescribeClimb(Vector3 forward) => climb.Describe(Session, playerLocal, forward);
 
+    /// <summary>
+    /// A separate space's still water (a cave's lakes and pools, #10094), set by its owner while the player is in it: for a
+    /// place in the session, the water's surface and bed there, or null.
+    /// </summary>
+    internal Func<Vector3, (float Surface, float Bed)?>? SeparateWater { get; set; }
+
     /// <summary>Whether the player is in a separate space (a dungeon) rather than the open world.</summary>
     internal bool InSeparateSpace => away is not null;
 
@@ -753,7 +759,8 @@ internal sealed class PlayerController : IDisposable
         // Standing in a boat is not swimming (#9902): its floor rides at the waterline, and in a trough the
         // feet dip below the water's rest level while the hull still carries them.
         CharacterMovementRequest movement;
-        if (!aboard && water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out movement, away is null ? terrain.Water : null, terrain.WaveLift))
+        if (!aboard && water.TrySwim(Session, playerGlobal, playerLocal, motion.Stance, out movement, away is null ? terrain.Water : null, terrain.WaveLift,
+            away is null ? null : SeparateWater))
         {
             // A river's current carries the swimmer and, as it takes hold, weakens their stroke to their own (#9879).
             Vector2? current = water.LastSample is Water.WaterSample here ? new((float)here.CurrentX, (float)here.CurrentZ) : null;

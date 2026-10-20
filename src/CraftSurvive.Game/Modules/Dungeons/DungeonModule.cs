@@ -172,7 +172,7 @@ internal sealed class DungeonModule : IProductModule
                     player.EnterSeparateSpace(loading.Session, DungeonSpace.InSession(loading.Layout.Arrival), loading.Layout.Natural);
                     // The open world is not drawn while away: it costs nothing and cannot show through an opening to the sky.
                     terrain.DrawOpenWorld(false);
-                    sky.Underground(true, conditions.Time, loading.Layout.SkyOpen, loading.Layout.GreatHall);
+                    sky.Underground(true, conditions.Time, loading.Layout.SkyOpen, loading.Layout.GreatHall, mist: loading.Layout.Mist.Count > 0);
                     Light(Darkness.Torches switch
                     {
                         TorchShare.All => loading.Layout.Lights,
@@ -183,6 +183,7 @@ internal sealed class DungeonModule : IProductModule
                     sky.StudyLight(Darkness.Fill ?? -1f, loading.Layout.GreatHall ? -1f : Darkness.Fog ?? -1f);
                     GrowthLights(loading.Layout.Ecology);
                     Mist(loading.Layout.Mist);
+                    player.SeparateWater = StillWater(loading.Layout.WaterZones);
                     IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
                     state = DungeonState.Inside;
                     entered++;
@@ -417,6 +418,37 @@ internal sealed class DungeonModule : IProductModule
         }
     }
 
+    // --- A cave's still water (#10094) ---
+
+    /// <summary>
+    /// The swim probe's still water for a cave: at a place in the session, the surface and bed of the lake or pool it lies
+    /// in, or null (mist sumps are not water). Null for a space with none.
+    /// </summary>
+    private static Func<Vector3, (float Surface, float Bed)?>? StillWater(IReadOnlyList<WaterZone> zones)
+    {
+        WaterZone[] still = [.. zones.Where(z => z.Kind is WaterZoneKind.Lake or WaterZoneKind.Pool)];
+        if (still.Length == 0)
+        {
+            return null;
+        }
+
+        float below = DungeonSpace.InSession(Vector3.Zero).Y;
+        return at =>
+        {
+            Vector3 p = at - (Vector3.UnitY * below);
+            foreach (WaterZone zone in still)
+            {
+                // In the water: within its cells, or just above them under its surface (a cell's top is not the surface).
+                if (p.Y < zone.Surface && (zone.Contains(p) || zone.Contains(p - Vector3.UnitY)) && zone.BedUnder(p) is float bed)
+                {
+                    return (zone.Surface + below, bed + below);
+                }
+            }
+
+            return null;
+        };
+    }
+
     // --- Falling out of a space (#10094) ---
 
     /// <summary>How far below a space's bottom a falling body counts as lost (a chasm falls through the bottom of the space).</summary>
@@ -437,10 +469,10 @@ internal sealed class DungeonModule : IProductModule
         last = "fell out of the space: set back at its arrival (a placeholder until falling has its own rules, #10171)";
     }
 
-    // --- A great hall's mist (#10094) ---
+    // --- A natural space's mist: a great hall's floor, a sump's heavy mist (#10094) ---
 
-    /// <summary>How thick a hall's floor mist is at its heart, the colour it scatters, how softly it fades at its edge, and how its drifting cells thin it.</summary>
-    private const float MistDensity = 0.12f, MistEdge = 0.6f, MistNoiseScale = 6f, MistNoiseStrength = 0.6f;
+    /// <summary>The colour a mist scatters, how softly it fades at its edge, and how its drifting cells thin it (its thickness is each volume's own).</summary>
+    private const float MistEdge = 0.6f, MistNoiseScale = 6f, MistNoiseStrength = 0.6f;
     private static readonly Vector3 MistAlbedo = new(0.85f, 0.9f, 1f), MistDrift = new(0.15f, 0f, 0.05f);
     private int mistPlaced;
 
@@ -450,7 +482,7 @@ internal sealed class DungeonModule : IProductModule
         for (int i = 0; i < mist.Count; i++)
         {
             engine.CameraView.SetFogVolume(new FogVolumeRequest(ProductIds.DungeonMistBase + (uint)i, FogVolumeShape.Ellipsoid, DungeonSpace.InSession(mist[i].Centre),
-                mist[i].HalfExtents, mist[i].YawDegrees, MistDensity, MistAlbedo, Vector3.Zero, MistEdge, MistNoiseScale, MistNoiseStrength, MistDrift));
+                mist[i].HalfExtents, mist[i].YawDegrees, mist[i].Density, MistAlbedo, mist[i].Glow, MistEdge, MistNoiseScale, MistNoiseStrength, MistDrift));
         }
 
         for (int i = mist.Count; i < mistPlaced; i++)
@@ -998,6 +1030,7 @@ internal sealed class DungeonModule : IProductModule
         Light([]);
         GrowthLights([]);
         Mist([]);
+        player.SeparateWater = null;
         engine.CameraView.SetIndirectLight(new IndirectLightRequest(Vector3.Zero, Vector3.Zero, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
         Retire();
         plan = null;

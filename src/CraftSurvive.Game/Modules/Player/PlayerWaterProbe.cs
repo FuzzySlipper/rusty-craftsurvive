@@ -46,13 +46,32 @@ internal sealed class PlayerWaterProbe(IEngineContext engine)
 
     /// <param name="waters">The overworld's water owner; null in a separate space, which reads water cells.</param>
     /// <param name="lift">How far the drawn waves stand over the water's rest level at a point (#9902): a swimmer floats on them.</param>
+    /// <param name="still">A separate space's still water (a cave's lakes and pools, #10094): for a place in the session, the
+    /// water's surface and bed there, or null where there is none.</param>
     internal bool TrySwim(SpatialSession session, PlayerWorldPosition world, Vector3 local, CharacterStance stance,
-        out CharacterMovementRequest movement, WaterModel? waters = null, Func<double, double, WaterSample, double>? lift = null)
+        out CharacterMovementRequest movement, WaterModel? waters = null, Func<double, double, WaterSample, double>? lift = null,
+        Func<Vector3, (float Surface, float Bed)?>? still = null)
     {
         movement = default;
         double feetY = world.WorldY - PlayerBody.EyeOffset(stance);
         VoxelAddress feet = new((long)Math.Floor(world.WorldX), (long)Math.Floor(feetY), (long)Math.Floor(world.WorldZ));
         VoxelAddress eyes = new((long)Math.Floor(world.WorldX), (long)Math.Floor(world.WorldY), (long)Math.Floor(world.WorldZ));
+        if (still is not null)
+        {
+            LastSample = null;
+            float feetLocal = local.Y - PlayerBody.EyeOffset(stance);
+            if (still(new Vector3(local.X, feetLocal, local.Z)) is (float surface, float bed))
+            {
+                bool feetWet = feetLocal < surface, eyesWet = local.Y < surface;
+                LastCheck = new PlayerWaterCheck(feet, false, 0, eyes, feetWet, eyesWet, surface);
+                if (LastCheck.InWater)
+                {
+                    movement = PlayerBody.Swim(new Vector3(local.X, bed - BelowBed, local.Z), new Vector3(local.X, surface, local.Z));
+                    return true;
+                }
+            }
+        }
+
         if (waters is not null)
         {
             WaterSample sample = waters.Sample(world.WorldX, world.WorldZ);

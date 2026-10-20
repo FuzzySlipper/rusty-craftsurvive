@@ -463,6 +463,425 @@ internal static class KarstCave
         return wettest;
     }
 
+    // Water zones (owner, 2026-10-20): how wide a still surface must be to be a lake rather than a pool, how wide a mouth
+    // must be to count (smaller is a bubble of trapped air), how much air must open above a mouth for it to open onto
+    // the cave (less is an air bell), and how far apart a sump's path points are.
+    private const float LakeArea = 30f, LeastMouth = 3f, PathStep = 1.5f;
+    private const int OpenAirReach = 4000;
+
+    /// <summary>
+    /// A sump: the way through the water between two mouths must be at least this long and dive at least this far below
+    /// the surface, and the air above the two mouths must not join within this many times that length (else it is one
+    /// body of water with islands or a rock post in it).
+    /// </summary>
+    private const float LeastSumpLength = 6f, LeastSumpDive = 1.5f, AirDetour = 3f;
+
+    private static readonly (int X, int Z)[] Around8 = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)];
+
+    /// <summary>
+    /// The cave's flooded places (#10094): every open place below the water table where it stands now is still full of
+    /// water. Each connected body is a zone: with one open surface it is still water, a lake or a pool by its size; with
+    /// its surface broken into two or more mouths it is a flooded passage joining parts of the cave, which the cave holds
+    /// as a mist sump. Bodies open to the abyss (draining through the bottom of the space) and ones sealed off with no
+    /// mouth are left out; a mouth onto a mere bubble of air does not count.
+    /// </summary>
+    private static List<WaterZone> WaterZones(float[] open, float table)
+    {
+        bool Flooded(int x, int y, int z) => (y + 0.5f) * FieldStep < table && open[FieldIndex(x, y, z)] > 0f;
+        int[] body = new int[open.Length];
+        Array.Fill(body, -1);
+        List<WaterZone> zones = [];
+        int bodies = 0;
+        int top = (int)MathF.Floor((table / FieldStep) - 0.5f);
+        for (int z0 = 0; z0 < FieldZ; z0++)
+            for (int y0 = 0; y0 <= top && y0 < FieldY; y0++)
+                for (int x0 = 0; x0 < FieldX; x0++)
+                {
+                    int start = FieldIndex(x0, y0, z0);
+                    if (body[start] >= 0 || !Flooded(x0, y0, z0))
+                    {
+                        continue;
+                    }
+
+                    // The body: every flooded sample joined to this one.
+                    int id = bodies++;
+                    List<int> samples = [start];
+                    body[start] = id;
+                    bool drains = false;
+                    for (int k = 0; k < samples.Count; k++)
+                    {
+                        (int x, int y, int z) = FieldCell3(samples[k]);
+                        drains |= y == 0;
+                        foreach ((int dx, int dy, int dz) in Around6)
+                        {
+                            int nx = x + dx, ny = y + dy, nz = z + dz;
+                            if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                            {
+                                continue;
+                            }
+
+                            int n = FieldIndex(nx, ny, nz);
+                            if (body[n] < 0 && Flooded(nx, ny, nz))
+                            {
+                                body[n] = id;
+                                samples.Add(n);
+                            }
+                        }
+                    }
+
+                    if (drains)
+                    {
+                        continue;
+                    }
+
+                    // Its open surface, in mouths: the top samples with air above, joined across the surface.
+                    HashSet<int> surface = [.. samples.Where(i => FieldCell3(i).Y == top && top + 1 < FieldY && open[i + FieldX] > 0f)];
+                    List<List<int>> mouths = [];
+                    HashSet<int> seen = [];
+                    foreach (int s0 in surface)
+                    {
+                        if (!seen.Add(s0))
+                        {
+                            continue;
+                        }
+
+                        List<int> mouth = [s0];
+                        for (int k = 0; k < mouth.Count; k++)
+                        {
+                            (int x, int _, int z) = FieldCell3(mouth[k]);
+                            foreach ((int dx, int dz) in Around8)
+                            {
+                                int nx = x + dx, nz = z + dz;
+                                if (nx < 0 || nz < 0 || nx >= FieldX || nz >= FieldZ)
+                                {
+                                    continue;
+                                }
+
+                                int n = FieldIndex(nx, top, nz);
+                                if (surface.Contains(n) && seen.Add(n))
+                                {
+                                    mouth.Add(n);
+                                }
+                            }
+                        }
+
+                        if (mouth.Count * FieldStep * FieldStep >= LeastMouth && OpensOntoCave(open, mouth[0] + FieldX))
+                        {
+                            mouths.Add(mouth);
+                        }
+                    }
+
+                    if (mouths.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    mouths.Sort((a, b) => b.Count.CompareTo(a.Count));
+                    HashSet<int> cells = [.. samples.Select(i => WaterZone.CellKey(FieldCentre(i)))];
+                    Vector2[] columns = [.. mouths.SelectMany(m => m).Select(i => { Vector3 c = FieldCentre(i); return new Vector2(c.X, c.Z); })];
+                    Vector3[] openings = [.. mouths.Select(m => Centre(m) with { Y = table })];
+                    // A sump: two mouths joined only through the water, by a way that dives.
+                    List<Vector3>? sump = null;
+                    for (int b = 1; b < mouths.Count && sump is null; b++)
+                    {
+                        List<Vector3> way = SumpPath(body, id, mouths[0], mouths[b]);
+                        float length = way.Zip(way.Skip(1), Vector3.Distance).Sum();
+                        float dive = table - way.DefaultIfEmpty(new Vector3(0f, table, 0f)).Min(p => p.Y);
+                        if (length >= LeastSumpLength && dive >= LeastSumpDive && !AirJoins(open, mouths[0][0] + FieldX, mouths[b], AirDetour * length))
+                        {
+                            sump = way;
+                        }
+                    }
+
+                    if (sump is not null)
+                    {
+                        zones.Add(new WaterZone(WaterZoneKind.MistSump, table, cells, columns, openings, sump));
+                    }
+                    else
+                    {
+                        float area = mouths.Sum(m => m.Count) * FieldStep * FieldStep;
+                        zones.Add(new WaterZone(area >= LakeArea ? WaterZoneKind.Lake : WaterZoneKind.Pool, table, cells, columns, openings, []));
+                    }
+                }
+
+        return zones;
+
+        Vector3 Centre(List<int> samples)
+        {
+            Vector3 sum = Vector3.Zero;
+            foreach (int i in samples)
+            {
+                sum += FieldCentre(i);
+            }
+
+            return sum / samples.Count;
+        }
+    }
+
+    /// <summary>Whether the air above a mouth opens onto the cave rather than being a bubble trapped under the rock.</summary>
+    private static bool OpensOntoCave(float[] open, int above)
+    {
+        HashSet<int> reached = [above];
+        Queue<int> frontier = new([above]);
+        while (frontier.TryDequeue(out int i) && reached.Count < OpenAirReach)
+        {
+            (int x, int y, int z) = FieldCell3(i);
+            foreach ((int dx, int dy, int dz) in Around6)
+            {
+                int nx = x + dx, ny = y + dy, nz = z + dz;
+                if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                {
+                    continue;
+                }
+
+                int n = FieldIndex(nx, ny, nz);
+                if (open[n] > 0f && FieldCentre(n).Y >= FieldCentre(above).Y && reached.Add(n))
+                {
+                    frontier.Enqueue(n);
+                }
+            }
+        }
+
+        return reached.Count >= OpenAirReach;
+    }
+
+    // Perched water (#10094): how deep a dip along a route must be to hold water, how much higher than the water a
+    // passage's ceiling may stand and still be drowned (a sump), and how many samples a perched body may fill before it
+    // is not a trap but a lowland the water would run out of.
+    private const float LeastTrap = 0.4f;
+    private const int MostPerched = 40000;
+
+    /// <summary>
+    /// A dip whose water would leave less headroom than this under the passage's roof was drowned in a wetter age: a sump,
+    /// held as mist (the carving keeps some headroom everywhere, so a sump is a nearly drowned dip, not a fully drowned one).
+    /// </summary>
+    private const float SumpHeadroom = 2.2f, LeastSumpRun = 8f;
+
+    /// <summary>Still water held above the table no bigger than this many samples (about 1000 m3), so water stays a feature, not the cave.</summary>
+    private const int MostPerchedStill = 8000;
+
+    /// <summary>
+    /// Water held above the water table in the dips of the cave's routes (#10094): where a way between parts of the cave
+    /// goes down and comes up again, the dip keeps the water of an older table (the classic sump of a cave diver). Along
+    /// each route the floor is read every half metre; each dip deeper than a little holds water up to the lower of its
+    /// two lips, and that water fills every open place below that level joined to it - unless it reaches the water table
+    /// or the bottom of the space, where it would run out. A dip whose water reaches the passage's ceiling is a sump,
+    /// held as mist; a dip with air above its water is a pool or a lake.
+    /// </summary>
+    private static List<WaterZone> PerchedWater(float[] open, List<List<int>> routes, float table, List<WaterZone> found)
+    {
+        List<WaterZone> zones = [];
+        bool[] taken = new bool[open.Length];
+        foreach (List<int> route in routes)
+        {
+            Vector3[] at = [.. route.Select(FieldCentre)];
+            float[] floor = [.. at.Select(p => Floor(open, p).Y)];
+            float[] ceiling = [.. at.Select(p => Ceiling(open, p).Y)];
+            int n = at.Length;
+            float[] left = new float[n], right = new float[n];
+            for (int i = 0; i < n; i++) left[i] = Math.Max(i > 0 ? left[i - 1] : float.MinValue, floor[i]);
+            for (int i = n - 1; i >= 0; i--) right[i] = Math.Max(i < n - 1 ? right[i + 1] : float.MinValue, floor[i]);
+            for (int i = 0; i < n; i++)
+            {
+                float level = Math.Min(left[i], right[i]);
+                if (level - floor[i] < LeastTrap)
+                {
+                    continue;
+                }
+
+                // The dip: the run of the route below this level.
+                int a = i, b = i;
+                while (a > 0 && Math.Min(left[a - 1], right[a - 1]) - floor[a - 1] > 0.05f) a--;
+                while (b < n - 1 && Math.Min(left[b + 1], right[b + 1]) - floor[b + 1] > 0.05f) b++;
+                i = b;
+                if (level <= table)
+                {
+                    continue;
+                }
+
+                int lowest = Enumerable.Range(a, b - a + 1).MinBy(k => floor[k]);
+                int seed = SampleAt(Floor(open, at[lowest]) + new Vector3(0f, FieldStep * 0.5f, 0f));
+                if (seed < 0 || taken[seed] || found.Any(z => z.Contains(FieldCentre(seed))) || open[seed] <= 0f)
+                {
+                    continue;
+                }
+
+                List<int>? body = FillBelow(open, seed, level, table);
+                if (body is null)
+                {
+                    continue;
+                }
+
+                foreach (int k in body) taken[k] = true;
+                HashSet<int> cells = [.. body.Select(k => WaterZone.CellKey(FieldCentre(k)))];
+                int topRow = (int)MathF.Floor((level / FieldStep) - 0.5f);
+                Vector2[] columns = [.. body.Where(k => FieldCell3(k).Y == topRow && open[k + FieldX] > 0f)
+                    .Select(k => { Vector3 c = FieldCentre(k); return new Vector2(c.X, c.Z); })];
+                Vector3[] mouths = [at[a] with { Y = level }, at[b] with { Y = level }];
+                bool drowned = Enumerable.Range(a, b - a + 1).Min(k => ceiling[k] - level) < SumpHeadroom && Vector3.Distance(at[a], at[b]) >= LeastSumpRun;
+                if (!drowned && body.Count > MostPerchedStill)
+                {
+                    continue;
+                }
+
+                List<Vector3> path = [];
+                for (int k = a; k <= b; k++)
+                {
+                    if (path.Count == 0 || Vector3.Distance(path[^1], at[k]) >= PathStep) path.Add(at[k]);
+                }
+
+                float length = path.Zip(path.Skip(1), Vector3.Distance).Sum();
+                if (drowned && length >= LeastSumpLength)
+                {
+                    zones.Add(new WaterZone(WaterZoneKind.MistSump, level, cells, columns, mouths, path));
+                }
+                else if (columns.Length > 0)
+                {
+                    zones.Add(new WaterZone(columns.Length * FieldStep * FieldStep >= LakeArea ? WaterZoneKind.Lake : WaterZoneKind.Pool, level, cells, columns, mouths, []));
+                }
+            }
+        }
+
+        return zones;
+    }
+
+    /// <summary>The field sample a place lies in, or -1 outside the field.</summary>
+    private static int SampleAt(Vector3 p)
+    {
+        int x = (int)(p.X / FieldStep), y = (int)(p.Y / FieldStep), z = (int)(p.Z / FieldStep);
+        return x < 0 || y < 0 || z < 0 || x >= FieldX || y >= FieldY || z >= FieldZ ? -1 : FieldIndex(x, y, z);
+    }
+
+    /// <summary>
+    /// Every open sample below a level joined to a seed (the water a dip holds), or null when that water would run out:
+    /// reaching the water table, the bottom of the space, or more than a trap holds.
+    /// </summary>
+    private static List<int>? FillBelow(float[] open, int seed, float level, float table)
+    {
+        List<int> body = [seed];
+        HashSet<int> seen = [seed];
+        for (int k = 0; k < body.Count; k++)
+        {
+            (int x, int y, int z) = FieldCell3(body[k]);
+            if (y == 0 || FieldCentre(body[k]).Y < table || body.Count > MostPerched)
+            {
+                return null;
+            }
+
+            foreach ((int dx, int dy, int dz) in Around6)
+            {
+                int nx = x + dx, ny = y + dy, nz = z + dz;
+                if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                {
+                    continue;
+                }
+
+                int i = FieldIndex(nx, ny, nz);
+                if (open[i] > 0f && (ny + 0.5f) * FieldStep < level && seen.Add(i))
+                {
+                    body.Add(i);
+                }
+            }
+        }
+
+        return body;
+    }
+
+    /// <summary>Whether the air above one mouth reaches the air above another within some metres of air (above the water).</summary>
+    private static bool AirJoins(float[] open, int above, List<int> other, float metres)
+    {
+        HashSet<int> goal = [.. other.Select(i => i + FieldX)];
+        int most = (int)(metres / FieldStep);
+        Dictionary<int, int> steps = new() { [above] = 0 };
+        Queue<int> frontier = new([above]);
+        float floor = FieldCentre(above).Y;
+        while (frontier.TryDequeue(out int i))
+        {
+            if (goal.Contains(i))
+            {
+                return true;
+            }
+
+            int here = steps[i];
+            if (here >= most)
+            {
+                continue;
+            }
+
+            (int x, int y, int z) = FieldCell3(i);
+            foreach ((int dx, int dy, int dz) in Around6)
+            {
+                int nx = x + dx, ny = y + dy, nz = z + dz;
+                if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                {
+                    continue;
+                }
+
+                int n = FieldIndex(nx, ny, nz);
+                if (open[n] > 0f && FieldCentre(n).Y >= floor && !steps.ContainsKey(n))
+                {
+                    steps[n] = here + 1;
+                    frontier.Enqueue(n);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>A way through a sump's body from one mouth to another (the shortest through its samples), every few metres.</summary>
+    private static List<Vector3> SumpPath(int[] body, int zone, List<int> from, List<int> to)
+    {
+        Dictionary<int, int> came = [];
+        Queue<int> frontier = new();
+        foreach (int s in from)
+        {
+            came[s] = -1;
+            frontier.Enqueue(s);
+        }
+
+        HashSet<int> goal = [.. to];
+        int end = -1;
+        while (frontier.TryDequeue(out int i))
+        {
+            if (goal.Contains(i))
+            {
+                end = i;
+                break;
+            }
+
+            (int x, int y, int z) = FieldCell3(i);
+            foreach ((int dx, int dy, int dz) in Around6)
+            {
+                int nx = x + dx, ny = y + dy, nz = z + dz;
+                if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                {
+                    continue;
+                }
+
+                int n = FieldIndex(nx, ny, nz);
+                if (body[n] == zone && !came.ContainsKey(n))
+                {
+                    came[n] = i;
+                    frontier.Enqueue(n);
+                }
+            }
+        }
+
+        List<Vector3> path = [];
+        for (int i = end; i >= 0; i = came[i])
+        {
+            Vector3 p = FieldCentre(i);
+            if (path.Count == 0 || Vector3.Distance(path[^1], p) >= PathStep)
+            {
+                path.Add(p);
+            }
+        }
+
+        path.Reverse();
+        return path;
+    }
+
     /// <summary>An angle wrapped into 0 to a full turn.</summary>
     private static float Wrap(float angle) => ((angle % MathF.Tau) + MathF.Tau) % MathF.Tau;
 
@@ -617,7 +1036,46 @@ internal static class KarstCave
 
     /// <summary>The mist on a hall's floor: a broad, shallow ellipsoid filling the hall's lower metres.</summary>
     private static MistVolume HallMist(Hall hall) => new(new Vector3(hall.Centre.X, hall.Floor + MistAboveFloor, hall.Centre.Y),
-        new Vector3(hall.RadiusX * MistSpread, MistDepth, hall.RadiusZ * MistSpread), -hall.Turn * 180f / MathF.PI);
+        new Vector3(hall.RadiusX * MistSpread, MistDepth, hall.RadiusZ * MistSpread), -hall.Turn * 180f / MathF.PI, HallMistDensity);
+
+    /// <summary>The most mist volumes a space places: the Engine draws at most 64 fog volumes in a view.</summary>
+    private const int MostMistVolumes = 64;
+
+    /// <summary>How thick a hall's floor mist is at its heart.</summary>
+    private const float HallMistDensity = 0.12f;
+
+    // A sump's mist (owner, 2026-10-20: a heavy mist where a cave diver would dive): how thick (thick enough that a few
+    // metres in, the far side is gone; the lantern glows back from it), how far apart its volumes are along the way
+    // through, their size, and how far its mouths' mist rises over the water's level so it shows from outside.
+    private const float SumpMistDensity = 0.25f, SumpMistStep = 2.5f, MouthMistRise = 1.2f;
+
+    /// <summary>
+    /// The faint light a sump's mist gives of itself (owner to decide, 2026-10-20): unlit, a mist shows only where a light
+    /// reaches it, so its mouth is dark from a few metres off; with this faint glow the mouth reads as a pale wall of haze.
+    /// </summary>
+    private static readonly Vector3 SumpMistGlow = new(0.1f, 0.1f, 0.1f);
+    private static readonly Vector3 SumpMistSize = new(2.8f, 2.4f, 2.8f), MouthMistSize = new(4f, 2.5f, 4f);
+
+    /// <summary>A sump's mist: volumes along its way through and over each mouth, so the mouth reads as whiteness from outside.</summary>
+    private static IEnumerable<MistVolume> SumpMist(WaterZone sump)
+    {
+        Vector3? last = null;
+        foreach (Vector3 p in sump.Path)
+        {
+            if (last is Vector3 was && Vector3.Distance(was, p) < SumpMistStep)
+            {
+                continue;
+            }
+
+            last = p;
+            yield return new MistVolume(p, SumpMistSize, 0f, SumpMistDensity, SumpMistGlow);
+        }
+
+        foreach (Vector3 mouth in sump.Mouths)
+        {
+            yield return new MistVolume(mouth + new Vector3(0f, MouthMistRise - MouthMistSize.Y * 0.5f, 0f), MouthMistSize, 0f, SumpMistDensity, SumpMistGlow);
+        }
+    }
 
     // The hall's light (owner, 2026-10-19: large, bright, distant sources, every one a thing to see): giant glowing fungi
     // standing on its floor, a few great crystal blooms hanging from its vault, and glow-worms spread over the vault like
@@ -813,6 +1271,9 @@ internal static class KarstCave
         internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
         internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
+        /// <summary>The cave's flooded places: lakes, pools and mist sumps (#10094).</summary>
+        internal required IReadOnlyList<WaterZone> WaterZones { get; init; }
+
         /// <summary>Streams falling into the chasm from the passages it cut.</summary>
         internal required Waterfall[] Waterfalls { get; init; }
 
@@ -1032,8 +1493,11 @@ internal static class KarstCave
             VoxelSize = voxelSize,
             SkyOpen = cave.SkyOpen,
             GreatHall = cave.GreatHall is not null,
-            Mist = cave.GreatHall is Hall mistHall ? [HallMist(mistHall)] : [],
+            // The Engine holds at most 64 fog volumes in a view.
+            Mist = [.. (cave.GreatHall is Hall mistHall ? [HallMist(mistHall)] : Array.Empty<MistVolume>())
+                .Concat(cave.WaterZones.Where(z => z.Kind == WaterZoneKind.MistSump).SelectMany(SumpMist)).Take(MostMistVolumes)],
             Waterfalls = cave.Waterfalls,
+            WaterZones = cave.WaterZones,
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
         };
@@ -1042,7 +1506,7 @@ internal static class KarstCave
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges, {cave.Waterfalls.Length} waterfalls ({string.Join(" ", cave.Waterfalls.Select(w => $"{w.Drop:F0}m{(w.Lands ? "" : "+abyss")}"))})" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges, {cave.Waterfalls.Length} waterfalls ({string.Join(" ", cave.Waterfalls.Select(w => $"{w.Drop:F0}m{(w.Lands ? "" : "+abyss")}"))})" : string.Empty)}{(cave.WaterZones.Count > 0 ? $" water: {string.Join(" ", cave.WaterZones.GroupBy(w => w.Kind).Select(g => $"{g.Count()} {g.Key}"))}" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
@@ -1196,10 +1660,12 @@ internal static class KarstCave
         List<(string Name, Vector3 To)> routes = [("spring", spring), .. sinks.Skip(1).Select((s, i) => ($"sink{i + 1}", s))];
         List<Passage> passages = [];
         List<Vector3> mainRoute = [];
+        List<List<int>> routePaths = [];
         foreach ((string name, Vector3 to) in routes)
         {
             (Passage passage, List<int> path) = EnsurePassage(open, ref clearance, name, start, to);
             passages.Add(passage);
+            routePaths.Add(path);
             if (name == "spring")
             {
                 mainRoute = [.. path.Where((_, i) => i % 4 == 0).Select(FieldCentre)];
@@ -1208,6 +1674,8 @@ internal static class KarstCave
 
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed);
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
+        List<WaterZone> waterZones = WaterZones(open, finalTable);
+        waterZones.AddRange(PerchedWater(open, routePaths, finalTable, waterZones));
         if (greatHall is Hall builtHall)
         {
             ecology.AddRange(HallGrowths(open, builtHall, seed, random));
@@ -1240,6 +1708,7 @@ internal static class KarstCave
             GreatHall = greatHall,
             Chasm = chasm,
             Waterfalls = waterfalls,
+            WaterZones = waterZones,
             SkyOpen = skyOpen,
             Formed = formed,
             Sediment = sediment,

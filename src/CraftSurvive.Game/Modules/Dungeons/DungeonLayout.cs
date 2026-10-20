@@ -35,6 +35,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>A chasm's opening through the bottom of the space (#10094): its middle at the bottom, in layout metres, and its radius; null for none.</summary>
     internal (Vector3 Centre, float Radius)? Abyss { get; init; }
 
+    /// <summary>A natural space's flooded places (#10094): lakes, pools and mist sumps, for everything placed in or around them.</summary>
+    internal IReadOnlyList<WaterZone> WaterZones { get; init; } = [];
+
     /// <summary>Streams falling into a chasm from the passages it cut (#10094).</summary>
     internal IReadOnlyList<Waterfall> Waterfalls { get; init; } = [];
 

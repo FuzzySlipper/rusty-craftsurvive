@@ -576,7 +576,8 @@ internal sealed class DayNightSky : IDisposable
     /// <param name="skyOpen">Underground but open to the sky somewhere (a tiankeng): the sky's panorama and the sun shine in through the opening,
     /// with no fill and no sky light, so only what the opening lets in is lit.</param>
     /// <param name="hallHaze">Underground in a great hall (#10094): thin air carrying a faint haze of the hall's own lights, so its far lights and walls stay in view.</param>
-    internal void Underground(bool below, WorldTime time, bool skyOpen = false, bool hallHaze = false)
+    /// <param name="mist">Underground where mist lies (a sump's, #10094): the volumetric fog is on to draw it, with no haze of its own.</param>
+    internal void Underground(bool below, WorldTime time, bool skyOpen = false, bool hallHaze = false, bool mist = false)
     {
         if (disposed)
         {
@@ -586,7 +587,7 @@ internal sealed class DayNightSky : IDisposable
         underground = below;
         skylit = below && skyOpen;
         hazed = below && hallHaze;
-        HallAir(hazed);
+        HallAir(hazed, below && mist);
         litDaylight = double.NaN;
         skyShadowAround = null;
         ShowWetness();
@@ -644,14 +645,15 @@ internal sealed class DayNightSky : IDisposable
     /// fog's medium fills the hall, so every light in it - the vault's blooms, the giants, the lantern - glows in the air
     /// round it and its shadows fall through the air as shafts. Nothing in the air glows of itself: its light is the lights'.
     /// </summary>
-    private void HallAir(bool on)
+    /// <param name="mist">Mist lies in the space (fog volumes): the volumetric fog is on to draw it even with no haze in the air.</param>
+    private void HallAir(bool on, bool mist = false)
     {
         RendererSettingsRequest now = engine.RendererSettings.Read().Requested;
-        if (on)
+        if (on || mist)
         {
             volumetricBefore ??= now.VolumetricFog;
             engine.RendererSettings.Set(now with { VolumetricFog = HallFogQuality });
-            engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: HallMediumDensity, Albedo: HallMediumAlbedo, Anisotropy: HallMediumAnisotropy,
+            engine.CameraView.SetVolumetricFog(new VolumetricFogRequest(Density: on ? HallMediumDensity : 0f, Albedo: HallMediumAlbedo, Anisotropy: HallMediumAnisotropy,
                 BaseHeight: 0f, FalloffHeight: 0f, Distance: HallMediumDistance, Ambient: 0f));
         }
         else if (volumetricBefore is VolumetricFogQuality before)
