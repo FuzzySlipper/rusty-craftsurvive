@@ -40,10 +40,11 @@ internal sealed class DungeonKitLook : IDisposable
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
     private readonly Dictionary<string, RenderResource> textures = [];
-    private readonly List<(Material Material, RenderResource Texture, RenderResource? Emission)> materials = [];
+    private readonly List<(Material Material, RenderResource Texture, RenderResource? Emission, bool Mosaic)> materials = [];
     private Look look;
-    private readonly Dictionary<KitPiece, (MeshResource Mesh, Appearance Look)> pieces = [];
-    private readonly List<(KitPiece Piece, Transform Place)> placed = [];
+    // Each piece drawn plain, and lit (its inlays glowing through its emission map) where a placement is lit.
+    private readonly Dictionary<(KitPiece Piece, bool Lit), (MeshResource Mesh, Appearance Look)> pieces = [];
+    private readonly List<(KitPiece Piece, bool Lit, Transform Place)> placed = [];
 
     /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "plain", painted from the geometry), or null for its own.</param>
     /// <param name="look">The kit stone shader's settings (a study may tune them).</param>
@@ -56,34 +57,41 @@ internal sealed class DungeonKitLook : IDisposable
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         Dictionary<string, JsonElement> entries = manifest.RootElement.GetProperty("pieces").EnumerateArray()
             .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.Clone());
-        foreach (KitPiece piece in placements.Select(p => p.Piece).Concat(placements.Select(p => DungeonKit.Collider(p.Piece))).Distinct())
+        foreach ((KitPiece piece, bool wantsLit) in placements.Select(p => (p.Piece, p.Lit)).Concat(placements.Select(p => (DungeonKit.Collider(p.Piece), false))).Distinct())
         {
             JsonElement entry = entries[DungeonKit.Name(piece)];
             // A glowing piece (the relic's glow) draws in a plain emissive material of its own colour, not the stone.
             Vector3? glow = entry.TryGetProperty("emission", out JsonElement e)
                 ? new Vector3(e[0].GetSingle(), e[1].GetSingle(), e[2].GetSingle()) : null;
             // A piece may name an emission map: its painted inlays glow, lighting the room through the probe volume (the ruin light study).
-            string? emissionMap = entry.TryGetProperty("emissionMap", out JsonElement m) ? m.GetString() : null;
+            string? emissionMap = wantsLit && entry.TryGetProperty("emissionMap", out JsonElement m) ? m.GetString() : null;
+            bool lit = emissionMap is not null;
+            if (pieces.ContainsKey((piece, lit)))
+            {
+                continue;
+            }
+
             MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, entry.GetProperty("model").GetString()!, (role, texture) =>
                 glow is Vector3 light ? Glowing(light)
-                    : Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint), emissionMap)));
-            pieces[piece] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
+                    : Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint), emissionMap,
+                        piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)));
+            pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
         foreach (KitPlacement p in placements.Take(ProductIds.DungeonKitObjects))
         {
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
-            placed.Add((p.Piece, new Transform(at, turn, scale)));
+            placed.Add((p.Piece, p.Lit && pieces.ContainsKey((p.Piece, true)), new Transform(at, turn, scale)));
         }
     }
 
     /// <summary>A material for a kit texture: the texture as its base colour, nearest with mipmaps, under the kit stone shader.</summary>
-    private Material Material(string path, string? emissionPath)
+    private Material Material(string path, string? emissionPath, bool mosaic)
     {
         RenderResource texture = Texture(path);
         RenderResource? emission = emissionPath is null ? null : Texture(emissionPath);
-        Material material = engine.Graphics.CreateMaterial(Request(texture, emission));
-        materials.Add((material, texture, emission));
+        Material material = engine.Graphics.CreateMaterial(Request(texture, emission, mosaic));
+        materials.Add((material, texture, emission, mosaic));
         return material;
     }
 
@@ -98,8 +106,16 @@ internal sealed class DungeonKitLook : IDisposable
         return texture;
     }
 
-    /// <summary>How brightly painted inlays with an emission map glow (the ruin light study; 0 none).</summary>
-    internal static float InlayGlow { get; set; }
+    /// <summary>
+    /// How brightly a lit piece's inlays glow through its emission map (the ruin light; the study may change it, 0 none): a
+    /// powered room's inlays faintly, so the room fills softly, and a roundel's great mosaic brightly, a room's light alone.
+    /// </summary>
+    internal static float InlayGlow { get; set; } = DefaultInlayGlow;
+
+    /// <inheritdoc cref="InlayGlow"/>
+    internal static float MosaicGlow { get; set; } = DefaultMosaicGlow;
+
+    private const float DefaultInlayGlow = 0.1f, DefaultMosaicGlow = 2f;
 
     /// <summary>A plain emissive material, for a piece that is a light's visible source.</summary>
     private Material Glowing(Vector3 emission)
@@ -128,15 +144,17 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>How brightly a glowing piece shines in its emission colour (the ruin light study may change it).</summary>
     internal static float GlowIntensity { get; set; } = DefaultGlowIntensity;
 
-    private const float DefaultGlowIntensity = 2.5f;
+    // Bright enough that a relic's glow, with the inlays it powers, lights its room through the probe volume.
+    private const float DefaultGlowIntensity = 3f;
 
     private readonly List<(Material Material, Vector3 Emission)> glowing = [];
 
-    private MaterialRequest Request(RenderResource texture, RenderResource? emission)
+    private MaterialRequest Request(RenderResource texture, RenderResource? emission, bool mosaic)
     {
         Color white = new(1f, 1f, 1f, 1f);
-        bool glows = emission is not null && InlayGlow > 0f;
-        return new MaterialRequest(white, texture, Roughness, white, glows ? Vector3.One : Vector3.Zero, glows ? InlayGlow : 0f, false)
+        float glow = mosaic ? MosaicGlow : InlayGlow;
+        bool glows = emission is not null && glow > 0f;
+        return new MaterialRequest(white, texture, Roughness, white, glows ? Vector3.One : Vector3.Zero, glows ? glow : 0f, false)
         {
             EmissionMap = glows ? emission! : default(RenderResourceReference),
             Shader = new MaterialShader(shader, new Vector4(TextureTexels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
@@ -148,9 +166,9 @@ internal sealed class DungeonKitLook : IDisposable
     internal void Tune(Look next)
     {
         look = next;
-        foreach ((Material material, RenderResource texture, RenderResource? emission) in materials)
+        foreach ((Material material, RenderResource texture, RenderResource? emission, bool mosaic) in materials)
         {
-            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, Request(texture, emission)));
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, Request(texture, emission, mosaic)));
         }
     }
 
@@ -161,7 +179,7 @@ internal sealed class DungeonKitLook : IDisposable
     internal int Count => placed.Count;
 
     internal IEnumerable<AppearanceFact> Facts => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonKitObject + (ulong)index, false, 0UL,
-        p.Place, pieces[p.Piece].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
+        p.Place, pieces[(p.Piece, p.Lit)].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
 
     /// <summary>The pieces that collide (<see cref="DungeonKit.Collides"/>) as static collision: one asset per piece, an instance per placement.</summary>
     internal void Collide(SpatialSession session)
@@ -169,7 +187,7 @@ internal sealed class DungeonKitLook : IDisposable
         List<KitPiece> kinds = [.. placed.Where(p => DungeonKit.Collides(p.Piece)).Select(p => DungeonKit.Collider(p.Piece)).Distinct()];
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(
             session,
-            kinds.Select((kind, i) => new StaticMeshAsset(AssetBase + (ulong)i, new MeshResourceReference(pieces[kind].Mesh), 0, 0, 0, 0)).ToArray(),
+            kinds.Select((kind, i) => new StaticMeshAsset(AssetBase + (ulong)i, new MeshResourceReference(pieces[(kind, false)].Mesh), 0, 0, 0, 0)).ToArray(),
             ReadOnlyMemory<Vector3>.Empty,
             ReadOnlyMemory<Triangle>.Empty,
             placed.Where(p => DungeonKit.Collides(p.Piece))
@@ -186,7 +204,7 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         pieces.Clear();
-        foreach ((Material material, RenderResource _, RenderResource? _) in materials)
+        foreach ((Material material, RenderResource _, RenderResource? _, bool _) in materials)
         {
             material.Dispose();
         }

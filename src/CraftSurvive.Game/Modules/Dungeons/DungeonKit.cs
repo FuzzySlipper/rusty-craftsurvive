@@ -73,9 +73,10 @@ internal enum KitPiece
 /// <summary>
 /// One kit piece set in a dungeon, in layout metres: which piece, the base centre of its cell (the bottom of the cell's
 /// floor block), its turn about the vertical (radians), and how far it stretches across (x) and through (z) in its own
-/// frame where a hall runs on into the next cell.
+/// frame where a hall runs on into the next cell; and whether its inlays glow (the ruin light: a roundel's mosaic always,
+/// and every inlay in a room a relic powers).
 /// </summary>
-internal readonly record struct KitPlacement(KitPiece Piece, Vector3 Origin, float Turn, Vector2 Stretch, Vector2 Shift);
+internal readonly record struct KitPlacement(KitPiece Piece, Vector3 Origin, float Turn, Vector2 Stretch, Vector2 Shift, bool Lit = false);
 
 /// <summary>
 /// Fits the dungeon kit to a modular dungeon (#10089): every building cell's floor, ceiling and walls, found from the
@@ -130,8 +131,11 @@ internal static class DungeonKit
     private static readonly (string Module, int X, int Z)[] Flights = [("stair", 2, 1), ("gallery", (2 * Cell) - 4, (2 * Cell) - 5 - Storey)];
 
     /// <summary>
-    /// The kit fitted to a dungeon, its volume less the voxels the pieces stand in, and where its relics glow (layout
-    /// metres): one relic in every building cell a light of the layout hangs in, which then lights from its relic.
+    /// The kit fitted to a dungeon, its volume less the voxels the pieces stand in, and where its relics' hard lights shine
+    /// (layout metres). A relic stands in every building cell a light of the layout hangs in, and powers its room: every
+    /// inlay in its module glows, which lights the room through the probe volume (owner, 2026-10-20: the ruins are lit
+    /// by their glowing mosaics and inlays). Only a hall with pillars or a sphere, whose shadows are wanted, keeps the
+    /// relic's hard, shadowed light.
     /// </summary>
     internal static (IReadOnlyList<KitPlacement> Pieces, DungeonVolume Drawn, IReadOnlyList<Vector3> Relics) Fit(DungeonVolume volume,
         IReadOnlyList<PlacedModule> modules, IReadOnlyList<Vector3> lights, ulong seed)
@@ -144,6 +148,7 @@ internal static class DungeonKit
         List<(int X0, int X1, int Y0, int Y1, int Z0, int Z1)> breached = [];
         foreach (PlacedModule module in modules.Where(m => m.Shape.Kind == ModuleKind.Building))
         {
+            int modulePieces = pieces.Count, firstRelic = relics.Count;
             // The faces and corners of upper cells a tall piece from below already stands in.
             HashSet<(int, int, int, ModuleFace)> tallFaces = [];
             HashSet<(int, int, int, float)> tallCorners = [];
@@ -319,6 +324,23 @@ internal static class DungeonKit
                     {
                         pieces.Add(new KitPlacement(piece, corner, turn, Vector2.One, Vector2.Zero));
                     }
+                }
+            }
+
+            // A relic powers its module: its inlays glow. A hall whose pillars or sphere throw shadows keeps the relics'
+            // hard lights; elsewhere they go, and the glow is the light.
+            bool powered = relics.Count > firstRelic;
+            bool hall = pieces.Skip(modulePieces).Any(p => p.Piece is KitPiece.Pillar or KitPiece.PillarGreat or KitPiece.Sphere or KitPiece.SphereGreat);
+            if (!hall)
+            {
+                relics.RemoveRange(firstRelic, relics.Count - firstRelic);
+            }
+
+            for (int i = modulePieces; i < pieces.Count; i++)
+            {
+                if (powered || pieces[i].Piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)
+                {
+                    pieces[i] = pieces[i] with { Lit = true };
                 }
             }
         }

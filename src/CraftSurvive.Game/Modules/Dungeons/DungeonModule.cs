@@ -393,8 +393,9 @@ internal sealed class DungeonModule : IProductModule
     private const float GrowthLightOffset = 0.35f;
     private readonly Light?[] growthLights = new Light?[MostGrowthLights];
 
-    // The kit's relics (#10089; owner, 2026-10-19: the ruins' light comes from their relics, light magic-tech): each a small
-    // cold light from its glow, unshadowed, whatever the darkness treatment; at most so many.
+    // The kit's relics' hard lights (#10089; owner, 2026-10-20: the ruins are lit by their glowing mosaics and inlays, a
+    // relic's hard light only where its shadows are wanted - a hall's): each a cold light from its glow, shadowed, whatever
+    // the darkness treatment; at most so many.
     private const int MostRelicLights = 16;
     private static readonly Vector3 RelicColour = new(0.55f, 0.85f, 0.9f);
     private const float RelicIntensity = 3f, RelicRange = 6f;
@@ -413,7 +414,7 @@ internal sealed class DungeonModule : IProductModule
             Vector3 at = on ? DungeonSpace.InSession(relics[slot]) : Vector3.Zero;
             LightRequest request = new(ProductIds.DungeonRelicLightBase + (ulong)slot, false, 0UL,
                 new LightDescriptor(LightKind.Point, RelicColour, on ? RelicIntensity * relicLightScale : 0f, on && relicLightScale > 0f, at, -Vector3.UnitY, true, RelicRange, LightDecay, 0f, 0f,
-                    LightShadowIntent.Disabled, LightShadowResolution, LightShadowPriority, true));
+                    LightShadowIntent.Requested, LightShadowResolution, LightShadowPriority, true));
             if (relicLights[slot] is Light light)
             {
                 engine.Graphics.UpdateLight(new LightUpdateRequest(light, request));
@@ -745,11 +746,12 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>
     /// The ruin light study (#10089): how strongly the relics' point lights shine (a share of their own; 0 puts them out),
     /// how brightly their glows emit (the probe volume carries emission into the room's indirect light), and whether the
-    /// lantern burns, and how brightly painted inlays with an emission map glow; now and for later dungeons.
+    /// lantern burns, how brightly a powered room's inlays glow and how brightly the roundels' mosaics glow; now and for later dungeons.
     /// </summary>
-    internal string StudyRuinLight(float relicLight, float glow, bool lantern, float inlay)
+    internal string StudyRuinLight(float relicLight, float glow, bool lantern, float inlay, float mosaic)
     {
         DungeonKitLook.InlayGlow = Math.Max(0f, inlay);
+        DungeonKitLook.MosaicGlow = Math.Max(0f, mosaic);
         relicLightScale = Math.Max(0f, relicLight);
         lanternOut = !lantern;
         DungeonKitLook.GlowIntensity = Math.Max(0f, glow);
@@ -760,7 +762,7 @@ internal sealed class DungeonModule : IProductModule
         }
 
         CarryLantern();
-        return string.Create(CultureInfo.InvariantCulture, $"ruin light: relic lights x{relicLightScale:F2}, glow {DungeonKitLook.GlowIntensity:F1}, lantern {(lanternOut ? "out" : "lit")}, inlays {DungeonKitLook.InlayGlow:F1}");
+        return string.Create(CultureInfo.InvariantCulture, $"ruin light: relic lights x{relicLightScale:F2}, glow {DungeonKitLook.GlowIntensity:F1}, lantern {(lanternOut ? "out" : "lit")}, inlays {DungeonKitLook.InlayGlow:F2}, mosaics {DungeonKitLook.MosaicGlow:F1}");
     }
 
     internal string StudyCentrepiece(string choice)

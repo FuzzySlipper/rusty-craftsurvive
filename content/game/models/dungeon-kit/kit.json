@@ -3,27 +3,33 @@
   "pieces": [
     {
       "name": "floor",
-      "model": "models/dungeon-kit/floor.prop-mesh.json"
+      "model": "models/dungeon-kit/floor.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/floor.png"
     },
     {
       "name": "vault",
-      "model": "models/dungeon-kit/vault.prop-mesh.json"
+      "model": "models/dungeon-kit/vault.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/vault.png"
     },
     {
       "name": "wall",
-      "model": "models/dungeon-kit/wall.prop-mesh.json"
+      "model": "models/dungeon-kit/wall.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall.png"
     },
     {
       "name": "wall-door",
-      "model": "models/dungeon-kit/wall-door.prop-mesh.json"
+      "model": "models/dungeon-kit/wall-door.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall-door.png"
     },
     {
       "name": "corner",
-      "model": "models/dungeon-kit/corner.prop-mesh.json"
+      "model": "models/dungeon-kit/corner.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/corner.png"
     },
     {
       "name": "wall-alcove",
-      "model": "models/dungeon-kit/wall-alcove.prop-mesh.json"
+      "model": "models/dungeon-kit/wall-alcove.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall-alcove.png"
     },
     {
       "name": "wall-roundel",
@@ -32,7 +38,8 @@
     },
     {
       "name": "sphere",
-      "model": "models/dungeon-kit/sphere.prop-mesh.json"
+      "model": "models/dungeon-kit/sphere.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/sphere.png"
     },
     {
       "name": "relic",
@@ -57,15 +64,18 @@
     },
     {
       "name": "pillar",
-      "model": "models/dungeon-kit/pillar.prop-mesh.json"
+      "model": "models/dungeon-kit/pillar.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/pillar.png"
     },
     {
       "name": "pillar-great",
-      "model": "models/dungeon-kit/pillar-great.prop-mesh.json"
+      "model": "models/dungeon-kit/pillar-great.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/pillar-great.png"
     },
     {
       "name": "sphere-great",
-      "model": "models/dungeon-kit/sphere-great.prop-mesh.json"
+      "model": "models/dungeon-kit/sphere-great.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/sphere-great.png"
     },
     {
       "name": "wall-breach",
@@ -77,15 +87,18 @@
     },
     {
       "name": "floor-heaved",
-      "model": "models/dungeon-kit/floor-heaved.prop-mesh.json"
+      "model": "models/dungeon-kit/floor-heaved.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/floor-heaved.png"
     },
     {
       "name": "wall-tall",
-      "model": "models/dungeon-kit/wall-tall.prop-mesh.json"
+      "model": "models/dungeon-kit/wall-tall.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall-tall.png"
     },
     {
       "name": "wall-tall-door",
-      "model": "models/dungeon-kit/wall-tall-door.prop-mesh.json"
+      "model": "models/dungeon-kit/wall-tall-door.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall-tall-door.png"
     },
     {
       "name": "wall-tall-roundel",
@@ -94,7 +107,8 @@
     },
     {
       "name": "corner-tall",
-      "model": "models/dungeon-kit/corner-tall.prop-mesh.json"
+      "model": "models/dungeon-kit/corner-tall.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/corner-tall.png"
     },
     {
       "name": "rubble-slope",
