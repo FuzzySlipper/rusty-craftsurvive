@@ -157,6 +157,10 @@ internal static class ModularDungeon
             Relics = relics,
             Modules = placed,
             Moisture = moisture,
+            // The moss cards on the kit (#10092), where its damp stain is strongest.
+            MossCards = KitMoss.Cards(kit, seed),
+            // Its water marks (#10092): drip stains, streaks, damp washes.
+            Drips = DungeonDrips.Marks(walkable, moisture, kit, seed),
         };
         return (layout, plan, verdict, walkable, placed);
     }

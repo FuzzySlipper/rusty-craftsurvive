@@ -41,7 +41,12 @@ internal sealed class DungeonMoisture
     }
 
     /// <summary>How many cells seep (water through a ceiling).</summary>
-    internal int Seeps { get; private set; }
+    internal int Seeps => seeps.Count;
+
+    /// <summary>Where water seeps through a ceiling, in layout metres: the middle of its cell's top.</summary>
+    internal IReadOnlyList<Vector3> SeepPoints => seeps;
+
+    private readonly List<Vector3> seeps = [];
 
     /// <summary>The moisture at a point of the layout (metres), 0 where the grid has no air (inside rock or a wall).</summary>
     internal float At(Vector3 p)
@@ -103,7 +108,7 @@ internal sealed class DungeonMoisture
                     if (!cave[i] && (y + 1 >= m.sizeY || !m.air[m.Index(x, y + 1, z)]) && Hash(seed, x, y, z) < SeepShare)
                     {
                         source[i] = Seep;
-                        m.Seeps++;
+                        m.seeps.Add(new Vector3((x + 0.5f) * Step, (y + 1) * Step, (z + 0.5f) * Step));
                     }
                 }
 

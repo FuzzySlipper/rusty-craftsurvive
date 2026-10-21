@@ -156,6 +156,11 @@ internal static class ProductIds
     /// <summary>Footprints in the snow (#10068), one per pooled print (SnowTracks.PoolSize).</summary>
     internal const ulong SnowTrackBase = 0x9_D000UL;
 
+    /// <summary>A dungeon's drip, streak and damp marks (#10092), projected decals; at most <see cref="DungeonDecals"/>.</summary>
+    internal const ulong DungeonDecalBase = 0x9_E000UL;
+
+    internal const int DungeonDecals = 0x400;
+
     /// <summary>Entity-store component keys.</summary>
     internal const uint PlayerRuntimeComponent = 1U;
 

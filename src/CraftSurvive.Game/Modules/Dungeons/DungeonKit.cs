@@ -657,9 +657,16 @@ internal static class DungeonKit
             KitPiece.RubbleHeap => new(1f, 2.5f, 1f),
             _ => new(0f, 2f, 0f),
         };
-        Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, placement.Turn);
-        return placement.Origin + Vector3.Transform(new Vector3(placement.Shift.X + (local.X * placement.Stretch.X), local.Y, placement.Shift.Y + (local.Z * placement.Stretch.Y)), turn);
+        return Local(placement, local);
     }
+
+    /// <summary>A point of a placed piece's own frame (stretched and shifted as the piece is), in layout metres.</summary>
+    internal static Vector3 Local(KitPlacement placement, Vector3 local) =>
+        placement.Origin + Turned(placement, new Vector3(placement.Shift.X + (local.X * placement.Stretch.X), local.Y, placement.Shift.Y + (local.Z * placement.Stretch.Y)));
+
+    /// <summary>A direction of a placed piece's own frame, turned as the piece is.</summary>
+    internal static Vector3 Turned(KitPlacement placement, Vector3 direction) =>
+        Vector3.Transform(direction, Quaternion.CreateFromAxisAngle(Vector3.UnitY, placement.Turn));
 
     /// <summary>Where a placed piece stands in the dungeon's session: its position (its cell's base centre, shifted in its own frame), turn and stretch.</summary>
     internal static (Vector3 At, Quaternion Turn, Vector3 Scale) Place(KitPlacement placement)

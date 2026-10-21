@@ -14,7 +14,12 @@ namespace CraftSurvive.Game.Modules.Weather;
 /// </summary>
 internal sealed class SnowTracks : IProductModule
 {
-    private const string AtlasPath = "textures/snow/footprints.png";
+    /// <summary>
+    /// The scene's one decal atlas (textures/decals/atlas.png, asset-pipeline decal_atlas.py), shared with the dungeons'
+    /// marks (#10092): the footprints keep its top-left quarter, so their regions are scaled into it.
+    /// </summary>
+    private const string AtlasPath = "textures/decals/atlas.png";
+    private const float FootprintsU = 0.5f, FootprintsV = 0.5f;
     /// <summary>Prints are made once this much snow lies (metres).</summary>
     internal const double TracksFrom = 0.03;
     /// <summary>The pool's size: a few hundred metres of the party's trail and the creatures' near them.</summary>
@@ -160,7 +165,7 @@ internal sealed class SnowTracks : IProductModule
         float row = (int)print.Maker, u0 = stage / (float)Columns, u1 = (stage + 1) / (float)Columns;
         // A left foot is the right one mirrored across the atlas cell.
         if (print.Left) (u0, u1) = (u1, u0);
-        Vector4 region = new(u0, row / Rows, u1, (row + 1) / Rows);
+        Vector4 region = new(u0 * FootprintsU, row / Rows * FootprintsV, u1 * FootprintsU, (row + 1) / Rows * FootprintsV);
         return new DecalRequest(Id(index), frame.ToLocal(print.At.X, print.At.Y, print.At.Z), Quaternion.CreateFromAxisAngle(Vector3.UnitY, print.Heading),
             new Vector3(size, PrintDepth, size), region, new Color(1, 1, 1, 1), Roughness: 0, NormalStrength: 0, AngleFalloff: true,
             OnVegetation: false, OnAnimatedMeshes: false, LifeSeconds: 0, FadeSeconds: 0);

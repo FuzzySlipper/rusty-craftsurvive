@@ -193,6 +193,16 @@ internal sealed class DungeonSpace : IDisposable
                     $"{RockReadout} kit={kit.Count} ({kit.Meshes} meshes; built {kitMeshMs:F0} ms, collided {kitCollideMs:F0} ms)");
             }
 
+            // The water marks (#10092): projected decals from the scene's shared atlas (set by SnowTracks), wet a little glossy.
+            for (int i = 0; i < Math.Min(layout.Drips.Count, ProductIds.DungeonDecals); i++)
+            {
+                DungeonDrips.Mark mark = layout.Drips[i];
+                engine.CameraView.SetDecal(new DecalRequest(ProductIds.DungeonDecalBase + (ulong)i, InSession(mark.Centre), mark.Turn, mark.Size, mark.Region,
+                    new Color(1f, 1f, 1f, 1f), Roughness: DripRoughness, NormalStrength: 0f, AngleFalloff: true, OnVegetation: false, OnAnimatedMeshes: false,
+                    LifeSeconds: 0f, FadeSeconds: 0f));
+                drips++;
+            }
+
             if (layout.MossCards.Count > 0)
             {
                 // Published with the growths: an appearance draws only while a published fact names it.
@@ -335,8 +345,22 @@ internal sealed class DungeonSpace : IDisposable
         }
     }
 
+    /// <summary>How rough a water mark leaves the surface it covers: wet stone a little glossy.</summary>
+    private const float DripRoughness = 0.55f;
+
+    private int drips;
+
+    /// <summary>How many water marks are placed.</summary>
+    internal int Drips => drips;
+
     public void Dispose()
     {
+        for (int i = 0; i < drips; i++)
+        {
+            engine.CameraView.RemoveDecal(new DecalRemoval(ProductIds.DungeonDecalBase + (ulong)i));
+        }
+
+        drips = 0;
         foreach ((MeshResource mesh, Appearance look) in growths)
         {
             look.Dispose();
