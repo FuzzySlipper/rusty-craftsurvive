@@ -52,6 +52,21 @@ internal sealed class DungeonKitLook : IDisposable
     private const float MossStrength = 2f, StainDepth = 1f, SideShare = 0.85f, LowestFacing = -0.25f, WetInBlue = 0.45f;
     private readonly Dictionary<(KitPiece Piece, bool Lit, int Wet), Appearance> damp = [];
 
+    // The ivy blanket (#10092; the places' #10044, kit-ivy.wgsl): over the walls, ribs and pillars of placements this damp
+    // (KitMoss.Dampness), a shell of each piece's own faces that do not face down, pushed this far off the stone, the
+    // seamless ivy tile projected on each face's plane every so many metres; shown where the field is over the threshold.
+    private const string BlanketShaderPath = "shaders/kit-ivy.wgsl", BlanketTexturePath = "textures/places/ivy-blanket.png";
+    private const float BlanketFrom = 1f, BlanketOffset = 0.05f, BlanketTileMetres = 2f, BlanketLowest = -0.25f, BlanketThreshold = 0.8f;
+    private readonly Dictionary<KitPiece, MeshResource> blankets = [];
+    private readonly Dictionary<(KitPiece Piece, int Wet), Appearance> blanketLooks = [];
+    private readonly List<(KitPiece Piece, int Wet, Transform Place)> blanketed = [];
+    private RenderResource? blanketShader, blanketTexture;
+    private Material? blanketMaterial;
+
+    private static bool Blanketed(KitPiece piece) => piece is KitPiece.Wall or KitPiece.WallDoor or KitPiece.WallAlcove or KitPiece.WallRoundel
+        or KitPiece.WallTall or KitPiece.WallTallDoor or KitPiece.WallTallRoundel or KitPiece.WallBreach or KitPiece.Corner or KitPiece.CornerTall
+        or KitPiece.CornerBroken or KitPiece.Pillar or KitPiece.PillarGreat;
+
     /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "plain", painted from the geometry), or null for its own.</param>
     /// <param name="look">The kit stone shader's settings (a study may tune them).</param>
     internal DungeonKitLook(IEngineContext engine, ProductContent content, IReadOnlyList<KitPlacement> placements, Look look, string? paint = null)
@@ -101,6 +116,11 @@ internal sealed class DungeonKitLook : IDisposable
             bool litHere = p.Lit && pieces.ContainsKey((p.Piece, true));
             int wet = Math.Clamp((int)MathF.Round(KitMoss.Dampness(p.Wet) / KitMoss.MostDampness * (WetSteps - 1)), 0, WetSteps - 1);
             placed.Add((p.Piece, litHere, wet, new Transform(at, turn, scale)));
+            if (Blanketed(p.Piece) && KitMoss.Dampness(p.Wet) >= BlanketFrom && blanketed.Count < ProductIds.DungeonKitObjects)
+            {
+                Blanket(content, entries[DungeonKit.Name(p.Piece)].GetProperty("model").GetString()!, p.Piece, wet);
+                blanketed.Add((p.Piece, wet, new Transform(at, turn, scale)));
+            }
             if (!damp.ContainsKey((p.Piece, litHere, wet)) && pieces[(p.Piece, litHere)] is { Mossy: true } drawn)
             {
                 // The piece's mesh again, its every slot's texture tint carrying this dampness in its alpha.
@@ -156,6 +176,80 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         return model;
+    }
+
+    /// <summary>The ivy blanket of a piece at a dampness: its shell (built once) drawn through an appearance carrying the dampness.</summary>
+    private void Blanket(ProductContent content, string model, KitPiece piece, int wet)
+    {
+        if (!blankets.TryGetValue(piece, out MeshResource? shell))
+        {
+            if (blanketMaterial is null)
+            {
+                blanketShader = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketShaderPath)).Handle;
+                blanketTexture = engine.Graphics.OpenResource(new RenderResourceRequest(BlanketTexturePath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+                Color white = new(1f, 1f, 1f, 1f);
+                blanketMaterial = engine.Graphics.CreateMaterial(new MaterialRequest(white, blanketTexture, Roughness, white, Vector3.Zero, 0f, false)
+                {
+                    Shader = new MaterialShader(blanketShader, new Vector4(BlanketThreshold, 0f, 0f, 0f), Vector4.Zero, Vector4.Zero,
+                        new Vector4(0f, SideShare, LowestFacing, 0f)),
+                });
+            }
+
+            shell = engine.Graphics.CreateMeshResource(Shell(Model(content, model).Mesh, blanketMaterial));
+            blankets[piece] = shell;
+        }
+
+        if (!blanketLooks.ContainsKey((piece, wet)))
+        {
+            Appearance look = engine.Graphics.CreateMeshAppearance(shell);
+            Color dampness = new(1f, 1f, 1f - (WetInBlue * KitMoss.MostDampness * wet / (float)(WetSteps - 1)), 1f);
+            engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(look,
+                new MeshMaterialFactors[] { new(0, false, default, false, Vector3.Zero, 0f, true, dampness) }));
+            blanketLooks[(piece, wet)] = look;
+        }
+    }
+
+    /// <summary>
+    /// A piece's ivy blanket (as the places' PlaceMeshes.Blanket): its own triangles that do not face down, each vertex pushed
+    /// out along its normal, the ivy tile projected on each triangle's dominant plane in the piece's metres; its vertex colours
+    /// (the rising damp) kept.
+    /// </summary>
+    private static MeshResourceCreateRequest Shell(MeshResourceCreateRequest piece, Material material)
+    {
+        ReadOnlySpan<Vector3> p = piece.Positions.Span, n = piece.Normals.Span;
+        ReadOnlySpan<Color> col = piece.Colors.Span;
+        ReadOnlySpan<uint> idx = piece.Indices.Span;
+        List<Color> colours = [];
+        List<Vector3> positions = [], normals = [];
+        List<Vector2> uvs = [];
+        List<uint> indices = [];
+        for (int t = 0; t + 2 < idx.Length; t += 3)
+        {
+            Vector3 a = p[(int)idx[t]], b = p[(int)idx[t + 1]], c = p[(int)idx[t + 2]];
+            Vector3 face = Vector3.Normalize(Vector3.Cross(b - a, c - a));
+            if (face.Y < BlanketLowest)
+            {
+                continue;
+            }
+
+            Vector3 abs = Vector3.Abs(face);
+            uint first = (uint)positions.Count;
+            for (int k = 0; k < 3; k++)
+            {
+                uint v = idx[t + k];
+                Vector3 at = p[(int)v] + (Vector3.Normalize(n[(int)v]) * BlanketOffset);
+                positions.Add(at);
+                normals.Add(n[(int)v]);
+                colours.Add(col[(int)v]);
+                Vector2 plane = abs.Y >= abs.X && abs.Y >= abs.Z ? new(at.X, at.Z) : abs.X >= abs.Z ? new(at.Z, -at.Y) : new(at.X, -at.Y);
+                uvs.Add(plane / BlanketTileMetres);
+            }
+
+            indices.AddRange([first, first + 1, first + 2]);
+        }
+
+        return new MeshResourceCreateRequest(positions.ToArray(), normals.ToArray(), uvs.ToArray(), colours.ToArray(), indices.ToArray(),
+            new MeshGroup[] { new(0, 0, (uint)indices.Count) }, new MeshMaterialBinding[] { new(0, material) });
     }
 
     /// <summary>A material for a kit texture: the texture as its base colour, nearest with mipmaps, under the kit stone shader.</summary>
@@ -256,7 +350,12 @@ internal sealed class DungeonKitLook : IDisposable
     internal int Meshes => pieces.Count;
 
     internal IEnumerable<AppearanceFact> Facts => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonKitObject + (ulong)index, false, 0UL,
-        p.Place, damp.TryGetValue((p.Piece, p.Lit, p.Wet), out Appearance? wet) ? wet : pieces[(p.Piece, p.Lit)].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
+        p.Place, damp.TryGetValue((p.Piece, p.Lit, p.Wet), out Appearance? wet) ? wet : pieces[(p.Piece, p.Lit)].Look, true, RenderLayer.Scene, ShadowCasting.Cast))
+        .Concat(blanketed.Select((b, index) => new AppearanceFact(ProductIds.DungeonKitBlanket + (ulong)index, false, 0UL, b.Place,
+            blanketLooks[(b.Piece, b.Wet)], true, RenderLayer.Scene, ShadowCasting.None)));
+
+    /// <summary>How many ivy blankets the kit draws.</summary>
+    internal int Blankets => blanketed.Count;
 
     /// <summary>The pieces that collide (<see cref="DungeonKit.Collides"/>) as static collision: one asset per piece, an instance per placement.</summary>
     internal void Collide(SpatialSession session)
@@ -294,10 +393,21 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>Disposes the pieces after the snapshot that last named them, then their materials.</summary>
     public void Dispose()
     {
-        foreach (Appearance look in damp.Values)
+        foreach (Appearance look in damp.Values.Concat(blanketLooks.Values))
         {
             look.Dispose();
         }
+
+        blanketLooks.Clear();
+        foreach (MeshResource shell in blankets.Values)
+        {
+            shell.Dispose();
+        }
+
+        blankets.Clear();
+        blanketMaterial?.Dispose();
+        blanketTexture?.Dispose();
+        blanketShader?.Dispose();
 
         damp.Clear();
         foreach ((MeshResource mesh, Appearance look, int _, bool _) in pieces.Values)

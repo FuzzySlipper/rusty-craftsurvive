@@ -55,6 +55,12 @@ internal sealed class CaveMossCards : IDisposable
         foreach (MossCard card in cards)
         {
             Vector3 at = DungeonSpace.InSession(card.At);
+            if (card.Kind == MossCardKind.Cluster)
+            {
+                PlaceMossCards.Cluster(at, card.Normal, card.Pick, positions, normals, uvs, indices);
+                continue;
+            }
+
             if (card.Kind == MossCardKind.Mat)
             {
                 PlaceMossCards.Mat(at, card.Normal, card.Pick, positions, normals, uvs, matIndices);

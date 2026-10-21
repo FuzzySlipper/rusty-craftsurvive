@@ -572,12 +572,15 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
 // The kit's moss (#10092): kit-stone.wgsl fixes the places' moss grain (SurfaceMoss.PlaceGrain) as constants, which must stay
 // equal; and the moisture grows from the dungeon - seeps in every dungeon, the kit's pieces from dry to wet.
 {
-    string shaderText = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../../content/game/shaders/kit-stone.wgsl"));
+    string shaderText = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../../content/game/shaders/kit-stone.wgsl"))
+        + File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../../content/game/shaders/kit-ivy.wgsl"));
     (int broad, int broadDown, int fine, int fineDown) = SurfaceMoss.PlaceGrain.Lattice;
-    bool grainEqual = shaderText.Contains($"MOSS_LATTICE: vec4<i32> = vec4<i32>({broad}, {broadDown}, {fine}, {fineDown});", StringComparison.Ordinal)
+    // Both kit shaders (kit-stone.wgsl and kit-ivy.wgsl) carry the grain: each must hold it, so it appears twice.
+    int Count(string text) => (shaderText.Length - shaderText.Replace(text, "", StringComparison.Ordinal).Length) / text.Length;
+    bool grainEqual = Count($"MOSS_LATTICE: vec4<i32> = vec4<i32>({broad}, {broadDown}, {fine}, {fineDown});") == 2 && shaderText.Contains($"MOSS_LATTICE: vec4<i32> = vec4<i32>({broad}, {broadDown}, {fine}, {fineDown});", StringComparison.Ordinal)
         && shaderText.Contains($"MOSS_PERIOD: i32 = {SurfaceMoss.PlaceGrain.PeriodMetres};", StringComparison.Ordinal)
         && shaderText.Contains($"MOSS_TEXELS: f32 = {SurfaceMoss.PlaceGrain.TexelsPerMetre}.0;", StringComparison.Ordinal);
-    Check.That(grainEqual, "kit-stone.wgsl's moss grain must equal SurfaceMoss.PlaceGrain");
+    Check.That(grainEqual, "kit-stone.wgsl's and kit-ivy.wgsl's moss grain must equal SurfaceMoss.PlaceGrain");
     int seeped = 0, dry = 0, wet = 0, pieces = 0;
     for (ulong moistSeed = 1; moistSeed <= 8; moistSeed++)
     {

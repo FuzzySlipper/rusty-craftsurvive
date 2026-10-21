@@ -61,6 +61,9 @@ internal enum MossCardKind
 
     /// <summary>Ivy lying flat on a wall's face, hung from a little above its anchor so its top is leafy (the places' face card).</summary>
     Face,
+
+    /// <summary>A leaf cluster standing out of an ivy blanket (the places' cluster card): a splayed pair of leafy cards.</summary>
+    Cluster,
 }
 
 /// <summary>

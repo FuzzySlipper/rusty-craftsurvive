@@ -309,7 +309,7 @@ internal sealed class PlaceMossCards : IDisposable
     /// A leaf cluster standing out of the ivy blanket: two crossed curtain cards rooted at the surface, tilted out from it
     /// toward the sky, so an overgrown wall has bulk and a broken outline rather than a flat wallpaper of ivy.
     /// </summary>
-    private static void Cluster(Vector3 at, Vector3 normal, float pick, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
+    internal static void Cluster(Vector3 at, Vector3 normal, float pick, List<Vector3> positions, List<Vector3> normals, List<Vector2> uvs, List<uint> indices)
     {
         Vector3 n = Vector3.Normalize(normal);
         // Out from the surface and up: on a wall, leaves lean out and droop; on a top, they stand up.

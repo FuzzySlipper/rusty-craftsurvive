@@ -51,6 +51,11 @@ internal static class KitMoss
 
     private const float OvergrownFrom = 0.6f, OvergrownRise = 3.5f;
 
+    // Leaf clusters out of the ivy blanket (DungeonKitLook, kit-ivy.wgsl): where the blanket's field is this far over its
+    // threshold on a wall's panel, every so far along it at these heights (its own frame), standing this far off it.
+    private const float BlanketThreshold = 0.8f, ClusterMargin = 0.25f, ClusterStep = 0.65f, ClusterStandoff = 0.06f;
+    private static readonly float[] ClusterHeights = [1.5f, 2.3f, 3.1f];
+
     /// <summary>The most cards a dungeon grows (as a cave's).</summary>
     private const int MostCards = 1200;
 
@@ -89,7 +94,27 @@ internal static class KitMoss
                     break;
                 case KitPiece.Wall or KitPiece.WallDoor or KitPiece.WallAlcove or KitPiece.WallRoundel or KitPiece.WallTall
                     or KitPiece.WallTallDoor or KitPiece.WallTallRoundel:
-                    // Ivy down the wettest walls, flat on the panel under the cove.
+                    // Leaf clusters standing out of the blanket where it is thickest.
+                    for (float x = -PanelHalf + 0.2f; Dampness(p.Wet) >= 1f && x <= PanelHalf - 0.2f; x += ClusterStep)
+                    {
+                        if (p.Piece is KitPiece.WallDoor or KitPiece.WallTallDoor && MathF.Abs(x) < 1.4f)
+                        {
+                            continue;
+                        }
+
+                        float face = -Inner - (PanelBack * MathF.Cos(0.5f * MathF.PI * x / PanelHalf));
+                        foreach (float y in ClusterHeights)
+                        {
+                            float rising = 1f - (0.65f * Math.Clamp((y - 1f) / 3.6f, 0f, 1f));
+                            if (Strength(p, new Vector3(x, y, face), Vector3.UnitZ, rising) >= BlanketThreshold + ClusterMargin)
+                            {
+                                Vector3 at = DungeonKit.Local(p, new Vector3(x, y, face + ClusterStandoff));
+                                cards.Add(new MossCard(MossCardKind.Cluster, at, Vector3.Zero, DungeonKit.Turned(p, Vector3.UnitZ), (float)Hash(seed ^ 0xC1UL, at)));
+                            }
+                        }
+                    }
+
+                    // Ivy down the wettest walls, hung from the cove.
                     float damp = Dampness(p.Wet);
                     for (float x = -PanelHalf + 0.2f; damp >= WallIvyFrom && x <= PanelHalf - 0.2f; x += WallIvyStep)
                     {
