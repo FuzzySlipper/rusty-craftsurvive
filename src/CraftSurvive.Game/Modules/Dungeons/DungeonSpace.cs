@@ -199,6 +199,12 @@ internal sealed class DungeonSpace : IDisposable
                 // The wall overgrowth (#10096): drawn only, nothing collides.
                 long grownStarted = Stopwatch.GetTimestamp();
                 overgrowth = new DungeonOvergrowth(engine, terrain.Content, layout.Overgrowth);
+                // The vent trunks collide where nothing else holds the space's static collision (no kit, voxel rock).
+                if (kit is null && !DungeonSurfaces.RockAsMesh(surface) && overgrowth.Collides)
+                {
+                    overgrowth.Collide(Session);
+                }
+
                 RockReadout = string.Create(CultureInfo.InvariantCulture,
                     $"{RockReadout} overgrowth={overgrowth.Count} ({overgrowth.Counts}; built {Stopwatch.GetElapsedTime(grownStarted).TotalMilliseconds:F0} ms)");
             }

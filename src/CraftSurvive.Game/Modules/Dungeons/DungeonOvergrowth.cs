@@ -17,8 +17,8 @@ internal sealed class DungeonOvergrowth : IDisposable
     /// <summary>Wet leaves are a little less matte than the stone.</summary>
     private const float Roughness = 0.75f;
 
-    /// <summary>As the kit's textures: 512 texels across (32 texels/m over the 16 m an atlas spans).</summary>
-    private const float TextureTexels = 512f;
+    /// <summary>As the kit's textures: 512 texels across (32 texels/m over the 16 m an atlas spans); the giant vents' are 1024 (overgrowth_paint.sh).</summary>
+    private const float TextureTexels = 512f, GiantTextureTexels = 1024f;
 
     // kit-stone.wgsl's stain: none on the leaves (their tint is white, so no dampness either), as the kit's facing limits.
     private const float MossStrength = 0f, StainDepth = 1f, SideShare = 0.85f, LowestFacing = -0.25f;
@@ -41,7 +41,8 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture)))];
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster ? GiantTextureTexels : TextureTexels;
+            MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels)))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
             kinds[kind] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
@@ -94,6 +95,8 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.VentCluster => "models/dungeon-overgrowth/vent-cluster.prop-mesh.json",
         OvergrowthKind.VentShort => "models/dungeon-overgrowth/vent-short.prop-mesh.json",
         OvergrowthKind.VentBed => "models/dungeon-overgrowth/vent-bed.prop-mesh.json",
+        OvergrowthKind.VentGiant => "models/dungeon-overgrowth/vent-giant.prop-mesh.json",
+        OvergrowthKind.VentGiantCluster => "models/dungeon-overgrowth/vent-giant-cluster.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -118,7 +121,7 @@ internal sealed class DungeonOvergrowth : IDisposable
     }
 
     /// <summary>A material for an overgrowth texture: nearest with mipmaps, under the kit stone shader at the kit's settings.</summary>
-    private Material Material(string path)
+    private Material Material(string path, float texels)
     {
         RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
         textures.Add(texture);
@@ -126,7 +129,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         Color white = new(1f, 1f, 1f, 1f);
         Material material = engine.Graphics.CreateMaterial(new MaterialRequest(white, texture, Roughness, white, Vector3.Zero, 0f, false)
         {
-            Shader = new MaterialShader(shader, new Vector4(TextureTexels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
+            Shader = new MaterialShader(shader, new Vector4(texels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
                 new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(0f, 0f, 0f, MossStrength),
                 new Vector4(StainDepth, SideShare, LowestFacing, 0f), texture, default(RenderResourceReference)),
         });
@@ -144,6 +147,70 @@ internal sealed class DungeonOvergrowth : IDisposable
 
     internal IEnumerable<AppearanceFact> Facts => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonOvergrowth + (ulong)index, false, 0UL,
         p.Place, kinds[p.Kind].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
+
+    // The vent trunks' colliders (#10096): each trunk a closed prism of so many sides, as overgrowth_authored.py builds the
+    // tubes (their feet and radii, metres, in the piece's frame); the plumes, beds and the rest do not collide. The asset and
+    // instance ids, clear of the kit's and the rock's.
+    private const int TrunkSides = 8;
+    private const ulong TrunkAssetBase = 0x5000UL, TrunkInstanceBase = 0x30_0000UL;
+
+    private static (float X, float Z, float Radius, float Height)[] Trunks(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.VentTall => [(0f, 0f, 0.32f, 2.6f)],
+        OvergrowthKind.VentCluster => [(0f, 0f, 0.33f, 3f), (0.42f, 0.2f, 0.27f, 2.1f), (-0.3f, 0.38f, 0.22f, 1.6f), (0.1f, -0.42f, 0.2f, 1.4f)],
+        OvergrowthKind.VentGiant => [(0f, 0f, 1.1f, 10f)],
+        OvergrowthKind.VentGiantCluster => [(0f, 0f, 1.15f, 11f), (1.6f, 0.8f, 0.95f, 8f), (-1.1f, 1.4f, 0.78f, 6f)],
+        _ => [],
+    };
+
+    /// <summary>Whether any placement has a trunk that collides.</summary>
+    internal bool Collides => placed.Any(p => Trunks(p.Kind).Length > 0);
+
+    /// <summary>
+    /// The vent trunks as the space's static collision, one asset per kind and an instance per placement, as the kit
+    /// collides; only where nothing else holds the space's static collision (a natural cave's rock is voxels).
+    /// </summary>
+    internal void Collide(SpatialSession session)
+    {
+        List<OvergrowthKind> kinds = [.. placed.Select(p => p.Kind).Where(k => Trunks(k).Length > 0).Distinct()];
+        List<Vector3> vertices = [];
+        List<Triangle> triangles = [];
+        List<StaticMeshAsset> assets = [];
+        foreach (OvergrowthKind kind in kinds)
+        {
+            uint firstVertex = (uint)vertices.Count, firstTriangle = (uint)triangles.Count;
+            foreach ((float x, float z, float radius, float height) in Trunks(kind))
+            {
+                uint b = (uint)vertices.Count - firstVertex;
+                for (int k = 0; k < TrunkSides; k++)
+                {
+                    float a = MathF.Tau * k / TrunkSides;
+                    Vector3 rim = new(x + (radius * MathF.Cos(a)), 0f, z + (radius * MathF.Sin(a)));
+                    vertices.Add(rim);
+                    vertices.Add(rim + new Vector3(0f, height, 0f));
+                }
+
+                for (int k = 0; k < TrunkSides; k++)
+                {
+                    uint low = b + (uint)(2 * k), high = low + 1, nextLow = b + (uint)(2 * ((k + 1) % TrunkSides)), nextHigh = nextLow + 1;
+                    triangles.Add(new Triangle(low, nextLow, nextHigh));
+                    triangles.Add(new Triangle(low, nextHigh, high));
+                    if (k > 0 && k < TrunkSides - 1)
+                    {
+                        // The caps, fans from the first rim vertex.
+                        triangles.Add(new Triangle(b, nextLow, low));
+                        triangles.Add(new Triangle(b + 1, high, nextHigh));
+                    }
+                }
+            }
+
+            assets.Add(new StaticMeshAsset(TrunkAssetBase + (ulong)assets.Count, firstVertex, (uint)vertices.Count - firstVertex, firstTriangle, (uint)triangles.Count - firstTriangle));
+        }
+
+        engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(),
+            placed.Where(p => Trunks(p.Kind).Length > 0)
+                .Select((p, i) => new StaticMeshInstance(TrunkInstanceBase + (ulong)i, TrunkAssetBase + (ulong)kinds.IndexOf(p.Kind), p.Place)).ToArray()));
+    }
 
     /// <summary>Disposes the meshes after the snapshot that last named them, then their materials.</summary>
     public void Dispose()

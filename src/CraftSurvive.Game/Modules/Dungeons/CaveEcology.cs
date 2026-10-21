@@ -75,7 +75,7 @@ internal static class CaveEcology
     // glowing welts (how many, their sizes).
     internal static readonly Vector3 SeepGlow = new(1f, 0.42f, 0.12f);
     private static readonly Color SeepCrust = new(0.08f, 0.05f, 0.035f, 1f);
-    private const float SeepGlowStrength = 0.9f, SeepIntensity = 5f, SeepRange = 12f, SeepLightAbove = 0.5f;
+    private const float SeepGlowStrength = 0.9f, SeepIntensity = 6f, SeepRange = 14f, SeepLightAbove = 0.5f;
     private const int FewestWelts = 4, MostWelts = 7;
     private const float SmallestWelt = 0.1f, LargestWelt = 0.3f, WeltSpread = 0.7f;
 
