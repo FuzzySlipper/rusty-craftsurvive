@@ -1,5 +1,5 @@
 {
-  "purpose": "The dungeon kit (#10089): a modular dungeon's building drawn from these pieces, fitted to its cells by DungeonKit. The language is the ancients' (docs/style-references/ancients: Whim's vocabulary, Bones' ruin state; the kit sheet is asset-pipeline live-evidence/dungeon-kit-20261020/kit-sheet.png). Each piece is a prop mesh in one cell's frame: origin at the cell's centre in plan and at the bottom of its floor block; the room is 6 m across (walls 1 m thick at the cell's edge), the floor top at 1 m, the ceiling from 5 m; a wall stands on the cell's south edge (-z) and a corner in its south-west; a pillar at its column's centre; a stair is in its flight's own frame (the foot corner at the origin, climbing +z), a relic and its glow at their own spot. A piece with an emission draws in a plain emissive material of that colour: it is a light's visible source. Authored in Blender for exact geometry, painted by Qwen on lit views with the light divided out, and reduced as pixel art at 32 texels/m (asset-pipeline legacy/experiments/dungeon-kit); textures/dungeon-kit/plain holds the earlier paint from geometry for the study (craft.dungeon.kitpaint). They draw under shaders/kit-stone.wgsl: each texel a lit facet, and fine contrast calmed with distance.",
+  "purpose": "The dungeon kit (#10089): a modular dungeon's building drawn from these pieces, fitted to its cells by DungeonKit. The language is the ancients' (docs/style-references/ancients: Whim's vocabulary, Bones' ruin state; the kit sheet is asset-pipeline live-evidence/dungeon-kit-20261020/kit-sheet.png). Each piece is a prop mesh in one cell's frame: origin at the cell's centre in plan and at the bottom of its floor block; the room is 6 m across (walls 1 m thick at the cell's edge), the floor top at 1 m, the ceiling from 5 m; a wall stands on the cell's south edge (-z) and a corner in its south-west; a pillar at its column's centre; a stair is in its flight's own frame (the foot corner at the origin, climbing +z), a relic and its glow at their own spot. A piece with an emission draws in a plain emissive material of that colour: it is a light's visible source. Authored in Blender for exact geometry, painted by Qwen on lit views with the light divided out, and reduced as pixel art at 32 texels/m (asset-pipeline legacy/experiments/dungeon-kit); textures/dungeon-kit/plain holds the earlier paint from geometry for the study (craft.dungeon.kitpaint). They draw under shaders/kit-stone.wgsl: each texel a lit facet, and fine contrast calmed with distance. A piece's emissionMap (its painted mosaic, textures/dungeon-kit/emission) glows only under the ruin light study (craft.dungeon.ruinlight), lighting the room through the probe volume.",
   "pieces": [
     {
       "name": "floor",
@@ -27,7 +27,8 @@
     },
     {
       "name": "wall-roundel",
-      "model": "models/dungeon-kit/wall-roundel.prop-mesh.json"
+      "model": "models/dungeon-kit/wall-roundel.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall-roundel.png"
     },
     {
       "name": "sphere",
@@ -77,6 +78,31 @@
     {
       "name": "floor-heaved",
       "model": "models/dungeon-kit/floor-heaved.prop-mesh.json"
+    },
+    {
+      "name": "wall-tall",
+      "model": "models/dungeon-kit/wall-tall.prop-mesh.json"
+    },
+    {
+      "name": "wall-tall-door",
+      "model": "models/dungeon-kit/wall-tall-door.prop-mesh.json"
+    },
+    {
+      "name": "wall-tall-roundel",
+      "model": "models/dungeon-kit/wall-tall-roundel.prop-mesh.json",
+      "emissionMap": "textures/dungeon-kit/emission/wall-tall-roundel.png"
+    },
+    {
+      "name": "corner-tall",
+      "model": "models/dungeon-kit/corner-tall.prop-mesh.json"
+    },
+    {
+      "name": "rubble-slope",
+      "model": "models/dungeon-kit/rubble-slope.prop-mesh.json"
+    },
+    {
+      "name": "rubble-heap",
+      "model": "models/dungeon-kit/rubble-heap.prop-mesh.json"
     }
   ]
 }

@@ -48,6 +48,9 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>Retunes the kit's stone shader now, when the space has a kit (a study).</summary>
     internal void TuneKit(DungeonKitLook.Look look) => kit?.Tune(look);
 
+    /// <summary>Retunes the kit's glowing pieces to the glow intensity now (a study).</summary>
+    internal void TuneGlow() => kit?.TuneGlow();
+
     /// <summary>A cave's moss and ivy cards (#10092): their materials, while the space draws them.</summary>
     private CaveMossCards? mossCards;
 

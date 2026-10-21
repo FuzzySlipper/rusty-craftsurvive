@@ -721,7 +721,8 @@ internal static class DungeonModules
                 }
             }
 
-            canvas.Fill(1, 1, 2, 2, 1, 3, BlockId.Gravel);
+            // The heap lies clear of the cave mouth cut into the room (ModularDungeon.Open), whole under the kit's mound.
+            canvas.Fill(1, 1, 3, 2, 1, 4, BlockId.Gravel);
         });
 
     internal static IReadOnlyList<DungeonModuleShape> CaveRoute { get; } = [CaveTunnel, CaveBend, CaveDescent, CaveChamber, CaveShaft, ChasmStair, Abyss, Cavern];

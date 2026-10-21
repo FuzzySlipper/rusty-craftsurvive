@@ -50,6 +50,24 @@ internal enum KitPiece
 
     /// <summary>A floor some of whose slabs are lifted at one edge (Bones).</summary>
     FloorHeaved,
+
+    /// <summary>A wall two storeys tall, where a hall's upper floor is gone (the great hall): one panel, its strips running up both storeys.</summary>
+    WallTall,
+
+    /// <summary>The tall wall with the door slot at its foot.</summary>
+    WallTallDoor,
+
+    /// <summary>The tall wall with a great mosaic roundel high on it.</summary>
+    WallTallRoundel,
+
+    /// <summary>The corner rib running two storeys.</summary>
+    CornerTall,
+
+    /// <summary>The collapse's fallen floor as rough blocks over its gravel steps.</summary>
+    RubbleSlope,
+
+    /// <summary>A mound of broken stone over the breach's gravel heap.</summary>
+    RubbleHeap,
 }
 
 /// <summary>
@@ -91,6 +109,18 @@ internal static class DungeonKit
     // storeys tall (the great hall's). It is found at this row over a storey's floor.
     private const int PillarRow = 2, GreatPillar = 2;
 
+    // A cell whose upper floor is less than this share building opens into the storey over it: its walls and corners run
+    // both storeys as tall pieces, of which this share of the plain walls are roundel walls.
+    private const double OpenAbove = 0.5, TallRoundelShare = 0.3;
+
+    // The rubble the kit draws over a module's gravel: a module's name and its heap's corner in the module's canvas
+    // (DungeonModules.Collapse's slope and Breach's heap).
+    private static readonly (string Module, int X, int Z)[] Slopes = [("collapse", 1, 3)];
+    private static readonly (string Module, int X, int Z)[] Heaps = [("breach", 1, 3)];
+
+    /// <summary>The collapse's gravel slope's steps (its rubble piece's blocks).</summary>
+    private const int SlopeSteps = 6;
+
     // A relic stands this far out from its cell's middle towards a corner (clear of the middle the routes aim at and the
     // doors in the walls' middles), its glow this high over the floor.
     private const float RelicOut = 1.6f, GlowHeight = 1.05f;
@@ -114,9 +144,15 @@ internal static class DungeonKit
         List<(int X0, int X1, int Y0, int Y1, int Z0, int Z1)> breached = [];
         foreach (PlacedModule module in modules.Where(m => m.Shape.Kind == ModuleKind.Building))
         {
-            foreach ((int cx, int cy, int cz) in module.Cells())
+            // The faces and corners of upper cells a tall piece from below already stands in.
+            HashSet<(int, int, int, ModuleFace)> tallFaces = [];
+            HashSet<(int, int, int, float)> tallCorners = [];
+            foreach ((int cx, int cy, int cz) in module.Cells().OrderBy(c => c.Y))
             {
                 int ox = cx * Cell, oy = (cy * Storey) + ModularDungeon.BaseY, oz = cz * Cell;
+                HashSet<ModuleFace> tallHere = [];
+                bool open = cy + 1 < module.Y + module.Shape.Height
+                    && Share(volume, ox + 1, ox + Cell - 2, oy + Storey, oy + Storey, oz + 1, oz + Cell - 2) < OpenAbove;
                 Vector3 origin = new(ox + (Cell / 2f), oy, oz + (Cell / 2f));
                 bool south = Wall(volume, ox, oy, oz, ModuleFace.South, out bool southDoor);
                 bool north = Wall(volume, ox, oy, oz, ModuleFace.North, out bool northDoor);
@@ -149,6 +185,11 @@ internal static class DungeonKit
                 foreach ((ModuleFace face, bool stands, bool door) in new[] { (ModuleFace.South, south, southDoor), (ModuleFace.North, north, northDoor),
                     (ModuleFace.West, west, westDoor), (ModuleFace.East, east, eastDoor) })
                 {
+                    if (tallFaces.Contains((cx, cy, cz, face)))
+                    {
+                        continue;
+                    }
+
                     if (!stands)
                     {
                         // A wall on the module's edge that has burst open below (the breach into the cave) is the breached
@@ -172,14 +213,39 @@ internal static class DungeonKit
                         _ => (!south, !north),
                     };
                     double pick = Pick(seed, cx, cy, cz, (int)face);
+                    // Where the storey over opens into this one and its wall stands too, without a door, one tall wall runs both.
+                    if (open && Wall(volume, ox, oy + Storey, oz, face, out bool upperDoor) && !upperDoor)
+                    {
+                        KitPiece tall = door ? KitPiece.WallTallDoor : pick < TallRoundelShare ? KitPiece.WallTallRoundel : KitPiece.WallTall;
+                        pieces.Add(WallPiece(tall, origin, face, before, after));
+                        (int sx0, int sx1, int sy0, int _, int sz0, int sz1) = WallSlab(ox, oy, oz, face, before, after);
+                        cleared.Add((sx0, sx1, sy0, oy + (2 * Storey) - 1, sz0, sz1));
+                        tallFaces.Add((cx, cy + 1, cz, face));
+                        tallHere.Add(face);
+                        continue;
+                    }
+
                     KitPiece kind = door ? KitPiece.WallDoor : pick < AlcoveShare ? KitPiece.WallAlcove : pick < AlcoveShare + RoundelShare ? KitPiece.WallRoundel : KitPiece.Wall;
                     pieces.Add(WallPiece(kind, origin, face, before, after));
                     cleared.Add(WallSlab(ox, oy, oz, face, before, after));
                 }
 
-                foreach ((bool a, bool b, float turn) in new[] { (south, west, 0f), (west, north, MathF.PI / 2), (north, east, MathF.PI), (east, south, -MathF.PI / 2) })
+                foreach ((bool a, bool b, float turn, ModuleFace fa, ModuleFace fb) in new[] { (south, west, 0f, ModuleFace.South, ModuleFace.West),
+                    (west, north, MathF.PI / 2, ModuleFace.West, ModuleFace.North), (north, east, MathF.PI, ModuleFace.North, ModuleFace.East),
+                    (east, south, -MathF.PI / 2, ModuleFace.East, ModuleFace.South) })
                 {
-                    if (a && b)
+                    if (a && b && tallCorners.Contains((cx, cy, cz, turn)))
+                    {
+                        continue;
+                    }
+
+                    // Where both walls meeting at a corner run two storeys, so does its rib.
+                    if (a && b && tallHere.Contains(fa) && tallHere.Contains(fb))
+                    {
+                        pieces.Add(new KitPlacement(KitPiece.CornerTall, origin, turn, Vector2.One, Vector2.Zero));
+                        tallCorners.Add((cx, cy + 1, cz, turn));
+                    }
+                    else if (a && b)
                     {
                         KitPiece corner = Pick(seed, cx, cy, cz, 10 + (int)(turn * 2f)) < BrokenShare ? KitPiece.CornerBroken : KitPiece.Corner;
                         pieces.Add(new KitPlacement(corner, origin, turn, Vector2.One, Vector2.Zero));
@@ -235,6 +301,25 @@ internal static class DungeonKit
                 (float wx, float wz) = TurnPoint(fx, fz, module.Shape.Width * Cell, module.Shape.Depth * Cell, module.Turns);
                 Vector3 foot = new((module.X * Cell) + wx, (module.Y * Storey) + ModularDungeon.BaseY, (module.Z * Cell) + wz);
                 pieces.Add(new KitPlacement(KitPiece.Stair, foot, module.Turns * MathF.PI / 2f, Vector2.One, Vector2.Zero));
+            }
+
+            foreach ((KitPiece piece, (string Module, int X, int Z)[] at) in new[] { (KitPiece.RubbleSlope, Slopes), (KitPiece.RubbleHeap, Heaps) })
+            {
+                foreach ((string _, int fx, int fz) in at.Where(f => f.Module == module.Shape.Name))
+                {
+                    // The heap's corner, turned as the module was stamped, the piece turned with it.
+                    (float wx, float wz) = TurnPoint(fx, fz, module.Shape.Width * Cell, module.Shape.Depth * Cell, module.Turns);
+                    Vector3 corner = new((module.X * Cell) + wx, (module.Y * Storey) + ModularDungeon.BaseY, (module.Z * Cell) + wz);
+                    float turn = module.Turns * MathF.PI / 2f;
+                    // Only over gravel that is still there: a cave mouth cut into the room can take a heap away.
+                    IEnumerable<Vector3> under = piece == KitPiece.RubbleHeap
+                        ? [new(0.5f, 1.5f, 0.5f), new(1.5f, 1.5f, 0.5f), new(0.5f, 1.5f, 1.5f), new(1.5f, 1.5f, 1.5f)]
+                        : Enumerable.Range(0, SlopeSteps).Select(k => new Vector3(k + 0.5f, 1.5f + k, 1f));
+                    if (under.All(local => At(volume, corner + Vector3.Transform(local, Quaternion.CreateFromAxisAngle(Vector3.UnitY, turn))) != BlockId.Air))
+                    {
+                        pieces.Add(new KitPlacement(piece, corner, turn, Vector2.One, Vector2.Zero));
+                    }
+                }
             }
         }
 
@@ -312,6 +397,9 @@ internal static class DungeonKit
     /// <summary>Whether every voxel of a footprint is building from one row to another.</summary>
     private static bool Standing(DungeonVolume volume, List<(int X, int Z)> foot, int y0, int y1) =>
         foot.All(f => Enumerable.Range(y0, y1 - y0 + 1).All(y => Building(volume.At(f.X, y, f.Z))));
+
+    /// <summary>The voxel a point in layout metres falls in.</summary>
+    private static BlockId At(DungeonVolume volume, Vector3 p) => volume.At((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y), (int)MathF.Floor(p.Z));
 
     /// <summary>Whether a column of voxels is air from one row to another.</summary>
     private static bool Clear(DungeonVolume volume, int x, int y0, int y1, int z) =>
@@ -396,7 +484,7 @@ internal static class DungeonKit
     /// walkable layers over the floor), and its glow is light.
     /// </summary>
     internal static bool Collides(KitPiece piece) => piece is not (KitPiece.Floor or KitPiece.FloorHeaved or KitPiece.Vault or KitPiece.Stair
-        or KitPiece.Sphere or KitPiece.SphereGreat or KitPiece.Relic or KitPiece.RelicGlow or KitPiece.BreachRubble);
+        or KitPiece.Sphere or KitPiece.SphereGreat or KitPiece.Relic or KitPiece.RelicGlow or KitPiece.BreachRubble or KitPiece.RubbleSlope or KitPiece.RubbleHeap);
 
     /// <summary>
     /// The piece whose shape a piece collides as: an alcove or roundel wall as the plain wall, a broken rib as the whole
@@ -406,6 +494,7 @@ internal static class DungeonKit
     {
         KitPiece.WallAlcove or KitPiece.WallRoundel => KitPiece.Wall,
         KitPiece.CornerBroken => KitPiece.Corner,
+        KitPiece.WallTallRoundel => KitPiece.WallTall,
         _ => piece,
     };
 
@@ -437,6 +526,12 @@ internal static class DungeonKit
         KitPiece.WallBreach => "wall-breach",
         KitPiece.BreachRubble => "breach-rubble",
         KitPiece.FloorHeaved => "floor-heaved",
+        KitPiece.WallTall => "wall-tall",
+        KitPiece.WallTallDoor => "wall-tall-door",
+        KitPiece.WallTallRoundel => "wall-tall-roundel",
+        KitPiece.CornerTall => "corner-tall",
+        KitPiece.RubbleSlope => "rubble-slope",
+        KitPiece.RubbleHeap => "rubble-heap",
         _ => "corner",
     };
 

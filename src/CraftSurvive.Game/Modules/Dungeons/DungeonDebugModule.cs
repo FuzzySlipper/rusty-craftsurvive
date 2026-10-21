@@ -49,6 +49,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.kit", Description = "Reads the loaded dungeon's kit (#10089): how many of each piece, and with a piece's name (wall-alcove, sphere, relic, stair ...) some of its placements and turns, in layout metres; with modules, the building modules and their boxes.")]
     public string Kit(string piece = "") => dungeons.KitReadout(piece);
 
+    [DebugCommand("craft.dungeon.ruinlight", Description = "Assisted, for the ruin light study (#10089): the relics' point lights as a share of their own (0 puts them out), their glows' emission intensity, whether the lantern burns (true/false), and the glow of painted inlays that have an emission map (0 none); now and for later dungeons.")]
+    public string RuinLight(float relicLight, float glow, bool lantern, float inlay = 0f) => dungeons.StudyRuinLight(relicLight, glow, lantern, inlay);
+
     [DebugCommand("craft.dungeon.kitlook", Description = "Assisted, for the kit stone study (#10089): texel facet strength, snap steps, coherence, then calming from and full (texels per pixel), its mip and amount (0..1); now and for later dungeons.")]
     public string KitLook(float strength, float steps, float coherence, float calmFrom, float calmFull, float calmMip, float calm) =>
         dungeons.StudyKitLook(strength, steps, coherence, calmFrom, calmFull, calmMip, calm);

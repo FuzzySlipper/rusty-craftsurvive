@@ -400,6 +400,10 @@ internal sealed class DungeonModule : IProductModule
     private const float RelicIntensity = 3f, RelicRange = 6f;
     private readonly Light?[] relicLights = new Light?[MostRelicLights];
 
+    // The ruin light study (#10089): the relics' point lights times this (0 none), and whether the lantern is put out.
+    private float relicLightScale = 1f;
+    private bool lanternOut;
+
     /// <summary>Lights the kit's relics (none for a space without a kit), switching off the slots it does not need.</summary>
     private void RelicLights(IReadOnlyList<Vector3> relics)
     {
@@ -408,7 +412,7 @@ internal sealed class DungeonModule : IProductModule
             bool on = slot < relics.Count;
             Vector3 at = on ? DungeonSpace.InSession(relics[slot]) : Vector3.Zero;
             LightRequest request = new(ProductIds.DungeonRelicLightBase + (ulong)slot, false, 0UL,
-                new LightDescriptor(LightKind.Point, RelicColour, on ? RelicIntensity : 0f, on, at, -Vector3.UnitY, true, RelicRange, LightDecay, 0f, 0f,
+                new LightDescriptor(LightKind.Point, RelicColour, on ? RelicIntensity * relicLightScale : 0f, on && relicLightScale > 0f, at, -Vector3.UnitY, true, RelicRange, LightDecay, 0f, 0f,
                     LightShadowIntent.Disabled, LightShadowResolution, LightShadowPriority, true));
             if (relicLights[slot] is Light light)
             {
@@ -592,7 +596,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Keeps the lantern at the player while inside with a lantern treatment, and puts it out once otherwise.</summary>
     private void CarryLantern()
     {
-        bool on = Darkness.Lantern && state == DungeonState.Inside;
+        bool on = Darkness.Lantern && !lanternOut && state == DungeonState.Inside;
         if (!on && !lanternLit)
         {
             return;
@@ -736,6 +740,27 @@ internal sealed class DungeonModule : IProductModule
         kitLook = new DungeonKitLook.Look(strength, steps, coherence, calmFrom, calmFull, calmMip, calm);
         space?.TuneKit(kitLook);
         return $"kit look={kitLook}";
+    }
+
+    /// <summary>
+    /// The ruin light study (#10089): how strongly the relics' point lights shine (a share of their own; 0 puts them out),
+    /// how brightly their glows emit (the probe volume carries emission into the room's indirect light), and whether the
+    /// lantern burns, and how brightly painted inlays with an emission map glow; now and for later dungeons.
+    /// </summary>
+    internal string StudyRuinLight(float relicLight, float glow, bool lantern, float inlay)
+    {
+        DungeonKitLook.InlayGlow = Math.Max(0f, inlay);
+        relicLightScale = Math.Max(0f, relicLight);
+        lanternOut = !lantern;
+        DungeonKitLook.GlowIntensity = Math.Max(0f, glow);
+        if (space is DungeonSpace current)
+        {
+            RelicLights(current.Layout.Relics);
+            current.TuneGlow();
+        }
+
+        CarryLantern();
+        return string.Create(CultureInfo.InvariantCulture, $"ruin light: relic lights x{relicLightScale:F2}, glow {DungeonKitLook.GlowIntensity:F1}, lantern {(lanternOut ? "out" : "lit")}, inlays {DungeonKitLook.InlayGlow:F1}");
     }
 
     internal string StudyCentrepiece(string choice)

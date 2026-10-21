@@ -492,7 +492,7 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
 // air above it), every relic stands on floor, every pillar stands where a column of building voxels stood, and the
 // pillars, breaches and great sphere are found at all.
 {
-    int flights = 0, treads = 0, relics = 0, relicsOnFloor = 0, pillars = 0, pillarsOnColumns = 0;
+    int flights = 0, treads = 0, relics = 0, relicsOnFloor = 0, pillars = 0, pillarsOnColumns = 0, rubble = 0, rubbleOnGravel = 0;
     Dictionary<KitPiece, int> found = [];
     // A tread's step (hundreds), whether its voxel step is there (tens) and whether air is over it (units: 1 is not).
     Dictionary<int, (int Good, int All)> byStep = [];
@@ -524,6 +524,27 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
                 relics++;
                 relicsOnFloor += Solid(Layout(new(0f, 0.5f, 0f))) && !Solid(Layout(new(0f, 1.5f, 0f))) ? 1 : 0;
             }
+            else if (piece.Piece == KitPiece.RubbleSlope)
+            {
+                // Each rough block over its gravel step (the step's top voxel solid, air over it).
+                rubble++;
+                bool onSteps = Enumerable.Range(0, 6).All(k => Solid(Layout(new(k + 0.5f, 1.5f + k, 1f))) && !Solid(Layout(new(k + 0.5f, 2.5f + k, 1f))));
+                rubbleOnGravel += onSteps ? 1 : 0;
+                if (!onSteps)
+                {
+                    Console.WriteLine($"kit rubble slope off its gravel: seed {kitSeed} at {piece.Origin} turn {piece.Turn:F2}: {string.Join(" ", Enumerable.Range(0, 6).Select(k => $"{(Solid(Layout(new(k + 0.5f, 1.5f + k, 1f))) ? 1 : 0)}{(Solid(Layout(new(k + 0.5f, 2.5f + k, 1f))) ? 1 : 0)}"))}");
+                }
+            }
+            else if (piece.Piece == KitPiece.RubbleHeap)
+            {
+                rubble++;
+                bool onHeap = Solid(Layout(new(1f, 1.5f, 1f))) && !Solid(Layout(new(1f, 2.5f, 1f)));
+                rubbleOnGravel += onHeap ? 1 : 0;
+                if (!onHeap)
+                {
+                    Console.WriteLine($"kit rubble heap off its gravel: seed {kitSeed} at {piece.Origin} turn {piece.Turn:F2}: {string.Join(" ", Enumerable.Range(0, 4).Select(y => solid.At((int)MathF.Floor(Layout(new(1f, y + 0.5f, 1f)).X), (int)MathF.Floor(Layout(new(1f, y + 0.5f, 1f)).Y), (int)MathF.Floor(Layout(new(1f, y + 0.5f, 1f)).Z))))}");
+                }
+            }
             else if (piece.Piece is KitPiece.Pillar or KitPiece.PillarGreat)
             {
                 // A pillar's column was building voxels from the floor up (at its middle and, for a great one, two storeys
@@ -541,8 +562,11 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(relicsOnFloor == relics, "every kit relic must stand on floor with air over it");
     Console.WriteLine($"kit pieces over 16 seeds: {string.Join(" ", found.OrderBy(f => f.Key).Select(f => $"{DungeonKit.Name(f.Key)}={f.Value}"))}; {pillarsOnColumns}/{pillars} pillars on their columns");
     Check.That(pillars > 0 && pillarsOnColumns == pillars, "every kit pillar must stand where its voxel column stood, and take it");
-    Check.That(found.GetValueOrDefault(KitPiece.PillarGreat) > 0 && found.GetValueOrDefault(KitPiece.WallBreach) > 0 && found.GetValueOrDefault(KitPiece.SphereGreat) > 0,
-        "the kit must find great pillars, breaches and the great hall's sphere");
+    Console.WriteLine($"kit rubble: {rubbleOnGravel}/{rubble} over their gravel");
+    Check.That(rubble > 0 && rubbleOnGravel == rubble, "every kit rubble piece must lie over its module's gravel");
+    Check.That(found.GetValueOrDefault(KitPiece.PillarGreat) > 0 && found.GetValueOrDefault(KitPiece.WallBreach) > 0 && found.GetValueOrDefault(KitPiece.SphereGreat) > 0
+        && found.GetValueOrDefault(KitPiece.WallTall) > 0 && found.GetValueOrDefault(KitPiece.CornerTall) > 0,
+        "the kit must find great pillars, breaches, the great hall's sphere and its tall walls and ribs");
 }
 
 // The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the

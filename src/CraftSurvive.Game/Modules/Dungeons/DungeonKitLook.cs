@@ -40,7 +40,7 @@ internal sealed class DungeonKitLook : IDisposable
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
     private readonly Dictionary<string, RenderResource> textures = [];
-    private readonly List<(Material Material, RenderResource Texture)> materials = [];
+    private readonly List<(Material Material, RenderResource Texture, RenderResource? Emission)> materials = [];
     private Look look;
     private readonly Dictionary<KitPiece, (MeshResource Mesh, Appearance Look)> pieces = [];
     private readonly List<(KitPiece Piece, Transform Place)> placed = [];
@@ -62,9 +62,11 @@ internal sealed class DungeonKitLook : IDisposable
             // A glowing piece (the relic's glow) draws in a plain emissive material of its own colour, not the stone.
             Vector3? glow = entry.TryGetProperty("emission", out JsonElement e)
                 ? new Vector3(e[0].GetSingle(), e[1].GetSingle(), e[2].GetSingle()) : null;
+            // A piece may name an emission map: its painted inlays glow, lighting the room through the probe volume (the ruin light study).
+            string? emissionMap = entry.TryGetProperty("emissionMap", out JsonElement m) ? m.GetString() : null;
             MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, entry.GetProperty("model").GetString()!, (role, texture) =>
                 glow is Vector3 light ? Glowing(light)
-                    : Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint))));
+                    : Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint), emissionMap)));
             pieces[piece] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
@@ -76,7 +78,16 @@ internal sealed class DungeonKitLook : IDisposable
     }
 
     /// <summary>A material for a kit texture: the texture as its base colour, nearest with mipmaps, under the kit stone shader.</summary>
-    private Material Material(string path)
+    private Material Material(string path, string? emissionPath)
+    {
+        RenderResource texture = Texture(path);
+        RenderResource? emission = emissionPath is null ? null : Texture(emissionPath);
+        Material material = engine.Graphics.CreateMaterial(Request(texture, emission));
+        materials.Add((material, texture, emission));
+        return material;
+    }
+
+    private RenderResource Texture(string path)
     {
         if (!textures.TryGetValue(path, out RenderResource? texture))
         {
@@ -84,30 +95,50 @@ internal sealed class DungeonKitLook : IDisposable
             textures[path] = texture;
         }
 
-        Material material = engine.Graphics.CreateMaterial(Request(texture));
-        materials.Add((material, texture));
-        return material;
+        return texture;
     }
+
+    /// <summary>How brightly painted inlays with an emission map glow (the ruin light study; 0 none).</summary>
+    internal static float InlayGlow { get; set; }
 
     /// <summary>A plain emissive material, for a piece that is a light's visible source.</summary>
     private Material Glowing(Vector3 emission)
     {
-        Color pale = new(emission.X, emission.Y, emission.Z, 1f);
-        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(pale, default(RenderResourceReference), 1f, pale, emission, GlowIntensity, false));
-        glowing.Add(material);
+        Material material = engine.Graphics.CreateMaterial(GlowRequest(emission));
+        glowing.Add((material, emission));
         return material;
     }
 
-    /// <summary>How brightly a glowing piece shines in its emission colour.</summary>
-    private const float GlowIntensity = 2.5f;
+    private static MaterialRequest GlowRequest(Vector3 emission)
+    {
+        Color pale = new(emission.X, emission.Y, emission.Z, 1f);
+        return new MaterialRequest(pale, default(RenderResourceReference), 1f, pale, emission, GlowIntensity, false);
+    }
 
-    private readonly List<Material> glowing = [];
+    /// <summary>Retunes the glowing pieces to <see cref="GlowIntensity"/> now (a study).</summary>
+    internal void TuneGlow()
+    {
+        Tune(look);
+        foreach ((Material material, Vector3 emission) in glowing)
+        {
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, GlowRequest(emission)));
+        }
+    }
 
-    private MaterialRequest Request(RenderResource texture)
+    /// <summary>How brightly a glowing piece shines in its emission colour (the ruin light study may change it).</summary>
+    internal static float GlowIntensity { get; set; } = DefaultGlowIntensity;
+
+    private const float DefaultGlowIntensity = 2.5f;
+
+    private readonly List<(Material Material, Vector3 Emission)> glowing = [];
+
+    private MaterialRequest Request(RenderResource texture, RenderResource? emission)
     {
         Color white = new(1f, 1f, 1f, 1f);
-        return new MaterialRequest(white, texture, Roughness, white, Vector3.Zero, 0f, false)
+        bool glows = emission is not null && InlayGlow > 0f;
+        return new MaterialRequest(white, texture, Roughness, white, glows ? Vector3.One : Vector3.Zero, glows ? InlayGlow : 0f, false)
         {
+            EmissionMap = glows ? emission! : default(RenderResourceReference),
             Shader = new MaterialShader(shader, new Vector4(TextureTexels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
                 new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), Vector4.Zero, Vector4.Zero, texture, default(RenderResourceReference)),
         };
@@ -117,9 +148,9 @@ internal sealed class DungeonKitLook : IDisposable
     internal void Tune(Look next)
     {
         look = next;
-        foreach ((Material material, RenderResource texture) in materials)
+        foreach ((Material material, RenderResource texture, RenderResource? emission) in materials)
         {
-            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, Request(texture)));
+            engine.Graphics.UpdateMaterial(new MaterialUpdateRequest(material, Request(texture, emission)));
         }
     }
 
@@ -155,13 +186,13 @@ internal sealed class DungeonKitLook : IDisposable
         }
 
         pieces.Clear();
-        foreach ((Material material, RenderResource _) in materials)
+        foreach ((Material material, RenderResource _, RenderResource? _) in materials)
         {
             material.Dispose();
         }
 
         materials.Clear();
-        foreach (Material material in glowing)
+        foreach ((Material material, Vector3 _) in glowing)
         {
             material.Dispose();
         }
