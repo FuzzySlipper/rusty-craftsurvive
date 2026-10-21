@@ -25,6 +25,9 @@ internal enum EcologyKind
 
     /// <summary>Tree roots hanging in a curtain from a ceiling close under the surface (#10129): life from above; they give no light.</summary>
     RootCurtain,
+
+    /// <summary>A vent orchard's seep (#10096): warm, nutrient-bearing water welling up through a glowing crust, the orchard's light.</summary>
+    VentSeep,
 }
 
 /// <summary>

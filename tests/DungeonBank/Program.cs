@@ -355,17 +355,18 @@ if (args is ["water", string waterFrom, string waterTo])
     return faults == 0 ? 0 : 1;
 }
 
-if (args is ["overgrowth", string growFrom, string growTo])
+if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <= 4)
 {
-    // overgrowth <from> <to>: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth (#10096):
-    // how many of each kind, and none under its water.
+    // overgrowth <from> <to> [orchards]: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth
+    // (#10096), with so many vent orchards: how many of each kind, and none under its water.
+    KarstCave.StudyVentOrchards = args.Length == 4 ? int.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 0;
     int drowned = 0;
     for (ulong seed = ulong.Parse(growFrom, System.Globalization.CultureInfo.InvariantCulture); seed <= ulong.Parse(growTo, System.Globalization.CultureInfo.InvariantCulture); seed++)
     {
         DungeonLayout cave = KarstCave.Generate(seed, 0.5, KarstCave.Centrepiece.None).Layout;
         int under = cave.Overgrowth.Count(g => cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
         drowned += under;
-        Console.WriteLine($"seed {seed} sky={cave.SkyOpen} overgrowth={cave.Overgrowth.Count} {string.Join(" ", cave.Overgrowth.GroupBy(g => g.Kind).OrderBy(g => g.Key).Select(g => $"{g.Key}={g.Count()}"))} underWater={under} cards: {string.Join(" ", cave.MossCards.GroupBy(c => c.Kind).Select(g => $"{g.Key}={g.Count()}"))}");
+        Console.WriteLine($"seed {seed} sky={cave.SkyOpen} overgrowth={cave.Overgrowth.Count} {string.Join(" ", cave.Overgrowth.GroupBy(g => g.Kind).OrderBy(g => g.Key).Select(g => $"{g.Key}={g.Count()}"))} underWater={under} seeps={cave.Ecology.Count(e => e.Kind == EcologyKind.VentSeep)} cards: {string.Join(" ", cave.MossCards.GroupBy(c => c.Kind).Select(g => $"{g.Key}={g.Count()}"))}");
     }
 
     return drowned == 0 ? 0 : 1;
@@ -627,7 +628,7 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Console.WriteLine($"kit moisture: {seeped}/8 dungeons seep; of {pieces} pieces {dry} dry (<0.45), {wet} wet (>0.65); grain {(grainEqual ? "equal" : "DIFFERS")}");
     Check.That(seeped == 8 && dry > 0 && wet > 0, "every dungeon must seep and its kit range from dry to wet");
     Console.WriteLine($"kit overgrowth: {overgrown} over 8 dungeons ({fewest}..{most} each; {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}); {inDryAir} before dry air");
-    Check.That(fewest > 0 && grownKinds.Count == Enum.GetValues<OvergrowthKind>().Length, "every dungeon must grow overgrowth, and the bank every kind of it");
+    Check.That(fewest > 0 && grownKinds.Count == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Vent(k)), "every dungeon must grow overgrowth, and the bank every kind of it but the vent orchard's");
     Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 

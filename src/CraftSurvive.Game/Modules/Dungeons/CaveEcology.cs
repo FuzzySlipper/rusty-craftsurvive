@@ -71,6 +71,14 @@ internal static class CaveEcology
     private const int FewestPrisms = 4, MostPrisms = 9;
     private const float ShortestPrism = 0.25f, LongestPrism = 0.9f, PrismWidth = 0.09f;
 
+    // A vent seep (#10096): its crust's colour and warm glow, the light it gives and how far that hangs over it, and its
+    // glowing welts (how many, their sizes).
+    internal static readonly Vector3 SeepGlow = new(1f, 0.42f, 0.12f);
+    private static readonly Color SeepCrust = new(0.08f, 0.05f, 0.035f, 1f);
+    private const float SeepGlowStrength = 0.9f, SeepIntensity = 5f, SeepRange = 12f, SeepLightAbove = 0.5f;
+    private const int FewestWelts = 4, MostWelts = 7;
+    private const float SmallestWelt = 0.1f, LargestWelt = 0.3f, WeltSpread = 0.7f;
+
     /// <summary>The lights the growths give: their colour, intensity and reach, by kind.</summary>
     internal static (Vector3 Colour, float Intensity, float Range) LightOf(EcologyKind kind) => kind switch
     {
@@ -79,6 +87,7 @@ internal static class CaveEcology
         EcologyKind.GiantFungus => (GiantGlow, GiantIntensity, GiantRange),
         EcologyKind.VaultBloom => (VaultGlow, VaultIntensity, VaultRange),
         EcologyKind.LuminousPool => (PoolGlow, PoolIntensity, PoolRange),
+        EcologyKind.VentSeep => (SeepGlow, SeepIntensity, SeepRange),
         _ => (CrystalGlow, 1f, 3f),
     };
 
@@ -94,6 +103,7 @@ internal static class CaveEcology
         EcologyKind.GiantFungus => GiantStalkTop(growth.At, growth.Size, new Random((int)growth.Seed)).Top - (Vector3.UnitY * GiantCap * growth.Size * LightInsideCap),
         EcologyKind.VaultBloom => growth.At + (growth.Normal * ((LongestVaultPrism * growth.Size) + VaultLightBelowTips)),
         EcologyKind.LuminousPool => growth.At + (growth.Normal * PoolLightAbove),
+        EcologyKind.VentSeep => growth.At + (growth.Normal * SeepLightAbove),
         _ => growth.At + (growth.Normal * offset),
     };
 
@@ -118,6 +128,7 @@ internal static class CaveEcology
                 EcologyKind.GiantFungus => (GiantStalk, GiantGlow, GiantGlowStrength),
                 EcologyKind.VaultBloom => (CrystalBody, VaultGlow, VaultGlowStrength),
                 EcologyKind.RootCurtain => (RootColour, Vector3.Zero, 0f),
+                EcologyKind.VentSeep => (SeepCrust, SeepGlow, SeepGlowStrength),
                 _ => (CrystalBody, CrystalGlow, CrystalGlowStrength),
             };
             Material plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
@@ -153,6 +164,9 @@ internal static class CaveEcology
                     case EcologyKind.RootCurtain:
                         Roots(plainPart, at, growth.Size, random);
                         break;
+                    case EcologyKind.VentSeep:
+                        Seep(glowPart, at, growth.Normal, growth.Size, random);
+                        break;
                     default:
                         Crystals(glowPart, at, growth.Normal, growth.Size, random);
                         break;
@@ -171,6 +185,19 @@ internal static class CaveEcology
         }
 
         return meshes;
+    }
+
+    /// <summary>A vent seep: low glowing welts where the warm water wells up, sunk a little into the floor.</summary>
+    private static void Seep(Builder welts, Vector3 at, Vector3 normal, float size, Random random)
+    {
+        int count = FewestWelts + random.Next(MostWelts - FewestWelts + 1);
+        (Vector3 u, Vector3 v) = Tangents(normal);
+        for (int i = 0; i < count; i++)
+        {
+            float a = (float)random.NextDouble() * MathF.Tau, r = WeltSpread * size * MathF.Sqrt((float)random.NextDouble());
+            float welt = (SmallestWelt + ((LargestWelt - SmallestWelt) * (float)random.NextDouble())) * size;
+            welts.Dome(at + (u * (MathF.Cos(a) * r)) + (v * (MathF.Sin(a) * r)) - (normal * welt * 0.5f), normal, welt, 6);
+        }
     }
 
     /// <summary>A cluster of caps on short stems, leaning out from the surface they grow on.</summary>

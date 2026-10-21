@@ -90,6 +90,10 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.RootTangle => "models/dungeon-overgrowth/root-tangle.prop-mesh.json",
         OvergrowthKind.GrassTuft => "models/dungeon-overgrowth/grass-tuft.prop-mesh.json",
         OvergrowthKind.GrassStrip => "models/dungeon-overgrowth/grass-strip.prop-mesh.json",
+        OvergrowthKind.VentTall => "models/dungeon-overgrowth/vent-tall.prop-mesh.json",
+        OvergrowthKind.VentCluster => "models/dungeon-overgrowth/vent-cluster.prop-mesh.json",
+        OvergrowthKind.VentShort => "models/dungeon-overgrowth/vent-short.prop-mesh.json",
+        OvergrowthKind.VentBed => "models/dungeon-overgrowth/vent-bed.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
