@@ -31,8 +31,15 @@ internal enum OvergrowthKind
 }
 
 /// <summary>
-/// One overgrowth on a surface: where its frame's origin stands (layout metres), the surface's outward direction there
-/// (its +z), its size and a pick for small variation. Any source of surface anchors makes these - the kit's frames
-/// (<see cref="KitOvergrowth"/>) now, cave rock's points and normals later - and <see cref="DungeonOvergrowth"/> draws them.
+/// One overgrowth on a surface: where its frame's origin stands (layout metres), the direction its +z faces (a wall
+/// piece's surface outward; a floor piece's only a turn), its size, a pick for small variation, and its up: the world's
+/// up by default, a rock floor's normal under a floor piece (the piece stands square to it), and a wall piece is turned to
+/// face <see cref="Out"/> exactly, leaning with a sloping rock face. Any source of surface anchors makes these - the kit's
+/// frames (<see cref="KitOvergrowth"/>), cave rock's points and normals (<see cref="KarstCave"/>) - and
+/// <see cref="DungeonOvergrowth"/> draws them.
 /// </summary>
-internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3 At, Vector3 Out, float Scale, float Pick);
+internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3 At, Vector3 Out, float Scale, float Pick, Vector3? Up = null)
+{
+    /// <summary>Whether a kind stands on a floor (on the plane y = 0) rather than growing on a wall.</summary>
+    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms;
+}

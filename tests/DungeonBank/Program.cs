@@ -355,6 +355,22 @@ if (args is ["water", string waterFrom, string waterTo])
     return faults == 0 ? 0 : 1;
 }
 
+if (args is ["overgrowth", string growFrom, string growTo])
+{
+    // overgrowth <from> <to>: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth (#10096):
+    // how many of each kind, and none under its water.
+    int drowned = 0;
+    for (ulong seed = ulong.Parse(growFrom, System.Globalization.CultureInfo.InvariantCulture); seed <= ulong.Parse(growTo, System.Globalization.CultureInfo.InvariantCulture); seed++)
+    {
+        DungeonLayout cave = KarstCave.Generate(seed, 0.5, KarstCave.Centrepiece.None).Layout;
+        int under = cave.Overgrowth.Count(g => cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
+        drowned += under;
+        Console.WriteLine($"seed {seed} sky={cave.SkyOpen} overgrowth={cave.Overgrowth.Count} {string.Join(" ", cave.Overgrowth.GroupBy(g => g.Kind).OrderBy(g => g.Key).Select(g => $"{g.Key}={g.Count()}"))} underWater={under} cards: {string.Join(" ", cave.MossCards.GroupBy(c => c.Kind).Select(g => $"{g.Key}={g.Count()}"))}");
+    }
+
+    return drowned == 0 ? 0 : 1;
+}
+
 if (args is ["census", string censusSeeds])
 {
     // census <seeds>: which modules approach B's dungeons use, and the seeds that show each.

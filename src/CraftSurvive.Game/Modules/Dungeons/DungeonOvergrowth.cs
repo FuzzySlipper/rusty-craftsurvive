@@ -49,10 +49,35 @@ internal sealed class DungeonOvergrowth : IDisposable
 
         foreach (OvergrowthPlacement p in placements.Take(ProductIds.DungeonOvergrowthObjects))
         {
-            float twist = (p.Pick - 0.5f) * 2f * MostTwist;
-            Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.Atan2(p.Out.X, p.Out.Z) + twist);
-            placed.Add((p.Kind, new Transform(DungeonCollision.InSession(p.At), turn, new Vector3(p.Scale))));
+            placed.Add((p.Kind, new Transform(DungeonCollision.InSession(p.At), Turn(p), new Vector3(p.Scale))));
         }
+    }
+
+    /// <summary>
+    /// How a placement is turned: its frame's +z to its outward and +y to its up - a floor piece square to its up and turned
+    /// about it, a wall piece facing its outward exactly - and twisted a little about its up by its pick.
+    /// </summary>
+    private static Quaternion Turn(OvergrowthPlacement p)
+    {
+        Vector3 up = Vector3.Normalize(p.Up ?? Vector3.UnitY), facing = Vector3.Normalize(p.Out);
+        Vector3 y, z;
+        if (OvergrowthPlacement.OnFloor(p.Kind) || MathF.Abs(Vector3.Dot(up, facing)) > 0.98f)
+        {
+            y = up;
+            Vector3 flat = facing - (y * Vector3.Dot(facing, y));
+            z = flat.LengthSquared() > 1e-6f ? Vector3.Normalize(flat) : Vector3.Normalize(Vector3.Cross(Vector3.UnitX, y));
+        }
+        else
+        {
+            z = facing;
+            y = Vector3.Normalize(up - (z * Vector3.Dot(up, z)));
+        }
+
+        // System.Numerics transforms row vectors: the matrix's rows are where the frame's axes go.
+        Vector3 x = Vector3.Cross(y, z);
+        Quaternion frame = Quaternion.CreateFromRotationMatrix(new Matrix4x4(x.X, x.Y, x.Z, 0f, y.X, y.Y, y.Z, 0f, z.X, z.Y, z.Z, 0f, 0f, 0f, 0f, 1f));
+        // Twisted about its up: a drape keeps hanging and a mound keeps its foot on the floor.
+        return Quaternion.Normalize(Quaternion.CreateFromAxisAngle(y, (p.Pick - 0.5f) * 2f * MostTwist) * frame);
     }
 
     /// <summary>A kind's prop mesh.</summary>

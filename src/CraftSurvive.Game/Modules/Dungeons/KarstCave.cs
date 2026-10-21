@@ -884,6 +884,17 @@ internal static class KarstCave
     // (scaled by wetness from a dry share to 1), and a cave grows at most so many. A wall takes no card of its own: the
     // moss rock is the wall's moss, small wall cards read as specks on it, and a curtain's straight top on a bare wall as a box.
     private const float CardStep = 0.5f, CardApart = 0.55f;
+
+    // The underground forest's overgrowth on cave rock (#10096), where the moss grows by the light: vines draped from lips
+    // (an opening's cliff always, else this share times the damp), ivy mounds at mossy walls' feet, ivy clumps on mossy
+    // walls, grass tufts on mossy floors; each kind at least so far apart, and at most so many in a cave.
+    private const float DrapeShare = 0.5f, MoundShare = 0.35f, ClumpShare = 0.25f, GrassShare = 0.35f, GrowthApart = 1.4f;
+    private const int MostOvergrowth = 1500;
+
+    // Plain mushrooms on damp, still floors anywhere in the dark (beside the glow fungi), and root tangles under the
+    // surface beside the root curtains: so far apart, and at most so many.
+    private const float MushroomsApart = 2f, RootTanglesApart = 4f;
+    private const int MostMushrooms = 90, MostRootTangles = 10;
     private const float MatShare = 0.7f, CushionShare = 0.6f, CurtainShare = 0.8f;
     private const float DryCardShare = 0.45f, WetCardDamp = 0.3f;
     // Ivy hangs from an opening's rim this far down its walls, and this far out past the opening's edge.
@@ -907,7 +918,7 @@ internal static class KarstCave
     /// a mat, a mossy wall a cushion at its foot and a curtain over its lip, and a cliff's lip ivy hanging down it in a
     /// chain of curtains, whatever the rock.
     /// </summary>
-    private static List<MossCard> MossCards(Result cave)
+    private static List<MossCard> MossCards(Result cave, List<OvergrowthPlacement> overgrowth)
     {
         List<(Vector2 Centre, float Radius)> openings = cave.SkyOpen ? Openings(cave) : [];
         float top = FieldY * FieldStep;
@@ -958,6 +969,17 @@ internal static class KarstCave
         }
 
         HashSet<(int, int, int)> taken = [];
+        HashSet<(OvergrowthKind, int, int, int)> grownAt = [];
+        // An overgrowth of a kind at a place, unless one of its kind already grows within GrowthApart.
+        void Grow(OvergrowthKind kind, Vector3 at, Vector3 outward, Vector3 up, float pick)
+        {
+            if (overgrowth.Count < MostOvergrowth
+                && grownAt.Add((kind, (int)MathF.Floor(at.X / GrowthApart), (int)MathF.Floor(at.Y / GrowthApart), (int)MathF.Floor(at.Z / GrowthApart))))
+            {
+                overgrowth.Add(new OvergrowthPlacement(kind, at, outward, 0.85f + (0.3f * pick), pick, up));
+            }
+        }
+
         List<MossCard> cards = [];
         foreach ((Vector3 min, Vector3 max) in boxes)
         {
@@ -1002,8 +1024,15 @@ internal static class KarstCave
                         float roll = NaturalCavern.Hash(cave.Seed ^ 0xC4D1UL, cx, cy, cz), pick = NaturalCavern.Hash(cave.Seed ^ 0xC4D2UL, cx, cy, cz);
                         float damp = MathF.Max(GridTrilinear(cave.Drip, s), GridTrilinear(cave.Standing, s));
                         float wet = DryCardShare + ((1f - DryCardShare) * Math.Clamp(damp / WetCardDamp, 0f, 1f));
+                        float growRoll = NaturalCavern.Hash(cave.Seed ^ 0x0F61UL, cx, cy, cz);
                         if (n.Y > CardTopRise)
                         {
+                            if (mossy && growRoll < GrassShare * wet)
+                            {
+                                float a = 2f * MathF.PI * pick;
+                                Grow(OvergrowthKind.GrassTuft, s, new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), n, pick);
+                            }
+
                             if (mossy && roll < MatShare * wet)
                             {
                                 cards.Add(new MossCard(MossCardKind.Mat, s, Vector3.Zero, n, pick));
@@ -1027,6 +1056,20 @@ internal static class KarstCave
 
                         bool lip = edge < LipAbove && Open(s + (outward * 0.4f) - (Vector3.UnitY * LipDrop)) > 0f;
                         bool foot = Open(s + (outward * 0.3f) - (Vector3.UnitY * FootBelow)) <= 0f;
+                        if (lip && growRoll < (ivy ? 1f : DrapeShare * wet))
+                        {
+                            // Long vines down an opening's cliff, shorter ones from a lip in the dark.
+                            Grow(ivy || growRoll < 0.3f ? OvergrowthKind.VineDrape : OvergrowthKind.VineDrapeShort, s + (Vector3.UnitY * edge), outward, Vector3.UnitY, pick);
+                        }
+                        else if (foot && mossy && growRoll < MoundShare * wet)
+                        {
+                            Grow(OvergrowthKind.IvyMound, Floor(cave.Open, s + (outward * 0.05f)) - (Vector3.UnitY * 0.08f), outward, Vector3.UnitY, pick);
+                        }
+                        else if ((mossy || ivy) && growRoll < ClumpShare * wet)
+                        {
+                            Grow(OvergrowthKind.IvyClump, s, n, Vector3.UnitY, pick);
+                        }
+
                         if (lip && roll < (ivy ? 1f : CurtainShare * wet))
                         {
                             Vector3 lipAt = s + (Vector3.UnitY * edge);
@@ -1481,9 +1524,11 @@ internal static class KarstCave
     /// dry levels; each kind spaced apart and capped, chosen by hash so a seed always grows the same cave.
     /// </summary>
     private static List<EcologyPlacement> Ecology(float[] open, byte[] formed, float[] flow, float[] drip, float[] standing, int eras, float finalTable, ulong seed,
-        bool skyOpen)
+        bool skyOpen, List<OvergrowthPlacement> overgrowth)
     {
         List<(EcologyKind Kind, Vector3 At, Vector3 Normal, float Rank)> candidates = [];
+        // The overgrowth's mushrooms and root tangles (#10096), ranked by their own hash.
+        List<(OvergrowthKind Kind, Vector3 At, float Rank)> growing = [];
         float Open(Vector3 p) => Trilinear(open, p);
         for (float z = 2f; z < GridZ * GridCell - 2f; z += EcologyStep)
             for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
@@ -1504,6 +1549,7 @@ internal static class KarstCave
                     if (Open(p - new Vector3(0f, EcologyStep, 0f)) <= 0f && damp >= FungiDamp && running < QuietFlow)
                     {
                         candidates.Add((EcologyKind.GlowFungi, Floor(open, p), Vector3.UnitY, rank));
+                        growing.Add((OvergrowthKind.Mushrooms, Floor(open, p) - new Vector3(0f, 0.06f, 0f), NaturalCavern.Hash(seed ^ 0x0F62UL, (int)x, (int)y, (int)z)));
                     }
 
                     // A ceiling just above with a clear drop below: glow-worms over running water.
@@ -1520,6 +1566,7 @@ internal static class KarstCave
                         if (ground - roof.Y < RootsUnderSurface)
                         {
                             candidates.Add((EcologyKind.RootCurtain, roof, -Vector3.UnitY, rank));
+                            growing.Add((OvergrowthKind.RootTangle, roof + new Vector3(0f, 0.15f, 0f), NaturalCavern.Hash(seed ^ 0x0F63UL, (int)x, (int)y, (int)z)));
                         }
                     }
 
@@ -1542,6 +1589,24 @@ internal static class KarstCave
                 }
 
                 chosen.Add(new EcologyPlacement(kind, at, normal, 0.7f + (0.6f * rank), (uint)(rank * uint.MaxValue)));
+            }
+        }
+
+        foreach ((OvergrowthKind kind, float apart, int most) in new[] { (OvergrowthKind.Mushrooms, MushroomsApart, MostMushrooms),
+            (OvergrowthKind.RootTangle, RootTanglesApart, MostRootTangles) })
+        {
+            List<Vector3> placed = [];
+            foreach ((OvergrowthKind _, Vector3 at, float rank) in growing.Where(g => g.Kind == kind).OrderByDescending(g => g.Rank))
+            {
+                if (placed.Count >= most || placed.Any(q => Vector3.Distance(q, at) < apart))
+                {
+                    continue;
+                }
+
+                placed.Add(at);
+                float a = 2f * MathF.PI * rank;
+                // A floor's up is near enough the world's for a cluster; roots hang from the roof as they grew.
+                overgrowth.Add(new OvergrowthPlacement(kind, at, new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), kind == OvergrowthKind.Mushrooms ? 1.5f + rank : 0.9f + (0.3f * rank), rank));
             }
         }
 
@@ -1598,6 +1663,9 @@ internal static class KarstCave
         internal required Era[] Eras { get; init; }
         /// <summary>The cave's living (and mineral) light: where each growth stands (#10129).</summary>
         internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
+
+        /// <summary>The overgrowth the dark grows (#10096): mushrooms on damp still floors, root tangles under the surface.</summary>
+        internal required IReadOnlyList<OvergrowthPlacement> Overgrowth { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
         internal required (Vector3 Floor, float Radius)? Tiankeng { get; init; }
         /// <summary>The cave's flooded places: lakes, pools and mist sumps (#10094).</summary>
@@ -1861,7 +1929,10 @@ internal static class KarstCave
             [arrival, .. cave.SinkPoints.Skip(1).Select(s => StudyField.Cell(StudyField.OnFloor(shape, s.X, s.Z, s.Y))),
                 .. cave.Chambers.Select(c => StudyField.Cell(StudyField.OnFloor(shape, c.X, c.Z, c.Y))), springCell], springCell);
         long cardsFrom = Stopwatch.GetTimestamp();
-        List<MossCard> cards = MossCards(cave);
+        List<OvergrowthPlacement> overgrowth = [.. cave.Overgrowth];
+        List<MossCard> cards = MossCards(cave, overgrowth);
+        // Nothing grows under the water.
+        overgrowth.RemoveAll(g => cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
         DungeonLayout layout = new($"karst-cave-{seed:x}", new DungeonVolume(volume.ChunksX, volume.ChunksY, volume.ChunksZ, BlockId.Air),
             arrive, arrive + new Vector3(0.5f, 0f, 0f), lights)
         {
@@ -1878,12 +1949,13 @@ internal static class KarstCave
             WaterZones = cave.WaterZones,
             Forest = cave.SkyOpen ? SinkholeForest(cave) : [],
             MossCards = cards,
+            Overgrowth = overgrowth,
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
-            $"{Readout(cave)} mossCards={cards.Count} ({grown}) in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
+            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>
@@ -2054,7 +2126,8 @@ internal static class KarstCave
             }
         }
 
-        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen);
+        List<OvergrowthPlacement> darkGrowth = [];
+        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
         waterZones.AddRange(PerchedWater(open, routePaths, finalTable, waterZones));
@@ -2087,6 +2160,7 @@ internal static class KarstCave
             Formations = formations,
             Eras = eras,
             Ecology = ecology,
+            Overgrowth = darkGrowth,
             Tiankeng = tiankeng,
             GreatHall = greatHall,
             Chasm = chasm,
