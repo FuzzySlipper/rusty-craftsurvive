@@ -159,6 +159,8 @@ internal static class ModularDungeon
             Moisture = moisture,
             // The moss cards on the kit (#10092), where its damp stain is strongest.
             MossCards = KitMoss.Cards(kit, seed),
+            // Its wall overgrowth (#10096): vines, ivy clumps and mounds, root tangles, where it is dampest.
+            Overgrowth = KitOvergrowth.Placements(kit, seed),
             // Its water marks (#10092): drip stains, streaks, damp washes.
             Drips = DungeonDrips.Marks(walkable, moisture, kit, seed),
         };

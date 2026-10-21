@@ -39,6 +39,7 @@ internal sealed class DungeonSpace : IDisposable
 
     /// <summary>A modular dungeon's kit pieces (#10089), drawn and collided while the space is loaded.</summary>
     private DungeonKitLook? kit;
+    private DungeonOvergrowth? overgrowth;
 
     /// <summary>The kit paint study's texture folder (#10089), or null for the kit's own textures.</summary>
     private readonly string? kitPaint;
@@ -102,7 +103,7 @@ internal sealed class DungeonSpace : IDisposable
 
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot; nothing when its rock is voxels.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts =>
-        [.. RockFacts, .. kit?.Facts ?? [], .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
+        [.. RockFacts, .. kit?.Facts ?? [], .. overgrowth?.Facts ?? [], .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
             new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene)),
             .. forest.Select((plant, index) => new AppearanceFact(ProductIds.DungeonRockObject + ForestObjects + (ulong)index, false, 0UL,
                 plant.Place, plant.Look, true, RenderLayer.Scene))];
@@ -191,6 +192,15 @@ internal sealed class DungeonSpace : IDisposable
                 double kitCollideMs = Stopwatch.GetElapsedTime(kitStarted).TotalMilliseconds - kitMeshMs;
                 RockReadout = string.Create(CultureInfo.InvariantCulture,
                     $"{RockReadout} kit={kit.Count} ({kit.Meshes} meshes; built {kitMeshMs:F0} ms, collided {kitCollideMs:F0} ms)");
+            }
+
+            if (layout.Overgrowth.Count > 0 && DungeonOvergrowth.Shown)
+            {
+                // The wall overgrowth (#10096): drawn only, nothing collides.
+                long grownStarted = Stopwatch.GetTimestamp();
+                overgrowth = new DungeonOvergrowth(engine, terrain.Content, layout.Overgrowth);
+                RockReadout = string.Create(CultureInfo.InvariantCulture,
+                    $"{RockReadout} overgrowth={overgrowth.Count} ({overgrowth.Counts}; built {Stopwatch.GetElapsedTime(grownStarted).TotalMilliseconds:F0} ms)");
             }
 
             // The water marks (#10092): projected decals from the scene's shared atlas (set by SnowTracks), wet a little glossy.
@@ -377,6 +387,8 @@ internal sealed class DungeonSpace : IDisposable
         mossCards = null;
         kit?.Dispose();
         kit = null;
+        overgrowth?.Dispose();
+        overgrowth = null;
         foreach (Material material in growthMaterials)
         {
             material.Dispose();

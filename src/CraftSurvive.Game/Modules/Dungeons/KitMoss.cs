@@ -13,7 +13,10 @@ internal static class KitMoss
 {
     // As kit-stone.wgsl: the moss strength's threshold (SurfaceMoss: 0.74 less 0.09 per strength, at strength 2) and the
     // kit's moisture scale; a card grows this far over the threshold, where the stain is full.
-    private const float Threshold = 0.74f - (2f * 0.09f), MoistureScale = 1.7f, CardMargin = 0.07f;
+    private const float Threshold = StainThreshold, MoistureScale = 1.7f, CardMargin = 0.07f;
+
+    /// <summary>The moss field's threshold on the kit (kit-stone.wgsl): where its stain begins.</summary>
+    internal const float StainThreshold = 0.74f - (2f * 0.09f);
 
     // Where the cards are tried: the spacing along a floor, a wall's foot and a ledge's lip, in metres.
     private const float FloorStep = 0.9f, FootStep = 0.6f, LipStep = 0.55f;
@@ -198,7 +201,7 @@ internal static class KitMoss
         new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ }.All(d => Strength(p, local + (d * PatchReach), Vector3.UnitY, 1f) >= Threshold);
 
     /// <summary>The moss at a point of a piece (its own frame) on a surface facing <paramref name="facing"/>, as kit-stone.wgsl reads it.</summary>
-    private static float Strength(KitPlacement p, Vector3 local, Vector3 facing, float rising)
+    internal static float Strength(KitPlacement p, Vector3 local, Vector3 facing, float rising)
     {
         Vector3 read = DungeonCollision.InSession(DungeonKit.Local(p, local));
         return SurfaceMoss.FieldAt((0, 0, 0), read.X, read.Y, read.Z, DungeonKit.Turned(p, facing), SurfaceMoss.PlaceGrain, Dampness(p.Wet) * rising * MoistureScale);
@@ -221,7 +224,7 @@ internal static class KitMoss
         cards.Add(new MossCard(kind, at, outward == Vector3.Zero ? Vector3.Zero : DungeonKit.Turned(p, outward), DungeonKit.Turned(p, normal), pick));
     }
 
-    private static double Hash(ulong seed, Vector3 at)
+    internal static double Hash(ulong seed, Vector3 at)
     {
         ulong h = seed ^ 0x4B4D6F7373UL ^ ((ulong)(uint)(int)MathF.Floor(at.X * 10) * 0x9E3779B97F4A7C15UL)
             ^ ((ulong)(uint)(int)MathF.Floor(at.Y * 10) * 0xC2B2AE3D27D4EB4FUL) ^ ((ulong)(uint)(int)MathF.Floor(at.Z * 10) * 0x165667B19E3779F9UL);

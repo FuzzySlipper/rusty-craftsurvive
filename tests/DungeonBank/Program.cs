@@ -581,11 +581,25 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
         && shaderText.Contains($"MOSS_PERIOD: i32 = {SurfaceMoss.PlaceGrain.PeriodMetres};", StringComparison.Ordinal)
         && shaderText.Contains($"MOSS_TEXELS: f32 = {SurfaceMoss.PlaceGrain.TexelsPerMetre}.0;", StringComparison.Ordinal);
     Check.That(grainEqual, "kit-stone.wgsl's and kit-ivy.wgsl's moss grain must equal SurfaceMoss.PlaceGrain");
-    int seeped = 0, dry = 0, wet = 0, pieces = 0;
+    // Overgrowth grows from a piece's dampness 0.4 (by the breach) up; the air a metre before it is this damp at least.
+    const float OvergrowthDampest = 0.35f;
+    int seeped = 0, dry = 0, wet = 0, pieces = 0, overgrown = 0, fewest = int.MaxValue, most = 0, inDryAir = 0;
+    Dictionary<OvergrowthKind, int> grownKinds = [];
     for (ulong moistSeed = 1; moistSeed <= 8; moistSeed++)
     {
         var moist = ModularDungeon.Generate(moistSeed);
         seeped += (moist.Layout.Moisture?.Seeps ?? 0) > 0 ? 1 : 0;
+        // The wall overgrowth (#10096) grows only where the air before it is damp, and every kind somewhere in the bank.
+        IReadOnlyList<OvergrowthPlacement> grown = moist.Layout.Overgrowth;
+        overgrown += grown.Count;
+        fewest = Math.Min(fewest, grown.Count);
+        most = Math.Max(most, grown.Count);
+        foreach (OvergrowthPlacement g in grown)
+        {
+            grownKinds[g.Kind] = grownKinds.GetValueOrDefault(g.Kind) + 1;
+            inDryAir += moist.Layout.Moisture!.At(g.At + g.Out + (System.Numerics.Vector3.UnitY * 0.5f)) is > 0f and < OvergrowthDampest ? 1 : 0;
+        }
+
         foreach (KitPlacement piece in moist.Layout.Kit)
         {
             pieces++;
@@ -596,6 +610,9 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
 
     Console.WriteLine($"kit moisture: {seeped}/8 dungeons seep; of {pieces} pieces {dry} dry (<0.45), {wet} wet (>0.65); grain {(grainEqual ? "equal" : "DIFFERS")}");
     Check.That(seeped == 8 && dry > 0 && wet > 0, "every dungeon must seep and its kit range from dry to wet");
+    Console.WriteLine($"kit overgrowth: {overgrown} over 8 dungeons ({fewest}..{most} each; {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}); {inDryAir} before dry air");
+    Check.That(fewest > 0 && grownKinds.Count == Enum.GetValues<OvergrowthKind>().Length, "every dungeon must grow overgrowth, and the bank every kind of it");
+    Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 
 // The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the

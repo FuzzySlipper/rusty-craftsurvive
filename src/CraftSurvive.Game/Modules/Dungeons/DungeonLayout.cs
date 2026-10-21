@@ -56,6 +56,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>Where the kit relics' hard lights shine (#10089), in layout metres: a hall's relics, each a cold shadowed light.</summary>
     internal IReadOnlyList<Vector3> Relics { get; init; } = [];
 
+    /// <summary>The wall overgrowth (#10096): vines, ivy and roots on a built dungeon's kit.</summary>
+    internal IReadOnlyList<OvergrowthPlacement> Overgrowth { get; init; } = [];
+
     /// <summary>The moss and ivy cards on a cave's rock (#10092).</summary>
     internal IReadOnlyList<MossCard> MossCards { get; init; } = [];
 

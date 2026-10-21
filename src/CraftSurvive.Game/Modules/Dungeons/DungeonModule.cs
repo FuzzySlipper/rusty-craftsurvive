@@ -1182,6 +1182,33 @@ internal sealed class DungeonModule : IProductModule
             string.Create(CultureInfo.InvariantCulture, $"{c.At.X:F1},{c.At.Y:F1},{c.At.Z:F1}/{c.Out.X:F1},{c.Out.Z:F1}")));
     }
 
+    /// <summary>The wall overgrowth of the loaded dungeon (#10096): how many of each kind, and every nth of one kind's anchors; on or off for the next dungeon.</summary>
+    internal string OvergrowthReadout(string kind)
+    {
+        if (kind is "on" or "off")
+        {
+            DungeonOvergrowth.Shown = kind == "on";
+            return $"overgrowth {kind} for the next dungeon entered";
+        }
+
+        if (space is not DungeonSpace current)
+        {
+            return "no dungeon is loaded";
+        }
+
+        IReadOnlyList<OvergrowthPlacement> grown = current.Layout.Overgrowth;
+        string counts = string.Join(" ", Enum.GetValues<OvergrowthKind>().Select(k => $"{k}={grown.Count(g => g.Kind == k)}"));
+        if (!Enum.TryParse(kind, true, out OvergrowthKind wanted))
+        {
+            return $"overgrowth={grown.Count} shown={DungeonOvergrowth.Shown} {counts}";
+        }
+
+        OvergrowthPlacement[] these = [.. grown.Where(g => g.Kind == wanted)];
+        int every = Math.Max(1, these.Length / CardsListed);
+        return $"overgrowth={grown.Count} {counts} | " + string.Join(" ", these.Where((_, i) => i % every == 0).Take(CardsListed).Select(g =>
+            string.Create(CultureInfo.InvariantCulture, $"{g.At.X:F1},{g.At.Y:F1},{g.At.Z:F1}/{g.Out.X:F1},{g.Out.Z:F1}")));
+    }
+
     /// <summary>The kit pieces of the loaded dungeon (#10089): how many of each, and with a piece's name some of its placements.</summary>
     internal string KitReadout(string piece)
     {

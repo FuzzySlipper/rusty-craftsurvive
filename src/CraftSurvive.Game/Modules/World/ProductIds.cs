@@ -31,6 +31,12 @@ internal static class ProductIds
     /// <summary>The dungeon kit's ivy blankets (#10092): a shell over each wet enough wall, rib and pillar; up to <see cref="DungeonKitObjects"/>.</summary>
     internal const ulong DungeonKitBlanket = 0x3_3000UL;
 
+    /// <summary>A built dungeon's wall overgrowth (#10096): vines, ivy clumps and mounds, root tangles; one appearance object each.</summary>
+    internal const ulong DungeonOvergrowth = 0x3_4000UL;
+
+    /// <summary>How many overgrowths a dungeon may draw: the ids below the next range.</summary>
+    internal const int DungeonOvergrowthObjects = 0x1000;
+
     /// <summary>The expedition's sled, standing where the party left it (#9473).</summary>
     internal const ulong SledObject = 0x3_1000UL;
 

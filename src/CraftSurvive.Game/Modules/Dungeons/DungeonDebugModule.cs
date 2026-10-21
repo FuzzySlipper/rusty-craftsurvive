@@ -22,6 +22,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.cards", Description = "Reads the loaded cave's moss and ivy cards (#10092): how many of each kind, and with a kind (mat, face, cushion, curtain) some of its anchors and outward directions, in layout metres.")]
     public string Cards(string kind = "") => dungeons.CardsReadout(kind);
 
+    [DebugCommand("craft.dungeon.overgrowth", Description = "The loaded built dungeon's wall overgrowth (#10096): how many of each kind, and with a kind (VineDrape, IvyClump, IvyMound, RootTangle ...) some anchors and outward directions in layout metres; on or off draws it or not in the next dungeon entered (a before and after).")]
+    public string Overgrowth(string kind = "") => dungeons.OvergrowthReadout(kind);
+
     [DebugCommand("craft.dungeon.studylight", Description = "Assisted, for studies (#10090): sets the underground fill light and fog density (negative restores the game's own), so shapes can be seen and compared.")]
     public string StudyLight(float fill, float fogDensity) => dungeons.StudyLight(fill, fogDensity);
 
