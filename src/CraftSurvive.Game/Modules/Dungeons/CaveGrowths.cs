@@ -58,6 +58,9 @@ internal enum MossCardKind
 
     /// <summary>A curtain hanging over a lip: moss, or ivy over an opening's rim.</summary>
     Curtain,
+
+    /// <summary>Ivy lying flat on a wall's face, hung from a little above its anchor so its top is leafy (the places' face card).</summary>
+    Face,
 }
 
 /// <summary>

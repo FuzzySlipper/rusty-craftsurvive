@@ -66,8 +66,9 @@ const EDGE_FRAY: f32 = 0.04;
 // How wet a surface is for its moisture (0..1): a dungeon's air is 0.3 at its driest and 1 by the caves, and moss
 // should hold from about the middle of that (the places' MOISTURE_SCALE, 1.25, is for their vertex moisture, near 1).
 const MOISTURE_SCALE: f32 = 1.7;
-// A placement's dampness is carried in its tint's blue as 1 - dampness * WET_IN_BLUE.
-const WET_IN_BLUE: f32 = 0.5;
+// A placement's dampness (0..2: KitMoss.Dampness, overgrown by the caves) is carried in its tint's blue as
+// 1 - dampness * WET_IN_BLUE.
+const WET_IN_BLUE: f32 = 0.45;
 // The stain begins this far below the cards' threshold, and is full this far above it; its tint (linear).
 const STAIN_REACH: f32 = 0.08;
 const STAIN_FULL: f32 = 0.06;
@@ -145,7 +146,7 @@ fn shade(surface: Surface) -> vec4<f32> {
     // The texture's own colour: the tint carries the placement's dampness, not a colour.
     let tint = max(surface.tint.rgb, vec3<f32>(0.001));
     s.base = vec4<f32>(surface.base.rgb / tint, surface.base.a);
-    let moisture = clamp((1.0 - surface.tint.b) / WET_IN_BLUE, 0.0, 1.0) * surface.tint.a;
+    let moisture = clamp((1.0 - surface.tint.b) / WET_IN_BLUE, 0.0, 2.0) * surface.tint.a;
     let texels = surface.uv * facet.x;
     // How many texels one screen pixel spans here.
     let per_pixel = max(length(dpdx(texels)), length(dpdy(texels)));

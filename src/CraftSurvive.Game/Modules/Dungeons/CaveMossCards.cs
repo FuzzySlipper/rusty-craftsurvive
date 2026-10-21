@@ -61,7 +61,12 @@ internal sealed class CaveMossCards : IDisposable
                 continue;
             }
 
-            PlaceMossCards.Kind kind = card.Kind == MossCardKind.Curtain ? PlaceMossCards.Kind.Curtain : PlaceMossCards.Kind.Cushion;
+            PlaceMossCards.Kind kind = card.Kind switch
+            {
+                MossCardKind.Curtain => PlaceMossCards.Kind.Curtain,
+                MossCardKind.Face => PlaceMossCards.Kind.Face,
+                _ => PlaceMossCards.Kind.Cushion,
+            };
             PlaceMossCards.Card(at, card.Out, card.Normal, kind, card.Pick, positions, normals, uvs, indices);
         }
 

@@ -7,7 +7,7 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// A built dungeon's moisture (#10092; the design recorded on #10044 and #9833): how damp the air is through the dungeon,
 /// 0 dry to 1 wet, on a grid of <see cref="Step"/>-metre cells. Water comes from the caves the building opens onto (their
 /// air is damp), from a few seeps where a ceiling lets water through, and rises from the deep: lower storeys are damper.
-/// It spreads through air only (walls hold it back), more readily down than up, and fades with distance. The moss stain,
+/// It spreads through air only (walls hold it back), more readily down than up, and fades with distance from its source. The moss stain,
 /// cards, ivy and drips are grown from it.
 /// </summary>
 internal sealed class DungeonMoisture
@@ -22,10 +22,11 @@ internal sealed class DungeonMoisture
     /// <summary>The share of ceiling cells that seep, by the seed.</summary>
     private const double SeepShare = 0.03;
 
-    // Spreading: how much a cell keeps of its neighbours' mean per step, the weights of the cell above (water falls), beside
-    // and below, and how many relaxation passes are made.
-    private const float Keep = 0.95f, FromAbove = 1.6f, FromBeside = 1f, FromBelow = 0.5f;
-    private const int Passes = 48;
+    // Spreading: a cell takes its dampest neighbour's moisture less a share per step - kept this much from the cell above
+    // (water falls), beside, and below - so a cave's damp reaches into the rooms by it and fades with distance; so many
+    // passes carry it as far as it can go.
+    private const float FromAbove = 0.97f, FromBeside = 0.93f, FromBelow = 0.85f;
+    private const int Passes = 40;
 
     private readonly int sizeX, sizeY, sizeZ;
     private readonly float[] wet;
@@ -125,13 +126,12 @@ internal sealed class DungeonMoisture
                             continue;
                         }
 
-                        float sum = 0f, weight = 0f;
-                        void From(int nx, int ny, int nz, float w)
+                        float spread = 0f;
+                        void From(int nx, int ny, int nz, float keep)
                         {
                             if (m.Inside(nx, ny, nz) && m.air[m.Index(nx, ny, nz)])
                             {
-                                sum += m.wet[m.Index(nx, ny, nz)] * w;
-                                weight += w;
+                                spread = Math.Max(spread, m.wet[m.Index(nx, ny, nz)] * keep);
                             }
                         }
 
@@ -141,7 +141,6 @@ internal sealed class DungeonMoisture
                         From(x - 1, y, z, FromBeside);
                         From(x, y, z + 1, FromBeside);
                         From(x, y, z - 1, FromBeside);
-                        float spread = weight > 0f ? Keep * sum / weight : 0f;
                         m.wet[i] = Math.Max(source[i], spread);
                     }
         }

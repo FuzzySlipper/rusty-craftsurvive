@@ -48,8 +48,8 @@ internal sealed class DungeonKitLook : IDisposable
 
     // Moss (#10092): each placement draws through an appearance of its piece's mesh whose texture tint carries its dampness
     // in one of so many steps (kit-stone.wgsl reads it); the moss's strength and stain as SurfaceMoss's.
-    private const int WetSteps = 8;
-    private const float MossStrength = 2f, StainDepth = 1f, SideShare = 0.85f, LowestFacing = -0.25f, WetInBlue = 0.5f;
+    private const int WetSteps = 16;
+    private const float MossStrength = 2f, StainDepth = 1f, SideShare = 0.85f, LowestFacing = -0.25f, WetInBlue = 0.45f;
     private readonly Dictionary<(KitPiece Piece, bool Lit, int Wet), Appearance> damp = [];
 
     /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "plain", painted from the geometry), or null for its own.</param>
@@ -99,14 +99,14 @@ internal sealed class DungeonKitLook : IDisposable
         {
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
             bool litHere = p.Lit && pieces.ContainsKey((p.Piece, true));
-            int wet = Math.Clamp((int)MathF.Round(p.Wet * (WetSteps - 1)), 0, WetSteps - 1);
+            int wet = Math.Clamp((int)MathF.Round(KitMoss.Dampness(p.Wet) / KitMoss.MostDampness * (WetSteps - 1)), 0, WetSteps - 1);
             placed.Add((p.Piece, litHere, wet, new Transform(at, turn, scale)));
             if (!damp.ContainsKey((p.Piece, litHere, wet)) && pieces[(p.Piece, litHere)] is { Mossy: true } drawn)
             {
                 // The piece's mesh again, its every slot's texture tint carrying this dampness in its alpha.
                 Appearance wetLook = engine.Graphics.CreateMeshAppearance(drawn.Mesh);
                 // The dampness in the tint's blue (kit-stone.wgsl's WET_IN_BLUE): an alpha below 1 would draw it transparent.
-                Color dampness = new(1f, 1f, 1f - (WetInBlue * wet / (float)(WetSteps - 1)), 1f);
+                Color dampness = new(1f, 1f, 1f - (WetInBlue * KitMoss.MostDampness * wet / (float)(WetSteps - 1)), 1f);
                 engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(wetLook,
                     Enumerable.Range(0, drawn.Slots).Select(slot => new MeshMaterialFactors((uint)slot, false, default, false, Vector3.Zero, 0f, true, dampness)).ToArray()));
                 damp[(p.Piece, litHere, wet)] = wetLook;
