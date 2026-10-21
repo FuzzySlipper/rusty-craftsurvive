@@ -68,6 +68,15 @@ internal enum KitPiece
 
     /// <summary>A mound of broken stone over the breach's gravel heap.</summary>
     RubbleHeap,
+
+    /// <summary>A ledge 1 m deep: where an upper floor survives in part (a stair's landing), its open edge a lip over a beam, its underside a soffit.</summary>
+    Ledge1,
+
+    /// <summary>A ledge 2 m deep (a collapse's ledge).</summary>
+    Ledge2,
+
+    /// <summary>A ledge 4 m deep (a gallery's balcony).</summary>
+    Ledge4,
 }
 
 /// <summary>
@@ -118,6 +127,11 @@ internal static class DungeonKit
     // (DungeonModules.Collapse's slope and Breach's heap).
     private static readonly (string Module, int X, int Z)[] Slopes = [("collapse", 1, 3)];
     private static readonly (string Module, int X, int Z)[] Heaps = [("breach", 1, 3)];
+
+    // A ledge segment is this long in its own frame; a strip of floor is cut into segments near it, and drawn with the ledge
+    // piece nearest its depth.
+    private const float LedgeLength = 4f;
+    private static readonly (KitPiece Piece, int Depth)[] Ledges = [(KitPiece.Ledge1, 1), (KitPiece.Ledge2, 2), (KitPiece.Ledge4, 4)];
 
     /// <summary>The collapse's gravel slope's steps (its rubble piece's blocks).</summary>
     private const int SlopeSteps = 6;
@@ -327,6 +341,8 @@ internal static class DungeonKit
                 }
             }
 
+            pieces.AddRange(LedgePieces(volume, module));
+
             // A relic powers its module: its inlays glow. A hall whose pillars or sphere throw shadows keeps the relics'
             // hard lights; elsewhere they go, and the glow is the light.
             bool powered = relics.Count > firstRelic;
@@ -414,6 +430,105 @@ internal static class DungeonKit
                     yield return (KitPiece.PillarGreat, new Vector3(minX + 1f, oy, minZ + 1f), (minX, minX + 1, oy + 1, oy + (2 * Storey) - 2, minZ, minZ + 1));
                 }
             }
+    }
+
+    /// <summary>
+    /// The ledges over what survives of a module's upper floors (a gallery's balcony, a collapse's ledge, a stair's landing):
+    /// in each cell whose upper floor is neither whole (that cell takes floor and vault pieces) nor gone, the floor voxels
+    /// with air under them. Each run of them along an open edge (air beside them in the room) is a strip as deep as the
+    /// floor behind it, cut into segments near <see cref="LedgeLength"/> long, each drawn as the ledge nearest its depth,
+    /// turned so its lip faces the open side. The voxels stay and carry the walking.
+    /// </summary>
+    private static IEnumerable<KitPlacement> LedgePieces(DungeonVolume volume, PlacedModule module)
+    {
+        int x0 = (module.X * Cell) + 1, x1 = ((module.X + module.Width) * Cell) - 2;
+        int z0 = (module.Z * Cell) + 1, z1 = ((module.Z + module.Depth) * Cell) - 2;
+        for (int level = 1; level < module.Shape.Height; level++)
+        {
+            int row = ((module.Y + level) * Storey) + ModularDungeon.BaseY;
+            bool Inside(int x, int z) => x >= x0 && x <= x1 && z >= z0 && z <= z1;
+            bool PartialCell(int x, int z)
+            {
+                int ox = x / Cell * Cell, oz = z / Cell * Cell;
+                double share = Share(volume, ox + 1, ox + Cell - 2, row, row, oz + 1, oz + Cell - 2);
+                return share > 0d && share < WholeShare;
+            }
+
+            HashSet<(int X, int Z)> floor = [];
+            for (int x = x0; x <= x1; x++)
+                for (int z = z0; z <= z1; z++)
+                {
+                    if (Building(volume.At(x, row, z)) && volume.At(x, row - 1, z) == BlockId.Air && PartialCell(x, z))
+                    {
+                        floor.Add((x, z));
+                    }
+                }
+
+            HashSet<(int X, int Z)> covered = [];
+            // Each open side: the step to the air beside, the step along the edge, and the turn that faces a piece's lip there.
+            foreach ((ModuleFace face, int dx, int dz) in new[] { (ModuleFace.South, 0, -1), (ModuleFace.North, 0, 1), (ModuleFace.West, -1, 0), (ModuleFace.East, 1, 0) })
+            {
+                (int ax, int az) = (dz != 0 ? 1 : 0, dx != 0 ? 1 : 0);
+                bool Open((int X, int Z) v) => floor.Contains(v) && !covered.Contains(v) && Inside(v.X + dx, v.Z + dz) && volume.At(v.X + dx, row, v.Z + dz) == BlockId.Air;
+                foreach ((int X, int Z) open in floor.Where(Open).OrderBy(v => v.X).ThenBy(v => v.Z).ToList())
+                {
+                    (int X, int Z) start = open;
+                    if (!Open(start) || Open((start.X - ax, start.Z - az)))
+                    {
+                        continue;
+                    }
+
+                    // The run along the edge: its open stretch, carried on at both ends through floor nothing else covers (an
+                    // L's inner corner has no open edge of its own); then how deep the floor stands behind all of it.
+                    bool Free((int X, int Z) v) => floor.Contains(v) && !covered.Contains(v);
+                    (int X, int Z) first = start;
+                    while (Free((first.X - ax, first.Z - az)))
+                    {
+                        first = (first.X - ax, first.Z - az);
+                    }
+
+                    int length = 1;
+                    while (Open((start.X + (ax * length), start.Z + (az * length))))
+                    {
+                        length++;
+                    }
+
+                    length += (start.X - first.X) + (start.Z - first.Z);
+                    start = first;
+                    while (Free((start.X + (ax * length), start.Z + (az * length))))
+                    {
+                        length++;
+                    }
+
+                    int depth = 1;
+                    while (Enumerable.Range(0, length).All(i => floor.Contains((start.X + (ax * i) - (dx * depth), start.Z + (az * i) - (dz * depth)))
+                        && !covered.Contains((start.X + (ax * i) - (dx * depth), start.Z + (az * i) - (dz * depth)))))
+                    {
+                        depth++;
+                    }
+
+                    for (int i = 0; i < length; i++)
+                        for (int j = 0; j < depth; j++)
+                        {
+                            covered.Add((start.X + (ax * i) - (dx * j), start.Z + (az * i) - (dz * j)));
+                        }
+
+                    (KitPiece piece, int pieceDepth) = Ledges.MinBy(l => Math.Abs(l.Depth - depth));
+                    int segments = Math.Max(1, (int)MathF.Round(length / LedgeLength));
+                    float segment = length / (float)segments;
+                    for (int k = 0; k < segments; k++)
+                    {
+                        // The segment's middle on the open edge's line, at the floor block's bottom.
+                        // Along the edge from the run's first voxel; across, the voxels' face on the open side.
+                        float along = segment * (k + 0.5f);
+                        float ex = dx == 0 ? start.X + along : start.X + (dx > 0 ? 1f : 0f);
+                        float ez = dz == 0 ? start.Z + along : start.Z + (dz > 0 ? 1f : 0f);
+
+                        yield return new KitPlacement(piece, new Vector3(ex, row, ez), Turn(face), new Vector2(segment / LedgeLength, depth / (float)pieceDepth), Vector2.Zero);
+                    }
+                }
+            }
+        }
     }
 
     /// <summary>Whether every voxel of a footprint is building from one row to another.</summary>
@@ -506,7 +621,8 @@ internal static class DungeonKit
     /// walkable layers over the floor), and its glow is light.
     /// </summary>
     internal static bool Collides(KitPiece piece) => piece is not (KitPiece.Floor or KitPiece.FloorHeaved or KitPiece.Vault or KitPiece.Stair
-        or KitPiece.Sphere or KitPiece.SphereGreat or KitPiece.Relic or KitPiece.RelicGlow or KitPiece.BreachRubble or KitPiece.RubbleSlope or KitPiece.RubbleHeap);
+        or KitPiece.Sphere or KitPiece.SphereGreat or KitPiece.Relic or KitPiece.RelicGlow or KitPiece.BreachRubble or KitPiece.RubbleSlope or KitPiece.RubbleHeap
+        or KitPiece.Ledge1 or KitPiece.Ledge2 or KitPiece.Ledge4);
 
     /// <summary>
     /// The piece whose shape a piece collides as: an alcove or roundel wall as the plain wall, a broken rib as the whole
@@ -554,6 +670,9 @@ internal static class DungeonKit
         KitPiece.CornerTall => "corner-tall",
         KitPiece.RubbleSlope => "rubble-slope",
         KitPiece.RubbleHeap => "rubble-heap",
+        KitPiece.Ledge1 => "ledge-1",
+        KitPiece.Ledge2 => "ledge-2",
+        KitPiece.Ledge4 => "ledge-4",
         _ => "corner",
     };
 
