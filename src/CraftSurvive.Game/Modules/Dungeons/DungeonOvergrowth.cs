@@ -62,7 +62,10 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.VineDrapeShort => "models/dungeon-overgrowth/vine-drape-short.prop-mesh.json",
         OvergrowthKind.IvyMound => "models/dungeon-overgrowth/ivy-mound.prop-mesh.json",
         OvergrowthKind.IvyClump => "models/dungeon-overgrowth/ivy-clump.prop-mesh.json",
-        _ => "models/dungeon-overgrowth/root-tangle.prop-mesh.json",
+        OvergrowthKind.RootTangle => "models/dungeon-overgrowth/root-tangle.prop-mesh.json",
+        OvergrowthKind.GrassTuft => "models/dungeon-overgrowth/grass-tuft.prop-mesh.json",
+        OvergrowthKind.GrassStrip => "models/dungeon-overgrowth/grass-strip.prop-mesh.json",
+        _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
     // Each kind's model parsed once for the process (as the kit's): every dungeon reuses its geometry with its own materials.

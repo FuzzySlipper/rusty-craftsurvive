@@ -19,6 +19,15 @@ internal enum OvergrowthKind
 
     /// <summary>Roots twisting down about 3.5 m from a rib's head or an overhang, a little ivy at their head.</summary>
     RootTangle,
+
+    /// <summary>A round tuft of grass out of a low moss pad, as if from a joint in the floor (a floor piece: on the plane y = 0, its +z only a turn).</summary>
+    GrassTuft,
+
+    /// <summary>A run of grass tufts 1.2 m long along its x, for a slab's seam or a wall's foot.</summary>
+    GrassStrip,
+
+    /// <summary>A cluster of small capped mushrooms.</summary>
+    Mushrooms,
 }
 
 /// <summary>

@@ -47,12 +47,43 @@ internal static class KitOvergrowth
     // its foot; each rib's front point on the corner's diagonal at those heights.
     private const float RibHeadY = 4.7f, RibHead = -2.69f, TallRibHeadY = 10.5f, TallRibHead = -2.53f, RibFoot = -2.48f, RootsFrom = 0.8f;
 
+    // Floors (owner, 2026-10-21: grass clumps on the floor, an implied growth, and mushrooms): grass runs along the floor's
+    // edges (a wall's foot or a slab's seam, so far in from the room's edge, at these places along it), tufts tried every so
+    // far over it (each moved up to so far), and mushrooms in its corners and along its walls; each where the floor's moss
+    // field clears the stain's threshold, from these dampnesses. The water gathers at a wall's foot: a walled edge grows
+    // in full, an open edge (a hall's floor runs on into the next cell's) only this share as a seam's grass, and the open
+    // floor only tufts where the field is this far over the threshold, at this share (strewn evenly, tufts read as dots).
+    private const float RoomHalf = 2.6f, StripIn = 0.3f, TuftStep = 0.9f, TuftJitter = 0.3f, TuftEdge = 1.0f;
+    private const float SeamShare = 0.3f, OpenMargin = 0.12f, OpenShare = 0.25f;
+    private static readonly float[] StripAt = [-1.5f, 0f, 1.5f];
+    private const float GrassFrom = 0.7f, MushroomsFrom = 0.7f, MushroomAlong = 1.15f, MushroomIn = 0.4f, CornerShare = 0.9f, AlongShare = 0.45f;
+
+    // Grass and mushrooms grow over their authored sizes, so a tuft and a cluster read at a room's width.
+    private const float GrassScale = 1.5f, MushroomScale = 1.8f;
+
+    // A rubble heap's top (kit_authored.py's mound over the 2 x 2 heap of gravel, its top at 2 m): tufts and mushrooms on it.
+    private const float HeapTop = 2.15f;
+
     // Sizes: each grown at so much of its authored size, give or take.
     private const float LeastScale = 0.85f, ScaleRange = 0.3f;
 
     internal static IReadOnlyList<OvergrowthPlacement> Placements(IReadOnlyList<KitPlacement> kit, ulong seed)
     {
         List<OvergrowthPlacement> grown = [];
+        // Which way each cell's walls face into its room, by the cell (its pieces share its origin).
+        Dictionary<(int, int, int), List<Vector3>> walls = [];
+        foreach (KitPlacement w in kit.Where(w => w.Piece is KitPiece.Wall or KitPiece.WallDoor or KitPiece.WallAlcove or KitPiece.WallRoundel
+            or KitPiece.WallTall or KitPiece.WallTallDoor or KitPiece.WallTallRoundel or KitPiece.WallBreach))
+        {
+            (int, int, int) cell = Cell(w.Origin);
+            if (!walls.TryGetValue(cell, out List<Vector3>? faces))
+            {
+                walls[cell] = faces = [];
+            }
+
+            faces.Add(DungeonKit.Turned(w, Vector3.UnitZ));
+        }
+
         foreach (KitPlacement p in kit)
         {
             if (grown.Count >= Most)
@@ -78,6 +109,23 @@ internal static class KitOvergrowth
                         float x = side * (Inner - 0.3f);
                         Grow(grown, p, OvergrowthKind.IvyMound, new Vector3(x, FloorTop, -Inner + PilasterProud + Plinth), Vector3.UnitZ, Chance(damp, BreachFrom), seed);
                     }
+
+                    break;
+                case KitPiece.Floor:
+                    Floor(grown, p, damp, seed, walls.GetValueOrDefault(Cell(p.Origin)) ?? []);
+                    break;
+                case KitPiece.RubbleHeap:
+                    for (float x = 0.4f; x <= 1.6f; x += TuftStep / 1.5f)
+                        for (float z = 0.4f; z <= 1.6f; z += TuftStep / 1.5f)
+                        {
+                            Vector3 on = new(x, HeapTop, z);
+                            if (KitMoss.Strength(p, on, Vector3.UnitY, 1f) >= KitMoss.StainThreshold)
+                            {
+                                bool mushroom = Hash(seed ^ 0x4D, DungeonKit.Local(p, on)) < 0.3;
+                                Grow(grown, p, mushroom ? OvergrowthKind.Mushrooms : OvergrowthKind.GrassTuft, on, Turn(p, seed, on),
+                                    Chance(damp, mushroom ? MushroomsFrom : GrassFrom), seed, mushroom ? MushroomScale : GrassScale);
+                            }
+                        }
 
                     break;
                 case KitPiece.Ledge1 or KitPiece.Ledge2 or KitPiece.Ledge4:
@@ -169,8 +217,72 @@ internal static class KitOvergrowth
         }
     }
 
+    private static void Floor(List<OvergrowthPlacement> grown, KitPlacement p, float damp, ulong seed, IReadOnlyList<Vector3> walls)
+    {
+        bool Mossy(Vector3 local, float margin = 0f) => KitMoss.Strength(p, local, Vector3.UnitY, 1f) >= KitMoss.StainThreshold + margin;
+        // Whether the floor's edge on the far side from inward (its own frame) stands under a wall facing into the room.
+        bool Walled(Vector3 inward) => walls.Any(w => Vector3.Dot(w, DungeonKit.Turned(p, inward)) > 0.9f);
+        Vector3[] sides = [Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ];
+        bool[] walled = [.. sides.Select(Walled)];
+
+        // Grass along each edge, facing into the room (a strip runs along its x): a wall's foot in full, a seam sparsely.
+        for (int side = 0; side < sides.Length; side++)
+        {
+            Vector3 inward = sides[side], along = new(inward.Z, 0f, -inward.X);
+            foreach (float t in StripAt)
+            {
+                Vector3 on = (along * t) - (inward * (RoomHalf - StripIn)) + (Vector3.UnitY * FloorTop);
+                if (Mossy(on))
+                {
+                    Grow(grown, p, OvergrowthKind.GrassStrip, on, inward, (walled[side] ? 1f : SeamShare) * Chance(damp, GrassFrom), seed, GrassScale);
+                }
+            }
+        }
+
+        // Tufts: near a walled edge in full, out on the open floor only in its strongest moss, sparsely.
+        for (float x = -RoomHalf + 0.4f; x <= RoomHalf - 0.4f; x += TuftStep)
+            for (float z = -RoomHalf + 0.4f; z <= RoomHalf - 0.4f; z += TuftStep)
+            {
+                Vector3 at = DungeonKit.Local(p, new Vector3(x, 0f, z));
+                Vector3 on = new(x + (((float)Hash(seed ^ 0x71, at) - 0.5f) * 2f * TuftJitter), FloorTop, z + (((float)Hash(seed ^ 0x72, at) - 0.5f) * 2f * TuftJitter));
+                bool byWall = Enumerable.Range(0, sides.Length).Any(side => walled[side] && RoomHalf + Vector3.Dot(on, sides[side]) <= TuftEdge);
+                if (byWall ? Mossy(on) : Mossy(on, OpenMargin))
+                {
+                    Grow(grown, p, OvergrowthKind.GrassTuft, on, Turn(p, seed, on), (byWall ? 1f : OpenShare) * Chance(damp, GrassFrom), seed, GrassScale);
+                }
+            }
+
+        // Mushrooms at a wall's foot beside the room's corners (the corner itself holds the rib's mound), more often where
+        // the next wall meets it.
+        for (int side = 0; side < sides.Length; side++)
+        {
+            Vector3 inward = sides[side], along = new(inward.Z, 0f, -inward.X);
+            foreach (float t in new[] { -MushroomAlong, MushroomAlong })
+            {
+                int next = Array.IndexOf(sides, -along * MathF.Sign(t));
+                float share = !walled[side] ? 0f : walled[next] ? CornerShare : AlongShare;
+                Vector3 on = (along * t) - (inward * (RoomHalf - MushroomIn)) + (Vector3.UnitY * FloorTop);
+                if (share > 0f && Mossy(on))
+                {
+                    Grow(grown, p, OvergrowthKind.Mushrooms, on, Turn(p, seed, on), share * Chance(damp, MushroomsFrom), seed, MushroomScale);
+                }
+            }
+        }
+    }
+
+    /// <summary>A kit cell, by a piece's origin (its pieces share it).</summary>
+    private static (int, int, int) Cell(Vector3 origin) => ((int)MathF.Round(origin.X), (int)MathF.Round(origin.Y), (int)MathF.Round(origin.Z));
+
+    /// <summary>A floor growth's turn, by the hash (a floor piece's +z is only a turn).</summary>
+    private static Vector3 Turn(KitPlacement p, ulong seed, Vector3 local)
+    {
+        float a = 2f * MathF.PI * (float)Hash(seed ^ 0x7A, DungeonKit.Local(p, local));
+        return new Vector3(MathF.Sin(a), 0f, MathF.Cos(a));
+    }
+
     /// <summary>One overgrowth at a point of a piece (its own frame) facing <paramref name="facing"/> there, with the given chance.</summary>
-    private static void Grow(List<OvergrowthPlacement> grown, KitPlacement p, OvergrowthKind kind, Vector3 local, Vector3 facing, float chance, ulong seed)
+    private static void Grow(List<OvergrowthPlacement> grown, KitPlacement p, OvergrowthKind kind, Vector3 local, Vector3 facing, float chance, ulong seed,
+        float size = 1f)
     {
         Vector3 at = DungeonKit.Local(p, local);
         if (Hash(seed ^ (ulong)kind, at) >= chance)
@@ -179,7 +291,7 @@ internal static class KitOvergrowth
         }
 
         float pick = (float)Hash(seed ^ 0x5CA1E, at);
-        grown.Add(new OvergrowthPlacement(kind, at, DungeonKit.Turned(p, facing), LeastScale + (ScaleRange * pick), (float)Hash(seed ^ 0x7157, at)));
+        grown.Add(new OvergrowthPlacement(kind, at, DungeonKit.Turned(p, facing), size * (LeastScale + (ScaleRange * pick)), (float)Hash(seed ^ 0x7157, at)));
     }
 
     /// <summary>How likely growth is at a dampness: none below <paramref name="from"/>, rising to certain at the wettest.</summary>
