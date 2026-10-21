@@ -1,5 +1,5 @@
 {
-  "purpose": "The dungeon kit (#10089): a modular dungeon's building drawn from these pieces, fitted to its cells by DungeonKit. The language is the ancients' (docs/style-references/ancients: Whim's vocabulary, Bones' ruin state; the kit sheet is asset-pipeline live-evidence/dungeon-kit-20261020/kit-sheet.png). Each piece is a prop mesh in one cell's frame: origin at the cell's centre in plan and at the bottom of its floor block; the room is 6 m across (walls 1 m thick at the cell's edge), the floor top at 1 m, the ceiling from 5 m; a wall stands on the cell's south edge (-z) and a corner in its south-west; a pillar at its column's centre; a stair is in its flight's own frame (the foot corner at the origin, climbing +z), a relic and its glow at their own spot. A piece with an emission draws in a plain emissive material of that colour: it is a light's visible source. Authored in Blender for exact geometry, painted by Qwen on lit views with the light divided out, and reduced as pixel art at 32 texels/m (asset-pipeline legacy/experiments/dungeon-kit); textures/dungeon-kit/plain holds the earlier paint from geometry for the study (craft.dungeon.kitpaint). They draw under shaders/kit-stone.wgsl: each texel a lit facet, and fine contrast calmed with distance. A piece's emissionMap (its painted mosaic, textures/dungeon-kit/emission) glows only under the ruin light study (craft.dungeon.ruinlight), lighting the room through the probe volume.",
+  "purpose": "The dungeon kit (#10089): a modular dungeon's building drawn from these pieces, fitted to its cells by DungeonKit. The language is the ancients' (docs/style-references/ancients: Whim's vocabulary, Bones' ruin state; the kit sheet is asset-pipeline live-evidence/dungeon-kit-20261020/kit-sheet.png). Each piece is a prop mesh in one cell's frame: origin at the cell's centre in plan and at the bottom of its floor block; the room is 6 m across (walls 1 m thick at the cell's edge), the floor top at 1 m, the ceiling from 5 m; a wall stands on the cell's south edge (-z) and a corner in its south-west; a pillar at its column's centre; a stair is in its flight's own frame (the foot corner at the origin, climbing +z), a relic and its glow at their own spot. A piece with an emission draws in a plain emissive material of that colour: it is a light's visible source. Authored in Blender for exact geometry, painted by Qwen on lit views with the light divided out, and reduced as pixel art at 32 texels/m (asset-pipeline legacy/experiments/dungeon-kit); textures/dungeon-kit/plain holds the earlier paint from geometry for the study (craft.dungeon.kitpaint). They draw under shaders/kit-stone.wgsl: each texel a lit facet, and fine contrast calmed with distance. A piece's emissionMap (its painted mosaic, textures/dungeon-kit/emission) glows only under the ruin light study (craft.dungeon.ruinlight), lighting the room through the probe volume. A colliding piece names a collider: its authored shape decimated to a few hundred triangles (asset-pipeline to_collider.py), which the game and the dungeon bank collide with instead of the drawn mesh.",
   "pieces": [
     {
       "name": "floor",
@@ -14,17 +14,20 @@
     {
       "name": "wall",
       "model": "models/dungeon-kit/wall.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/wall.png"
+      "emissionMap": "textures/dungeon-kit/emission/wall.png",
+      "collider": "models/dungeon-kit/wall.collider.json"
     },
     {
       "name": "wall-door",
       "model": "models/dungeon-kit/wall-door.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/wall-door.png"
+      "emissionMap": "textures/dungeon-kit/emission/wall-door.png",
+      "collider": "models/dungeon-kit/wall-door.collider.json"
     },
     {
       "name": "corner",
       "model": "models/dungeon-kit/corner.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/corner.png"
+      "emissionMap": "textures/dungeon-kit/emission/corner.png",
+      "collider": "models/dungeon-kit/corner.collider.json"
     },
     {
       "name": "wall-alcove",
@@ -65,12 +68,14 @@
     {
       "name": "pillar",
       "model": "models/dungeon-kit/pillar.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/pillar.png"
+      "emissionMap": "textures/dungeon-kit/emission/pillar.png",
+      "collider": "models/dungeon-kit/pillar.collider.json"
     },
     {
       "name": "pillar-great",
       "model": "models/dungeon-kit/pillar-great.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/pillar-great.png"
+      "emissionMap": "textures/dungeon-kit/emission/pillar-great.png",
+      "collider": "models/dungeon-kit/pillar-great.collider.json"
     },
     {
       "name": "sphere-great",
@@ -79,7 +84,8 @@
     },
     {
       "name": "wall-breach",
-      "model": "models/dungeon-kit/wall-breach.prop-mesh.json"
+      "model": "models/dungeon-kit/wall-breach.prop-mesh.json",
+      "collider": "models/dungeon-kit/wall-breach.collider.json"
     },
     {
       "name": "breach-rubble",
@@ -93,12 +99,14 @@
     {
       "name": "wall-tall",
       "model": "models/dungeon-kit/wall-tall.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/wall-tall.png"
+      "emissionMap": "textures/dungeon-kit/emission/wall-tall.png",
+      "collider": "models/dungeon-kit/wall-tall.collider.json"
     },
     {
       "name": "wall-tall-door",
       "model": "models/dungeon-kit/wall-tall-door.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/wall-tall-door.png"
+      "emissionMap": "textures/dungeon-kit/emission/wall-tall-door.png",
+      "collider": "models/dungeon-kit/wall-tall-door.collider.json"
     },
     {
       "name": "wall-tall-roundel",
@@ -108,7 +116,8 @@
     {
       "name": "corner-tall",
       "model": "models/dungeon-kit/corner-tall.prop-mesh.json",
-      "emissionMap": "textures/dungeon-kit/emission/corner-tall.png"
+      "emissionMap": "textures/dungeon-kit/emission/corner-tall.png",
+      "collider": "models/dungeon-kit/corner-tall.collider.json"
     },
     {
       "name": "rubble-slope",

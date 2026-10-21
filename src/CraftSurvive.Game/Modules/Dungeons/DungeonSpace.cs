@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Diagnostics;
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
@@ -183,9 +184,13 @@ internal sealed class DungeonSpace : IDisposable
             if (layout.Kit.Count > 0 && !DungeonSurfaces.RockAsMesh(surface))
             {
                 // The kit stands where its building's voxels were taken out (DungeonKit): it draws and collides in their place.
+                long kitStarted = Stopwatch.GetTimestamp();
                 kit = new DungeonKitLook(engine, terrain.Content, layout.Kit, kitLook, kitPaint);
+                double kitMeshMs = Stopwatch.GetElapsedTime(kitStarted).TotalMilliseconds;
                 kit.Collide(Session);
-                RockReadout = $"{RockReadout} kit={kit.Count}";
+                double kitCollideMs = Stopwatch.GetElapsedTime(kitStarted).TotalMilliseconds - kitMeshMs;
+                RockReadout = string.Create(CultureInfo.InvariantCulture,
+                    $"{RockReadout} kit={kit.Count} ({kit.Meshes} meshes; built {kitMeshMs:F0} ms, collided {kitCollideMs:F0} ms)");
             }
 
             if (layout.MossCards.Count > 0)

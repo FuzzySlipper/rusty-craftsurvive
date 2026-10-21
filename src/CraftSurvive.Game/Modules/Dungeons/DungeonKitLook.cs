@@ -57,6 +57,14 @@ internal sealed class DungeonKitLook : IDisposable
         using JsonDocument manifest = JsonDocument.Parse(content.ReadText(Manifest));
         Dictionary<string, JsonElement> entries = manifest.RootElement.GetProperty("pieces").EnumerateArray()
             .ToDictionary(p => p.GetProperty("name").GetString()!, p => p.Clone());
+        foreach (KitPiece kind in placements.Select(p => DungeonKit.Collider(p.Piece)).Distinct())
+        {
+            if (entries[DungeonKit.Name(kind)].TryGetProperty("collider", out JsonElement collider))
+            {
+                colliders[kind] = Collision(content, collider.GetString()!);
+            }
+        }
+
         foreach ((KitPiece piece, bool wantsLit) in placements.Select(p => (p.Piece, p.Lit)).Concat(placements.Select(p => (DungeonKit.Collider(p.Piece), false))).Distinct())
         {
             JsonElement entry = entries[DungeonKit.Name(piece)];
@@ -71,10 +79,13 @@ internal sealed class DungeonKitLook : IDisposable
                 continue;
             }
 
-            MeshResource mesh = engine.Graphics.CreateMeshResource(PropMesh.Read(content, entry.GetProperty("model").GetString()!, (role, texture) =>
+            (MeshResourceCreateRequest model, (string Role, string? Texture)[] parts) = Model(content, entry.GetProperty("model").GetString()!);
+            MeshMaterialBinding[] bindings = [.. parts.Select((part, slot) => new MeshMaterialBinding((uint)slot,
                 glow is Vector3 light ? Glowing(light)
-                    : Material(Painted(texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {role}."), paint), emissionMap,
-                        piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)));
+                    : Material(Painted(part.Texture ?? throw new InvalidOperationException($"Dungeon kit piece {piece} has no texture for {part.Role}."), paint), emissionMap,
+                        piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)))];
+            MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
+                model.Indices, model.Groups, bindings));
             pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
         }
 
@@ -83,6 +94,50 @@ internal sealed class DungeonKitLook : IDisposable
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
             placed.Add((p.Piece, p.Lit && pieces.ContainsKey((p.Piece, true)), new Transform(at, turn, scale)));
         }
+    }
+
+    // The pieces' collision meshes (a manifest's collider: the shape decimated), by piece; a piece without one collides as drawn.
+    private readonly Dictionary<KitPiece, (Vector3[] Vertices, Triangle[] Triangles)> colliders = [];
+
+    private static readonly Dictionary<string, (Vector3[] Vertices, Triangle[] Triangles)> Collisions = [];
+
+    /// <summary>A collider's vertices and triangles, read once for the process.</summary>
+    private static (Vector3[] Vertices, Triangle[] Triangles) Collision(ProductContent content, string path)
+    {
+        if (!Collisions.TryGetValue(path, out (Vector3[] Vertices, Triangle[] Triangles) mesh))
+        {
+            using JsonDocument document = JsonDocument.Parse(content.ReadText(path));
+            JsonElement part = document.RootElement.GetProperty("parts")[0];
+            float[] p = [.. part.GetProperty("positions").EnumerateArray().Select(v => v.GetSingle())];
+            uint[] index = [.. part.GetProperty("indices").EnumerateArray().Select(v => v.GetUInt32())];
+            mesh = ([.. Enumerable.Range(0, p.Length / 3).Select(i => new Vector3(p[3 * i], p[(3 * i) + 1], p[(3 * i) + 2]))],
+                [.. Enumerable.Range(0, index.Length / 3).Select(i => new Triangle(index[3 * i], index[(3 * i) + 1], index[(3 * i) + 2]))]);
+            Collisions[path] = mesh;
+        }
+
+        return mesh;
+    }
+
+    // Each piece's model parsed once for the process: a piece's lit and plain meshes, and every later dungeon, reuse its
+    // geometry with their own materials (the content does not change while the product runs).
+    private static readonly Dictionary<string, (MeshResourceCreateRequest Mesh, (string Role, string? Texture)[] Parts)> Models = [];
+
+    private static (MeshResourceCreateRequest Mesh, (string Role, string? Texture)[] Parts) Model(ProductContent content, string path)
+    {
+        if (!Models.TryGetValue(path, out (MeshResourceCreateRequest Mesh, (string Role, string? Texture)[] Parts) model))
+        {
+            List<(string Role, string? Texture)> parts = [];
+            // The materials are bound per kit; parsing only records each part's role and texture.
+            MeshResourceCreateRequest mesh = PropMesh.Read(content, path, (role, texture) =>
+            {
+                parts.Add((role, texture));
+                return null!;
+            });
+            model = (mesh, [.. parts]);
+            Models[path] = model;
+        }
+
+        return model;
     }
 
     /// <summary>A material for a kit texture: the texture as its base colour, nearest with mipmaps, under the kit stone shader.</summary>
@@ -178,6 +233,9 @@ internal sealed class DungeonKitLook : IDisposable
 
     internal int Count => placed.Count;
 
+    /// <summary>How many piece meshes the kit built (each piece plain, and lit where a placement glows).</summary>
+    internal int Meshes => pieces.Count;
+
     internal IEnumerable<AppearanceFact> Facts => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonKitObject + (ulong)index, false, 0UL,
         p.Place, pieces[(p.Piece, p.Lit)].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
 
@@ -185,11 +243,31 @@ internal sealed class DungeonKitLook : IDisposable
     internal void Collide(SpatialSession session)
     {
         List<KitPiece> kinds = [.. placed.Where(p => DungeonKit.Collides(p.Piece)).Select(p => DungeonKit.Collider(p.Piece)).Distinct()];
+        // A piece with a collider collides as its triangles, given inline; one without, as its drawn mesh.
+        List<Vector3> vertices = [];
+        List<Triangle> triangles = [];
+        List<StaticMeshAsset> assets = [];
+        foreach (KitPiece kind in kinds)
+        {
+            ulong id = AssetBase + (ulong)assets.Count;
+            if (colliders.TryGetValue(kind, out (Vector3[] Vertices, Triangle[] Triangles) collider))
+            {
+                uint firstVertex = (uint)vertices.Count, firstTriangle = (uint)triangles.Count;
+                vertices.AddRange(collider.Vertices);
+                triangles.AddRange(collider.Triangles);
+                assets.Add(new StaticMeshAsset(id, firstVertex, (uint)collider.Vertices.Length, firstTriangle, (uint)collider.Triangles.Length));
+            }
+            else
+            {
+                assets.Add(new StaticMeshAsset(id, new MeshResourceReference(pieces[(kind, false)].Mesh), 0, 0, 0, 0));
+            }
+        }
+
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(
             session,
-            kinds.Select((kind, i) => new StaticMeshAsset(AssetBase + (ulong)i, new MeshResourceReference(pieces[(kind, false)].Mesh), 0, 0, 0, 0)).ToArray(),
-            ReadOnlyMemory<Vector3>.Empty,
-            ReadOnlyMemory<Triangle>.Empty,
+            assets.ToArray(),
+            vertices.ToArray(),
+            triangles.ToArray(),
             placed.Where(p => DungeonKit.Collides(p.Piece))
                 .Select((p, i) => new StaticMeshInstance(InstanceBase + (ulong)i, AssetBase + (ulong)kinds.IndexOf(DungeonKit.Collider(p.Piece)), p.Place)).ToArray()));
     }

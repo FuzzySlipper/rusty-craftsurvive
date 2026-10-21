@@ -238,6 +238,10 @@ internal sealed class DungeonModule : IProductModule
         AfterAppearanceSnapshot();
         rockMaterial?.Dispose();
         rockMaterial = null;
+        kitLeftover?.Dispose();
+        kitLeftover = null;
+        kitLeftoverTexture?.Dispose();
+        kitLeftoverTexture = null;
         fires.Dispose();
         foreach (Light? light in pool) light?.Dispose();
         Array.Clear(pool);
@@ -686,10 +690,48 @@ internal sealed class DungeonModule : IProductModule
     /// Whether the dungeon's building is kit pieces (#10089): what of it stays voxels (stairs, rubble, broken walls) is then
     /// drawn as the rock is, not in the placeholder brick and planks.
     /// </param>
-    private Dictionary<BlockId, Material>? PlainRock(bool kitted = false) => StudyRockDetail() is Material look
-        ? CaveMaterials.Layers.Where(l => DungeonSurfaces.IsRock(l.Block)).Select(l => l.Block)
-            .Concat(kitted ? KitLeftovers : []).Distinct().ToDictionary(block => block, _ => look)
-        : null;
+    private Dictionary<BlockId, Material>? PlainRock(bool kitted = false)
+    {
+        if (StudyRockDetail() is not Material look)
+        {
+            return null;
+        }
+
+        Dictionary<BlockId, Material> looks = CaveMaterials.Layers.Where(l => DungeonSurfaces.IsRock(l.Block)).Select(l => l.Block).Distinct()
+            .ToDictionary(block => block, _ => look);
+        // What of a kitted building stays voxels (balconies, ledges, landings, heaps) is the ruin's pale stone, not cave rock.
+        foreach (BlockId block in kitted ? KitLeftovers : [])
+        {
+            looks[block] = KitLeftoverLook();
+        }
+
+        return looks;
+    }
+
+    // The kit's leftover voxels (#10089): the cave rock's texture and 3D pixels, tinted to the kit's bone stone, without the
+    // cave's palette.
+    private const string KitLeftoverTexture = "textures/cave-rock.png";
+    private static readonly Color KitLeftoverTint = new(1.35f, 1.15f, 0.9f, 1f);
+    private const float KitLeftoverTriplanar = 4f, KitLeftoverRoughness = 0.9f;
+    private Material? kitLeftover;
+    private RenderResource? kitLeftoverTexture;
+
+    private Material KitLeftoverLook()
+    {
+        if (kitLeftover is null)
+        {
+            rockDetailShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(RockDetailShaderPath)).Handle;
+            kitLeftoverTexture ??= engine.Graphics.OpenResource(new RenderResourceRequest(KitLeftoverTexture, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+            Color white = new(1f, 1f, 1f, 1f);
+            kitLeftover = engine.Graphics.CreateMaterial(new MaterialRequest(KitLeftoverTint, kitLeftoverTexture, KitLeftoverRoughness, white, Vector3.Zero, 0f, false)
+            {
+                TriplanarSharpness = KitLeftoverTriplanar,
+                Shader = new MaterialShader(rockDetailShader, rockDetail ?? Vector4.Zero, Vector4.Zero, rockPixels, Vector4.Zero),
+            });
+        }
+
+        return kitLeftover;
+    }
 
     /// <summary>The building blocks a kitted dungeon may still hold as voxels.</summary>
     private static readonly BlockId[] KitLeftovers = [BlockId.Brick, BlockId.Planks, BlockId.Cobblestone, BlockId.Gravel];
