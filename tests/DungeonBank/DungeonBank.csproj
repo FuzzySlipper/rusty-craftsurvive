@@ -24,6 +24,8 @@
     <Compile Include="$(ProductModules)Dungeons/SculptedCave.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonModules.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/ModularDungeon.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/DungeonMoisture.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Content/SurfaceMoss.cs" LinkBase="Product/Content" />
     <Compile Include="$(ProductModules)Dungeons/DungeonKit.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/VerticalSampler.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonCollision.cs" LinkBase="Product/Dungeons" />

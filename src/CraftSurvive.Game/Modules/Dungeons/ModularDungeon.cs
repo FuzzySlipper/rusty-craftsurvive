@@ -141,6 +141,9 @@ internal static class ModularDungeon
         DungeonVerdict verdict = CarveAndStamp.Check(walkable, plan);
         List<Vector3> lights = [.. Lights(placed, moduleLights)];
         (IReadOnlyList<KitPlacement> kit, DungeonVolume kitDrawn, IReadOnlyList<Vector3> relics) = DungeonKit.Fit(walkable, placed, lights, seed);
+        // The dungeon's moisture (#10092), and each kit piece's dampness from it where the piece faces the room.
+        DungeonMoisture moisture = DungeonMoisture.Compute(walkable, placed, seed);
+        kit = [.. kit.Select(p => p with { Wet = moisture.At(DungeonKit.Probe(p)) })];
         DungeonLayout layout = new(
             $"modular-{seed:x}",
             building,
@@ -153,6 +156,7 @@ internal static class ModularDungeon
             KitDrawn = kitDrawn,
             Relics = relics,
             Modules = placed,
+            Moisture = moisture,
         };
         return (layout, plan, verdict, walkable, placed);
     }

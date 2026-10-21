@@ -569,6 +569,32 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
         "the kit must find great pillars, breaches, the great hall's sphere and its tall walls and ribs");
 }
 
+// The kit's moss (#10092): kit-stone.wgsl fixes the places' moss grain (SurfaceMoss.PlaceGrain) as constants, which must stay
+// equal; and the moisture grows from the dungeon - seeps in every dungeon, the kit's pieces from dry to wet.
+{
+    string shaderText = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "../../../../../content/game/shaders/kit-stone.wgsl"));
+    (int broad, int broadDown, int fine, int fineDown) = SurfaceMoss.PlaceGrain.Lattice;
+    bool grainEqual = shaderText.Contains($"MOSS_LATTICE: vec4<i32> = vec4<i32>({broad}, {broadDown}, {fine}, {fineDown});", StringComparison.Ordinal)
+        && shaderText.Contains($"MOSS_PERIOD: i32 = {SurfaceMoss.PlaceGrain.PeriodMetres};", StringComparison.Ordinal)
+        && shaderText.Contains($"MOSS_TEXELS: f32 = {SurfaceMoss.PlaceGrain.TexelsPerMetre}.0;", StringComparison.Ordinal);
+    Check.That(grainEqual, "kit-stone.wgsl's moss grain must equal SurfaceMoss.PlaceGrain");
+    int seeped = 0, dry = 0, wet = 0, pieces = 0;
+    for (ulong moistSeed = 1; moistSeed <= 8; moistSeed++)
+    {
+        var moist = ModularDungeon.Generate(moistSeed);
+        seeped += (moist.Layout.Moisture?.Seeps ?? 0) > 0 ? 1 : 0;
+        foreach (KitPlacement piece in moist.Layout.Kit)
+        {
+            pieces++;
+            dry += piece.Wet < 0.45f ? 1 : 0;
+            wet += piece.Wet > 0.65f ? 1 : 0;
+        }
+    }
+
+    Console.WriteLine($"kit moisture: {seeped}/8 dungeons seep; of {pieces} pieces {dry} dry (<0.45), {wet} wet (>0.65); grain {(grainEqual ? "equal" : "DIFFERS")}");
+    Check.That(seeped == 8 && dry > 0 && wet > 0, "every dungeon must seep and its kit range from dry to wet");
+}
+
 // The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the
 // way back only by a climb - both the walk and the Engine refuse it.
 {

@@ -43,8 +43,14 @@ internal sealed class DungeonKitLook : IDisposable
     private readonly List<(Material Material, RenderResource Texture, RenderResource? Emission, bool Mosaic)> materials = [];
     private Look look;
     // Each piece drawn plain, and lit (its inlays glowing through its emission map) where a placement is lit.
-    private readonly Dictionary<(KitPiece Piece, bool Lit), (MeshResource Mesh, Appearance Look)> pieces = [];
-    private readonly List<(KitPiece Piece, bool Lit, Transform Place)> placed = [];
+    private readonly Dictionary<(KitPiece Piece, bool Lit), (MeshResource Mesh, Appearance Look, int Slots, bool Mossy)> pieces = [];
+    private readonly List<(KitPiece Piece, bool Lit, int Wet, Transform Place)> placed = [];
+
+    // Moss (#10092): each placement draws through an appearance of its piece's mesh whose texture tint carries its dampness
+    // in one of so many steps (kit-stone.wgsl reads it); the moss's strength and stain as SurfaceMoss's.
+    private const int WetSteps = 8;
+    private const float MossStrength = 2f, StainDepth = 1f, SideShare = 0.85f, LowestFacing = -0.25f, WetInBlue = 0.5f;
+    private readonly Dictionary<(KitPiece Piece, bool Lit, int Wet), Appearance> damp = [];
 
     /// <param name="paint">A study's folder of the kit's textures beside its own (#10089: "plain", painted from the geometry), or null for its own.</param>
     /// <param name="look">The kit stone shader's settings (a study may tune them).</param>
@@ -86,13 +92,25 @@ internal sealed class DungeonKitLook : IDisposable
                         piece is KitPiece.WallRoundel or KitPiece.WallTallRoundel)))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
-            pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
+            pieces[(piece, lit)] = (mesh, engine.Graphics.CreateMeshAppearance(mesh), bindings.Length, glow is null);
         }
 
         foreach (KitPlacement p in placements.Take(ProductIds.DungeonKitObjects))
         {
             (Vector3 at, Quaternion turn, Vector3 scale) = DungeonKit.Place(p);
-            placed.Add((p.Piece, p.Lit && pieces.ContainsKey((p.Piece, true)), new Transform(at, turn, scale)));
+            bool litHere = p.Lit && pieces.ContainsKey((p.Piece, true));
+            int wet = Math.Clamp((int)MathF.Round(p.Wet * (WetSteps - 1)), 0, WetSteps - 1);
+            placed.Add((p.Piece, litHere, wet, new Transform(at, turn, scale)));
+            if (!damp.ContainsKey((p.Piece, litHere, wet)) && pieces[(p.Piece, litHere)] is { Mossy: true } drawn)
+            {
+                // The piece's mesh again, its every slot's texture tint carrying this dampness in its alpha.
+                Appearance wetLook = engine.Graphics.CreateMeshAppearance(drawn.Mesh);
+                // The dampness in the tint's blue (kit-stone.wgsl's WET_IN_BLUE): an alpha below 1 would draw it transparent.
+                Color dampness = new(1f, 1f, 1f - (WetInBlue * wet / (float)(WetSteps - 1)), 1f);
+                engine.Graphics.UpdateStaticMeshMaterialFactors(new StaticMeshMaterialFactorsRequest(wetLook,
+                    Enumerable.Range(0, drawn.Slots).Select(slot => new MeshMaterialFactors((uint)slot, false, default, false, Vector3.Zero, 0f, true, dampness)).ToArray()));
+                damp[(p.Piece, litHere, wet)] = wetLook;
+            }
         }
     }
 
@@ -213,7 +231,8 @@ internal sealed class DungeonKitLook : IDisposable
         {
             EmissionMap = glows ? emission! : default(RenderResourceReference),
             Shader = new MaterialShader(shader, new Vector4(TextureTexels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
-                new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), Vector4.Zero, Vector4.Zero, texture, default(RenderResourceReference)),
+                new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(0f, 0f, 0f, MossStrength),
+                new Vector4(StainDepth, SideShare, LowestFacing, 0f), texture, default(RenderResourceReference)),
         };
     }
 
@@ -237,7 +256,7 @@ internal sealed class DungeonKitLook : IDisposable
     internal int Meshes => pieces.Count;
 
     internal IEnumerable<AppearanceFact> Facts => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonKitObject + (ulong)index, false, 0UL,
-        p.Place, pieces[(p.Piece, p.Lit)].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
+        p.Place, damp.TryGetValue((p.Piece, p.Lit, p.Wet), out Appearance? wet) ? wet : pieces[(p.Piece, p.Lit)].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
 
     /// <summary>The pieces that collide (<see cref="DungeonKit.Collides"/>) as static collision: one asset per piece, an instance per placement.</summary>
     internal void Collide(SpatialSession session)
@@ -275,7 +294,13 @@ internal sealed class DungeonKitLook : IDisposable
     /// <summary>Disposes the pieces after the snapshot that last named them, then their materials.</summary>
     public void Dispose()
     {
-        foreach ((MeshResource mesh, Appearance look) in pieces.Values)
+        foreach (Appearance look in damp.Values)
+        {
+            look.Dispose();
+        }
+
+        damp.Clear();
+        foreach ((MeshResource mesh, Appearance look, int _, bool _) in pieces.Values)
         {
             look.Dispose();
             mesh.Dispose();

@@ -41,6 +41,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>A modular dungeon's kit pieces (#10089): its building's floors, vaults and walls as kit meshes.</summary>
     internal IReadOnlyList<KitPlacement> Kit { get; init; } = [];
 
+    /// <summary>A built dungeon's moisture (#10092): how damp its air is, which the moss, ivy and drips grow from.</summary>
+    internal DungeonMoisture? Moisture { get; init; }
+
     /// <summary>A modular dungeon's placed modules, for readouts (where each stands).</summary>
     internal IReadOnlyList<PlacedModule> Modules { get; init; } = [];
 

@@ -1198,7 +1198,9 @@ internal sealed class DungeonModule : IProductModule
         }
 
         IReadOnlyList<KitPlacement> kit = current.Layout.Kit;
-        string counts = string.Join(" ", kit.GroupBy(p => p.Piece).Select(g => $"{DungeonKit.Name(g.Key)}={g.Count()}"));
+        // How damp the pieces are (#10092): how many in each tenth of the moisture, and the seeps.
+        string wet = string.Join(",", Enumerable.Range(0, 10).Select(tenth => kit.Count(p => Math.Min(9, (int)(p.Wet * 10)) == tenth)));
+        string counts = $"wet tenths [{wet}] seeps={current.Layout.Moisture?.Seeps ?? 0} " + string.Join(" ", kit.GroupBy(p => p.Piece).Select(g => $"{DungeonKit.Name(g.Key)}={g.Count()}"));
         KitPlacement[] these = [.. kit.Where(p => DungeonKit.Name(p.Piece) == piece)];
         return these.Length == 0 ? $"kit={kit.Count} {counts}" : $"kit={kit.Count} {counts} | " + string.Join(" ", these.Take(CardsListed).Select(p =>
             string.Create(CultureInfo.InvariantCulture, $"{p.Origin.X:F1},{p.Origin.Y:F1},{p.Origin.Z:F1}/{p.Turn * 180f / MathF.PI:F0}")));

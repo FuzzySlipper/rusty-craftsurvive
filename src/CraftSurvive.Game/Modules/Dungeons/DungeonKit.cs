@@ -82,10 +82,11 @@ internal enum KitPiece
 /// <summary>
 /// One kit piece set in a dungeon, in layout metres: which piece, the base centre of its cell (the bottom of the cell's
 /// floor block), its turn about the vertical (radians), and how far it stretches across (x) and through (z) in its own
-/// frame where a hall runs on into the next cell; and whether its inlays glow (the ruin light: a roundel's mosaic always,
-/// and every inlay in a room a relic powers).
+/// frame where a hall runs on into the next cell; whether its inlays glow (the ruin light: a roundel's mosaic always,
+/// and every inlay in a room a relic powers); and how damp it is (#10092: the dungeon's moisture where it faces the room,
+/// 0 dry to 1 wet), which its moss grows from.
 /// </summary>
-internal readonly record struct KitPlacement(KitPiece Piece, Vector3 Origin, float Turn, Vector2 Stretch, Vector2 Shift, bool Lit = false);
+internal readonly record struct KitPlacement(KitPiece Piece, Vector3 Origin, float Turn, Vector2 Stretch, Vector2 Shift, bool Lit = false, float Wet = 0f);
 
 /// <summary>
 /// Fits the dungeon kit to a modular dungeon (#10089): every building cell's floor, ceiling and walls, found from the
@@ -635,6 +636,30 @@ internal static class DungeonKit
         KitPiece.WallTallRoundel => KitPiece.WallTall,
         _ => piece,
     };
+
+    /// <summary>
+    /// Where a piece's dampness is read (#10092), in layout metres: in the room a little in front of the face it shows -
+    /// before a wall, out from a corner, over a floor, under a vault, beside a pillar, below a ledge's lip.
+    /// </summary>
+    internal static Vector3 Probe(KitPlacement placement)
+    {
+        Vector3 local = placement.Piece switch
+        {
+            KitPiece.Wall or KitPiece.WallDoor or KitPiece.WallAlcove or KitPiece.WallRoundel or KitPiece.WallBreach
+                or KitPiece.WallTall or KitPiece.WallTallDoor or KitPiece.WallTallRoundel => new(0f, 2f, -2f),
+            KitPiece.Corner or KitPiece.CornerBroken or KitPiece.CornerTall => new(-2f, 2f, -2f),
+            KitPiece.Vault => new(0f, 4f, 0f),
+            KitPiece.Pillar => new(1.2f, 2f, 0f),
+            KitPiece.PillarGreat => new(2f, 2f, 0f),
+            KitPiece.Ledge1 or KitPiece.Ledge2 or KitPiece.Ledge4 => new(0f, -1f, -1f),
+            KitPiece.Stair => new(1.5f, 5.5f, 3f),
+            KitPiece.RubbleSlope => new(3f, 6f, 1f),
+            KitPiece.RubbleHeap => new(1f, 2.5f, 1f),
+            _ => new(0f, 2f, 0f),
+        };
+        Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, placement.Turn);
+        return placement.Origin + Vector3.Transform(new Vector3(placement.Shift.X + (local.X * placement.Stretch.X), local.Y, placement.Shift.Y + (local.Z * placement.Stretch.Y)), turn);
+    }
 
     /// <summary>Where a placed piece stands in the dungeon's session: its position (its cell's base centre, shifted in its own frame), turn and stretch.</summary>
     internal static (Vector3 At, Quaternion Turn, Vector3 Scale) Place(KitPlacement placement)
