@@ -30,10 +30,17 @@ internal sealed class DungeonOvergrowth : IDisposable
     private static readonly Sway Ribbons = new(0.16f, 0.55f, 0.3f);
     private static readonly Sway Grass = new(0.03f, 0.4f, -0.4f);
 
+    // The veil fans breathe in the draft (their lace weighted up from the hub), high over the traveller's reach; the comb
+    // fans stir and bow as the grass does.
+    private static readonly Sway Fans = new(0.12f, 0f, 0f);
+    private static readonly Sway Combs = new(0.04f, 0.4f, -0.4f);
+
     private static Sway? Sways(OvergrowthKind kind) => kind switch
     {
         OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain => Ribbons,
         OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip => Grass,
+        OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat => Fans,
+        OvergrowthKind.VeilComb => Combs,
         _ => null,
     };
 
@@ -66,7 +73,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide ? GiantTextureTexels : TextureTexels;
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null, Sways(kind))))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
@@ -156,6 +163,11 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.RibbonArchWide => "models/dungeon-overgrowth/ribbon-arch-wide.prop-mesh.json",
         OvergrowthKind.RibbonCurtain => "models/dungeon-overgrowth/ribbon-curtain.prop-mesh.json",
         OvergrowthKind.RibbonShed => "models/dungeon-overgrowth/ribbon-shed.prop-mesh.json",
+        OvergrowthKind.VeilFan => "models/dungeon-overgrowth/veil-fan.prop-mesh.json",
+        OvergrowthKind.VeilFanGreat => "models/dungeon-overgrowth/veil-fan-great.prop-mesh.json",
+        OvergrowthKind.VeilComb => "models/dungeon-overgrowth/veil-comb.prop-mesh.json",
+        OvergrowthKind.VeilDrift => "models/dungeon-overgrowth/veil-drift.prop-mesh.json",
+        OvergrowthKind.VeilPuffs => "models/dungeon-overgrowth/veil-puffs.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -281,6 +293,8 @@ internal sealed class DungeonOvergrowth : IDisposable
         // An arch collides at its feet against the walls (its ribbons the player pushes through).
         OvergrowthKind.RibbonArch => [(-2.9f, 0f, 0.45f, 2f), (2.9f, 0f, 0.45f, 2f)],
         OvergrowthKind.RibbonArchWide => [(-4.35f, 0f, 0.6f, 2.5f), (4.35f, 0f, 0.6f, 2.5f)],
+        OvergrowthKind.VeilFan => [(0f, 0f, 0.26f, 3f)],
+        OvergrowthKind.VeilFanGreat => [(0f, 0f, 0.34f, 4.6f)],
         _ => [],
     };
 

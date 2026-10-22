@@ -61,6 +61,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.ribbonthicket", Description = "Assisted, for the underground ecology study (#10096): how many ribbon thickets (woody arches spanning tall wet passages, ribbon curtains, knot nurseries, shed beds) the karst caves (approach k) entered next grow; 0 none.")]
     public string RibbonThicket(int count) => dungeons.StudyRibbonThicket(count);
 
+    [DebugCommand("craft.dungeon.veilforest", Description = "Assisted, for the underground ecology study (#10096): how many veil forests (lace fans square to the draft between the cave's openings, comb fans, lee drifts, puffs) the karst caves (approach k) entered next grow; 0 none.")]
+    public string VeilForest(int count) => dungeons.StudyVeilForest(count);
+
     [DebugCommand("craft.dungeon.kitpaint", Description = "Assisted, for the kit paint study (#10089): qwen (the kit's own: Qwen projected on lit views) or plain (painted from the geometry), for the next dungeon entered.")]
     public string KitPaint(string choice) => dungeons.StudyKitPaint(choice);
 

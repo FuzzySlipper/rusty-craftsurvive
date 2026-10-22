@@ -121,6 +121,21 @@ internal enum OvergrowthKind
 
     /// <summary>A shed bed: fallen ribbons curled on a dark wet rot mat, pale shoots rooting in it.</summary>
     RibbonShed,
+
+    /// <summary>The veil forest's keystone (#10096): a porous lace fan about 5 m across on a twisted trunk 3 m tall, its face square to the draft (its +z downwind), buttress roots braced upwind.</summary>
+    VeilFan,
+
+    /// <summary>A great veil fan, about 8 m across on a trunk 4.6 m tall.</summary>
+    VeilFanGreat,
+
+    /// <summary>A row of young lace fans 1.4 m long on a root pad, facing downwind.</summary>
+    VeilComb,
+
+    /// <summary>A pale drift of what the fans sift, trailing downwind about 3 m from a trunk's lee.</summary>
+    VeilDrift,
+
+    /// <summary>A cluster of small pale puffballs and cups rooting in a drift.</summary>
+    VeilPuffs,
 }
 
 /// <summary>
@@ -142,7 +157,11 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
 
     /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
-    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind);
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind) || Veil(kind);
+
+    /// <summary>Whether a kind is the veil forest's (an underground ecology's, on the draft's line between a cave's openings).</summary>
+    internal static bool Veil(OvergrowthKind kind) => kind is OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.VeilComb
+        or OvergrowthKind.VeilDrift or OvergrowthKind.VeilPuffs;
 
     /// <summary>Whether a kind is the ribbon thicket's (an underground ecology's, across tall wet passages).</summary>
     internal static bool Ribbon(OvergrowthKind kind) => kind is OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain or OvergrowthKind.RibbonShed;

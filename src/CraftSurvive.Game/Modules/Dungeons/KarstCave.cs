@@ -2023,6 +2023,196 @@ internal static class KarstCave
     }
 
     /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "veil forest - a community"): how
+    /// many veil forests the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyVeilForests { get; set; }
+
+    // Veil forests: on the draft's line - the routes between the cave's openings (from the arrival's sink to each other
+    // sink), the air blowing towards the higher opening - in its widest places (wall to wall across the draft, measured
+    // VeilProbe above the floor, out to VeilReach either way, at least VeilNarrowest) with room above for a fan, so far apart.
+    // Within VeilRadius of each: fans (the great ones where there is room) faced square to the draft at the line's nearest
+    // point, their trunks clear of the route; behind each trunk a drift trailing downwind, puffs in it; comb fans along the
+    // walls' feet. A piece's footprint (a fan's is its lace's reach, so neighbouring fans hardly cross) and the room it needs
+    // above (and its lace's half width either side at its middle height).
+    private const float VeilRadius = 11f, VeilStep = 1.2f, VeilsApart = 30f, VeilNarrowest = 7f, VeilProbe = 1.5f, VeilReach = 14f, VeilRise = 2.5f;
+    private const float FanShare = 0.18f, GreatFanShare = 0.45f, CombShare = 0.45f, CombWall = 1.1f, DriftBehind = 0.5f, PuffShare = 0.6f, PuffAlong = 1.6f;
+    private const float FanTrunkRadius = 0.4f, FanScaleSpread = 0.3f;
+    private const int MostVeilPieces = 300;
+
+    private static (float Radius, float Height, float Span) VeilFootprint(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.VeilFanGreat => (3f, 8.8f, 3.6f),
+        OvergrowthKind.VeilFan => (2f, 5.6f, 2.3f),
+        OvergrowthKind.VeilComb => (0.75f, 0.7f, 0f),
+        _ => (0.5f, 0.4f, 0f),
+    };
+
+    /// <summary>
+    /// Veil forests (#10096): where the air moves through a cave between its openings, great porous lace fans on twisted
+    /// trunks stand square to the draft, sieving what it carries, their buttress roots braced upwind; young comb fans line
+    /// the walls' feet facing the same way; behind each trunk what the fans sift settles in a pale drift trailing downwind,
+    /// small puffballs and cups rooting in it - so the forest shows which way the air moves. Returns each forest's centre and
+    /// radius.
+    /// </summary>
+    private static List<(Vector3 Centre, float Radius)> VeilForests(float[] open, ulong seed, int count, IReadOnlyList<IReadOnlyList<Vector3>> drafts,
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+
+        // The draft's line: each route between openings, its points with the way the air moves there (towards the higher end).
+        List<(Vector3 At, Vector3 Way)> line = [];
+        foreach (IReadOnlyList<Vector3> draft in drafts)
+        {
+            float toEnd = draft.Count > 1 && draft[^1].Y >= draft[0].Y ? 1f : -1f;
+            for (int i = 1; i < draft.Count - 1; i++)
+            {
+                Vector3 way = draft[i + 1] - draft[i - 1];
+                way.Y = 0f;
+                if (way.LengthSquared() > 1e-4f)
+                {
+                    line.Add((draft[i], Vector3.Normalize(way) * toEnd));
+                }
+            }
+        }
+
+        if (line.Count == 0)
+        {
+            return [];
+        }
+
+        Vector3 WayAt(Vector3 p) => line.MinBy(l => Vector3.DistanceSquared(l.At, p)).Way;
+
+        // The widest places on the line, with room above for a fan, under the ground.
+        List<(Vector3 Floor, float Width)> candidates = [];
+        foreach ((Vector3 at, Vector3 way) in line)
+        {
+            Vector3 floor = Floor(open, at);
+            if (Surface(floor.X, floor.Z) - floor.Y < FunnelUnderGround || Open(floor + new Vector3(0f, VeilFootprint(OvergrowthKind.VeilFan).Height, 0f)) <= 0f)
+            {
+                continue;
+            }
+
+            Vector3 across = new(-way.Z, 0f, way.X);
+            float Reach(Vector3 dir)
+            {
+                float d = 0f;
+                while (d < VeilReach && Open(floor + new Vector3(0f, VeilProbe, 0f) + (dir * d)) > 0f) d += 0.5f;
+                return d;
+            }
+
+            float width = Reach(across) + Reach(-across);
+            if (width >= VeilNarrowest)
+            {
+                candidates.Add((floor, width));
+            }
+        }
+
+        List<(Vector3 Centre, float Radius)> forests = [];
+        foreach ((Vector3 c, float _) in candidates.OrderByDescending(c => c.Width).ThenBy(c => NaturalCavern.Hash(seed ^ 0x7E11UL, (int)c.Floor.X, (int)c.Floor.Y, (int)c.Floor.Z)))
+        {
+            if (forests.Count >= count)
+            {
+                break;
+            }
+
+            if (forests.All(f => Vector3.Distance(f.Centre, c) >= VeilsApart)
+                && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + VeilRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
+            {
+                forests.Add((c, VeilRadius));
+            }
+        }
+
+        foreach ((Vector3 centre, float _) in forests)
+        {
+            List<(Vector3 At, float Radius)> placed = [];
+            for (int pass = 0; pass < 2; pass++)
+            for (float dz = -VeilRadius; dz <= VeilRadius; dz += VeilStep)
+                for (float dx = -VeilRadius; dx <= VeilRadius; dx += VeilStep)
+                {
+                    if ((dx * dx) + (dz * dz) > VeilRadius * VeilRadius || placed.Count >= MostVeilPieces)
+                    {
+                        continue;
+                    }
+
+                    int hx = (int)((centre.X + dx) * 4f), hz = (int)((centre.Z + dz) * 4f);
+                    float roll = NaturalCavern.Hash(seed ^ (0x7E01UL + (ulong)(pass * 0x111)), hx, (int)centre.Y, hz), pick = NaturalCavern.Hash(seed ^ (0x7E02UL + (ulong)(pass * 0x113)), hz, (int)centre.Y, hx);
+                    Vector3 probe = new(centre.X + dx + ((pick - 0.5f) * VeilStep * 0.7f), centre.Y + 1.5f, centre.Z + dz + ((roll - 0.5f) * VeilStep * 0.7f));
+                    if (Open(probe) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 foot = Floor(open, probe);
+                    if (MathF.Abs(foot.Y - centre.Y) > VeilRise || Surface(foot.X, foot.Z) - foot.Y < FunnelUnderGround)
+                    {
+                        continue;
+                    }
+
+                    Vector3 way = WayAt(foot), across = new(-way.Z, 0f, way.X);
+                    OvergrowthKind? choice = null;
+                    float scale = 1f + ((pick - 0.5f) * FanScaleSpread);
+                    if (pass == 0 && roll < FanShare)
+                    {
+                        // A fan: a great one where its lace has room, else the common one.
+                        foreach (OvergrowthKind fan in pick < GreatFanShare ? new[] { OvergrowthKind.VeilFanGreat, OvergrowthKind.VeilFan } : [OvergrowthKind.VeilFan])
+                        {
+                            (float _, float h, float span) = VeilFootprint(fan);
+                            Vector3 middle = foot + new Vector3(0f, h * scale * 0.7f, 0f);
+                            if (Open(foot + new Vector3(0f, h * scale, 0f)) > 0f && Open(middle + (across * span * scale)) > 0f && Open(middle - (across * span * scale)) > 0f)
+                            {
+                                choice = fan;
+                                break;
+                            }
+                        }
+                    }
+                    else if (pass == 1 && roll < CombShare && new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ }.Any(v => Open(foot + new Vector3(0f, 0.5f, 0f) + (v * CombWall)) <= 0f))
+                    {
+                        choice = OvergrowthKind.VeilComb;
+                    }
+
+                    if (choice is not OvergrowthKind kind)
+                    {
+                        continue;
+                    }
+
+                    (float radius, float height, float _) = VeilFootprint(kind);
+                    bool fanned = kind is OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat;
+                    if ((kind == OvergrowthKind.VeilComb && Open(foot + new Vector3(0f, height, 0f)) <= 0f)
+                        || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
+                        || (fanned && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < FanTrunkRadius + RouteClear))
+                        || (kind == OvergrowthKind.VeilComb && !Footed(open, foot, radius * 0.6f)))
+                    {
+                        continue;
+                    }
+
+                    placed.Add((foot, radius));
+                    // Every piece faces downwind (its +z the draft's way): a fan's face square to it, its roots braced upwind.
+                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, 0.05f, 0f), way, fanned ? scale : 0.85f + (0.3f * pick), pick));
+                    if (!fanned)
+                    {
+                        continue;
+                    }
+
+                    // The drift in the trunk's lee, trailing downwind, puffs in it further along.
+                    Vector3 lee = Floor(open, foot + (way * DriftBehind * scale) + new Vector3(0f, 1f, 0f));
+                    if (MathF.Abs(lee.Y - foot.Y) < 0.6f && Footed(open, lee, 0.6f))
+                    {
+                        growth.Add(new OvergrowthPlacement(OvergrowthKind.VeilDrift, lee - new Vector3(0f, MatSink, 0f), way, 0.8f + (0.4f * roll), pick));
+                        Vector3 puffs = Floor(open, lee + (way * PuffAlong * (0.6f + (0.4f * pick))) + (across * (roll - 0.5f) * 0.6f) + new Vector3(0f, 1f, 0f));
+                        if (pick < PuffShare && MathF.Abs(puffs.Y - lee.Y) < 0.5f && Footed(open, puffs, 0.3f))
+                        {
+                            growth.Add(new OvergrowthPlacement(OvergrowthKind.VeilPuffs, puffs - new Vector3(0f, 0.02f, 0f), way, 0.85f + (0.3f * roll), roll));
+                        }
+                    }
+                }
+        }
+
+        return forests;
+    }
+
+    /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ribbon thicket - a community"): how
     /// many ribbon thickets the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
     /// </summary>
@@ -3096,6 +3286,17 @@ internal static class KarstCave
             bool InThicket(Vector3 p) => thicket.Any(t => Vector3.Distance(t, p) < 5f);
             darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && InThicket(g.At));
             ecology.RemoveAll(e => e.Kind == EcologyKind.RootCurtain && InThicket(e.At));
+        }
+
+        if (StudyVeilForests > 0)
+        {
+            // The draft's line: the routes from the arrival's sink to the cave's other sinks (its openings).
+            List<(Vector3 Centre, float Radius)> veils = VeilForests(open, seed, StudyVeilForests,
+                [.. routes.Select((r, i) => (r, i)).Where(x => x.r.Name != "spring").Select(x => (IReadOnlyList<Vector3>)[.. routePaths[x.i].Where((_, k) => k % 4 == 0).Select(FieldCentre)])],
+                darkGrowth, mainRoute, orchards, skyOpen);
+            // A veil forest is its own community: the dark's mushrooms give way in it.
+            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                && veils.Any(v => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(v.Centre.X, v.Centre.Z)) < v.Radius + 1f && MathF.Abs(g.At.Y - v.Centre.Y) < VeilRise + 2f));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
