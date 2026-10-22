@@ -355,9 +355,9 @@ if (args is ["water", string waterFrom, string waterTo])
     return faults == 0 ? 0 : 1;
 }
 
-if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <= 8)
+if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <= 9)
 {
-    // overgrowth <from> <to> [orchards] [hall|none] [groves] [funnel gardens] [glass steppes]: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth
+    // overgrowth <from> <to> [orchards] [hall|none] [groves] [funnel gardens] [glass steppes] [ribbon thickets]: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth
     // (#10096), with so many vent orchards: how many of each kind, and none under its water.
     KarstCave.StudyVentOrchards = args.Length >= 4 ? int.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 0;
     // A sixth argument grows so many inverted groves (#10096).
@@ -366,12 +366,16 @@ if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <=
     KarstCave.StudyFunnelGardens = args.Length >= 7 ? int.Parse(args[6], System.Globalization.CultureInfo.InvariantCulture) : 0;
     // An eighth grows so many glass steppes.
     KarstCave.StudyGlassSteppes = args.Length >= 8 ? int.Parse(args[7], System.Globalization.CultureInfo.InvariantCulture) : 0;
+    // A ninth grows so many ribbon thickets.
+    KarstCave.StudyRibbonThickets = args.Length >= 9 ? int.Parse(args[8], System.Globalization.CultureInfo.InvariantCulture) : 0;
     int drowned = 0;
     for (ulong seed = ulong.Parse(growFrom, System.Globalization.CultureInfo.InvariantCulture); seed <= ulong.Parse(growTo, System.Globalization.CultureInfo.InvariantCulture); seed++)
     {
         // A fifth argument builds the caves round a great hall (a large covered cave, where the giant vents grow).
         DungeonLayout cave = KarstCave.Generate(seed, 0.5, args.Length == 5 && args[4] == "hall" ? KarstCave.Centrepiece.GreatHall : KarstCave.Centrepiece.None).Layout;
-        int under = cave.Overgrowth.Count(g => cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
+        // (A ribbon arch spans over water and a curtain hangs from the ceiling: those may stand over it.)
+        int under = cave.Overgrowth.Count(g => g.Kind is not (OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain)
+            && cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
         drowned += under;
         Console.WriteLine($"seed {seed} sky={cave.SkyOpen} overgrowth={cave.Overgrowth.Count} {string.Join(" ", cave.Overgrowth.GroupBy(g => g.Kind).OrderBy(g => g.Key).Select(g => $"{g.Key}={g.Count()}"))} underWater={under} seeps={cave.Ecology.Count(e => e.Kind == EcologyKind.VentSeep)} crowns={cave.Ecology.Count(e => e.Kind == EcologyKind.GroveCrown)} hall={(args.Length == 5 && args[4] == "hall" && KarstCave.Build(seed, KarstCave.Centrepiece.GreatHall).GreatHall is KarstCave.Hall h ? System.FormattableString.Invariant($"{h.RadiusX * 2f:F0}x{h.Height:F0}m@{h.Centre.X:F0},{h.Floor:F0},{h.Centre.Y:F0} sky={cave.SkyOpen}") : "-")} cards: {string.Join(" ", cave.MossCards.GroupBy(c => c.Kind).Select(g => $"{g.Key}={g.Count()}"))}");
     }

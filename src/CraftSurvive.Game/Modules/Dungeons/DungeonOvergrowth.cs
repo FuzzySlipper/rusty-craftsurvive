@@ -43,7 +43,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant ? GiantTextureTexels : TextureTexels;
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null)))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
@@ -129,6 +129,10 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.SteppeBack => "models/dungeon-overgrowth/steppe-back.prop-mesh.json",
         OvergrowthKind.SteppeGrit => "models/dungeon-overgrowth/steppe-grit.prop-mesh.json",
         OvergrowthKind.SteppeSpire => "models/dungeon-overgrowth/steppe-spire.prop-mesh.json",
+        OvergrowthKind.RibbonArch => "models/dungeon-overgrowth/ribbon-arch.prop-mesh.json",
+        OvergrowthKind.RibbonArchWide => "models/dungeon-overgrowth/ribbon-arch-wide.prop-mesh.json",
+        OvergrowthKind.RibbonCurtain => "models/dungeon-overgrowth/ribbon-curtain.prop-mesh.json",
+        OvergrowthKind.RibbonShed => "models/dungeon-overgrowth/ribbon-shed.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -243,6 +247,9 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.FunnelGiant => [(0f, 0f, 0.85f, 3f)],
         OvergrowthKind.FunnelTall => [(0f, 0f, 0.5f, 2f)],
         OvergrowthKind.SteppeSpire => [(0f, 0f, 0.4f, 4f)],
+        // An arch collides at its feet against the walls (its ribbons the player pushes through).
+        OvergrowthKind.RibbonArch => [(-2.9f, 0f, 0.45f, 2f), (2.9f, 0f, 0.45f, 2f)],
+        OvergrowthKind.RibbonArchWide => [(-4.35f, 0f, 0.6f, 2.5f), (4.35f, 0f, 0.6f, 2.5f)],
         _ => [],
     };
 

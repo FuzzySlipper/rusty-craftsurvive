@@ -2023,6 +2023,179 @@ internal static class KarstCave
     }
 
     /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ribbon thicket - a community"): how
+    /// many ribbon thickets the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyRibbonThickets { get; set; }
+
+    // Ribbon thickets: along the routes the water traced through the cave, where the passage is wet (standing or running water at its floor, or drip
+    // somewhere up to RibbonWetAbove over it, at least RibbonDamp),
+    // between RibbonNarrowest and RibbonWidest across (wall to wall, measured RibbonProbe above the floor, up to RibbonReach
+    // either way) and tall enough for an arch scaled to its width; runs of at least RibbonRunFewest such places, the longest
+    // first. An arch every RibbonArchEvery route points (they lie about 2 m apart), sized to the passage (the narrow arch spans 6 m,
+    // the wide 9, each scaled within these bounds), a curtain from the ceiling between arches where it is high enough, shed
+    // beds on the floor beside the arches' feet.
+    private const float RibbonWetAbove = 12f, RibbonDamp = 0.02f, RibbonNarrowest = 3.6f, RibbonWidest = 12f, RibbonProbe = 1.5f, RibbonReach = 7f;
+    private const float ArchSpan = 6f, ArchRise = 5f, WideSpan = 9f, WideRise = 7f, ArchHeadroom = 0.4f, CurtainRoom = 4.2f, ShedShare = 0.6f;
+    private const float NarrowScaleLeast = 0.6f, NarrowScaleMost = 1.25f, WideScaleLeast = 0.8f, WideScaleMost = 1.35f;
+    private const int RibbonRunFewest = 3, RibbonArchEvery = 1, MostRibbonArches = 30;
+    private const float RibbonArchApart = 1.8f;
+
+    /// <summary>
+    /// Ribbon thickets (#10096): in tall, wet passages, woody arches rooted in both walls span the way, their curtains of
+    /// long twisting ribbons hanging to the floor for the traveller to push through (the ribbons do not collide; the arches'
+    /// feet do, against the walls), knot nurseries at their crowns, more curtains hung from the ceiling between them, and
+    /// shed beds of fallen ribbons rotting on the floor. Returns each thicket's places along the route.
+    /// </summary>
+    private static List<Vector3> RibbonThickets(float[] open, float[] drip, float[] standing, float[] flow, ulong seed, int count,
+        IReadOnlyList<IReadOnlyList<Vector3>> routes, List<OvergrowthPlacement> growth, IEnumerable<(Vector3 At, float Radius)> taken)
+    {
+        // Every route the water's paths trace through the cave (they share their start: an arch is not placed twice).
+        List<(IReadOnlyList<Vector3> Route, List<int> Run)> runs = [];
+        foreach (IReadOnlyList<Vector3> route in routes)
+        {
+            runs.AddRange(Runs(route).Select(r => (route, r)));
+        }
+
+        List<Vector3> places = [];
+        int arches = 0;
+        foreach ((IReadOnlyList<Vector3> route, List<int> chosen) in runs.OrderByDescending(r => r.Run.Count).Take(count))
+        {
+            arches = Thicket(route, chosen, arches);
+        }
+
+        return places;
+
+        // Runs of fitting places along a route, bridging a single place that does not fit (the thicket runs on past it).
+        IEnumerable<List<int>> Runs(IReadOnlyList<Vector3> route)
+        {
+            List<int> run = [];
+            int misses = 0;
+            for (int i = 0; i <= route.Count; i++)
+            {
+                if (i < route.Count && Fit(route, i) is not null
+                    && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(route[i].X, route[i].Z)) >= t.Radius || MathF.Abs(t.At.Y - route[i].Y) > 8f))
+                {
+                    run.Add(i);
+                    misses = 0;
+                    continue;
+                }
+
+                if (i < route.Count && run.Count > 0 && ++misses <= 1)
+                {
+                    continue;
+                }
+
+                if (run.Count >= RibbonRunFewest)
+                {
+                    yield return run;
+                }
+
+                run = [];
+                misses = 0;
+            }
+        }
+
+        float Open(Vector3 p) => Trilinear(open, p);
+        (Vector3 Centre, Vector3 Across, Vector3 Along, float Width, float Height, OvergrowthKind Kind, float Scale)? Fit(IReadOnlyList<Vector3> route, int i)
+        {
+            if (i < 1 || i >= route.Count - 1)
+            {
+                return null;
+            }
+
+            Vector3 along = route[i + 1] - route[i - 1];
+            along.Y = 0f;
+            if (along.LengthSquared() < 1e-4f)
+            {
+                return null;
+            }
+
+            along = Vector3.Normalize(along);
+            Vector3 across = new(-along.Z, 0f, along.X);
+            Vector3 floor = Floor(open, route[i]);
+            // Wet: water stands at the floor or drips from somewhere in the passage's height above it.
+            float wet = MathF.Max(GridTrilinear(standing, floor + Vector3.UnitY), GridTrilinear(flow, floor + Vector3.UnitY));
+            for (float up = 1f; up <= RibbonWetAbove && wet < RibbonDamp; up += 1f)
+            {
+                wet = MathF.Max(wet, GridTrilinear(drip, floor + new Vector3(0f, up, 0f)));
+            }
+
+            if (wet < RibbonDamp)
+            {
+                return null;
+            }
+
+            float Reach(Vector3 dir)
+            {
+                float d = 0f;
+                while (d < RibbonReach && Open(floor + new Vector3(0f, RibbonProbe, 0f) + (dir * d)) > 0f) d += 0.25f;
+                return d;
+            }
+
+            float left = Reach(-across), right = Reach(across), width = left + right;
+            if (width < RibbonNarrowest || width > RibbonWidest || left >= RibbonReach || right >= RibbonReach)
+            {
+                return null;
+            }
+
+            Vector3 centre = Floor(open, floor + (across * ((right - left) / 2f)) + new Vector3(0f, 1f, 0f));
+            float height = Ceiling(open, centre + new Vector3(0f, 1f, 0f)).Y - centre.Y;
+            bool wide = width > ArchSpan * NarrowScaleMost;
+            float scale = wide ? Math.Clamp(width / WideSpan, WideScaleLeast, WideScaleMost) : Math.Clamp(width / ArchSpan, NarrowScaleLeast, NarrowScaleMost);
+            if (height < ((wide ? WideRise : ArchRise) * scale) + ArchHeadroom)
+            {
+                return null;
+            }
+
+            return (centre, across, along, width, height, wide ? OvergrowthKind.RibbonArchWide : OvergrowthKind.RibbonArch, scale);
+        }
+
+        int Thicket(IReadOnlyList<Vector3> route, List<int> chosen, int arches)
+        {
+            Vector3? previous = null;
+            for (int k = 0; k < chosen.Count && arches < MostRibbonArches; k += RibbonArchEvery)
+            {
+                if (Fit(route, chosen[k]) is not var (centre, across, along, _, height, kind, scale) || places.Any(q => Vector3.Distance(q, centre) < RibbonArchApart))
+                {
+                    continue;
+                }
+
+                float pick = NaturalCavern.Hash(seed ^ 0x81B0UL, (int)(centre.X * 4f), (int)centre.Y, (int)(centre.Z * 4f));
+                // The arch's span (its x) across the passage: its +z, the facing, along the way.
+                growth.Add(new OvergrowthPlacement(kind, centre - new Vector3(0f, 0.15f, 0f), along, scale, pick));
+                places.Add(centre);
+                arches++;
+                if (previous is Vector3 before)
+                {
+                    // A curtain from the ceiling between this arch and the last, where it is high enough.
+                    Vector3 mid = Vector3.Lerp(before, centre, 0.5f);
+                    Vector3 roof = Ceiling(open, mid + new Vector3(0f, 1f, 0f));
+                    if (roof.Y - mid.Y > CurtainRoom)
+                    {
+                        growth.Add(new OvergrowthPlacement(OvergrowthKind.RibbonCurtain, roof + new Vector3(0f, 0.1f, 0f), along, 0.9f + (0.3f * pick), pick));
+                    }
+                }
+
+                previous = centre;
+                // Shed beds beside the feet, along the way.
+                foreach (float side in new[] { -1f, 1f })
+                {
+                    float roll = NaturalCavern.Hash(seed ^ (side > 0 ? 0x81B1UL : 0x81B2UL), (int)(centre.X * 4f), (int)centre.Y, (int)(centre.Z * 4f));
+                    Vector3 at = Floor(open, centre + (across * side * 1.2f * scale) + (along * (roll - 0.5f) * 1.5f) + new Vector3(0f, 1f, 0f));
+                    if (roll < ShedShare && MathF.Abs(at.Y - centre.Y) < 0.8f && Footed(open, at, 0.9f))
+                    {
+                        float a = MathF.Tau * roll;
+                        growth.Add(new OvergrowthPlacement(OvergrowthKind.RibbonShed, at - new Vector3(0f, MatSink, 0f), new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), 0.9f + (0.3f * roll), roll));
+                    }
+                }
+            }
+
+            return arches;
+        }
+    }
+
+    /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "glass steppe - a community"): how
     /// many glass steppes the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
     /// </summary>
@@ -2680,7 +2853,9 @@ internal static class KarstCave
         List<OvergrowthPlacement> overgrowth = [.. cave.Overgrowth];
         List<MossCard> cards = MossCards(cave, overgrowth);
         // Nothing grows under the water.
-        overgrowth.RemoveAll(g => cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
+        // (An arch spans over water, its crown above it, and a curtain hangs from the ceiling: those stand.)
+        overgrowth.RemoveAll(g => g.Kind is not (OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain)
+            && cave.WaterZones.Any(zone => zone.BedUnder(g.At) is not null && zone.Surface > g.At.Y));
         DungeonLayout layout = new($"karst-cave-{seed:x}", new DungeonVolume(volume.ChunksX, volume.ChunksY, volume.ChunksZ, BlockId.Air),
             arrive, arrive + new Vector3(0.5f, 0f, 0f), lights)
         {
@@ -2911,6 +3086,16 @@ internal static class KarstCave
             bool OnSteppe(Vector3 p) => steppes.Any(s => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(s.Centre.X, s.Centre.Z)) < s.Radius + 1f && MathF.Abs(p.Y - s.Centre.Y) < SteppeRise + 2f);
             darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && OnSteppe(g.At));
             ecology.RemoveAll(e => e.Kind == EcologyKind.CrystalBloom && OnSteppe(e.At));
+        }
+
+        if (StudyRibbonThickets > 0)
+        {
+            List<Vector3> thicket = RibbonThickets(open, drip, standing, activeFlow, seed, StudyRibbonThickets,
+                [.. routePaths.Select(path => (IReadOnlyList<Vector3>)[.. path.Where((_, i) => i % 4 == 0).Select(FieldCentre)])], darkGrowth, orchards);
+            // A thicket is its own community: the dark's mushrooms and root curtains give way in it.
+            bool InThicket(Vector3 p) => thicket.Any(t => Vector3.Distance(t, p) < 5f);
+            darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && InThicket(g.At));
+            ecology.RemoveAll(e => e.Kind == EcologyKind.RootCurtain && InThicket(e.At));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];

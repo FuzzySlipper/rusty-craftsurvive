@@ -109,6 +109,18 @@ internal enum OvergrowthKind
 
     /// <summary>A sentinel spire of tall glass rods (about 4.5 m) at the colony's edge.</summary>
     SteppeSpire,
+
+    /// <summary>The ribbon thicket's keystone (#10096): a woody arch 6 m across and 5 m high (its span along x, the passage along z), ribbon curtains hanging from it, a knot nursery at its crown.</summary>
+    RibbonArch,
+
+    /// <summary>A wider arch, 9 m across and 7 m high.</summary>
+    RibbonArchWide,
+
+    /// <summary>A curtain of ribbons hanging about 3 m from a branch stub on the ceiling (a ceiling piece).</summary>
+    RibbonCurtain,
+
+    /// <summary>A shed bed: fallen ribbons curled on a dark wet rot mat, pale shoots rooting in it.</summary>
+    RibbonShed,
 }
 
 /// <summary>
@@ -130,7 +142,10 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
 
     /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
-    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind);
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind);
+
+    /// <summary>Whether a kind is the ribbon thicket's (an underground ecology's, across tall wet passages).</summary>
+    internal static bool Ribbon(OvergrowthKind kind) => kind is OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain or OvergrowthKind.RibbonShed;
 
     /// <summary>Whether a kind is the glass steppe's (an underground ecology's, on dry open floors).</summary>
     internal static bool Steppe(OvergrowthKind kind) => kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeBack
