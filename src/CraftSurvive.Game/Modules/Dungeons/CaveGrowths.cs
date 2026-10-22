@@ -31,6 +31,9 @@ internal enum EcologyKind
 
     /// <summary>An inverted grove's crown (#10096): its filaments' faintly glowing amber tips (painted on the hanger) give this light; no mesh of its own.</summary>
     GroveCrown,
+
+    /// <summary>A glass steppe's glowing tips (#10096): the beads on a tuft or spire give this small warm light; no mesh of its own.</summary>
+    SteppeGlow,
 }
 
 /// <summary>

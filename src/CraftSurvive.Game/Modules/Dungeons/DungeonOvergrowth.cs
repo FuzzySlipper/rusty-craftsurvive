@@ -44,7 +44,8 @@ internal sealed class DungeonOvergrowth : IDisposable
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
             float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant ? GiantTextureTexels : TextureTexels;
-            MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels)))];
+            bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
+            MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null)))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
             kinds[kind] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
@@ -123,6 +124,11 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.FunnelUnfurled => "models/dungeon-overgrowth/funnel-unfurled.prop-mesh.json",
         OvergrowthKind.FunnelDrinkers => "models/dungeon-overgrowth/funnel-drinkers.prop-mesh.json",
         OvergrowthKind.FunnelDebris => "models/dungeon-overgrowth/funnel-debris.prop-mesh.json",
+        OvergrowthKind.SteppeTuft => "models/dungeon-overgrowth/steppe-tuft.prop-mesh.json",
+        OvergrowthKind.SteppeTuftLarge => "models/dungeon-overgrowth/steppe-tuft-large.prop-mesh.json",
+        OvergrowthKind.SteppeBack => "models/dungeon-overgrowth/steppe-back.prop-mesh.json",
+        OvergrowthKind.SteppeGrit => "models/dungeon-overgrowth/steppe-grit.prop-mesh.json",
+        OvergrowthKind.SteppeSpire => "models/dungeon-overgrowth/steppe-spire.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -171,14 +177,32 @@ internal sealed class DungeonOvergrowth : IDisposable
     }
 
     /// <summary>A material for an overgrowth texture: nearest with mipmaps, under the kit stone shader at the kit's settings.</summary>
-    private Material Material(string path, float texels)
+    /// <summary>A glowing piece's emission map beside its texture (overgrowth_emission.py: its tips cut from it).</summary>
+    private static string Emission(string texture) => $"{Path.GetDirectoryName(texture)!.Replace('\\', '/')}/emission/{Path.GetFileName(texture)}";
+
+    /// <summary>
+    /// How brightly a glowing piece's tips shine through their emission map (the glass steppe's beads, the grove's amber
+    /// tips): enough to read as the cave's own scattered light, and to lend it through the probe volume, as the kit's inlays do.
+    /// </summary>
+    private const float TipGlow = 1.2f;
+
+    private Material Material(string path, float texels, string? emissionPath = null)
     {
         RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
         textures.Add(texture);
+        RenderResource? emission = null;
+        if (emissionPath is not null)
+        {
+            emission = engine.Graphics.OpenResource(new RenderResourceRequest(emissionPath, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
+            textures.Add(emission);
+        }
+
         DungeonKitLook.Look look = DungeonKitLook.Look.Default;
         Color white = new(1f, 1f, 1f, 1f);
-        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(white, texture, Roughness, white, Vector3.Zero, 0f, false)
+        Material material = engine.Graphics.CreateMaterial(new MaterialRequest(white, texture, Roughness, white, emission is null ? Vector3.Zero : Vector3.One,
+            emission is null ? 0f : TipGlow, false)
         {
+            EmissionMap = emission is null ? default(RenderResourceReference) : emission,
             Shader = new MaterialShader(shader, new Vector4(texels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
                 new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(0f, 0f, 0f, MossStrength),
                 new Vector4(StainDepth, SideShare, LowestFacing, 0f), texture, default(RenderResourceReference)),
@@ -218,6 +242,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         // A funnel collides as its stem, up to where its cup flares out over the player's head.
         OvergrowthKind.FunnelGiant => [(0f, 0f, 0.85f, 3f)],
         OvergrowthKind.FunnelTall => [(0f, 0f, 0.5f, 2f)],
+        OvergrowthKind.SteppeSpire => [(0f, 0f, 0.4f, 4f)],
         _ => [],
     };
 

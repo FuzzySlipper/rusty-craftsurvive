@@ -94,6 +94,21 @@ internal enum OvergrowthKind
 
     /// <summary>A patch of the debris garden: rot, moss cushions, pale sprouts and tiny cups.</summary>
     FunnelDebris,
+
+    /// <summary>The glass steppe's keystone (#10096): a tuft of stiff glassy feelers with glowing beaded tips, an organism buried beneath.</summary>
+    SteppeTuft,
+
+    /// <summary>A larger tuft of glass feelers.</summary>
+    SteppeTuftLarge,
+
+    /// <summary>The buried organism's milky back breaking the floor.</summary>
+    SteppeBack,
+
+    /// <summary>A drift of shed glass fragments in a hollow.</summary>
+    SteppeGrit,
+
+    /// <summary>A sentinel spire of tall glass rods (about 4.5 m) at the colony's edge.</summary>
+    SteppeSpire,
 }
 
 /// <summary>
@@ -115,7 +130,11 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
 
     /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
-    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind);
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind);
+
+    /// <summary>Whether a kind is the glass steppe's (an underground ecology's, on dry open floors).</summary>
+    internal static bool Steppe(OvergrowthKind kind) => kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeBack
+        or OvergrowthKind.SteppeGrit or OvergrowthKind.SteppeSpire;
 
     /// <summary>Whether a kind is the funnel garden's (an underground ecology's, under a shaft).</summary>
     internal static bool Funnel(OvergrowthKind kind) => kind is OvergrowthKind.FunnelGiant or OvergrowthKind.FunnelTall or OvergrowthKind.FunnelSmall

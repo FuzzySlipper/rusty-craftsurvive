@@ -83,6 +83,10 @@ internal static class CaveEcology
     internal static readonly Vector3 CrownGlow = new(1f, 0.55f, 0.22f);
     private const float CrownIntensity = 3f, CrownRange = 9f;
 
+    // A glass steppe's beads (#10096): a small warm light, the steppe's scattered glow.
+    internal static readonly Vector3 SteppeLight = new(1f, 0.72f, 0.4f);
+    private const float SteppeIntensity = 1.6f, SteppeRange = 7f;
+
     /// <summary>The lights the growths give: their colour, intensity and reach, by kind.</summary>
     internal static (Vector3 Colour, float Intensity, float Range) LightOf(EcologyKind kind) => kind switch
     {
@@ -93,6 +97,7 @@ internal static class CaveEcology
         EcologyKind.LuminousPool => (PoolGlow, PoolIntensity, PoolRange),
         EcologyKind.VentSeep => (SeepGlow, SeepIntensity, SeepRange),
         EcologyKind.GroveCrown => (CrownGlow, CrownIntensity, CrownRange),
+        EcologyKind.SteppeGlow => (SteppeLight, SteppeIntensity, SteppeRange),
         _ => (CrystalGlow, 1f, 3f),
     };
 
@@ -121,7 +126,7 @@ internal static class CaveEcology
         {
             EcologyPlacement[] these = [.. growths.Where(g => g.Kind == kind)];
             // A luminous pool's glowing thing is its water (CaveWaterSurfaces), a grove crown's its hanger's painted tips: each has a light here, no mesh.
-            if (these.Length == 0 || kind is EcologyKind.LuminousPool or EcologyKind.GroveCrown)
+            if (these.Length == 0 || kind is EcologyKind.LuminousPool or EcologyKind.GroveCrown or EcologyKind.SteppeGlow)
             {
                 continue;
             }

@@ -55,6 +55,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.funnelgarden", Description = "Assisted, for the underground ecology study (#10096): how many funnel gardens (living catch-basins under a shaft, unfurled elders, debris gardens, drinkers at their feet) the karst caves (approach k) entered next grow; 0 none.")]
     public string FunnelGarden(int count) => dungeons.StudyFunnelGarden(count);
 
+    [DebugCommand("craft.dungeon.glasssteppe", Description = "Assisted, for the underground ecology study (#10096): how many glass steppes (sparse glowing glass tufts over a buried organism, its backs, grit, sentinel spires) the karst caves (approach k) entered next grow; 0 none.")]
+    public string GlassSteppe(int count) => dungeons.StudyGlassSteppe(count);
+
     [DebugCommand("craft.dungeon.kitpaint", Description = "Assisted, for the kit paint study (#10089): qwen (the kit's own: Qwen projected on lit views) or plain (painted from the geometry), for the next dungeon entered.")]
     public string KitPaint(string choice) => dungeons.StudyKitPaint(choice);
 

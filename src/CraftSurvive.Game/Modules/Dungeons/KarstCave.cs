@@ -2023,6 +2023,175 @@ internal static class KarstCave
     }
 
     /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "glass steppe - a community"): how
+    /// many glass steppes the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyGlassSteppes { get; set; }
+
+    // Glass steppes: on dry, still, open floor (no drip or standing water to speak of, nothing running, on a level long
+    // dry), the colonies chosen by how much such floor lies round them, so far apart, each out to SteppeRadius. Sparse: tufts
+    // every so often (large ones fewer), backs rarer, grit in the floor's hollows, spires at the rim; a light for every so
+    // many tufts, at most so many a colony.
+    private const float SteppeRadius = 14f, SteppeStep = 1.1f, SteppesApart = 30f, SteppeDryDamp = 0.08f, SteppeRise = 2.5f;
+    private const float TuftShare = 0.22f, LargeTuftShare = 0.25f, BackShare = 0.035f, GritShare = 0.35f, SpireShare = 0.05f, SpireFrom = 0.75f;
+    private const float HollowDepth = 0.12f, SteppeLightEvery = 7f, SteppeLightAbove = 0.6f;
+    private const int SteppeLights = 4, SteppeAfterEras = 1, MostSteppePieces = 600;
+
+    private static (float Radius, float Height) SteppeFootprint(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.SteppeTuftLarge => (0.7f, 1.2f),
+        OvergrowthKind.SteppeBack => (1.2f, 1f),
+        OvergrowthKind.SteppeGrit => (1f, 0.3f),
+        OvergrowthKind.SteppeSpire => (0.5f, 5f),
+        _ => (0.4f, 0.8f),
+    };
+
+    /// <summary>
+    /// Glass steppes (#10096): on a cave's dry, still, open floors, an organism lies buried, its stiff glass feelers rising in
+    /// sparse tufts whose beaded tips glow warm - the steppe's scattered light - its smooth milky backs breaking the floor
+    /// here and there, the glass it sheds lying as grit in the hollows, and tall sentinel spires standing at the colony's
+    /// rim. Returns each colony's centre and radius.
+    /// </summary>
+    private static List<(Vector3 Centre, float Radius)> GlassSteppes(float[] open, byte[] formed, float[] drip, float[] standing, float[] flow, int eras,
+        float finalTable, ulong seed, int count, List<OvergrowthPlacement> growth, List<EcologyPlacement> ecology, IReadOnlyList<Vector3> route,
+        IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        bool Dry(Vector3 p)
+        {
+            // Underground only: never the plateau over a cave open to the sky.
+            if (Surface(p.X, p.Z) - p.Y < FunnelUnderGround)
+            {
+                return false;
+            }
+
+            int sample = FieldIndex(Math.Clamp((int)(p.X / FieldStep), 0, FieldX - 1), Math.Clamp((int)(p.Y / FieldStep), 0, FieldY - 1), Math.Clamp((int)(p.Z / FieldStep), 0, FieldZ - 1));
+            int age = formed[sample] == Unformed ? 0 : eras - 1 - formed[sample];
+            return age >= SteppeAfterEras && p.Y > finalTable && MathF.Max(GridTrilinear(drip, p), GridTrilinear(standing, p)) < SteppeDryDamp && GridTrilinear(flow, p) < QuietFlow;
+        }
+
+        List<Vector3> floors = [];
+        for (float z = 2f; z < GridZ * GridCell - 2f; z += 2f)
+            for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
+                for (float x = 2f; x < GridX * GridCell - 2f; x += 2f)
+                {
+                    Vector3 p = new(x, y, z);
+                    if (Open(p) > 0f && Open(p - new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p + new Vector3(0f, 2.5f, 0f)) > 0f && Dry(p))
+                    {
+                        floors.Add(Floor(open, p));
+                    }
+                }
+
+        Dictionary<(int, int, int), int> cells = [];
+        foreach (Vector3 f in floors)
+        {
+            (int, int, int) k = ((int)MathF.Floor(f.X / 4f), (int)MathF.Floor(f.Y / 4f), (int)MathF.Floor(f.Z / 4f));
+            cells[k] = cells.GetValueOrDefault(k) + 1;
+        }
+
+        int Area(Vector3 f)
+        {
+            int cx = (int)MathF.Floor(f.X / 4f), cy = (int)MathF.Floor(f.Y / 4f), cz = (int)MathF.Floor(f.Z / 4f), n = 0, reach = (int)(SteppeRadius / 4f);
+            for (int dz = -reach; dz <= reach; dz++)
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    n += cells.GetValueOrDefault((cx + dx, cy, cz + dz));
+                }
+
+            return n;
+        }
+
+        List<(Vector3 Centre, float Radius)> colonies = [];
+        foreach (Vector3 c in floors.OrderByDescending(Area).ThenBy(f => NaturalCavern.Hash(seed ^ 0x57E9UL, (int)f.X, (int)f.Y, (int)f.Z)))
+        {
+            if (colonies.Count >= count)
+            {
+                break;
+            }
+
+            if (colonies.All(o => Vector3.Distance(o.Centre, c) >= SteppesApart)
+                && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + SteppeRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
+            {
+                colonies.Add((c, SteppeRadius));
+            }
+        }
+
+        foreach ((Vector3 centre, float _) in colonies)
+        {
+            List<(Vector3 At, float Radius)> placed = [];
+            int tufts = 0, lights = 0;
+            for (int pass = 0; pass < 2; pass++)
+            for (float dz = -SteppeRadius; dz <= SteppeRadius; dz += SteppeStep)
+                for (float dx = -SteppeRadius; dx <= SteppeRadius; dx += SteppeStep)
+                {
+                    float d = MathF.Sqrt((dx * dx) + (dz * dz));
+                    if (d > SteppeRadius || placed.Count >= MostSteppePieces)
+                    {
+                        continue;
+                    }
+
+                    int hx = (int)((centre.X + dx) * 4f), hz = (int)((centre.Z + dz) * 4f);
+                    float roll = NaturalCavern.Hash(seed ^ (0x5701UL + (ulong)(pass * 0x111)), hx, (int)centre.Y, hz), pick = NaturalCavern.Hash(seed ^ (0x5702UL + (ulong)(pass * 0x113)), hz, (int)centre.Y, hx);
+                    Vector3 probe = new(centre.X + dx + ((pick - 0.5f) * SteppeStep * 0.7f), centre.Y + 1.5f, centre.Z + dz + ((roll - 0.5f) * SteppeStep * 0.7f));
+                    if (Open(probe) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 foot = Floor(open, probe);
+                    float reach = d / SteppeRadius;
+                    if (MathF.Abs(foot.Y - centre.Y) > SteppeRise || !Dry(foot + new Vector3(0f, 0.5f, 0f)))
+                    {
+                        continue;
+                    }
+
+                    OvergrowthKind? choice;
+                    if (pass == 0)
+                    {
+                        // The large pieces first: spires at the rim, backs anywhere.
+                        choice = reach > SpireFrom && roll < SpireShare ? OvergrowthKind.SteppeSpire : roll < BackShare ? OvergrowthKind.SteppeBack : null;
+                    }
+                    else
+                    {
+                        // A hollow: the floor round it stands higher.
+                        float around = new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ }.Average(v => Floor(open, foot + (v * 0.9f) + new Vector3(0f, 1f, 0f)).Y);
+                        choice = around - foot.Y > HollowDepth && roll < GritShare ? OvergrowthKind.SteppeGrit
+                            : roll < TuftShare ? (pick < LargeTuftShare ? OvergrowthKind.SteppeTuftLarge : OvergrowthKind.SteppeTuft) : null;
+                    }
+
+                    if (choice is not OvergrowthKind kind)
+                    {
+                        continue;
+                    }
+
+                    (float radius, float height) = SteppeFootprint(kind);
+                    bool flat = kind is OvergrowthKind.SteppeGrit or OvergrowthKind.SteppeBack;
+                    if (Open(foot + new Vector3(0f, height, 0f)) <= 0f
+                        || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
+                        || (kind == OvergrowthKind.SteppeSpire && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < radius + RouteClear))
+                        || (flat && !Footed(open, foot, radius * 0.8f)))
+                    {
+                        continue;
+                    }
+
+                    placed.Add((foot, radius));
+                    float a = MathF.Tau * pick;
+                    float sink = kind == OvergrowthKind.SteppeBack ? 0.25f : kind == OvergrowthKind.SteppeGrit ? MatSink : 0.06f;
+                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, sink, 0f), new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), 0.85f + (0.3f * roll), pick));
+                    bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire;
+                    if (glows && ++tufts % (int)SteppeLightEvery == 0 && lights < SteppeLights)
+                    {
+                        lights++;
+                        ecology.Add(new EcologyPlacement(EcologyKind.SteppeGlow, foot + new Vector3(0f, kind == OvergrowthKind.SteppeSpire ? 4.2f : SteppeLightAbove, 0f), Vector3.UnitY, 1f, (uint)(pick * uint.MaxValue)));
+                    }
+                }
+        }
+
+        return colonies;
+    }
+
+    /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "funnel garden - a community"): how
     /// many funnel gardens the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
     /// </summary>
@@ -2732,6 +2901,16 @@ internal static class KarstCave
             // A garden is its own community: the dark's plain mushrooms give way inside it.
             darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
                 && gardens.Any(f => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(f.Centre.X, f.Centre.Z)) < f.Radius + 1f && MathF.Abs(g.At.Y - f.Centre.Y) < FunnelRise + 2f));
+        }
+
+        if (StudyGlassSteppes > 0)
+        {
+            List<(Vector3 Centre, float Radius)> steppes = GlassSteppes(open, formed, drip, standing, activeFlow, eras.Length, finalTable, seed, StudyGlassSteppes,
+                darkGrowth, ecology, mainRoute, orchards, skyOpen);
+            // A steppe is its own community: the crystals and the dark's mushrooms give way on it.
+            bool OnSteppe(Vector3 p) => steppes.Any(s => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(s.Centre.X, s.Centre.Z)) < s.Radius + 1f && MathF.Abs(p.Y - s.Centre.Y) < SteppeRise + 2f);
+            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && OnSteppe(g.At));
+            ecology.RemoveAll(e => e.Kind == EcologyKind.CrystalBloom && OnSteppe(e.At));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
