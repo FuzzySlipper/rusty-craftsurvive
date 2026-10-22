@@ -207,7 +207,7 @@ internal sealed class CharacterStyleTest : IDisposable
             overrides.Add(JointOverride.AddLocalRotation(index, Quaternion.CreateFromAxisAngle(Vector3.UnitX, radians), 1));
         }
 
-        engine.Animation.SetPose(new(t.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides.ToArray(), false));
+        engine.Animation.SetPose(new(t.Instance, ReadOnlyMemory<TwoBoneIk>.Empty, overrides.ToArray()));
     }
 
     /// <summary>Places a traveller at an offset (metres east, south) from the player.</summary>
