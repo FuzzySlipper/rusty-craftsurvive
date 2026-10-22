@@ -442,6 +442,7 @@ internal sealed class DungeonModule : IProductModule
                 EcologyKind.VaultBloom => 0,
                 EcologyKind.GiantFungus => 1,
                 EcologyKind.VentSeep => 1,
+                EcologyKind.GroveCrown => 2,
                 EcologyKind.LuminousPool => 2,
                 EcologyKind.GlowWorms => 2,
                 EcologyKind.GlowFungi => 3,
@@ -812,6 +813,12 @@ internal sealed class DungeonModule : IProductModule
     {
         KarstCave.StudyVentOrchards = Math.Max(0, count);
         return $"karst caves entered next: {KarstCave.StudyVentOrchards} vent orchards";
+    }
+
+    internal string StudyInvertedGrove(int count)
+    {
+        KarstCave.StudyInvertedGroves = Math.Max(0, count);
+        return $"karst caves entered next: {KarstCave.StudyInvertedGroves} inverted groves";
     }
 
     internal string StudyCentrepiece(string choice)

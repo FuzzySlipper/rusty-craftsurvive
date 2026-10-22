@@ -49,6 +49,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.ventorchard", Description = "Assisted, for the underground ecology study (#10096): how many vent orchards (ivory tubes with red crowns round warm glowing seeps) the karst caves (approach k) entered next grow; 0 none.")]
     public string VentOrchard(int count) => dungeons.StudyVentOrchard(count);
 
+    [DebugCommand("craft.dungeon.invertedgrove", Description = "Assisted, for the underground ecology study (#10096): how many inverted groves (canopy hangers, root web and seed sacs under a ceiling close to the surface, a fallfield beneath) the karst caves (approach k) entered next grow; 0 none.")]
+    public string InvertedGrove(int count) => dungeons.StudyInvertedGrove(count);
+
     [DebugCommand("craft.dungeon.kitpaint", Description = "Assisted, for the kit paint study (#10089): qwen (the kit's own: Qwen projected on lit views) or plain (painted from the geometry), for the next dungeon entered.")]
     public string KitPaint(string choice) => dungeons.StudyKitPaint(choice);
 

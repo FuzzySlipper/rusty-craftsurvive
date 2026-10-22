@@ -1831,6 +1831,185 @@ internal static class KarstCave
         return orchards;
     }
 
+    /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "inverted grove - a community"): how
+    /// many inverted groves the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyInvertedGroves { get; set; }
+
+    // Inverted groves: under a ceiling within GroveUnderSurface of the surface (nutrients arrive from above), with at least
+    // GroveDrop of clear fall below it, ranked by how much such ceiling lies round it (counted in AreaCell cells), the groves
+    // so far apart, each out to GroveRadius. A hanger keeps GroveHeadroom clear above the floor under its crown; its length
+    // (trunk and crown) and footprint by size. Sacs hang within SacReach of a hanger; the root web covers the ceiling between,
+    // overlapping; the fallfield lies under the canopy.
+    private const float GroveUnderSurface = 12f, GroveDrop = 6f, GroveAreaCell = 4f, GrovesApart = 26f, GroveRadius = 11f, GroveStep = 0.9f;
+    private const float GroveHeadroom = 3.5f, HangerLength = 7f, SmallHangerLength = 4f, HangerFootprint = 2.6f, SmallHangerFootprint = 1.6f;
+    private const float HangerDensest = 0.35f, HangerReach = 0.85f, SacReach = 3.5f, SacShare = 0.35f, SacLength = 2.5f, SacFootprint = 0.8f;
+    private const float WebShare = 0.5f, WebFootprint = 2f, WebOverlap = 0.5f, CeilingSink = 0.15f, GroveRoofSpread = 3f;
+    private const float LitterShare = 0.55f, LitterFootprint = 1.3f, LitterOverlap = 0.4f, CatcherShare = 0.12f, CatcherFootprint = 0.6f;
+    private const float ScavengerShare = 0.04f, MoundFootprint = 1f, FallfieldReach = 0.9f, GroveEdge = 1f;
+    private const int MostGrovePieces = 900;
+
+    /// <summary>
+    /// Inverted groves (#10096): where a ceiling lies close under the surface, nutrients seep down through it, and its
+    /// community hangs from it - canopy hangers rooted in the ceiling with their crowns of red filaments (each crown's tips
+    /// a faint amber light), seed sacs hanging below them, the pale root web over the ceiling between - while the floor
+    /// beneath is a barren fallfield fed only by what drops: litter, cup catchers, scavenger mounds. Returns each grove's
+    /// centre (on its ceiling) and radius.
+    /// </summary>
+    private static List<(Vector3 Roof, float Radius)> InvertedGroves(float[] open, ulong seed, int count, List<EcologyPlacement> ecology,
+        List<OvergrowthPlacement> growth, bool skyOpen, IReadOnlyList<(Vector3 Seep, float Radius)> orchards)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        List<Vector3> roofs = [];
+        for (float z = 2f; z < GridZ * GridCell - 2f; z += EcologyStep)
+            for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
+                for (float x = 2f; x < GridX * GridCell - 2f; x += EcologyStep)
+                {
+                    Vector3 p = new(x, y, z);
+                    if (Open(p) > 0f && Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p - new Vector3(0f, GroveDrop, 0f)) > 0f
+                        && Surface(x, z) - y < GroveUnderSurface)
+                    {
+                        roofs.Add(Ceiling(open, p));
+                    }
+                }
+
+        // The ceiling round each, counted by cells.
+        Dictionary<(int, int), int> cells = [];
+        foreach (Vector3 r in roofs)
+        {
+            (int, int) k = ((int)MathF.Floor(r.X / GroveAreaCell), (int)MathF.Floor(r.Z / GroveAreaCell));
+            cells[k] = cells.GetValueOrDefault(k) + 1;
+        }
+
+        int Area(Vector3 r)
+        {
+            int cx = (int)MathF.Floor(r.X / GroveAreaCell), cz = (int)MathF.Floor(r.Z / GroveAreaCell), n = 0, reach = (int)(GroveRadius / GroveAreaCell);
+            for (int dz = -reach; dz <= reach; dz++)
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    n += cells.GetValueOrDefault((cx + dx, cz + dz));
+                }
+
+            return n;
+        }
+
+        List<Vector3> chosen = [];
+        foreach (Vector3 r in roofs.OrderByDescending(Area).ThenBy(r => NaturalCavern.Hash(seed ^ 0x6A0EUL, (int)r.X, (int)r.Y, (int)r.Z)))
+        {
+            if (chosen.Count >= count)
+            {
+                break;
+            }
+
+            if (chosen.All(c => Vector3.Distance(c, r) >= GrovesApart) && orchards.All(o => Vector2.Distance(new Vector2(o.Seep.X, o.Seep.Z), new Vector2(r.X, r.Z)) >= o.Radius + GroveRadius))
+            {
+                chosen.Add(r);
+            }
+        }
+
+        List<(Vector3 Roof, float Radius)> groves = [];
+        foreach (Vector3 centre in chosen)
+        {
+            groves.Add((centre, GroveRadius));
+            List<(Vector3 At, float Radius)> hangers = [], sacs = [], web = [], litter = [], floor = [];
+            for (int pass = 0; pass < 4; pass++)
+            for (float dz = -GroveRadius; dz <= GroveRadius; dz += GroveStep)
+                for (float dx = -GroveRadius; dx <= GroveRadius; dx += GroveStep)
+                {
+                    float d = MathF.Sqrt((dx * dx) + (dz * dz));
+                    if (d > GroveRadius || growth.Count >= (MostGrovePieces * chosen.Count) + 4000)
+                    {
+                        continue;
+                    }
+
+                    int hx = (int)((centre.X + dx) * 4f), hz = (int)((centre.Z + dz) * 4f);
+                    float roll = NaturalCavern.Hash(seed ^ (0x6E01UL + (ulong)(pass * 0x107)), hx, (int)centre.Y, hz), pick = NaturalCavern.Hash(seed ^ (0x6E02UL + (ulong)(pass * 0x109)), hz, (int)centre.Y, hx);
+                    // The ceiling and floor at this column, near the grove's ceiling.
+                    Vector3 probe = new(centre.X + dx + ((pick - 0.5f) * GroveStep * 0.6f), centre.Y - 1.5f, centre.Z + dz);
+                    if (Open(probe) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 roof = Ceiling(open, probe), ground = Floor(open, probe);
+                    float drop = roof.Y - ground.Y, reach = d / GroveRadius;
+                    if (MathF.Abs(roof.Y - centre.Y) > GroveRoofSpread)
+                    {
+                        continue;
+                    }
+
+                    bool Clear(List<(Vector3 At, float Radius)> list, float radius, float kept) =>
+                        list.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(roof.X, roof.Z)) >= (q.Radius + radius) * kept);
+                    Vector3 hung = roof + new Vector3(0f, CeilingSink, 0f);
+                    float a = MathF.Tau * pick;
+                    Vector3 turn = new(MathF.Sin(a), 0f, MathF.Cos(a));
+                    switch (pass)
+                    {
+                        case 0:
+                            // Hangers: the large where the fall leaves headroom under its crown, else the small.
+                            bool large = drop >= HangerLength + GroveHeadroom, small = drop >= SmallHangerLength + GroveHeadroom;
+                            float footprint = large ? HangerFootprint : SmallHangerFootprint;
+                            if (reach < HangerReach && (large || small) && roll < HangerDensest * MathF.Pow(1f - reach, 0.3f) && Clear(hangers, footprint, FootprintKept))
+                            {
+                                hangers.Add((roof, footprint));
+                                growth.Add(new OvergrowthPlacement(large ? OvergrowthKind.GroveHanger : OvergrowthKind.GroveHangerSmall, hung, turn, 0.85f + (0.3f * pick), pick));
+                                float length = large ? HangerLength : SmallHangerLength;
+                                ecology.Add(new EcologyPlacement(EcologyKind.GroveCrown, roof - new Vector3(0f, length * 0.85f, 0f), -Vector3.UnitY, 1f, (uint)(pick * uint.MaxValue)));
+                            }
+
+                            break;
+                        case 1:
+                            if (drop >= SacLength + GroveHeadroom && roll < SacShare && hangers.Any(h => Vector2.Distance(new Vector2(h.At.X, h.At.Z), new Vector2(roof.X, roof.Z)) is var e && e > h.Radius * 0.4f && e < SacReach)
+                                && Clear(sacs, SacFootprint, 1f))
+                            {
+                                sacs.Add((roof, SacFootprint));
+                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveSacs, hung, turn, 0.8f + (0.4f * pick), pick));
+                            }
+
+                            break;
+                        case 2:
+                            if (roll < WebShare && Clear(web, WebFootprint, WebOverlap))
+                            {
+                                web.Add((roof, WebFootprint));
+                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveRootweb, hung, turn, 0.9f + (0.3f * pick), pick));
+                            }
+
+                            break;
+                        default:
+                            // The fallfield under the canopy: litter overlapping into one ground, catchers and mounds on it.
+                            if (reach >= FallfieldReach)
+                            {
+                                break;
+                            }
+
+                            Vector3 on = ground - new Vector3(0f, MatSink, 0f);
+                            if (roll < ScavengerShare && floor.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + MoundFootprint) * FootprintKept))
+                            {
+                                floor.Add((on, MoundFootprint));
+                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveMound, on, turn, 0.8f + (0.5f * pick), pick));
+                            }
+                            else if (roll < ScavengerShare + CatcherShare && floor.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + CatcherFootprint) * FootprintKept))
+                            {
+                                floor.Add((on, CatcherFootprint));
+                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveCatchers, on, turn, 0.8f + (0.5f * pick), pick));
+                            }
+
+                            if (pick < LitterShare && litter.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + LitterFootprint) * LitterOverlap))
+                            {
+                                litter.Add((on, LitterFootprint));
+                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveLitter, on, turn, 0.9f + (0.3f * roll), roll));
+                            }
+
+                            break;
+                    }
+                }
+        }
+
+        return groves;
+    }
+
     /// <summary>The floor under an open place: the first rock looking down.</summary>
     private static Vector3 Floor(float[] open, Vector3 p)
     {
@@ -2354,6 +2533,15 @@ internal static class KarstCave
             bool InOrchard(Vector3 p) => orchards.Any(o => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(o.Seep.X, o.Seep.Z)) < o.Radius + OrchardEdge && MathF.Abs(p.Y - o.Seep.Y) < OrchardRise + 2f);
             darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && InOrchard(g.At));
             ecology.RemoveAll(e => e.Kind == EcologyKind.GlowFungi && InOrchard(e.At));
+        }
+
+        if (StudyInvertedGroves > 0)
+        {
+            List<(Vector3 Roof, float Radius)> groves = InvertedGroves(open, seed, StudyInvertedGroves, ecology, darkGrowth, skyOpen, orchards);
+            // A grove is its own community: under it the dark's root curtains and tangles, mushrooms and glow fungi give way.
+            bool UnderGrove(Vector3 p) => groves.Any(g => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(g.Roof.X, g.Roof.Z)) < g.Radius + GroveEdge && p.Y <= g.Roof.Y + GroveRoofSpread);
+            darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && UnderGrove(g.At));
+            ecology.RemoveAll(e => e.Kind is EcologyKind.GlowFungi or EcologyKind.RootCurtain && UnderGrove(e.At));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];

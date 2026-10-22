@@ -28,6 +28,9 @@ internal enum EcologyKind
 
     /// <summary>A vent orchard's seep (#10096): warm, nutrient-bearing water welling up through a glowing crust, the orchard's light.</summary>
     VentSeep,
+
+    /// <summary>An inverted grove's crown (#10096): its filaments' faintly glowing amber tips (painted on the hanger) give this light; no mesh of its own.</summary>
+    GroveCrown,
 }
 
 /// <summary>

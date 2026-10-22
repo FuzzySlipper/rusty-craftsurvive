@@ -55,6 +55,27 @@ internal enum OvergrowthKind
 
     /// <summary>A pale bacterial mat, the vent orchard's outer ground.</summary>
     SeepMat,
+
+    /// <summary>The inverted grove's keystone (a ceiling piece, hanging from the plane y = 0): a braided trunk rooted in the ceiling and a bell-shaped crown of red filaments, about 7 m.</summary>
+    GroveHanger,
+
+    /// <summary>A smaller canopy hanger, about 4 m.</summary>
+    GroveHangerSmall,
+
+    /// <summary>The grove's pale root web over the ceiling between its trunks (a ceiling piece).</summary>
+    GroveRootweb,
+
+    /// <summary>Amber seed sacs hanging on cords below the crowns, 1 to 2.5 m (a ceiling piece).</summary>
+    GroveSacs,
+
+    /// <summary>The fallfield's pale litter of shed filaments and spores (a floor piece).</summary>
+    GroveLitter,
+
+    /// <summary>Pale cup-shaped catchers on short stalks, open to what falls.</summary>
+    GroveCatchers,
+
+    /// <summary>A low scavenger mound of gathered litter.</summary>
+    GroveMound,
 }
 
 /// <summary>
@@ -71,6 +92,13 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
     internal static bool Vent(OvergrowthKind kind) => kind is OvergrowthKind.VentTall or OvergrowthKind.VentCluster or OvergrowthKind.VentShort or OvergrowthKind.VentBed
         or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.SeepChimney or OvergrowthKind.SeepShells or OvergrowthKind.SeepMat;
 
-    /// <summary>Whether a kind stands on a floor (on the plane y = 0) rather than growing on a wall.</summary>
-    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Vent(kind);
+    /// <summary>Whether a kind is the inverted grove's (an underground ecology's, under a ceiling close to the surface).</summary>
+    internal static bool Grove(OvergrowthKind kind) => kind is OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall or OvergrowthKind.GroveRootweb
+        or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
+
+    /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind);
+
+    /// <summary>Whether a kind is placed only turned about its up - one standing on a floor, or (the grove's) hanging from a ceiling (on the plane y = 0) rather than growing on a wall.</summary>
+    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Ecology(kind);
 }

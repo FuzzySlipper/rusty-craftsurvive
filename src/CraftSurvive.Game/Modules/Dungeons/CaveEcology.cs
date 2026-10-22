@@ -79,6 +79,10 @@ internal static class CaveEcology
     private const int FewestWelts = 4, MostWelts = 7;
     private const float SmallestWelt = 0.1f, LargestWelt = 0.3f, WeltSpread = 0.7f;
 
+    // An inverted grove's crown (#10096): the faint amber of its filaments' tips, and how far it reaches.
+    internal static readonly Vector3 CrownGlow = new(1f, 0.55f, 0.22f);
+    private const float CrownIntensity = 3f, CrownRange = 9f;
+
     /// <summary>The lights the growths give: their colour, intensity and reach, by kind.</summary>
     internal static (Vector3 Colour, float Intensity, float Range) LightOf(EcologyKind kind) => kind switch
     {
@@ -88,6 +92,7 @@ internal static class CaveEcology
         EcologyKind.VaultBloom => (VaultGlow, VaultIntensity, VaultRange),
         EcologyKind.LuminousPool => (PoolGlow, PoolIntensity, PoolRange),
         EcologyKind.VentSeep => (SeepGlow, SeepIntensity, SeepRange),
+        EcologyKind.GroveCrown => (CrownGlow, CrownIntensity, CrownRange),
         _ => (CrystalGlow, 1f, 3f),
     };
 
@@ -115,8 +120,8 @@ internal static class CaveEcology
         foreach (EcologyKind kind in Enum.GetValues<EcologyKind>())
         {
             EcologyPlacement[] these = [.. growths.Where(g => g.Kind == kind)];
-            // A luminous pool's glowing thing is its water (CaveWaterSurfaces): it has a light here, no mesh.
-            if (these.Length == 0 || kind == EcologyKind.LuminousPool)
+            // A luminous pool's glowing thing is its water (CaveWaterSurfaces), a grove crown's its hanger's painted tips: each has a light here, no mesh.
+            if (these.Length == 0 || kind is EcologyKind.LuminousPool or EcologyKind.GroveCrown)
             {
                 continue;
             }

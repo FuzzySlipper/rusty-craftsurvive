@@ -43,7 +43,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster ? GiantTextureTexels : TextureTexels;
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger ? GiantTextureTexels : TextureTexels;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels)))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
@@ -110,6 +110,13 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.SeepChimney => "models/dungeon-overgrowth/seep-chimney.prop-mesh.json",
         OvergrowthKind.SeepShells => "models/dungeon-overgrowth/seep-shells.prop-mesh.json",
         OvergrowthKind.SeepMat => "models/dungeon-overgrowth/seep-mat.prop-mesh.json",
+        OvergrowthKind.GroveHanger => "models/dungeon-overgrowth/grove-hanger.prop-mesh.json",
+        OvergrowthKind.GroveHangerSmall => "models/dungeon-overgrowth/grove-hanger-small.prop-mesh.json",
+        OvergrowthKind.GroveRootweb => "models/dungeon-overgrowth/grove-rootweb.prop-mesh.json",
+        OvergrowthKind.GroveSacs => "models/dungeon-overgrowth/grove-sacs.prop-mesh.json",
+        OvergrowthKind.GroveLitter => "models/dungeon-overgrowth/grove-litter.prop-mesh.json",
+        OvergrowthKind.GroveCatchers => "models/dungeon-overgrowth/grove-catchers.prop-mesh.json",
+        OvergrowthKind.GroveMound => "models/dungeon-overgrowth/grove-mound.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
