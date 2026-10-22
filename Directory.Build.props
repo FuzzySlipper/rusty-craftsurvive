@@ -12,6 +12,9 @@
     <RustyEngineCache Condition="'$(RustyEngineCache)' == ''">$(HOME)/.cache/rusty-engine</RustyEngineCache>
     <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);$(RustyEngineCache)/pairs/$(RustyEnginePackageVersion)/sdk-feed</RestoreAdditionalProjectSources>
   </PropertyGroup>
+  <Target Name="RequireChemistryKernel" BeforeTargets="Restore;_GenerateRestoreGraph" Condition="!Exists('$(MSBuildThisFileDirectory)external/rusty-chemistry/src/RustyChemistry/RustyChemistry.csproj')">
+    <Error Text="The chemistry kernel submodule is missing: run `git submodule update --init` in this repository." />
+  </Target>
   <Target Name="RequireRustyEnginePair" BeforeTargets="Restore;_GenerateRestoreGraph" Condition="!Exists('$(RustyEngineCache)/pairs/$(RustyEnginePackageVersion)/sdk-feed')">
     <Error Text="Rusty Engine pair $(RustyEnginePackageVersion) is not installed: run `rusty install` in this repository." />
   </Target>

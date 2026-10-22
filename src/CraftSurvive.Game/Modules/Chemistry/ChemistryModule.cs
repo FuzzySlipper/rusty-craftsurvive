@@ -1,0 +1,321 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Numerics;
+using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Feedback;
+using CraftSurvive.Game.Modules.Terrain;
+using CraftSurvive.Game.Modules.Weather;
+using CraftSurvive.Game.Modules.World;
+using Rusty.Engine;
+using RustyChemistry.Content;
+using RustyChemistry.Simulation;
+using VoxelAddress = CraftSurvive.Game.Modules.Terrain.VoxelAddress;
+
+namespace CraftSurvive.Game.Modules.Chemistry;
+
+/// <summary>
+/// The fast, local layer of the world's elements around the player (#10293): heat, moisture, smoke and fuel in
+/// 1 m cells, stepped by the rusty-chemistry kernel. It owns only its field. It reads the terrain, the water and
+/// the weather (as ambient), writes burnt ground back through the terrain's own edits within a budget, and shows
+/// burning cells as fires. Nothing of the field is saved: what lasts is what it wrote into the terrain.
+/// </summary>
+internal sealed class ChemistryModule : IProductModule
+{
+    private const int CellsPerChunk = ChemistryField.ChunkSize * ChemistryField.ChunkSize * ChemistryField.ChunkSize;
+
+    /// <summary>A lit torch's heat: deposited around a cell for a moment, enough to ignite dry grass.</summary>
+    private const float IgniteRadius = 1.2f, IgniteHeatPerSecond = 4000f, IgniteSeconds = 0.6f;
+
+    /// <summary>Burnt cells waiting for a write; beyond this the oldest are dropped, and their scar is not kept.</summary>
+    private const int MostWaiting = 4096;
+
+    private readonly TerrainWorld terrain;
+    private readonly WeatherModule weather;
+    private readonly WorldFrame frame;
+    private readonly Func<Vector3> playerWorld;
+    private readonly Func<bool> away;
+    private readonly ChemistrySettings settings;
+    private readonly ChemistryPack pack;
+    private readonly BlockChemistry blocks;
+    private readonly FireEmitters fires;
+    private readonly ushort[] chunkMaterials = new ushort[CellsPerChunk];
+    private readonly Queue<(Cell Cell, WriteBackSetting Rule)> waiting = [];
+    private ChemistryField field;
+    private ChemistryAmbient? applied;
+    private HashSet<(int X, int Z)> burningColumns = [];
+    private double owed, sinceAmbient, sinceWrite, stepMilliseconds;
+    private long written, dropped, refused;
+    private string lastRefusal = "none";
+
+    internal ChemistryModule(IEngineContext engine, ProductContent content, TerrainWorld terrain, WeatherModule weather, WorldFrame frame,
+        Func<Vector3> playerWorld, Func<bool> away)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(content);
+        this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
+        this.weather = weather ?? throw new ArgumentNullException(nameof(weather));
+        this.frame = frame ?? throw new ArgumentNullException(nameof(frame));
+        this.playerWorld = playerWorld ?? throw new ArgumentNullException(nameof(playerWorld));
+        this.away = away ?? throw new ArgumentNullException(nameof(away));
+        settings = ChemistrySettings.Parse(content.ReadText(ChemistrySettings.ContentPath));
+        pack = ChemistryPack.Read(content.ReadText(settings.PackPath));
+        blocks = new BlockChemistry(settings, pack);
+        fires = new FireEmitters(engine, ProductIds.ChemistryFireBase, "craftsurvive.chemistry.fire", settings.Fires.Slots);
+        field = NewField();
+        terrain.Edited += Reload;
+    }
+
+    public void Start()
+    {
+    }
+
+    public void Update(ProductStep step)
+    {
+        if (away())
+        {
+            // A dungeon or study is its own space: the field waits, and its fires are not drawn there.
+            fires.Show([]);
+            return;
+        }
+
+        Vector3 player = playerWorld();
+        Follow(player);
+        sinceAmbient += step.ElapsedSeconds;
+        if (applied is null || sinceAmbient >= settings.Ambient.RefreshSeconds)
+        {
+            sinceAmbient = 0;
+            Ambient(player);
+        }
+
+        owed += step.ElapsedSeconds;
+        int steps = 0;
+        while (owed >= settings.Field.StepSeconds && steps < settings.Field.StepsPerUpdate)
+        {
+            owed -= settings.Field.StepSeconds;
+            Step();
+            steps++;
+        }
+
+        // Time beyond the steps one update may run is dropped, not owed.
+        owed = Math.Min(owed, settings.Field.StepSeconds);
+        sinceWrite += step.ElapsedSeconds;
+        if (sinceWrite >= settings.Budget.WriteSeconds)
+        {
+            sinceWrite = 0;
+            Write();
+        }
+
+        if (steps > 0)
+        {
+            burningColumns = FieldWindow.BurningColumns(field, blocks.Burning);
+            List<Vector3> places = BurningPlaces.Pick(field, blocks.Burning, player, settings.Fires.Slots, settings.Fires.ClusterCells);
+            fires.Show([.. places.Select(place => frame.ToLocal(place))]);
+        }
+    }
+
+    public void Restart()
+    {
+        field = NewField();
+        applied = null;
+        owed = 0;
+        waiting.Clear();
+        burningColumns = [];
+        fires.Show([]);
+    }
+
+    public void Dispose()
+    {
+        terrain.Edited -= Reload;
+        fires.Dispose();
+    }
+
+    /// <summary>Heats the ground at a world column's surface, as a torch would; the fire, if any, is the field's.</summary>
+    internal string IgniteAt(double x, double z)
+    {
+        long cellX = (long)Math.Floor(x), cellZ = (long)Math.Floor(z);
+        Cell top = new((int)cellX, (int)terrain.Recipe.SurfaceAt(cellX, cellZ), (int)cellZ);
+        if (!field.IsLoaded(top))
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"refused: {top.X},{top.Y},{top.Z} is outside the field around the player");
+        }
+
+        field.AddEmitter(new EmitterSpec(EmitterShape.Sphere(top.Center, IgniteRadius), pack.Quantity("heat"), IgniteHeatPerSecond,
+            Lifetime: IgniteSeconds));
+        return $"heating {pack.Materials[field.MaterialAt(top)].Id} at {top.X},{top.Y},{top.Z}";
+    }
+
+    /// <summary>A cell's material, sky exposure and quantities.</summary>
+    internal string CellReadout(long x, long y, long z)
+    {
+        Cell cell = new((int)x, (int)y, (int)z);
+        if (!field.IsLoaded(cell))
+        {
+            return "outside the field";
+        }
+
+        IEnumerable<string> quantities = pack.Quantities.Select((quantity, index) =>
+            string.Create(CultureInfo.InvariantCulture, $"{quantity.Id}={field.Quantity(cell, index):0.###}"));
+        return $"{pack.Materials[field.MaterialAt(cell)].Id} open={field.IsOpen(cell)} {string.Join(" ", quantities)}";
+    }
+
+    internal string Readout() => string.Create(CultureInfo.InvariantCulture,
+        $"chemistry chunks={field.ChunkCount} active={field.ActiveChunkCount} step={field.StepIndex} stepMs={stepMilliseconds:0.00} fires={fires.Burning} ") +
+        string.Create(CultureInfo.InvariantCulture,
+        $"written={written} waiting={waiting.Count} dropped={dropped} refused={refused} overlay={terrain.OverlayEntries}/{TerrainConstants.MaximumOverlayEntries} ") +
+        string.Create(CultureInfo.InvariantCulture,
+        $"keepFree={settings.Budget.KeepFreeEntries} writable={WriteBack.Allowed(terrain.OverlayEntries, TerrainConstants.MaximumOverlayEntries, settings.Budget)} lastRefusal={lastRefusal}");
+
+    internal string AmbientReadout() => applied is ChemistryAmbient ambient
+        ? string.Create(CultureInfo.InvariantCulture,
+            $"heat={ambient.Heat:0.0} drift=({ambient.Drift.X:0.00},{ambient.Drift.Z:0.00}) rain={ambient.Rain:0.00} rainModulator={field.Modulator("rain"):0.00}")
+        : "not read yet";
+
+    private ChemistryField NewField() => new(pack, new ChemistryFieldSettings(pack.Materials[blocks.Air].Id, settings.Field.StepSeconds,
+        terrain.Recipe.Configuration.Seed));
+
+    /// <summary>
+    /// Loads the chunks around the player, and beside a fire out to the burning reach, a few at a time; lets go of
+    /// those left behind.
+    /// </summary>
+    private void Follow(Vector3 player)
+    {
+        (int columnX, int columnZ) = FieldWindow.ColumnOf(player);
+        List<Cell> wanted = FieldWindow.Around(columnX, columnZ, settings.Field.ReachChunks, settings.Field.BurningReachChunks, burningColumns,
+            (x, z) => terrain.Recipe.SurfaceAt(x, z));
+        HashSet<Cell> keep = [.. wanted];
+        foreach (Cell chunk in field.LoadedChunks().ToList())
+        {
+            if (!keep.Contains(chunk))
+            {
+                field.UnloadChunk(chunk);
+            }
+        }
+
+        int loads = 0;
+        foreach (Cell chunk in wanted)
+        {
+            if (loads >= settings.Field.LoadsPerUpdate)
+            {
+                break;
+            }
+
+            if (!field.IsLoaded(chunk))
+            {
+                Load(chunk);
+                loads++;
+            }
+        }
+    }
+
+    /// <summary>Loads one chunk from the world: each cell's block as its material, open air under water as water.</summary>
+    private void Load(Cell origin)
+    {
+        const int Size = ChemistryField.ChunkSize;
+        for (int z = 0; z < Size; z++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                long worldX = origin.X + x, worldZ = origin.Z + z;
+                Water.WaterSample water = terrain.Water.Sample(worldX, worldZ);
+                double? top = water.Wet && !water.Ice ? water.Top : null;
+                for (int y = 0; y < Size; y++)
+                {
+                    long worldY = origin.Y + y;
+                    ushort block = terrain.MaterialAt(new VoxelAddress(worldX, worldY, worldZ));
+                    chunkMaterials[x + (y * Size) + (z * Size * Size)] = blocks.CellMaterial(block, worldY, top);
+                }
+            }
+        }
+
+        field.LoadChunk(origin, chunkMaterials);
+        for (int z = 0; z < Size; z++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                field.MarkOpenColumn(origin.X + x, origin.Z + z);
+            }
+        }
+    }
+
+    /// <summary>The weather over the player as the field's ambient, applied only when it has moved enough to matter.</summary>
+    private void Ambient(Vector3 player)
+    {
+        EnvironmentChannels channels = weather.Field.Sample(player.X, player.Z, weather.Hours).Channels;
+        ChemistryAmbient ambient = ChemistryAmbient.From(channels.Cold, channels.Wind, channels.Precipitation, weather.Field.Flow(player.X, player.Z),
+            settings.Ambient);
+        if (applied is ChemistryAmbient last && !ambient.Differs(last))
+        {
+            return;
+        }
+
+        field.SetAmbient(pack.Quantity("heat"), ambient.Heat);
+        field.Drift = ambient.Drift;
+        field.SetModulator("rain", ambient.Rain);
+        applied = ambient;
+    }
+
+    private void Step()
+    {
+        long began = Stopwatch.GetTimestamp();
+        field.Step();
+        stepMilliseconds = (stepMilliseconds * 0.9) + (Stopwatch.GetElapsedTime(began).TotalMilliseconds * 0.1);
+        foreach ((Cell Cell, WriteBackSetting Rule) entry in WriteBack.Wanted(field.MaterialChanges, blocks))
+        {
+            waiting.Enqueue(entry);
+            if (waiting.Count > MostWaiting)
+            {
+                waiting.Dequeue();
+                dropped++;
+            }
+        }
+    }
+
+    /// <summary>Writes waiting burnt cells into the terrain, a batch at a time, within the overlay reserve.</summary>
+    private void Write()
+    {
+        int allowed = WriteBack.Allowed(terrain.OverlayEntries, TerrainConstants.MaximumOverlayEntries, settings.Budget);
+        if (waiting.Count == 0 || allowed == 0)
+        {
+            return;
+        }
+
+        List<(Cell Cell, WriteBackSetting Rule)> batch = [];
+        while (batch.Count < allowed && waiting.Count > 0)
+        {
+            batch.Add(waiting.Dequeue());
+        }
+
+        foreach ((BlockId block, List<Cell> cells) in WriteBack.Choose(batch, cell => terrain.MaterialAt(Address(cell)), allowed))
+        {
+            TerrainWorldEditResult result = terrain.TryEditCells([.. cells.Select(Address)], TerrainEditKind.Set, (ushort)block);
+            if (result is TerrainWorldEditApplied)
+            {
+                written += cells.Count;
+            }
+            else
+            {
+                refused += cells.Count;
+                lastRefusal = TerrainWorldEditResult.Format(result);
+            }
+        }
+    }
+
+    /// <summary>Reloads edited cells the field holds, so a cell the player or a fire changed reads as its new block.</summary>
+    private void Reload(IReadOnlyList<TerrainVoxelEdit> edits)
+    {
+        foreach (TerrainVoxelEdit edit in edits)
+        {
+            Cell cell = new((int)edit.Address.X, (int)edit.Address.Y, (int)edit.Address.Z);
+            if (!field.IsLoaded(cell))
+            {
+                continue;
+            }
+
+            Water.WaterSample water = terrain.Water.Sample(edit.Address.X, edit.Address.Z);
+            field.Load(cell, blocks.CellMaterial(edit.Material, edit.Address.Y, water.Wet && !water.Ice ? water.Top : null));
+            field.MarkOpenColumn(cell.X, cell.Z);
+        }
+    }
+
+    private static VoxelAddress Address(Cell cell) => new(cell.X, cell.Y, cell.Z);
+}

@@ -816,6 +816,9 @@ internal sealed class TerrainWorld : IDisposable
     internal ulong EditRevision => overlayStore.Overlay.Revision;
 
     /// <summary>The material standing at a cell now: the player's override, else the recipe's.</summary>
+    /// <summary>How many cells the edit overlay holds now, of <see cref="TerrainConstants.MaximumOverlayEntries"/>; it keeps every edited cell for good.</summary>
+    internal int OverlayEntries => overlayStore.Overlay.Count;
+
     /// <summary>Whether an edit has changed this cell from what the recipe generated.</summary>
     internal bool IsEdited(VoxelAddress address) => overlayStore.Overlay.TryGetMaterial(address, out _);
 

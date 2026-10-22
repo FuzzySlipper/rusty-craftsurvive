@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The chemistry kernel (#10293) is the rusty-chemistry submodule.
+          submodules: true
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -33,6 +36,8 @@ jobs:
           ~/.local/bin/rusty install
       - name: Check terrain materials and residency cache
         run: dotnet run --project tests/TerrainResidency -c Release
+      - name: Check the chemistry adapter's rules and grass fire on the product's pack (#10293)
+        run: dotnet run --project tests/Chemistry -c Release
       - name: Engine canary - the gameplay substrate the product will build on (links no product code)
         run: dotnet run --project tests/SubstrateProof -c Release
       - name: Check generated world-map persistence and new-world isolation
@@ -56,6 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The chemistry kernel (#10293) is the rusty-chemistry submodule.
+          submodules: true
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x

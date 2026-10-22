@@ -134,6 +134,9 @@ internal static class ProductIds
     internal const ulong LampFireBase = 0x300UL;
     internal const ulong DungeonFireBase = 0x400UL;
 
+    /// <summary>Burning ground the chemistry field shows (#10293): three retained emitters per fire slot.</summary>
+    internal const ulong ChemistryFireBase = 0x700UL;
+
     /// <summary>A chasm's waterfalls (#10094): their stream and spray emitters, two per fall.</summary>
     internal const ulong DungeonWaterfallBase = 0x480UL;
 

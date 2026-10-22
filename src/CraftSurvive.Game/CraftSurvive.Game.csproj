@@ -55,6 +55,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The chemistry kernel (#10293): Engine-free, from the rusty-chemistry submodule at its pinned commit. -->
+    <ProjectReference Include="../../external/rusty-chemistry/src/RustyChemistry/RustyChemistry.csproj" />
     <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]">
       <!-- The package is the default. The explicit Engine contributor
            override supplies the same assembly directly and must therefore

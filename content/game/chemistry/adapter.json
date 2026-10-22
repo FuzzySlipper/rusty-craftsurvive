@@ -1,0 +1,39 @@
+// How CraftSurvive's world feeds the chemistry field around the player (#10293), and what the field may write
+// back. Blocks not named take "default". Air below a water surface loads as "water".
+{
+  "pack": "chemistry/pack.json",
+  "blocks": {
+    "default": "stone",
+    "Air": "air",
+    "Grass": "grass",
+    "DryGrass": "dry-grass",
+    "Dirt": "soil",
+    "Sand": "soil",
+    "Gravel": "soil",
+    "Snow": "snow",
+    "Water": "water",
+    "Log": "wood",
+    "Planks": "wood",
+    "TreeCore": "wood"
+  },
+  "water": "water",
+  // A cell that becomes one of these materials is written into the world as this block, but only while the
+  // world still holds one of the blocks it came from there (a player's edit since then wins).
+  "writeBack": [
+    { "material": "burnt-ground", "block": "Dirt", "over": ["Grass", "DryGrass"] }
+  ],
+  // Each written cell permanently takes one of the terrain overlay's 65,536 entries. Fire writes only while the
+  // overlay keeps this many free for the player's own edits. Writes are gathered and applied together every so
+  // many seconds, at most this many cells at once, since each edit also refreshes residency and presentation.
+  "budget": { "keepFreeEntries": 32768, "cellsPerWrite": 256, "writeSeconds": 1 },
+  // The field: chunk columns this far around the player's, the chunk holding each column's surface and the
+  // one above it, loading at most this many chunks an update. Beside a burning column the field reaches this
+  // much further, so a fire carries on past the window; beyond it, it stops at the field's edge.
+  "field": { "reachChunks": 1, "burningReachChunks": 2, "loadsPerUpdate": 2, "stepSeconds": 0.1, "stepsPerUpdate": 2 },
+  // The weather as ambient: air heat between warm and bitter by the Cold channel; Wind along the flow carries
+  // heat and smoke at up to this many cells a second; Precipitation scales rain's wetting.
+  "ambient": { "warmHeat": 22, "coldHeat": -12, "windCellsPerSecond": 0.8, "refreshSeconds": 2 },
+  // Burning cells are shown as fires: at most this many, each standing for the burning cells in a square
+  // this many cells across.
+  "fires": { "materials": ["burning-grass"], "slots": 12, "clusterCells": 4 }
+}

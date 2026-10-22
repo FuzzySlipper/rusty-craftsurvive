@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Rusty.Engine" Version="[$(RustyEnginePackageVersion)]" />
+    <!-- The chemistry adapter's rules (#10293) are Engine-free: block mapping, write-back and its budget, the
+         weather as ambient, the field's window and fire places. This lane links them with the kernel and the
+         product's own pack, so the fire's behaviour is checked without a host. -->
+    <ProjectReference Include="../../external/rusty-chemistry/src/RustyChemistry/RustyChemistry.csproj" />
+    <Compile Include="$(ProductModules)Chemistry/ChemistrySettings.cs" LinkBase="Product/Chemistry" />
+    <Compile Include="$(ProductModules)Chemistry/ChemistryRules.cs" LinkBase="Product/Chemistry" />
+    <Compile Include="$(ProductModules)Content/BlockId.cs" LinkBase="Product/Content" />
+    <EmbeddedResource Include="../../content/game/chemistry/adapter.json" LogicalName="Chemistry.adapter.json" />
+    <EmbeddedResource Include="../../content/game/chemistry/pack.json" LogicalName="Chemistry.pack.json" />
+  </ItemGroup>
+</Project>

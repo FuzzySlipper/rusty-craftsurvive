@@ -1,0 +1,3 @@
+[submodule "external/rusty-chemistry"]
+	path = external/rusty-chemistry
+	url = https://github.com/FuzzySlipper/rusty-chemistry.git

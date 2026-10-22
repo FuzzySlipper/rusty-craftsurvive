@@ -76,9 +76,11 @@ pnpm install --frozen-lockfile
 The Engine's `rusty` command installs and runs the pinned pair. Get it once
 with the Engine bootstrap
 (`curl -fsSL https://raw.githubusercontent.com/FuzzySlipper/rusty-engine/main/scripts/install-rusty.sh | bash`),
-then install the pin and start a standalone development session:
+then fetch the chemistry kernel (the `external/rusty-chemistry` submodule), install the pin and start a
+standalone development session:
 
 ```bash
+git submodule update --init
 rusty install
 rusty dev \
   --project ./src/CraftSurvive.Game/CraftSurvive.Game.csproj \

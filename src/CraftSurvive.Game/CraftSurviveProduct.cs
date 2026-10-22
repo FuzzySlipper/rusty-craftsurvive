@@ -3,6 +3,7 @@ using CraftSurvive.Game.Modules.WorldGen;
 using Rusty.Engine.Debugging;
 using CraftSurvive.Game.Modules.Building;
 using CraftSurvive.Game.Modules.Characters;
+using CraftSurvive.Game.Modules.Chemistry;
 using CraftSurvive.Game.Modules.Actions;
 using CraftSurvive.Game.Modules.Audio;
 using CraftSurvive.Game.Modules.Creatures;
@@ -73,6 +74,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
     private SnowModule snow = null!;
     /// <summary>Breath and frost in the cold (#10068).</summary>
     private ColdModule cold = null!;
+    /// <summary>Heat, moisture, smoke and fuel in the cells around the player: grass fire and the weather acting on it (#10293).</summary>
+    private ChemistryModule chemistry = null!;
     /// <summary>Footprints in the snow (#10068).</summary>
     private SnowTracks tracks = null!;
 
@@ -200,6 +203,9 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             () => !player.InSeparateSpace && !player.HeadSubmerged && !weather.Exposure.Sheltered,
             () => creatures.AwakeWithin(player.WorldPosition, ColdModule.CreatureBreathMetres), sky.Frost);
 
+        chemistry = new ChemistryModule(context.Engine, context.Content, terrain, weather, frame, () => player.WorldPosition,
+            () => player.InSeparateSpace);
+
         tracks = new SnowTracks(context.Engine, frame, snow.Cover, () => weather.Hours,
             () => (player.WorldFeetPosition, player.Grounded, !player.InSeparateSpace && !player.HeadSubmerged),
             () => creatures.AwakeWithin(player.WorldPosition, SnowTracks.CreatureMetres));
@@ -222,7 +228,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
                 PlaceStands = at => terrain.PlaceStands(at),
             },
         };
-        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, feedback, cold, tracks, horizon];
+        gameplay = [conditions, weather, snow, riverStage, dungeons, survival, creatures, discovery, inventory, blast, build, pieces, entityStore, lamps, chemistry, feedback, cold, tracks, horizon];
         CreateTowns();
         styleTest = new CharacterStyleTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition);
         placeStudy = new PlaceStudyTest(context.Engine, context.Content, frame, (x, z) => terrain.GroundAt(x, z), () => player.WorldFeetPosition, terrain.Moss);
@@ -348,6 +354,8 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         RequireRegistration(registrar.Register(new InventoryDebugModule(() => Owner(inventory))));
         RequireRegistration(registrar.Register(new DungeonDebugModule(() => Owner(dungeons))));
         RequireRegistration(registrar.Register(new FeedbackDebugModule(() => Owner(feedback))));
+        RequireRegistration(registrar.Register(new ChemistryDebugModule(() => Owner(chemistry),
+            () => { System.Numerics.Vector3 at = Owner(player).WorldPosition; return (at.X, at.Z); })));
         RequireRegistration(registrar.Register(CraftPlaytest.Create(() => Owner(player))));
     }
 
