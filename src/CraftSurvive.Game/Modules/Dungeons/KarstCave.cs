@@ -2023,6 +2023,151 @@ internal static class KarstCave
     }
 
     /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "funnel garden - a community"): how
+    /// many funnel gardens the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyFunnelGardens { get; set; }
+
+    // Funnel gardens: on the floor under a sink (the shaft that dust and drip fall down), found within FunnelDrop of it, out
+    // to FunnelRadius; keystones (giants, where there is room above, then tall funnels) nearest the fall, small funnels and
+    // unfurled elders further out, debris patches between, drinkers at the large funnels' feet. A piece's footprint (its cup
+    // overhangs the others' little) and the room it needs above.
+    private const float FunnelDrop = 40f, FunnelRadius = 12f, FunnelStep = 0.8f, FunnelRise = 3f, FunnelKeystoneReach = 0.4f, FunnelSmallReach = 0.8f;
+    private const float FunnelDensest = 0.5f, UnfurledShare = 0.35f, DebrisShare = 0.25f, DrinkerOffset = 1.1f, FunnelRouteClear = 1f;
+    private const int MostFunnelPieces = 500;
+
+    /// <summary>How far under the ground a funnel garden's shaft is entered (metres); its floor lies at least twice that under it.</summary>
+    private const float FunnelUnderGround = 4f;
+
+    private static (float Radius, float Height) FunnelFootprint(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.FunnelGiant => (2.2f, 7f),
+        OvergrowthKind.FunnelTall => (1.3f, 4f),
+        OvergrowthKind.FunnelSmall => (0.65f, 2f),
+        OvergrowthKind.FunnelUnfurled => (1.6f, 1.2f),
+        _ => (0.9f, 0.6f),
+    };
+
+    /// <summary>
+    /// Funnel gardens (#10096): under a cave's sinks, where dust and drip fall from the surface, living catch-basins stand
+    /// open to what falls - the great funnels nearest the fall, smaller ones and old unfurled elders (their debris become
+    /// gardens) further out, debris patches between, and at the large funnels' feet the spill of their overflow with its
+    /// ring of drinker tubes. Returns each garden's centre and radius.
+    /// </summary>
+    private static List<(Vector3 Centre, float Radius)> FunnelGardens(float[] open, ulong seed, int count, Vector3[] sinks, List<OvergrowthPlacement> growth,
+        IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        // The ground over a place: the plateau over a cave open to the sky, else the top of the space.
+        float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        List<(Vector3 Floor, int Area)> candidates = [];
+        foreach (Vector3 sink in sinks)
+        {
+            // Down the shaft from the sink to the first floor under it, starting below the ground (over a cave open to the
+            // sky, the sink's top is the open air above the plateau), and a cave floor well under the ground.
+            Vector3 p = new(sink.X, MathF.Min(sink.Y, Surface(sink.X, sink.Z) - FunnelUnderGround), sink.Z);
+            while (p.Y > 2f && Open(p) <= 0f && sink.Y - p.Y < FunnelDrop) p.Y -= 0.5f;
+            if (Open(p) <= 0f)
+            {
+                continue;
+            }
+
+            Vector3 floor = Floor(open, p);
+            if (Surface(floor.X, floor.Z) - floor.Y < FunnelUnderGround * 2f)
+            {
+                continue;
+            }
+
+            if (taken.Any(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(floor.X, floor.Z)) < t.Radius + FunnelRadius && MathF.Abs(t.At.Y - floor.Y) < 8f))
+            {
+                continue;
+            }
+
+            int area = 0;
+            for (float dz = -FunnelRadius; dz <= FunnelRadius; dz += 2f)
+                for (float dx = -FunnelRadius; dx <= FunnelRadius; dx += 2f)
+                {
+                    Vector3 q = new(floor.X + dx, floor.Y + 1f, floor.Z + dz);
+                    area += (dx * dx) + (dz * dz) <= FunnelRadius * FunnelRadius && Open(q) > 0f && MathF.Abs(Floor(open, q).Y - floor.Y) < FunnelRise ? 1 : 0;
+                }
+
+            candidates.Add((floor, area));
+        }
+
+        List<(Vector3 Centre, float Radius)> gardens = [];
+        foreach ((Vector3 centre, int _) in candidates.OrderByDescending(c => c.Area).Take(count))
+        {
+            gardens.Add((centre, FunnelRadius));
+            List<(Vector3 At, float Radius)> placed = [];
+            for (int pass = 0; pass < 3; pass++)
+            for (float dz = -FunnelRadius; dz <= FunnelRadius; dz += FunnelStep)
+                for (float dx = -FunnelRadius; dx <= FunnelRadius; dx += FunnelStep)
+                {
+                    float d = MathF.Sqrt((dx * dx) + (dz * dz));
+                    if (d > FunnelRadius || placed.Count >= MostFunnelPieces)
+                    {
+                        continue;
+                    }
+
+                    int hx = (int)((centre.X + dx) * 4f), hz = (int)((centre.Z + dz) * 4f);
+                    float roll = NaturalCavern.Hash(seed ^ (0xF001UL + (ulong)(pass * 0x10B)), hx, (int)centre.Y, hz), pick = NaturalCavern.Hash(seed ^ (0xF002UL + (ulong)(pass * 0x10D)), hz, (int)centre.Y, hx);
+                    Vector3 probe = new(centre.X + dx + ((pick - 0.5f) * FunnelStep * 0.6f), centre.Y + 1.5f, centre.Z + dz);
+                    if (Open(probe) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 foot = Floor(open, probe);
+                    float reach = d / FunnelRadius;
+                    if (MathF.Abs(foot.Y - centre.Y) > FunnelRise || Surface(foot.X, foot.Z) - foot.Y < FunnelUnderGround)
+                    {
+                        continue;
+                    }
+
+                    OvergrowthKind? choice = pass switch
+                    {
+                        0 => reach < FunnelKeystoneReach && roll < FunnelDensest * (1f - (reach / FunnelKeystoneReach) * 0.5f)
+                            ? (Open(foot + new Vector3(0f, FunnelFootprint(OvergrowthKind.FunnelGiant).Height, 0f)) > 0f && pick < 0.45f ? OvergrowthKind.FunnelGiant : OvergrowthKind.FunnelTall)
+                            : null,
+                        1 => reach < FunnelSmallReach && roll < FunnelDensest * (1f - reach)
+                            ? (pick < UnfurledShare || reach > 0.5f && pick < UnfurledShare * 1.6f ? OvergrowthKind.FunnelUnfurled : OvergrowthKind.FunnelSmall) : null,
+                        _ => roll < DebrisShare * (1f - (reach * 0.6f)) ? OvergrowthKind.FunnelDebris : null,
+                    };
+                    if (choice is not OvergrowthKind kind)
+                    {
+                        continue;
+                    }
+
+                    (float radius, float height) = FunnelFootprint(kind);
+                    bool stands = kind is OvergrowthKind.FunnelGiant or OvergrowthKind.FunnelTall;
+                    if (Open(foot + new Vector3(0f, height, 0f)) <= 0f || Open(foot + new Vector3(0f, height * 0.5f, 0f)) <= 0f
+                        || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
+                        || (stands && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < (radius * 0.4f) + FunnelRouteClear))
+                        || (!stands && !Footed(open, foot, radius * 0.7f)))
+                    {
+                        continue;
+                    }
+
+                    placed.Add((foot, radius));
+                    float a = MathF.Tau * pick;
+                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, 0.1f, 0f), new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), 0.85f + (0.3f * roll), pick));
+                    if (stands)
+                    {
+                        // Its overflow at its foot, the drinkers' ring round the spill, on the side the floor allows.
+                        Vector3 side = new(MathF.Cos(a * 1.7f), 0f, MathF.Sin(a * 1.7f));
+                        Vector3 spill = Floor(open, foot + (side * radius * DrinkerOffset * 0.6f) + new Vector3(0f, 1f, 0f));
+                        if (MathF.Abs(spill.Y - foot.Y) < 0.6f && Footed(open, spill, 0.7f))
+                        {
+                            growth.Add(new OvergrowthPlacement(OvergrowthKind.FunnelDrinkers, spill - new Vector3(0f, MatSink, 0f), side, 0.9f + (0.3f * pick), roll));
+                        }
+                    }
+                }
+        }
+
+        return gardens;
+    }
+
+    /// <summary>
     /// Whether a flat piece (a mat, litter) of this radius lies on floor all round its foot - floor within FootedRise of it
     /// at FootedReach of its radius each way - so it never overhangs a ledge's edge, its flat underside showing from below.
     /// </summary>
@@ -2579,6 +2724,14 @@ internal static class KarstCave
             bool UnderGrove(Vector3 p) => groves.Any(g => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(g.Roof.X, g.Roof.Z)) < g.Radius + GroveEdge && p.Y <= g.Roof.Y + GroveRoofSpread);
             darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && UnderGrove(g.At));
             ecology.RemoveAll(e => e.Kind is EcologyKind.GlowFungi or EcologyKind.RootCurtain && UnderGrove(e.At));
+        }
+
+        if (StudyFunnelGardens > 0)
+        {
+            List<(Vector3 Centre, float Radius)> gardens = FunnelGardens(open, seed, StudyFunnelGardens, sinks, darkGrowth, mainRoute, orchards, skyOpen);
+            // A garden is its own community: the dark's plain mushrooms give way inside it.
+            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                && gardens.Any(f => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(f.Centre.X, f.Centre.Z)) < f.Radius + 1f && MathF.Abs(g.At.Y - f.Centre.Y) < FunnelRise + 2f));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];

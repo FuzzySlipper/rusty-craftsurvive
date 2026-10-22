@@ -43,7 +43,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger ? GiantTextureTexels : TextureTexels;
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant ? GiantTextureTexels : TextureTexels;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels)))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
@@ -117,6 +117,12 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.GroveLitter => "models/dungeon-overgrowth/grove-litter.prop-mesh.json",
         OvergrowthKind.GroveCatchers => "models/dungeon-overgrowth/grove-catchers.prop-mesh.json",
         OvergrowthKind.GroveMound => "models/dungeon-overgrowth/grove-mound.prop-mesh.json",
+        OvergrowthKind.FunnelGiant => "models/dungeon-overgrowth/funnel-giant.prop-mesh.json",
+        OvergrowthKind.FunnelTall => "models/dungeon-overgrowth/funnel-tall.prop-mesh.json",
+        OvergrowthKind.FunnelSmall => "models/dungeon-overgrowth/funnel-small.prop-mesh.json",
+        OvergrowthKind.FunnelUnfurled => "models/dungeon-overgrowth/funnel-unfurled.prop-mesh.json",
+        OvergrowthKind.FunnelDrinkers => "models/dungeon-overgrowth/funnel-drinkers.prop-mesh.json",
+        OvergrowthKind.FunnelDebris => "models/dungeon-overgrowth/funnel-debris.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -209,6 +215,9 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.VentGiant => [(0f, 0f, 1.1f, 10f)],
         OvergrowthKind.VentGiantCluster => [(0f, 0f, 1.15f, 11f), (1.6f, 0.8f, 0.95f, 8f), (-1.1f, 1.4f, 0.78f, 6f)],
         OvergrowthKind.SeepChimney => [(0f, 0f, 0.45f, 2.6f), (0.55f, 0.25f, 0.32f, 1.6f), (-0.35f, 0.5f, 0.27f, 1f)],
+        // A funnel collides as its stem, up to where its cup flares out over the player's head.
+        OvergrowthKind.FunnelGiant => [(0f, 0f, 0.85f, 3f)],
+        OvergrowthKind.FunnelTall => [(0f, 0f, 0.5f, 2f)],
         _ => [],
     };
 

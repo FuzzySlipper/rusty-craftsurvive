@@ -76,6 +76,24 @@ internal enum OvergrowthKind
 
     /// <summary>A low scavenger mound of gathered litter.</summary>
     GroveMound,
+
+    /// <summary>The funnel garden's keystone (#10096): a living catch-basin 6 m tall, a fluted stem flaring into a gilled cup.</summary>
+    FunnelGiant,
+
+    /// <summary>A funnel 3.5 m tall.</summary>
+    FunnelTall,
+
+    /// <summary>A funnel 1.6 m tall.</summary>
+    FunnelSmall,
+
+    /// <summary>An old funnel split open into drooping petals, its gathered debris a small garden.</summary>
+    FunnelUnfurled,
+
+    /// <summary>A wet spill stain at a funnel's foot with a ring of pale drinker tubes in it.</summary>
+    FunnelDrinkers,
+
+    /// <summary>A patch of the debris garden: rot, moss cushions, pale sprouts and tiny cups.</summary>
+    FunnelDebris,
 }
 
 /// <summary>
@@ -97,7 +115,11 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
 
     /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
-    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind);
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind);
+
+    /// <summary>Whether a kind is the funnel garden's (an underground ecology's, under a shaft).</summary>
+    internal static bool Funnel(OvergrowthKind kind) => kind is OvergrowthKind.FunnelGiant or OvergrowthKind.FunnelTall or OvergrowthKind.FunnelSmall
+        or OvergrowthKind.FunnelUnfurled or OvergrowthKind.FunnelDrinkers or OvergrowthKind.FunnelDebris;
 
     /// <summary>Whether a kind is placed only turned about its up - one standing on a floor, or (the grove's) hanging from a ceiling (on the plane y = 0) rather than growing on a wall.</summary>
     internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Ecology(kind);
