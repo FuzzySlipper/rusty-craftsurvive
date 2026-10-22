@@ -107,6 +107,9 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.VentBed => "models/dungeon-overgrowth/vent-bed.prop-mesh.json",
         OvergrowthKind.VentGiant => "models/dungeon-overgrowth/vent-giant.prop-mesh.json",
         OvergrowthKind.VentGiantCluster => "models/dungeon-overgrowth/vent-giant-cluster.prop-mesh.json",
+        OvergrowthKind.SeepChimney => "models/dungeon-overgrowth/seep-chimney.prop-mesh.json",
+        OvergrowthKind.SeepShells => "models/dungeon-overgrowth/seep-shells.prop-mesh.json",
+        OvergrowthKind.SeepMat => "models/dungeon-overgrowth/seep-mat.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -192,6 +195,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.VentCluster => [(0f, 0f, 0.33f, 3f), (0.42f, 0.2f, 0.27f, 2.1f), (-0.3f, 0.38f, 0.22f, 1.6f), (0.1f, -0.42f, 0.2f, 1.4f)],
         OvergrowthKind.VentGiant => [(0f, 0f, 1.1f, 10f)],
         OvergrowthKind.VentGiantCluster => [(0f, 0f, 1.15f, 11f), (1.6f, 0.8f, 0.95f, 8f), (-1.1f, 1.4f, 0.78f, 6f)],
+        OvergrowthKind.SeepChimney => [(0f, 0f, 0.45f, 2.6f), (0.55f, 0.25f, 0.32f, 1.6f), (-0.35f, 0.5f, 0.27f, 1f)],
         _ => [],
     };
 

@@ -46,6 +46,15 @@ internal enum OvergrowthKind
 
     /// <summary>Three giant vent tubes fused at their feet, 6 to 11 m.</summary>
     VentGiantCluster,
+
+    /// <summary>The vent orchard's mineral chimneys over its seep, 1 to 2.6 m (the seep's glow and light at their top).</summary>
+    SeepChimney,
+
+    /// <summary>A bed of mussels and clams packed round the vent tubes' feet.</summary>
+    SeepShells,
+
+    /// <summary>A pale bacterial mat, the vent orchard's outer ground.</summary>
+    SeepMat,
 }
 
 /// <summary>
@@ -60,7 +69,7 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
 {
     /// <summary>Whether a kind is the vent orchard's (an underground ecology's, grown round a cave's seeps) rather than overgrowth on the kit.</summary>
     internal static bool Vent(OvergrowthKind kind) => kind is OvergrowthKind.VentTall or OvergrowthKind.VentCluster or OvergrowthKind.VentShort or OvergrowthKind.VentBed
-        or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster;
+        or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.SeepChimney or OvergrowthKind.SeepShells or OvergrowthKind.SeepMat;
 
     /// <summary>Whether a kind stands on a floor (on the plane y = 0) rather than growing on a wall.</summary>
     internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Vent(kind);

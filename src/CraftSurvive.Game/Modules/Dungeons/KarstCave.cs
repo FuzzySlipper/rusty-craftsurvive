@@ -1640,7 +1640,20 @@ internal static class KarstCave
     // floor this share of its radius out from the middle (clear of a centrepiece there).
     private const float HallSeepReach = 0.6f, HallSeepOffset = 0.35f;
     private const float AreaStep = 1.5f, FootprintKept = 0.75f;
-    private const float OrchardBand = 3.2f, OrchardDensest = 0.9f, OrchardBandDepth = 0.35f, TallReach = 0.35f, ShortReach = 0.7f;
+    private const float OrchardBand = 3.2f, OrchardBandDepth = 0.35f;
+
+    // The orchard's zones, as shares of its radius: the tubes out to TubeReach (the taller nearer than TallReach), this
+    // likely at the chimneys and thinning outward, a few short tubes and beds out to OuterReach at this share; shell beds
+    // from beyond the chimneys out to ShellReach; mats from MatFrom to the edge, likeliest midway, overlapping closely (into one mat, not spots).
+    private const float TubeDensest = 0.55f, TubeReach = 0.6f, TallReach = 0.3f, OuterReach = 0.9f, OuterShare = 0.12f;
+    private const float ChimneyReach = 0.08f, ShellReach = 0.65f, ShellDensest = 0.55f, MatFrom = 0.3f, MatDensest = 0.75f, MatFloor = 0.1f, MatOverlap = 0.35f, MatSink = 0.03f;
+
+    // The chimneys: their footprint (metres) and the top of the tallest (metres; the seep's glow and light hang there), and
+    // how much larger they grow in a large cave.
+    /// <summary>How far past an orchard's radius the dark's other growth gives way (metres).</summary>
+    private const float OrchardEdge = 1f;
+
+    private const float ChimneyFootprint = 1.1f, ChimneyTop = 2.6f, LargeChimney = 1.5f;
     private const int MostOrchardPieces = 1200;
 
     /// <summary>A vent piece's footprint (its radius, metres) and the room it needs above (metres).</summary>
@@ -1651,16 +1664,21 @@ internal static class KarstCave
         OvergrowthKind.VentShort => (0.28f, 1.4f),
         OvergrowthKind.VentGiant => (1.6f, 13f),
         OvergrowthKind.VentGiantCluster => (2.4f, 13.5f),
+        OvergrowthKind.SeepChimney => (1.1f, 2.8f),
+        OvergrowthKind.SeepShells => (0.55f, 0.4f),
+        OvergrowthKind.SeepMat => (1.2f, 0.4f),
         _ => (0.6f, 0.8f),
     };
 
     /// <summary>
-    /// Vent orchards (#10096): the cave's strongest still drips are seeps of warm, nutrient-bearing water (a glowing crust,
-    /// the orchard's light), and round each the ivory tubes grow in bands - tall tubes and fused clusters nearest, short
-    /// tubes further out, beds of small tubes at the edge - thinning with distance.
+    /// Vent orchards (#10096; owner, 2026-10-21: an ecology is several elements working together): the cave's strongest still
+    /// drips are seeps of warm, nutrient-bearing water welling out of mineral chimneys (their glowing tops the orchard's light).
+    /// Round each, as round a deep-sea vent, its community in zones: the ivory tubes nearest (tall tubes, fused clusters and
+    /// in a large cave giants), mussel and clam beds packed between their feet, pale bacterial mats spreading over the outer
+    /// ground, a few short tubes and beds out among the mats. Returns each orchard's seep and radius.
     /// </summary>
-    private static void VentOrchards(float[] open, float[] drip, float[] flow, ulong seed, int count, List<EcologyPlacement> ecology, List<OvergrowthPlacement> growth,
-        IReadOnlyList<Vector3> route, bool skyOpen, Hall? hall)
+    private static List<(Vector3 Seep, float Radius)> VentOrchards(float[] open, float[] drip, float[] flow, ulong seed, int count, List<EcologyPlacement> ecology,
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, bool skyOpen, Hall? hall)
     {
         // The ground over a place: the plateau over a cave open to the sky, else the top of the space (as the roots read it).
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -1727,8 +1745,9 @@ internal static class KarstCave
             }
         }
 
-        List<(Vector3 At, float Radius)> placed = [];
-        bool Trunk(OvergrowthKind kind) => kind is OvergrowthKind.VentTall or OvergrowthKind.VentCluster or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster;
+        List<(Vector3 At, float Radius)> placed = [], orchards = [];
+        bool Trunk(OvergrowthKind kind) => kind is OvergrowthKind.VentTall or OvergrowthKind.VentCluster or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster
+            or OvergrowthKind.SeepChimney;
         foreach (Vector3 seep in chosen)
         {
             // A large cave under a roof: room above the seep, and the ground (the plateau over a cave open to the sky) well above
@@ -1736,40 +1755,47 @@ internal static class KarstCave
             bool large = Open(seep + new Vector3(0f, GiantRoom, 0f)) > 0f && Open(seep + new Vector3(0f, GiantRoom * 0.6f, 0f)) > 0f
                 && Surface(seep.X, seep.Z) - seep.Y > GiantRoom + GiantUnderGround;
             float orchardRadius = large ? GiantOrchardRadius : OrchardRadius;
-            ecology.Add(new EcologyPlacement(EcologyKind.VentSeep, seep, Vector3.UnitY, 1f, (uint)(NaturalCavern.Hash(seed ^ 0x5EE9UL, (int)seep.X, (int)seep.Y, (int)seep.Z) * uint.MaxValue)));
-            placed.Add((seep, 0.9f));
-            // The giants first, so the smaller tubes grow round them rather than taking their ground.
-            for (int pass = 0; pass < 2; pass++)
+            orchards.Add((seep, orchardRadius));
+
+            // The chimneys over the seep, its warm water welling out of their tops: the orchard's glow and light.
+            float chimneyScale = large ? LargeChimney : 1f;
+            float pickC = NaturalCavern.Hash(seed ^ 0x5EE9UL, (int)seep.X, (int)seep.Y, (int)seep.Z);
+            growth.Add(new OvergrowthPlacement(OvergrowthKind.SeepChimney, seep - new Vector3(0f, 0.1f, 0f), new Vector3(MathF.Sin(MathF.Tau * pickC), 0f, MathF.Cos(MathF.Tau * pickC)),
+                chimneyScale, 0.5f));
+            ecology.Add(new EcologyPlacement(EcologyKind.VentSeep, seep + new Vector3(0f, (ChimneyTop * chimneyScale) - 0.1f, 0f), Vector3.UnitY, 1f, (uint)(pickC * uint.MaxValue)));
+            placed.Add((seep, ChimneyFootprint * chimneyScale));
+            List<(Vector3 At, float Radius)> mats = [];
+
+            // In passes, each zone's community taking its ground in turn: the giants, the tubes, the shell beds packed between
+            // the tubes' feet, then the mats spread over the outer ground (under what stands on it).
+            for (int pass = 0; pass < 4; pass++)
             for (float dz = -orchardRadius; dz <= orchardRadius; dz += OrchardStep)
                 for (float dx = -orchardRadius; dx <= orchardRadius; dx += OrchardStep)
                 {
                     float d = MathF.Sqrt((dx * dx) + (dz * dz));
-                    if (d > orchardRadius || placed.Count - chosen.Count >= MostOrchardPieces)
+                    if (d > orchardRadius || growth.Count >= MostOrchardPieces * chosen.Count + 1000)
                     {
                         continue;
                     }
 
                     int hx = (int)((seep.X + dx) * 4f), hz = (int)((seep.Z + dz) * 4f);
-                    float roll = NaturalCavern.Hash(seed ^ 0x0E01UL, hx, (int)seep.Y, hz), pick = NaturalCavern.Hash(seed ^ 0x0E02UL, hx, (int)seep.Y, hz);
+                    float roll = NaturalCavern.Hash(seed ^ (0x0E01UL + (ulong)(pass * 0x101)), hx, (int)seep.Y, hz), pick = NaturalCavern.Hash(seed ^ (0x0E02UL + (ulong)(pass * 0x103)), hz, (int)seep.Y, hx);
                     float reach = d / orchardRadius;
-                    float chance = OrchardDensest * MathF.Pow(1f - reach, 0.6f) * (1f - OrchardBandDepth + (OrchardBandDepth * MathF.Cos(MathF.Tau * d / OrchardBand)));
-                    if (roll >= chance)
+                    float band = 1f - OrchardBandDepth + (OrchardBandDepth * MathF.Cos(MathF.Tau * d / OrchardBand));
+                    OvergrowthKind? choice = pass switch
                     {
-                        continue;
-                    }
-
-                    if (Ground(seep, dx + ((pick - 0.5f) * OrchardStep * 0.6f), dz) is not Vector3 foot)
-                    {
-                        continue;
-                    }
-
-                    OvergrowthKind kind = large && reach < GiantReach && roll < GiantShare * chance
-                        ? (NaturalCavern.Hash(seed ^ 0x61A7C0UL, hz, (int)seep.Y, hx) < GiantClusterShare ? OvergrowthKind.VentGiantCluster : OvergrowthKind.VentGiant)
-                        : reach < TallReach ? (pick < 0.3f ? OvergrowthKind.VentCluster : pick < 0.65f ? OvergrowthKind.VentTall : OvergrowthKind.VentShort)
-                        : reach < ShortReach ? (pick < 0.15f ? OvergrowthKind.VentTall : pick < 0.6f ? OvergrowthKind.VentShort : OvergrowthKind.VentBed)
-                        : (pick < 0.3f ? OvergrowthKind.VentShort : OvergrowthKind.VentBed);
-                    bool giant = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster;
-                    if (giant != (pass == 0))
+                        0 => large && reach < GiantReach && roll < GiantShare * TubeDensest
+                            ? (NaturalCavern.Hash(seed ^ 0x61A7C0UL, hz, (int)seep.Y, hx) < GiantClusterShare ? OvergrowthKind.VentGiantCluster : OvergrowthKind.VentGiant) : null,
+                        1 => reach < TubeReach
+                            ? (roll < TubeDensest * MathF.Pow(1f - (reach / TubeReach), 0.5f) * band
+                                ? (reach < TallReach ? (pick < 0.3f ? OvergrowthKind.VentCluster : pick < 0.75f ? OvergrowthKind.VentTall : OvergrowthKind.VentShort)
+                                    : (pick < 0.15f ? OvergrowthKind.VentTall : pick < 0.65f ? OvergrowthKind.VentShort : OvergrowthKind.VentBed))
+                                : null)
+                            : reach < OuterReach && roll < OuterShare ? (pick < 0.4f ? OvergrowthKind.VentShort : OvergrowthKind.VentBed) : null,
+                        2 => reach > ChimneyReach && reach < ShellReach && roll < ShellDensest * MathF.Pow(1f - (reach / ShellReach), 0.5f) ? OvergrowthKind.SeepShells : null,
+                        _ => reach > MatFrom && roll < MatDensest * MathF.Sin(MathF.PI * Math.Clamp((reach - MatFrom) / (1f - MatFrom), 0f, 1f)) + MatFloor ? OvergrowthKind.SeepMat : null,
+                    };
+                    if (choice is not OvergrowthKind kind || Ground(seep, dx + ((pick - 0.5f) * OrchardStep * 0.6f), dz) is not Vector3 foot)
                     {
                         continue;
                     }
@@ -1777,8 +1803,7 @@ internal static class KarstCave
                     (float radius, float height) = VentFootprint(kind);
                     if (kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster && Surface(foot.X, foot.Z) - foot.Y < height + GiantUnderGround)
                     {
-                        kind = OvergrowthKind.VentTall;
-                        (radius, height) = VentFootprint(kind);
+                        continue;
                     }
 
                     if (Trunk(kind) && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < radius + RouteClear))
@@ -1786,17 +1811,24 @@ internal static class KarstCave
                         continue;
                     }
 
-                    if (Open(foot + new Vector3(0f, height, 0f)) <= 0f || Open(foot + new Vector3(0f, height * 0.5f, 0f)) <= 0f || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept))
+                    // A mat lies under what stands on it, overlapping the next mat closely; anything else keeps its footprint.
+                    List<(Vector3 At, float Radius)> against = kind == OvergrowthKind.SeepMat ? mats : placed;
+                    float kept = kind == OvergrowthKind.SeepMat ? MatOverlap : FootprintKept;
+                    if (Open(foot + new Vector3(0f, height, 0f)) <= 0f || Open(foot + new Vector3(0f, height * 0.5f, 0f)) <= 0f
+                        || against.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * kept))
                     {
                         continue;
                     }
 
-                    placed.Add((foot, radius));
+                    against.Add((foot, radius));
                     float a = MathF.Tau * pick;
-                    // Sunk a little, so a foot on a slope does not stand clear of it.
-                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, 0.12f, 0f), new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), 0.8f + (0.45f * roll / chance), pick));
+                    // Sunk a little, so a foot on a slope does not stand clear of it (a mat only a little: it lies on the rock).
+                    float sink = kind == OvergrowthKind.SeepMat ? MatSink : 0.12f;
+                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, sink, 0f), new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), 0.8f + (0.45f * pick), pick));
                 }
         }
+
+        return orchards;
     }
 
     /// <summary>The floor under an open place: the first rock looking down.</summary>
@@ -2314,15 +2346,26 @@ internal static class KarstCave
 
         List<OvergrowthPlacement> darkGrowth = [];
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
+        List<(Vector3 Seep, float Radius)> orchards = [];
         if (StudyVentOrchards > 0)
         {
-            VentOrchards(open, drip, activeFlow, seed, StudyVentOrchards, ecology, darkGrowth, mainRoute, skyOpen, greatHall);
+            orchards = VentOrchards(open, drip, activeFlow, seed, StudyVentOrchards, ecology, darkGrowth, mainRoute, skyOpen, greatHall);
+            // An orchard is its own community: the dark's plain mushrooms and glow fungi give way inside it.
+            bool InOrchard(Vector3 p) => orchards.Any(o => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(o.Seep.X, o.Seep.Z)) < o.Radius + OrchardEdge && MathF.Abs(p.Y - o.Seep.Y) < OrchardRise + 2f);
+            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && InOrchard(g.At));
+            ecology.RemoveAll(e => e.Kind == EcologyKind.GlowFungi && InOrchard(e.At));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
         waterZones.AddRange(PerchedWater(open, routePaths, finalTable, waterZones));
         Luminous(waterZones, ecology, sinks, skyOpen, seed);
+        // A vent orchard whose seep lies under the water grows nothing (Generate drops its growth there), nor glows.
+        foreach ((Vector3 seepAt, float _) in orchards.Where(o => waterZones.Any(zone => zone.BedUnder(o.Seep) is not null && zone.Surface > o.Seep.Y)))
+        {
+            ecology.RemoveAll(e => e.Kind == EcologyKind.VentSeep && Vector2.Distance(new Vector2(e.At.X, e.At.Z), new Vector2(seepAt.X, seepAt.Z)) < 0.5f);
+        }
+
         if (greatHall is Hall builtHall)
         {
             ecology.AddRange(HallGrowths(open, builtHall, seed, random));
