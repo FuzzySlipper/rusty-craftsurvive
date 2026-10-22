@@ -19,6 +19,14 @@
 //   far down a surface may face and still hold moss (its normal's y).
 // product_map_a: the same texture as the material's base colour.
 //
+// SWAY (a keyword, #10096): the swaying overgrowth (the ribbons, the floor grass) moves in the cave's draft and parts
+// round the traveller. Its vertex colour's alpha is its sway weight (to_prop_mesh.py: 0 held still, 1 the freest - grass
+// by height, a ribbon down its strap); its moss is off, so the alpha carries no rising damp. Under SWAY:
+// material.parameters[2]: x the draft's reach at the freest, metres; y how near the traveller's body (metres, across) a
+//   swaying vertex is pushed back to; z how much a pushed vertex rises (a swung ribbon) or presses down (grass, below 0)
+//   per metre it is pushed.
+// material.parameters[3]: w the traveller's eye height above their feet, metres (the view's camera is their eye).
+//
 // Moss (#10092): the places' damp stain (surface-moss.wgsl) on the kit, from the same moss field, so a ruin underground
 // and one on the moors grow one pattern. The kit's grain is fixed below (its clump size and texels per metre: SurfaceMoss
 // .PlaceGrain, kept equal). The moisture is each placement's dampness from the dungeon's moisture volume, carried in its
@@ -29,6 +37,10 @@
 #import rusty::types::Surface
 #import rusty::material::{material, product_map_a, product_sampler_a}
 #import rusty::shade::standard_shade
+#ifdef SWAY
+#import rusty::types::Vertex
+#import rusty::view::frame
+#endif
 
 // A facet is this many screen pixels across at least before it has faded away.
 const PIXELS_PER_FACET: f32 = 2.5;
@@ -194,3 +206,56 @@ fn shade(surface: Surface) -> vec4<f32> {
 
     return standard_shade(s);
 }
+
+#ifdef SWAY
+// The draft: a slow swing and a slower sway across it, each strap phased by where it hangs (a ribbon's x and z hardly change
+// down its length), the swing lagging down the strap so it curves as cloth does rather than turning as a stick.
+const DRAFT_RATE: f32 = 0.55;
+const DRAFT_RATE_2: f32 = 0.31;
+const DRAFT_LAG: f32 = 1.6;
+const DRAFT_ACROSS: f32 = 0.45;
+// The draft's way through the cave (any: underground it has none of its own; only its steadiness reads).
+const DRAFT_WAY: vec2<f32> = vec2<f32>(0.8, 0.6);
+// The traveller's body: from a little below their feet to a little over their eye.
+const BODY_BELOW: f32 = 0.3;
+const BODY_ABOVE: f32 = 0.3;
+// A vertex is pushed back this much more than its sway weight alone, so a strap gives way well up its length.
+const PUSH_GAIN: f32 = 2.5;
+// Near the body's axis the push turns smoothly through it, over this distance across, metres.
+const PUSH_SOFT: f32 = 0.15;
+// Pressed growth (grass) is pushed no further than this share of its height above the traveller's feet, so a blade
+// bows over rather than stretching.
+const PRESS_MOST: f32 = 0.6;
+
+fn displace(vertex: Vertex) -> vec3<f32> {
+    let weight = vertex.color.a;
+    if weight <= 0.0 {
+        return vertex.world_position;
+    }
+    let sway = material.parameters[2];
+    let p = vertex.world_position;
+    let t = frame.time.x;
+    let place = dot(p.xz, vec2<f32>(0.37, 0.61));
+    let swing = 0.6 * sin(t * DRAFT_RATE + place - weight * DRAFT_LAG) + 0.4 * sin(t * DRAFT_RATE * 1.9 + place * 1.7 - weight * DRAFT_LAG * 1.5);
+    let across = sin(t * DRAFT_RATE_2 + place * 2.3 - weight * DRAFT_LAG);
+    let way = vec3<f32>(DRAFT_WAY.x, 0.0, DRAFT_WAY.y);
+    let side = vec3<f32>(-DRAFT_WAY.y, 0.0, DRAFT_WAY.x);
+    var moved = p + (way * swing + side * across * DRAFT_ACROSS) * sway.x * pow(weight, 1.3);
+
+    // Parting round the traveller: within their reach and between their feet and a little over their eye, a vertex is
+    // pushed straight out from their body's axis, back toward its edge, as much as its weight lets it.
+    let eye = frame.camera.xyz;
+    let feet = eye.y - material.parameters[3].w;
+    let off = moved.xz - eye.xz;
+    let gap = length(off);
+    let within = smoothstep(feet - BODY_BELOW, feet, moved.y) * (1.0 - smoothstep(eye.y, eye.y + BODY_ABOVE, moved.y));
+    var push = max(sway.y - gap, 0.0) * within * min(weight * PUSH_GAIN, 1.0);
+    if sway.z < 0.0 {
+        push = min(push, max(moved.y - feet, 0.0) * PRESS_MOST);
+    }
+    // Within PUSH_SOFT of the axis the push fades to nothing at it, so a blade the axis passes through is not torn apart.
+    let away = off / max(gap, PUSH_SOFT);
+    moved += vec3<f32>(away.x * push, push * sway.z, away.y * push);
+    return moved;
+}
+#endif

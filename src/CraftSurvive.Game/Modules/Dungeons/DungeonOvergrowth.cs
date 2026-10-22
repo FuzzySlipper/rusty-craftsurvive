@@ -1,5 +1,6 @@
 using System.Numerics;
 using CraftSurvive.Game.Modules.Content;
+using CraftSurvive.Game.Modules.Player;
 using CraftSurvive.Game.Modules.World;
 using Rusty.Engine;
 
@@ -15,6 +16,27 @@ internal sealed class DungeonOvergrowth : IDisposable
 {
     private const string ShaderPath = "shaders/kit-stone.wgsl";
 
+    /// <summary>The kit stone shader's keyword for the swaying overgrowth (its displace stage).</summary>
+    private const string SwayKeyword = "SWAY";
+
+    /// <summary>
+    /// How a swaying kind moves (kit-stone.wgsl's SWAY): the draft's reach at its freest vertex, how near the traveller's
+    /// body a vertex is pushed back to, and how much a pushed vertex rises (above 0) or presses down (below 0) per metre
+    /// it is pushed, all metres. The ribbons swing slowly through a hand's breadth and part round the traveller, rising a
+    /// little as they swing aside; the grass stirs and bows under the feet.
+    /// </summary>
+    private readonly record struct Sway(float Draft, float Reach, float Lift);
+
+    private static readonly Sway Ribbons = new(0.16f, 0.55f, 0.3f);
+    private static readonly Sway Grass = new(0.03f, 0.4f, -0.4f);
+
+    private static Sway? Sways(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain => Ribbons,
+        OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip => Grass,
+        _ => null,
+    };
+
     /// <summary>Wet leaves are a little less matte than the stone.</summary>
     private const float Roughness = 0.75f;
 
@@ -29,6 +51,7 @@ internal sealed class DungeonOvergrowth : IDisposable
 
     private readonly IEngineContext engine;
     private readonly RenderResource shader;
+    private RenderResource? swayShader;
     private readonly List<RenderResource> textures = [];
     private readonly List<Material> materials = [];
     private readonly Dictionary<OvergrowthKind, (MeshResource Mesh, Appearance Look)> kinds = [];
@@ -45,7 +68,7 @@ internal sealed class DungeonOvergrowth : IDisposable
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
             float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
-            MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null)))];
+            MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null, Sways(kind))))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
             kinds[kind] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
@@ -190,7 +213,7 @@ internal sealed class DungeonOvergrowth : IDisposable
     /// </summary>
     private const float TipGlow = 1.2f;
 
-    private Material Material(string path, float texels, string? emissionPath = null)
+    private Material Material(string path, float texels, string? emissionPath = null, Sway? sway = null)
     {
         RenderResource texture = engine.Graphics.OpenResource(new RenderResourceRequest(path, TextureFilter.NearestMipmapped, TextureWrap.Repeat)).Handle;
         textures.Add(texture);
@@ -207,13 +230,21 @@ internal sealed class DungeonOvergrowth : IDisposable
             emission is null ? 0f : TipGlow, false)
         {
             EmissionMap = emission is null ? default(RenderResourceReference) : emission,
-            Shader = new MaterialShader(shader, new Vector4(texels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
-                new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(0f, 0f, 0f, MossStrength),
-                new Vector4(StainDepth, SideShare, LowestFacing, 0f), texture, default(RenderResourceReference)),
+            Shader = sway is Sway moves
+                ? new MaterialShader(SwayShader, new Vector4(texels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
+                    new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(moves.Draft, moves.Reach, moves.Lift, MossStrength),
+                    new Vector4(StainDepth, SideShare, LowestFacing, PlayerConstants.StandingEyeHeight), texture, default(RenderResourceReference),
+                    moves.Draft + (moves.Reach * (1f + MathF.Abs(moves.Lift))))
+                : new MaterialShader(shader, new Vector4(texels, look.FacetStrength, look.FacetSteps, look.FacetCoherence),
+                    new Vector4(look.CalmFrom, look.CalmFull, look.CalmMip, look.Calm), new Vector4(0f, 0f, 0f, MossStrength),
+                    new Vector4(StainDepth, SideShare, LowestFacing, 0f), texture, default(RenderResourceReference)),
         });
         materials.Add(material);
         return material;
     }
+
+    /// <summary>The kit stone shader under its SWAY keyword, opened when a swaying kind is first drawn.</summary>
+    private RenderResource SwayShader => swayShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(ShaderPath) { ShaderKeywords = SwayKeyword }).Handle;
 
     /// <summary>Whether a dungeon loaded from now draws its overgrowth (a study's before and after; on by default).</summary>
     internal static bool Shown { get; set; } = true;
@@ -326,5 +357,6 @@ internal sealed class DungeonOvergrowth : IDisposable
 
         textures.Clear();
         shader.Dispose();
+        swayShader?.Dispose();
     }
 }
