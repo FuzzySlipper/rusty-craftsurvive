@@ -126,10 +126,16 @@ internal sealed class DungeonOvergrowth : IDisposable
     // further for the giants).
     private const float VentFarFrom = 10f, SmallVentFarFrom = 6f, GiantVentFarFrom = 20f;
 
+    // The inverted grove's hangers' far levels: every third hanging filament kept, the bell, trunk and roots whole (the bell
+    // holds the crown's mass), drawn from so far: where single filaments no longer read.
+    private const float HangerFarFrom = 14f, SmallHangerFarFrom = 9f;
+
     /// <summary>A kind's far level of detail and the distance it is drawn from, metres; none for most kinds.</summary>
     internal static (string Path, float From)? FarLevel(OvergrowthKind kind) => kind switch
     {
         OvergrowthKind.VentTall => ("models/dungeon-overgrowth/vent-tall-far.prop-mesh.json", VentFarFrom),
+        OvergrowthKind.GroveHanger => ("models/dungeon-overgrowth/grove-hanger-far.prop-mesh.json", HangerFarFrom),
+        OvergrowthKind.GroveHangerSmall => ("models/dungeon-overgrowth/grove-hanger-small-far.prop-mesh.json", SmallHangerFarFrom),
         OvergrowthKind.VentCluster => ("models/dungeon-overgrowth/vent-cluster-far.prop-mesh.json", VentFarFrom),
         OvergrowthKind.VentShort => ("models/dungeon-overgrowth/vent-short-far.prop-mesh.json", SmallVentFarFrom),
         OvergrowthKind.VentBed => ("models/dungeon-overgrowth/vent-bed-far.prop-mesh.json", SmallVentFarFrom),

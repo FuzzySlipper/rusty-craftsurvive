@@ -1811,6 +1811,12 @@ internal static class KarstCave
                         continue;
                     }
 
+                    // Flat ground cover lies on floor all round it, never overhanging a ledge.
+                    if (kind is OvergrowthKind.SeepMat or OvergrowthKind.VentBed or OvergrowthKind.SeepShells && !Footed(open, foot, radius))
+                    {
+                        continue;
+                    }
+
                     // A mat lies under what stands on it, overlapping the next mat closely; anything else keeps its footprint.
                     List<(Vector3 At, float Radius)> against = kind == OvergrowthKind.SeepMat ? mats : placed;
                     float kept = kind == OvergrowthKind.SeepMat ? MatOverlap : FootprintKept;
@@ -1985,7 +1991,12 @@ internal static class KarstCave
                             }
 
                             Vector3 on = ground - new Vector3(0f, MatSink, 0f);
-                            if (roll < ScavengerShare && floor.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + MoundFootprint) * FootprintKept))
+                            if (!Footed(open, ground, CatcherFootprint))
+                            {
+                                break;
+                            }
+
+                            if (roll < ScavengerShare && Footed(open, ground, MoundFootprint) && floor.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + MoundFootprint) * FootprintKept))
                             {
                                 floor.Add((on, MoundFootprint));
                                 growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveMound, on, turn, 0.8f + (0.5f * pick), pick));
@@ -1996,10 +2007,11 @@ internal static class KarstCave
                                 growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveCatchers, on, turn, 0.8f + (0.5f * pick), pick));
                             }
 
-                            if (pick < LitterShare && litter.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + LitterFootprint) * LitterOverlap))
+                            float size = Footed(open, ground, LitterFootprint) ? 1f : Footed(open, ground, LitterFootprint * SmallLitter) ? SmallLitter : 0f;
+                            if (pick < LitterShare && size > 0f && litter.All(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(on.X, on.Z)) >= (q.Radius + (LitterFootprint * size)) * LitterOverlap))
                             {
-                                litter.Add((on, LitterFootprint));
-                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveLitter, on, turn, 0.9f + (0.3f * roll), roll));
+                                litter.Add((on, LitterFootprint * size));
+                                growth.Add(new OvergrowthPlacement(OvergrowthKind.GroveLitter, on, turn, size * (0.9f + (0.3f * roll)), roll));
                             }
 
                             break;
@@ -2009,6 +2021,31 @@ internal static class KarstCave
 
         return groves;
     }
+
+    /// <summary>
+    /// Whether a flat piece (a mat, litter) of this radius lies on floor all round its foot - floor within FootedRise of it
+    /// at FootedReach of its radius each way - so it never overhangs a ledge's edge, its flat underside showing from below.
+    /// </summary>
+    private static bool Footed(float[] open, Vector3 foot, float radius)
+    {
+        foreach (Vector2 d in (ReadOnlySpan<Vector2>)[Vector2.UnitX, -Vector2.UnitX, Vector2.UnitY, -Vector2.UnitY,
+            Vector2.Normalize(Vector2.One), -Vector2.Normalize(Vector2.One), Vector2.Normalize(new Vector2(1f, -1f)), Vector2.Normalize(new Vector2(-1f, 1f))])
+        {
+            Vector3 above = foot + new Vector3(d.X * radius * FootedReach, FootedRise, d.Y * radius * FootedReach);
+            if (Trilinear(open, above) <= 0f || MathF.Abs(Floor(open, above).Y - foot.Y) > FootedRise)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // A flat piece's footprint checked this share of its radius out, its floor within this rise of its foot.
+    private const float FootedReach = 0.65f, FootedRise = 0.6f;
+
+    /// <summary>A litter patch that does not lie whole on the floor at its size may at this share of it.</summary>
+    private const float SmallLitter = 0.5f;
 
     /// <summary>The floor under an open place: the first rock looking down.</summary>
     private static Vector3 Floor(float[] open, Vector3 p)
