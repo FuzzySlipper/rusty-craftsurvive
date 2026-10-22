@@ -8,7 +8,8 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// <summary>
 /// The overgrowth drawn (#10096): each kind's prop mesh (content/game/models/dungeon-overgrowth, painted by the texturing
 /// pillar) loaded once, one appearance per kind, an appearance fact for every placement - instanced, as the kit is - under
-/// the kit stone shader. Nothing collides. The space owns this for as long as it is loaded.
+/// the kit stone shader. The vent orchard's pieces have a far level of detail each, drawn from so far from the eye. The
+/// vent trunks collide as simple prisms. The space owns this for as long as it is loaded.
 /// </summary>
 internal sealed class DungeonOvergrowth : IDisposable
 {
@@ -31,6 +32,7 @@ internal sealed class DungeonOvergrowth : IDisposable
     private readonly List<RenderResource> textures = [];
     private readonly List<Material> materials = [];
     private readonly Dictionary<OvergrowthKind, (MeshResource Mesh, Appearance Look)> kinds = [];
+    private readonly Dictionary<OvergrowthKind, (MeshResource Mesh, Appearance Look, float From)> far = [];
     private readonly List<(OvergrowthKind Kind, Transform Place)> placed = [];
 
     internal DungeonOvergrowth(IEngineContext engine, ProductContent content, IReadOnlyList<OvergrowthPlacement> placements)
@@ -46,6 +48,14 @@ internal sealed class DungeonOvergrowth : IDisposable
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
                 model.Indices, model.Groups, bindings));
             kinds[kind] = (mesh, engine.Graphics.CreateMeshAppearance(mesh));
+            if (FarLevel(kind) is (string farPath, float from))
+            {
+                // The far level is cut from the near piece's painted mesh: its own uvs into the same texture, so the same materials.
+                MeshResourceCreateRequest farModel = Model(content, farPath).Mesh;
+                MeshResource farMesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(farModel.Positions, farModel.Normals, farModel.Uvs,
+                    farModel.Colors, farModel.Indices, farModel.Groups, bindings));
+                far[kind] = (farMesh, engine.Graphics.CreateMeshAppearance(farMesh), from);
+            }
         }
 
         foreach (OvergrowthPlacement p in placements.Take(ProductIds.DungeonOvergrowthObjects))
@@ -100,6 +110,24 @@ internal sealed class DungeonOvergrowth : IDisposable
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
+    // The vent orchard's far levels (#10096; overgrowth_lod.py): each plume thinned to every other frond, its barbs gone and
+    // the fronds kept broadened to hold its mass, with the near piece's paint; the tubes and crust kept. Drawn from so many
+    // metres from the eye, by kind: from where the broader fronds no longer show as blades (nearer for the small pieces,
+    // further for the giants).
+    private const float VentFarFrom = 10f, SmallVentFarFrom = 6f, GiantVentFarFrom = 20f;
+
+    /// <summary>A kind's far level of detail and the distance it is drawn from, metres; none for most kinds.</summary>
+    internal static (string Path, float From)? FarLevel(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.VentTall => ("models/dungeon-overgrowth/vent-tall-far.prop-mesh.json", VentFarFrom),
+        OvergrowthKind.VentCluster => ("models/dungeon-overgrowth/vent-cluster-far.prop-mesh.json", VentFarFrom),
+        OvergrowthKind.VentShort => ("models/dungeon-overgrowth/vent-short-far.prop-mesh.json", SmallVentFarFrom),
+        OvergrowthKind.VentBed => ("models/dungeon-overgrowth/vent-bed-far.prop-mesh.json", SmallVentFarFrom),
+        OvergrowthKind.VentGiant => ("models/dungeon-overgrowth/vent-giant-far.prop-mesh.json", GiantVentFarFrom),
+        OvergrowthKind.VentGiantCluster => ("models/dungeon-overgrowth/vent-giant-cluster-far.prop-mesh.json", GiantVentFarFrom),
+        _ => null,
+    };
+
     // Each kind's model parsed once for the process (as the kit's): every dungeon reuses its geometry with its own materials.
     private static readonly Dictionary<string, (MeshResourceCreateRequest Mesh, string[] Textures)> Models = [];
 
@@ -145,8 +173,12 @@ internal sealed class DungeonOvergrowth : IDisposable
     /// <summary>How many of each kind are drawn, for readouts.</summary>
     internal string Counts => string.Join(" ", placed.GroupBy(p => p.Kind).Select(g => $"{g.Key}={g.Count()}"));
 
-    internal IEnumerable<AppearanceFact> Facts => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonOvergrowth + (ulong)index, false, 0UL,
-        p.Place, kinds[p.Kind].Look, true, RenderLayer.Scene, ShadowCasting.Cast));
+    /// <summary>Every placement drawn as seen from an eye (session coordinates): a piece with a far level, at least its distance away, at that level.</summary>
+    internal IEnumerable<AppearanceFact> Facts(Vector3 eye) => placed.Select((p, index) => new AppearanceFact(ProductIds.DungeonOvergrowth + (ulong)index, false, 0UL,
+        p.Place, Look(p.Kind, Vector3.DistanceSquared(p.Place.Translation, eye)), true, RenderLayer.Scene, ShadowCasting.Cast));
+
+    private Appearance Look(OvergrowthKind kind, float distanceSquared) =>
+        far.TryGetValue(kind, out (MeshResource Mesh, Appearance Look, float From) level) && distanceSquared >= level.From * level.From ? level.Look : kinds[kind].Look;
 
     // The vent trunks' colliders (#10096): each trunk a closed prism of so many sides, as overgrowth_authored.py builds the
     // tubes (their feet and radii, metres, in the piece's frame); the plumes, beds and the rest do not collide. The asset and
@@ -215,13 +247,14 @@ internal sealed class DungeonOvergrowth : IDisposable
     /// <summary>Disposes the meshes after the snapshot that last named them, then their materials.</summary>
     public void Dispose()
     {
-        foreach ((MeshResource mesh, Appearance look) in kinds.Values)
+        foreach ((MeshResource mesh, Appearance look) in kinds.Values.Concat(far.Values.Select(level => (level.Mesh, level.Look))))
         {
             look.Dispose();
             mesh.Dispose();
         }
 
         kinds.Clear();
+        far.Clear();
         foreach (Material material in materials)
         {
             material.Dispose();

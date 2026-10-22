@@ -360,7 +360,7 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>What the loaded dungeon adds to the appearance snapshot: a sculpted dungeon's rock.</summary>
-    internal IEnumerable<AppearanceFact> AppearanceFacts => space?.AppearanceFacts ?? [];
+    internal IEnumerable<AppearanceFact> AppearanceFacts => space?.AppearanceFacts(player.WorldEyePosition) ?? [];
 
     /// <summary>
     /// Called by the product root once it has published a snapshot: a closed dungeon's appearance is

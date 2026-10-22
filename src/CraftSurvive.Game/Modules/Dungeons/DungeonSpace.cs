@@ -101,9 +101,9 @@ internal sealed class DungeonSpace : IDisposable
 
     internal int TotalChunks => totalChunks;
 
-    /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot; nothing when its rock is voxels.</summary>
-    internal IEnumerable<AppearanceFact> AppearanceFacts =>
-        [.. RockFacts, .. kit?.Facts ?? [], .. overgrowth?.Facts ?? [], .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
+    /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot, as seen from an eye (session coordinates); nothing when its rock is voxels.</summary>
+    internal IEnumerable<AppearanceFact> AppearanceFacts(Vector3 eye) =>
+        [.. RockFacts, .. kit?.Facts ?? [], .. overgrowth?.Facts(eye) ?? [], .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
             new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene)),
             .. forest.Select((plant, index) => new AppearanceFact(ProductIds.DungeonRockObject + ForestObjects + (ulong)index, false, 0UL,
                 plant.Place, plant.Look, true, RenderLayer.Scene))];
