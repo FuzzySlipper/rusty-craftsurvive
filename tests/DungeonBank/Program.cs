@@ -355,9 +355,9 @@ if (args is ["water", string waterFrom, string waterTo])
     return faults == 0 ? 0 : 1;
 }
 
-if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <= 10)
+if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <= 11)
 {
-    // overgrowth <from> <to> [orchards] [hall|none] [groves] [funnel gardens] [glass steppes] [ribbon thickets] [veil forests]: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth
+    // overgrowth <from> <to> [orchards] [hall|none] [groves] [funnel gardens] [glass steppes] [ribbon thickets] [veil forests] [cushion barrens]: each karst cave's (no centrepiece, half-metre voxels) underground forest overgrowth
     // (#10096), with so many vent orchards: how many of each kind, and none under its water.
     KarstCave.StudyVentOrchards = args.Length >= 4 ? int.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 0;
     // A sixth argument grows so many inverted groves (#10096).
@@ -370,6 +370,8 @@ if (args is ["overgrowth", string growFrom, string growTo, ..] && args.Length <=
     KarstCave.StudyRibbonThickets = args.Length >= 9 ? int.Parse(args[8], System.Globalization.CultureInfo.InvariantCulture) : 0;
     // A tenth grows so many veil forests.
     KarstCave.StudyVeilForests = args.Length >= 10 ? int.Parse(args[9], System.Globalization.CultureInfo.InvariantCulture) : 0;
+    // An eleventh grows so many cushion barrens.
+    KarstCave.StudyCushionBarrens = args.Length >= 11 ? int.Parse(args[10], System.Globalization.CultureInfo.InvariantCulture) : 0;
     int drowned = 0;
     for (ulong seed = ulong.Parse(growFrom, System.Globalization.CultureInfo.InvariantCulture); seed <= ulong.Parse(growTo, System.Globalization.CultureInfo.InvariantCulture); seed++)
     {

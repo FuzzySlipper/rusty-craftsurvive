@@ -136,6 +136,24 @@ internal enum OvergrowthKind
 
     /// <summary>A cluster of small pale puffballs and cups rooting in a drift.</summary>
     VeilPuffs,
+
+    /// <summary>The cushion barrens' keystone (#10096): a soft dome of olive nap about 2.4 m across and 1 m high, a rust fringe at its foot, breath-pores on its crown.</summary>
+    CushionHummock,
+
+    /// <summary>The same in rust and ochre.</summary>
+    CushionHummockRust,
+
+    /// <summary>An enormous hummock of several swellings, about 5 m across and 2.6 m high.</summary>
+    CushionGreat,
+
+    /// <summary>An old hummock split open, its cleft (towards +z) lined with orange-red gill-like fins.</summary>
+    CushionSplit,
+
+    /// <summary>A thin lobed film of nap creeping over the floor, about 2 m across.</summary>
+    CushionMat,
+
+    /// <summary>Small young hummocks budding from a scrap of mat.</summary>
+    CushionBuds,
 }
 
 /// <summary>
@@ -157,7 +175,11 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
 
     /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
-    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind) || Veil(kind);
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind) || Veil(kind) || Cushion(kind);
+
+    /// <summary>Whether a kind is the cushion barrens' (an underground ecology's, on the rubble slopes of fallen-in chambers).</summary>
+    internal static bool Cushion(OvergrowthKind kind) => kind is OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust or OvergrowthKind.CushionGreat
+        or OvergrowthKind.CushionSplit or OvergrowthKind.CushionMat or OvergrowthKind.CushionBuds;
 
     /// <summary>Whether a kind is the veil forest's (an underground ecology's, on the draft's line between a cave's openings).</summary>
     internal static bool Veil(OvergrowthKind kind) => kind is OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.VeilComb

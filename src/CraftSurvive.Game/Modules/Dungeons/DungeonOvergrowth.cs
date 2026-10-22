@@ -73,7 +73,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat ? GiantTextureTexels : TextureTexels;
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.CushionGreat ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null, Sways(kind))))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
@@ -168,6 +168,12 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.VeilComb => "models/dungeon-overgrowth/veil-comb.prop-mesh.json",
         OvergrowthKind.VeilDrift => "models/dungeon-overgrowth/veil-drift.prop-mesh.json",
         OvergrowthKind.VeilPuffs => "models/dungeon-overgrowth/veil-puffs.prop-mesh.json",
+        OvergrowthKind.CushionHummock => "models/dungeon-overgrowth/cushion-hummock.prop-mesh.json",
+        OvergrowthKind.CushionHummockRust => "models/dungeon-overgrowth/cushion-hummock-rust.prop-mesh.json",
+        OvergrowthKind.CushionGreat => "models/dungeon-overgrowth/cushion-great.prop-mesh.json",
+        OvergrowthKind.CushionSplit => "models/dungeon-overgrowth/cushion-split.prop-mesh.json",
+        OvergrowthKind.CushionMat => "models/dungeon-overgrowth/cushion-mat.prop-mesh.json",
+        OvergrowthKind.CushionBuds => "models/dungeon-overgrowth/cushion-buds.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -295,6 +301,10 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.RibbonArchWide => [(-4.35f, 0f, 0.6f, 2.5f), (4.35f, 0f, 0.6f, 2.5f)],
         OvergrowthKind.VeilFan => [(0f, 0f, 0.26f, 3f)],
         OvergrowthKind.VeilFanGreat => [(0f, 0f, 0.34f, 4.6f)],
+        // The barrens' domes collide as low prisms inside their swell: the small ones a step the traveller climbs over.
+        OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust => [(0f, 0f, 0.95f, 0.85f)],
+        OvergrowthKind.CushionSplit => [(0f, 0f, 1f, 0.95f)],
+        OvergrowthKind.CushionGreat => [(0f, 0f, 2f, 2.3f)],
         _ => [],
     };
 

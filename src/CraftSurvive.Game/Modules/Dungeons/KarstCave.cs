@@ -2023,6 +2023,164 @@ internal static class KarstCave
     }
 
     /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "cushion barrens - a community"): how
+    /// many cushion barrens the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyCushionBarrens { get; set; }
+
+    // Cushion barrens: on the rubble slopes of fallen-in chambers (the breakdown's blocks), the colonies chosen by how much
+    // rubble floor lies within BarrensRadius of a chamber, so far apart. Hummocks on and near the rubble and on the floor's
+    // other high points (the great ones on high points, where the floor stands BarrensHigh over the floor round it, with room above), split elders a share of them,
+    // their domes clear of the route; mats between, overlapping; buds at the colony's rim. A piece's footprint and the room
+    // it needs above.
+    private const float BarrensRadius = 12f, BarrensStep = 1f, BarrensApart = 25f, BarrensRise = 4f, BarrensHigh = 0.3f, BarrensProbe = 1.8f;
+    private const float HummockShare = 0.32f, GreatShare = 0.3f, SplitShare = 0.15f, RustShare = 0.4f, CushionMatShare = 0.35f, BudShare = 0.18f, BudFrom = 0.65f;
+    private const float RubbleNear = 2.5f, DomeSink = 0.12f, HummockScaleLeast = 0.75f, HummockScaleSpread = 0.55f;
+    private const int FewestRubbleFloors = 4, MostBarrensPieces = 400;
+
+    private static (float Radius, float Height) CushionFootprint(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.CushionGreat => (2.3f, 2.8f),
+        OvergrowthKind.CushionSplit => (1.2f, 1.3f),
+        OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust => (1.15f, 1.1f),
+        OvergrowthKind.CushionMat => (1f, 0.1f),
+        _ => (0.4f, 0.3f),
+    };
+
+    /// <summary>
+    /// Cushion barrens (#10096): a colony smothers the rubble of a fallen-in chamber until the slope is one soft living
+    /// thing - hummocks of close nap swelling over the blocks, knee-high to enormous, packed up the slope, old ones split
+    /// open on their ribbed orange-red interiors, thin mats joining them over the bare rock, and young buds at the colony's
+    /// rim creeping onto the floor. Returns each colony's centre and radius.
+    /// </summary>
+    private static List<(Vector3 Centre, float Radius)> CushionBarrens(float[] open, bool[] rubble, ulong seed, int count, IReadOnlyList<Vector3> chambers,
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        bool Rubble(Vector3 p)
+        {
+            int x = (int)(p.X / FieldStep), y = (int)((p.Y - (FieldStep * 0.5f)) / FieldStep), z = (int)(p.Z / FieldStep);
+            return x >= 0 && x < FieldX && y >= 0 && y < FieldY && z >= 0 && z < FieldZ && rubble[FieldIndex(x, y, z)];
+        }
+
+        bool NearRubble(Vector3 floor) => Rubble(floor)
+            || new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ }.Any(v => Rubble(Floor(open, floor + (v * RubbleNear) + new Vector3(0f, 1f, 0f))));
+
+        // Each chamber's rubble floor round it.
+        List<(Vector3 Centre, int Rubble)> candidates = [];
+        foreach (Vector3 chamber in chambers)
+        {
+            if (Open(chamber) <= 0f)
+            {
+                continue;
+            }
+
+            Vector3 centre = Floor(open, chamber);
+            if (Surface(centre.X, centre.Z) - centre.Y < FunnelUnderGround)
+            {
+                continue;
+            }
+
+            int n = 0;
+            for (float dz = -BarrensRadius; dz <= BarrensRadius; dz += 2f)
+                for (float dx = -BarrensRadius; dx <= BarrensRadius; dx += 2f)
+                {
+                    Vector3 probe = centre + new Vector3(dx, 1.5f, dz);
+                    if ((dx * dx) + (dz * dz) <= BarrensRadius * BarrensRadius && Open(probe) > 0f && Rubble(Floor(open, probe)))
+                    {
+                        n++;
+                    }
+                }
+
+            if (n >= FewestRubbleFloors)
+            {
+                candidates.Add((centre, n));
+            }
+        }
+
+        List<(Vector3 Centre, float Radius)> colonies = [];
+        foreach ((Vector3 c, int _) in candidates.OrderByDescending(c => c.Rubble).ThenBy(c => NaturalCavern.Hash(seed ^ 0xC051UL, (int)c.Centre.X, (int)c.Centre.Y, (int)c.Centre.Z)))
+        {
+            if (colonies.Count >= count)
+            {
+                break;
+            }
+
+            if (colonies.All(o => Vector3.Distance(o.Centre, c) >= BarrensApart)
+                && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + BarrensRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
+            {
+                colonies.Add((c, BarrensRadius));
+            }
+        }
+
+        foreach ((Vector3 centre, float _) in colonies)
+        {
+            List<(Vector3 At, float Radius)> placed = [];
+            for (int pass = 0; pass < 2; pass++)
+            for (float dz = -BarrensRadius; dz <= BarrensRadius; dz += BarrensStep)
+                for (float dx = -BarrensRadius; dx <= BarrensRadius; dx += BarrensStep)
+                {
+                    float d = MathF.Sqrt((dx * dx) + (dz * dz));
+                    if (d > BarrensRadius || placed.Count >= MostBarrensPieces)
+                    {
+                        continue;
+                    }
+
+                    int hx = (int)((centre.X + dx) * 4f), hz = (int)((centre.Z + dz) * 4f);
+                    float roll = NaturalCavern.Hash(seed ^ (0xC001UL + (ulong)(pass * 0x111)), hx, (int)centre.Y, hz), pick = NaturalCavern.Hash(seed ^ (0xC002UL + (ulong)(pass * 0x113)), hz, (int)centre.Y, hx);
+                    Vector3 probe = new(centre.X + dx + ((pick - 0.5f) * BarrensStep * 0.7f), centre.Y + 2.5f, centre.Z + dz + ((roll - 0.5f) * BarrensStep * 0.7f));
+                    if (Open(probe) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 foot = Floor(open, probe);
+                    if (MathF.Abs(foot.Y - centre.Y) > BarrensRise || Surface(foot.X, foot.Z) - foot.Y < FunnelUnderGround)
+                    {
+                        continue;
+                    }
+
+                    OvergrowthKind? choice = null;
+                    float around = pass == 0 ? new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ }.Average(v => Floor(open, foot + (v * BarrensProbe) + new Vector3(0f, 1.5f, 0f)).Y) : foot.Y;
+                    if (pass == 0 && roll < HummockShare && (NearRubble(foot) || foot.Y - around > BarrensHigh))
+                    {
+                        choice = foot.Y - around > BarrensHigh && pick < GreatShare && Open(foot + new Vector3(0f, CushionFootprint(OvergrowthKind.CushionGreat).Height, 0f)) > 0f ? OvergrowthKind.CushionGreat
+                            : pick > 1f - SplitShare ? OvergrowthKind.CushionSplit
+                            : NaturalCavern.Hash(seed ^ 0xC003UL, hx, hz, (int)centre.Y) < RustShare ? OvergrowthKind.CushionHummockRust : OvergrowthKind.CushionHummock;
+                    }
+                    else if (pass == 1)
+                    {
+                        choice = d > BarrensRadius * BudFrom && roll < BudShare ? OvergrowthKind.CushionBuds : roll < CushionMatShare ? OvergrowthKind.CushionMat : null;
+                    }
+
+                    if (choice is not OvergrowthKind kind)
+                    {
+                        continue;
+                    }
+
+                    (float radius, float height) = CushionFootprint(kind);
+                    bool dome = kind is OvergrowthKind.CushionGreat or OvergrowthKind.CushionSplit or OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust;
+                    float scale = dome && kind != OvergrowthKind.CushionGreat ? HummockScaleLeast + (HummockScaleSpread * pick) : 0.85f + (0.3f * pick);
+                    float kept = kind == OvergrowthKind.CushionMat ? MatOverlap : FootprintKept;
+                    if ((dome && Open(foot + new Vector3(0f, height * scale, 0f)) <= 0f)
+                        || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + (radius * scale)) * kept)
+                        || (dome && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < (radius * scale) + RouteClear))
+                        || (!dome && !Footed(open, foot, radius * 0.6f)))
+                    {
+                        continue;
+                    }
+
+                    placed.Add((foot, radius * scale));
+                    float a = MathF.Tau * roll;
+                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, dome ? DomeSink * scale : MatSink, 0f), new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), scale, pick));
+                }
+        }
+
+        return colonies;
+    }
+
+    /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "veil forest - a community"): how
     /// many veil forests the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
     /// </summary>
@@ -3297,6 +3455,14 @@ internal static class KarstCave
             // A veil forest is its own community: the dark's mushrooms give way in it.
             darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
                 && veils.Any(v => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(v.Centre.X, v.Centre.Z)) < v.Radius + 1f && MathF.Abs(g.At.Y - v.Centre.Y) < VeilRise + 2f));
+        }
+
+        if (StudyCushionBarrens > 0)
+        {
+            List<(Vector3 Centre, float Radius)> barrens = CushionBarrens(open, rubble, seed, StudyCushionBarrens, chambers, darkGrowth, mainRoute, orchards, skyOpen);
+            // A barrens is its own community: the dark's mushrooms give way on it.
+            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                && barrens.Any(b => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(b.Centre.X, b.Centre.Z)) < b.Radius + 1f && MathF.Abs(g.At.Y - b.Centre.Y) < BarrensRise + 2f));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
