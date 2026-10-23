@@ -156,6 +156,8 @@ internal sealed class StreamedCave : IDisposable
         {
             long applying = Stopwatch.GetTimestamp();
             engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session, operations.ToArray(), materials.ToArray(), densities.ToArray()));
+            // The presentation follows residency only when refreshed.
+            engine.VoxelScenePresentation.RefreshScene(projection);
             applyMs += Stopwatch.GetElapsedTime(applying).TotalMilliseconds;
         }
 

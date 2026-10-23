@@ -82,6 +82,73 @@ internal static class DungeonCollision
     }
 
     /// <summary>
+    /// One chunk's admission payload, built from the volume and field alone (#10304: off the update thread): its material
+    /// slots, and its densities when the space has a field. Reads only.
+    /// </summary>
+    internal static (uint[] Materials, float[]? Densities) Prepare(DungeonVolume volume, (int X, int Y, int Z) chunk, RockDensity? densities,
+        bool weathered, bool pinned, double voxelSize)
+    {
+        float perVoxel = (float)(1d / voxelSize);
+        int edge = TerrainConstants.ChunkEdgeLength;
+        ushort[] chunkMaterials = volume.Chunk(chunk.X, chunk.Y, chunk.Z);
+        uint[] materials = new uint[chunkMaterials.Length];
+        float[]? values = densities is null ? null : new float[chunkMaterials.Length];
+        for (int index = 0; index < chunkMaterials.Length; index++)
+        {
+            ushort material = chunkMaterials[index];
+            materials[index] = material;
+            if (densities is RockDensity field)
+            {
+                int cx = (chunk.X * edge) + (index % edge);
+                int cy = (chunk.Y * edge) + (index / edge % edge);
+                int cz = (chunk.Z * edge) + (index / (edge * edge));
+                values![index] = pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered)
+                    : material == (ushort)BlockId.Air ? Math.Clamp(field.At(cx, cy, cz) * perVoxel, DensityFloor, FreeDensityLimit)
+                    : Math.Clamp(field.At(cx, cy, cz) * perVoxel, -FreeDensityLimit, -DensityFloor);
+            }
+        }
+
+        return (materials, values);
+    }
+
+    /// <summary>
+    /// Admits prepared chunks (all with densities, or all without) and evicts others in one transaction: a presentation
+    /// refreshed after a single transaction republishes only the chunks it touched, after several every chunk.
+    /// </summary>
+    internal static void ApplyPrepared(IEngineContext engine, SpatialSession session, IReadOnlyList<((int X, int Y, int Z) Chunk, (uint[] Materials, float[]? Densities) Payload)> chunks,
+        IReadOnlyList<(int X, int Y, int Z)> evict, double voxelSize)
+    {
+        if (chunks.Count == 0 && evict.Count == 0)
+        {
+            return;
+        }
+
+        double chunkMetres = TerrainConstants.ChunkEdgeLength * voxelSize;
+        (long X, long Y, long Z) first = ((long)Math.Floor(Origin.X / chunkMetres), (long)Math.Floor(Origin.Y / chunkMetres), (long)Math.Floor(Origin.Z / chunkMetres));
+        bool withDensities = chunks.Count > 0 && chunks[0].Payload.Densities is not null;
+        List<VoxelResidencyOperation> operations = [];
+        List<uint> materials = [];
+        List<float> values = [];
+        foreach (((int x, int y, int z), (uint[] slots, float[]? densities)) in chunks)
+        {
+            uint offset = checked((uint)materials.Count), densityOffset = checked((uint)values.Count);
+            materials.AddRange(slots);
+            if (densities is not null)
+            {
+                values.AddRange(densities);
+            }
+
+            operations.Add(new VoxelResidencyOperation(VoxelResidencyOperationKind.Admit, new VoxelChunkIdentity(x + first.X, y + first.Y, z + first.Z),
+                offset, (uint)slots.Length, densityOffset, densities is null ? 0u : (uint)densities.Length));
+        }
+
+        operations.AddRange(evict.Select(c => new VoxelResidencyOperation(VoxelResidencyOperationKind.Evict, new VoxelChunkIdentity(c.X + first.X, c.Y + first.Y, c.Z + first.Z), 0, 0)));
+        engine.Voxel.ApplyResidency(withDensities
+            ? new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, session, operations.ToArray(), materials.ToArray(), values.ToArray())
+            : new VoxelResidencyTransaction(session, operations.ToArray(), materials.ToArray()));
+    }
+
+    /// <summary>
     /// Admits some of a volume's chunks into the session's voxels, with their densities when the
     /// layout has them: each solid voxel's density is negative and each empty one's positive, as the
     /// Engine requires, taken from the sculpted field where it agrees and from the cube face where not.

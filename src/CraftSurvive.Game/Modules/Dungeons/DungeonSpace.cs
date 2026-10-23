@@ -32,7 +32,25 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>Route C's rock pieces (#10090): merged meshes and their appearances.</summary>
     private readonly List<(MeshResource Mesh, Appearance Look)> pieces = [];
     /// <summary>The cave's living light (#10129): one mesh per kind of growth, and the materials made for them.</summary>
-    private readonly List<(MeshResource Mesh, Appearance Look)> growths = [];
+    // The growth meshes, each with the chunk it lies in when streamed (drawn only while that chunk's rock is resident; null:
+    // always drawn).
+    private readonly List<(MeshResource Mesh, Appearance Look, (int X, int Y, int Z)? Region)> growths = [];
+
+    private readonly Dictionary<EcologyKind, (Material Plain, Material Glowing)> sharedGrowthMaterials = [];
+
+    /// <summary>
+    /// The placements grouped by the chunk each lies in (layout metres), when streamed, so growth comes and goes with the rock
+    /// it grows on (#10304); the whole set as one group otherwise.
+    /// </summary>
+    private IEnumerable<((int X, int Y, int Z)? Region, List<T> Items)> ByRegion<T>(IEnumerable<T> items, Func<T, Vector3> at)
+    {
+        if (StreamRadius == 0)
+        {
+            return [(null, items.ToList())];
+        }
+
+        return items.GroupBy(i => ChunkOf(at(i))).Select(g => (((int X, int Y, int Z)?)g.Key, g.ToList()));
+    }
 
     /// <summary>A cave's lakes' and pools' surfaces (#10094): their material, while the space draws them.</summary>
     private CaveWaterSurfaces? waterSurfaces;
@@ -106,10 +124,10 @@ internal sealed class DungeonSpace : IDisposable
     internal int StreamRadius { get; }
 
     /// <summary>The streamed chunks kept up and down about the player.</summary>
-    private const int StreamRadiusUp = 3;
+    internal const int StreamRadiusUp = 3;
 
     /// <summary>The most chunks admitted in one update while streaming.</summary>
-    internal const int StreamBudget = 8;
+    internal const int StreamBudget = 6;
 
     private readonly HashSet<(int X, int Y, int Z)> shell = [];
     private readonly HashSet<(int X, int Y, int Z)> resident = [];
@@ -184,37 +202,139 @@ internal sealed class DungeonSpace : IDisposable
             streamNotReady++;
         }
 
-        List<(int X, int Y, int Z)> admit = [.. wanted.Take(StreamBudget)];
-        if (admit.Count > 0)
+        // The nearest wanted chunks are prepared ahead on a worker; the update only hands prepared ones to the Engine, a
+        // few at a time, until its time budget is spent. A chunk right round the player not yet prepared is prepared here.
+        if (preparing is null || preparing.IsCompleted)
         {
-            DungeonCollision.Admit(engine, Session, layout.Volume, admit, layout.Densities, DungeonSurfaces.Weathers(surface), pinned: !layout.Natural, voxelSize: layout.VoxelSize);
-            resident.UnionWith(admit);
-            streamAdmitted += admit.Count;
+            List<(int X, int Y, int Z)> next = [.. wanted.Where(c => !prepared.ContainsKey(c)).Take(PrepareAhead)];
+            if (next.Count > 0)
+            {
+                DungeonVolume volume = layout.Volume;
+                RockDensity? field = layout.Densities;
+                bool weathered = DungeonSurfaces.Weathers(surface), pinned = !layout.Natural;
+                double voxelSize = layout.VoxelSize;
+                preparing = Task.Run(() =>
+                {
+                    foreach ((int X, int Y, int Z) chunk in next)
+                    {
+                        prepared.TryAdd(chunk, DungeonCollision.Prepare(volume, chunk, field, weathered, pinned, voxelSize));
+                    }
+                });
+            }
         }
 
-        List<(int X, int Y, int Z)> leave = [.. resident.Where(c => !Within(c, at, StreamRadius + 1))];
-        if (leave.Count > 0)
+        // One hand-off a update, of as many prepared chunks (nearest first) as the time budget holds at the cost a chunk has
+        // taken so far: the Engine meshes a chunk with its neighbours, so neighbours handed together are meshed once.
+        streamPlanMs += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        bool urgent = wanted.Any(c => Math.Abs(c.X - at.X) <= 1 && Math.Abs(c.Y - at.Y) <= 1 && Math.Abs(c.Z - at.Z) <= 1);
+        bool due = urgent || Stopwatch.GetElapsedTime(lastHandOff).TotalSeconds >= StreamHandOffSeconds;
+        int room = due ? Math.Clamp((int)(StreamBudgetMs / Math.Max(0.05, chunkApplyMs)), 1, StreamBudget) : 0;
+        List<((int X, int Y, int Z) Chunk, (uint[] Materials, float[]? Densities) Payload)> batch = [];
+        foreach ((int X, int Y, int Z) chunk in wanted)
         {
-            double chunkMetres = TerrainConstants.ChunkEdgeLength * layout.VoxelSize;
-            (long X, long Y, long Z) first = ((long)Math.Floor(DungeonCollision.Origin.X / chunkMetres), (long)Math.Floor(DungeonCollision.Origin.Y / chunkMetres),
-                (long)Math.Floor(DungeonCollision.Origin.Z / chunkMetres));
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(Session,
-                leave.Select(c => new VoxelResidencyOperation(VoxelResidencyOperationKind.Evict, new VoxelChunkIdentity(c.X + first.X, c.Y + first.Y, c.Z + first.Z), 0, 0)).ToArray(),
-                ReadOnlyMemory<uint>.Empty));
+            if (batch.Count >= room)
+            {
+                break;
+            }
+
+            bool near = Math.Abs(chunk.X - at.X) <= 1 && Math.Abs(chunk.Y - at.Y) <= 1 && Math.Abs(chunk.Z - at.Z) <= 1;
+            if (!prepared.TryRemove(chunk, out (uint[] Materials, float[]? Densities) payload))
+            {
+                if (!near)
+                {
+                    continue;
+                }
+
+                payload = DungeonCollision.Prepare(layout.Volume, chunk, layout.Densities, DungeonSurfaces.Weathers(surface), !layout.Natural, layout.VoxelSize);
+                streamPreparedHere++;
+            }
+
+            batch.Add((chunk, payload));
+        }
+
+        // Chunks left behind go in the same transaction: the presentation then republishes only the chunks it touched.
+        List<(int X, int Y, int Z)> leave = due ? [.. resident.Where(c => !Within(c, at, StreamRadius + 1))] : [];
+        if (batch.Count > 0 || leave.Count > 0)
+        {
+            lastHandOff = Stopwatch.GetTimestamp();
+            long applying = Stopwatch.GetTimestamp();
+            DungeonCollision.ApplyPrepared(engine, Session, batch, leave, layout.VoxelSize);
+            double applied = Stopwatch.GetElapsedTime(applying).TotalMilliseconds;
+            streamApplyMs += applied;
+            streamBatches++;
+            if (batch.Count > 0)
+            {
+                // The cost a chunk takes, smoothed.
+                chunkApplyMs = (chunkApplyMs * 0.8) + (applied / batch.Count * 0.2);
+            }
+
+            foreach (((int X, int Y, int Z) chunk, _) in batch)
+            {
+                resident.Add(chunk);
+            }
+
             resident.ExceptWith(leave);
+            streamAdmitted += batch.Count;
             streamEvicted += leave.Count;
+        }
+
+        // The presentation draws what was resident when it was made, or last refreshed: it follows the stream only when told.
+        if (batch.Count > 0 || leave.Count > 0)
+        {
+            long refreshing = Stopwatch.GetTimestamp();
+            engine.VoxelScenePresentation.RefreshScene(projection);
+            streamRefreshMs += Stopwatch.GetElapsedTime(refreshing).TotalMilliseconds;
+            streamRefreshes++;
         }
 
         double ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         streamMs += ms;
         streamSlowest = Math.Max(streamSlowest, ms);
+        if (streamTimes.Count < MostStreamTimes)
+        {
+            streamTimes.Add(ms);
+        }
     }
 
-    internal string StreamReadout() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms slowest={streamSlowest:F1}ms");
+    // Admission is prepared ahead (so many chunks a batch, on a worker) and handed to the Engine within a time budget each
+    // update (at least one chunk), at most so many.
+    private const int PrepareAhead = 24;
+    private double chunkApplyMs = 1, streamPlanMs, streamApplyMs, streamRefreshMs;
+    private long streamRefreshes, lastHandOff;
 
-    /// <summary>The detail drawn: within this far of the eye when streaming (metres), everything otherwise.</summary>
-    private float DetailReach => StreamRadius == 0 ? float.MaxValue : (float)(StreamRadius * TerrainConstants.ChunkEdgeLength * layout.VoxelSize);
+    /// <summary>Prototype knob: the least time between hand-offs (0 every update), sooner when a chunk round the player is missing.</summary>
+    internal static double StreamHandOffSeconds { get; set; }
+    private long streamBatches;
+    private const double StreamBudgetMs = 3;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<(int X, int Y, int Z), (uint[] Materials, float[]? Densities)> prepared = new();
+    private Task? preparing;
+    private long streamPreparedHere;
+    private readonly List<double> streamTimes = [];
+    private const int MostStreamTimes = 100_000;
+
+    internal string StreamReadout() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} preparedHere={streamPreparedHere} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms p99={Percentile(0.99):F1}ms slowest={streamSlowest:F1}ms growthMeshes={growths.Count} plan={streamPlanMs:F0}ms apply={streamApplyMs:F0}ms in {streamBatches} transactions ({streamApplyMs / Math.Max(1, streamAdmitted):F2}ms/chunk) refresh={streamRefreshMs / Math.Max(1, streamRefreshes):F2}ms x{streamRefreshes}");
+
+    private double Percentile(double share)
+    {
+        if (streamTimes.Count == 0)
+        {
+            return 0;
+        }
+
+        double[] sorted = [.. streamTimes.OrderBy(t => t)];
+        return sorted[Math.Min(sorted.Length - 1, (int)(share * sorted.Length))];
+    }
+
+    /// <summary>Clears the stream's measures, so a walk can be measured on its own.</summary>
+    internal void ResetStreamMeasures()
+    {
+        streamAdmitted = streamEvicted = streamUpdates = streamNotReady = streamPreparedHere = 0;
+        streamMs = streamSlowest = streamPlanMs = streamApplyMs = streamRefreshMs = 0;
+        streamBatches = streamRefreshes = 0;
+        streamTimes.Clear();
+    }
+
 
     internal SpatialSession Session { get; }
 
@@ -232,13 +352,19 @@ internal sealed class DungeonSpace : IDisposable
 
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot, as seen from an eye (session coordinates); nothing when its rock is voxels.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts(Vector3 eye) =>
-        [.. RockFacts, .. (kit?.Facts ?? []).Where(f => Near(f.Transform.Translation, eye)), .. (overgrowth?.Facts(eye) ?? []).Where(f => Near(f.Transform.Translation, eye)), .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
-            new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene)),
+        [.. RockFacts, .. (kit?.Facts ?? []).Where(f => Near(f.Transform.Translation, eye)), .. (overgrowth?.Facts(eye) ?? []).Where(f => Near(f.Transform.Translation, eye)), .. growths.Take(MostGrowthMeshes).Select((growth, index) => (growth, index))
+            .Where(g => g.growth.Region is not (int X, int Y, int Z) region || resident.Contains(region))
+            .Select(g => new AppearanceFact(ProductIds.DungeonRockObject + GrowthObjects + (ulong)g.index, false, 0UL,
+            new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), g.growth.Look, true, RenderLayer.Scene)),
             .. forest.Select((plant, index) => new AppearanceFact(ProductIds.DungeonRockObject + ForestObjects + (ulong)index, false, 0UL,
                 plant.Place, plant.Look, true, RenderLayer.Scene))];
 
-    /// <summary>Whether a detail is within the streamed reach of the eye (always, when the whole space is loaded).</summary>
-    private bool Near(Vector3 at, Vector3 eye) => Vector3.DistanceSquared(at, eye) <= DetailReach * DetailReach;
+    // The growth meshes' object ids, after the forest's and before the kit's range (at most so many meshes).
+    private const ulong GrowthObjects = 0x1000;
+    private const int MostGrowthMeshes = 0x1000;
+
+    /// <summary>Whether a detail (session metres) stands on rock that is resident now (always, when the whole space is loaded).</summary>
+    private bool Near(Vector3 at, Vector3 eye) => StreamRadius == 0 || resident.Contains(ChunkOf(at - DungeonCollision.Origin));
 
     /// <summary>The forest growing into the space's openings (#10129): the world's flora looks (not this space's to dispose), each placed.</summary>
     private readonly List<(Appearance Look, Transform Place)> forest = [];
@@ -288,10 +414,13 @@ internal sealed class DungeonSpace : IDisposable
                 BuildRock(rock);
             }
 
-            foreach (MeshResourceCreateRequest request in CaveEcology.Meshes(engine, layout.Ecology, DungeonCollision.Origin, growthMaterials))
+            foreach (((int X, int Y, int Z)? region, List<EcologyPlacement> part) in ByRegion(layout.Ecology, e => e.At))
             {
-                MeshResource mesh = engine.Graphics.CreateMeshResource(request);
-                growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                foreach (MeshResourceCreateRequest request in CaveEcology.Meshes(engine, part, DungeonCollision.Origin, growthMaterials, sharedGrowthMaterials))
+                {
+                    MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh), region));
+                }
             }
 
             if (layout.Waterfalls.Count > 0)
@@ -301,7 +430,7 @@ internal sealed class DungeonSpace : IDisposable
                 foreach (MeshResourceCreateRequest request in Waterfalls.SheetRequests())
                 {
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);
-                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh), ((int X, int Y, int Z)?)null));
                 }
             }
 
@@ -312,7 +441,7 @@ internal sealed class DungeonSpace : IDisposable
                 foreach (MeshResourceCreateRequest request in waterSurfaces.Requests(layout.WaterZones, layout.Shape))
                 {
                     MeshResource mesh = engine.Graphics.CreateMeshResource(request);
-                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh), ((int X, int Y, int Z)?)null));
                 }
             }
 
@@ -357,10 +486,13 @@ internal sealed class DungeonSpace : IDisposable
             {
                 // Published with the growths: an appearance draws only while a published fact names it.
                 mossCards = new CaveMossCards(engine);
-                if (mossCards.Request(layout.MossCards) is MeshResourceCreateRequest request)
+                foreach (((int X, int Y, int Z)? region, List<MossCard> part) in ByRegion(layout.MossCards, c => c.At))
                 {
-                    MeshResource mesh = engine.Graphics.CreateMeshResource(request);
-                    growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                    if (mossCards.Request(part) is MeshResourceCreateRequest request)
+                    {
+                        MeshResource mesh = engine.Graphics.CreateMeshResource(request);
+                        growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh), region));
+                    }
                 }
             }
 
@@ -376,7 +508,7 @@ internal sealed class DungeonSpace : IDisposable
             if (layout.Abyss is (Vector3 abyssAt, float abyssRadius))
             {
                 MeshResource mesh = engine.Graphics.CreateMeshResource(AbyssFloor(InSession(abyssAt) - (Vector3.UnitY * AbyssDepth), abyssRadius * AbyssWiden));
-                growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh)));
+                growths.Add((mesh, engine.Graphics.CreateMeshAppearance(mesh), ((int X, int Y, int Z)?)null));
             }
         }
 
@@ -511,7 +643,7 @@ internal sealed class DungeonSpace : IDisposable
         }
 
         drips = 0;
-        foreach ((MeshResource mesh, Appearance look) in growths)
+        foreach ((MeshResource mesh, Appearance look, (int X, int Y, int Z)? _) in growths)
         {
             look.Dispose();
             mesh.Dispose();

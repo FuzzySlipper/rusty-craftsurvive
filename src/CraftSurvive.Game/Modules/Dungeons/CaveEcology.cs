@@ -118,8 +118,9 @@ internal static class CaveEcology
     };
 
     /// <summary>The growths of every kind as meshes (one per kind: a plain group and a glowing group), positioned in the session.</summary>
+    /// <param name="shared">Each kind's plain and glowing materials once made, reused by later calls (a cave built in regions, #10304).</param>
     internal static IReadOnlyList<MeshResourceCreateRequest> Meshes(IEngineContext engine, IReadOnlyList<EcologyPlacement> growths, Vector3 origin,
-        List<Material> materials)
+        List<Material> materials, Dictionary<EcologyKind, (Material Plain, Material Glowing)>? shared = null)
     {
         List<MeshResourceCreateRequest> meshes = [];
         foreach (EcologyKind kind in Enum.GetValues<EcologyKind>())
@@ -141,17 +142,29 @@ internal static class CaveEcology
                 EcologyKind.VentSeep => (SeepCrust, SeepGlow, SeepGlowStrength),
                 _ => (CrystalBody, CrystalGlow, CrystalGlowStrength),
             };
-            Material plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
-            Color lit = kind switch
+            Material plain, glowing;
+            if (shared is not null && shared.TryGetValue(kind, out (Material Plain, Material Glowing) made))
             {
-                EcologyKind.VaultBloom => VaultCrystalAlbedo,
-                EcologyKind.GiantFungus => GiantGillAlbedo,
-                _ => new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f),
-            };
-            Material glowing = engine.Graphics.CreateMaterial(new MaterialRequest(lit, default,
-                GrowthRoughness, new Color(1f, 1f, 1f, 1f), glow, strength, false));
-            materials.Add(plain);
-            materials.Add(glowing);
+                (plain, glowing) = made;
+            }
+            else
+            {
+                plain = engine.Graphics.CreateMaterial(new MaterialRequest(body, default, GrowthRoughness, new Color(1f, 1f, 1f, 1f), Vector3.Zero, 0f, false));
+                Color lit = kind switch
+                {
+                    EcologyKind.VaultBloom => VaultCrystalAlbedo,
+                    EcologyKind.GiantFungus => GiantGillAlbedo,
+                    _ => new Color(glow.X * 0.3f, glow.Y * 0.3f, glow.Z * 0.3f, 1f),
+                };
+                glowing = engine.Graphics.CreateMaterial(new MaterialRequest(lit, default,
+                    GrowthRoughness, new Color(1f, 1f, 1f, 1f), glow, strength, false));
+                materials.Add(plain);
+                materials.Add(glowing);
+                if (shared is not null)
+                {
+                    shared[kind] = (plain, glowing);
+                }
+            }
             Builder plainPart = new(), glowPart = new(), topPart = new();
             foreach (EcologyPlacement growth in these)
             {

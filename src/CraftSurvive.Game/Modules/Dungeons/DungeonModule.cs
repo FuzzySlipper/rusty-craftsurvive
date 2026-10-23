@@ -192,7 +192,12 @@ internal sealed class DungeonModule : IProductModule
                     RelicLights(loading.Layout.Relics);
                     Mist(loading.Layout.Mist);
                     player.SeparateWater = StillWater(loading.Layout.WaterZones);
-                    IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
+                    // A streamed space's probes follow the player (or are left off); a whole space's cover it all.
+                    streamProbeCentre = null;
+                    if (streamRadius == 0 || streamProbes == StreamProbes.Whole)
+                    {
+                        IndirectLight(loading.Layout.Volume, loading.Layout.VoxelSize);
+                    }
                     state = DungeonState.Inside;
                     entered++;
                     last = string.Create(CultureInfo.InvariantCulture,
@@ -202,6 +207,7 @@ internal sealed class DungeonModule : IProductModule
                 break;
             case DungeonState.Inside:
                 space?.Stream(player.WorldFeetPosition - DungeonCollision.Origin);
+                FollowProbes();
                 if (!player.InSeparateSpace)
                 {
                     // A defeat or a teleport took the player out: the dungeon is let go.
@@ -888,6 +894,57 @@ internal sealed class DungeonModule : IProductModule
     // chunks of the player (0: loaded whole); what the last entry's generation and store cost.
     private static readonly Dictionary<string, DungeonCandidate> Generated = [];
     private int streamRadius;
+
+    // Prototype knob (#10304): a streamed space's indirect light - a probe volume over it all (rebaked wherever rock
+    // streams in or out), one following the player within the streamed rock, or none.
+    private enum StreamProbes { Follow, Whole, Off }
+
+    private StreamProbes streamProbes = StreamProbes.Follow;
+    private Vector3? streamProbeCentre;
+
+    internal string StudyStreamProbes(string mode)
+    {
+        streamProbes = mode switch
+        {
+            "whole" => StreamProbes.Whole,
+            "off" => StreamProbes.Off,
+            _ => StreamProbes.Follow,
+        };
+        return $"streamed dungeons' probes: {streamProbes}";
+    }
+
+    /// <summary>
+    /// Keeps a streamed space's probe volume about the player, a chunk short of the streamed rock on every side, so rock
+    /// streaming in or out at the edge does not rebake it; it moves once the player is a chunk from its centre.
+    /// </summary>
+    private void FollowProbes()
+    {
+        if (space is not DungeonSpace current || current.StreamRadius == 0 || streamProbes != StreamProbes.Follow)
+        {
+            return;
+        }
+
+        float chunk = (float)(TerrainConstants.ChunkEdgeLength * current.Layout.VoxelSize);
+        Vector3 here = player.WorldFeetPosition;
+        if (streamProbeCentre is Vector3 centre && Vector3.Distance(centre, here) < chunk)
+        {
+            return;
+        }
+
+        Vector3 extent = new Vector3(current.StreamRadius - 1, DungeonSpace.StreamRadiusUp - 1, current.StreamRadius - 1) * chunk;
+        float spacing = ProbeSpacingMetres;
+        while (Probes(extent, spacing) > MostProbes)
+        {
+            spacing += ProbeSpacingStep;
+        }
+
+        ProbeSpacing = spacing;
+        engine.CameraView.SetIndirectLight(new IndirectLightRequest(here, extent, spacing, ProbeBounces, IndirectAmbient.Floor));
+        streamProbeCentre = here;
+        probeMoves++;
+    }
+
+    private int probeMoves;
     private string lastGenerate = "", lastStore = "";
 
     // The tour (#10304 prototype): a route from the arrival to the farthest place reachable, walked a few metres a call.
@@ -963,8 +1020,21 @@ internal sealed class DungeonModule : IProductModule
         return streamRadius == 0 ? "the next dungeons load whole" : $"the next dungeons stream within {streamRadius} chunks of the player";
     }
 
+    internal static string StudyStreamHandOff(double seconds)
+    {
+        DungeonSpace.StreamHandOffSeconds = Math.Max(0, seconds);
+        return DungeonSpace.StreamHandOffSeconds == 0 ? "streamed chunks are handed over every update" : $"streamed chunks are handed over at most every {DungeonSpace.StreamHandOffSeconds:0.###} s";
+    }
+
+    internal string StudyStreamReset()
+    {
+        space?.ResetStreamMeasures();
+        probeMoves = 0;
+        return "stream measures cleared";
+    }
+
     internal string StreamedReadout() => space is DungeonSpace current
-        ? $"{lastGenerate} {lastStore} {current.StreamReadout()}"
+        ? $"{lastGenerate} {lastStore} {current.StreamReadout()} probes={streamProbes} moves={probeMoves} spacing={ProbeSpacing:0.#}m"
         : $"{lastGenerate} {lastStore} no dungeon is loaded";
 
     /// <summary>

@@ -52,11 +52,20 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.streamradius", Description = "Assisted, for the stored, streamed cave prototype (#10304): the next dungeons stream within this many chunks of the player (0 loads them whole); caves are generated once a run and kept.")]
     public string StreamRadius(int radius) => dungeons.StudyStreamRadius(radius);
 
+    [DebugCommand("craft.dungeon.streamhandoff", Description = "Assisted, for the stored, streamed cave prototype (#10304): hands streamed chunks to the Engine (one transaction and one presentation refresh) at most every so many seconds, sooner when a chunk round the player is missing; 0 every update.")]
+    public string StreamHandOff(double seconds) => DungeonModule.StudyStreamHandOff(seconds);
+
+    [DebugCommand("craft.dungeon.streamprobes", Description = "Assisted, for the stored, streamed cave prototype (#10304): the next streamed dungeons' indirect light - follow (a probe volume about the player within the streamed rock, the default), whole (over the whole space, rebaked as rock streams) or off.")]
+    public string StreamProbes(string mode) => dungeons.StudyStreamProbes(mode);
+
     [DebugCommand("craft.dungeon.streamed", Description = "Reads the stored, streamed cave prototype (#10304): the last entry's generation and store cost, and the stream's residency and update cost.")]
     public string Streamed() => dungeons.StreamedReadout();
 
     [DebugCommand("craft.dungeon.tour", Description = "Assisted, for the streamed cave prototype (#10304): moves the player this many metres along a route from the arrival to the farthest place reachable.")]
     public string Tour(float metres) => dungeons.StudyTour(metres);
+
+    [DebugCommand("craft.dungeon.streamreset", Description = "Clears the streamed cave prototype's measures (#10304), so a walk is measured on its own.")]
+    public string StreamReset() => dungeons.StudyStreamReset();
 
     [DebugCommand("craft.dungeon.cavesize", Description = "Assisted, for the cave size prototype (#10304): the next karst caves' box in units across, up and through (16 m each; 6 4 6 the default); their feature counts scale with its floor area.")]
     public string CaveSize(int chunksX, int chunksY, int chunksZ)
