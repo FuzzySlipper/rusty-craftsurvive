@@ -79,6 +79,19 @@ internal static class CaveCommunities
         _ => new(Deepest, 0.7, 0.2, 0.5, 0.35),
     };
 
+    /// <summary>Whether a growth kind is one of a community's pieces.</summary>
+    internal static bool Grows(CaveCommunity community, OvergrowthKind kind) => community switch
+    {
+        CaveCommunity.VentOrchard => OvergrowthPlacement.Vent(kind),
+        CaveCommunity.InvertedGrove => OvergrowthPlacement.Grove(kind),
+        CaveCommunity.FunnelGarden => OvergrowthPlacement.Funnel(kind),
+        CaveCommunity.GlassSteppe => OvergrowthPlacement.Steppe(kind),
+        CaveCommunity.RibbonThicket => OvergrowthPlacement.Ribbon(kind),
+        CaveCommunity.VeilForest => OvergrowthPlacement.Veil(kind),
+        CaveCommunity.CushionBarrens => OvergrowthPlacement.Cushion(kind),
+        _ => OvergrowthPlacement.Ivory(kind),
+    };
+
     /// <summary>Below this weight a community is ruled out under a region.</summary>
     private const double RuledOut = 0.05;
 

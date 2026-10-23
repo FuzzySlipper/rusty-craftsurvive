@@ -1276,6 +1276,11 @@ internal sealed class DungeonModule : IProductModule
             return "visit refused: not in a dungeon";
         }
 
+        if (place.StartsWith(CommunityPlace, StringComparison.Ordinal))
+        {
+            return VisitCommunity(place[CommunityPlace.Length..]);
+        }
+
         DungeonCell? cell = place switch
         {
             "arrival" => plan.Arrival,
@@ -1303,6 +1308,86 @@ internal sealed class DungeonModule : IProductModule
 
         player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3(stand.X + 0.5f, stand.Y, stand.Z + 0.5f)));
         return $"at the {place}: {stand}";
+    }
+
+    private const string CommunityPlace = "community:";
+
+    // A community's viewpoint (#10304): open floor with headroom within so far of the community's middle, the most of its
+    // pieces (up to so many, sampled) in open sight from the eye within a reach, sight tested every so far along.
+    private const float ViewNearest = 3f, ViewFarthest = 14f, ViewRing = 1.5f, ViewRise = 5f, ViewStep = 0.5f, EyeHeight = 1.6f, ViewReach = 22f, SightStep = 0.5f;
+    private const int ViewDirections = 16, ViewPieces = 48;
+
+    /// <summary>
+    /// Assisted, for captures (#10304): stands the player on open floor near a community where they see the most of its
+    /// pieces, and names the yaw (degrees, 0 north) that faces them.
+    /// </summary>
+    private string VisitCommunity(string name)
+    {
+        if (!Enum.TryParse(name, true, out CaveCommunity community) || space?.Layout is not DungeonLayout layout || layout.Shape is not Func<Vector3, float> open)
+        {
+            return $"visit refused: \"{name}\" is not a community of a natural cave ({string.Join(", ", Enum.GetValues<CaveCommunity>())})";
+        }
+
+        List<Vector3> pieces = [.. layout.Overgrowth.Where(g => CaveCommunities.Grows(community, g.Kind)).Select(g => g.At)];
+        if (pieces.Count == 0)
+        {
+            return $"visit refused: this cave grew no {community}";
+        }
+
+        Vector3 middle = pieces.Aggregate(Vector3.Zero, (a, b) => a + b) / pieces.Count;
+        Vector3[] sampled = [.. pieces.Where((_, i) => i % Math.Max(1, pieces.Count / ViewPieces) == 0).Take(ViewPieces)];
+        bool Sees(Vector3 eye, Vector3 target)
+        {
+            Vector3 to = target + new Vector3(0f, 0.5f, 0f) - eye;
+            float length = to.Length();
+            if (length > ViewReach)
+            {
+                return false;
+            }
+
+            for (float t = SightStep; t < length - SightStep; t += SightStep)
+            {
+                if (open(eye + (to * (t / length))) <= 0f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        (Vector3 Feet, int Seen, Vector3 Facing)? best = null;
+        for (float r = ViewNearest; r <= ViewFarthest; r += ViewRing)
+            for (int k = 0; k < ViewDirections; k++)
+            {
+                float angle = k * MathF.Tau / ViewDirections;
+                for (float y = middle.Y + ViewRise; y >= middle.Y - ViewRise; y -= ViewStep)
+                {
+                    Vector3 feet = new(middle.X + (MathF.Cos(angle) * r), y, middle.Z + (MathF.Sin(angle) * r));
+                    if (open(feet - new Vector3(0f, 0.3f, 0f)) > 0f || open(feet + new Vector3(0f, 0.3f, 0f)) <= 0f || open(feet + new Vector3(0f, EyeHeight + 0.3f, 0f)) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 eye = feet + new Vector3(0f, EyeHeight, 0f);
+                    Vector3[] seen = [.. sampled.Where(p => Sees(eye, p))];
+                    if (seen.Length > (best?.Seen ?? 0))
+                    {
+                        best = (feet, seen.Length, seen.Aggregate(Vector3.Zero, (a, b) => a + b) / seen.Length);
+                    }
+
+                    break;
+                }
+            }
+
+        if (best is not (Vector3 stand, int count, Vector3 facing))
+        {
+            return $"visit refused: no open floor near the {community} sees it";
+        }
+
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
+        float yaw = MathF.Atan2(facing.X - stand.X, -(facing.Z - stand.Z)) * 180f / MathF.PI;
+        return string.Create(CultureInfo.InvariantCulture, $"at the {community}: {stand.X:F1},{stand.Y:F1},{stand.Z:F1} sees {count}/{sampled.Length} pieces, facing yaw={yaw:F0}");
     }
 
     /// <summary>A layout cell written x,y,z, or null.</summary>

@@ -157,7 +157,7 @@ public sealed class DungeonDebugModule : IDebugCommandModule
             : "no dungeon is loaded";
     }
 
-    [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, or a layout cell x,y,z.")]
+    [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, a layout cell x,y,z, or community:<name> (#10304: open floor near that community that sees the most of it, naming the yaw that faces it).")]
     public string Visit(string place) => dungeons.Visit(place);
 
     [DebugCommand("craft.dungeon.validate", Description = "Publishes the Engine's navigation over the loaded dungeon and routes arrival to breach and loot, and back.")]
