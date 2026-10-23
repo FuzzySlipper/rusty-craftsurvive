@@ -649,6 +649,34 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 
+// Moisture spreads only through air (#10092 review R10092-1): two room interiors either side of a two-voxel wall (as two
+// ModuleCanvas.Rooms boxes stand, BaseY 1), the seed's seeps all in the left room; sealed, the right room keeps only its own
+// rising damp, and with a door cut through the wall the seep's damp reaches it.
+{
+    DungeonMoisture Rooms(bool door)
+    {
+        DungeonVolume rooms = new(1, 1, 1, BlockId.Stone);
+        rooms.Fill(new DungeonCell(1, 2, 1), new DungeonCell(6, 5, 6), BlockId.Air);
+        rooms.Fill(new DungeonCell(9, 2, 1), new DungeonCell(14, 5, 6), BlockId.Air);
+        if (door)
+        {
+            rooms.Fill(new DungeonCell(7, 2, 3), new DungeonCell(8, 4, 4), BlockId.Air);
+        }
+
+        return DungeonMoisture.Compute(rooms, [], 18UL);
+    }
+
+    DungeonMoisture sealedRooms = Rooms(false), joined = Rooms(true);
+    bool seepsLeft = sealedRooms.Seeps > 0 && sealedRooms.SeepPoints.All(p => p.X < 7f);
+    // The right room's dampest cell, at its middle height.
+    float Right(DungeonMoisture m) => Enumerable.Range(0, 6).Max(i => m.At(new System.Numerics.Vector3(9.5f + i, 3.5f, 3.5f)));
+    float sealedRight = Right(sealedRooms), joinedRight = Right(joined);
+    Console.WriteLine($"moisture partition: seeps {sealedRooms.Seeps} (all left: {seepsLeft}); right room sealed {sealedRight:F3}, with a door {joinedRight:F3}");
+    Check.That(seepsLeft, "the partition regression's seed must seep only in the left room");
+    Check.That(sealedRight <= 0.6f + 1e-4f, "a sealed wall must keep a seep's moisture out of the next room");
+    Check.That(joinedRight > sealedRight + 0.1f, "a door through the wall must let a seep's moisture into the next room");
+}
+
 // The vertical sketch is walkable, and without its stair - lower storey reached only by a drop, the
 // way back only by a climb - both the walk and the Engine refuse it.
 {

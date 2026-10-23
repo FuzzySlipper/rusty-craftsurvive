@@ -32,6 +32,12 @@ internal sealed class DungeonMoisture
     private readonly float[] wet;
     private readonly bool[] air;
 
+    // Whether moisture passes from a cell to its neighbour along +x, +y and +z: only where an air voxel of the one faces an
+    // air voxel of the other across their shared face, so a solid wall or slab blocks it even between two cells that each
+    // hold air (#10092 review: two rooms' cells either side of a two-voxel wall). With cells two voxels across a wall
+    // cannot divide one cell's air, so the face is the only place a passage can be blocked.
+    private readonly bool[] passX, passY, passZ;
+
     private DungeonMoisture(int sizeX, int sizeY, int sizeZ)
     {
         this.sizeX = sizeX;
@@ -39,6 +45,9 @@ internal sealed class DungeonMoisture
         this.sizeZ = sizeZ;
         wet = new float[sizeX * sizeY * sizeZ];
         air = new bool[wet.Length];
+        passX = new bool[wet.Length];
+        passY = new bool[wet.Length];
+        passZ = new bool[wet.Length];
     }
 
     /// <summary>How many cells seep (water through a ceiling).</summary>
@@ -113,6 +122,16 @@ internal sealed class DungeonMoisture
                     }
                 }
 
+        for (int x = 0; x < m.sizeX; x++)
+            for (int y = 0; y < m.sizeY; y++)
+                for (int z = 0; z < m.sizeZ; z++)
+                {
+                    int i = m.Index(x, y, z);
+                    m.passX[i] = Passage(volume, x, y, z, 1, 0, 0);
+                    m.passY[i] = Passage(volume, x, y, z, 0, 1, 0);
+                    m.passZ[i] = Passage(volume, x, y, z, 0, 0, 1);
+                }
+
         Array.Copy(source, m.wet, source.Length);
         for (int pass = 0; pass < Passes; pass++)
         {
@@ -127,25 +146,49 @@ internal sealed class DungeonMoisture
                         }
 
                         float spread = 0f;
-                        void From(int nx, int ny, int nz, float keep)
+                        void From(int nx, int ny, int nz, bool open, float keep)
                         {
-                            if (m.Inside(nx, ny, nz) && m.air[m.Index(nx, ny, nz)])
+                            if (open && m.Inside(nx, ny, nz) && m.air[m.Index(nx, ny, nz)])
                             {
                                 spread = Math.Max(spread, m.wet[m.Index(nx, ny, nz)] * keep);
                             }
                         }
 
-                        From(x, y + 1, z, FromAbove);
-                        From(x, y - 1, z, FromBelow);
-                        From(x + 1, y, z, FromBeside);
-                        From(x - 1, y, z, FromBeside);
-                        From(x, y, z + 1, FromBeside);
-                        From(x, y, z - 1, FromBeside);
+                        // A neighbour's face passage is stored on the lower cell of the pair.
+                        From(x, y + 1, z, m.passY[i], FromAbove);
+                        From(x, y - 1, z, y > 0 && m.passY[m.Index(x, y - 1, z)], FromBelow);
+                        From(x + 1, y, z, m.passX[i], FromBeside);
+                        From(x - 1, y, z, x > 0 && m.passX[m.Index(x - 1, y, z)], FromBeside);
+                        From(x, y, z + 1, m.passZ[i], FromBeside);
+                        From(x, y, z - 1, z > 0 && m.passZ[m.Index(x, y, z - 1)], FromBeside);
                         m.wet[i] = Math.Max(source[i], spread);
                     }
         }
 
         return m;
+    }
+
+    /// <summary>
+    /// Whether air passes between a cell and its neighbour one step along (dx, dy, dz): some air voxel on the cell's last
+    /// layer that way faces an air voxel on the neighbour's first.
+    /// </summary>
+    private static bool Passage(DungeonVolume volume, int cx, int cy, int cz, int dx, int dy, int dz)
+    {
+        int x0 = cx * Step, y0 = cy * Step, z0 = cz * Step;
+        // The cell's last layer along the step; across it, both of the face's other axes.
+        int lx0 = dx == 1 ? x0 + Step - 1 : x0, ly0 = dy == 1 ? y0 + Step - 1 : y0, lz0 = dz == 1 ? z0 + Step - 1 : z0;
+        int lx1 = dx == 1 ? lx0 : x0 + Step - 1, ly1 = dy == 1 ? ly0 : y0 + Step - 1, lz1 = dz == 1 ? lz0 : z0 + Step - 1;
+        for (int x = lx0; x <= lx1; x++)
+            for (int y = ly0; y <= ly1; y++)
+                for (int z = lz0; z <= lz1; z++)
+                {
+                    if (volume.At(x, y, z) == BlockId.Air && volume.At(x + dx, y + dy, z + dz) == BlockId.Air)
+                    {
+                        return true;
+                    }
+                }
+
+        return false;
     }
 
     private static bool AnyAir(DungeonVolume volume, int cx, int cy, int cz)
