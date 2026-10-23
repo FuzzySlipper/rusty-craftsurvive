@@ -1682,6 +1682,9 @@ internal static class KarstCave
     /// </summary>
     internal static int StudyVentOrchards { get; set; }
 
+    /// <summary>The fewest pieces a chosen community must grow to count as one of its cave's communities (#10304).</summary>
+    private const int FewestCommunityPieces = 20;
+
     /// <summary>Whether any community's study switch is set: then the switches choose, not the region and depth (#10304).</summary>
     private static bool StudiedCommunities => Enum.GetValues<CaveCommunity>().Any(c => StudyCount(c) > 0);
 
@@ -1719,6 +1722,34 @@ internal static class KarstCave
     // route (horizontally, within this rise of it), as trunks collide.
     private const float GiantRoom = 14f, GiantOrchardRadius = 16f, GiantReach = 0.45f, GiantShare = 0.5f, GiantClusterShare = 0.35f;
     private const float RouteClear = 1.2f, RouteRise = 3f, GiantUnderGround = 4f;
+
+    /// <summary>
+    /// Whether a foot stands within so far (across) of a route, whose points lie a few metres apart: measured to the line
+    /// between each two (#10304: a trunk midway between two points stood closer than either), where the route runs from
+    /// RouteRise under the foot to RouteRise over a trunk <paramref name="tall"/> high (#10304: a giant vent's trunk stood
+    /// beside a route passing along a ledge above its foot).
+    /// </summary>
+    private static bool NearRoute(IReadOnlyList<Vector3> route, Vector3 foot, float within, float tall = 0f)
+    {
+        Vector2 at = new(foot.X, foot.Z);
+        for (int i = 0; i < route.Count; i++)
+        {
+            Vector3 a = route[i], b = i + 1 < route.Count ? route[i + 1] : a;
+            if (MathF.Max(a.Y, b.Y) <= foot.Y - RouteRise || MathF.Min(a.Y, b.Y) >= foot.Y + tall + RouteRise)
+            {
+                continue;
+            }
+
+            Vector2 a2 = new(a.X, a.Z), ab = new Vector2(b.X, b.Z) - a2;
+            float along = ab.LengthSquared() > 1e-6f ? Math.Clamp(Vector2.Dot(at - a2, ab) / ab.LengthSquared(), 0f, 1f) : 0f;
+            if (Vector2.Distance(at, a2 + (ab * along)) < within)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     // A great hall's orchard: its seep within this share of the hall's radius of its middle, or if none drips there, its
     // floor this share of its radius out from the middle (clear of a centrepiece there).
@@ -1897,7 +1928,7 @@ internal static class KarstCave
                         continue;
                     }
 
-                    if (Trunk(kind) && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < radius + RouteClear))
+                    if (Trunk(kind) && NearRoute(route, foot, radius + RouteClear, height))
                     {
                         continue;
                     }
@@ -2275,7 +2306,7 @@ private static int MostHeathPieces => Area(300);
                     bool bulb = kind is OvergrowthKind.IvoryBulb or OvergrowthKind.IvoryBulbGreat or OvergrowthKind.IvoryHollow;
                     if ((bulb && Open(foot + new Vector3(0f, height * scale, 0f)) <= 0f)
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (bulb && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < (radius - HeathGround) * scale + RouteClear))
+                        || (bulb && NearRoute(route, foot, (radius - HeathGround) * scale + RouteClear))
                         || (!bulb && !Footed(open, foot, radius * 0.6f)))
                     {
                         continue;
@@ -2444,7 +2475,7 @@ private static int MostBarrensPieces => Area(400);
                     float kept = kind == OvergrowthKind.CushionMat ? MatOverlap : FootprintKept;
                     if ((dome && Open(foot + new Vector3(0f, height * scale, 0f)) <= 0f)
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + (radius * scale)) * kept)
-                        || (dome && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < (radius * scale) + RouteClear))
+                        || (dome && NearRoute(route, foot, (radius * scale) + RouteClear))
                         || (!dome && !Footed(open, foot, radius * 0.6f)))
                     {
                         continue;
@@ -2618,7 +2649,7 @@ private static int MostBarrensPieces => Area(400);
                     bool fanned = kind is OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat;
                     if ((kind == OvergrowthKind.VeilComb && Open(foot + new Vector3(0f, height, 0f)) <= 0f)
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (fanned && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < FanTrunkRadius + RouteClear))
+                        || (fanned && NearRoute(route, foot, FanTrunkRadius + RouteClear))
                         || (kind == OvergrowthKind.VeilComb && !Footed(open, foot, radius * 0.6f)))
                     {
                         continue;
@@ -2972,7 +3003,7 @@ private static int MostBarrensPieces => Area(400);
                     bool flat = kind is OvergrowthKind.SteppeGrit or OvergrowthKind.SteppeBack;
                     if (Open(foot + new Vector3(0f, height, 0f)) <= 0f
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (kind == OvergrowthKind.SteppeSpire && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < radius + RouteClear))
+                        || (kind == OvergrowthKind.SteppeSpire && NearRoute(route, foot, radius + RouteClear, height))
                         || (flat && !Footed(open, foot, radius * 0.8f)))
                     {
                         continue;
@@ -3114,7 +3145,7 @@ private static int MostBarrensPieces => Area(400);
                     bool stands = kind is OvergrowthKind.FunnelGiant or OvergrowthKind.FunnelTall;
                     if (Open(foot + new Vector3(0f, height, 0f)) <= 0f || Open(foot + new Vector3(0f, height * 0.5f, 0f)) <= 0f
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (stands && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < (radius * 0.4f) + FunnelRouteClear))
+                        || (stands && NearRoute(route, foot, (radius * 0.4f) + FunnelRouteClear))
                         || (!stands && !Footed(open, foot, radius * 0.7f)))
                     {
                         continue;
@@ -3883,7 +3914,9 @@ private static int MostBarrensPieces => Area(400);
                     break;
                 }
 
-                if (Grow(community, Area(1), DeepFor(community)) > 0)
+                // A community counts only once it has grown a stand of its own; a token few pieces leave room for the next.
+                int before = darkGrowth.Count;
+                if (Grow(community, Area(1), DeepFor(community)) > 0 && darkGrowth.Count - before >= FewestCommunityPieces)
                 {
                     grown.Add(community);
                 }

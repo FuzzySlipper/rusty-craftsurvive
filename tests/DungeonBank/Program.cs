@@ -734,13 +734,26 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
                     continue;
                 }
 
-                float reach = trunks.Max(t => MathF.Sqrt((t.X * t.X) + (t.Z * t.Z)) + t.Radius) * piece.Scale;
-                System.Numerics.Vector3 mid = piece.At + new System.Numerics.Vector3(0f, 1f, 0f);
-                for (int i = 0; i + 1 < cave.MainRoute.Count; i++)
+                // Each trunk where it stands (the piece turned as the game turns it), at half its height.
+                System.Numerics.Quaternion turn = OvergrowthPlacement.Turn(piece);
+                foreach ((float tx, float tz, float radius, float height) in trunks)
                 {
-                    System.Numerics.Vector3 a = cave.MainRoute[i], ab = cave.MainRoute[i + 1] - a;
-                    float along = Math.Clamp(System.Numerics.Vector3.Dot(mid - a, ab) / Math.Max(1e-4f, ab.LengthSquared()), 0f, 1f);
-                    if (System.Numerics.Vector3.Distance(mid, a + (ab * along)) < reach + KarstCave.CrawlRadius)
+                    System.Numerics.Vector3 mid = piece.At + System.Numerics.Vector3.Transform(new System.Numerics.Vector3(tx, height * 0.5f, tz) * piece.Scale, turn);
+                    float reach = radius * piece.Scale;
+                    bool blocked = false;
+                    for (int i = 0; i + 1 < cave.MainRoute.Count && !blocked; i++)
+                    {
+                        System.Numerics.Vector3 a = cave.MainRoute[i], ab = cave.MainRoute[i + 1] - a;
+                        float along = Math.Clamp(System.Numerics.Vector3.Dot(mid - a, ab) / Math.Max(1e-4f, ab.LengthSquared()), 0f, 1f);
+                        float off = System.Numerics.Vector3.Distance(mid, a + (ab * along));
+                        if (off < reach + KarstCave.CrawlRadius)
+                        {
+                            blocked = true;
+                            Console.WriteLine($"  {name} seed {seed}: {piece.Kind} x{piece.Scale:F2} trunk at {mid.X:F1},{mid.Y:F1},{mid.Z:F1} r={reach:F2} m, {off:F2} m from the main route");
+                        }
+                    }
+
+                    if (blocked)
                     {
                         blocking++;
                         break;
@@ -748,8 +761,7 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
                 }
             }
 
-            shallowGrown += setting.DepthMetres < 10f && cave.Communities.Count > 0 ? 1 : 0;
-            line.Add($"{seed}:[{string.Join(" ", cave.Communities)}]");
+            line.Add($"{seed}:[{string.Join(" ", cave.Communities)}]/{cave.Overgrowth.Count(g => OvergrowthPlacement.Ecology(g.Kind))}");
         }
 
         Console.WriteLine($"communities {name} ({setting.Key}): {string.Join(" ", line)}");
