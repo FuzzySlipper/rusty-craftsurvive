@@ -171,6 +171,24 @@ if (args is ["kitpieces", string kitPiecesSeed, string kitPieceName])
     return 0;
 }
 
+if (args is ["karsttime", string karstCount])
+{
+    // karsttime <n>: how long KarstCave.Generate takes, and how much air (open voxels) its volume holds.
+    for (ulong karstSeed = 1; karstSeed <= ulong.Parse(karstCount, System.Globalization.CultureInfo.InvariantCulture); karstSeed++)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var karst = KarstCave.Generate(karstSeed, 0.5, KarstCave.Centrepiece.None);
+        double ms = watch.Elapsed.TotalMilliseconds;
+        DungeonVolume v = karst.Walkable;
+        int open = 0;
+        for (int x = 0; x < v.SizeX; x++) for (int y = 0; y < v.SizeY; y++) for (int z = 0; z < v.SizeZ; z++) open += v.At(x, y, z) == BlockId.Air ? 1 : 0;
+        double size = karst.Layout.VoxelSize, cube = size * size * size;
+        Console.WriteLine($"karst {karstSeed}: {ms:F0} ms, box {v.SizeX * size:F0}x{v.SizeY * size:F0}x{v.SizeZ * size:F0} m ({size} m voxels), air {open * cube:F0} m3 ({100.0 * open / ((double)v.SizeX * v.SizeY * v.SizeZ):F1}%)");
+    }
+
+    return 0;
+}
+
 if (args is ["modules", string moduleSeed])
 {
     var result = ModularDungeon.Candidate(ulong.Parse(moduleSeed, System.Globalization.CultureInfo.InvariantCulture), 0);
