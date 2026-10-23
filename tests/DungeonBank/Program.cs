@@ -190,6 +190,17 @@ if (args is ["karsttime", string karstCount, ..])
         DungeonVolume v = karst.Walkable;
         int open = 0;
         for (int x = 0; x < v.SizeX; x++) for (int y = 0; y < v.SizeY; y++) for (int z = 0; z < v.SizeZ; z++) open += v.At(x, y, z) == BlockId.Air ? 1 : 0;
+        // How many of its 16-voxel chunks hold any air: an all-rock chunk needs no storage or streaming beyond a flag.
+        int chunks = 0, withAir = 0;
+        for (int cx = 0; cx < v.ChunksX; cx++) for (int cy = 0; cy < v.ChunksY; cy++) for (int cz = 0; cz < v.ChunksZ; cz++)
+        {
+            chunks++;
+            bool any = false;
+            for (int x = cx * 16; x < (cx + 1) * 16 && !any; x++) for (int y = cy * 16; y < (cy + 1) * 16 && !any; y++) for (int z = cz * 16; z < (cz + 1) * 16 && !any; z++) any = v.At(x, y, z) == BlockId.Air;
+            withAir += any ? 1 : 0;
+        }
+
+        Console.WriteLine($"  chunks {withAir}/{chunks} hold air");
         double size = karst.Layout.VoxelSize, cube = size * size * size;
         var verdict = karst.Verdict;
         Console.WriteLine($"karst {karstSeed}: walkable={verdict.Walkable} sky={karst.Layout.SkyOpen} {ms:F0} ms, box {v.SizeX * size:F0}x{v.SizeY * size:F0}x{v.SizeZ * size:F0} m ({size} m voxels), air {open * cube:F0} m3 ({100.0 * open / ((double)v.SizeX * v.SizeY * v.SizeZ):F1}%)");
