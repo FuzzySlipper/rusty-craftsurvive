@@ -695,6 +695,74 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 
+// How a cave chooses its communities (#10304; owner, 2026-10-23): under four regions and depths, each cave grows at most
+// three; none the region rules out; a shallow cave none of the deepest; and their colliders keep clear of the main route.
+{
+    (string Name, CaveSetting Setting)[] places =
+    [
+        ("desert deep", new CaveSetting(0.65, 0.1, 90f)),
+        ("rainforest deep", new CaveSetting(0.8, 0.85, 90f)),
+        ("tundra", new CaveSetting(0.2, 0.4, 50f)),
+        ("lowland shallow", new CaveSetting(0.5, 0.55, 5f)),
+    ];
+    const int communitySeeds = 3;
+    Dictionary<CaveCommunity, int> grownKinds = [];
+    int caves = 0, mostInOne = 0, ruledOutGrown = 0, tooDeep = 0, blocking = 0, shallowGrown = 0;
+    var communityClock = Stopwatch.StartNew();
+    foreach ((string name, CaveSetting setting) in places)
+    {
+        List<string> line = [];
+        for (ulong seed = 1; seed <= communitySeeds; seed++)
+        {
+            KarstCave.Result cave = KarstCave.Build(seed, KarstCave.Centrepiece.None, setting);
+            caves++;
+            mostInOne = Math.Max(mostInOne, cave.Communities.Count);
+            foreach (CaveCommunity community in cave.Communities)
+            {
+                grownKinds[community] = grownKinds.GetValueOrDefault(community) + 1;
+                ruledOutGrown += CaveCommunities.Weight(community, setting) > 0 ? 0 : 1;
+                // The cave's floor lies at most its height under its top: deeper than that, nothing is deep enough.
+                tooDeep += CaveCommunities.Of(community).DepthMetres > setting.DepthMetres + (KarstCave.ChunksY * 16f) ? 1 : 0;
+            }
+
+            // A collider's footprint (its trunks round its foot, at its scale) must leave a crawling body room beside the main route.
+            foreach (OvergrowthPlacement piece in cave.Overgrowth)
+            {
+                var trunks = OvergrowthPlacement.Trunks(piece.Kind);
+                if (trunks.Length == 0)
+                {
+                    continue;
+                }
+
+                float reach = trunks.Max(t => MathF.Sqrt((t.X * t.X) + (t.Z * t.Z)) + t.Radius) * piece.Scale;
+                System.Numerics.Vector3 mid = piece.At + new System.Numerics.Vector3(0f, 1f, 0f);
+                for (int i = 0; i + 1 < cave.MainRoute.Count; i++)
+                {
+                    System.Numerics.Vector3 a = cave.MainRoute[i], ab = cave.MainRoute[i + 1] - a;
+                    float along = Math.Clamp(System.Numerics.Vector3.Dot(mid - a, ab) / Math.Max(1e-4f, ab.LengthSquared()), 0f, 1f);
+                    if (System.Numerics.Vector3.Distance(mid, a + (ab * along)) < reach + KarstCave.CrawlRadius)
+                    {
+                        blocking++;
+                        break;
+                    }
+                }
+            }
+
+            shallowGrown += setting.DepthMetres < 10f && cave.Communities.Count > 0 ? 1 : 0;
+            line.Add($"{seed}:[{string.Join(" ", cave.Communities)}]");
+        }
+
+        Console.WriteLine($"communities {name} ({setting.Key}): {string.Join(" ", line)}");
+    }
+
+    Console.WriteLine($"communities: {caves} caves in {communityClock.Elapsed.TotalSeconds:F1} s, at most {mostInOne} in one; grown {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}; ruled out grown {ruledOutGrown}, too deep {tooDeep}, colliders on the main route {blocking}");
+    Check.That(mostInOne <= 3, "a cave must grow at most three communities");
+    Check.That(ruledOutGrown == 0 && tooDeep == 0, "a cave must grow no community its region rules out or too deep for it");
+    Check.That(grownKinds.Count >= 4, "the bank's regions must between them grow at least four kinds of community");
+    Check.That(shallowGrown < communitySeeds, "a shallow cave must often grow none");
+    Check.That(blocking == 0, "a community's colliders must leave room beside the cave's main route");
+}
+
 // Moisture spreads only through air (#10092 review R10092-1): two room interiors either side of a two-voxel wall (as two
 // ModuleCanvas.Rooms boxes stand, BaseY 1), the seed's seeps all in the left room; sealed, the right room keeps only its own
 // rising damp, and with a door cut through the wall the seep's damp reaches it.

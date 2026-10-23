@@ -1678,9 +1678,30 @@ internal static class KarstCave
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-21, the atlas's abyssal seabed in air): how many vent
-    /// orchards the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// orchards the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyVentOrchards { get; set; }
+
+    /// <summary>Whether any community's study switch is set: then the switches choose, not the region and depth (#10304).</summary>
+    private static bool StudiedCommunities => Enum.GetValues<CaveCommunity>().Any(c => StudyCount(c) > 0);
+
+    /// <summary>For studies (#10304): true grows none of the stranger communities in the caves generated next (unless a switch is set).</summary>
+    internal static bool StudyNoCommunities { get; set; }
+
+    /// <summary>The study switches that shape generation, for the generation cache's key.</summary>
+    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}";
+
+    private static int StudyCount(CaveCommunity community) => community switch
+    {
+        CaveCommunity.VentOrchard => StudyVentOrchards,
+        CaveCommunity.InvertedGrove => StudyInvertedGroves,
+        CaveCommunity.FunnelGarden => StudyFunnelGardens,
+        CaveCommunity.GlassSteppe => StudyGlassSteppes,
+        CaveCommunity.RibbonThicket => StudyRibbonThickets,
+        CaveCommunity.VeilForest => StudyVeilForests,
+        CaveCommunity.CushionBarrens => StudyCushionBarrens,
+        _ => StudyIvoryHeaths,
+    };
 
     // Vent orchards: a seep is a still floor where the drip is strongest (at least this), the seeps so far apart. Round each,
     // a lattice so fine out to this radius; a floor counts within so far of the seep's height, flat enough (its neighbours
@@ -1741,7 +1762,7 @@ internal static class KarstCave
     /// ground, a few short tubes and beds out among the mats. Returns each orchard's seep and radius.
     /// </summary>
     private static List<(Vector3 Seep, float Radius)> VentOrchards(float[] open, float[] drip, float[] flow, ulong seed, int count, List<EcologyPlacement> ecology,
-        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, bool skyOpen, Hall? hall)
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, bool skyOpen, Hall? hall, IEnumerable<(Vector3 At, float Radius)> taken, Func<Vector3, bool> deep)
     {
         // The ground over a place: the plateau over a cave open to the sky, else the top of the space (as the roots read it).
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -1787,12 +1808,19 @@ internal static class KarstCave
         }
 
         List<Vector3> chosen = [];
+        // Clear of the communities already grown (#10304).
+        bool Clear(Vector3 c) => taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + OrchardRadius || MathF.Abs(t.At.Y - c.Y) > 8f);
+
         // A great hall, the largest cave, holds the first orchard (its giants): its dampest floor, else its floor near its middle.
         if (hall is not null)
         {
             bool InHall(Vector3 p) => Vector2.Distance(new Vector2(p.X, p.Z), hall.Centre) < MathF.Min(hall.RadiusX, hall.RadiusZ) * HallSeepReach && MathF.Abs(p.Y - hall.Floor) < OrchardRise;
             Vector3 middle = Floor(open, new Vector3(hall.Centre.X + (hall.RadiusX * HallSeepOffset), hall.Floor + (hall.Height * 0.5f), hall.Centre.Y));
-            chosen.Add(seeps.Where(s => InHall(s.At)).OrderByDescending(s => s.Drip).Select(s => (Vector3?)s.At).FirstOrDefault() ?? middle);
+            Vector3 first = seeps.Where(s => InHall(s.At)).OrderByDescending(s => s.Drip).Select(s => (Vector3?)s.At).FirstOrDefault() ?? middle;
+            if (deep(first) && Clear(first))
+            {
+                chosen.Add(first);
+            }
         }
 
         foreach ((Vector3 at, float _) in seeps.OrderByDescending(s => s.Drip).Take(SeepsWeighed).Select(s => (s.At, s.Drip * Area(s.At))).OrderByDescending(s => s.Item2))
@@ -1802,7 +1830,7 @@ internal static class KarstCave
                 break;
             }
 
-            if (chosen.All(c => Vector3.Distance(c, at) >= OrchardsApart))
+            if (deep(at) && Clear(at) && chosen.All(c => Vector3.Distance(c, at) >= OrchardsApart))
             {
                 chosen.Add(at);
             }
@@ -1902,7 +1930,7 @@ internal static class KarstCave
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "inverted grove - a community"): how
-    /// many inverted groves the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many inverted groves the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyInvertedGroves { get; set; }
 
@@ -1927,7 +1955,7 @@ internal static class KarstCave
     /// centre (on its ceiling) and radius.
     /// </summary>
     private static List<(Vector3 Roof, float Radius)> InvertedGroves(float[] open, ulong seed, int count, List<EcologyPlacement> ecology,
-        List<OvergrowthPlacement> growth, bool skyOpen, IReadOnlyList<(Vector3 Seep, float Radius)> orchards)
+        List<OvergrowthPlacement> growth, bool skyOpen, IReadOnlyList<(Vector3 Seep, float Radius)> orchards, Func<Vector3, bool> deep)
     {
         float Open(Vector3 p) => Trilinear(open, p);
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -1972,7 +2000,7 @@ internal static class KarstCave
                 break;
             }
 
-            if (chosen.All(c => Vector3.Distance(c, r) >= GrovesApart) && orchards.All(o => Vector2.Distance(new Vector2(o.Seep.X, o.Seep.Z), new Vector2(r.X, r.Z)) >= o.Radius + GroveRadius))
+            if (deep(r) && chosen.All(c => Vector3.Distance(c, r) >= GrovesApart) && orchards.All(o => Vector2.Distance(new Vector2(o.Seep.X, o.Seep.Z), new Vector2(r.X, r.Z)) >= o.Radius + GroveRadius))
             {
                 chosen.Add(r);
             }
@@ -2087,7 +2115,7 @@ internal static class KarstCave
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ivory heath - a community"): how
-    /// many ivory heaths the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many ivory heaths the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyIvoryHeaths { get; set; }
 
@@ -2118,7 +2146,7 @@ private static int MostHeathPieces => Area(300);
     /// round the bulbs' feet, seed pods in the hollows. Returns each heath's centre and radius.
     /// </summary>
     private static List<(Vector3 Centre, float Radius)> IvoryHeaths(float[] open, bool[] flowstone, float[] drip, float[] standing, float[] flow, ulong seed, int count,
-        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen, Func<Vector3, bool> deep)
     {
         float Open(Vector3 p) => Trilinear(open, p);
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -2187,7 +2215,7 @@ private static int MostHeathPieces => Area(300);
                 break;
             }
 
-            if (heaths.All(o => Vector3.Distance(o.Centre, c) >= HeathsApart)
+            if (deep(c) && heaths.All(o => Vector3.Distance(o.Centre, c) >= HeathsApart)
                 && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + HeathRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
             {
                 heaths.Add((c, HeathRadius));
@@ -2274,7 +2302,7 @@ private static int MostHeathPieces => Area(300);
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "cushion barrens - a community"): how
-    /// many cushion barrens the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many cushion barrens the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyCushionBarrens { get; set; }
 
@@ -2305,7 +2333,7 @@ private static int MostBarrensPieces => Area(400);
     /// rim creeping onto the floor. Returns each colony's centre and radius.
     /// </summary>
     private static List<(Vector3 Centre, float Radius)> CushionBarrens(float[] open, bool[] rubble, ulong seed, int count, IReadOnlyList<Vector3> chambers,
-        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen, Func<Vector3, bool> deep)
     {
         float Open(Vector3 p) => Trilinear(open, p);
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -2358,7 +2386,7 @@ private static int MostBarrensPieces => Area(400);
                 break;
             }
 
-            if (colonies.All(o => Vector3.Distance(o.Centre, c) >= BarrensApart)
+            if (deep(c) && colonies.All(o => Vector3.Distance(o.Centre, c) >= BarrensApart)
                 && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + BarrensRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
             {
                 colonies.Add((c, BarrensRadius));
@@ -2433,7 +2461,7 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "veil forest - a community"): how
-    /// many veil forests the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many veil forests the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyVeilForests { get; set; }
 
@@ -2465,7 +2493,7 @@ private static int MostBarrensPieces => Area(400);
     /// radius.
     /// </summary>
     private static List<(Vector3 Centre, float Radius)> VeilForests(float[] open, ulong seed, int count, IReadOnlyList<IReadOnlyList<Vector3>> drafts,
-        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen, Func<Vector3, bool> deep)
     {
         float Open(Vector3 p) => Trilinear(open, p);
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -2526,7 +2554,7 @@ private static int MostBarrensPieces => Area(400);
                 break;
             }
 
-            if (forests.All(f => Vector3.Distance(f.Centre, c) >= VeilsApart)
+            if (deep(c) && forests.All(f => Vector3.Distance(f.Centre, c) >= VeilsApart)
                 && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + VeilRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
             {
                 forests.Add((c, VeilRadius));
@@ -2623,7 +2651,7 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ribbon thicket - a community"): how
-    /// many ribbon thickets the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many ribbon thickets the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyRibbonThickets { get; set; }
 
@@ -2637,6 +2665,9 @@ private static int MostBarrensPieces => Area(400);
     private const float RibbonWetAbove = 12f, RibbonDamp = 0.02f, RibbonNarrowest = 3.6f, RibbonWidest = 12f, RibbonProbe = 1.5f, RibbonReach = 7f;
     private const float ArchSpan = 6f, ArchRise = 5f, WideSpan = 9f, WideRise = 7f, ArchHeadroom = 0.4f, CurtainRoom = 4.2f, ShedShare = 0.6f;
     private const float NarrowScaleLeast = 0.6f, NarrowScaleMost = 1.25f, WideScaleLeast = 0.8f, WideScaleMost = 1.35f;
+    /// <summary>How far round a thicket's places the dark's other growth gives way and later communities keep clear.</summary>
+    private const float ThicketReach = 5f;
+
     private const int RibbonRunFewest = 3, RibbonArchEvery = 1, MostRibbonArches = 30;
     private const float RibbonArchApart = 1.8f;
 
@@ -2647,7 +2678,7 @@ private static int MostBarrensPieces => Area(400);
     /// shed beds of fallen ribbons rotting on the floor. Returns each thicket's places along the route.
     /// </summary>
     private static List<Vector3> RibbonThickets(float[] open, float[] drip, float[] standing, float[] flow, ulong seed, int count,
-        IReadOnlyList<IReadOnlyList<Vector3>> routes, List<OvergrowthPlacement> growth, IEnumerable<(Vector3 At, float Radius)> taken)
+        IReadOnlyList<IReadOnlyList<Vector3>> routes, List<OvergrowthPlacement> growth, IEnumerable<(Vector3 At, float Radius)> taken, Func<Vector3, bool> deep)
     {
         // Every route the water's paths trace through the cave (they share their start: an arch is not placed twice).
         List<(IReadOnlyList<Vector3> Route, List<int> Run)> runs = [];
@@ -2658,7 +2689,7 @@ private static int MostBarrensPieces => Area(400);
 
         List<Vector3> places = [];
         int arches = 0;
-        foreach ((IReadOnlyList<Vector3> route, List<int> chosen) in runs.OrderByDescending(r => r.Run.Count).Take(count))
+        foreach ((IReadOnlyList<Vector3> route, List<int> chosen) in runs.Where(r => deep(r.Route[r.Run[r.Run.Count / 2]])).OrderByDescending(r => r.Run.Count).Take(count))
         {
             arches = Thicket(route, chosen, arches);
         }
@@ -2796,7 +2827,7 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "glass steppe - a community"): how
-    /// many glass steppes the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many glass steppes the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyGlassSteppes { get; set; }
 
@@ -2826,7 +2857,7 @@ private static int MostBarrensPieces => Area(400);
     /// </summary>
     private static List<(Vector3 Centre, float Radius)> GlassSteppes(float[] open, byte[] formed, float[] drip, float[] standing, float[] flow, int eras,
         float finalTable, ulong seed, int count, List<OvergrowthPlacement> growth, List<EcologyPlacement> ecology, IReadOnlyList<Vector3> route,
-        IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+        IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen, Func<Vector3, bool> deep)
     {
         float Open(Vector3 p) => Trilinear(open, p);
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
@@ -2882,7 +2913,7 @@ private static int MostBarrensPieces => Area(400);
                 break;
             }
 
-            if (colonies.All(o => Vector3.Distance(o.Centre, c) >= SteppesApart)
+            if (deep(c) && colonies.All(o => Vector3.Distance(o.Centre, c) >= SteppesApart)
                 && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + SteppeRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
             {
                 colonies.Add((c, SteppeRadius));
@@ -2965,7 +2996,7 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-21, the concept sheet "funnel garden - a community"): how
-    /// many funnel gardens the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// many funnel gardens the karst caves generated next grow, 0 none. Set, it overrides the choice by region and depth (#10304).
     /// </summary>
     internal static int StudyFunnelGardens { get; set; }
 
@@ -2996,7 +3027,7 @@ private static int MostBarrensPieces => Area(400);
     /// ring of drinker tubes. Returns each garden's centre and radius.
     /// </summary>
     private static List<(Vector3 Centre, float Radius)> FunnelGardens(float[] open, ulong seed, int count, Vector3[] sinks, List<OvergrowthPlacement> growth,
-        IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+        IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen, Func<Vector3, bool> deep)
     {
         float Open(Vector3 p) => Trilinear(open, p);
         // The ground over a place: the plateau over a cave open to the sky, else the top of the space.
@@ -3019,7 +3050,7 @@ private static int MostBarrensPieces => Area(400);
                 continue;
             }
 
-            if (taken.Any(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(floor.X, floor.Z)) < t.Radius + FunnelRadius && MathF.Abs(t.At.Y - floor.Y) < 8f))
+            if (!deep(floor) || taken.Any(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(floor.X, floor.Z)) < t.Radius + FunnelRadius && MathF.Abs(t.At.Y - floor.Y) < 8f))
             {
                 continue;
             }
@@ -3183,6 +3214,12 @@ private static int MostBarrensPieces => Area(400);
         internal required Era[] Eras { get; init; }
         /// <summary>The cave's living (and mineral) light: where each growth stands (#10129).</summary>
         internal required IReadOnlyList<EcologyPlacement> Ecology { get; init; }
+
+        /// <summary>The stranger communities the cave grew (#10304), in the order they were grown.</summary>
+        internal IReadOnlyList<CaveCommunity> Communities { get; init; } = [];
+
+        /// <summary>The region and depth the cave was generated for (#10304).</summary>
+        internal CaveSetting Setting { get; init; }
 
         /// <summary>The overgrowth the dark grows (#10096): mushrooms on damp still floors, root tangles under the surface.</summary>
         internal required IReadOnlyList<OvergrowthPlacement> Overgrowth { get; init; }
@@ -3432,12 +3469,14 @@ private static int MostBarrensPieces => Area(400);
         markAt = now;
     }
 
-    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, Centrepiece? centrepiece = null)
+    /// <param name="setting">The region above and the cave's depth (#10304); null for a temperate, middling cave.</param>
+    internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, Centrepiece? centrepiece = null,
+        CaveSetting? setting = null)
     {
         Stages.Clear();
         ShortestLog.Clear();
         markAt = Stopwatch.GetTimestamp();
-        Result cave = Build(seed, centrepiece);
+        Result cave = Build(seed, centrepiece, setting);
         Mark("build-tail");
         Func<Vector3, float> shape = cave.At;
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, cave.RockAt);
@@ -3495,6 +3534,7 @@ private static int MostBarrensPieces => Area(400);
             Overgrowth = overgrowth,
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
+            Communities = cave.Communities,
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
@@ -3503,13 +3543,14 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>What a generated cave came to, in one line.</summary>
     internal static string Readout(Result cave) => string.Create(CultureInfo.InvariantCulture,
-        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges, {cave.Waterfalls.Length} waterfalls ({string.Join(" ", cave.Waterfalls.Select(w => $"{w.Drop:F0}m{(w.Lands ? "" : "+abyss")}"))})" : string.Empty)}{(cave.WaterZones.Count > 0 ? $" water: {string.Join(" ", cave.WaterZones.GroupBy(w => w.Kind).Select(g => $"{g.Count()} {g.Key}"))}" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, generated in {cave.Milliseconds:F0} ms; passages ")
+        $"karst cave: eras {string.Join("+", cave.Eras)}{(cave.Tiankeng is (Vector3 tf, float tr) ? $" tiankeng r={tr:F0} at {tf.X:F0},{tf.Y:F0},{tf.Z:F0}" : string.Empty)}{(cave.Chasm is ChasmShape ch ? $" chasm r={ch.Radius:F0} at {ch.Centre.X:F0},{ch.Centre.Y:F0}, {ch.Ledges.Length} ledges, {ch.Bridges.Length} bridges, {cave.Waterfalls.Length} waterfalls ({string.Join(" ", cave.Waterfalls.Select(w => $"{w.Drop:F0}m{(w.Lands ? "" : "+abyss")}"))})" : string.Empty)}{(cave.WaterZones.Count > 0 ? $" water: {string.Join(" ", cave.WaterZones.GroupBy(w => w.Kind).Select(g => $"{g.Count()} {g.Key}"))}" : string.Empty)}{(cave.GreatHall is Hall gh ? $" hall {gh.RadiusX * 2f:F0}x{gh.RadiusZ * 2f:F0}x{gh.Height:F0} m at {gh.Centre.X:F0},{gh.Floor:F0},{gh.Centre.Y:F0}, {gh.Pillars.Length} pillars" : string.Empty)}, {cave.Conduits} conduits, {cave.Chambers.Length} chambers, {cave.Rifts.Length} rifts, {cave.Formations} formations, communities [{string.Join(" ", cave.Communities)}] under {cave.Setting.Key}, generated in {cave.Milliseconds:F0} ms; passages ")
         + string.Join(", ", cave.Passages.Select(p => string.Create(CultureInfo.InvariantCulture,
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
     /// <summary>Generates the cave: the rock, the water's rounds through it, the shapes it leaves, and the passages checked.</summary>
-    internal static Result Build(ulong seed, Centrepiece? centrepiece = null)
+    internal static Result Build(ulong seed, Centrepiece? centrepiece = null, CaveSetting? setting = null)
     {
+        CaveSetting place = setting ?? CaveSetting.Temperate;
         long started = Stopwatch.GetTimestamp();
         DungeonRandom random = new(seed);
         markAt = started;
@@ -3721,79 +3762,135 @@ private static int MostBarrensPieces => Area(400);
         List<OvergrowthPlacement> darkGrowth = [];
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
         Mark("ecology");
+        // The cave's stranger communities (#10304; owner, 2026-10-23): the study switches when any is set, else one to three
+        // chosen by the region above and by depth, each grown where the cave has its sites and they lie deep enough. Each is
+        // its own community: the dark's everyday growth gives way inside it, and later ones keep clear of earlier ones.
         List<(Vector3 Seep, float Radius)> orchards = [];
-        if (StudyVentOrchards > 0)
+        List<(Vector3 At, float Radius)> claimed = [];
+        List<CaveCommunity> grown = [];
+        float GroundAbove(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        Func<Vector3, bool> DeepFor(CaveCommunity community) =>
+            p => place.DepthMetres + GroundAbove(p.X, p.Z) - p.Y >= CaveCommunities.Of(community).DepthMetres;
+        int Grow(CaveCommunity community, int count, Func<Vector3, bool> deep)
         {
-            orchards = VentOrchards(open, drip, activeFlow, seed, StudyVentOrchards, ecology, darkGrowth, mainRoute, skyOpen, greatHall);
-            // An orchard is its own community: the dark's plain mushrooms and glow fungi give way inside it.
-            bool InOrchard(Vector3 p) => orchards.Any(o => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(o.Seep.X, o.Seep.Z)) < o.Radius + OrchardEdge && MathF.Abs(p.Y - o.Seep.Y) < OrchardRise + 2f);
-            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && InOrchard(g.At));
-            ecology.RemoveAll(e => e.Kind == EcologyKind.GlowFungi && InOrchard(e.At));
+            switch (community)
+            {
+                case CaveCommunity.VentOrchard:
+                {
+                    orchards = VentOrchards(open, drip, activeFlow, seed, count, ecology, darkGrowth, mainRoute, skyOpen, greatHall, claimed, deep);
+                    bool InOrchard(Vector3 p) => orchards.Any(o => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(o.Seep.X, o.Seep.Z)) < o.Radius + OrchardEdge && MathF.Abs(p.Y - o.Seep.Y) < OrchardRise + 2f);
+                    darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && InOrchard(g.At));
+                    ecology.RemoveAll(e => e.Kind == EcologyKind.GlowFungi && InOrchard(e.At));
+                    claimed.AddRange(orchards.Select(o => (o.Seep, o.Radius)));
+                    return orchards.Count;
+                }
+
+                case CaveCommunity.InvertedGrove:
+                {
+                    List<(Vector3 Roof, float Radius)> groves = InvertedGroves(open, seed, count, ecology, darkGrowth, skyOpen, claimed, deep);
+                    // Under a grove the dark's root curtains and tangles, mushrooms and glow fungi give way.
+                    bool UnderGrove(Vector3 p) => groves.Any(g => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(g.Roof.X, g.Roof.Z)) < g.Radius + GroveEdge && p.Y <= g.Roof.Y + GroveRoofSpread);
+                    darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && UnderGrove(g.At));
+                    ecology.RemoveAll(e => e.Kind is EcologyKind.GlowFungi or EcologyKind.RootCurtain && UnderGrove(e.At));
+                    claimed.AddRange(groves.Select(g => (g.Roof, g.Radius)));
+                    return groves.Count;
+                }
+
+                case CaveCommunity.FunnelGarden:
+                {
+                    List<(Vector3 Centre, float Radius)> gardens = FunnelGardens(open, seed, count, sinks, darkGrowth, mainRoute, claimed, skyOpen, deep);
+                    darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                        && gardens.Any(f => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(f.Centre.X, f.Centre.Z)) < f.Radius + 1f && MathF.Abs(g.At.Y - f.Centre.Y) < FunnelRise + 2f));
+                    claimed.AddRange(gardens);
+                    return gardens.Count;
+                }
+
+                case CaveCommunity.GlassSteppe:
+                {
+                    List<(Vector3 Centre, float Radius)> steppes = GlassSteppes(open, formed, drip, standing, activeFlow, eras.Length, finalTable, seed, count,
+                        darkGrowth, ecology, mainRoute, claimed, skyOpen, deep);
+                    // On a steppe the crystals and the dark's mushrooms give way.
+                    bool OnSteppe(Vector3 p) => steppes.Any(s => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(s.Centre.X, s.Centre.Z)) < s.Radius + 1f && MathF.Abs(p.Y - s.Centre.Y) < SteppeRise + 2f);
+                    darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && OnSteppe(g.At));
+                    ecology.RemoveAll(e => e.Kind == EcologyKind.CrystalBloom && OnSteppe(e.At));
+                    claimed.AddRange(steppes);
+                    return steppes.Count;
+                }
+
+                case CaveCommunity.RibbonThicket:
+                {
+                    List<Vector3> thicket = RibbonThickets(open, drip, standing, activeFlow, seed, count,
+                        [.. routePaths.Select(path => (IReadOnlyList<Vector3>)[.. path.Where((_, i) => i % 4 == 0).Select(FieldCentre)])], darkGrowth, claimed, deep);
+                    // In a thicket the dark's mushrooms and root curtains give way.
+                    bool InThicket(Vector3 p) => thicket.Any(t => Vector3.Distance(t, p) < ThicketReach);
+                    darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && InThicket(g.At));
+                    ecology.RemoveAll(e => e.Kind == EcologyKind.RootCurtain && InThicket(e.At));
+                    claimed.AddRange(thicket.Select(t => (t, ThicketReach)));
+                    return thicket.Count;
+                }
+
+                case CaveCommunity.VeilForest:
+                {
+                    // The draft's line: the routes from the arrival's sink to the cave's other sinks (its openings).
+                    List<(Vector3 Centre, float Radius)> veils = VeilForests(open, seed, count,
+                        [.. routes.Select((r, i) => (r, i)).Where(x => x.r.Name != "spring").Select(x => (IReadOnlyList<Vector3>)[.. routePaths[x.i].Where((_, k) => k % 4 == 0).Select(FieldCentre)])],
+                        darkGrowth, mainRoute, claimed, skyOpen, deep);
+                    darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                        && veils.Any(v => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(v.Centre.X, v.Centre.Z)) < v.Radius + 1f && MathF.Abs(g.At.Y - v.Centre.Y) < VeilRise + 2f));
+                    claimed.AddRange(veils);
+                    return veils.Count;
+                }
+
+                case CaveCommunity.CushionBarrens:
+                {
+                    List<(Vector3 Centre, float Radius)> barrens = CushionBarrens(open, rubble, seed, count, chambers, darkGrowth, mainRoute, claimed, skyOpen, deep);
+                    darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                        && barrens.Any(b => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(b.Centre.X, b.Centre.Z)) < b.Radius + 1f && MathF.Abs(g.At.Y - b.Centre.Y) < BarrensRise + 2f));
+                    claimed.AddRange(barrens);
+                    return barrens.Count;
+                }
+
+                default:
+                {
+                    List<(Vector3 Centre, float Radius)> heaths = IvoryHeaths(open, flowstone, drip, standing, activeFlow, seed, count, darkGrowth, mainRoute, claimed, skyOpen, deep);
+                    darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                        && heaths.Any(h => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(h.Centre.X, h.Centre.Z)) < h.Radius + 1f && MathF.Abs(g.At.Y - h.Centre.Y) < HeathRise + 2f));
+                    claimed.AddRange(heaths);
+                    return heaths.Count;
+                }
+            }
         }
 
-        if (StudyInvertedGroves > 0)
+        if (StudiedCommunities)
         {
-            List<(Vector3 Roof, float Radius)> groves = InvertedGroves(open, seed, StudyInvertedGroves, ecology, darkGrowth, skyOpen, orchards);
-            // A grove is its own community: under it the dark's root curtains and tangles, mushrooms and glow fungi give way.
-            bool UnderGrove(Vector3 p) => groves.Any(g => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(g.Roof.X, g.Roof.Z)) < g.Radius + GroveEdge && p.Y <= g.Roof.Y + GroveRoofSpread);
-            darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && UnderGrove(g.At));
-            ecology.RemoveAll(e => e.Kind is EcologyKind.GlowFungi or EcologyKind.RootCurtain && UnderGrove(e.At));
+            foreach (CaveCommunity community in Enum.GetValues<CaveCommunity>())
+            {
+                if (StudyCount(community) is int studied and > 0 && Grow(community, studied, _ => true) > 0)
+                {
+                    grown.Add(community);
+                }
+            }
+        }
+        else if (!StudyNoCommunities)
+        {
+            // The cave's floor lies at most its height deeper than its top.
+            float deepest = place.DepthMetres + (FieldY * FieldStep);
+            int target = CaveCommunities.Target(seed, place.DepthMetres);
+            foreach (CaveCommunity community in CaveCommunities.Candidates(place, deepest, seed))
+            {
+                if (grown.Count >= target)
+                {
+                    break;
+                }
+
+                if (Grow(community, Area(1), DeepFor(community)) > 0)
+                {
+                    grown.Add(community);
+                }
+            }
         }
 
-        if (StudyFunnelGardens > 0)
-        {
-            List<(Vector3 Centre, float Radius)> gardens = FunnelGardens(open, seed, StudyFunnelGardens, sinks, darkGrowth, mainRoute, orchards, skyOpen);
-            // A garden is its own community: the dark's plain mushrooms give way inside it.
-            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
-                && gardens.Any(f => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(f.Centre.X, f.Centre.Z)) < f.Radius + 1f && MathF.Abs(g.At.Y - f.Centre.Y) < FunnelRise + 2f));
-        }
-
-        if (StudyGlassSteppes > 0)
-        {
-            List<(Vector3 Centre, float Radius)> steppes = GlassSteppes(open, formed, drip, standing, activeFlow, eras.Length, finalTable, seed, StudyGlassSteppes,
-                darkGrowth, ecology, mainRoute, orchards, skyOpen);
-            // A steppe is its own community: the crystals and the dark's mushrooms give way on it.
-            bool OnSteppe(Vector3 p) => steppes.Any(s => Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(s.Centre.X, s.Centre.Z)) < s.Radius + 1f && MathF.Abs(p.Y - s.Centre.Y) < SteppeRise + 2f);
-            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms && OnSteppe(g.At));
-            ecology.RemoveAll(e => e.Kind == EcologyKind.CrystalBloom && OnSteppe(e.At));
-        }
-
-        if (StudyRibbonThickets > 0)
-        {
-            List<Vector3> thicket = RibbonThickets(open, drip, standing, activeFlow, seed, StudyRibbonThickets,
-                [.. routePaths.Select(path => (IReadOnlyList<Vector3>)[.. path.Where((_, i) => i % 4 == 0).Select(FieldCentre)])], darkGrowth, orchards);
-            // A thicket is its own community: the dark's mushrooms and root curtains give way in it.
-            bool InThicket(Vector3 p) => thicket.Any(t => Vector3.Distance(t, p) < 5f);
-            darkGrowth.RemoveAll(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.RootTangle && InThicket(g.At));
-            ecology.RemoveAll(e => e.Kind == EcologyKind.RootCurtain && InThicket(e.At));
-        }
-
-        if (StudyVeilForests > 0)
-        {
-            // The draft's line: the routes from the arrival's sink to the cave's other sinks (its openings).
-            List<(Vector3 Centre, float Radius)> veils = VeilForests(open, seed, StudyVeilForests,
-                [.. routes.Select((r, i) => (r, i)).Where(x => x.r.Name != "spring").Select(x => (IReadOnlyList<Vector3>)[.. routePaths[x.i].Where((_, k) => k % 4 == 0).Select(FieldCentre)])],
-                darkGrowth, mainRoute, orchards, skyOpen);
-            // A veil forest is its own community: the dark's mushrooms give way in it.
-            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
-                && veils.Any(v => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(v.Centre.X, v.Centre.Z)) < v.Radius + 1f && MathF.Abs(g.At.Y - v.Centre.Y) < VeilRise + 2f));
-        }
-
-        if (StudyCushionBarrens > 0)
-        {
-            List<(Vector3 Centre, float Radius)> barrens = CushionBarrens(open, rubble, seed, StudyCushionBarrens, chambers, darkGrowth, mainRoute, orchards, skyOpen);
-            // A barrens is its own community: the dark's mushrooms give way on it.
-            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
-                && barrens.Any(b => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(b.Centre.X, b.Centre.Z)) < b.Radius + 1f && MathF.Abs(g.At.Y - b.Centre.Y) < BarrensRise + 2f));
-        }
-
-        if (StudyIvoryHeaths > 0)
-        {
-            List<(Vector3 Centre, float Radius)> heaths = IvoryHeaths(open, flowstone, drip, standing, activeFlow, seed, StudyIvoryHeaths, darkGrowth, mainRoute, orchards, skyOpen);
-            // A heath is its own community: the dark's mushrooms give way on it.
-            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
-                && heaths.Any(h => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(h.Centre.X, h.Centre.Z)) < h.Radius + 1f && MathF.Abs(g.At.Y - h.Centre.Y) < HeathRise + 2f));
-        }
+        Mark("communities");
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
@@ -3837,6 +3934,8 @@ private static int MostBarrensPieces => Area(400);
             Formations = formations,
             Eras = eras,
             Ecology = ecology,
+            Communities = grown,
+            Setting = place,
             Overgrowth = darkGrowth,
             Tiankeng = tiankeng,
             GreatHall = greatHall,

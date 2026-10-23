@@ -14,7 +14,7 @@
          seeds, checks each can be walked as its flow intends, and reports the rate and reasons. -->
     <Compile Include="$(ProductModules)Dungeons/DungeonVolume.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/DungeonLayout.cs" LinkBase="Product/Dungeons" />
-    <Compile Include="$(ProductModules)Dungeons/CaveGrowths.cs" LinkBase="Product/Dungeons" />
+    <Compile Include="$(ProductModules)Dungeons/CaveGrowths.cs;$(ProductModules)Dungeons/CaveCommunities.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/CaveWater.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/CaveWaterShore.cs" LinkBase="Product/Dungeons" />
     <Compile Include="$(ProductModules)Dungeons/KarstCave.cs;$(ProductModules)Dungeons/NaturalCavern.cs;$(ProductModules)Dungeons/StudyField.cs" LinkBase="Product/Dungeons" />

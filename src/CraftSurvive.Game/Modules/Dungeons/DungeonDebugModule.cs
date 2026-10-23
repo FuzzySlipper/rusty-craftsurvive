@@ -100,6 +100,13 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.cushionbarrens", Description = "Assisted, for the underground ecology study (#10096): how many cushion barrens (soft hummocks smothering a fallen-in chamber's rubble, split elders, mats, buds) the karst caves (approach k) entered next grow; 0 none.")]
     public string CushionBarrens(int count) => dungeons.StudyCushionBarrens(count);
 
+    [DebugCommand("craft.dungeon.communities", Description = "The underground's stranger communities (#10304): read names the loaded cave's region, depth and the communities it grew; auto lets the next caves choose theirs by region and depth (the default); none grows none. A community's own switch (craft.dungeon.ventorchard ...) overrides the choice.")]
+    public string Communities(string mode) => mode == "read" ? dungeons.CommunitiesReadout() : DungeonModule.StudyCommunities(mode);
+
+    [DebugCommand("craft.dungeon.setting", Description = "Assisted, for the community study (#10304): the next caves lie under this region and depth - temperature and moisture (0 to 1, as the world map's) and the cave's depth in metres; a negative depth goes back to each entrance's own.")]
+    public string Setting(double temperature, double moisture, double depth) =>
+        dungeons.StudySetting(depth < 0 ? null : new CaveSetting(temperature, moisture, (float)depth));
+
     [DebugCommand("craft.dungeon.ivoryheath", Description = "Assisted, for the underground ecology study (#10096): how many ivory heaths (bristle-crowned storage bulbs on dead flowstone floors, hollow elders, tufts, salt bloom, pods) the karst caves (approach k) entered next grow; 0 none.")]
     public string IvoryHeath(int count) => dungeons.StudyIvoryHeath(count);
 

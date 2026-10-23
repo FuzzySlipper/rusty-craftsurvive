@@ -202,6 +202,13 @@ internal sealed class TerrainWorld : IDisposable
 
     internal VoxelScenePresentation ProjectSeparateSpace(SpatialSession separate, IReadOnlyDictionary<BlockId, Material>? rock = null) => presentation.ProjectAnother(separate, rock);
 
+    /// <summary>What a cave under a place of the world lies beneath (#10304): the region's climate and the cave's depth.</summary>
+    internal Dungeons.CaveSetting CaveSettingUnder(double x, double z)
+    {
+        MapSample above = recipe.Geography(x, z);
+        return Dungeons.CaveSetting.Under(above.Temperature, above.Moisture, above.Elevation / Math.Max(1d, recipe.Map.Scale.PeakElevation), above.Rock);
+    }
+
     /// <summary>The cave rock drawn through a product shader, for the cave detail study (#10094).</summary>
     internal Material CaveRockWithShader(MaterialShader shader) => presentation.CaveRockWithShader(shader);
 

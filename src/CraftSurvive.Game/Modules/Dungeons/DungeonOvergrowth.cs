@@ -298,34 +298,9 @@ internal sealed class DungeonOvergrowth : IDisposable
     private const int TrunkSides = 8;
     private const ulong TrunkAssetBase = 0x5000UL, TrunkInstanceBase = 0x30_0000UL;
 
-    private static (float X, float Z, float Radius, float Height)[] Trunks(OvergrowthKind kind) => kind switch
-    {
-        OvergrowthKind.VentTall => [(0f, 0f, 0.32f, 2.6f)],
-        OvergrowthKind.VentCluster => [(0f, 0f, 0.33f, 3f), (0.42f, 0.2f, 0.27f, 2.1f), (-0.3f, 0.38f, 0.22f, 1.6f), (0.1f, -0.42f, 0.2f, 1.4f)],
-        OvergrowthKind.VentGiant => [(0f, 0f, 1.1f, 10f)],
-        OvergrowthKind.VentGiantCluster => [(0f, 0f, 1.15f, 11f), (1.6f, 0.8f, 0.95f, 8f), (-1.1f, 1.4f, 0.78f, 6f)],
-        OvergrowthKind.SeepChimney => [(0f, 0f, 0.45f, 2.6f), (0.55f, 0.25f, 0.32f, 1.6f), (-0.35f, 0.5f, 0.27f, 1f)],
-        // A funnel collides as its stem, up to where its cup flares out over the player's head.
-        OvergrowthKind.FunnelGiant => [(0f, 0f, 0.85f, 3f)],
-        OvergrowthKind.FunnelTall => [(0f, 0f, 0.5f, 2f)],
-        OvergrowthKind.SteppeSpire => [(0f, 0f, 0.4f, 4f)],
-        // An arch collides at its feet against the walls (its ribbons the player pushes through).
-        OvergrowthKind.RibbonArch => [(-2.9f, 0f, 0.45f, 2f), (2.9f, 0f, 0.45f, 2f)],
-        OvergrowthKind.RibbonArchWide => [(-4.35f, 0f, 0.6f, 2.5f), (4.35f, 0f, 0.6f, 2.5f)],
-        OvergrowthKind.VeilFan => [(0f, 0f, 0.26f, 3f)],
-        OvergrowthKind.VeilFanGreat => [(0f, 0f, 0.34f, 4.6f)],
-        // The barrens' domes collide as low prisms inside their swell: the small ones a step the traveller climbs over.
-        OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust => [(0f, 0f, 0.95f, 0.85f)],
-        OvergrowthKind.CushionSplit => [(0f, 0f, 1f, 0.95f)],
-        OvergrowthKind.CushionGreat => [(0f, 0f, 2f, 2.3f)],
-        OvergrowthKind.IvoryBulb => [(0f, 0f, 0.4f, 0.9f)],
-        OvergrowthKind.IvoryBulbGreat => [(0f, 0f, 0.9f, 2f)],
-        OvergrowthKind.IvoryHollow => [(0f, 0f, 0.55f, 1.2f)],
-        _ => [],
-    };
 
     /// <summary>Whether any placement has a trunk that collides.</summary>
-    internal bool Collides => placed.Any(p => Trunks(p.Kind).Length > 0);
+    internal bool Collides => placed.Any(p => OvergrowthPlacement.Trunks(p.Kind).Length > 0);
 
     /// <summary>
     /// The vent trunks as the space's static collision, one asset per kind and an instance per placement, as the kit
@@ -333,14 +308,14 @@ internal sealed class DungeonOvergrowth : IDisposable
     /// </summary>
     internal void Collide(SpatialSession session)
     {
-        List<OvergrowthKind> kinds = [.. placed.Select(p => p.Kind).Where(k => Trunks(k).Length > 0).Distinct()];
+        List<OvergrowthKind> kinds = [.. placed.Select(p => p.Kind).Where(k => OvergrowthPlacement.Trunks(k).Length > 0).Distinct()];
         List<Vector3> vertices = [];
         List<Triangle> triangles = [];
         List<StaticMeshAsset> assets = [];
         foreach (OvergrowthKind kind in kinds)
         {
             uint firstVertex = (uint)vertices.Count, firstTriangle = (uint)triangles.Count;
-            foreach ((float x, float z, float radius, float height) in Trunks(kind))
+            foreach ((float x, float z, float radius, float height) in OvergrowthPlacement.Trunks(kind))
             {
                 uint b = (uint)vertices.Count - firstVertex;
                 for (int k = 0; k < TrunkSides; k++)
@@ -369,7 +344,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         }
 
         engine.Spatial.ReplaceCollision(new CollisionReplaceRequest(session, assets.ToArray(), vertices.ToArray(), triangles.ToArray(),
-            placed.Where(p => Trunks(p.Kind).Length > 0)
+            placed.Where(p => OvergrowthPlacement.Trunks(p.Kind).Length > 0)
                 .Select((p, i) => new StaticMeshInstance(TrunkInstanceBase + (ulong)i, TrunkAssetBase + (ulong)kinds.IndexOf(p.Kind), p.Place)).ToArray()));
     }
 

@@ -91,6 +91,29 @@ internal sealed class DungeonModule : IProductModule
 
     /// <summary>The entrance being entered: its seed, and which of its candidates is loading or loaded.</summary>
     private ulong entranceSeed;
+
+    // The region and depth of the cave entered (#10304), and a study's own in its place (null: the entrance's).
+    private CaveSetting caveSetting = CaveSetting.Temperate;
+    private CaveSetting? studySetting;
+
+    /// <summary>For studies (#10304): the next caves' region and depth (temperature and moisture 0 to 1, metres), or null for the entrance's.</summary>
+    internal string StudySetting(CaveSetting? setting)
+    {
+        studySetting = setting;
+        return setting is CaveSetting chosen ? $"the next caves lie under {chosen.Key}" : "the next caves lie under their entrances";
+    }
+
+    /// <summary>For studies (#10304): auto grows the stranger communities chosen by region and depth, none grows none.</summary>
+    internal static string StudyCommunities(string mode)
+    {
+        KarstCave.StudyNoCommunities = mode == "none";
+        return KarstCave.StudyNoCommunities ? "the next caves grow none of the stranger communities" : "the next caves choose their communities by region and depth";
+    }
+
+    /// <summary>The region and depth of the cave loaded, and the communities it grew.</summary>
+    internal string CommunitiesReadout() => space is DungeonSpace current
+        ? $"under {caveSetting.Key}: [{string.Join(" ", current.Layout.Communities)}]"
+        : $"under {caveSetting.Key}: no dungeon is loaded";
     private int candidateIndex;
 
     /// <summary>The Engine's verdict on the dungeon last loaded, accepted or not.</summary>
@@ -284,6 +307,8 @@ internal sealed class DungeonModule : IProductModule
 
         // Every entrance has its own dungeon: the world's seed and the entrance's place decide it.
         entranceSeed = seedOverride ?? DungeonSeed(terrain.SaveIdentity.Seed, entrance);
+        // The cave knows the region above its entrance and how deep it lies there (#10304), unless a study sets them.
+        caveSetting = studySetting ?? terrain.CaveSettingUnder(entrance.X, entrance.Z);
         string loading = Load(0);
         if (state != DungeonState.Loading)
         {
@@ -301,12 +326,12 @@ internal sealed class DungeonModule : IProductModule
         // Generated once (#10304 prototype): a cave already generated this run is taken as it was, as a stored one would be.
         double voxelSize = DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize;
         string key = string.Create(CultureInfo.InvariantCulture,
-            $"{approach}-{entranceSeed:x}-{index}-{voxelSize}-{studyCentre}-{KarstCave.ChunksX}x{KarstCave.ChunksY}x{KarstCave.ChunksZ}");
+            $"{approach}-{entranceSeed:x}-{index}-{voxelSize}-{studyCentre}-{KarstCave.ChunksX}x{KarstCave.ChunksY}x{KarstCave.ChunksZ}-{caveSetting.Key}-{KarstCave.StudyKey}");
         long generating = System.Diagnostics.Stopwatch.GetTimestamp();
         bool cached = Generated.TryGetValue(key, out DungeonCandidate? candidate);
         if (candidate is null)
         {
-            candidate = DungeonCandidates.Generate(approach, entranceSeed, index, voxelSize, studyCentre);
+            candidate = DungeonCandidates.Generate(approach, entranceSeed, index, voxelSize, studyCentre, caveSetting);
             Generated[key] = candidate;
         }
 

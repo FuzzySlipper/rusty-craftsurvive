@@ -184,6 +184,36 @@ internal enum OvergrowthKind
 /// </summary>
 internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3 At, Vector3 Out, float Scale, float Pick, Vector3? Up = null)
 {
+    /// <summary>
+    /// The colliding trunks of a kind (#10096; #10304 moved here so the bank can read them): each a closed prism round a foot
+    /// in the piece's frame (metres: its offset, radius and height); none for kinds that do not collide.
+    /// </summary>
+    internal static (float X, float Z, float Radius, float Height)[] Trunks(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.VentTall => [(0f, 0f, 0.32f, 2.6f)],
+        OvergrowthKind.VentCluster => [(0f, 0f, 0.33f, 3f), (0.42f, 0.2f, 0.27f, 2.1f), (-0.3f, 0.38f, 0.22f, 1.6f), (0.1f, -0.42f, 0.2f, 1.4f)],
+        OvergrowthKind.VentGiant => [(0f, 0f, 1.1f, 10f)],
+        OvergrowthKind.VentGiantCluster => [(0f, 0f, 1.15f, 11f), (1.6f, 0.8f, 0.95f, 8f), (-1.1f, 1.4f, 0.78f, 6f)],
+        OvergrowthKind.SeepChimney => [(0f, 0f, 0.45f, 2.6f), (0.55f, 0.25f, 0.32f, 1.6f), (-0.35f, 0.5f, 0.27f, 1f)],
+        // A funnel collides as its stem, up to where its cup flares out over the player's head.
+        OvergrowthKind.FunnelGiant => [(0f, 0f, 0.85f, 3f)],
+        OvergrowthKind.FunnelTall => [(0f, 0f, 0.5f, 2f)],
+        OvergrowthKind.SteppeSpire => [(0f, 0f, 0.4f, 4f)],
+        // An arch collides at its feet against the walls (its ribbons the player pushes through).
+        OvergrowthKind.RibbonArch => [(-2.9f, 0f, 0.45f, 2f), (2.9f, 0f, 0.45f, 2f)],
+        OvergrowthKind.RibbonArchWide => [(-4.35f, 0f, 0.6f, 2.5f), (4.35f, 0f, 0.6f, 2.5f)],
+        OvergrowthKind.VeilFan => [(0f, 0f, 0.26f, 3f)],
+        OvergrowthKind.VeilFanGreat => [(0f, 0f, 0.34f, 4.6f)],
+        // The barrens' domes collide as low prisms inside their swell: the small ones a step the traveller climbs over.
+        OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust => [(0f, 0f, 0.95f, 0.85f)],
+        OvergrowthKind.CushionSplit => [(0f, 0f, 1f, 0.95f)],
+        OvergrowthKind.CushionGreat => [(0f, 0f, 2f, 2.3f)],
+        OvergrowthKind.IvoryBulb => [(0f, 0f, 0.4f, 0.9f)],
+        OvergrowthKind.IvoryBulbGreat => [(0f, 0f, 0.9f, 2f)],
+        OvergrowthKind.IvoryHollow => [(0f, 0f, 0.55f, 1.2f)],
+        _ => [],
+    };
+
     /// <summary>Whether a kind is the vent orchard's (an underground ecology's, grown round a cave's seeps) rather than overgrowth on the kit.</summary>
     internal static bool Vent(OvergrowthKind kind) => kind is OvergrowthKind.VentTall or OvergrowthKind.VentCluster or OvergrowthKind.VentShort or OvergrowthKind.VentBed
         or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.SeepChimney or OvergrowthKind.SeepShells or OvergrowthKind.SeepMat;
