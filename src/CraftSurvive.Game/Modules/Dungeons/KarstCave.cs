@@ -1970,6 +1970,10 @@ internal static class KarstCave
     // so far apart, each out to GroveRadius. A hanger keeps GroveHeadroom clear above the floor under its crown; its length
     // (trunk and crown) and footprint by size. Sacs hang within SacReach of a hanger; the root web covers the ceiling between,
     // overlapping; the fallfield lies under the canopy.
+    // A grove's chamber: GroveWideBelow under its ceiling, open GroveWideReach in at least GroveWideFewest of
+    // GroveWideDirections level directions (marched GroveWideStep at a time), so about 8 m across, not a shaft.
+    private const float GroveWideBelow = 3f, GroveWideReach = 4f, GroveWideStep = 0.5f;
+    private const int GroveWideDirections = 8, GroveWideFewest = 6;
     private const float GroveUnderSurface = 12f, GroveDrop = 6f, GroveAreaCell = 4f, GrovesApart = 26f, GroveRadius = 11f, GroveStep = 0.9f;
     private const float GroveHeadroom = 3.5f, HangerLength = 7f, SmallHangerLength = 4f, HangerFootprint = 2.6f, SmallHangerFootprint = 1.6f;
     private const float HangerDensest = 0.35f, HangerReach = 0.85f, SacReach = 3.5f, SacShare = 0.35f, SacLength = 2.5f, SacFootprint = 0.8f;
@@ -1990,6 +1994,35 @@ internal static class KarstCave
     {
         float Open(Vector3 p) => Trilinear(open, p);
         float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        // A grove hangs over a chamber, not down a shaft (owner, 2026-10-23): at its crowns' height the space under the
+        // ceiling reaches GroveWideReach in most level directions.
+        bool Wide(Vector3 roof)
+        {
+            Vector3 crowns = roof - new Vector3(0f, GroveWideBelow, 0f);
+            if (Open(crowns) <= 0f)
+            {
+                return false;
+            }
+
+            int reaching = 0;
+            for (int k = 0; k < GroveWideDirections; k++)
+            {
+                float a = k * MathF.Tau / GroveWideDirections;
+                Vector3 step = new(MathF.Cos(a) * GroveWideStep, 0f, MathF.Sin(a) * GroveWideStep);
+                float reach = 0f;
+                Vector3 at = crowns;
+                while (reach < GroveWideReach && Open(at + step) > 0f)
+                {
+                    at += step;
+                    reach += GroveWideStep;
+                }
+
+                reaching += reach >= GroveWideReach ? 1 : 0;
+            }
+
+            return reaching >= GroveWideFewest;
+        }
+
         List<Vector3> roofs = [];
         for (float z = 2f; z < GridZ * GridCell - 2f; z += EcologyStep)
             for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
@@ -1997,7 +2030,7 @@ internal static class KarstCave
                 {
                     Vector3 p = new(x, y, z);
                     if (Open(p) > 0f && Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p - new Vector3(0f, GroveDrop, 0f)) > 0f
-                        && Surface(x, z) - y < GroveUnderSurface)
+                        && Surface(x, z) - y < GroveUnderSurface && Wide(p))
                     {
                         roofs.Add(Ceiling(open, p));
                     }
