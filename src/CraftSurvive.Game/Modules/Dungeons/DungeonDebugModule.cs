@@ -43,6 +43,21 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.voxelsize", Description = "Assisted, for the micro-voxel study (#10094): the natural cavern study's (approach n) voxel side, 1, 0.5 or 0.25 metres, for voxel surfaces.")]
     public string VoxelSize(double metres) => dungeons.StudyVoxelSize(metres);
 
+    [DebugCommand("craft.dungeon.stream", Description = "Assisted, for the streamed underworld prototype (#10304): start <radius chunks> <budget chunks per update> enters an endless cave streamed about the player; readout; stop.")]
+    public string Stream(string action, int radius = 6, int budget = 8) => dungeons.StudyStream(action, radius, budget);
+
+    [DebugCommand("craft.dungeon.streamwalk", Description = "Assisted, for the streamed underworld prototype (#10304): moves the player this many metres across and through, onto the nearest standing place.")]
+    public string StreamWalk(float dx, float dz) => dungeons.StudyStreamWalk(dx, dz);
+
+    [DebugCommand("craft.dungeon.cavesize", Description = "Assisted, for the cave size prototype (#10304): the next karst caves' box in units across, up and through (16 m each; 6 4 6 the default); their feature counts scale with its floor area.")]
+    public string CaveSize(int chunksX, int chunksY, int chunksZ)
+    {
+        KarstCave.ChunksX = Math.Clamp(chunksX, 2, 32);
+        KarstCave.ChunksY = Math.Clamp(chunksY, 2, 16);
+        KarstCave.ChunksZ = Math.Clamp(chunksZ, 2, 32);
+        return $"karst cave box {KarstCave.ChunksX * 16}x{KarstCave.ChunksY * 16}x{KarstCave.ChunksZ * 16} m";
+    }
+
     [DebugCommand("craft.dungeon.centrepiece", Description = "Assisted, for the centrepiece studies (#10094): what the next karst caves (approach k) are built round - hall (a great hall), chasm (a bottomless chasm open to the sky), none, or auto (chance).")]
     public string Centrepiece(string choice) => dungeons.StudyCentrepiece(choice);
 

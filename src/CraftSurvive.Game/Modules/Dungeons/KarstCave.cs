@@ -17,18 +17,41 @@ namespace CraftSurvive.Game.Modules.Dungeons;
 /// </summary>
 internal static class KarstCave
 {
-    internal const int ChunksX = 6, ChunksY = 4, ChunksZ = 6;
+    /// <summary>
+    /// The cave's box in chunks (#10304 size prototype): 6 x 4 x 6 by default; the size study may set larger ones, for the
+    /// next caves generated.
+    /// </summary>
+    internal static int ChunksX = DefaultChunksX, ChunksY = DefaultChunksY, ChunksZ = DefaultChunksZ;
+
+    internal const int DefaultChunksX = 6, DefaultChunksY = 4, DefaultChunksZ = 6;
+
+    /// <summary>
+    /// A count tuned to the default box, scaled with the box's floor area (#10304 size prototype), so a larger box holds
+    /// proportionally more cave rather than the same features spread thinner.
+    /// </summary>
+    private static int Area(int count) => Math.Max(count == 0 ? 0 : 1, (int)Math.Round(count * ChunksX * ChunksZ / (double)(DefaultChunksX * DefaultChunksZ)));
+
+    /// <summary>A height tuned to the default box's top, kept the same distance below a taller box's top.</summary>
+    private static float FromTop(float height) => height + ((ChunksY - DefaultChunksY) * 8f);
 
     // The structural grid water runs through, and the finer field the cave is shaped in.
     private const float GridCell = 2f;
-    private const int GridX = ChunksX * 16 / 2, GridY = ChunksY * 16 / 2, GridZ = ChunksZ * 16 / 2;
+    private static int GridX => ChunksX * 16 / 2;
+
+    private static int GridY => ChunksY * 16 / 2;
+
+    private static int GridZ => ChunksZ * 16 / 2;
     internal const float FieldStep = 0.5f;
-    internal const int FieldX = (int)(ChunksX * 16 / FieldStep), FieldY = (int)(ChunksY * 16 / FieldStep), FieldZ = (int)(ChunksZ * 16 / FieldStep);
+    internal static int FieldX => (int)(ChunksX * 16 / FieldStep);
+
+    internal static int FieldY => (int)(ChunksY * 16 / FieldStep);
+
+    internal static int FieldZ => (int)(ChunksZ * 16 / FieldStep);
     private const float FieldLimit = 2f;
 
     // The rock: bed spacing, how much more readily partings and joints dissolve, and the beds' dip.
     private const float BedSpacingLeast = 3.5f, BedSpacingMost = 7f, PartingSolubility = 3f, JointSolubility = 2.2f;
-    private const int Joints = 7;
+    private static int Joints => Area(7);
     private const float JointLongest = 40f;
     internal static readonly Vector2 BedDip = new(0.05f, 0.025f);
     private const float SolubilityRoll = 0.3f;
@@ -37,11 +60,11 @@ internal static class KarstCave
     // the valley cuts down; below where it stands now the cave is still flooded.
     private const float HighestTable = 46f, LowestTable = 15f, DrainedBelowTable = 6f;
     private const int FewestEras = 3, MostEras = 5;
-    private const int Sinks = 6;
+    private static int Sinks => Area(6);
     private const int RoundsPerStage = 10;
     /// <summary>The share of the sinks feeding any one era: sinks are captured and abandoned between eras.</summary>
     private const float SinkActiveChance = 0.7f;
-    private const int FewestActiveSinks = 2;
+    private static int FewestActiveSinks => Area(2);
     /// <summary>Moving through plain rock rather than along a parting (sideways) or a joint (up or down) costs this much more.</summary>
     private const float AcrossBeds = 2.2f, AcrossJoints = 7f;
     /// <summary>How much cheaper a conduit gets per unit of water through it, and how much each round's costs are jostled.</summary>
@@ -59,7 +82,8 @@ internal static class KarstCave
     private const float WidthRoll = 0.55f, WidthFrequency = 0.11f;
 
     // Breakdown: how many fallen blocks a chamber holds, their sizes, and the chance a large open-air passage has fallen in.
-    private const int FewestBlocks = 6, MostBlocks = 15;
+    private static int FewestBlocks => Area(6);
+    private static int MostBlocks => Area(15);
     private const float SmallestBlock = 0.5f, LargestBlock = 1.9f, BlockRounding = 0.25f, CollapseChance = 0.3f, CollapseFlow = 0.3f;
 
     // Bedding rooms: broad, low rooms spread along a flooded parting, held up by pillars of what did not dissolve.
@@ -72,7 +96,7 @@ internal static class KarstCave
     // Formations where water drips: from open joints under a ceiling above the water table, a stalactite hangs and often a
     // stalagmite rises under it; in a low gap the two have met in a column.
     private const float FormationChance = 0.4f, StalagmiteChance = 0.65f, ColumnGap = 4f, ColumnChance = 0.35f, FormationApart = 1.6f;
-    private const int MostFormations = 90;
+    private static int MostFormations => Area(90);
     /// <summary>A passage opened this many eras ago is fully decorated; one opened in the last era gets this share of formations.</summary>
     private const int DecoratedAfterEras = 2;
     private const float YoungDecoration = 0.25f;
@@ -108,7 +132,7 @@ internal static class KarstCave
     private const float LightAboveFloor = 1.2f;
 
     /// <summary>How many of the lights go to features off the main route (the maze, bedding rooms, chambers).</summary>
-    private const int MostFeatureLights = 6;
+    private static int MostFeatureLights => Area(6);
 
     /// <summary>Water moves level (with diagonals across the floor) or straight up and down: down joints, along partings, not on slants.</summary>
     private static readonly (int X, int Y, int Z)[] AroundWater = [(1, 0, 0), (-1, 0, 0), (0, 0, 1), (0, 0, -1), (1, 0, 1), (1, 0, -1), (-1, 0, 1), (-1, 0, -1), (0, 1, 0), (0, -1, 0)];
@@ -167,31 +191,34 @@ internal static class KarstCave
     private const float KeyholeWidth = 0.4f, KeyholeDepth = 2.5f, KeyholeDepthPerFlow = 3f;
 
     // Rifts: how many, how far past the touched part of a joint they run, how far they rise, their half-width and jag.
-    private const int MostRifts = 4;
+    private static int MostRifts => Area(4);
     private const float RiftReach = 6f, RiftRise = 7f, RiftNarrowest = 0.35f, RiftWidest = 0.7f, RiftJag = 1.5f, RiftEdge = 0.15f;
 
     // Hypogene: the spongework's extent, bubble spacing and radii, and the cupolas rising from it.
     private static readonly Vector3 SpongeRadii = new(13f, 6f, 13f);
     private const float SpongeCell = 3.2f, SmallestBubble = 1.7f, LargestBubble = 2.5f, SpongeLowest = 8f, SpongeHighest = 20f;
-    private const int Cupolas = 3;
+    private static int Cupolas => Area(3);
     private static readonly Vector3 CupolaRadii = new(2.5f, 6f, 2.5f);
 
     // Flood mazes: how many, and how near the era's water table they lie.
-    private const int MostMazes = 2;
+    private static int MostMazes => Area(2);
     private const float MazeNearTable = 6f;
 
     // Infill: how deep sediment settles on older floors.
     private const float LeastInfill = 0.6f, MostInfill = 2.2f, InfillFrequency = 0.08f, InfillShareOfSpan = 0.4f;
 
     // Great collapses: how many, their size, and the boulders piled on one side.
-    private const int MostCollapses = 3;
+    private static int MostCollapses => Area(3);
     private const float CollapseLeast = 4f, CollapseMost = 6f, CollapseApart = 20f;
-    private const int FewestBoulders = 20, MostBoulders = 35;
+    private static int FewestBoulders => Area(20);
+    private static int MostBoulders => Area(35);
     private const float LargestBoulder = 3f, BoulderSlopeShare = 0.7f;
 
     // A tiankeng: the ground surface it opens through (open air above, the plateau's level and roll), its radius and how
     // deep under the surface its floor may lie, the bell of its walls, the bands at the beds, and the boulders on its floor.
-    private const float SurfaceLevel = 57f, SurfaceRoll = 2.5f, SurfaceFrequency = 0.04f, SurfaceBlend = 1f;
+    private const float SurfaceRoll = 2.5f, SurfaceFrequency = 0.04f, SurfaceBlend = 1f;
+
+    private static float SurfaceLevel => FromTop(57f);
     private const float TiankengLeast = 9f, TiankengMost = 14f, TiankengShallowest = 8f, TiankengDeepest = 45f;
     private const float TiankengBell = 0.25f, TiankengBand = 0.6f, TiankengWobble = 0.15f;
     private const int TiankengFewestBoulders = 40, TiankengMostBoulders = 60;
@@ -276,7 +303,7 @@ internal static class KarstCave
     private const float LedgeChance = 0.75f, LedgeLeast = 1.2f, LedgeMost = 2.6f, LedgeThickness = 1.4f, LedgeArcLeast = 1.6f, LedgeArcMost = 3.6f, LedgeTaper = 0.35f;
     // Its natural bridges: how many, how wide and thick, how much thicker at their ends (their arch), how far apart in
     // height their ends may be, and how far round the chasm one must reach to cross it.
-    private const int MostBridges = 3;
+    private static int MostBridges => Area(3);
     private const float BridgeHalfWidth = 1.4f, BridgeThickness = 1.3f, BridgeArch = 2f, BridgeLevel = 4f, BridgeAcross = 2.1f, BridgeBelowPassage = 0.9f;
 
     /// <summary>A chasm: its middle across the floor and radius, the ledges on its walls (their top, reach and the arc of the round they span), and its bridges.</summary>
@@ -391,7 +418,7 @@ internal static class KarstCave
 
     // Waterfalls (owner, 2026-10-20): how many streams may fall into a chasm, how much water a window's passage must still
     // carry to pour, how far apart their lips must be, and how fast the sky's light falls off below the surface.
-    private const int MostWaterfalls = 3;
+    private static int MostWaterfalls => Area(3);
     private const float WaterfallLeastFlow = 0.05f, WaterfallsApart = 8f, SkyLightFalloff = 25f, WaterfallClear = 1.2f, LeastDrop = 4f;
 
     /// <summary>
@@ -649,7 +676,7 @@ internal static class KarstCave
     // passage's ceiling may stand and still be drowned (a sump), and how many samples a perched body may fill before it
     // is not a trap but a lowland the water would run out of.
     private const float LeastTrap = 0.4f;
-    private const int MostPerched = 40000;
+    private static int MostPerched => Area(40000);
 
     /// <summary>
     /// A dip whose water would leave less headroom than this under the passage's roof was drowned in a wetter age: a sump,
@@ -661,7 +688,7 @@ internal static class KarstCave
     private const float SumpReach = 3f;
 
     /// <summary>Still water held above the table no bigger than this many samples (about 1000 m3), so water stays a feature, not the cave.</summary>
-    private const int MostPerchedStill = 8000;
+    private static int MostPerchedStill => Area(8000);
 
     /// <summary>
     /// Water held above the water table in the dips of the cave's routes (#10094): where a way between parts of the cave
@@ -763,7 +790,7 @@ internal static class KarstCave
     // Luminous pools (#10129): the share of still water deep in the dark that glows, the most a cave has, how far from a
     // sink (and the light about it) and how far below an open sky they must lie, and the light's height over the water.
     private const float LuminousChance = 0.45f, LuminousFromSink = 12f, LuminousBelowSky = 25f;
-    private const int MostLuminous = 3;
+    private static int MostLuminous => Area(3);
 
     /// <summary>
     /// Marks some of the cave's still water as luminous (#10129): lakes and pools away from the entrances and the sky's
@@ -807,7 +834,7 @@ internal static class KarstCave
         (["fern", "woodland-flowers"], 1.4f, 0.55f, 0.7f, 1.3f),
     ];
     private const float ForestBeyondRim = 12f, TreeClearAbove = 5f;
-    private const int MostForest = 400;
+    private static int MostForest => Area(400);
 
     /// <summary>
     /// The forest growing into a cave's openings to the sky (#10129): on every turf column under or round a tiankeng's or
@@ -889,12 +916,13 @@ internal static class KarstCave
     // (an opening's cliff always, else this share times the damp), ivy mounds at mossy walls' feet, ivy clumps on mossy
     // walls, grass tufts on mossy floors; each kind at least so far apart, and at most so many in a cave.
     private const float DrapeShare = 0.5f, MoundShare = 0.35f, ClumpShare = 0.25f, GrassShare = 0.35f, GrowthApart = 1.4f;
-    private const int MostOvergrowth = 1500;
+    private static int MostOvergrowth => Area(1500);
 
     // Plain mushrooms on damp, still floors anywhere in the dark (beside the glow fungi), and root tangles under the
     // surface beside the root curtains: so far apart, and at most so many.
     private const float MushroomsApart = 2f, RootTanglesApart = 4f;
-    private const int MostMushrooms = 90, MostRootTangles = 10;
+    private static int MostMushrooms => Area(90);
+    private static int MostRootTangles => Area(10);
     private const float MatShare = 0.7f, CushionShare = 0.6f, CurtainShare = 0.8f;
     private const float DryCardShare = 0.45f, WetCardDamp = 0.3f;
     // Ivy hangs from an opening's rim this far down its walls, and this far out past the opening's edge.
@@ -909,7 +937,7 @@ internal static class KarstCave
     // A floor faces up this much, a wall is this near the horizontal; a lip has air over the rock this near above its
     // anchor and a clear drop this deep in front; a foot has a floor this near below.
     private const float CardTopRise = 0.6f, CardSideRise = 0.35f, LipAbove = 0.5f, LipDrop = 1f, FootBelow = 0.5f;
-    private const int MostCards = 1200;
+    private static int MostCards => Area(1200);
     private const float MossPatchReach = 0.6f;
 
     /// <summary>
@@ -1391,7 +1419,7 @@ internal static class KarstCave
         new Vector3(hall.RadiusX * MistSpread, MistDepth, hall.RadiusZ * MistSpread), -hall.Turn * 180f / MathF.PI, HallMistDensity);
 
     /// <summary>The most mist volumes a space places: the Engine draws at most 64 fog volumes in a view.</summary>
-    private const int MostMistVolumes = 64;
+    private static int MostMistVolumes => Area(64);
 
     /// <summary>How thick a hall's floor mist is at its heart.</summary>
     private const float HallMistDensity = 0.12f;
@@ -1507,7 +1535,9 @@ internal static class KarstCave
     // for fungi, how near running water glow-worms hang and how clear the drop below them must be, and how long dry a
     // level must be for crystals.
     private const float FungiApart = 3f, WormsApart = 4f, CrystalsApart = 8f;
-    private const int MostFungi = 25, MostWorms = 15, MostCrystals = 8;
+    private static int MostFungi => Area(25);
+    private static int MostWorms => Area(15);
+    private static int MostCrystals => Area(8);
     private const float FungiDamp = 0.15f, QuietFlow = 0.15f, WormsNearFlow = 0.05f, WormsClearBelow = 2.5f;
     private const int CrystalsAfterEras = 2;
 
@@ -1515,7 +1545,7 @@ internal static class KarstCave
     // (the plateau's ground over a cave open to the sky, else the top of the space), over a clear drop - spaced apart
     // and capped.
     private const float RootsUnderSurface = 7f, RootsClearBelow = 2f, RootsApart = 3.5f;
-    private const int MostRoots = 14;
+    private static int MostRoots => Area(14);
     private const float EcologyStep = 1f;
 
     /// <summary>
@@ -1628,7 +1658,7 @@ internal static class KarstCave
 
     // A seep is chosen by its drip times the floor round it (an orchard needs ground): among the dampest so many, the floor
     // counted on a coarser lattice; and the pieces' footprints may overlap by this share (fused growth).
-    private const int SeepsWeighed = 120;
+    private static int SeepsWeighed => Area(120);
 
     // Large caves: a seep with this much room above it grows an orchard out to this radius, its giants (and giant clusters,
     // this share of them) nearest the seep, this share of the pieces there. A trunk keeps this far clear of the cave's main
@@ -1654,7 +1684,7 @@ internal static class KarstCave
     private const float OrchardEdge = 1f;
 
     private const float ChimneyFootprint = 1.1f, ChimneyTop = 2.6f, LargeChimney = 1.5f;
-    private const int MostOrchardPieces = 1200;
+    private static int MostOrchardPieces => Area(1200);
 
     /// <summary>A vent piece's footprint (its radius, metres) and the room it needs above (metres).</summary>
     private static (float Radius, float Height) VentFootprint(OvergrowthKind kind) => kind switch
@@ -1854,7 +1884,7 @@ internal static class KarstCave
     private const float WebShare = 0.5f, WebFootprint = 2f, WebOverlap = 0.5f, CeilingSink = 0.15f, GroveRoofSpread = 3f;
     private const float LitterShare = 0.55f, LitterFootprint = 1.3f, LitterOverlap = 0.4f, CatcherShare = 0.12f, CatcherFootprint = 0.6f;
     private const float ScavengerShare = 0.04f, MoundFootprint = 1f, FallfieldReach = 0.9f, GroveEdge = 1f;
-    private const int MostGrovePieces = 900;
+    private static int MostGrovePieces => Area(900);
 
     /// <summary>
     /// Inverted groves (#10096): where a ceiling lies close under the surface, nutrients seep down through it, and its
@@ -2036,7 +2066,8 @@ internal static class KarstCave
     private const float HeathRadius = 13f, HeathStep = 1.3f, HeathsApart = 30f, HeathRise = 2.5f, HeathDry = 0.08f;
     private const float BulbShare = 0.14f, GreatBulbShare = 0.2f, HollowShare = 0.2f, BloomShare = 0.7f, TuftsShare = 0.1f, PodShare = 0.35f, HeathGround = 1.4f;
     private const float HeathFlowstoneNear = 2.5f, HeathFlowstoneAbove = 3f;
-    private const int FewestHeathFloors = 6, MostHeathPieces = 300;
+    private const int FewestHeathFloors = 6;
+private static int MostHeathPieces => Area(300);
 
     private static (float Radius, float Height) HeathFootprint(OvergrowthKind kind) => kind switch
     {
@@ -2222,7 +2253,8 @@ internal static class KarstCave
     private const float BarrensRadius = 12f, BarrensStep = 1f, BarrensApart = 25f, BarrensRise = 4f, BarrensHigh = 0.3f, BarrensProbe = 1.8f;
     private const float HummockShare = 0.32f, GreatShare = 0.3f, SplitShare = 0.15f, RustShare = 0.4f, CushionMatShare = 0.35f, BudShare = 0.18f, BudFrom = 0.65f;
     private const float RubbleNear = 2.5f, DomeSink = 0.12f, HummockScaleLeast = 0.75f, HummockScaleSpread = 0.55f;
-    private const int FewestRubbleFloors = 4, MostBarrensPieces = 400;
+    private const int FewestRubbleFloors = 4;
+private static int MostBarrensPieces => Area(400);
 
     private static (float Radius, float Height) CushionFootprint(OvergrowthKind kind) => kind switch
     {
@@ -2382,7 +2414,7 @@ internal static class KarstCave
     private const float VeilRadius = 11f, VeilStep = 1.2f, VeilsApart = 30f, VeilNarrowest = 7f, VeilProbe = 1.5f, VeilReach = 14f, VeilRise = 2.5f;
     private const float FanShare = 0.18f, GreatFanShare = 0.45f, CombShare = 0.45f, CombWall = 1.1f, DriftBehind = 0.5f, PuffShare = 0.6f, PuffAlong = 1.6f;
     private const float FanTrunkRadius = 0.4f, FanScaleSpread = 0.3f;
-    private const int MostVeilPieces = 300;
+    private static int MostVeilPieces => Area(300);
 
     private static (float Radius, float Height, float Span) VeilFootprint(OvergrowthKind kind) => kind switch
     {

@@ -137,6 +137,13 @@ internal sealed class DungeonModule : IProductModule
 
     public void Update(ProductStep step)
     {
+        if (stream is StreamedCave streaming)
+        {
+            streaming.Update(player.WorldFeetPosition - DungeonCollision.Origin);
+            CarryLantern();
+            return;
+        }
+
         switch (state)
         {
             case DungeonState.Outside:
@@ -604,7 +611,7 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Keeps the lantern at the player while inside with a lantern treatment, and puts it out once otherwise.</summary>
     private void CarryLantern()
     {
-        bool on = Darkness.Lantern && !lanternOut && state == DungeonState.Inside;
+        bool on = Darkness.Lantern && !lanternOut && (state == DungeonState.Inside || stream is not null);
         if (!on && !lanternLit)
         {
             return;
@@ -856,6 +863,54 @@ internal sealed class DungeonModule : IProductModule
     {
         KarstCave.StudyIvoryHeaths = Math.Max(0, count);
         return $"karst caves entered next: {KarstCave.StudyIvoryHeaths} ivory heaths";
+    }
+
+    // The streamed underworld prototype (#10304): an endless cave streamed about the player, for measuring.
+    private StreamedCave? stream;
+
+    internal string StudyStream(string action, int radius, int budget)
+    {
+        switch (action)
+        {
+            case "start" when stream is null && state == DungeonState.Outside && !player.InSeparateSpace:
+                long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                stream = new StreamedCave(engine, terrain, PlainRock(), surface, 1UL, radius, 2, budget);
+                // The first fill is the load: the chunks within the radius all at once.
+                stream.Update(stream.Arrival, all: true);
+                double loadMs = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                player.EnterSeparateSpace(stream.Session, DungeonCollision.InSession(stream.Arrival));
+                terrain.DrawOpenWorld(false);
+                sky.Underground(true, conditions.Time, false, false, mist: false);
+                string first = stream.Readout();
+                stream.ResetMeasures();
+                return string.Create(CultureInfo.InvariantCulture, $"streamed cave entered at {stream.Arrival} after {loadMs:F0} ms; {first}");
+            case "stop" when stream is not null:
+                player.ReturnFromSeparateSpace();
+                terrain.DrawOpenWorld(true);
+                sky.Underground(false, conditions.Time, false, false, mist: false);
+                stream.Dispose();
+                stream = null;
+                CarryLantern();
+                return "streamed cave left";
+            case "readout" when stream is not null:
+                return stream.Readout();
+            default:
+                return "usage: start <radius chunks> <budget chunks/update> | readout | stop (start only from the open world)";
+        }
+    }
+
+    /// <summary>The streamed prototype: moves the player this far across, onto the nearest standing place there.</summary>
+    internal string StudyStreamWalk(float dx, float dz)
+    {
+        if (stream is null)
+        {
+            return "no streamed cave";
+        }
+
+        Vector3 at = player.WorldFeetPosition - DungeonCollision.Origin;
+        Vector3 to = stream.FindStanding(new Vector3(at.X + dx, at.Y + 2f, at.Z + dz));
+        player.MoveWithinSeparateSpace(DungeonCollision.InSession(to));
+        return string.Create(CultureInfo.InvariantCulture, $"at {to.X:F0},{to.Y:F0},{to.Z:F0}");
     }
 
     internal string StudyCentrepiece(string choice)
@@ -1312,7 +1367,7 @@ internal sealed class DungeonModule : IProductModule
     internal string Readout()
     {
         string loading = space is DungeonSpace current
-            ? string.Create(CultureInfo.InvariantCulture, $" progress={current.Progress:F2} chunks={current.TotalChunks} loadMs={current.LoadMilliseconds:F1}")
+            ? string.Create(CultureInfo.InvariantCulture, $" progress={current.Progress:F2} chunks={current.TotalChunks} loadMs={current.LoadMilliseconds:F1} probes={ProbeSpacing:F1}m")
             : string.Empty;
         string entrance = nearbyEntrance is PoiSite site ? $"{site.X},{site.Z}" : "none";
         string layout = plan is DungeonPlan current2
@@ -1402,13 +1457,32 @@ internal sealed class DungeonModule : IProductModule
         }
     }
 
+    /// <summary>The Engine's most probes in one indirect light volume, and the step the spacing grows by to fit it.</summary>
+    private const int MostProbes = 262_144;
+    private const float ProbeSpacingStep = 0.5f;
+
+    /// <summary>The probe spacing the loaded space's volume took (metres).</summary>
+    internal float ProbeSpacing { get; private set; } = ProbeSpacingMetres;
+
+    private static long Probes(Vector3 extent, float spacing) =>
+        (long)(MathF.Floor(2f * extent.X / spacing) + 1) * (long)(MathF.Floor(2f * extent.Y / spacing) + 1) * (long)(MathF.Floor(2f * extent.Z / spacing) + 1);
+
     /// <summary>Asks for the probe volume over the dungeon's whole volume, in its session's frame.</summary>
     private void IndirectLight(DungeonVolume volume, double voxelSize)
     {
         Vector3 size = new Vector3(volume.SizeX, volume.SizeY, volume.SizeZ) * (float)voxelSize;
         Vector3 centre = DungeonSpace.InSession(size / 2f);
         Vector3 extent = (size / 2f) + new Vector3(ProbeMarginMetres);
-        engine.CameraView.SetIndirectLight(new IndirectLightRequest(centre, extent, ProbeSpacingMetres, ProbeBounces, IndirectAmbient.Floor));
+        // The Engine holds at most MostProbes in a volume: a larger space spreads them wider (#10304: a 192 m cave at 2 m
+        // needed more, and the refused call faulted the update).
+        float spacing = ProbeSpacingMetres;
+        while (Probes(extent, spacing) > MostProbes)
+        {
+            spacing += ProbeSpacingStep;
+        }
+
+        ProbeSpacing = spacing;
+        engine.CameraView.SetIndirectLight(new IndirectLightRequest(centre, extent, spacing, ProbeBounces, IndirectAmbient.Floor));
     }
 
     private void Publish()
