@@ -1281,6 +1281,11 @@ internal sealed class DungeonModule : IProductModule
             return VisitCommunity(place[CommunityPlace.Length..]);
         }
 
+        if (place.StartsWith(RoutePlace, StringComparison.Ordinal) && int.TryParse(place.AsSpan(RoutePlace.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out int step))
+        {
+            return VisitRoute(step);
+        }
+
         DungeonCell? cell = place switch
         {
             "arrival" => plan.Arrival,
@@ -1310,7 +1315,84 @@ internal sealed class DungeonModule : IProductModule
         return $"at the {place}: {stand}";
     }
 
-    private const string CommunityPlace = "community:";
+    private const string CommunityPlace = "community:", RoutePlace = "route:";
+
+    /// <summary>
+    /// Assisted, for the route walk (#10304): stands the player on the floor under a point of a natural cave's main route
+    /// and names the next point's feet in the session's frame, for the Engine's spatial.clearance sweep to it.
+    /// </summary>
+    private string VisitRoute(int step)
+    {
+        if (space?.Layout is not DungeonLayout layout || layout.Shape is not Func<Vector3, float> open || layout.MainRoute.Count < 2)
+        {
+            return "visit refused: no natural cave with a main route is loaded";
+        }
+
+        if (step < 0 || step >= layout.MainRoute.Count - 1)
+        {
+            return $"visit refused: the main route has points 0..{layout.MainRoute.Count - 2} to step from";
+        }
+
+        Vector3 FeetUnder(Vector3 p)
+        {
+            while (p.Y > 0f && open(p) > 0f)
+            {
+                p.Y -= RouteFeetStep;
+            }
+
+            return p + new Vector3(0f, RouteFeetStep, 0f);
+        }
+
+        Vector3 here = FeetUnder(layout.MainRoute[step]), next = DungeonSpace.InSession(FeetUnder(layout.MainRoute[step + 1]));
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(here));
+        return string.Create(CultureInfo.InvariantCulture, $"at route {step} of {layout.MainRoute.Count - 1}: next {next.X:F2} {next.Y:F2} {next.Z:F2}");
+    }
+
+    /// <summary>
+    /// The route walk (#10304: "routes still pass with the ecologies' colliders on"): sweeps the player's standing capsule,
+    /// centred on the passages' middles, along each segment of a natural cave's main route against the live session's
+    /// collision - its voxel rock and the static colliders (the communities' trunks) - and counts the segments each blocks.
+    /// A natural cave is traversed, not graded, so this checks passage, not walking: a segment rock blocks may still be climbed.
+    /// </summary>
+    internal string SweepRoute()
+    {
+        if (state != DungeonState.Inside || space?.Layout is not DungeonLayout layout || layout.MainRoute.Count < 2)
+        {
+            return "sweep refused: no natural cave with a main route is loaded";
+        }
+
+        double halfSegment = Math.Max(0d, (PlayerConstants.StandingHeight / 2d) - PlayerConstants.CapsuleRadius);
+        int rock = 0, placed = 0;
+        List<string> blockers = [];
+        for (int i = 0; i + 1 < layout.MainRoute.Count; i++)
+        {
+            Vector3 from = DungeonSpace.InSession(layout.MainRoute[i]), to = DungeonSpace.InSession(layout.MainRoute[i + 1]);
+            SpatialHit hit = engine.Spatial.CastCapsule(new SpatialCapsuleQueryRequest(space.Session, from, halfSegment, PlayerConstants.CapsuleRadius, to - from,
+                PlayerConstants.ContactSkin, new SpatialQueryFilter(TerrainConstants.CollisionGroupAll, TerrainConstants.CollisionMaskAll),
+                ReadOnlyMemory<SpatialEntityCollider>.Empty, ReadOnlyMemory<ulong>.Empty));
+            if (!hit.Present)
+            {
+                continue;
+            }
+
+            bool mesh = hit.Kind == SpatialHitKind.StaticMesh;
+            rock += mesh ? 0 : 1;
+            placed += mesh ? 1 : 0;
+            if (mesh && blockers.Count < MostBlockersListed)
+            {
+                Vector3 at = hit.Point - DungeonCollision.Origin;
+                blockers.Add(string.Create(CultureInfo.InvariantCulture, $"segment {i} instance {hit.Instance:x} at {at.X:F1},{at.Y:F1},{at.Z:F1}"));
+            }
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"main route {layout.MainRoute.Count - 1} segments: rock blocks {rock}, placed colliders block {placed}{(blockers.Count > 0 ? " (" + string.Join("; ", blockers) + ")" : string.Empty)}; communities [{string.Join(" ", layout.Communities)}]");
+    }
+
+    private const int MostBlockersListed = 8;
+
+    /// <summary>The step a route point's feet are found under it by (metres).</summary>
+    private const float RouteFeetStep = 0.05f;
 
     // A community's viewpoint (#10304): open floor with headroom within so far of the community's middle, the most of its
     // pieces (up to so many, sampled) in open sight from the eye within a reach, sight tested every so far along.

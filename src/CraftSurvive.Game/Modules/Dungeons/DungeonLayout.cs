@@ -74,6 +74,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>The cave's living light (#10129): where its glowing growths stand, in layout metres; empty for built dungeons.</summary>
     internal IReadOnlyList<EcologyPlacement> Ecology { get; init; } = [];
 
+    /// <summary>A natural cave's main route, from its arrival to its spring (layout metres, along the passages' middles); empty for built dungeons.</summary>
+    internal IReadOnlyList<System.Numerics.Vector3> MainRoute { get; init; } = [];
+
     /// <summary>The stranger communities a natural cave grew (#10304); empty for built dungeons.</summary>
     internal IReadOnlyList<CaveCommunity> Communities { get; init; } = [];
 

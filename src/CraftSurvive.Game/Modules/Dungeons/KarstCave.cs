@@ -1682,8 +1682,8 @@ internal static class KarstCave
     /// </summary>
     internal static int StudyVentOrchards { get; set; }
 
-    /// <summary>The fewest pieces a chosen community must grow to count as one of its cave's communities (#10304).</summary>
-    private const int FewestCommunityPieces = 20;
+    /// <summary>The fewest pieces a chosen community must grow to count as one of its cave's communities, and of its signature pieces (#10304).</summary>
+    private const int FewestCommunityPieces = 20, FewestSignaturePieces = 3;
 
     /// <summary>Whether any community's study switch is set: then the switches choose, not the region and depth (#10304).</summary>
     private static bool StudiedCommunities => Enum.GetValues<CaveCommunity>().Any(c => StudyCount(c) > 0);
@@ -2076,20 +2076,23 @@ internal static class KarstCave
                     switch (pass)
                     {
                         case 0:
-                            // Hangers: the large where the fall leaves headroom under its crown, else the small.
-                            bool large = drop >= HangerLength + GroveHeadroom, small = drop >= SmallHangerLength + GroveHeadroom;
+                            // Hangers: the large where the fall leaves headroom under its whole crown (#10304: at its own size,
+                            // over the floor round its foot, not the one column, so no crown hangs to head height), else the small.
+                            float scale = 0.85f + (0.3f * pick);
+                            bool large = Headroom(open, roof, HangerFootprint, HangerLength * scale) >= (HangerLength * scale) + GroveHeadroom;
+                            bool small = !large && Headroom(open, roof, SmallHangerFootprint, SmallHangerLength * scale) >= (SmallHangerLength * scale) + GroveHeadroom;
                             float footprint = large ? HangerFootprint : SmallHangerFootprint;
                             if (reach < HangerReach && (large || small) && roll < HangerDensest * MathF.Pow(1f - reach, 0.3f) && Clear(hangers, footprint, FootprintKept))
                             {
                                 hangers.Add((roof, footprint));
-                                growth.Add(new OvergrowthPlacement(large ? OvergrowthKind.GroveHanger : OvergrowthKind.GroveHangerSmall, hung, turn, 0.85f + (0.3f * pick), pick));
+                                growth.Add(new OvergrowthPlacement(large ? OvergrowthKind.GroveHanger : OvergrowthKind.GroveHangerSmall, hung, turn, scale, pick));
                                 float length = large ? HangerLength : SmallHangerLength;
                                 ecology.Add(new EcologyPlacement(EcologyKind.GroveCrown, roof - new Vector3(0f, length * 0.85f, 0f), -Vector3.UnitY, 1f, (uint)(pick * uint.MaxValue)));
                             }
 
                             break;
                         case 1:
-                            if (drop >= SacLength + GroveHeadroom && roll < SacShare && hangers.Any(h => Vector2.Distance(new Vector2(h.At.X, h.At.Z), new Vector2(roof.X, roof.Z)) is var e && e > h.Radius * 0.4f && e < SacReach)
+                            if (Headroom(open, roof, SacFootprint, SacLength * (0.8f + (0.4f * pick))) >= (SacLength * (0.8f + (0.4f * pick))) + GroveHeadroom && roll < SacShare && hangers.Any(h => Vector2.Distance(new Vector2(h.At.X, h.At.Z), new Vector2(roof.X, roof.Z)) is var e && e > h.Radius * 0.4f && e < SacReach)
                                 && Clear(sacs, SacFootprint, 1f))
                             {
                                 sacs.Add((roof, SacFootprint));
@@ -3202,6 +3205,45 @@ private static int MostBarrensPieces => Area(400);
         return p + new Vector3(0f, 0.08f, 0f);
     }
 
+    /// <summary>
+    /// How far a ceiling stands over the floor beneath a piece hung <paramref name="length"/> from it (#10304): the least
+    /// drop under its foot and at four points round it at a share of its footprint, those taken at the crown's height, where
+    /// the piece is widest - one in rock means the crown would hang into a wall or a shaft too narrow for it, so none.
+    /// </summary>
+    private static float Headroom(float[] open, Vector3 roof, float footprint, float length)
+    {
+        float least = float.MaxValue;
+        for (int k = 0; k < 5; k++)
+        {
+            float a = k * MathF.Tau / 4f;
+            Vector3 at = k == 0 ? roof - new Vector3(0f, 0.3f, 0f)
+                : roof + new Vector3(MathF.Cos(a) * footprint * HeadroomReach, -length * CrownShare, MathF.Sin(a) * footprint * HeadroomReach);
+            if (Trilinear(open, at) <= 0f)
+            {
+                return 0f;
+            }
+
+            least = MathF.Min(least, roof.Y - Floor(open, at).Y);
+        }
+
+        return least;
+    }
+
+    /// <summary>The share of a hung piece's footprint out to which its headroom is measured, and of its length down to its crown.</summary>
+    private const float HeadroomReach = 0.7f, CrownShare = 0.6f;
+
+    /// <summary>The length a grove's hung piece reaches down from its ceiling at its scale (#10304), for the bank's headroom check.</summary>
+    internal static float HungLength(OvergrowthKind kind, float scale) => kind switch
+    {
+        OvergrowthKind.GroveHanger => HangerLength * scale,
+        OvergrowthKind.GroveHangerSmall => SmallHangerLength * scale,
+        OvergrowthKind.GroveSacs => SacLength * scale,
+        _ => 0f,
+    };
+
+    /// <summary>The headroom a grove leaves under its hung pieces (metres).</summary>
+    internal const float GroveHeadroomMetres = GroveHeadroom;
+
     /// <summary>The ceiling over an open place: the first rock looking up.</summary>
     private static Vector3 Ceiling(float[] open, Vector3 p)
     {
@@ -3566,6 +3608,7 @@ private static int MostBarrensPieces => Area(400);
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
             Communities = cave.Communities,
+            MainRoute = cave.MainRoute,
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
@@ -3914,11 +3957,28 @@ private static int MostBarrensPieces => Area(400);
                     break;
                 }
 
-                // A community counts only once it has grown a stand of its own; a token few pieces leave room for the next.
-                int before = darkGrowth.Count;
-                if (Grow(community, Area(1), DeepFor(community)) > 0 && darkGrowth.Count - before >= FewestCommunityPieces)
+                // A community counts only once it has grown a stand of its own, its signature pieces among them (#10304: a
+                // grove over a shaft too narrow for its hangers grew only litter and root web); one that falls short is
+                // undone - its pieces and lights go, the growth it displaced returns - and leaves room for the next.
+                List<OvergrowthPlacement> growthBefore = [.. darkGrowth];
+                List<EcologyPlacement> ecologyBefore = [.. ecology];
+                int claimedBefore = claimed.Count;
+                if (Grow(community, Area(1), DeepFor(community)) > 0
+                    && darkGrowth.Count(g => CaveCommunities.Grows(community, g.Kind)) >= FewestCommunityPieces
+                    && darkGrowth.Count(g => CaveCommunities.Signature(community, g.Kind)) >= FewestSignaturePieces)
                 {
                     grown.Add(community);
+                    continue;
+                }
+
+                darkGrowth.Clear();
+                darkGrowth.AddRange(growthBefore);
+                ecology.Clear();
+                ecology.AddRange(ecologyBefore);
+                claimed.RemoveRange(claimedBefore, claimed.Count - claimedBefore);
+                if (community == CaveCommunity.VentOrchard)
+                {
+                    orchards = [];
                 }
             }
         }

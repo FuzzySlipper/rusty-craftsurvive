@@ -734,7 +734,11 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     ];
     const int communitySeeds = 3;
     Dictionary<CaveCommunity, int> grownKinds = [];
-    int caves = 0, mostInOne = 0, ruledOutGrown = 0, tooDeep = 0, blocking = 0, shallowGrown = 0;
+    int caves = 0, mostInOne = 0, ruledOutGrown = 0, tooDeep = 0, blocking = 0, shallowGrown = 0, lowCrowns = 0;
+    // A standing body's head room under a grove's crowns (a little under the grove's own headroom, for the sampled floor).
+    const float LowestCrown = 2.2f;
+    // How far round a hung piece's foot its floor is sampled: inside the smallest piece's footprint (a sac's, 0.8 m).
+    const float HungReach = 0.5f;
     var communityClock = Stopwatch.StartNew();
     foreach ((string name, CaveSetting setting) in places)
     {
@@ -788,18 +792,43 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
                 }
             }
 
+            // A grove's hung pieces leave a standing body room under them, over the floor round their foot.
+            foreach (OvergrowthPlacement hung in cave.Overgrowth.Where(g => KarstCave.HungLength(g.Kind, g.Scale) > 0f))
+            {
+                float tip = hung.At.Y - KarstCave.HungLength(hung.Kind, hung.Scale);
+                for (int k = 0; k < 5; k++)
+                {
+                    float a = k * MathF.Tau / 4f;
+                    System.Numerics.Vector3 p = new(hung.At.X + (k == 0 ? 0f : MathF.Cos(a) * HungReach), tip, hung.At.Z + (k == 0 ? 0f : MathF.Sin(a) * HungReach));
+                    if (cave.At(p) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    float floor = p.Y;
+                    while (floor > 0f && cave.At(new System.Numerics.Vector3(p.X, floor, p.Z)) > 0f) floor -= 0.1f;
+                    if (tip - floor < LowestCrown)
+                    {
+                        lowCrowns++;
+                        Console.WriteLine($"  {name} seed {seed}: {hung.Kind} x{hung.Scale:F2} at {hung.At.X:F1},{hung.At.Y:F1},{hung.At.Z:F1} hangs to {tip - floor:F2} m over the floor");
+                        break;
+                    }
+                }
+            }
+
             line.Add($"{seed}:[{string.Join(" ", cave.Communities)}]/{cave.Overgrowth.Count(g => OvergrowthPlacement.Ecology(g.Kind))}");
         }
 
         Console.WriteLine($"communities {name} ({setting.Key}): {string.Join(" ", line)}");
     }
 
-    Console.WriteLine($"communities: {caves} caves in {communityClock.Elapsed.TotalSeconds:F1} s, at most {mostInOne} in one; grown {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}; ruled out grown {ruledOutGrown}, too deep {tooDeep}, colliders on the main route {blocking}");
+    Console.WriteLine($"communities: {caves} caves in {communityClock.Elapsed.TotalSeconds:F1} s, at most {mostInOne} in one; grown {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}; ruled out grown {ruledOutGrown}, too deep {tooDeep}, colliders on the main route {blocking}, grove crowns lower than {LowestCrown} m {lowCrowns}");
     Check.That(mostInOne <= 3, "a cave must grow at most three communities");
     Check.That(ruledOutGrown == 0 && tooDeep == 0, "a cave must grow no community its region rules out or too deep for it");
     Check.That(grownKinds.Count >= 4, "the bank's regions must between them grow at least four kinds of community");
     Check.That(shallowGrown < communitySeeds, "a shallow cave must often grow none");
     Check.That(blocking == 0, "a community's colliders must leave room beside the cave's main route");
+    Check.That(lowCrowns == 0, "a grove's hung pieces must leave a standing body room under them");
 }
 
 // Moisture spreads only through air (#10092 review R10092-1): two room interiors either side of a two-voxel wall (as two

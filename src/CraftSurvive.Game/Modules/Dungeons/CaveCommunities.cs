@@ -92,6 +92,19 @@ internal static class CaveCommunities
         _ => OvergrowthPlacement.Ivory(kind),
     };
 
+    /// <summary>Whether a kind is one of a community's signature pieces: what it cannot be without (a grove's hangers, an orchard's tubes).</summary>
+    internal static bool Signature(CaveCommunity community, OvergrowthKind kind) => community switch
+    {
+        CaveCommunity.VentOrchard => kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.VentTall or OvergrowthKind.VentCluster,
+        CaveCommunity.InvertedGrove => kind is OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall,
+        CaveCommunity.FunnelGarden => kind is OvergrowthKind.FunnelGiant or OvergrowthKind.FunnelTall or OvergrowthKind.FunnelUnfurled,
+        CaveCommunity.GlassSteppe => kind is OvergrowthKind.SteppeSpire or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeTuft,
+        CaveCommunity.RibbonThicket => kind is OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide,
+        CaveCommunity.VeilForest => kind is OvergrowthKind.VeilFanGreat or OvergrowthKind.VeilFan,
+        CaveCommunity.CushionBarrens => kind is OvergrowthKind.CushionGreat or OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust or OvergrowthKind.CushionSplit,
+        _ => kind is OvergrowthKind.IvoryBulbGreat or OvergrowthKind.IvoryBulb or OvergrowthKind.IvoryHollow,
+    };
+
     /// <summary>Below this weight a community is ruled out under a region.</summary>
     private const double RuledOut = 0.05;
 
