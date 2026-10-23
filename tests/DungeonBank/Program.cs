@@ -200,7 +200,15 @@ if (args is ["karsttime", string karstCount, ..])
             withAir += any ? 1 : 0;
         }
 
-        Console.WriteLine($"  chunks {withAir}/{chunks} hold air");
+        ulong hash = 14695981039346656037UL;
+        for (int x = 0; x < v.SizeX; x++) for (int y = 0; y < v.SizeY; y++) for (int z = 0; z < v.SizeZ; z++) hash = (hash ^ (ulong)v.At(x, y, z)) * 1099511628211UL;
+        // The routes' results too: the lights along the main route and the growth placed by the routes.
+        ulong placed = 14695981039346656037UL;
+        foreach (var light in karst.Layout.Lights) placed = (placed ^ (ulong)(light.X * 100 + light.Y * 10000 + light.Z * 1000000)) * 1099511628211UL;
+        foreach (var e in karst.Layout.Ecology) placed = (placed ^ (ulong)(e.At.X * 100 + e.At.Z * 10000)) * 1099511628211UL;
+        Console.WriteLine($"  chunks {withAir}/{chunks} hold air; volume hash {hash:x16} placed {placed:x16}");
+        Console.WriteLine("  ways: " + string.Join(" ", KarstCave.ShortestLog.Select(w => $"{w.Least:F2}:{w.Explored / 1000}k")));
+        Console.WriteLine("  stages: " + string.Join(" ", KarstCave.Stages.OrderByDescending(st => st.Value).Select(st => $"{st.Key}={st.Value:F0}")));
         double size = karst.Layout.VoxelSize, cube = size * size * size;
         var verdict = karst.Verdict;
         Console.WriteLine($"karst {karstSeed}: walkable={verdict.Walkable} sky={karst.Layout.SkyOpen} {ms:F0} ms, box {v.SizeX * size:F0}x{v.SizeY * size:F0}x{v.SizeZ * size:F0} m ({size} m voxels), air {open * cube:F0} m3 ({100.0 * open / ((double)v.SizeX * v.SizeY * v.SizeZ):F1}%)");

@@ -256,6 +256,7 @@ internal static class KarstCave
     private static (Vector3 Floor, float Radius)? Tiankeng(float[] open, float[] beds, List<(Vector3 At, float Share, int Era)> passages, ulong seed, DungeonRandom random)
     {
         LaySurface(open, seed);
+        Mark("surface");
         float radius = Between(random, TiankengLeast, TiankengMost);
         foreach ((Vector3 at, float _, int _) in passages.Where(p => Inside(p.At, radius + 4f)).OrderByDescending(p => p.Share))
         {
@@ -676,7 +677,7 @@ internal static class KarstCave
     // passage's ceiling may stand and still be drowned (a sump), and how many samples a perched body may fill before it
     // is not a trap but a lowland the water would run out of.
     private const float LeastTrap = 0.4f;
-    private static int MostPerched => Area(40000);
+    private const int MostPerched = 40000;
 
     /// <summary>
     /// A dip whose water would leave less headroom than this under the passage's roof was drowned in a wetter age: a sump,
@@ -688,7 +689,7 @@ internal static class KarstCave
     private const float SumpReach = 3f;
 
     /// <summary>Still water held above the table no bigger than this many samples (about 1000 m3), so water stays a feature, not the cave.</summary>
-    private static int MostPerchedStill => Area(8000);
+    private const int MostPerchedStill = 8000;
 
     /// <summary>
     /// Water held above the water table in the dips of the cave's routes (#10094): where a way between parts of the cave
@@ -704,9 +705,11 @@ internal static class KarstCave
         bool[] taken = new bool[open.Length];
         foreach (List<int> route in routes)
         {
+            Mark("perched-other");
             Vector3[] at = [.. route.Select(FieldCentre)];
             float[] floor = [.. at.Select(p => Floor(open, p).Y)];
             float[] ceiling = [.. at.Select(p => Ceiling(open, p).Y)];
+            Mark("perched-scan");
             int n = at.Length;
             float[] left = new float[n], right = new float[n];
             for (int i = 0; i < n; i++) left[i] = Math.Max(i > 0 ? left[i - 1] : float.MinValue, floor[i]);
@@ -731,12 +734,17 @@ internal static class KarstCave
 
                 int lowest = Enumerable.Range(a, b - a + 1).MinBy(k => floor[k]);
                 int seed = SampleAt(Floor(open, at[lowest]) + new Vector3(0f, FieldStep * 0.5f, 0f));
-                if (seed < 0 || taken[seed] || found.Any(z => z.Contains(FieldCentre(seed))) || open[seed] <= 0f)
+                Mark("perched-other");
+                bool known = seed >= 0 && (taken[seed] || found.Any(z => z.Contains(FieldCentre(seed))));
+                Mark("perched-known");
+                if (seed < 0 || known || open[seed] <= 0f)
                 {
                     continue;
                 }
 
+                Mark("perched-other");
                 List<int>? body = FillBelow(open, seed, level, table);
+                Mark("perched-fill");
                 if (body is null)
                 {
                     continue;
@@ -764,7 +772,32 @@ internal static class KarstCave
                 if (drowned && length >= LeastSumpLength)
                 {
                     // The sump: the water along its way through; what the dip's water fills beyond reach of it is still water.
-                    List<int> sump = [.. body.Where(k => path.Any(q => Vector3.DistanceSquared(q, FieldCentre(k)) < SumpReach * SumpReach))];
+                    // The path's points bucketed by SumpReach, so each sample looks only at the points in the buckets round it
+                    // (#10304: testing every sample against every point grew with a large cave's water squared).
+                    Dictionary<(int, int, int), List<Vector3>> near = [];
+                    foreach (Vector3 q in path)
+                    {
+                        (int, int, int) bucket = ((int)MathF.Floor(q.X / SumpReach), (int)MathF.Floor(q.Y / SumpReach), (int)MathF.Floor(q.Z / SumpReach));
+                        (near.TryGetValue(bucket, out List<Vector3>? list) ? list : near[bucket] = []).Add(q);
+                    }
+
+                    bool InReach(Vector3 c)
+                    {
+                        int bx = (int)MathF.Floor(c.X / SumpReach), by = (int)MathF.Floor(c.Y / SumpReach), bz = (int)MathF.Floor(c.Z / SumpReach);
+                        for (int dx = -1; dx <= 1; dx++)
+                            for (int dy = -1; dy <= 1; dy++)
+                                for (int dz = -1; dz <= 1; dz++)
+                                {
+                                    if (near.TryGetValue((bx + dx, by + dy, bz + dz), out List<Vector3>? list) && list.Any(q => Vector3.DistanceSquared(q, c) < SumpReach * SumpReach))
+                                    {
+                                        return true;
+                                    }
+                                }
+
+                        return false;
+                    }
+
+                    List<int> sump = [.. body.Where(k => InReach(FieldCentre(k)))];
                     HashSet<int> inSump = [.. sump];
                     List<int> rest = [.. body.Where(k => !inSump.Contains(k))];
                     zones.Add(new WaterZone(WaterZoneKind.MistSump, level, Cells(sump), Columns(sump), mouths, path));
@@ -3384,11 +3417,31 @@ private static int MostBarrensPieces => Area(400);
         internal required int Formations { get; init; }
     }
 
+    /// <summary>
+    /// Where the last generation's time went, by stage (#10304: finding what grows faster than the box): each mark adds the
+    /// time since the last to its stage. Not thread-safe; for the bank's sequential timings.
+    /// </summary>
+    internal static readonly Dictionary<string, double> Stages = [];
+
+    private static long markAt;
+
+    private static void Mark(string stage)
+    {
+        long now = Stopwatch.GetTimestamp();
+        Stages[stage] = Stages.GetValueOrDefault(stage) + Stopwatch.GetElapsedTime(markAt, now).TotalMilliseconds;
+        markAt = now;
+    }
+
     internal static (DungeonLayout Layout, DungeonPlan Plan, DungeonVerdict Verdict, DungeonVolume Walkable) Generate(ulong seed, double voxelSize = 1d, Centrepiece? centrepiece = null)
     {
+        Stages.Clear();
+        ShortestLog.Clear();
+        markAt = Stopwatch.GetTimestamp();
         Result cave = Build(seed, centrepiece);
+        Mark("build-tail");
         Func<Vector3, float> shape = cave.At;
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, cave.RockAt);
+        Mark("sample");
         // The arrival is underground, at the foot of the first sink, even when the surface is open above it.
         float below = cave.SkyOpen ? MathF.Min(cave.SinkPoints[0].Y, SurfaceAt(cave.SinkPoints[0].X, cave.SinkPoints[0].Z, seed) - SinkDepthBelowSurface) : cave.SinkPoints[0].Y;
         Vector3 arrive = StudyField.OnFloor(shape, cave.SinkPoints[0].X, cave.SinkPoints[0].Z, below);
@@ -3418,6 +3471,7 @@ private static int MostBarrensPieces => Area(400);
         long cardsFrom = Stopwatch.GetTimestamp();
         List<OvergrowthPlacement> overgrowth = [.. cave.Overgrowth];
         List<MossCard> cards = MossCards(cave, overgrowth);
+        Mark("cards");
         // Nothing grows under the water.
         // (An arch spans over water, its crown above it, and a curtain hangs from the ceiling: those stand.)
         overgrowth.RemoveAll(g => g.Kind is not (OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain)
@@ -3458,7 +3512,9 @@ private static int MostBarrensPieces => Area(400);
     {
         long started = Stopwatch.GetTimestamp();
         DungeonRandom random = new(seed);
+        markAt = started;
         float[] solubility = Rock(random, seed, out bool[] joint, out bool[] parting, out float[] beds, out JointPlane[] planes);
+        Mark("rock");
 
         // Where water enters.
         Vector3[] sinks = new Vector3[Sinks];
@@ -3525,32 +3581,41 @@ private static int MostBarrensPieces => Area(400);
                     spring = new Vector3((GridX - 2.5f) * GridCell, table - 2f, Between(random, 16f, (GridZ * GridCell) - 16f));
                     carved += Flow(eras[index], index, open, solubility, joint, parting, beds, conduit, activeFlow, sinks, discharge, spring, table,
                         seed, random, chambers, beddingRooms, passages0);
+                    Mark("flow");
                     break;
                 case Era.JointRifts:
                     Rifts(open, planes, conduit, table, seed, rifts);
+                    Mark("rifts");
                     break;
                 case Era.FloodMaze:
                     FloodMazes(open, passages0, sinks[0], table, seed, random, mazes);
+                    Mark("mazes");
                     break;
                 case Era.Hypogene:
                     sponge = Hypogene(open, seed, random);
+                    Mark("hypogene");
                     break;
                 case Era.Infill:
                     Infill(open, formed, sediment, (byte)index, seed);
+                    Mark("infill");
                     break;
                 case Era.Breakdown:
                     Collapses(open, beds, passages0, index, random, chambers);
+                    Mark("collapses");
                     break;
                 case Era.Chasm:
                     LaySurface(open, seed);
+                    Mark("surface");
                     chasm = Chasm(open, beds, passages0, chasmAt!.Value.Centre, chasmAt.Value.Radius, seed, random);
                     skyOpen = true;
                     break;
                 case Era.GreatHall:
                     greatHall = GreatHall(open, beds, seed, random);
+                    Mark("hall");
                     break;
                 case Era.Tiankeng:
                     tiankeng = Tiankeng(open, beds, passages0, seed, random);
+                    Mark("tiankeng");
                     skyOpen = true;
                     break;
             }
@@ -3566,6 +3631,7 @@ private static int MostBarrensPieces => Area(400);
             if (eras[index] is Era.Breakdown or Era.GreatHall or Era.Tiankeng)
             {
                 MarkFilled(before, open, rubble);
+                Mark("markfilled");
             }
         }
 
@@ -3576,13 +3642,17 @@ private static int MostBarrensPieces => Area(400);
         }
 
         MarkFilled(beforeBreakdown, open, rubble);
+        Mark("breakdown");
 
         float[] beforeDrip = (float[])open.Clone();
         int formations = Drip(open, joint, formed, eras.Length, finalTable, random);
         MarkFilled(beforeDrip, open, flowstone);
+        Mark("drip");
 
         Roughen(open, seed, beds, finalTable);
+        Mark("roughen");
         Enclose(open, skyOpen, chasm);
+        Mark("enclose");
 
         // The water's fields for later passes: the flow is the last flowing era's, the water still at work.
         float drainedTable = finalTable - DrainedBelowTable;
@@ -3599,14 +3669,25 @@ private static int MostBarrensPieces => Area(400);
 
         // Passage: the widest way from the first sink to the spring and to every other sink, widened where a body would not fit.
         float[] clearance = Clearance(open);
+        Mark("clearance");
         Vector3 start = sinks[0];
         List<(string Name, Vector3 To)> routes = [("spring", spring), .. sinks.Skip(1).Select((s, i) => ($"sink{i + 1}", s))];
         List<Passage> passages = [];
         List<Vector3> mainRoute = [];
         List<List<int>> routePaths = [];
-        foreach ((string name, Vector3 to) in routes)
+        // Every route is widened where it pinches first, then the clearance is measured once and each route's final way found
+        // (#10304: measuring it again after each widened route made a large cave's generation grow with its area squared).
+        List<(float Before, int Widened)> widened = [.. routes.Select(r => WidenPassage(open, clearance, start, r.To))];
+        if (widened.Any(w => w.Widened > 0))
         {
-            (Passage passage, List<int> path) = EnsurePassage(open, ref clearance, name, start, to);
+            clearance = Clearance(open);
+        }
+
+        Mark("passages-clearance");
+        for (int r = 0; r < routes.Count; r++)
+        {
+            (string name, Vector3 to) = routes[r];
+            (Passage passage, List<int> path) = FinishPassage(clearance, name, start, to, widened[r].Before, widened[r].Widened);
             passages.Add(passage);
             routePaths.Add(path);
             if (name == "spring")
@@ -3615,8 +3696,15 @@ private static int MostBarrensPieces => Area(400);
             }
         }
 
+        // The searches' working arrays are a field's worth: let them go with this cave.
+        searchValue = null;
+        searchBack = null;
+        searchStamp = null;
+
+        Mark("passages");
         List<OvergrowthPlacement> darkGrowth = [];
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
+        Mark("ecology");
         List<(Vector3 Seep, float Radius)> orchards = [];
         if (StudyVentOrchards > 0)
         {
@@ -3693,8 +3781,11 @@ private static int MostBarrensPieces => Area(400);
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
+        Mark("waterzones");
         waterZones.AddRange(PerchedWater(open, routePaths, finalTable, waterZones));
+        Mark("perched");
         Luminous(waterZones, ecology, sinks, skyOpen, seed);
+        Mark("luminous");
         // A vent orchard whose seep lies under the water grows nothing (Generate drops its growth there), nor glows.
         foreach ((Vector3 seepAt, float _) in orchards.Where(o => waterZones.Any(zone => zone.BedUnder(o.Seep) is not null && zone.Surface > o.Seep.Y)))
         {
@@ -3710,6 +3801,7 @@ private static int MostBarrensPieces => Area(400);
         sponge = sponge is Vector3 found ? MostOpenNear(open, found, SpongeRadii.Y) : null;
         Vector3[] riftPlaces = [.. rifts.Select(r => MostOpenNear(open, r, RiftRise))];
         Vector3[] mazePlaces = [.. mazes.Select(m => MostOpenNear(open, m, MazeTop))];
+        Mark("features");
         return new Result
         {
             Open = open,
@@ -4657,8 +4749,23 @@ private static int MostBarrensPieces => Area(400);
     /// </summary>
     internal static (Passage Passage, List<int> Path) EnsurePassage(float[] open, ref float[] clearance, string name, Vector3 from, Vector3 to)
     {
-        (float before, _) = Widest(clearance, from, to);
-        List<int> path = Shortest(clearance, from, to, MathF.Min(before, StandRadius));
+        (float before, int widened) = WidenPassage(open, clearance, from, to);
+        if (widened > 0)
+        {
+            clearance = Clearance(open);
+        }
+
+        return FinishPassage(clearance, name, from, to, before, widened);
+    }
+
+    /// <summary>
+    /// The first half of making sure a way can be walked: how wide the widest way is now, and the samples along the shortest
+    /// way that are too narrow for a body, widened. The clearance is not measured again here (the caller does, once).
+    /// </summary>
+    private static (float Before, int Widened) WidenPassage(float[] open, float[] clearance, Vector3 from, Vector3 to)
+    {
+        Mark("passages-other");
+        (float before, List<int> path) = WayAtLeast(clearance, from, to);
         int widened = 0;
         foreach (int sample in path)
         {
@@ -4669,14 +4776,78 @@ private static int MostBarrensPieces => Area(400);
             }
         }
 
-        if (widened > 0)
+        Mark("passages-widen");
+        return (before, widened);
+    }
+
+    /// <summary>The second half: the way as it now is, with the clearance measured after the widening.</summary>
+    private static (Passage Passage, List<int> Path) FinishPassage(float[] clearance, string name, Vector3 from, Vector3 to, float before, int widened)
+    {
+        (float after, List<int> final) = WayAtLeast(clearance, from, to);
+        return (new Passage(name, before, after, widened, final.Count * FieldStep), final);
+    }
+
+    /// <summary>
+    /// The way between two places at the width a standing body needs, or as near it as there is: the narrowest the widest way
+    /// gets (up to that width) and the shortest way at least that wide. The standing width is tried first: when the shortest
+    /// way at it is that wide all along, so is the widest, and that way is the answer, without measuring the widest
+    /// (#10304: that measure explored every space wider than the way's narrowest, in a large cave most of it).
+    /// </summary>
+    private static (float Narrowest, List<int> Path) WayAtLeast(float[] clearance, Vector3 from, Vector3 to)
+    {
+        List<int> standing = Shortest(clearance, from, to, StandRadius);
+        Mark("passages-shortest");
+        if (standing.Count > 0 && standing.All(i => clearance[i] >= StandRadius))
         {
-            clearance = Clearance(open);
+            return (StandRadius, standing);
         }
 
-        (float after, _) = Widest(clearance, from, to);
-        List<int> final = Shortest(clearance, from, to, MathF.Min(after, StandRadius));
-        return (new Passage(name, before, after, widened, final.Count * FieldStep), final);
+        (float narrowest, _) = Widest(clearance, from, to);
+        Mark("passages-widest");
+        List<int> path = Shortest(clearance, from, to, MathF.Min(narrowest, StandRadius));
+        Mark("passages-shortest");
+        return (narrowest, path);
+    }
+
+    // The way searches' working arrays, one field's worth kept and reused (#10304: allocating and clearing them for every
+    // search cost a large cave most of its generation). A sample's value counts only when its stamp is this search's.
+    [ThreadStatic]
+    private static float[]? searchValue;
+
+    [ThreadStatic]
+    private static int[]? searchBack, searchStamp;
+
+    [ThreadStatic]
+    private static int searchRound;
+
+    /// <summary>Starts a search: the working arrays sized to the field, every sample's value and way back cleared at once.</summary>
+    private static void BeginSearch(int length)
+    {
+        if (searchValue is null || searchValue.Length != length)
+        {
+            searchValue = new float[length];
+            searchBack = new int[length];
+            searchStamp = new int[length];
+            searchRound = 0;
+        }
+
+        searchRound++;
+        if (searchRound == int.MaxValue)
+        {
+            Array.Clear(searchStamp!);
+            searchRound = 1;
+        }
+    }
+
+    private static float SearchValue(int i, float unset) => searchStamp![i] == searchRound ? searchValue![i] : unset;
+
+    private static int SearchBack(int i) => searchStamp![i] == searchRound ? searchBack![i] : -1;
+
+    private static void SetSearch(int i, float value, int back)
+    {
+        searchStamp![i] = searchRound;
+        searchValue![i] = value;
+        searchBack![i] = back;
     }
 
     /// <summary>
@@ -4691,20 +4862,36 @@ private static int MostBarrensPieces => Area(400);
             return [];
         }
 
-        float[] cost = new float[clearance.Length];
-        Array.Fill(cost, float.MaxValue);
-        int[] back = new int[clearance.Length];
-        Array.Fill(back, -1);
-        PriorityQueue<int, float> frontier = new();
-        cost[start] = 0f;
-        frontier.Enqueue(start, 0f);
-        while (frontier.TryDequeue(out int c, out float known))
+        // With no way open at all (least 0), every sample costs the same, so the shortest way is a straight one: built
+        // directly rather than searched for across the whole field (#10304: such searches settled the entire field).
+        if (least <= 0f)
         {
-            if (known > cost[c])
+            ShortestLog.Add((least, 0));
+            return Straight(start, goal);
+        }
+
+        // A* toward the goal: every step costs at least 1 sample, so the samples still to cross are a lower bound that never
+        // overestimates (#10304: a search spreading evenly flooded a large cave's open sky).
+        BeginSearch(clearance.Length);
+        (int goalX, int goalY, int goalZ) = FieldCell3(goal);
+        int Remaining(int x, int y, int z) => Math.Abs(x - goalX) + Math.Abs(y - goalY) + Math.Abs(z - goalZ);
+        PriorityQueue<int, float> frontier = new();
+        SetSearch(start, 0f, -1);
+        (int startX, int startY, int startZ) = FieldCell3(start);
+        frontier.Enqueue(start, Remaining(startX, startY, startZ));
+        int explored = 0;
+        while (frontier.TryDequeue(out int c, out float estimate))
+        {
+            (int px, int py, int pz) = FieldCell3(c);
+            float known = estimate - Remaining(px, py, pz);
+            if (known > SearchValue(c, float.MaxValue) + 1e-3f)
             {
                 continue;
             }
 
+            known = SearchValue(c, float.MaxValue);
+
+            explored++;
             if (c == goal)
             {
                 break;
@@ -4724,17 +4911,17 @@ private static int MostBarrensPieces => Area(400);
                 // through a pinch is taken only where there is no other.
                 float step = clearance[n] >= least ? 1f : 1f + (PinchCost * (least - clearance[n]));
                 float through = known + step;
-                if (through < cost[n])
+                if (through < SearchValue(n, float.MaxValue))
                 {
-                    cost[n] = through;
-                    back[n] = c;
-                    frontier.Enqueue(n, through);
+                    SetSearch(n, through, c);
+                    frontier.Enqueue(n, through + Remaining(nx, ny, nz));
                 }
             }
         }
 
+        ShortestLog.Add((least, explored));
         List<int> path = [];
-        for (int at = goal; at >= 0; at = back[at])
+        for (int at = goal; at >= 0; at = SearchBack(at))
         {
             path.Add(at);
         }
@@ -4742,6 +4929,52 @@ private static int MostBarrensPieces => Area(400);
         path.Reverse();
         return path;
     }
+
+    /// <summary>A straight way of face-adjacent samples from one to another: each step along the axis furthest behind the line.</summary>
+    private static List<int> Straight(int start, int goal)
+    {
+        (int x, int y, int z) = FieldCell3(start);
+        (int gx, int gy, int gz) = FieldCell3(goal);
+        int total = Math.Abs(gx - x) + Math.Abs(gy - y) + Math.Abs(gz - z);
+        List<int> path = [start];
+        (int sx, int sy, int sz) = (x, y, z);
+        for (int taken = 1; taken <= total; taken++)
+        {
+            // Where the line would be after this many steps, and the axis lagging it most.
+            float t = taken / (float)total;
+            float lagX = (MathF.Abs(gx - sx) * t) - MathF.Abs(x - sx), lagY = (MathF.Abs(gy - sy) * t) - MathF.Abs(y - sy), lagZ = (MathF.Abs(gz - sz) * t) - MathF.Abs(z - sz);
+            if (lagX >= lagY && lagX >= lagZ && x != gx)
+            {
+                x += Math.Sign(gx - x);
+            }
+            else if (lagY >= lagZ && y != gy)
+            {
+                y += Math.Sign(gy - y);
+            }
+            else if (z != gz)
+            {
+                z += Math.Sign(gz - z);
+            }
+            else if (x != gx)
+            {
+                x += Math.Sign(gx - x);
+            }
+            else
+            {
+                y += Math.Sign(gy - y);
+            }
+
+            path.Add(FieldIndex(x, y, z));
+        }
+
+        return path;
+    }
+
+    /// <summary>The last generation's way searches (#10304 timing): each one's least clearance and how many samples it settled.</summary>
+    internal static readonly List<(float Least, int Explored)> ShortestLog = [];
+
+    /// <summary>The widest a way's width is told apart up to (metres): a standing body's, all its caller asks about.</summary>
+    private const float WidestCap = StandRadius;
 
     /// <summary>How much a sample narrower than wanted adds to a way, per metre it is too narrow.</summary>
     private const float PinchCost = 400f;
@@ -4761,15 +4994,20 @@ private static int MostBarrensPieces => Area(400);
             return (0f, []);
         }
 
-        float[] best = new float[clearance.Length];
-        int[] back = new int[clearance.Length];
-        Array.Fill(back, -1);
-        PriorityQueue<int, float> frontier = new();
-        best[start] = clearance[start];
-        frontier.Enqueue(start, -best[start]);
-        while (frontier.TryDequeue(out int c, out float negative))
+        // Widths are compared only up to WidestCap: the caller asks whether a way is at least a body wide, so a wider one need not
+        // be told from another; among equally wide samples the search steps toward the goal (#10304: open sky, the widest
+        // space of all, was searched entire before the cave).
+        BeginSearch(clearance.Length);
+        (int goalX, int goalY, int goalZ) = FieldCell3(goal);
+        PriorityQueue<int, (float NegativeWidth, int Reach)> frontier = new();
+        float startWidth = MathF.Min(clearance[start], WidestCap);
+        SetSearch(start, startWidth, -1);
+        frontier.Enqueue(start, (-startWidth, 0));
+        while (frontier.TryDequeue(out int c, out (float NegativeWidth, int Reach) popped))
         {
-            if (-negative < best[c])
+            float negative = popped.NegativeWidth;
+            float bestC = SearchValue(c, 0f);
+            if (-negative < bestC)
             {
                 continue;
             }
@@ -4789,29 +5027,29 @@ private static int MostBarrensPieces => Area(400);
                 }
 
                 int n = FieldIndex(nx, ny, nz);
-                float width = MathF.Min(best[c], clearance[n]);
-                if (clearance[n] > 0f && width > best[n])
+                float width = MathF.Min(bestC, MathF.Min(clearance[n], WidestCap));
+                if (clearance[n] > 0f && width > SearchValue(n, 0f))
                 {
-                    best[n] = width;
-                    back[n] = c;
-                    frontier.Enqueue(n, -width);
+                    SetSearch(n, width, c);
+                    frontier.Enqueue(n, (-width, Math.Abs(nx - goalX) + Math.Abs(ny - goalY) + Math.Abs(nz - goalZ)));
                 }
             }
         }
 
-        if (best[goal] <= 0f)
+        float bestGoal = SearchValue(goal, 0f);
+        if (bestGoal <= 0f)
         {
             return (0f, []);
         }
 
         List<int> path = [];
-        for (int at = goal; at >= 0; at = back[at])
+        for (int at = goal; at >= 0; at = SearchBack(at))
         {
             path.Add(at);
         }
 
         path.Reverse();
-        return (best[goal], path);
+        return (bestGoal, path);
     }
 
     /// <summary>The open sample with the most clearance within a few metres of a place.</summary>
