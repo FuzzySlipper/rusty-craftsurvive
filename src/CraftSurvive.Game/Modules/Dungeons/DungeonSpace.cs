@@ -71,7 +71,7 @@ internal sealed class DungeonSpace : IDisposable
     /// <param name="voxelRock">For a voxel look, the material each rock block draws in (#10094: the cave rock's age classes).</param>
     internal DungeonSpace(IEngineContext engine, TerrainWorld terrain, DungeonLayout layout, Material? rockMaterial = null,
         DungeonSurface surface = DungeonSurface.Cubes, IReadOnlyDictionary<BlockId, Material>? voxelRock = null, bool caveLayers = false,
-        string? kitPaint = null, DungeonKitLook.Look? kitLook = null)
+        string? kitPaint = null, DungeonKitLook.Look? kitLook = null, int streamRadius = 0)
     {
         this.kitPaint = kitPaint;
         this.kitLook = kitLook ?? DungeonKitLook.Look.Default;
@@ -83,9 +83,138 @@ internal sealed class DungeonSpace : IDisposable
         this.terrain = terrain ?? throw new ArgumentNullException(nameof(terrain));
         this.layout = layout ?? throw new ArgumentNullException(nameof(layout));
         Session = DungeonCollision.CreateSession(engine, surface, layout.VoxelSize);
-        pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
+        StreamRadius = streamRadius;
+        if (streamRadius > 0)
+        {
+            // Streaming (#10304 prototype): only the chunks that hold air and the shell round them are ever admitted, and
+            // at first only those within the radius of the arrival, nearest first.
+            shell = Shell(layout.Volume);
+            (int X, int Y, int Z) at = ChunkOf(layout.Arrival);
+            pending = new Queue<(int X, int Y, int Z)>(shell.Where(c => Within(c, at, streamRadius)).OrderBy(c => Reach(c, at)));
+        }
+        else
+        {
+            pending = new Queue<(int X, int Y, int Z)>(DungeonCollision.Chunks(layout.Volume));
+        }
+
         totalChunks = pending.Count;
     }
+
+    // --- Streaming (#10304 prototype: a stored cave streamed about the player) ---
+
+    /// <summary>How many chunks about the player are kept across (0: the whole space is loaded at once).</summary>
+    internal int StreamRadius { get; }
+
+    /// <summary>The streamed chunks kept up and down about the player.</summary>
+    private const int StreamRadiusUp = 3;
+
+    /// <summary>The most chunks admitted in one update while streaming.</summary>
+    internal const int StreamBudget = 8;
+
+    private readonly HashSet<(int X, int Y, int Z)> shell = [];
+    private readonly HashSet<(int X, int Y, int Z)> resident = [];
+    private long streamAdmitted, streamEvicted, streamUpdates, streamNotReady;
+    private double streamMs, streamSlowest;
+    private int streamPending;
+
+    private (int X, int Y, int Z) ChunkOf(Vector3 layoutPoint)
+    {
+        float chunk = (float)(TerrainConstants.ChunkEdgeLength * layout.VoxelSize);
+        return ((int)MathF.Floor(layoutPoint.X / chunk), (int)MathF.Floor(layoutPoint.Y / chunk), (int)MathF.Floor(layoutPoint.Z / chunk));
+    }
+
+    private static bool Within((int X, int Y, int Z) c, (int X, int Y, int Z) at, int radius) =>
+        Math.Max(Math.Abs(c.X - at.X), Math.Abs(c.Z - at.Z)) <= radius && Math.Abs(c.Y - at.Y) <= StreamRadiusUp;
+
+    private static int Reach((int X, int Y, int Z) c, (int X, int Y, int Z) at) => Math.Abs(c.X - at.X) + (Math.Abs(c.Y - at.Y) * 2) + Math.Abs(c.Z - at.Z);
+
+    /// <summary>The chunks holding any air, and every chunk touching one (their rock carries the air's surface).</summary>
+    internal static HashSet<(int X, int Y, int Z)> Shell(DungeonVolume volume)
+    {
+        HashSet<(int X, int Y, int Z)> shell = [];
+        int edge = TerrainConstants.ChunkEdgeLength;
+        foreach ((int cx, int cy, int cz) in DungeonCollision.Chunks(volume))
+        {
+            bool air = false;
+            for (int x = cx * edge; x < (cx + 1) * edge && !air; x++)
+                for (int y = cy * edge; y < (cy + 1) * edge && !air; y++)
+                    for (int z = cz * edge; z < (cz + 1) * edge && !air; z++)
+                    {
+                        air = volume.At(x, y, z) == BlockId.Air;
+                    }
+
+            if (!air)
+            {
+                continue;
+            }
+
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dz = -1; dz <= 1; dz++)
+                    {
+                        (int X, int Y, int Z) n = (cx + dx, cy + dy, cz + dz);
+                        if (n.X >= 0 && n.Y >= 0 && n.Z >= 0 && n.X < volume.ChunksX && n.Y < volume.ChunksY && n.Z < volume.ChunksZ)
+                        {
+                            shell.Add(n);
+                        }
+                    }
+        }
+
+        return shell;
+    }
+
+    /// <summary>The chunks the stream may ever admit (the shell), and how many the space holds in all.</summary>
+    internal (int Shell, int All) StreamChunks => (shell.Count, layout.Volume.ChunksX * layout.Volume.ChunksY * layout.Volume.ChunksZ);
+
+    /// <summary>Moves the stream one bounded step toward the player (layout metres): admits nearest-first, evicts behind.</summary>
+    internal void Stream(Vector3 player)
+    {
+        if (StreamRadius == 0 || projection is null)
+        {
+            return;
+        }
+
+        long started = Stopwatch.GetTimestamp();
+        streamUpdates++;
+        (int X, int Y, int Z) at = ChunkOf(player);
+        List<(int X, int Y, int Z)> wanted = [.. shell.Where(c => !resident.Contains(c) && Within(c, at, StreamRadius)).OrderBy(c => Reach(c, at))];
+        streamPending = wanted.Count;
+        if (wanted.Any(c => Math.Abs(c.X - at.X) <= 1 && Math.Abs(c.Y - at.Y) <= 1 && Math.Abs(c.Z - at.Z) <= 1))
+        {
+            streamNotReady++;
+        }
+
+        List<(int X, int Y, int Z)> admit = [.. wanted.Take(StreamBudget)];
+        if (admit.Count > 0)
+        {
+            DungeonCollision.Admit(engine, Session, layout.Volume, admit, layout.Densities, DungeonSurfaces.Weathers(surface), pinned: !layout.Natural, voxelSize: layout.VoxelSize);
+            resident.UnionWith(admit);
+            streamAdmitted += admit.Count;
+        }
+
+        List<(int X, int Y, int Z)> leave = [.. resident.Where(c => !Within(c, at, StreamRadius + 1))];
+        if (leave.Count > 0)
+        {
+            double chunkMetres = TerrainConstants.ChunkEdgeLength * layout.VoxelSize;
+            (long X, long Y, long Z) first = ((long)Math.Floor(DungeonCollision.Origin.X / chunkMetres), (long)Math.Floor(DungeonCollision.Origin.Y / chunkMetres),
+                (long)Math.Floor(DungeonCollision.Origin.Z / chunkMetres));
+            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(Session,
+                leave.Select(c => new VoxelResidencyOperation(VoxelResidencyOperationKind.Evict, new VoxelChunkIdentity(c.X + first.X, c.Y + first.Y, c.Z + first.Z), 0, 0)).ToArray(),
+                ReadOnlyMemory<uint>.Empty));
+            resident.ExceptWith(leave);
+            streamEvicted += leave.Count;
+        }
+
+        double ms = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        streamMs += ms;
+        streamSlowest = Math.Max(streamSlowest, ms);
+    }
+
+    internal string StreamReadout() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms slowest={streamSlowest:F1}ms");
+
+    /// <summary>The detail drawn: within this far of the eye when streaming (metres), everything otherwise.</summary>
+    private float DetailReach => StreamRadius == 0 ? float.MaxValue : (float)(StreamRadius * TerrainConstants.ChunkEdgeLength * layout.VoxelSize);
 
     internal SpatialSession Session { get; }
 
@@ -103,10 +232,13 @@ internal sealed class DungeonSpace : IDisposable
 
     /// <summary>What a sculpted dungeon's rock contributes to the appearance snapshot, as seen from an eye (session coordinates); nothing when its rock is voxels.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts(Vector3 eye) =>
-        [.. RockFacts, .. kit?.Facts ?? [], .. overgrowth?.Facts(eye) ?? [], .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
+        [.. RockFacts, .. (kit?.Facts ?? []).Where(f => Near(f.Transform.Translation, eye)), .. (overgrowth?.Facts(eye) ?? []).Where(f => Near(f.Transform.Translation, eye)), .. growths.Select((growth, index) => new AppearanceFact(ProductIds.DungeonRockObject + 0xC00 + (ulong)index, false, 0UL,
             new Transform(Vector3.Zero, Quaternion.Identity, Vector3.One), growth.Look, true, RenderLayer.Scene)),
             .. forest.Select((plant, index) => new AppearanceFact(ProductIds.DungeonRockObject + ForestObjects + (ulong)index, false, 0UL,
                 plant.Place, plant.Look, true, RenderLayer.Scene))];
+
+    /// <summary>Whether a detail is within the streamed reach of the eye (always, when the whole space is loaded).</summary>
+    private bool Near(Vector3 at, Vector3 eye) => Vector3.DistanceSquared(at, eye) <= DetailReach * DetailReach;
 
     /// <summary>The forest growing into the space's openings (#10129): the world's flora looks (not this space's to dispose), each placed.</summary>
     private readonly List<(Appearance Look, Transform Place)> forest = [];
@@ -137,6 +269,8 @@ internal sealed class DungeonSpace : IDisposable
         {
             admitted.Add(chunk);
         }
+
+        resident.UnionWith(admitted);
 
         DungeonCollision.Admit(engine, Session, layout.Volume, admitted, layout.Densities, DungeonSurfaces.Weathers(surface), pinned: !layout.Natural, voxelSize: layout.VoxelSize);
 

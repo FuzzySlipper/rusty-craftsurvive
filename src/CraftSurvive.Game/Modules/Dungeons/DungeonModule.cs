@@ -201,6 +201,7 @@ internal sealed class DungeonModule : IProductModule
 
                 break;
             case DungeonState.Inside:
+                space?.Stream(player.WorldFeetPosition - DungeonCollision.Origin);
                 if (!player.InSeparateSpace)
                 {
                     // A defeat or a teleport took the player out: the dungeon is let go.
@@ -291,7 +292,22 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>Generates one of the entrance's candidates and starts loading it.</summary>
     private string Load(int index)
     {
-        DungeonCandidate candidate = DungeonCandidates.Generate(approach, entranceSeed, index, DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize, studyCentre);
+        // Generated once (#10304 prototype): a cave already generated this run is taken as it was, as a stored one would be.
+        double voxelSize = DungeonSurfaces.RockAsMesh(surface) ? 1d : studyVoxelSize;
+        string key = string.Create(CultureInfo.InvariantCulture,
+            $"{approach}-{entranceSeed:x}-{index}-{voxelSize}-{studyCentre}-{KarstCave.ChunksX}x{KarstCave.ChunksY}x{KarstCave.ChunksZ}");
+        long generating = System.Diagnostics.Stopwatch.GetTimestamp();
+        bool cached = Generated.TryGetValue(key, out DungeonCandidate? candidate);
+        if (candidate is null)
+        {
+            candidate = DungeonCandidates.Generate(approach, entranceSeed, index, voxelSize, studyCentre);
+            Generated[key] = candidate;
+        }
+
+        double generateMs = System.Diagnostics.Stopwatch.GetElapsedTime(generating).TotalMilliseconds;
+        lastStore = streamRadius > 0 ? Store(key, candidate.AllVoxels, cached) : "";
+        lastGenerate = string.Create(CultureInfo.InvariantCulture, $"generate={(cached ? "stored" : $"{generateMs:F0}ms")}");
+        tour = null;
         candidateIndex = index;
         plan = candidate.Plan;
         walkable = candidate.Walkable;
@@ -303,7 +319,7 @@ internal sealed class DungeonModule : IProductModule
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
                     candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural,
-                    kitPaint: kitPaint, kitLook: kitLook);
+                    kitPaint: kitPaint, kitLook: kitLook, streamRadius: streamRadius);
         }
         catch (EngineCallException refusal)
         {
@@ -867,6 +883,143 @@ internal sealed class DungeonModule : IProductModule
 
     // The streamed underworld prototype (#10304): an endless cave streamed about the player, for measuring.
     private StreamedCave? stream;
+
+    // The stored, streamed cave prototype (#10304): caves generated once and kept; the next spaces streamed within this many
+    // chunks of the player (0: loaded whole); what the last entry's generation and store cost.
+    private static readonly Dictionary<string, DungeonCandidate> Generated = [];
+    private int streamRadius;
+    private string lastGenerate = "", lastStore = "";
+
+    // The tour (#10304 prototype): a route from the arrival to the farthest place reachable, walked a few metres a call.
+    private IReadOnlyList<DungeonCell>? tour;
+    private int tourAt;
+
+    internal string StudyTour(float metres)
+    {
+        if (space is not DungeonSpace current || walkable is null || plan is null)
+        {
+            return "no dungeon is loaded";
+        }
+
+        double size = current.Layout.VoxelSize;
+        if (tour is null)
+        {
+            // A straight line across the box from the arrival to its far side, at the arrival's height (a natural cave's
+            // walk has no standing cells to route by); each point is settled onto open floor near that height when there is
+            // one, and is passed through otherwise - the stream follows the player's position either way.
+            DungeonVolume v = current.Layout.Volume;
+            // Corner to corner, at the arrival's height (then back, by walking the line in reverse).
+            float margin = 8f / (float)size;
+            Vector3 from = new(margin, current.Layout.Arrival.Y / (float)size, margin);
+            Vector3 to = new(v.SizeX - 1 - margin, from.Y, v.SizeZ - 1 - margin);
+            int steps = (int)Vector3.Distance(from, to);
+            List<DungeonCell> line = [];
+            int y = (int)from.Y;
+            for (int i = 0; i <= steps; i++)
+            {
+                Vector3 p = Vector3.Lerp(from, to, i / (float)Math.Max(1, steps));
+                int x = (int)p.X, z = (int)p.Z;
+                for (int dy = 6; dy >= -12; dy--)
+                {
+                    int ty = y + dy;
+                    if (v.At(x, ty, z) == BlockId.Air && v.At(x, ty + 1, z) == BlockId.Air && v.At(x, ty + 2, z) == BlockId.Air && v.At(x, ty + 3, z) == BlockId.Air
+                        && v.At(x, ty - 1, z) != BlockId.Air)
+                    {
+                        y = ty;
+                        break;
+                    }
+                }
+
+                line.Add(new DungeonCell(x, y, z));
+            }
+
+            line.AddRange(Enumerable.Reverse(line).Skip(1).ToList());
+            tour = line;
+            tourAt = 0;
+        }
+
+        if (tour.Count == 0)
+        {
+            return "no route";
+        }
+
+        // Along the route until this many metres of it have passed.
+        double walked = 0;
+        while (tourAt < tour.Count - 1 && walked < metres)
+        {
+            DungeonCell a = tour[tourAt], b = tour[tourAt + 1];
+            walked += Math.Sqrt(((a.X - b.X) * (a.X - b.X)) + ((a.Y - b.Y) * (a.Y - b.Y)) + ((a.Z - b.Z) * (a.Z - b.Z))) * size;
+            tourAt++;
+        }
+
+        DungeonCell at = tour[tourAt];
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3((float)((at.X + 0.5) * size), (float)(at.Y * size), (float)((at.Z + 0.5) * size))));
+        return string.Create(CultureInfo.InvariantCulture, $"tour {tourAt}/{tour.Count - 1} at {at.X * size:F0},{at.Y * size:F0},{at.Z * size:F0}");
+    }
+
+    internal string StudyStreamRadius(int radius)
+    {
+        streamRadius = Math.Max(0, radius);
+        return streamRadius == 0 ? "the next dungeons load whole" : $"the next dungeons stream within {streamRadius} chunks of the player";
+    }
+
+    internal string StreamedReadout() => space is DungeonSpace current
+        ? $"{lastGenerate} {lastStore} {current.StreamReadout()}"
+        : $"{lastGenerate} {lastStore} no dungeon is loaded";
+
+    /// <summary>
+    /// Writes a cave's chunks as a store would hold them - only the shell (chunks holding air, and those touching them), each
+    /// its materials and densities, compressed - and reads them back, timing both; on a second entry only the read.
+    /// </summary>
+    private static string Store(string key, DungeonLayout layout, bool cached)
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "underworld-store", key + ".bin");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        long writing = System.Diagnostics.Stopwatch.GetTimestamp();
+        HashSet<(int X, int Y, int Z)> shell = DungeonSpace.Shell(layout.Volume);
+        int edge = TerrainConstants.ChunkEdgeLength;
+        bool written = !cached || !File.Exists(path);
+        if (written)
+        {
+            using FileStream file = File.Create(path);
+            using System.IO.Compression.ZLibStream zip = new(file, System.IO.Compression.CompressionLevel.Fastest);
+            using BinaryWriter writer = new(zip);
+            foreach ((int cx, int cy, int cz) in shell)
+            {
+                writer.Write(cx);
+                writer.Write(cy);
+                writer.Write(cz);
+                ushort[] materials = layout.Volume.Chunk(cx, cy, cz);
+                foreach (ushort material in materials)
+                {
+                    writer.Write(material);
+                }
+
+                for (int i = 0; i < materials.Length; i++)
+                {
+                    writer.Write(layout.Densities?.At((cx * edge) + (i % edge), (cy * edge) + (i / edge % edge), (cz * edge) + (i / (edge * edge))) ?? 0f);
+                }
+            }
+        }
+
+        double writeMs = System.Diagnostics.Stopwatch.GetElapsedTime(writing).TotalMilliseconds;
+        long reading = System.Diagnostics.Stopwatch.GetTimestamp();
+        long bytes = new FileInfo(path).Length, raw = 0;
+        using (FileStream file = File.OpenRead(path))
+        using (System.IO.Compression.ZLibStream zip = new(file, System.IO.Compression.CompressionMode.Decompress))
+        {
+            byte[] buffer = new byte[1 << 20];
+            int read;
+            while ((read = zip.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                raw += read;
+            }
+        }
+
+        double readMs = System.Diagnostics.Stopwatch.GetElapsedTime(reading).TotalMilliseconds;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"store: {shell.Count} shell chunks, {bytes / 1048576.0:F1} MB on disk ({raw / 1048576.0:F1} MB raw), write={(written ? $"{writeMs:F0}ms" : "-")} read={readMs:F0}ms");
+    }
 
     internal string StudyStream(string action, int radius, int budget)
     {

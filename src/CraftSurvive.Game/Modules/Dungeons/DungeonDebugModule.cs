@@ -49,6 +49,15 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.streamwalk", Description = "Assisted, for the streamed underworld prototype (#10304): moves the player this many metres across and through, onto the nearest standing place.")]
     public string StreamWalk(float dx, float dz) => dungeons.StudyStreamWalk(dx, dz);
 
+    [DebugCommand("craft.dungeon.streamradius", Description = "Assisted, for the stored, streamed cave prototype (#10304): the next dungeons stream within this many chunks of the player (0 loads them whole); caves are generated once a run and kept.")]
+    public string StreamRadius(int radius) => dungeons.StudyStreamRadius(radius);
+
+    [DebugCommand("craft.dungeon.streamed", Description = "Reads the stored, streamed cave prototype (#10304): the last entry's generation and store cost, and the stream's residency and update cost.")]
+    public string Streamed() => dungeons.StreamedReadout();
+
+    [DebugCommand("craft.dungeon.tour", Description = "Assisted, for the streamed cave prototype (#10304): moves the player this many metres along a route from the arrival to the farthest place reachable.")]
+    public string Tour(float metres) => dungeons.StudyTour(metres);
+
     [DebugCommand("craft.dungeon.cavesize", Description = "Assisted, for the cave size prototype (#10304): the next karst caves' box in units across, up and through (16 m each; 6 4 6 the default); their feature counts scale with its floor area.")]
     public string CaveSize(int chunksX, int chunksY, int chunksZ)
     {
