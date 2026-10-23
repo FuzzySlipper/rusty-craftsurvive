@@ -23,6 +23,9 @@ internal static class KarstCave
     /// </summary>
     internal static int ChunksX = DefaultChunksX, ChunksY = DefaultChunksY, ChunksZ = DefaultChunksZ;
 
+    /// <summary>The box the next cave is generated in.</summary>
+    private static (int X, int Y, int Z) Box => (ChunksX, ChunksY, ChunksZ);
+
     internal const int DefaultChunksX = 6, DefaultChunksY = 4, DefaultChunksZ = 6;
 
     /// <summary>
@@ -3358,10 +3361,16 @@ private static int MostBarrensPieces => Area(400);
         /// the last flowing era, or within reach of today's water), patinated rock on levels dry for two eras or more,
         /// sediment where it settled, plain rock between (#10094).
         /// </summary>
+        /// <summary>
+        /// The box the cave was generated in (R10304-1): its field and grids are sampled in it, whatever box the size study
+        /// chooses for the caves after it.
+        /// </summary>
+        internal required (int X, int Y, int Z) Box { get; init; }
+
         internal BlockId RockAt(Vector3 p)
         {
-            int x = Math.Clamp((int)(p.X / FieldStep), 0, FieldX - 1), y = Math.Clamp((int)(p.Y / FieldStep), 0, FieldY - 1), z = Math.Clamp((int)(p.Z / FieldStep), 0, FieldZ - 1);
-            int here = FieldIndex(x, y, z);
+            int x = Math.Clamp((int)(p.X / FieldStep), 0, FieldSize(Box).X - 1), y = Math.Clamp((int)(p.Y / FieldStep), 0, FieldSize(Box).Y - 1), z = Math.Clamp((int)(p.Z / FieldStep), 0, FieldSize(Box).Z - 1);
+            int here = FieldIndex(x, y, z, Box);
             if (Sediment[here])
             {
                 // Mud where the water still reaches, dry silt above it.
@@ -3381,7 +3390,7 @@ private static int MostBarrensPieces => Area(400);
             // Under the sky: the plateau's ground and the tiankeng's floor are soil and turf, not cave rock.
             if (SkyOpen)
             {
-                bool openAbove = y + 1 < FieldY && Open[FieldIndex(x, y + 1, z)] > 0f;
+                bool openAbove = y + 1 < FieldSize(Box).Y && Open[FieldIndex(x, y + 1, z, Box)] > 0f;
                 bool underSky = p.Y > SurfaceAt(p.X, p.Z, Seed) - SoilDepth
                     || (Tiankeng is (Vector3 floor, float radius) && Vector2.Distance(new Vector2(p.X, p.Z), new Vector2(floor.X, floor.Z)) < radius && p.Y < floor.Y + TiankengFloorSoil);
                 if (underSky && openAbove)
@@ -3402,13 +3411,13 @@ private static int MostBarrensPieces => Area(400);
                     for (int dx = -1; dx <= 1; dx++)
                     {
                         int nx = x + dx, ny = y + dy, nz = z + dz;
-                        if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldX || ny >= FieldY || nz >= FieldZ)
+                        if (nx < 0 || ny < 0 || nz < 0 || nx >= FieldSize(Box).X || ny >= FieldSize(Box).Y || nz >= FieldSize(Box).Z)
                         {
                             continue;
                         }
 
-                        byte era = Formed[FieldIndex(nx, ny, nz)];
-                        if (era != Unformed && Open[FieldIndex(nx, ny, nz)] > 0f)
+                        byte era = Formed[FieldIndex(nx, ny, nz, Box)];
+                        if (era != Unformed && Open[FieldIndex(nx, ny, nz, Box)] > 0f)
                         {
                             faces = Math.Max(faces, era);
                         }
@@ -3421,14 +3430,14 @@ private static int MostBarrensPieces => Area(400);
 
             int age = Eras.Length - 1 - faces;
             // A floor within the water's reach, where it runs quietly or stands, is mud.
-            bool facesUp = y + 1 < FieldY && Open[FieldIndex(x, y + 1, z)] > 0f;
-            if (facesUp && p.Y < FinalTable + WetReach && GridTrilinear(Flow, p + new Vector3(0f, FieldStep, 0f)) < MudQuietFlow)
+            bool facesUp = y + 1 < FieldSize(Box).Y && Open[FieldIndex(x, y + 1, z, Box)] > 0f;
+            if (facesUp && p.Y < FinalTable + WetReach && GridTrilinear(Flow, p + new Vector3(0f, FieldStep, 0f), Box) < MudQuietFlow)
             {
                 return SedimentRock;
             }
 
             // Older rock under dripping water is coated in flowstone.
-            float drip = GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f));
+            float drip = GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f), Box);
             if (faces != LastFlowEra && age >= 1 && drip >= FlowstoneDrip)
             {
                 return FlowstoneRock;
@@ -3437,7 +3446,7 @@ private static int MostBarrensPieces => Area(400);
             bool washed = faces == LastFlowEra || p.Y < FinalTable + WetReach;
             // Life on the rock (#10129), in patches: slime where the water keeps it wet (not on what faces down), moss where
             // light reaches, moonmilk on long-dry rock under a light drip.
-            bool facesDown = y > 0 && Open[FieldIndex(x, y - 1, z)] > 0f && !facesUp;
+            bool facesDown = y > 0 && Open[FieldIndex(x, y - 1, z, Box)] > 0f && !facesUp;
             if (washed && !facesDown && Patch(p, SlimeFrequency, 0x5A1UL) > SlimeAbove)
             {
                 return SlimeRock;
@@ -3496,7 +3505,7 @@ private static int MostBarrensPieces => Area(400);
         /// <summary>The field anywhere in the layout, trilinear between its samples.</summary>
         internal float At(Vector3 p)
         {
-            float open = Trilinear(Open, p);
+            float open = Trilinear(Open, p, Box);
             if (MathF.Abs(open) > 1f)
             {
                 return open;
@@ -3514,9 +3523,9 @@ private static int MostBarrensPieces => Area(400);
         /// </summary>
         private float FineForms(Vector3 p)
         {
-            float flowed = SmoothStep(FlowFrom, FlowFull, GridTrilinear(Flow, p));
-            float dripped = SmoothStep(DripFrom, DripFull, MathF.Max(GridTrilinear(Drip, p),
-                MathF.Max(GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f)), GridTrilinear(Drip, p + new Vector3(0f, 2f * GridCell, 0f)))));
+            float flowed = SmoothStep(FlowFrom, FlowFull, GridTrilinear(Flow, p, Box));
+            float dripped = SmoothStep(DripFrom, DripFull, MathF.Max(GridTrilinear(Drip, p, Box),
+                MathF.Max(GridTrilinear(Drip, p + new Vector3(0f, GridCell, 0f), Box), GridTrilinear(Drip, p + new Vector3(0f, 2f * GridCell, 0f), Box))));
             bool aired = p.Y > FinalTable;
             float forms = 0f;
 
@@ -4062,6 +4071,7 @@ private static int MostBarrensPieces => Area(400);
             Ecology = ecology,
             Communities = grown,
             Setting = place,
+            Box = Box,
             Overgrowth = darkGrowth,
             Tiankeng = tiankeng,
             GreatHall = greatHall,
@@ -5397,6 +5407,45 @@ private static int MostBarrensPieces => Area(400);
         int x0 = (int)fx, y0 = (int)fy, z0 = (int)fz;
         float tx = fx - x0, ty = fy - y0, tz = fz - z0;
         float L(int dx, int dy, int dz) => field[FieldIndex(x0 + dx, y0 + dy, z0 + dz)];
+        static float Lerp(float a, float b, float t) => a + ((b - a) * t);
+        return Lerp(Lerp(Lerp(L(0, 0, 0), L(1, 0, 0), tx), Lerp(L(0, 1, 0), L(1, 1, 0), tx), ty),
+            Lerp(Lerp(L(0, 0, 1), L(1, 0, 1), tx), Lerp(L(0, 1, 1), L(1, 1, 1), tx), ty), tz);
+    }
+
+    // The lookups of a generated cave in its own box (R10304-1), as the ones above are in the box being generated.
+    private static (int X, int Y, int Z) FieldSize((int X, int Y, int Z) box) => ((int)(box.X * 16 / FieldStep), (int)(box.Y * 16 / FieldStep), (int)(box.Z * 16 / FieldStep));
+
+    private static (int X, int Y, int Z) GridSize((int X, int Y, int Z) box) => (box.X * 16 / 2, box.Y * 16 / 2, box.Z * 16 / 2);
+
+    private static int FieldIndex(int x, int y, int z, (int X, int Y, int Z) box)
+    {
+        (int fx, int fy, _) = FieldSize(box);
+        return (((z * fy) + y) * fx) + x;
+    }
+
+    private static float Trilinear(float[] field, Vector3 p, (int X, int Y, int Z) box)
+    {
+        (int sx, int sy, int sz) = FieldSize(box);
+        float fx = Math.Clamp((p.X / FieldStep) - 0.5f, 0f, sx - 1.001f);
+        float fy = Math.Clamp((p.Y / FieldStep) - 0.5f, 0f, sy - 1.001f);
+        float fz = Math.Clamp((p.Z / FieldStep) - 0.5f, 0f, sz - 1.001f);
+        int x0 = (int)fx, y0 = (int)fy, z0 = (int)fz;
+        float tx = fx - x0, ty = fy - y0, tz = fz - z0;
+        float L(int dx, int dy, int dz) => field[(((z0 + dz) * sy) + y0 + dy) * sx + x0 + dx];
+        static float Lerp(float a, float b, float t) => a + ((b - a) * t);
+        return Lerp(Lerp(Lerp(L(0, 0, 0), L(1, 0, 0), tx), Lerp(L(0, 1, 0), L(1, 1, 0), tx), ty),
+            Lerp(Lerp(L(0, 0, 1), L(1, 0, 1), tx), Lerp(L(0, 1, 1), L(1, 1, 1), tx), ty), tz);
+    }
+
+    private static float GridTrilinear(float[] grid, Vector3 p, (int X, int Y, int Z) box)
+    {
+        (int sx, int sy, int sz) = GridSize(box);
+        float fx = Math.Clamp((p.X / GridCell) - 0.5f, 0f, sx - 1.001f);
+        float fy = Math.Clamp((p.Y / GridCell) - 0.5f, 0f, sy - 1.001f);
+        float fz = Math.Clamp((p.Z / GridCell) - 0.5f, 0f, sz - 1.001f);
+        int x0 = (int)fx, y0 = (int)fy, z0 = (int)fz;
+        float tx = fx - x0, ty = fy - y0, tz = fz - z0;
+        float L(int dx, int dy, int dz) => grid[(((z0 + dz) * sy) + y0 + dy) * sx + x0 + dx];
         static float Lerp(float a, float b, float t) => a + ((b - a) * t);
         return Lerp(Lerp(Lerp(L(0, 0, 0), L(1, 0, 0), tx), Lerp(L(0, 1, 0), L(1, 1, 0), tx), ty),
             Lerp(Lerp(L(0, 0, 1), L(1, 0, 1), tx), Lerp(L(0, 1, 1), L(1, 1, 1), tx), ty), tz);

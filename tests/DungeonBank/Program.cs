@@ -765,28 +765,19 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
                     continue;
                 }
 
-                // Each trunk where it stands (the piece turned as the game turns it), at half its height.
+                // Each trunk where it stands (the piece turned as the game turns it), its whole axis from foot to top
+                // (R10304-2: its midpoint alone missed a route crossing near its foot or top).
                 System.Numerics.Quaternion turn = OvergrowthPlacement.Turn(piece);
                 foreach ((float tx, float tz, float radius, float height) in trunks)
                 {
-                    System.Numerics.Vector3 mid = piece.At + System.Numerics.Vector3.Transform(new System.Numerics.Vector3(tx, height * 0.5f, tz) * piece.Scale, turn);
+                    System.Numerics.Vector3 foot = piece.At + System.Numerics.Vector3.Transform(new System.Numerics.Vector3(tx, 0f, tz) * piece.Scale, turn);
+                    System.Numerics.Vector3 top = piece.At + System.Numerics.Vector3.Transform(new System.Numerics.Vector3(tx, height, tz) * piece.Scale, turn);
                     float reach = radius * piece.Scale;
-                    bool blocked = false;
-                    for (int i = 0; i + 1 < cave.MainRoute.Count && !blocked; i++)
-                    {
-                        System.Numerics.Vector3 a = cave.MainRoute[i], ab = cave.MainRoute[i + 1] - a;
-                        float along = Math.Clamp(System.Numerics.Vector3.Dot(mid - a, ab) / Math.Max(1e-4f, ab.LengthSquared()), 0f, 1f);
-                        float off = System.Numerics.Vector3.Distance(mid, a + (ab * along));
-                        if (off < reach + KarstCave.CrawlRadius)
-                        {
-                            blocked = true;
-                            Console.WriteLine($"  {name} seed {seed}: {piece.Kind} x{piece.Scale:F2} trunk at {mid.X:F1},{mid.Y:F1},{mid.Z:F1} r={reach:F2} m, {off:F2} m from the main route");
-                        }
-                    }
-
-                    if (blocked)
+                    int crossed = TrunkCrossing(foot, top, reach, cave.MainRoute);
+                    if (crossed >= 0)
                     {
                         blocking++;
+                        Console.WriteLine($"  {name} seed {seed}: {piece.Kind} x{piece.Scale:F2} trunk {foot.X:F1},{foot.Y:F1},{foot.Z:F1} to {top.X:F1},{top.Y:F1},{top.Z:F1} r={reach:F2} m crosses route segment {crossed}");
                         break;
                     }
                 }
@@ -829,6 +820,43 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(shallowGrown < communitySeeds, "a shallow cave must often grow none");
     Check.That(blocking == 0, "a community's colliders must leave room beside the cave's main route");
     Check.That(lowCrowns == 0, "a grove's hung pieces must leave a standing body room under them");
+}
+
+// A cave kept after the size study chooses a new box samples its own field (R10304-1): a default cave's field and rock at
+// points across its box read the same after the next caves' box becomes 12 x 4 x 12 (before, the lookups ran past its
+// field, or read the wrong rock), and the next cave is generated in the new box.
+{
+    KarstCave.Result kept = KarstCave.Build(1, KarstCave.Centrepiece.None);
+    System.Numerics.Vector3[] points = [.. Enumerable.Range(0, 64).Select(i => new System.Numerics.Vector3(3f + (i % 4 * 30f), 2f + (i / 4 % 4 * 18f), 3f + (i / 16 * 30f)))];
+    float[] fieldBefore = [.. points.Select(kept.At)];
+    BlockId[] rockBefore = [.. points.Select(kept.RockAt)];
+    (int x, int y, int z) chosen = (KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ);
+    KarstCave.ChunksX = 12;
+    KarstCave.ChunksZ = 12;
+    bool same;
+    try
+    {
+        same = points.Select(kept.At).SequenceEqual(fieldBefore) && points.Select(kept.RockAt).SequenceEqual(rockBefore);
+    }
+    catch (IndexOutOfRangeException)
+    {
+        same = false;
+    }
+
+    bool nextBigger = KarstCave.ChunksX == 12 && kept.Box == chosen;
+    (KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ) = chosen;
+    Console.WriteLine($"kept cave: field and rock at {points.Length} points {(same ? "unchanged" : "CHANGED")} after the next box became 12x{chosen.y}x12");
+    Check.That(same, "a kept cave must sample its own field after the next caves' box changes");
+    Check.That(nextBigger, "the size study must choose the next caves' box, not the kept cave's");
+}
+
+// The trunk measure's own cases (R10304-2): an upright scale-1 VentGiant trunk at the origin (radius 1.1, height 10) is
+// crossed by a route at 1 m up, which its midpoint alone measured 4 m clear of, and is clear of the same route 3 m aside.
+{
+    System.Numerics.Vector3 foot = System.Numerics.Vector3.Zero, top = new(0f, 10f, 0f);
+    Check.That(TrunkCrossing(foot, top, 1.1f, [new(-2f, 1f, 0f), new(2f, 1f, 0f)]) == 0, "a route crossing a tall trunk near its foot must be caught");
+    Check.That(TrunkCrossing(foot, top, 1.1f, [new(-2f, 1f, 3f), new(2f, 1f, 3f)]) < 0, "a route 3 m beside a tall trunk must be clear");
+    Console.WriteLine("trunk measure: a route through a tall trunk's foot caught, one 3 m aside clear");
 }
 
 // Moisture spreads only through air (#10092 review R10092-1): two room interiors either side of a two-voxel wall (as two
@@ -986,6 +1014,67 @@ static void Section(ulong seed)
         }
     }
 }
+
+// The first segment of a route a trunk (its axis from foot to top, so far round it) leaves a crawling body no room
+// beside, or -1: the closest distance between the trunk's axis and each segment, against its radius and a crawl's.
+static int TrunkCrossing(System.Numerics.Vector3 foot, System.Numerics.Vector3 top, float radius, IReadOnlyList<System.Numerics.Vector3> route)
+{
+    for (int i = 0; i + 1 < route.Count; i++)
+    {
+        if (SegmentDistance(foot, top, route[i], route[i + 1]) < radius + KarstCave.CrawlRadius)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// The closest distance between two segments (p0-p1 and q0-q1).
+static float SegmentDistance(System.Numerics.Vector3 p0, System.Numerics.Vector3 p1, System.Numerics.Vector3 q0, System.Numerics.Vector3 q1)
+{
+    System.Numerics.Vector3 d1 = p1 - p0, d2 = q1 - q0, r = p0 - q0;
+    float a = d1.LengthSquared(), e = d2.LengthSquared(), f = System.Numerics.Vector3.Dot(d2, r);
+    float s, t;
+    if (a <= 1e-8f && e <= 1e-8f)
+    {
+        return r.Length();
+    }
+
+    if (a <= 1e-8f)
+    {
+        s = 0f;
+        t = Math.Clamp(f / e, 0f, 1f);
+    }
+    else
+    {
+        float c = System.Numerics.Vector3.Dot(d1, r);
+        if (e <= 1e-8f)
+        {
+            t = 0f;
+            s = Math.Clamp(-c / a, 0f, 1f);
+        }
+        else
+        {
+            float b = System.Numerics.Vector3.Dot(d1, d2), denominator = (a * e) - (b * b);
+            s = denominator > 1e-8f ? Math.Clamp(((b * f) - (c * e)) / denominator, 0f, 1f) : 0f;
+            t = ((b * s) + f) / e;
+            if (t < 0f)
+            {
+                t = 0f;
+                s = Math.Clamp(-c / a, 0f, 1f);
+            }
+            else if (t > 1f)
+            {
+                t = 1f;
+                s = Math.Clamp((b - c) / a, 0f, 1f);
+            }
+        }
+    }
+
+    return System.Numerics.Vector3.Distance(p0 + (d1 * s), q0 + (d2 * t));
+}
+
 
 /// <summary>
 /// A picture of one dungeon for a person to judge: vertical slices through it, front to back, and a
