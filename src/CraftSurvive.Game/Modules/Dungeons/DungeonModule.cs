@@ -1314,8 +1314,11 @@ internal sealed class DungeonModule : IProductModule
 
     // A community's viewpoint (#10304): open floor with headroom within so far of the community's middle, the most of its
     // pieces (up to so many, sampled) in open sight from the eye within a reach, sight tested every so far along.
-    private const float ViewNearest = 3f, ViewFarthest = 14f, ViewRing = 1.5f, ViewRise = 5f, ViewStep = 0.5f, EyeHeight = 1.6f, ViewReach = 22f, SightStep = 0.5f;
+    private const float ViewNearest = 3f, ViewFarthest = 14f, ViewRing = 1.5f, ViewRise = 12f, ViewStep = 0.5f, EyeHeight = 1.6f, ViewReach = 22f, SightStep = 0.5f;
     private const int ViewDirections = 16, ViewPieces = 48;
+
+    /// <summary>The room a viewpoint keeps round a body's middle and round its eye, metres to the rock (#10304).</summary>
+    private const float ViewRoom = 0.6f, EyeRoom = 0.5f;
 
     /// <summary>
     /// Assisted, for captures (#10304): stands the player on open floor near a community where they see the most of its
@@ -1364,7 +1367,10 @@ internal sealed class DungeonModule : IProductModule
                 for (float y = middle.Y + ViewRise; y >= middle.Y - ViewRise; y -= ViewStep)
                 {
                     Vector3 feet = new(middle.X + (MathF.Cos(angle) * r), y, middle.Z + (MathF.Sin(angle) * r));
-                    if (open(feet - new Vector3(0f, 0.3f, 0f)) > 0f || open(feet + new Vector3(0f, 0.3f, 0f)) <= 0f || open(feet + new Vector3(0f, EyeHeight + 0.3f, 0f)) <= 0f)
+                    // Rock just under the feet, and room for a body round its middle and its eye (the field is about the
+                    // distance to rock): a crack the cave's voxels do not resolve would stand the eye inside the drawn rock.
+                    if (open(feet - new Vector3(0f, 0.3f, 0f)) > 0f || open(feet + new Vector3(0f, 0.3f, 0f)) <= 0f
+                        || open(feet + new Vector3(0f, EyeHeight * 0.5f, 0f)) < ViewRoom || open(feet + new Vector3(0f, EyeHeight, 0f)) < EyeRoom)
                     {
                         continue;
                     }

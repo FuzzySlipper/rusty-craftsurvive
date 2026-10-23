@@ -171,6 +171,33 @@ if (args is ["kitpieces", string kitPiecesSeed, string kitPieceName])
     return 0;
 }
 
+if (args is ["probe", string probeSeed, string pt, string pm, string pd, string px, string py, string pz, ..])
+{
+    // probe <seed> <temperature> <moisture> <depth> <x> <y> <z> [voxel]: a karst cave's field (about metres to the rock,
+    // positive open) up the column from a point (layout metres) and how far it stays open along eight level directions
+    // from it (#10304: a viewpoint in a crack thinner than the cave's voxels stood the eye inside the drawn rock).
+    var ci = System.Globalization.CultureInfo.InvariantCulture;
+    double voxel = args.Length > 8 ? double.Parse(args[8], ci) : 1d;
+    CaveSetting setting = new(double.Parse(pt, ci), double.Parse(pm, ci), float.Parse(pd, ci));
+    Func<System.Numerics.Vector3, float> field = KarstCave.Generate(ulong.Parse(probeSeed, ci), voxel, KarstCave.Centrepiece.None, setting).Layout.Shape!;
+    System.Numerics.Vector3 from = new(float.Parse(px, ci), float.Parse(py, ci), float.Parse(pz, ci));
+    Console.WriteLine("column: " + string.Join(" ", Enumerable.Range(-2, 12).Select(i => $"{i * 0.25f:+0.00;-0.00}:{field(from + new System.Numerics.Vector3(0f, i * 0.25f, 0f)):F2}")));
+    for (int k = 0; k < 8; k++)
+    {
+        float yaw = k * 45f * MathF.PI / 180f;
+        System.Numerics.Vector3 dir = new(MathF.Sin(yaw), 0f, -MathF.Cos(yaw));
+        float t = 0f;
+        while (t < 40f && field(from + (dir * t)) > 0f)
+        {
+            t += 0.25f;
+        }
+
+        Console.WriteLine($"yaw {k * 45,3}: open for {t:F2} m");
+    }
+
+    return 0;
+}
+
 if (args is ["karsttime", string karstCount, ..])
 {
     // karsttime <n> [chunksX chunksY chunksZ]: how long KarstCave.Generate takes, and how much air (open voxels) its volume
