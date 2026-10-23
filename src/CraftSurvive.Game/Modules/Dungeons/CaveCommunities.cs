@@ -75,8 +75,8 @@ internal static class CaveCommunities
         CaveCommunity.IvoryHeath => new(Deeper, 0.6, 0.3, 0.15, 0.15),
         // Wide dry floors under dry, open land.
         CaveCommunity.GlassSteppe => new(Deepest, 0.45, 0.35, 0.3, 0.2),
-        // Warm seeps, whatever the land's water; favoured under warm land.
-        _ => new(Deepest, 0.6, 0.4, 0.5, 1d),
+        // Warm seeps under warm land (owner, 2026-10-23: rarer, not under every region); ruled out under cold land.
+        _ => new(Deepest, 0.7, 0.2, 0.5, 0.35),
     };
 
     /// <summary>Below this weight a community is ruled out under a region.</summary>
