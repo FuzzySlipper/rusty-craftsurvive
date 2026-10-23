@@ -973,7 +973,7 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     private static string Store(string key, DungeonLayout layout, bool cached)
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "underworld-store", key + ".bin");
+        string path = Path.Combine(AppContext.BaseDirectory, ".runtime", "underworld-store", key + ".bin");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         long writing = System.Diagnostics.Stopwatch.GetTimestamp();
         HashSet<(int X, int Y, int Z)> shell = DungeonSpace.Shell(layout.Volume);
