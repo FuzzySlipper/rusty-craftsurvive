@@ -4696,19 +4696,22 @@ private static int MostBarrensPieces => Area(400);
     }
 
     /// <summary>
-    /// Grows formations where water drips: at open joints under a ceiling, above the water table, a stalactite hanging a
-    /// share of the gap and often a stalagmite under it; in a low gap a column; under a steeply sloping ceiling a drapery
-    /// curtain. Since #10305 (owner, 2026-10-23) they are the geological kit's authored pieces, placed here; their whole
-    /// shapes go only into <paramref name="shapes"/>, to mark the flowstone they laid. A core in the rock as thin as a column's
-    /// waist is finer than the field's samples and the cave's voxels, so the columns and tall stalagmites collide as simple
-    /// prisms inside them (<see cref="OvergrowthPlacement.Trunks"/>) and the stalactites hang no lower than head height.
-    /// Returns how many were grown.
+    /// Grows formations where water drips (#10305; owner, 2026-10-23: dense, clustered): at open joints under a ceiling,
+    /// above the water table, each drip site grows a cluster - stalactites strung along a drip line through it, each
+    /// hanging a share of its own gap, stalagmites under many of them and a field of small ones round about - or, in a low
+    /// gap, a column, or under a steeply sloping ceiling a drapery curtain. Chambers grow more and larger pieces: sizes and
+    /// counts grow with the gap. They are the geological kit's authored pieces, placed here; their whole shapes go only
+    /// into <paramref name="shapes"/>, to mark the flowstone they laid. A core in the rock as thin as a column's waist is
+    /// finer than the field's samples and the cave's voxels, so the columns and tall stalagmites collide as simple prisms
+    /// inside them (<see cref="OvergrowthPlacement.Trunks"/>) and the stalactites hang no lower than head height. Returns
+    /// how many were grown.
     /// </summary>
     private static int Drip(float[] open, float[] shapes, bool[] joint, byte[] formed, int eras, float finalTable, DungeonRandom random, List<OvergrowthPlacement> placed)
     {
-        List<Vector3> grown = [];
+        List<Vector3> sites = [];
+        List<Vector2> hung = [], stood = [];
         int count = 0;
-        for (int i = 0; i < joint.Length && grown.Count < MostFormations; i++)
+        for (int i = 0; i < joint.Length && sites.Count < MostFormations && placed.Count < MostFormationPieces; i++)
         {
             Vector3 c = GridCentre(i);
             // Older, drier passages are more decorated: the chance grows with the eras since the passage was opened.
@@ -4721,64 +4724,134 @@ private static int MostBarrensPieces => Area(400);
 
             Vector3 at = c + new Vector3(Between(random, -0.8f, 0.8f), 0f, Between(random, -0.8f, 0.8f));
             float? ceiling = Reach(open, at, 1f), floor = Reach(open, at, -1f);
-            if (ceiling is not float top || floor is not float foot || top - foot < LeastGap || grown.Any(g => Vector2.Distance(new(g.X, g.Z), new(at.X, at.Z)) < FormationApart))
+            if (ceiling is not float top || floor is not float foot || top - foot < LeastGap || sites.Any(g => Vector2.Distance(new(g.X, g.Z), new(at.X, at.Z)) < FormationApart))
             {
                 continue;
             }
 
-            grown.Add(at);
+            sites.Add(at);
             float gap = top - foot;
+            // How much a chamber's height enlarges what grows in it, from 1 in an ordinary passage.
+            float grand = Math.Clamp(gap / ChamberGap, 1f, MostGrandeur);
             float pick = Between(random, 0f, 1f);
-            Vector3 roof = new(at.X, top + PieceSink, at.Z), ground = new(at.X, foot - PieceSink, at.Z);
             Vector3 facing = new(MathF.Cos(pick * MathF.Tau), 0f, MathF.Sin(pick * MathF.Tau));
-            if (gap < ColumnGap && Chance(random, ColumnChance))
+            if (gap < ColumnGap * grand && Chance(random, ColumnChance))
             {
-                // A column spans its gap: the piece scaled to it, a core the width of its waist kept in the rock.
+                // A column spans its gap: the piece scaled to it.
                 float scale = (gap + (2f * PieceSink)) / ColumnHeight;
-                placed.Add(new OvergrowthPlacement(OvergrowthKind.Column, ground, facing, scale, pick));
-                Formation(shapes, at, foot - 0.4f, top + 0.4f, Between(random, 0.35f, 0.6f), Between(random, 0.9f, 1.5f), column: true);
-                count++;
-                continue;
+                if (scale <= MostPieceScale * MostGrandeur)
+                {
+                    placed.Add(new OvergrowthPlacement(OvergrowthKind.Column, new Vector3(at.X, foot - PieceSink, at.Z), facing, scale, pick));
+                    stood.Add(new Vector2(at.X, at.Z));
+                    Formation(shapes, at, foot - 0.4f, top + 0.4f, Between(random, 0.35f, 0.6f) * grand, Between(random, 0.9f, 1.5f) * grand, column: true);
+                    count++;
+                    continue;
+                }
             }
 
             // Under a steep ceiling the drip runs down the slope and lays a curtain along it, facing down it.
             if (Slope(open, at, top) is Vector2 down && down.Length() > DraperySlope && Chance(random, DraperyChance))
             {
                 Vector2 way = Vector2.Normalize(down);
-                placed.Add(new OvergrowthPlacement(OvergrowthKind.Drapery, roof, new Vector3(way.X, 0f, way.Y), Between(random, 0.8f, 1.15f), pick));
+                placed.Add(new OvergrowthPlacement(OvergrowthKind.Drapery, new Vector3(at.X, top + PieceSink, at.Z), new Vector3(way.X, 0f, way.Y),
+                    Between(random, 0.8f, 1.15f) * MathF.Sqrt(grand), pick));
                 Formation(shapes, at, top - 1f, top + 0.4f, 0f, 0.6f, column: false);
                 count++;
                 continue;
             }
 
-            // A stalactite hangs no lower than head height over the floor (it has no collider); one too short for its kind's
-            // least scale there is not hung.
-            float hang = MathF.Min(gap * Between(random, 0.15f, 0.45f), gap - HeadRoom);
-            Formation(shapes, at, top - MathF.Max(0.3f, hang), top + 0.4f, 0f, Between(random, 0.25f, 0.5f) + (hang * 0.12f), column: false);
-            bool longOne = hang > LongStalactiteFrom;
-            float length = longOne ? StalactiteLongLength : StalactiteLength;
-            if (hang >= length * LeastPieceScale)
+            // A cluster: stalactites strung along a drip line through the site (the joint the water seeps from), each from
+            // its own ceiling, stalagmites under many, and a field of small stalagmites round about.
+            int strung = random.Range(ClusterLeast, ClusterMost) + (int)((grand - 1f) * ClusterGrandeur);
+            float line = ClusterLine * grand;
+            Vector2 along = new(MathF.Cos(pick * MathF.PI), MathF.Sin(pick * MathF.PI)), across = new(-along.Y, along.X);
+            for (int k = 0; k < strung && placed.Count < MostFormationPieces; k++)
             {
-                placed.Add(new OvergrowthPlacement(longOne ? OvergrowthKind.StalactiteLong : OvergrowthKind.Stalactite, roof, facing, MathF.Min(hang / length, MostPieceScale), pick));
-                count++;
-            }
-
-            if (Chance(random, StalagmiteChance))
-            {
-                float rise = MathF.Min(gap - hang - 0.6f, gap * Between(random, 0.1f, 0.35f));
-                if (rise > 0.3f)
+                Vector2 off = (along * Between(random, -0.5f, 0.5f) * line) + (across * Between(random, -ClusterWidth, ClusterWidth));
+                Vector3 drop = new(at.X + off.X, at.Y, at.Z + off.Y);
+                if (Trilinear(open, drop) <= 0f || Reach(open, drop, 1f) is not float roof || Reach(open, drop, -1f) is not float ground)
                 {
-                    bool tall = rise > TallStalagmiteFrom;
-                    float riseScale = Math.Clamp(rise / (tall ? StalagmiteTallHeight : StalagmiteHeight), LeastPieceScale, MostPieceScale);
-                    placed.Add(new OvergrowthPlacement(tall ? OvergrowthKind.StalagmiteTall : OvergrowthKind.Stalagmite, ground, -facing, riseScale, 1f - pick));
-                    Formation(shapes, at, foot - 0.4f, foot + rise, Between(random, 0.4f, 0.8f) + (rise * 0.15f), 0f, column: false);
+                    continue;
+                }
+
+                Vector2 xz = new(drop.X, drop.Z);
+                float span = roof - ground;
+                if (span < LeastGap || hung.Any(h => Vector2.Distance(h, xz) < HungApart))
+                {
+                    continue;
+                }
+
+                // A stalactite hangs no lower than head height (it has no collider); one too short for its kind's least
+                // scale there is not hung.
+                float hang = MathF.Min(span * Between(random, 0.12f, 0.45f), span - HeadRoom);
+                Formation(shapes, drop, roof - MathF.Max(0.3f, hang), roof + 0.4f, 0f, Between(random, 0.25f, 0.5f) + (hang * 0.12f), column: false);
+                bool longOne = hang > LongStalactiteFrom;
+                float length = longOne ? StalactiteLongLength : StalactiteLength;
+                float turn = Between(random, 0f, 1f);
+                Vector3 spin = new(MathF.Cos(turn * MathF.Tau), 0f, MathF.Sin(turn * MathF.Tau));
+                if (hang >= length * LeastPieceScale)
+                {
+                    placed.Add(new OvergrowthPlacement(longOne ? OvergrowthKind.StalactiteLong : OvergrowthKind.Stalactite, new Vector3(drop.X, roof + PieceSink, drop.Z), spin,
+                        MathF.Min(hang / length, MostPieceScale * grand), turn));
+                    hung.Add(xz);
                     count++;
                 }
+
+                // Under it, where the drops land, a stalagmite.
+                if (Chance(random, StalagmiteChance) && stood.All(t => Vector2.Distance(t, xz) >= StoodApart))
+                {
+                    float rise = MathF.Min(span - MathF.Max(0f, hang) - HeadClear, span * Between(random, 0.08f, 0.3f));
+                    count += Stand(drop, ground, rise, grand, random, placed, shapes) ? 1 : 0;
+                    stood.Add(xz);
+                }
+            }
+
+            // The field round the cluster: small stalagmites where drops splashed and dripped off its tips.
+            int field = (int)(strung * FieldShare);
+            for (int k = 0; k < field && placed.Count < MostFormationPieces; k++)
+            {
+                Vector2 off = (along * Between(random, -0.6f, 0.6f) * line) + (across * Between(random, -ClusterWidth * 2f, ClusterWidth * 2f));
+                Vector3 spot = new(at.X + off.X, at.Y, at.Z + off.Y);
+                Vector2 xz = new(spot.X, spot.Z);
+                if (Trilinear(open, spot) <= 0f || Reach(open, spot, -1f) is not float ground || Reach(open, spot, 1f) is not float roof
+                    || stood.Any(t => Vector2.Distance(t, xz) < StoodApart))
+                {
+                    continue;
+                }
+
+                count += Stand(spot, ground, MathF.Min(roof - ground - HeadClear, Between(random, 0.25f, 0.9f) * grand), grand, random, placed, shapes) ? 1 : 0;
+                stood.Add(xz);
             }
         }
 
         return count;
     }
+
+    /// <summary>A stalagmite rising so far from a floor (the short kind or the tall), its shape marked; false when too short.</summary>
+    private static bool Stand(Vector3 at, float ground, float rise, float grand, DungeonRandom random, List<OvergrowthPlacement> placed, float[] shapes)
+    {
+        if (rise < StalagmiteHeight * LeastPieceScale)
+        {
+            return false;
+        }
+
+        bool tall = rise > TallStalagmiteFrom;
+        float scale = MathF.Min(rise / (tall ? StalagmiteTallHeight : StalagmiteHeight), MostPieceScale * grand);
+        float turn = Between(random, 0f, 1f);
+        placed.Add(new OvergrowthPlacement(tall ? OvergrowthKind.StalagmiteTall : OvergrowthKind.Stalagmite, new Vector3(at.X, ground - PieceSink, at.Z),
+            new Vector3(MathF.Cos(turn * MathF.Tau), 0f, MathF.Sin(turn * MathF.Tau)), scale, turn));
+        Formation(shapes, at, ground - 0.4f, ground + rise, Between(random, 0.4f, 0.8f) + (rise * 0.15f), 0f, column: false);
+        return true;
+    }
+
+    // A cluster (owner, 2026-10-23: dense): so many stalactites strung along a drip line this long and this far either side
+    // of it, more in a chamber; this share of them again as a field of small stalagmites round about; pieces kept so far
+    // apart; head room kept under a hanging tip over a stalagmite. A chamber is a gap from ChamberGap up, its pieces up to
+    // MostGrandeur times larger. A cave holds at most so many pieces.
+    private const int ClusterLeast = 3, ClusterMost = 9, ClusterGrandeur = 4;
+    private const float ClusterLine = 4f, ClusterWidth = 0.7f, FieldShare = 0.6f, HungApart = 0.55f, StoodApart = 0.9f, HeadClear = 0.6f;
+    private const float ChamberGap = 6f, MostGrandeur = 2.4f;
+    private static int MostFormationPieces => Area(900);
 
     /// <summary>
     /// A formation piece settled onto the finished field (#10305): the field moved after the drip (roughened, enclosed, the
@@ -4828,7 +4901,7 @@ private static int MostBarrensPieces => Area(400);
             OvergrowthKind.StalactiteLong => MathF.Min(piece.Scale, (top - foot - HeadRoom) / StalactiteLongLength),
             _ => piece.Scale,
         };
-        if (scale < LeastPieceScale || scale > MostPieceScale * 1.25f)
+        if (scale < LeastPieceScale || scale > MostPieceScale * MostGrandeur * 1.1f)
         {
             return null;
         }
