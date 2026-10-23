@@ -35,12 +35,19 @@ internal sealed class DungeonOvergrowth : IDisposable
     private static readonly Sway Fans = new(0.12f, 0f, 0f);
     private static readonly Sway Combs = new(0.04f, 0.4f, -0.4f);
 
+    // The heath's bristle fans stir in the draft (weighted up from the bulb's neck) and part round the traveller; the great
+    // bulbs' fans stand over their reach; the young tufts bow as the grass does.
+    private static readonly Sway Bristles = new(0.03f, 0.45f, 0.1f);
+    private static readonly Sway GreatBristles = new(0.06f, 0f, 0f);
+
     private static Sway? Sways(OvergrowthKind kind) => kind switch
     {
         OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain => Ribbons,
         OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip => Grass,
         OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat => Fans,
-        OvergrowthKind.VeilComb => Combs,
+        OvergrowthKind.VeilComb or OvergrowthKind.IvoryTufts => Combs,
+        OvergrowthKind.IvoryBulb => Bristles,
+        OvergrowthKind.IvoryBulbGreat => GreatBristles,
         _ => null,
     };
 
@@ -73,7 +80,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         foreach (OvergrowthKind kind in placements.Select(p => p.Kind).Distinct())
         {
             (MeshResourceCreateRequest model, string[] parts) = Model(content, ModelPath(kind));
-            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.CushionGreat ? GiantTextureTexels : TextureTexels;
+            float texels = kind is OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat or OvergrowthKind.CushionGreat or OvergrowthKind.IvoryBulbGreat ? GiantTextureTexels : TextureTexels;
             bool glows = kind is OvergrowthKind.SteppeTuft or OvergrowthKind.SteppeTuftLarge or OvergrowthKind.SteppeSpire or OvergrowthKind.GroveHanger or OvergrowthKind.GroveHangerSmall;
             MeshMaterialBinding[] bindings = [.. parts.Select((texture, slot) => new MeshMaterialBinding((uint)slot, Material(texture, texels, glows ? Emission(texture) : null, Sways(kind))))];
             MeshResource mesh = engine.Graphics.CreateMeshResource(new MeshResourceCreateRequest(model.Positions, model.Normals, model.Uvs, model.Colors,
@@ -174,6 +181,12 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.CushionSplit => "models/dungeon-overgrowth/cushion-split.prop-mesh.json",
         OvergrowthKind.CushionMat => "models/dungeon-overgrowth/cushion-mat.prop-mesh.json",
         OvergrowthKind.CushionBuds => "models/dungeon-overgrowth/cushion-buds.prop-mesh.json",
+        OvergrowthKind.IvoryBulb => "models/dungeon-overgrowth/ivory-bulb.prop-mesh.json",
+        OvergrowthKind.IvoryBulbGreat => "models/dungeon-overgrowth/ivory-bulb-great.prop-mesh.json",
+        OvergrowthKind.IvoryHollow => "models/dungeon-overgrowth/ivory-hollow.prop-mesh.json",
+        OvergrowthKind.IvoryTufts => "models/dungeon-overgrowth/ivory-tufts.prop-mesh.json",
+        OvergrowthKind.IvoryBloom => "models/dungeon-overgrowth/ivory-bloom.prop-mesh.json",
+        OvergrowthKind.IvoryPods => "models/dungeon-overgrowth/ivory-pods.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 
@@ -305,6 +318,9 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust => [(0f, 0f, 0.95f, 0.85f)],
         OvergrowthKind.CushionSplit => [(0f, 0f, 1f, 0.95f)],
         OvergrowthKind.CushionGreat => [(0f, 0f, 2f, 2.3f)],
+        OvergrowthKind.IvoryBulb => [(0f, 0f, 0.4f, 0.9f)],
+        OvergrowthKind.IvoryBulbGreat => [(0f, 0f, 0.9f, 2f)],
+        OvergrowthKind.IvoryHollow => [(0f, 0f, 0.55f, 1.2f)],
         _ => [],
     };
 

@@ -154,6 +154,24 @@ internal enum OvergrowthKind
 
     /// <summary>Small young hummocks budding from a scrap of mat.</summary>
     CushionBuds,
+
+    /// <summary>The ivory heath's keystone (#10096): a swollen ivory storage bulb 1 m high crowned by a stiff bristle fan to 1.9 m.</summary>
+    IvoryBulb,
+
+    /// <summary>A great storage bulb, 2.2 m high, its bristles to about 4 m.</summary>
+    IvoryBulbGreat,
+
+    /// <summary>An old bulb weathered to a pitted shell, torn open on its +z side.</summary>
+    IvoryHollow,
+
+    /// <summary>Young bristle fans from ivory rims at the floor, scattered over about 1.4 m.</summary>
+    IvoryTufts,
+
+    /// <summary>A white salt crust of frost-like mineral flowers.</summary>
+    IvoryBloom,
+
+    /// <summary>Small ivory seed pods gathered in a hollow.</summary>
+    IvoryPods,
 }
 
 /// <summary>
@@ -175,7 +193,11 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.GroveSacs or OvergrowthKind.GroveLitter or OvergrowthKind.GroveCatchers or OvergrowthKind.GroveMound;
 
     /// <summary>Whether a kind belongs to one of the underground ecologies (the study switches grow them), not to the overgrowth on the kit.</summary>
-    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind) || Veil(kind) || Cushion(kind);
+    internal static bool Ecology(OvergrowthKind kind) => Vent(kind) || Grove(kind) || Funnel(kind) || Steppe(kind) || Ribbon(kind) || Veil(kind) || Cushion(kind) || Ivory(kind);
+
+    /// <summary>Whether a kind is the ivory heath's (an underground ecology's, on dead flowstone floors).</summary>
+    internal static bool Ivory(OvergrowthKind kind) => kind is OvergrowthKind.IvoryBulb or OvergrowthKind.IvoryBulbGreat or OvergrowthKind.IvoryHollow
+        or OvergrowthKind.IvoryTufts or OvergrowthKind.IvoryBloom or OvergrowthKind.IvoryPods;
 
     /// <summary>Whether a kind is the cushion barrens' (an underground ecology's, on the rubble slopes of fallen-in chambers).</summary>
     internal static bool Cushion(OvergrowthKind kind) => kind is OvergrowthKind.CushionHummock or OvergrowthKind.CushionHummockRust or OvergrowthKind.CushionGreat

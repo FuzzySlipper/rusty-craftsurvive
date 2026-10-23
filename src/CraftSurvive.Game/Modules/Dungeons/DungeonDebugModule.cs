@@ -67,6 +67,9 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.cushionbarrens", Description = "Assisted, for the underground ecology study (#10096): how many cushion barrens (soft hummocks smothering a fallen-in chamber's rubble, split elders, mats, buds) the karst caves (approach k) entered next grow; 0 none.")]
     public string CushionBarrens(int count) => dungeons.StudyCushionBarrens(count);
 
+    [DebugCommand("craft.dungeon.ivoryheath", Description = "Assisted, for the underground ecology study (#10096): how many ivory heaths (bristle-crowned storage bulbs on dead flowstone floors, hollow elders, tufts, salt bloom, pods) the karst caves (approach k) entered next grow; 0 none.")]
+    public string IvoryHeath(int count) => dungeons.StudyIvoryHeath(count);
+
     [DebugCommand("craft.dungeon.kitpaint", Description = "Assisted, for the kit paint study (#10089): qwen (the kit's own: Qwen projected on lit views) or plain (painted from the geometry), for the next dungeon entered.")]
     public string KitPaint(string choice) => dungeons.StudyKitPaint(choice);
 

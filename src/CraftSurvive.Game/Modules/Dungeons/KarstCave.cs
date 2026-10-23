@@ -2023,6 +2023,192 @@ internal static class KarstCave
     }
 
     /// <summary>
+    /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "ivory heath - a community"): how
+    /// many ivory heaths the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
+    /// </summary>
+    internal static int StudyIvoryHeaths { get; set; }
+
+    // Ivory heaths: on dead flowstone floors (the drip's formations and coats near the floor, and no drip, standing water or
+    // flow left to speak of), the heaths chosen by how much such floor lies round them, so far apart. Sparse, a desert: storage bulbs widely
+    // spaced (each holding HeathGround of bare floor round it; the great ones where there is room above, hollow elders a
+    // share), salt bloom at their feet, young tufts scattered in the gaps, pods in the floor's hollows. A piece's footprint
+    // and the room it needs above.
+    private const float HeathRadius = 13f, HeathStep = 1.3f, HeathsApart = 30f, HeathRise = 2.5f, HeathDry = 0.08f;
+    private const float BulbShare = 0.14f, GreatBulbShare = 0.2f, HollowShare = 0.2f, BloomShare = 0.7f, TuftsShare = 0.1f, PodShare = 0.35f, HeathGround = 1.4f;
+    private const float HeathFlowstoneNear = 2.5f, HeathFlowstoneAbove = 3f;
+    private const int FewestHeathFloors = 6, MostHeathPieces = 300;
+
+    private static (float Radius, float Height) HeathFootprint(OvergrowthKind kind) => kind switch
+    {
+        OvergrowthKind.IvoryBulbGreat => (1.2f + HeathGround, 4.2f),
+        OvergrowthKind.IvoryBulb => (0.5f + HeathGround, 2f),
+        OvergrowthKind.IvoryHollow => (0.65f + HeathGround, 1.6f),
+        OvergrowthKind.IvoryTufts => (0.7f, 0.6f),
+        _ => (0.3f, 0.2f),
+    };
+
+    /// <summary>
+    /// Ivory heaths (#10096): where the drip once fell and has dried, an underground desert of water-hoarders - swollen
+    /// ivory storage bulbs widely spaced, crowned by stiff bristle fans that comb the last moisture from the air, old hollow
+    /// elders weathered to pitted shells, young bristle tufts in the bare floor between, salt bloom crusting the flowstone
+    /// round the bulbs' feet, seed pods in the hollows. Returns each heath's centre and radius.
+    /// </summary>
+    private static List<(Vector3 Centre, float Radius)> IvoryHeaths(float[] open, bool[] flowstone, float[] drip, float[] standing, float[] flow, ulong seed, int count,
+        List<OvergrowthPlacement> growth, IReadOnlyList<Vector3> route, IEnumerable<(Vector3 At, float Radius)> taken, bool skyOpen)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        float Surface(float x, float z) => skyOpen ? SurfaceAt(x, z, seed) : FieldY * FieldStep;
+        bool Dry(Vector3 p) => Surface(p.X, p.Z) - p.Y >= FunnelUnderGround
+            && MathF.Max(GridTrilinear(drip, p), GridTrilinear(standing, p)) < HeathDry && GridTrilinear(flow, p) < QuietFlow;
+        // The drip's dead work near: flowstone (the formations it grew, the coats it laid) within HeathFlowstoneNear of the
+        // floor, from just under it to HeathFlowstoneAbove over it.
+        int near = (int)MathF.Ceiling(HeathFlowstoneNear / FieldStep), above = (int)MathF.Ceiling(HeathFlowstoneAbove / FieldStep);
+        bool Flowstone(Vector3 floor)
+        {
+            int x = (int)(floor.X / FieldStep), y = (int)(floor.Y / FieldStep), z = (int)(floor.Z / FieldStep);
+            for (int dy = -1; dy <= above; dy++)
+                for (int dz = -near; dz <= near; dz++)
+                    for (int dx = -near; dx <= near; dx++)
+                    {
+                        int sx = x + dx, sy = y + dy, sz = z + dz;
+                        if (sx >= 0 && sx < FieldX && sy >= 0 && sy < FieldY && sz >= 0 && sz < FieldZ && flowstone[FieldIndex(sx, sy, sz)])
+                        {
+                            return true;
+                        }
+                    }
+
+            return false;
+        }
+
+        List<Vector3> floors = [];
+        for (float z = 2f; z < GridZ * GridCell - 2f; z += 2f)
+            for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
+                for (float x = 2f; x < GridX * GridCell - 2f; x += 2f)
+                {
+                    Vector3 p = new(x, y, z);
+                    if (Open(p) > 0f && Open(p - new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p + new Vector3(0f, 2.5f, 0f)) > 0f)
+                    {
+                        Vector3 f = Floor(open, p);
+                        if (Flowstone(f) && Dry(f + new Vector3(0f, 0.5f, 0f)))
+                        {
+                            floors.Add(f);
+                        }
+                    }
+                }
+
+        Dictionary<(int, int, int), int> cells = [];
+        foreach (Vector3 f in floors)
+        {
+            (int, int, int) k = ((int)MathF.Floor(f.X / 4f), (int)MathF.Floor(f.Y / 4f), (int)MathF.Floor(f.Z / 4f));
+            cells[k] = cells.GetValueOrDefault(k) + 1;
+        }
+
+        int Area(Vector3 f)
+        {
+            int cx = (int)MathF.Floor(f.X / 4f), cy = (int)MathF.Floor(f.Y / 4f), cz = (int)MathF.Floor(f.Z / 4f), n = 0, reach = (int)(HeathRadius / 4f);
+            for (int dz = -reach; dz <= reach; dz++)
+                for (int dx = -reach; dx <= reach; dx++)
+                {
+                    n += cells.GetValueOrDefault((cx + dx, cy, cz + dz));
+                }
+
+            return n;
+        }
+
+        List<(Vector3 Centre, float Radius)> heaths = [];
+        foreach (Vector3 c in floors.Where(f => Area(f) >= FewestHeathFloors).OrderByDescending(Area).ThenBy(f => NaturalCavern.Hash(seed ^ 0x1E01UL, (int)f.X, (int)f.Y, (int)f.Z)))
+        {
+            if (heaths.Count >= count)
+            {
+                break;
+            }
+
+            if (heaths.All(o => Vector3.Distance(o.Centre, c) >= HeathsApart)
+                && taken.All(t => Vector2.Distance(new Vector2(t.At.X, t.At.Z), new Vector2(c.X, c.Z)) >= t.Radius + HeathRadius || MathF.Abs(t.At.Y - c.Y) > 8f))
+            {
+                heaths.Add((c, HeathRadius));
+            }
+        }
+
+        foreach ((Vector3 centre, float _) in heaths)
+        {
+            List<(Vector3 At, float Radius)> placed = [];
+            for (int pass = 0; pass < 2; pass++)
+            for (float dz = -HeathRadius; dz <= HeathRadius; dz += HeathStep)
+                for (float dx = -HeathRadius; dx <= HeathRadius; dx += HeathStep)
+                {
+                    if ((dx * dx) + (dz * dz) > HeathRadius * HeathRadius || placed.Count >= MostHeathPieces)
+                    {
+                        continue;
+                    }
+
+                    int hx = (int)((centre.X + dx) * 4f), hz = (int)((centre.Z + dz) * 4f);
+                    float roll = NaturalCavern.Hash(seed ^ (0x1E11UL + (ulong)(pass * 0x111)), hx, (int)centre.Y, hz), pick = NaturalCavern.Hash(seed ^ (0x1E12UL + (ulong)(pass * 0x113)), hz, (int)centre.Y, hx);
+                    Vector3 probe = new(centre.X + dx + ((pick - 0.5f) * HeathStep * 0.7f), centre.Y + 1.5f, centre.Z + dz + ((roll - 0.5f) * HeathStep * 0.7f));
+                    if (Open(probe) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 foot = Floor(open, probe);
+                    if (MathF.Abs(foot.Y - centre.Y) > HeathRise || !Dry(foot + new Vector3(0f, 0.5f, 0f)))
+                    {
+                        continue;
+                    }
+
+                    OvergrowthKind? choice = null;
+                    float scale = 0.75f + (0.5f * pick);
+                    if (pass == 0 && roll < BulbShare)
+                    {
+                        choice = pick < GreatBulbShare && Open(foot + new Vector3(0f, HeathFootprint(OvergrowthKind.IvoryBulbGreat).Height, 0f)) > 0f ? OvergrowthKind.IvoryBulbGreat
+                            : pick > 1f - HollowShare ? OvergrowthKind.IvoryHollow : OvergrowthKind.IvoryBulb;
+                        if (choice == OvergrowthKind.IvoryBulbGreat)
+                        {
+                            scale = 0.85f + (0.3f * pick / GreatBulbShare);
+                        }
+                    }
+                    else if (pass == 1)
+                    {
+                        // A hollow: the floor round it stands higher.
+                        float around = new[] { Vector3.UnitX, -Vector3.UnitX, Vector3.UnitZ, -Vector3.UnitZ }.Average(v => Floor(open, foot + (v * 0.9f) + new Vector3(0f, 1f, 0f)).Y);
+                        choice = around - foot.Y > HollowDepth && roll < PodShare ? OvergrowthKind.IvoryPods : roll < TuftsShare ? OvergrowthKind.IvoryTufts : null;
+                    }
+
+                    if (choice is not OvergrowthKind kind)
+                    {
+                        continue;
+                    }
+
+                    (float radius, float height) = HeathFootprint(kind);
+                    bool bulb = kind is OvergrowthKind.IvoryBulb or OvergrowthKind.IvoryBulbGreat or OvergrowthKind.IvoryHollow;
+                    if ((bulb && Open(foot + new Vector3(0f, height * scale, 0f)) <= 0f)
+                        || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
+                        || (bulb && route.Any(r => MathF.Abs(r.Y - foot.Y) < RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(foot.X, foot.Z)) < (radius - HeathGround) * scale + RouteClear))
+                        || (!bulb && !Footed(open, foot, radius * 0.6f)))
+                    {
+                        continue;
+                    }
+
+                    placed.Add((foot, radius));
+                    float a = MathF.Tau * roll;
+                    Vector3 facing = new(MathF.Sin(a), 0f, MathF.Cos(a));
+                    growth.Add(new OvergrowthPlacement(kind, foot - new Vector3(0f, bulb ? 0.06f * scale : MatSink, 0f), facing, scale, pick));
+                    // Salt bloom crusts the flowstone round a bulb's foot, where its roots draw the water out.
+                    if (bulb && pick * 7f % 1f < BloomShare)
+                    {
+                        Vector3 bloom = Floor(open, foot + (new Vector3(MathF.Cos(a), 0f, -MathF.Sin(a)) * 0.4f * scale) + new Vector3(0f, 1f, 0f));
+                        if (MathF.Abs(bloom.Y - foot.Y) < 0.4f && Footed(open, bloom, 0.5f))
+                        {
+                            growth.Add(new OvergrowthPlacement(OvergrowthKind.IvoryBloom, bloom - new Vector3(0f, MatSink, 0f), -facing, 0.9f + (0.4f * roll), roll));
+                        }
+                    }
+                }
+        }
+
+        return heaths;
+    }
+
+    /// <summary>
     /// For the underground ecology study (#10096; owner, 2026-10-22, the concept sheet "cushion barrens - a community"): how
     /// many cushion barrens the karst caves generated next grow, 0 none. Not yet chosen by depth or region.
     /// </summary>
@@ -3463,6 +3649,14 @@ internal static class KarstCave
             // A barrens is its own community: the dark's mushrooms give way on it.
             darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
                 && barrens.Any(b => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(b.Centre.X, b.Centre.Z)) < b.Radius + 1f && MathF.Abs(g.At.Y - b.Centre.Y) < BarrensRise + 2f));
+        }
+
+        if (StudyIvoryHeaths > 0)
+        {
+            List<(Vector3 Centre, float Radius)> heaths = IvoryHeaths(open, flowstone, drip, standing, activeFlow, seed, StudyIvoryHeaths, darkGrowth, mainRoute, orchards, skyOpen);
+            // A heath is its own community: the dark's mushrooms give way on it.
+            darkGrowth.RemoveAll(g => g.Kind == OvergrowthKind.Mushrooms
+                && heaths.Any(h => Vector2.Distance(new Vector2(g.At.X, g.At.Z), new Vector2(h.Centre.X, h.Centre.Z)) < h.Radius + 1f && MathF.Abs(g.At.Y - h.Centre.Y) < HeathRise + 2f));
         }
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];

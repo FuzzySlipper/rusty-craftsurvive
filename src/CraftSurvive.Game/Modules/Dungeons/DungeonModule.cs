@@ -852,6 +852,12 @@ internal sealed class DungeonModule : IProductModule
         return $"karst caves entered next: {KarstCave.StudyCushionBarrens} cushion barrens";
     }
 
+    internal string StudyIvoryHeath(int count)
+    {
+        KarstCave.StudyIvoryHeaths = Math.Max(0, count);
+        return $"karst caves entered next: {KarstCave.StudyIvoryHeaths} ivory heaths";
+    }
+
     internal string StudyCentrepiece(string choice)
     {
         switch (choice)
