@@ -718,7 +718,7 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Console.WriteLine($"kit moisture: {seeped}/8 dungeons seep; of {pieces} pieces {dry} dry (<0.45), {wet} wet (>0.65); grain {(grainEqual ? "equal" : "DIFFERS")}");
     Check.That(seeped == 8 && dry > 0 && wet > 0, "every dungeon must seep and its kit range from dry to wet");
     Console.WriteLine($"kit overgrowth: {overgrown} over 8 dungeons ({fewest}..{most} each; {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}); {inDryAir} before dry air");
-    Check.That(fewest > 0 && grownKinds.Count == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Ecology(k)), "every dungeon must grow overgrowth, and the bank every kind of it but the underground ecologies'");
+    Check.That(fewest > 0 && grownKinds.Count == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Ecology(k) && !OvergrowthPlacement.Formation(k)), "every dungeon must grow overgrowth, and the bank every kind of it but the underground ecologies' and the cave formations'");
     Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 
@@ -820,6 +820,27 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(shallowGrown < communitySeeds, "a shallow cave must often grow none");
     Check.That(blocking == 0, "a community's colliders must leave room beside the cave's main route");
     Check.That(lowCrowns == 0, "a grove's hung pieces must leave a standing body room under them");
+}
+
+// The geological kit's drip formations (#10305): karst caves place them where the drip says, every kind among a few seeds,
+// each standing piece without a core off the routes.
+{
+    Dictionary<OvergrowthKind, int> pieces = [];
+    List<string> perCave = [];
+    for (ulong seed = 1; seed <= 4; seed++)
+    {
+        KarstCave.Result cave = KarstCave.Build(seed, KarstCave.Centrepiece.None);
+        OvergrowthPlacement[] formed = [.. cave.Overgrowth.Where(g => OvergrowthPlacement.Formation(g.Kind))];
+        foreach (OvergrowthPlacement piece in formed)
+        {
+            pieces[piece.Kind] = pieces.GetValueOrDefault(piece.Kind) + 1;
+        }
+
+        perCave.Add($"{seed}:{formed.Length}/{cave.Formations}");
+    }
+
+    Console.WriteLine($"formations: {string.Join(" ", perCave)} ({string.Join(" ", pieces.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))})");
+    Check.That(Enum.GetValues<OvergrowthKind>().Where(OvergrowthPlacement.Formation).All(k => pieces.ContainsKey(k)), "karst caves must place every kind of drip formation");
 }
 
 // A cave kept after the size study chooses a new box samples its own field (R10304-1): a default cave's field and rock at

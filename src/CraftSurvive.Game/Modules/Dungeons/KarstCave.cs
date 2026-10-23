@@ -1695,7 +1695,10 @@ internal static class KarstCave
     internal static bool StudyNoCommunities { get; set; }
 
     /// <summary>The study switches that shape generation, for the generation cache's key.</summary>
-    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}";
+    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}";
+
+    /// <summary>For the formation kit's before and after (#10305): true carves the drip formations into the rock, as before the kit, and places no pieces.</summary>
+    internal static bool StudyCarvedFormations { get; set; }
 
     private static int StudyCount(CaveCommunity community) => community switch
     {
@@ -2345,7 +2348,7 @@ private static int MostHeathPieces => Area(300);
                     bool bulb = kind is OvergrowthKind.IvoryBulb or OvergrowthKind.IvoryBulbGreat or OvergrowthKind.IvoryHollow;
                     if ((bulb && Open(foot + new Vector3(0f, height * scale, 0f)) <= 0f)
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (bulb && NearRoute(route, foot, (radius - HeathGround) * scale + RouteClear))
+                        || (bulb && NearRoute(route, foot, (radius - HeathGround) * scale + RouteClear, height * scale))
                         || (!bulb && !Footed(open, foot, radius * 0.6f)))
                     {
                         continue;
@@ -2514,7 +2517,7 @@ private static int MostBarrensPieces => Area(400);
                     float kept = kind == OvergrowthKind.CushionMat ? MatOverlap : FootprintKept;
                     if ((dome && Open(foot + new Vector3(0f, height * scale, 0f)) <= 0f)
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + (radius * scale)) * kept)
-                        || (dome && NearRoute(route, foot, (radius * scale) + RouteClear))
+                        || (dome && NearRoute(route, foot, (radius * scale) + RouteClear, height * scale))
                         || (!dome && !Footed(open, foot, radius * 0.6f)))
                     {
                         continue;
@@ -2688,7 +2691,7 @@ private static int MostBarrensPieces => Area(400);
                     bool fanned = kind is OvergrowthKind.VeilFan or OvergrowthKind.VeilFanGreat;
                     if ((kind == OvergrowthKind.VeilComb && Open(foot + new Vector3(0f, height, 0f)) <= 0f)
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (fanned && NearRoute(route, foot, FanTrunkRadius + RouteClear))
+                        || (fanned && NearRoute(route, foot, FanTrunkRadius + RouteClear, height))
                         || (kind == OvergrowthKind.VeilComb && !Footed(open, foot, radius * 0.6f)))
                     {
                         continue;
@@ -3184,7 +3187,7 @@ private static int MostBarrensPieces => Area(400);
                     bool stands = kind is OvergrowthKind.FunnelGiant or OvergrowthKind.FunnelTall;
                     if (Open(foot + new Vector3(0f, height, 0f)) <= 0f || Open(foot + new Vector3(0f, height * 0.5f, 0f)) <= 0f
                         || placed.Any(q => Vector2.Distance(new Vector2(q.At.X, q.At.Z), new Vector2(foot.X, foot.Z)) < (q.Radius + radius) * FootprintKept)
-                        || (stands && NearRoute(route, foot, (radius * 0.4f) + FunnelRouteClear))
+                        || (stands && NearRoute(route, foot, (radius * 0.4f) + FunnelRouteClear, height))
                         || (!stands && !Footed(open, foot, radius * 0.7f)))
                     {
                         continue;
@@ -3802,8 +3805,16 @@ private static int MostBarrensPieces => Area(400);
         Mark("breakdown");
 
         float[] beforeDrip = (float[])open.Clone();
-        int formations = Drip(open, joint, formed, eras.Length, finalTable, random);
-        MarkFilled(beforeDrip, open, flowstone);
+        // The formations' whole shapes go into a copy, only to mark the flowstone they laid (#10305); the study's carved
+        // formations (the look before the kit) go into the rock itself, and no pieces are placed.
+        float[] dripShapes = StudyCarvedFormations ? open : (float[])open.Clone();
+        List<OvergrowthPlacement> formationPieces = [];
+        int formations = Drip(open, dripShapes, joint, formed, eras.Length, finalTable, random, formationPieces);
+        if (StudyCarvedFormations)
+        {
+            formationPieces.Clear();
+        }
+        MarkFilled(beforeDrip, dripShapes, flowstone);
         Mark("drip");
 
         Roughen(open, seed, beds, finalTable);
@@ -3875,7 +3886,11 @@ private static int MostBarrensPieces => Area(400);
         searchStamp = null;
 
         Mark("passages");
-        List<OvergrowthPlacement> darkGrowth = [];
+        // The dark's growth starts with the drip's formation pieces (#10305): the geological kit draws with the growth, those
+        // whose rock the passages' widening cut away left out.
+        // A standing piece is left off the routes: walked through, or its collider in the way.
+        Vector3[] routePoints = [.. routePaths.SelectMany(path => path.Where((_, i) => i % 2 == 0)).Select(FieldCentre)];
+        List<OvergrowthPlacement> darkGrowth = [.. formationPieces.Select(f => Settle(open, f)).OfType<OvergrowthPlacement>().Where(f => !InTheWay(f, routePoints))];
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
         Mark("ecology");
         // The cave's stranger communities (#10304; owner, 2026-10-23): the study switches when any is set, else one to three
@@ -4682,9 +4697,14 @@ private static int MostBarrensPieces => Area(400);
 
     /// <summary>
     /// Grows formations where water drips: at open joints under a ceiling, above the water table, a stalactite hanging a
-    /// share of the gap and often a stalagmite under it; in a low gap a column. Returns how many were grown.
+    /// share of the gap and often a stalagmite under it; in a low gap a column; under a steeply sloping ceiling a drapery
+    /// curtain. Since #10305 (owner, 2026-10-23) they are the geological kit's authored pieces, placed here; their whole
+    /// shapes go only into <paramref name="shapes"/>, to mark the flowstone they laid. A core in the rock as thin as a column's
+    /// waist is finer than the field's samples and the cave's voxels, so the columns and tall stalagmites collide as simple
+    /// prisms inside them (<see cref="OvergrowthPlacement.Trunks"/>) and the stalactites hang no lower than head height.
+    /// Returns how many were grown.
     /// </summary>
-    private static int Drip(float[] open, bool[] joint, byte[] formed, int eras, float finalTable, DungeonRandom random)
+    private static int Drip(float[] open, float[] shapes, bool[] joint, byte[] formed, int eras, float finalTable, DungeonRandom random, List<OvergrowthPlacement> placed)
     {
         List<Vector3> grown = [];
         int count = 0;
@@ -4708,22 +4728,50 @@ private static int MostBarrensPieces => Area(400);
 
             grown.Add(at);
             float gap = top - foot;
+            float pick = Between(random, 0f, 1f);
+            Vector3 roof = new(at.X, top + PieceSink, at.Z), ground = new(at.X, foot - PieceSink, at.Z);
+            Vector3 facing = new(MathF.Cos(pick * MathF.Tau), 0f, MathF.Sin(pick * MathF.Tau));
             if (gap < ColumnGap && Chance(random, ColumnChance))
             {
-                Formation(open, at, foot - 0.4f, top + 0.4f, Between(random, 0.35f, 0.6f), Between(random, 0.9f, 1.5f), column: true);
+                // A column spans its gap: the piece scaled to it, a core the width of its waist kept in the rock.
+                float scale = (gap + (2f * PieceSink)) / ColumnHeight;
+                placed.Add(new OvergrowthPlacement(OvergrowthKind.Column, ground, facing, scale, pick));
+                Formation(shapes, at, foot - 0.4f, top + 0.4f, Between(random, 0.35f, 0.6f), Between(random, 0.9f, 1.5f), column: true);
                 count++;
                 continue;
             }
 
-            float hang = gap * Between(random, 0.15f, 0.45f);
-            Formation(open, at, top - hang, top + 0.4f, 0f, Between(random, 0.25f, 0.5f) + (hang * 0.12f), column: false);
-            count++;
+            // Under a steep ceiling the drip runs down the slope and lays a curtain along it, facing down it.
+            if (Slope(open, at, top) is Vector2 down && down.Length() > DraperySlope && Chance(random, DraperyChance))
+            {
+                Vector2 way = Vector2.Normalize(down);
+                placed.Add(new OvergrowthPlacement(OvergrowthKind.Drapery, roof, new Vector3(way.X, 0f, way.Y), Between(random, 0.8f, 1.15f), pick));
+                Formation(shapes, at, top - 1f, top + 0.4f, 0f, 0.6f, column: false);
+                count++;
+                continue;
+            }
+
+            // A stalactite hangs no lower than head height over the floor (it has no collider); one too short for its kind's
+            // least scale there is not hung.
+            float hang = MathF.Min(gap * Between(random, 0.15f, 0.45f), gap - HeadRoom);
+            Formation(shapes, at, top - MathF.Max(0.3f, hang), top + 0.4f, 0f, Between(random, 0.25f, 0.5f) + (hang * 0.12f), column: false);
+            bool longOne = hang > LongStalactiteFrom;
+            float length = longOne ? StalactiteLongLength : StalactiteLength;
+            if (hang >= length * LeastPieceScale)
+            {
+                placed.Add(new OvergrowthPlacement(longOne ? OvergrowthKind.StalactiteLong : OvergrowthKind.Stalactite, roof, facing, MathF.Min(hang / length, MostPieceScale), pick));
+                count++;
+            }
+
             if (Chance(random, StalagmiteChance))
             {
                 float rise = MathF.Min(gap - hang - 0.6f, gap * Between(random, 0.1f, 0.35f));
                 if (rise > 0.3f)
                 {
-                    Formation(open, at, foot - 0.4f, foot + rise, Between(random, 0.4f, 0.8f) + (rise * 0.15f), 0f, column: false);
+                    bool tall = rise > TallStalagmiteFrom;
+                    float riseScale = Math.Clamp(rise / (tall ? StalagmiteTallHeight : StalagmiteHeight), LeastPieceScale, MostPieceScale);
+                    placed.Add(new OvergrowthPlacement(tall ? OvergrowthKind.StalagmiteTall : OvergrowthKind.Stalagmite, ground, -facing, riseScale, 1f - pick));
+                    Formation(shapes, at, foot - 0.4f, foot + rise, Between(random, 0.4f, 0.8f) + (rise * 0.15f), 0f, column: false);
                     count++;
                 }
             }
@@ -4731,6 +4779,113 @@ private static int MostBarrensPieces => Area(400);
 
         return count;
     }
+
+    /// <summary>
+    /// A formation piece settled onto the finished field (#10305): the field moved after the drip (roughened, enclosed, the
+    /// passages widened), so a hanging piece finds its ceiling again and a standing one its floor, a column its gap, and a
+    /// stalactite keeps its head room; null when its surface moved more than SettleMost or its rock is gone.
+    /// </summary>
+    private static OvergrowthPlacement? Settle(float[] open, OvergrowthPlacement piece)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        // The open place nearest the piece's surface on its side: under a ceiling or over a floor.
+        Vector3? Air(Vector3 from, float way)
+        {
+            for (float d = SettleClear; d <= SettleMost + SettleClear; d += FieldStep * 0.5f)
+            {
+                Vector3 p = from + new Vector3(0f, way * d, 0f);
+                if (Open(p) > 0f)
+                {
+                    return p;
+                }
+            }
+
+            return null;
+        }
+
+        bool hanging = piece.Kind is OvergrowthKind.Stalactite or OvergrowthKind.StalactiteLong or OvergrowthKind.Drapery;
+        if (Air(piece.At, hanging ? -1f : 1f) is not Vector3 air)
+        {
+            return null;
+        }
+
+        float? ceiling = Reach(open, air, 1f), floor = Reach(open, air, -1f);
+        if (ceiling is not float top || floor is not float foot)
+        {
+            return null;
+        }
+
+        Vector3 surface = hanging ? new Vector3(piece.At.X, top + PieceSink, piece.At.Z) : new Vector3(piece.At.X, foot - PieceSink, piece.At.Z);
+        if (MathF.Abs(surface.Y - piece.At.Y) > SettleMost)
+        {
+            return null;
+        }
+
+        float scale = piece.Kind switch
+        {
+            OvergrowthKind.Column => (top - foot + (2f * PieceSink)) / ColumnHeight,
+            OvergrowthKind.Stalactite => MathF.Min(piece.Scale, (top - foot - HeadRoom) / StalactiteLength),
+            OvergrowthKind.StalactiteLong => MathF.Min(piece.Scale, (top - foot - HeadRoom) / StalactiteLongLength),
+            _ => piece.Scale,
+        };
+        if (scale < LeastPieceScale || scale > MostPieceScale * 1.25f)
+        {
+            return null;
+        }
+
+        return piece with { At = surface, Scale = scale };
+    }
+
+    // A piece settles onto the finished field from at least SettleClear off its surface, and is left out if its surface
+    // moved more than SettleMost.
+    private const float SettleClear = 0.3f, SettleMost = 0.8f;
+
+    /// <summary>
+    /// Whether a standing formation piece stands on a route's way: a short stalagmite a traveller would walk through, or a
+    /// tall one's or a column's collider placed before the passages were widened round the routes.
+    /// </summary>
+    private static bool InTheWay(OvergrowthPlacement piece, IReadOnlyList<Vector3> route)
+    {
+        float? radius = piece.Kind switch
+        {
+            OvergrowthKind.Stalagmite => StalagmiteRadius,
+            OvergrowthKind.StalagmiteTall => StalagmiteTallRadius,
+            OvergrowthKind.Column => ColumnFoot,
+            _ => null,
+        };
+        if (radius is not float footprint)
+        {
+            return false;
+        }
+
+        float reach = (footprint * piece.Scale) + StandRadius;
+        float tall = piece.Kind == OvergrowthKind.Column ? ColumnHeight * piece.Scale : StalagmiteTallHeight * piece.Scale;
+        return route.Any(r => r.Y > piece.At.Y - RouteRise && r.Y < piece.At.Y + tall + RouteRise && Vector2.Distance(new Vector2(r.X, r.Z), new Vector2(piece.At.X, piece.At.Z)) < reach);
+    }
+
+    /// <summary>How the ceiling over a place falls away across (metres down per metre), as the drip runs down it.</summary>
+    private static Vector2? Slope(float[] open, Vector3 at, float top)
+    {
+        float? Height(float dx, float dz) => Reach(open, new Vector3(at.X + dx, top - SlopeProbeBelow, at.Z + dz), 1f);
+        if (Height(SlopeStep, 0f) is not float east || Height(-SlopeStep, 0f) is not float west || Height(0f, SlopeStep) is not float south || Height(0f, -SlopeStep) is not float north)
+        {
+            return null;
+        }
+
+        return new Vector2(west - east, north - south) / (2f * SlopeStep);
+    }
+
+    // The kit's formation pieces (formations_authored.py): their authored sizes and radii (metres); how far a piece is set
+    // into the rock it grows from, past its own sunk root, so the voxel surface's rounding leaves no gap; the scales they
+    // are drawn at; the hang and rise where the longer ones take over; and the head room kept under a hanging tip.
+    private const float StalactiteLength = 1.2f, StalactiteLongLength = 2.6f;
+    private const float StalagmiteHeight = 0.9f, StalagmiteRadius = 0.42f, StalagmiteTallHeight = 2.2f, StalagmiteTallRadius = 0.62f, ColumnHeight = 3f, ColumnFoot = 0.75f;
+    private const float PieceSink = 0.1f, LeastPieceScale = 0.5f, MostPieceScale = 1.6f, LongStalactiteFrom = 1.6f, TallStalagmiteFrom = 1.3f;
+    private const float HeadRoom = 2.2f;
+
+    // Drapery: where the ceiling falls away more than DraperySlope across (probed SlopeStep each way, SlopeProbeBelow under
+    // it), at this chance.
+    private const float DraperySlope = 0.5f, DraperyChance = 0.6f, SlopeStep = 1f, SlopeProbeBelow = 0.6f;
 
     /// <summary>How far the rock is straight up (1) or down (-1) from an open place, or null beyond reach.</summary>
     private static float? Reach(float[] open, Vector3 from, float way)

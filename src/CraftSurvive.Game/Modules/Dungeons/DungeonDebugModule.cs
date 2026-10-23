@@ -103,6 +103,13 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.communities", Description = "The underground's stranger communities (#10304): read names the loaded cave's region, depth and the communities it grew; auto lets the next caves choose theirs by region and depth (the default); none grows none. A community's own switch (craft.dungeon.ventorchard ...) overrides the choice.")]
     public string Communities(string mode) => mode == "read" ? dungeons.CommunitiesReadout() : DungeonModule.StudyCommunities(mode);
 
+    [DebugCommand("craft.dungeon.formations", Description = "Assisted, for the geological kit's before and after (#10305): carved carves the next caves' drip formations into the rock, as before the kit, with no pieces; kit places the kit's pieces (the default).")]
+    public string Formations(string mode)
+    {
+        KarstCave.StudyCarvedFormations = mode == "carved";
+        return KarstCave.StudyCarvedFormations ? "the next caves carve their drip formations into the rock" : "the next caves place the geological kit's formation pieces";
+    }
+
     [DebugCommand("craft.dungeon.setting", Description = "Assisted, for the community study (#10304): the next caves lie under this region and depth - temperature and moisture (0 to 1, as the world map's) and the cave's depth in metres; a negative depth goes back to each entrance's own.")]
     public string Setting(double temperature, double moisture, double depth) =>
         dungeons.StudySetting(depth < 0 ? null : new CaveSetting(temperature, moisture, (float)depth));

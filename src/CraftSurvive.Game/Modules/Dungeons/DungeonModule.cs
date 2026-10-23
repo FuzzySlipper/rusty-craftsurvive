@@ -1281,6 +1281,11 @@ internal sealed class DungeonModule : IProductModule
             return VisitCommunity(place[CommunityPlace.Length..]);
         }
 
+        if (place == FormationsPlace)
+        {
+            return VisitPieces("formations", OvergrowthPlacement.Formation);
+        }
+
         if (place.StartsWith(RoutePlace, StringComparison.Ordinal) && int.TryParse(place.AsSpan(RoutePlace.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out int step))
         {
             return VisitRoute(step);
@@ -1315,7 +1320,7 @@ internal sealed class DungeonModule : IProductModule
         return $"at the {place}: {stand}";
     }
 
-    private const string CommunityPlace = "community:", RoutePlace = "route:";
+    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations";
 
     /// <summary>
     /// Assisted, for the route walk (#10304): stands the player on the floor under a point of a natural cave's main route
@@ -1399,6 +1404,9 @@ internal sealed class DungeonModule : IProductModule
     private const float ViewNearest = 3f, ViewFarthest = 14f, ViewRing = 1.5f, ViewRise = 12f, ViewStep = 0.5f, EyeHeight = 1.6f, ViewReach = 22f, SightStep = 0.5f;
     private const int ViewDirections = 16, ViewPieces = 48;
 
+    /// <summary>How far round the densest piece a viewpoint's gathering reaches (metres).</summary>
+    private const float ViewCluster = 12f;
+
     /// <summary>The room a viewpoint keeps round a body's middle and round its eye, metres to the rock (#10304).</summary>
     private const float ViewRoom = 0.6f, EyeRoom = 0.5f;
 
@@ -1408,18 +1416,33 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     private string VisitCommunity(string name)
     {
-        if (!Enum.TryParse(name, true, out CaveCommunity community) || space?.Layout is not DungeonLayout layout || layout.Shape is not Func<Vector3, float> open)
+        if (!Enum.TryParse(name, true, out CaveCommunity community))
         {
-            return $"visit refused: \"{name}\" is not a community of a natural cave ({string.Join(", ", Enum.GetValues<CaveCommunity>())})";
+            return $"visit refused: \"{name}\" is not a community ({string.Join(", ", Enum.GetValues<CaveCommunity>())})";
         }
 
-        List<Vector3> pieces = [.. layout.Overgrowth.Where(g => CaveCommunities.Grows(community, g.Kind)).Select(g => g.At)];
+        return VisitPieces(community.ToString(), kind => CaveCommunities.Grows(community, kind));
+    }
+
+    /// <summary>Assisted, for captures (#10304, #10305): open floor seeing the most of a natural cave's pieces of some kinds.</summary>
+    private string VisitPieces(string what, Func<OvergrowthKind, bool> kinds)
+    {
+        if (space?.Layout is not DungeonLayout layout || layout.Shape is not Func<Vector3, float> open)
+        {
+            return "visit refused: no natural cave is loaded";
+        }
+
+        List<Vector3> pieces = [.. layout.Overgrowth.Where(g => kinds(g.Kind)).Select(g => g.At)];
         if (pieces.Count == 0)
         {
-            return $"visit refused: this cave grew no {community}";
+            return $"visit refused: this cave grew no {what}";
         }
 
-        Vector3 middle = pieces.Aggregate(Vector3.Zero, (a, b) => a + b) / pieces.Count;
+        // The middle of the densest gathering: the piece with the most others within ViewCluster, and those round it (a
+        // spread like the cave's formations has no one middle; its mean can lie in rock).
+        Vector3 densest = pieces.MaxBy(p => pieces.Count(q => Vector3.Distance(p, q) < ViewCluster));
+        List<Vector3> cluster = [.. pieces.Where(q => Vector3.Distance(densest, q) < ViewCluster)];
+        Vector3 middle = cluster.Aggregate(Vector3.Zero, (a, b) => a + b) / cluster.Count;
         Vector3[] sampled = [.. pieces.Where((_, i) => i % Math.Max(1, pieces.Count / ViewPieces) == 0).Take(ViewPieces)];
         bool Sees(Vector3 eye, Vector3 target)
         {
@@ -1470,12 +1493,12 @@ internal sealed class DungeonModule : IProductModule
 
         if (best is not (Vector3 stand, int count, Vector3 facing))
         {
-            return $"visit refused: no open floor near the {community} sees it";
+            return $"visit refused: no open floor near the {what} sees it";
         }
 
         player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
         float yaw = MathF.Atan2(facing.X - stand.X, -(facing.Z - stand.Z)) * 180f / MathF.PI;
-        return string.Create(CultureInfo.InvariantCulture, $"at the {community}: {stand.X:F1},{stand.Y:F1},{stand.Z:F1} sees {count}/{sampled.Length} pieces, facing yaw={yaw:F0}");
+        return string.Create(CultureInfo.InvariantCulture, $"at the {what}: {stand.X:F1},{stand.Y:F1},{stand.Z:F1} sees {count}/{sampled.Length} pieces, facing yaw={yaw:F0}");
     }
 
     /// <summary>A layout cell written x,y,z, or null.</summary>

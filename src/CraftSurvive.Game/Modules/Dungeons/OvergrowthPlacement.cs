@@ -172,6 +172,27 @@ internal enum OvergrowthKind
 
     /// <summary>Small ivory seed pods gathered in a hollow.</summary>
     IvoryPods,
+
+    /// <summary>
+    /// The geological kit's drip formations (#10305; owner, 2026-10-23: authored, instanced pieces where the cave's drip
+    /// says): a calcite stalactite hanging 1.2 m from a ceiling (the plane y = 0), its root sunk into the rock.
+    /// </summary>
+    Stalactite,
+
+    /// <summary>The same, 2.6 m.</summary>
+    StalactiteLong,
+
+    /// <summary>A stout calcite stalagmite rising 0.9 m from a splash-flared foot.</summary>
+    Stalagmite,
+
+    /// <summary>The same, 2.2 m.</summary>
+    StalagmiteTall,
+
+    /// <summary>A column 3 m from floor (y = 0) to ceiling (y = 3), where a stalactite and stalagmite grew together; scaled to its gap.</summary>
+    Column,
+
+    /// <summary>A calcite drapery curtain 2.4 m along x hanging about 1.3 m from a ceiling line, its +z facing down the ceiling's slope.</summary>
+    Drapery,
 }
 
 /// <summary>
@@ -238,6 +259,10 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         OvergrowthKind.IvoryBulb => [(0f, 0f, 0.4f, 0.9f)],
         OvergrowthKind.IvoryBulbGreat => [(0f, 0f, 0.9f, 2f)],
         OvergrowthKind.IvoryHollow => [(0f, 0f, 0.55f, 1.2f)],
+        // The cave formations (#10305): a column at its waist, a tall stalagmite up its stout lower part (the short ones and the
+        // stalactites, hung above head height, do not collide).
+        OvergrowthKind.Column => [(0f, 0f, 0.3f, 3f)],
+        OvergrowthKind.StalagmiteTall => [(0f, 0f, 0.42f, 1.5f)],
         _ => [],
     };
 
@@ -276,5 +301,9 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.FunnelUnfurled or OvergrowthKind.FunnelDrinkers or OvergrowthKind.FunnelDebris;
 
     /// <summary>Whether a kind is placed only turned about its up - one standing on a floor, or (the grove's) hanging from a ceiling (on the plane y = 0) rather than growing on a wall.</summary>
-    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Ecology(kind);
+    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Ecology(kind) || Formation(kind);
+
+    /// <summary>Whether a kind is one of the geological kit's formations (#10305) rather than growth.</summary>
+    internal static bool Formation(OvergrowthKind kind) => kind is OvergrowthKind.Stalactite or OvergrowthKind.StalactiteLong or OvergrowthKind.Stalagmite
+        or OvergrowthKind.StalagmiteTall or OvergrowthKind.Column or OvergrowthKind.Drapery;
 }
