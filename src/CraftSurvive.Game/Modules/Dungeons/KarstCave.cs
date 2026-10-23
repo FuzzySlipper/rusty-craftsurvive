@@ -3671,13 +3671,29 @@ private static int MostBarrensPieces => Area(400);
         float[] clearance = Clearance(open);
         Mark("clearance");
         Vector3 start = sinks[0];
-        List<(string Name, Vector3 To)> routes = [("spring", spring), .. sinks.Skip(1).Select((s, i) => ($"sink{i + 1}", s))];
+        // The routes made walkable (#10304): the main route from the first sink to the spring, then each other sink joined to
+        // whichever place already joined is nearest to it (a tree grown outward, Prim's), so a route spans the gap to a
+        // neighbour rather than the whole cave back to the first sink - in a large cave those long routes made the pass grow
+        // with its area times its size.
+        List<(string Name, Vector3 From, Vector3 To)> routes = [("spring", start, spring)];
+        List<Vector3> joined = [start, spring];
+        List<(int Index, Vector3 At)> waiting = [.. sinks.Skip(1).Select((s, i) => (i + 1, s))];
+        while (waiting.Count > 0)
+        {
+            (int index, Vector3 at, Vector3 from) = waiting
+                .SelectMany(w => joined.Select(j => (w.Index, w.At, From: j)))
+                .MinBy(e => Vector3.DistanceSquared(e.At, e.From));
+            routes.Add(($"sink{index}", from, at));
+            joined.Add(at);
+            waiting.RemoveAll(w => w.Index == index);
+        }
+
         List<Passage> passages = [];
         List<Vector3> mainRoute = [];
         List<List<int>> routePaths = [];
         // Every route is widened where it pinches first, then the clearance is measured once and each route's final way found
         // (#10304: measuring it again after each widened route made a large cave's generation grow with its area squared).
-        List<(float Before, int Widened)> widened = [.. routes.Select(r => WidenPassage(open, clearance, start, r.To))];
+        List<(float Before, int Widened)> widened = [.. routes.Select(r => WidenPassage(open, clearance, r.From, r.To))];
         if (widened.Any(w => w.Widened > 0))
         {
             clearance = Clearance(open);
@@ -3686,8 +3702,8 @@ private static int MostBarrensPieces => Area(400);
         Mark("passages-clearance");
         for (int r = 0; r < routes.Count; r++)
         {
-            (string name, Vector3 to) = routes[r];
-            (Passage passage, List<int> path) = FinishPassage(clearance, name, start, to, widened[r].Before, widened[r].Widened);
+            (string name, Vector3 from, Vector3 to) = routes[r];
+            (Passage passage, List<int> path) = FinishPassage(clearance, name, from, to, widened[r].Before, widened[r].Widened);
             passages.Add(passage);
             routePaths.Add(path);
             if (name == "spring")
@@ -4795,9 +4811,10 @@ private static int MostBarrensPieces => Area(400);
     /// </summary>
     private static (float Narrowest, List<int> Path) WayAtLeast(float[] clearance, Vector3 from, Vector3 to)
     {
-        List<int> standing = Shortest(clearance, from, to, StandRadius);
+        // Only through samples a body stands in: a way exists or not, found within the cave's open space either way.
+        List<int> standing = Shortest(clearance, from, to, StandRadius, strict: true);
         Mark("passages-shortest");
-        if (standing.Count > 0 && standing.All(i => clearance[i] >= StandRadius))
+        if (standing.Count > 0)
         {
             return (StandRadius, standing);
         }
@@ -4854,7 +4871,9 @@ private static int MostBarrensPieces => Area(400);
     /// The shortest way between two places through samples at least <paramref name="least"/> clear. With nothing that clear,
     /// the way through every sample (rock included) that is cheapest by how much rock it crosses: what widening would open.
     /// </summary>
-    private static List<int> Shortest(float[] clearance, Vector3 from, Vector3 to, float least)
+    /// <param name="strict">Whether samples narrower than <paramref name="least"/> are closed (no way through them, an empty way if
+    /// none), rather than costly.</param>
+    private static List<int> Shortest(float[] clearance, Vector3 from, Vector3 to, float least, bool strict = false)
     {
         int start = NearestOpen(clearance, from), goal = NearestOpen(clearance, to);
         if (start < 0 || goal < 0)
@@ -4909,6 +4928,11 @@ private static int MostBarrensPieces => Area(400);
                 int n = FieldIndex(nx, ny, nz);
                 // Wide enough samples cost their length; narrower ones cost much more the narrower they are, so a way
                 // through a pinch is taken only where there is no other.
+                if (Sky(n) || (strict && clearance[n] < least))
+                {
+                    continue;
+                }
+
                 float step = clearance[n] >= least ? 1f : 1f + (PinchCost * (least - clearance[n]));
                 float through = known + step;
                 if (through < SearchValue(n, float.MaxValue))
@@ -4920,6 +4944,11 @@ private static int MostBarrensPieces => Area(400);
         }
 
         ShortestLog.Add((least, explored));
+        if (strict && SearchValue(goal, float.MaxValue) == float.MaxValue)
+        {
+            return [];
+        }
+
         List<int> path = [];
         for (int at = goal; at >= 0; at = SearchBack(at))
         {
@@ -4929,6 +4958,12 @@ private static int MostBarrensPieces => Area(400);
         path.Reverse();
         return path;
     }
+
+    /// <summary>
+    /// Whether a sample is in the open sky over the surface (#10304): routes are ways underground, so the searches never
+    /// cross it; in a cave open to the sky they would otherwise search the whole sky, cheap and wide, before the cave.
+    /// </summary>
+    private static bool Sky(int index) => FieldCell3(index).Y * FieldStep > SurfaceLevel + SurfaceRoll;
 
     /// <summary>A straight way of face-adjacent samples from one to another: each step along the axis furthest behind the line.</summary>
     private static List<int> Straight(int start, int goal)
@@ -5028,7 +5063,7 @@ private static int MostBarrensPieces => Area(400);
 
                 int n = FieldIndex(nx, ny, nz);
                 float width = MathF.Min(bestC, MathF.Min(clearance[n], WidestCap));
-                if (clearance[n] > 0f && width > SearchValue(n, 0f))
+                if (clearance[n] > 0f && width > SearchValue(n, 0f) && !Sky(n))
                 {
                     SetSearch(n, width, c);
                     frontier.Enqueue(n, (-width, Math.Abs(nx - goalX) + Math.Abs(ny - goalY) + Math.Abs(nz - goalZ)));
@@ -5060,7 +5095,7 @@ private static int MostBarrensPieces => Area(400);
         float most = 0f;
         ForBox(p, new Vector3(Reach), (index, _) =>
         {
-            if (clearance[index] > most)
+            if (clearance[index] > most && !Sky(index))
             {
                 most = clearance[index];
                 found = index;
