@@ -583,7 +583,7 @@ internal sealed class DungeonModule : IProductModule
             return;
         }
 
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(current.Layout.Arrival));
+        PlaceInSpace(current.Layout.Arrival);
         last = "fell out of the space: set back at its arrival (a placeholder until falling has its own rules, #10171)";
     }
 
@@ -1049,7 +1049,7 @@ internal sealed class DungeonModule : IProductModule
         }
 
         DungeonCell at = tour[tourAt];
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3((float)((at.X + 0.5) * size), (float)(at.Y * size), (float)((at.Z + 0.5) * size))));
+        PlaceInSpace(new Vector3((float)((at.X + 0.5) * size), (float)(at.Y * size), (float)((at.Z + 0.5) * size)));
         return string.Create(CultureInfo.InvariantCulture, $"tour {tourAt}/{tour.Count - 1} at {at.X * size:F0},{at.Y * size:F0},{at.Z * size:F0}");
     }
 
@@ -1161,6 +1161,16 @@ internal sealed class DungeonModule : IProductModule
         }
     }
 
+    /// <summary>
+    /// Puts the player at a place in the space (layout metres) and streams toward it at once, so the chunks round them are
+    /// handed over synchronously - deferred ones there still installing among them - and live before the next step (R10332-1).
+    /// </summary>
+    private void PlaceInSpace(Vector3 layoutPoint)
+    {
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(layoutPoint));
+        space?.Stream(layoutPoint);
+    }
+
     /// <summary>The streamed prototype: moves the player this far across, onto the nearest standing place there.</summary>
     internal string StudyStreamWalk(float dx, float dz)
     {
@@ -1172,6 +1182,8 @@ internal sealed class DungeonModule : IProductModule
         Vector3 at = player.WorldFeetPosition - DungeonCollision.Origin;
         Vector3 to = stream.FindStanding(new Vector3(at.X + dx, at.Y + 2f, at.Z + dz));
         player.MoveWithinSeparateSpace(DungeonCollision.InSession(to));
+        // Its chunks round the player streamed in and live before the next step (R10332-1).
+        stream.Update(to);
         return string.Create(CultureInfo.InvariantCulture, $"at {to.X:F0},{to.Y:F0},{to.Z:F0}");
     }
 
@@ -1361,7 +1373,7 @@ internal sealed class DungeonModule : IProductModule
             return $"visit refused: nowhere to stand at the {place}";
         }
 
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(new Vector3(stand.X + 0.5f, stand.Y, stand.Z + 0.5f)));
+        PlaceInSpace(new Vector3(stand.X + 0.5f, stand.Y, stand.Z + 0.5f));
         return $"at the {place}: {stand}";
     }
 
@@ -1375,7 +1387,7 @@ internal sealed class DungeonModule : IProductModule
 
         // At the ramp's foot, looking up (or down) it into the breach.
         Vector3 breach = new(plan.Breach.X + 0.5f, plan.Breach.Y, plan.Breach.Z + 0.5f);
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(mouth + new Vector3(0f, 0.1f, 0f)));
+        PlaceInSpace(mouth + new Vector3(0f, 0.1f, 0f));
         Vector3 to = breach + new Vector3(0f, RuinViewAim, 0f) - (mouth + new Vector3(0f, EyeHeight, 0f));
         float yaw = MathF.Atan2(to.X, -to.Z) * 180f / MathF.PI;
         float pitch = MathF.Atan2(to.Y, new Vector2(to.X, to.Z).Length()) * 180f / MathF.PI;
@@ -1395,7 +1407,7 @@ internal sealed class DungeonModule : IProductModule
         // In the burst wall's cell, on the far side of it from the wall, facing the wall.
         Vector3 facing = new(MathF.Sin(burst.Turn), 0f, -MathF.Cos(burst.Turn));
         Vector3 stand = burst.Origin + new Vector3(0f, 0.05f, 0f) - (facing * BurstViewBack);
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
+        PlaceInSpace(stand + new Vector3(0f, 0.1f, 0f));
         Vector3 wall = burst.Origin + (facing * (ModuleCanvas.CellSize / 2f));
         float yaw = MathF.Atan2(wall.X - stand.X, -(wall.Z - stand.Z)) * 180f / MathF.PI;
         return string.Create(CultureInfo.InvariantCulture, $"before a burst wall: {stand.X:F1},{stand.Y:F1},{stand.Z:F1}, facing it yaw={yaw:F0}");
@@ -1454,7 +1466,7 @@ internal sealed class DungeonModule : IProductModule
             }
         }
 
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
+        PlaceInSpace(stand + new Vector3(0f, 0.1f, 0f));
         float yaw = MathF.Atan2(floor.X - stand.X, -(floor.Z - stand.Z)) * 180f / MathF.PI;
         int pieces = layout.Overgrowth.Count(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.BracketFungi && Vector3.Distance(g.At, floor) < PocketPieces);
         return string.Create(CultureInfo.InvariantCulture, $"at the fungal pocket {index}: {stand.X:F1},{stand.Y:F1},{stand.Z:F1}, {Vector3.Distance(stand, floor):F1} m out of it ({pieces} fungi), facing yaw={yaw:F0}");
@@ -1487,7 +1499,7 @@ internal sealed class DungeonModule : IProductModule
         }
 
         Vector3 here = FeetUnder(layout.MainRoute[step]), next = DungeonSpace.InSession(FeetUnder(layout.MainRoute[step + 1]));
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(here));
+        PlaceInSpace(here);
         return string.Create(CultureInfo.InvariantCulture, $"at route {step} of {layout.MainRoute.Count - 1}: next {next.X:F2} {next.Y:F2} {next.Z:F2}");
     }
 
@@ -1638,7 +1650,7 @@ internal sealed class DungeonModule : IProductModule
             return $"visit refused: no open floor near the {what} sees it";
         }
 
-        player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
+        PlaceInSpace(stand + new Vector3(0f, 0.1f, 0f));
         float yaw = MathF.Atan2(facing.X - stand.X, -(facing.Z - stand.Z)) * 180f / MathF.PI;
         return string.Create(CultureInfo.InvariantCulture, $"at the {what}: {stand.X:F1},{stand.Y:F1},{stand.Z:F1} sees {count}/{sampled.Length} pieces, facing yaw={yaw:F0}");
     }

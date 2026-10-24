@@ -43,7 +43,10 @@ internal sealed class StreamedCave : IDisposable
     // Measures: chunks admitted and evicted, time spent generating and admitting, the slowest update, probe moves.
     private long admitted, evicted, updates;
     private double generateMs, applyMs, slowestMs, probeMs;
-    private int probeMoves, lastPending, notReadyUpdates;
+    private int probeMoves, lastPending, notReadyUpdates, installingUpdates;
+
+    // The deferred chunks handed over whose collision is not live yet, each with the revision that makes it live (#10332).
+    private readonly Dictionary<(int X, int Y, int Z), ulong> deferredPending = [];
 
     /// <param name="radius">How many chunks (16 m) about the player are kept across; <paramref name="radiusUp"/> up and down.</param>
     /// <param name="budget">The most chunks admitted in one update.</param>
@@ -114,6 +117,22 @@ internal sealed class StreamedCave : IDisposable
         updates++;
         (int cx, int cy, int cz) = ((int)MathF.Floor(player.X / Edge), (int)MathF.Floor(player.Y / Edge), (int)MathF.Floor(player.Z / Edge));
         int lowest = (int)MathF.Floor(Floor / Edge), highest = (int)MathF.Floor(Ceiling / Edge);
+        bool Round((int X, int Y, int Z) w) => Math.Abs(w.X - cx) <= 1 && Math.Abs(w.Y - cy) <= 1 && Math.Abs(w.Z - cz) <= 1;
+        // A deferred hand-off is live once the scene's collision has reached its revision; one round the player not yet live is
+        // wanted again, so it is handed over again synchronously, which installs every deferred one first (R10332-1).
+        bool waited = deferredPending.Count > 0;
+        if (waited)
+        {
+            ulong live = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).CollisionRevision;
+            foreach ((int X, int Y, int Z) chunk in deferredPending.Where(p => p.Value <= live).Select(p => p.Key).ToList())
+            {
+                deferredPending.Remove(chunk);
+            }
+        }
+
+        List<(int X, int Y, int Z)> installingRound = [.. deferredPending.Keys.Where(Round)];
+        resident.ExceptWith(installingRound);
+        installingUpdates += installingRound.Count > 0 ? 1 : 0;
         List<(int X, int Y, int Z)> wanted = [];
         for (int x = cx - radius; x <= cx + radius; x++)
             for (int z = cz - radius; z <= cz + radius; z++)
@@ -125,10 +144,12 @@ internal sealed class StreamedCave : IDisposable
                     }
                 }
 
-        wanted.Sort((a, b) => Distance(a, cx, cy, cz).CompareTo(Distance(b, cx, cy, cz)));
+        // The chunks round the player first, then nearest first.
+        wanted.Sort((a, b) => (Round(a) ? 0 : 1, Distance(a, cx, cy, cz)).CompareTo((Round(b) ? 0 : 1, Distance(b, cx, cy, cz))));
         lastPending = wanted.Count;
         // Whether the chunks round the player (the 3 x 3 x 3 about them) are all in: if not, they could fall or walk into void.
-        bool urgent = wanted.Any(w => Math.Abs(w.X - cx) <= 1 && Math.Abs(w.Y - cy) <= 1 && Math.Abs(w.Z - cz) <= 1);
+        int round = wanted.Count(Round);
+        bool urgent = round > 0;
         if (urgent)
         {
             notReadyUpdates++;
@@ -138,7 +159,8 @@ internal sealed class StreamedCave : IDisposable
         List<uint> materials = [];
         List<float> densities = [];
         long generating = Stopwatch.GetTimestamp();
-        foreach ((int X, int Y, int Z) chunk in wanted.Take(all ? wanted.Count : budget))
+        List<(int X, int Y, int Z)> handed = [.. wanted.Take(all ? wanted.Count : Math.Max(round, budget))];
+        foreach ((int X, int Y, int Z) chunk in handed)
         {
             Generate(chunk, operations, materials, densities);
             resident.Add(chunk);
@@ -155,18 +177,31 @@ internal sealed class StreamedCave : IDisposable
         generateMs += Stopwatch.GetElapsedTime(generating).TotalMilliseconds;
         // Away from the player the hand-off is deferred (#10332), as the stored cave's is; a batch round them, or the first
         // whole fill, synchronous.
-        bool deferring = DungeonSpace.StreamDeferred;
-        if (operations.Count > 0 || deferring)
+        bool deferring = DungeonSpace.StreamDeferred, deferred = deferring && !urgent && !all;
+        if (operations.Count > 0 || deferring || waited)
         {
             long applying = Stopwatch.GetTimestamp();
             if (operations.Count > 0)
             {
-                engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session, operations.ToArray(), materials.ToArray(), densities.ToArray(),
-                    deferring && !urgent && !all));
+                VoxelResidencyReceipt receipt = engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session, operations.ToArray(), materials.ToArray(), densities.ToArray(),
+                    deferred));
+                if (!deferred)
+                {
+                    // A synchronous change installs every deferred one before it.
+                    deferredPending.Clear();
+                }
+                else
+                {
+                    foreach ((int X, int Y, int Z) chunk in handed)
+                    {
+                        deferredPending[chunk] = receipt.AcceptedRevision;
+                    }
+                }
             }
 
             // The presentation follows residency only when refreshed; deferred chunks install at a later update's start, so a
-            // deferring stream refreshes every update.
+            // deferring stream refreshes every update, and so does one with a deferred chunk waiting at the update's start
+            // though deferral has since been switched off (R10332-2).
             engine.VoxelScenePresentation.RefreshScene(projection);
             applyMs += Stopwatch.GetElapsedTime(applying).TotalMilliseconds;
         }
@@ -206,7 +241,7 @@ internal sealed class StreamedCave : IDisposable
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"streamed cave: resident={resident.Count} pending={lastPending} admitted={admitted} evicted={evicted} updates={updates} notReadyUpdates={notReadyUpdates} " +
+        $"streamed cave: resident={resident.Count} pending={lastPending} admitted={admitted} evicted={evicted} updates={updates} notReadyUpdates={notReadyUpdates} installing={installingUpdates} " +
         $"generate={generateMs / Math.Max(1, admitted):F2}ms/chunk apply={applyMs / Math.Max(1, admitted):F2}ms/chunk slowestUpdate={slowestMs:F1}ms " +
         $"probeMoves={probeMoves} probe={probeMs / Math.Max(1, probeMoves):F1}ms/move");
 
@@ -215,7 +250,7 @@ internal sealed class StreamedCave : IDisposable
     {
         admitted = evicted = updates = 0;
         generateMs = applyMs = slowestMs = probeMs = 0;
-        probeMoves = notReadyUpdates = 0;
+        probeMoves = notReadyUpdates = installingUpdates = 0;
     }
 
     public void Dispose()
