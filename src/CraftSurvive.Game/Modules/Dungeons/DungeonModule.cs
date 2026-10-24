@@ -349,7 +349,7 @@ internal sealed class DungeonModule : IProductModule
                 ? new DungeonSpace(engine, terrain, candidate.Layout,
                     candidate.Layout.Rock is null ? null : surface == DungeonSurface.Cubes ? RockMaterial() : terrain.CaveRockMaterial, surface)
                 : new DungeonSpace(engine, terrain, candidate.AllVoxels, StudyRockDetail(), surface,
-                    candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural,
+                    candidate.AllVoxels.Natural ? CaveLayers(candidate.AllVoxels.VoxelSize, candidate.Layout.Kit.Count > 0) : PlainRock(candidate.Layout.Kit.Count > 0), caveLayers: candidate.AllVoxels.Natural,
                     kitPaint: kitPaint, kitLook: kitLook, streamRadius: streamRadius);
         }
         catch (EngineCallException refusal)
@@ -728,13 +728,20 @@ internal sealed class DungeonModule : IProductModule
     /// <summary>
     /// A natural cave's rock in the cave's ground materials (#10095): each rock block its own material map, blended where
     /// they meet, under the cave shader's strata, 3D pixels and grain. The cave's materials as one blended material for every rock block, drawn through the cave shader in its layered mode.</summary>
-    private Dictionary<BlockId, Material> CaveLayers(double voxelSize)
+    /// <param name="kitted">Whether a ruin's kit stands in the cave (#10097): what of its masonry stays voxels is the ruin's pale stone, as a built dungeon's.</param>
+    private Dictionary<BlockId, Material> CaveLayers(double voxelSize, bool kitted = false)
     {
         rockDetailShader ??= engine.Graphics.OpenResource(new RenderResourceRequest(RockDetailShaderPath)).Handle;
         Vector4 colouring = new(LayeredColouring, -DungeonCollision.Origin.Y, KarstCave.BedDip.X, KarstCave.BedDip.Y);
         Material layered = terrain.CaveLayersWithShader(new MaterialShader(rockDetailShader, rockDetail ?? Vector4.Zero, colouring, rockPixels,
             new Vector4(0f, 0f, 0f, Darkness.Glint)), voxelSize);
-        return CaveMaterials.Layers.ToDictionary(l => l.Block, _ => layered);
+        Dictionary<BlockId, Material> looks = CaveMaterials.Layers.ToDictionary(l => l.Block, _ => layered);
+        foreach (BlockId block in kitted ? KitLeftovers : [])
+        {
+            looks[block] = KitLeftoverLook();
+        }
+
+        return looks;
     }
 
     /// <summary>The cave shader's colouring mode for the layered materials: the blended maps' colour under the strata.</summary>
@@ -1314,6 +1321,11 @@ internal sealed class DungeonModule : IProductModule
             return VisitBurst();
         }
 
+        if (place == SeatsPlace)
+        {
+            return VisitPieces("seated formations", kind => kind is OvergrowthKind.Stalagmite or OvergrowthKind.StalagmiteTall or OvergrowthKind.Column);
+        }
+
         if (place == RootsPlace)
         {
             return VisitPieces("root tangles", kind => kind == OvergrowthKind.RootTangle);
@@ -1389,7 +1401,7 @@ internal sealed class DungeonModule : IProductModule
         return string.Create(CultureInfo.InvariantCulture, $"before a burst wall: {stand.X:F1},{stand.Y:F1},{stand.Z:F1}, facing it yaw={yaw:F0}");
     }
 
-    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations", FernsPlace = "ferns", PocketPlace = "pocket:", RootsPlace = "roots", RuinPlace = "ruin", BurstPlace = "burst";
+    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations", FernsPlace = "ferns", PocketPlace = "pocket:", RootsPlace = "roots", RuinPlace = "ruin", BurstPlace = "burst", SeatsPlace = "seats";
 
     // A ruin's breach is looked at from its mouth this high over the breach's floor (#10097); a burst wall from so far back
     // from its cell's middle.

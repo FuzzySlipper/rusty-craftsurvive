@@ -137,6 +137,50 @@ internal static class KarstCave
     /// <summary>How many of the lights go to features off the main route (the maze, bedding rooms, chambers).</summary>
     private static int MostFeatureLights => Area(6);
 
+    // How much room each of the cave's pieces keeps from a ruin (#10097's detail pass): a great piece (a column, a tall
+    // stalagmite, a drapery, a community's keystone) this many times its scale, the rest this, a growing light this.
+    private const float LargeRuinRoom = 3f, SmallRuinRoom = 0.6f;
+
+    private static float RuinRoom(OvergrowthKind kind, float scale) => kind is OvergrowthKind.Column or OvergrowthKind.StalagmiteTall or OvergrowthKind.Drapery
+        or OvergrowthKind.StalactiteLong or OvergrowthKind.VentGiant or OvergrowthKind.VentGiantCluster or OvergrowthKind.GroveHanger or OvergrowthKind.FunnelGiant
+        or OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.VeilFanGreat or OvergrowthKind.CushionGreat or OvergrowthKind.IvoryBulbGreat
+        ? LargeRuinRoom * scale : SmallRuinRoom * scale;
+
+    // A standing formation's seat (#10097's detail pass): the floor round its foot flattened to it out to this many times its
+    // scale (fully to 0.6 of that, blending back to the rock beyond) - the rock this far over its foot cleared, dips only this
+    // shallow filled (a deeper fall round it stays, or the seat would stand up as a plinth).
+    private const float SeatRadius = 0.9f, SeatBand = 0.75f, SeatFull = 0.6f, SeatFill = 0.3f;
+
+    /// <summary>Flattens the field into a seat under each standing formation: open over its foot, rock under it.</summary>
+    private static void Seat(float[] open, IEnumerable<OvergrowthPlacement> growth)
+    {
+        foreach (OvergrowthPlacement g in growth.Where(g => g.Kind is OvergrowthKind.Stalagmite or OvergrowthKind.StalagmiteTall or OvergrowthKind.Column))
+        {
+            float radius = SeatRadius * g.Scale;
+            int x0 = Math.Max(0, (int)((g.At.X - radius) / FieldStep)), x1 = Math.Min(FieldX - 1, (int)((g.At.X + radius) / FieldStep));
+            int z0 = Math.Max(0, (int)((g.At.Z - radius) / FieldStep)), z1 = Math.Min(FieldZ - 1, (int)((g.At.Z + radius) / FieldStep));
+            int y0 = Math.Max(0, (int)((g.At.Y - SeatFill) / FieldStep)), y1 = Math.Min(FieldY - 1, (int)((g.At.Y + SeatBand) / FieldStep));
+            for (int z = z0; z <= z1; z++)
+                for (int y = y0; y <= y1; y++)
+                    for (int x = x0; x <= x1; x++)
+                    {
+                        Vector3 c = new((x + 0.5f) * FieldStep, (y + 0.5f) * FieldStep, (z + 0.5f) * FieldStep);
+                        float across = new Vector2(c.X - g.At.X, c.Z - g.At.Z).Length();
+                        if (across >= radius)
+                        {
+                            continue;
+                        }
+
+                        float weight = 1f - SmoothStep(SeatFull * radius, radius, across);
+                        int i = FieldIndex(x, y, z);
+                        open[i] += (Math.Clamp(c.Y - g.At.Y, -SeatFill, SeatBand) - open[i]) * weight;
+                    }
+        }
+    }
+
+    // Within this far of a ruin (#10097), the cave's own placements must still lie within this much field of a surface.
+    private const float RefitReach = 3f, RefitSurface = 0.6f;
+
     /// <summary>How far in front of a wall a kit piece's growth is tested for the cave's rock overgrowing it (#10097).</summary>
     private const float OvergrownProbe = 0.6f;
 
@@ -2104,7 +2148,7 @@ internal static class KarstCave
     internal static bool StudyNoCommunities { get; set; }
 
     /// <summary>The study switches that shape generation, for the generation cache's key.</summary>
-    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}{(StudyNoLightGrowth ? "-unlit" : string.Empty)}{(StudyNoRuin ? "-noruin" : string.Empty)}";
+    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}{(StudyNoLightGrowth ? "-unlit" : string.Empty)}{(StudyNoRuin ? "-noruin" : string.Empty)}{(StudyNoRuinDetail ? "-nodetail" : string.Empty)}";
 
     /// <summary>
     /// For the geological kit's before and after (#10305): true carves the drip formations into the rock, as before the kit,
@@ -2120,6 +2164,12 @@ internal static class KarstCave
 
     /// <summary>The ruin the last cave generated was fitted with (#10097), for the bank and the visits; null for none.</summary>
     internal static CaveRuin? LastRuin { get; private set; }
+
+    /// <summary>
+    /// For the ruin fitting's detail pass's before and after (#10097): true leaves it out - the cave's pieces keep no room from
+    /// the ruin, no seats are flattened, no footings laid nor joins closed, the ramp undressed.
+    /// </summary>
+    internal static bool StudyNoRuinDetail { get; set; }
 
     /// <summary>For the ruin fitting's before and after (#10097): true fits no ruin into the next caves.</summary>
     internal static bool StudyNoRuin { get; set; }
@@ -3762,6 +3812,9 @@ private static int MostBarrensPieces => Area(400);
 
         internal required float[] Daylight { get; init; }
 
+        /// <summary>The ruin fitted into the cave (#10097), chosen in its field before its growth was placed; null for none.</summary>
+        internal CaveRuin? Ruin { get; init; }
+
         /// <summary>The damp dead ends fungi grow in (#10305): each pocket's floor.</summary>
         internal IReadOnlyList<Vector3> FungalPockets { get; init; } = [];
 
@@ -4034,13 +4087,14 @@ private static int MostBarrensPieces => Area(400);
         Stages.Clear();
         ShortestLog.Clear();
         markAt = Stopwatch.GetTimestamp();
-        Result cave = Build(seed, centrepiece, setting);
+        // A ruin (#10097) is laid in the world's 1 m voxels, so a finer study has none.
+        Result cave = Build(seed, centrepiece, setting, ruin: voxelSize == 1d);
         Mark("build-tail");
-        // The ruin fitted into the cave (#10097): its rooms dug out of the rock, its masonry gone where the cave runs through.
-        // It is laid in the world's 1 m voxels, so a finer study has none.
-        CaveRuin? ruin = voxelSize == 1d && !StudyNoRuin ? CaveRuins.Fit(cave.At, cave.MainRoute, seed) : null;
+        // The ruin finished in the cave's final field: its rooms dug out of the rock, its masonry gone where the cave runs
+        // through, the rock overgrowing its bursts, its footings.
+        CaveRuin? ruin = cave.Ruin is CaveRuin chosen ? CaveRuins.Finish(chosen, cave.At, seed, detail: !StudyNoRuinDetail) : null;
         LastRuin = ruin;
-        Mark("ruin");
+        Mark("ruin-finish");
         Func<Vector3, float> shape = ruin is null ? cave.At : ruin.Shape(cave.At);
         // The ramp to its breach is fallen stone: rubble.
         Func<Vector3, BlockId> rockAt = ruin is null ? cave.RockAt : p => ruin.UnderRamp(p) ? RubbleRock : cave.RockAt(p);
@@ -4100,9 +4154,12 @@ private static int MostBarrensPieces => Area(400);
         IReadOnlyList<DungeonDrips.Mark> drips = [];
         if (ruin is not null)
         {
-            overgrowth.RemoveAll(g => ruin.Inside(g.At));
-            cards.RemoveAll(c => ruin.Inside(c.At));
-            forest.RemoveAll(f => ruin.Inside(f.At));
+            // Near the ruin the fitting reshaped the cave (its ramp, footings, closed joins, overgrown rock): what the cave
+            // placed there on its own surface is kept only where a surface still is.
+            bool OffSurface(Vector3 at) => ruin.Distance(at) < RefitReach && MathF.Abs(shape(at)) > RefitSurface;
+            overgrowth.RemoveAll(g => ruin.Inside(g.At) || OffSurface(g.At));
+            cards.RemoveAll(c => ruin.Inside(c.At) || OffSurface(c.At));
+            forest.RemoveAll(f => ruin.Inside(f.At) || OffSurface(f.At));
             ecology = [.. ecology.Where(e => !ruin.Inside(e.At))];
             (kit, kitDrawn, relics) = DungeonKit.Fit(volume, ruin.Modules, lights, seed);
             moisture = DungeonMoisture.Compute(volume, ruin.Modules, seed);
@@ -4150,7 +4207,7 @@ private static int MostBarrensPieces => Area(400);
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
-            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
+            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}:footings{ruin.Footings.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>
@@ -4160,7 +4217,8 @@ private static int MostBarrensPieces => Area(400);
             $"{p.Name} {p.Metres:F0} m narrowest {p.Before:F2}->{p.After:F2} m widened {p.Widened}")));
 
     /// <summary>Generates the cave: the rock, the water's rounds through it, the shapes it leaves, and the passages checked.</summary>
-    internal static Result Build(ulong seed, Centrepiece? centrepiece = null, CaveSetting? setting = null)
+    /// <param name="ruin">Whether a ruin is fitted into the cave (#10097): it is laid in 1 m voxels, so a finer study has none.</param>
+    internal static Result Build(ulong seed, Centrepiece? centrepiece = null, CaveSetting? setting = null, bool ruin = true)
     {
         CaveSetting place = setting ?? CaveSetting.Temperate;
         long started = Stopwatch.GetTimestamp();
@@ -4379,6 +4437,10 @@ private static int MostBarrensPieces => Area(400);
         searchStamp = null;
 
         Mark("passages");
+        // The ruin fitted into the finished passages (#10097), chosen in the cave's field as it stands: everything placed after
+        // is handed it as a map, and keeps clear of it.
+        CaveRuin? fitted = ruin && !StudyNoRuin ? CaveRuins.Fit(p => Trilinear(open, p), mainRoute, seed) : null;
+        Mark("ruin");
         // The dark's growth starts with the drip's formation pieces (#10305): the geological kit draws with the growth, those
         // whose rock the passages' widening cut away left out.
         // A standing piece is left off the routes: walked through, or its collider in the way.
@@ -4389,11 +4451,29 @@ private static int MostBarrensPieces => Area(400);
         {
             darkGrowth.AddRange(SmallKit(open, formed, activeFlow, drip, standing, sediment, rubble, eras.Length, finalTable, seed));
         }
+
+        // Each piece keeps its room from the ruin (#10097's detail pass), and the standing formations' floors are flattened
+        // into seats under them.
+        void KeepClear(List<OvergrowthPlacement> growth, List<EcologyPlacement>? lights)
+        {
+            if (fitted is CaveRuin r && !StudyNoRuinDetail)
+            {
+                growth.RemoveAll(g => r.Distance(g.At) < RuinRoom(g.Kind, g.Scale));
+                lights?.RemoveAll(e => r.Distance(e.At) < SmallRuinRoom);
+            }
+        }
+
+        KeepClear(darkGrowth, null);
+        if (!StudyNoRuinDetail)
+        {
+            Seat(open, darkGrowth);
+        }
         // Where daylight comes in and how far it reaches (#10305): the moss, ferns and roots grow by it.
         (Vector3 At, float Reach)[] daylightSources = DaylightSources(open, sinks, skyOpen, seed);
         float[] daylight = StudyNoLightGrowth ? new float[GridX * GridY * GridZ] : DaylightGrid(open, daylightSources, skyOpen ? Openings(tiankeng, chasm) : [], seed);
         Mark("daylight");
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth, daylight);
+        KeepClear(darkGrowth, ecology);
         Mark("ecology");
         // The cave's stranger communities (#10304; owner, 2026-10-23): the study switches when any is set, else one to three
         // chosen by the region above and by depth, each grown where the cave has its sites and they lie deep enough. Each is
@@ -4522,7 +4602,9 @@ private static int MostBarrensPieces => Area(400);
                 List<OvergrowthPlacement> growthBefore = [.. darkGrowth];
                 List<EcologyPlacement> ecologyBefore = [.. ecology];
                 int claimedBefore = claimed.Count;
-                if (Grow(community, Area(1), DeepFor(community)) > 0
+                int grownHere = Grow(community, Area(1), DeepFor(community));
+                KeepClear(darkGrowth, ecology);
+                if (grownHere > 0
                     && darkGrowth.Count(g => CaveCommunities.Grows(community, g.Kind)) >= FewestCommunityPieces
                     && darkGrowth.Count(g => CaveCommunities.Signature(community, g.Kind)) >= FewestSignaturePieces)
                 {
@@ -4545,6 +4627,17 @@ private static int MostBarrensPieces => Area(400);
         Mark("communities");
         // Fungi in the damp dead ends (#10305), clear of the communities.
         List<Vector3> pockets = StudyNoLightGrowth ? [] : FungalPockets(open, drip, standing, activeFlow, routePoints, daylight, seed, ecology, darkGrowth, claimed);
+        if (fitted is CaveRuin seated)
+        {
+            pockets.RemoveAll(p => seated.Distance(p) < LargeRuinRoom);
+            KeepClear(darkGrowth, ecology);
+            // The feature kit's fallen stone on the ruin's ramp.
+            if (!StudyNoRuinDetail)
+            {
+                darkGrowth.AddRange(seated.RampDressing());
+            }
+        }
+
         Mark("pockets");
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
@@ -4578,6 +4671,7 @@ private static int MostBarrensPieces => Area(400);
             Drip = drip,
             Standing = standing,
             SinkPoints = sinks,
+            Ruin = fitted,
             DaylightSources = daylightSources,
             Daylight = daylight,
             FungalPockets = pockets,

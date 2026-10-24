@@ -26,8 +26,22 @@ internal enum RuinSize
 /// its broken wall's foot by a ramp of fallen stone through whatever rock lay between.
 /// </summary>
 internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modules, PlacedModule Breach, PlacedModule? Vault, DungeonVolume Building,
-    IReadOnlyList<Vector3> Lights, HashSet<DungeonCell> Climbs, Vector3 WallFoot, Vector3 Mouth)
+    IReadOnlyList<Vector3> Lights, HashSet<DungeonCell> Climbs, Vector3 WallFoot, Vector3 Mouth,
+    IReadOnlyList<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> Joins)
 {
+    /// <summary>
+    /// The ruin's footings (#10097's detail pass): the voxels of the cave's air under its lowest floors where the rock lay
+    /// close under them, filled so the ruin sits on rock rather than hanging a sliver over it.
+    /// </summary>
+    internal IReadOnlySet<(int X, int Y, int Z)> Footings { get; init; } = new HashSet<(int X, int Y, int Z)>();
+
+    /// <summary>Whether the cave's rock is closed against the ruin's outer walls (the detail pass's joins).</summary>
+    internal bool Joined { get; init; }
+
+    // Where the cave's rock meets the ruin's outer walls (the detail pass's joins): air the cave leaves open by less than this,
+    // with a ruin's cell within this far one way and the cave's rock as near the other, is closed - the rock meets the masonry
+    // rather than leaving a hairline gap.
+    private const float JoinReach = 0.75f, JoinGap = 0.6f;
     /// <summary>The cave's air this far into a masonry voxel (metres of the cave's field) bursts it: the cave runs through.</summary>
     internal const float BurstOpen = 0.4f;
 
@@ -68,6 +82,74 @@ internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modul
         bool wall = across == 0 || across == ModuleCanvas.CellSize - 1 || along == 0 || along == ModuleCanvas.CellSize - 1;
         return wall && row > 0 && row < ModuleCanvas.StoreyHeight - 1 && cave(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f)) > BurstOpen;
     }
+
+    /// <summary>How closed a hairline gap against the ruin's outer wall is made (metres of field).</summary>
+    private const float DensityGap = 0.1f;
+
+    /// <summary>
+    /// Whether a place outside the ruin lies in a hairline gap between it and the cave's rock: one of its cells within
+    /// <see cref="JoinReach"/> one way and the cave's rock as near the other (open air beyond is a space, not a gap).
+    /// </summary>
+    private bool Gap(Vector3 p, Func<Vector3, float> cave)
+    {
+        foreach (Vector3 axis in (ReadOnlySpan<Vector3>)[Vector3.UnitX, -Vector3.UnitX, Vector3.UnitY, -Vector3.UnitY, Vector3.UnitZ, -Vector3.UnitZ])
+        {
+            if (Inside(p + (axis * JoinReach)) && cave(p - (axis * JoinReach)) <= 0f)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// How far a place lies from the ruin (#10097's detail pass, the placement map the cave's features are handed): from the
+    /// nearest of its cells, its ramp's line (less the ramp's half width) and its mouth; 0 inside any.
+    /// </summary>
+    internal float Distance(Vector3 p)
+    {
+        float nearest = float.MaxValue;
+        foreach ((int cx, int cy, int cz) in cells)
+        {
+            Vector3 min = new(cx * ModuleCanvas.CellSize, (cy * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY, cz * ModuleCanvas.CellSize);
+            Vector3 max = min + new Vector3(ModuleCanvas.CellSize, ModuleCanvas.StoreyHeight, ModuleCanvas.CellSize);
+            nearest = MathF.Min(nearest, Vector3.Distance(p, Vector3.Clamp(p, min, max)));
+        }
+
+        Vector3 along = Mouth - WallFoot;
+        float t = along.LengthSquared() < 1e-6f ? 0f : Math.Clamp(Vector3.Dot(p - WallFoot, along) / along.LengthSquared(), 0f, 1f);
+        nearest = MathF.Min(nearest, MathF.Max(0f, Vector3.Distance(p, WallFoot + (along * t) + new Vector3(0f, RampHeight * 0.5f, 0f)) - RampHalfWidth));
+        return MathF.Min(nearest, MathF.Max(0f, Vector3.Distance(p, Mouth) - RampHalfWidth));
+    }
+
+    /// <summary>
+    /// The fallen stone dressing its ramp (the detail pass hands the feature kit its place): debris either side of the ramp's
+    /// line at these shares of its length, gravel down its middle; each on the ramp's floor.
+    /// </summary>
+    internal IEnumerable<OvergrowthPlacement> RampDressing()
+    {
+        Vector3 along = Mouth - WallFoot;
+        Vector3 flat = new(along.X, 0f, along.Z);
+        if (flat.LengthSquared() < 1e-6f)
+        {
+            yield break;
+        }
+
+        Vector3 forward = Vector3.Normalize(flat), side = new(-forward.Z, 0f, forward.X);
+        foreach ((float t, float across, OvergrowthKind kind) in RampPieces)
+        {
+            Vector3 at = WallFoot + (along * t) + (side * across * RampHalfWidth);
+            float pick = (t * 7.13f) - MathF.Floor(t * 7.13f);
+            yield return new OvergrowthPlacement(kind, at - new Vector3(0f, 0.05f, 0f), across == 0f ? forward : side * MathF.Sign(across), 0.9f + (0.3f * pick), pick);
+        }
+    }
+
+    private static readonly (float T, float Across, OvergrowthKind Kind)[] RampPieces =
+    [
+        (0.15f, 0.7f, OvergrowthKind.Debris), (0.35f, -0.7f, OvergrowthKind.Debris), (0.65f, 0.65f, OvergrowthKind.Debris), (0.85f, -0.6f, OvergrowthKind.Debris),
+        (0.3f, 0f, OvergrowthKind.Gravel), (0.7f, 0f, OvergrowthKind.Gravel),
+    ];
 
     /// <summary>Whether a place lies in the ramp's fallen stone, under its floor (its rock is rubble).</summary>
     internal bool UnderRamp(Vector3 p) => !Inside(p) && Ramp(p) is < 0f;
@@ -111,8 +193,18 @@ internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modul
     {
         if (!Inside(p))
         {
-            // The ramp is the cave's air over its floor and fallen stone under it.
             float open = cave(p);
+            // The footings under its floors; the rock closed against its outer walls.
+            if (Footings.Contains(((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y), (int)MathF.Floor(p.Z))))
+            {
+                open = MathF.Min(open, RuinMasonry * 0.5f);
+            }
+            else if (Joined && open > 0f && open < JoinGap && Gap(p, cave))
+            {
+                open = -DensityGap;
+            }
+
+            // The ramp is the cave's air over its floor and fallen stone under it.
             return Ramp(p) is float ramp ? (ramp < 0f ? MathF.Min(open, ramp) : MathF.Max(open, ramp)) : open;
         }
 
@@ -206,12 +298,56 @@ internal static class CaveRuins
                 (DungeonVolume building, IReadOnlyList<Vector3> lights, HashSet<DungeonCell> climbs) = ModularDungeon.StampRuin(grown.Placed, grown.Joins,
                     KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ, random);
                 (Vector3 foot, Vector3 mouth) = Mouth(cave, breach);
-                CaveRuin ruin = new(size, grown.Placed, breach, grown.Vault, building, lights, climbs, foot, mouth);
-                return ruin with { Overgrown = Overgrow(ruin, cave, grown.Joins, seed) };
+                return new CaveRuin(size, grown.Placed, breach, grown.Vault, building, lights, climbs, foot, mouth, grown.Joins);
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A chosen ruin finished in the cave's final field (#10097): the rock overgrowing its burst walls, and its footings.
+    /// </summary>
+    /// <param name="detail">Whether the detail pass runs (its footings and closed joins); false for its before.</param>
+    internal static CaveRuin Finish(CaveRuin ruin, Func<Vector3, float> cave, ulong seed, bool detail = true) =>
+        ruin with { Overgrown = Overgrow(ruin, cave, ruin.Joins, seed), Footings = detail ? Footings(ruin, cave) : new HashSet<(int X, int Y, int Z)>(), Joined = detail };
+
+    /// <summary>The cave's air under a ruin's lowest floor is filled as a footing where the rock lies this close under it.</summary>
+    private const float FootingGap = 2f;
+
+    /// <summary>
+    /// A ruin's footings: under every cell with no ruin cell below it, each column of the cave's air from its floor down to
+    /// rock no further than <see cref="FootingGap"/> under it.
+    /// </summary>
+    private static HashSet<(int X, int Y, int Z)> Footings(CaveRuin ruin, Func<Vector3, float> cave)
+    {
+        HashSet<(int X, int Y, int Z)> cells = [.. ruin.Modules.SelectMany(m => m.Cells())];
+        HashSet<(int X, int Y, int Z)> footings = [];
+        foreach ((int cx, int cy, int cz) in cells.Where(c => !cells.Contains((c.X, c.Y - 1, c.Z))))
+        {
+            int y0 = (cy * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY;
+            for (int x = cx * ModuleCanvas.CellSize; x < (cx + 1) * ModuleCanvas.CellSize; x++)
+                for (int z = cz * ModuleCanvas.CellSize; z < (cz + 1) * ModuleCanvas.CellSize; z++)
+                {
+                    int gap = 0;
+                    while (gap <= FootingGap && y0 - gap - 1 > 0 && cave(new Vector3(x + 0.5f, y0 - gap - 0.5f, z + 0.5f)) > 0f)
+                    {
+                        gap++;
+                    }
+
+                    if (gap == 0 || gap > FootingGap)
+                    {
+                        continue;
+                    }
+
+                    for (int k = 1; k <= gap; k++)
+                    {
+                        footings.Add((x, y0 - k, z));
+                    }
+                }
+        }
+
+        return footings;
     }
 
     /// <summary>

@@ -233,6 +233,70 @@ if (args is ["ruinkit", string ruinKitSeed, string kx, string ky, string kz])
     return 0;
 }
 
+if (args is ["cardsnear", string cardSeed, string cardX, string cardY, string cardZ, ..])
+{
+    // cardsnear <seed> <x> <y> <z>: a karst seed's moss cards and overgrowth within 4 m of a place, with the field at each.
+    KarstCave.StudyNoRuinDetail = args.Contains("nodetail");
+    DungeonLayout cardLayout = KarstCave.Generate(ulong.Parse(cardSeed, System.Globalization.CultureInfo.InvariantCulture), 1d, KarstCave.Centrepiece.None).Layout;
+    System.Numerics.Vector3 near = new(float.Parse(cardX, System.Globalization.CultureInfo.InvariantCulture), float.Parse(cardY, System.Globalization.CultureInfo.InvariantCulture), float.Parse(cardZ, System.Globalization.CultureInfo.InvariantCulture));
+    foreach (MossCard card in cardLayout.MossCards.Where(c => System.Numerics.Vector3.Distance(c.At, near) < 4f))
+    {
+        Console.WriteLine($"  card {card.Kind} at {card.At} out {card.Out} field {cardLayout.Shape!(card.At):F2}");
+    }
+
+    foreach (OvergrowthPlacement g in cardLayout.Overgrowth.Where(g => System.Numerics.Vector3.Distance(g.At, near) < 4f))
+    {
+        Console.WriteLine($"  {g.Kind} at {g.At} out {g.Out} field {cardLayout.Shape!(g.At):F2}");
+    }
+
+    return 0;
+}
+
+if (args is ["rampfloor", string rampSeed])
+{
+    // rampfloor <seed>: each ramp dressing piece's height over the floor under it (#10097).
+    DungeonLayout rampLayout = KarstCave.Generate(ulong.Parse(rampSeed, System.Globalization.CultureInfo.InvariantCulture), 1d, KarstCave.Centrepiece.None).Layout;
+    if (KarstCave.LastRuin is CaveRuin rampRuin && rampLayout.Shape is Func<System.Numerics.Vector3, float> rampShape)
+    {
+        foreach (OvergrowthPlacement g in rampRuin.RampDressing())
+        {
+            System.Numerics.Vector3 floor = StudyField.OnFloor(rampShape, g.At.X, g.At.Z, g.At.Y + 1.5f);
+            Console.WriteLine($"  {g.Kind} at {g.At}: floor {floor.Y:F2}, over it by {g.At.Y - floor.Y:F2}");
+        }
+    }
+
+    return 0;
+}
+
+if (args is ["ruindetail", string detailFrom, string detailTo])
+{
+    // ruindetail <from> <to>: the ruin fitting's detail pass (#10097) on and off - how many of the cave's pieces crowd the
+    // ruin (within 1 m of it; a great piece within 3 m), and its footings and ramp dressing.
+    for (ulong detailSeed = ulong.Parse(detailFrom, System.Globalization.CultureInfo.InvariantCulture); detailSeed <= ulong.Parse(detailTo, System.Globalization.CultureInfo.InvariantCulture); detailSeed++)
+    {
+        string Crowding()
+        {
+            DungeonLayout detailLayout = KarstCave.Generate(detailSeed, 1d, KarstCave.Centrepiece.None).Layout;
+            if (KarstCave.LastRuin is not CaveRuin r)
+            {
+                return "no ruin";
+            }
+
+            bool Great(OvergrowthKind k) => k is OvergrowthKind.Column or OvergrowthKind.StalagmiteTall or OvergrowthKind.Drapery or OvergrowthKind.StalactiteLong;
+            int crowd = detailLayout.Overgrowth.Count(g => !r.Inside(g.At) && g.Kind != OvergrowthKind.Debris && g.Kind != OvergrowthKind.Gravel && r.Distance(g.At) < (Great(g.Kind) ? 3f : 1f));
+            int crowdLights = detailLayout.Ecology.Count(e => !r.Inside(e.At) && r.Distance(e.At) < 0.6f);
+            return $"{crowd} pieces and {crowdLights} lights crowd it, footings {r.Footings.Count}, ramp pieces {detailLayout.Overgrowth.Count(g => g.Kind is OvergrowthKind.Debris or OvergrowthKind.Gravel && r.Distance(g.At) < 0.5f)}";
+        }
+
+        KarstCave.StudyNoRuinDetail = true;
+        string off = Crowding();
+        KarstCave.StudyNoRuinDetail = false;
+        Console.WriteLine($"karst {detailSeed}: without the detail pass {off}; with it {Crowding()}");
+    }
+
+    return 0;
+}
+
 if (args is ["ruinroutes", string routeFrom, string routeTo])
 {
     // ruinroutes <from> <to>: the Engine's navigation over each karst seed with its ruin (#10097).

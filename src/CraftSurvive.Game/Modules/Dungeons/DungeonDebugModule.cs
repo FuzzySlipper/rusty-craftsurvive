@@ -124,6 +124,13 @@ public sealed class DungeonDebugModule : IDebugCommandModule
         return KarstCave.StudyNoRuin ? "the next caves hold no ruin" : "the next caves hold a ruin fitted into their rock";
     }
 
+    [DebugCommand("craft.dungeon.ruindetail", Description = "Assisted, for the ruin fitting's detail pass's before and after (#10097): off leaves it out of the next caves (no room kept round the ruin, no seats, footings, closed joins or ramp dressing); on runs it (the default).")]
+    public string RuinDetail(string mode)
+    {
+        KarstCave.StudyNoRuinDetail = mode == "off";
+        return KarstCave.StudyNoRuinDetail ? "the next caves fit their ruins without the detail pass" : "the next caves fit their ruins with the detail pass";
+    }
+
     [DebugCommand("craft.dungeon.setting", Description = "Assisted, for the community study (#10304): the next caves lie under this region and depth - temperature and moisture (0 to 1, as the world map's) and the cave's depth in metres; a negative depth goes back to each entrance's own.")]
     public string Setting(double temperature, double moisture, double depth) =>
         dungeons.StudySetting(depth < 0 ? null : new CaveSetting(temperature, moisture, (float)depth));
@@ -178,7 +185,7 @@ public sealed class DungeonDebugModule : IDebugCommandModule
             : "no dungeon is loaded";
     }
 
-    [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, a layout cell x,y,z, community:<name>, formations, ferns, roots, pocket:<i>, ruin (#10097: the cave's floor at its ruin's mouth, facing its breach), burst (a ruin's burst wall, seen from inside) (#10304, #10305: open floor near that community, the formations, the ferns, the root tangles or the cave's i-th fungal pocket, that sees the most of it, naming the yaw that faces it), or route:<i>.")]
+    [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, a layout cell x,y,z, community:<name>, formations, ferns, roots, pocket:<i>, ruin (#10097: the cave's floor at its ruin's mouth, facing its breach), burst (a ruin's burst wall, seen from inside), seats (the standing formations on their flattened seats) (#10304, #10305: open floor near that community, the formations, the ferns, the root tangles or the cave's i-th fungal pocket, that sees the most of it, naming the yaw that faces it), or route:<i>.")]
     public string Visit(string place) => dungeons.Visit(place);
 
     [DebugCommand("craft.dungeon.sweeproute", Description = "The route walk (#10304): sweeps the player's capsule along a natural cave's main route against the live collision (voxel rock and the communities' trunks) and counts the segments each blocks; passage, not walking.")]
