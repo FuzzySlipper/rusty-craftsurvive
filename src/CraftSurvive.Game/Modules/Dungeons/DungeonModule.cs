@@ -1286,6 +1286,22 @@ internal sealed class DungeonModule : IProductModule
             return VisitPieces("formations", OvergrowthPlacement.Formation);
         }
 
+        if (place == FernsPlace)
+        {
+            return space?.Layout is DungeonLayout fernLayout ? VisitPlaces("ferns", [.. fernLayout.Forest.Where(f => f.Species == "fern").Select(f => f.At)], ViewNearest)
+                : "visit refused: no natural cave is loaded";
+        }
+
+        if (place.StartsWith(PocketPlace, StringComparison.Ordinal) && int.TryParse(place.AsSpan(PocketPlace.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out int pocket))
+        {
+            return VisitPocket(pocket);
+        }
+
+        if (place == RootsPlace)
+        {
+            return VisitPieces("root tangles", kind => kind == OvergrowthKind.RootTangle);
+        }
+
         if (place.StartsWith(RoutePlace, StringComparison.Ordinal) && int.TryParse(place.AsSpan(RoutePlace.Length), NumberStyles.Integer, CultureInfo.InvariantCulture, out int step))
         {
             return VisitRoute(step);
@@ -1320,7 +1336,60 @@ internal sealed class DungeonModule : IProductModule
         return $"at the {place}: {stand}";
     }
 
-    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations";
+    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations", FernsPlace = "ferns", PocketPlace = "pocket:", RootsPlace = "roots";
+
+    // A fungal pocket is looked into from its way out (#10305), as far out as there is floor between these, its way found within
+    // this reach; its pieces those growing this far round its floor.
+    // A pocket is narrow: its view needs only this much room round the body and the eye.
+    private const float PocketViewNearest = 1.5f, PocketViewFarthest = 4.5f, PocketWayReach = 6f, PocketPieces = 4f, PocketRoom = 0.2f;
+
+    /// <summary>
+    /// Assisted (#10305): stands the player in a fungal pocket's way out - the run of rays round its floor that meet no rock
+    /// within its reach - so far out along it as there is floor and room, facing back into the pocket.
+    /// </summary>
+    private string VisitPocket(int index)
+    {
+        if (space?.Layout is not DungeonLayout layout || layout.Shape is not Func<Vector3, float> open || index < 0 || index >= layout.FungalPockets.Count)
+        {
+            return $"visit refused: no fungal pocket {index} (this cave has {space?.Layout.FungalPockets.Count ?? 0})";
+        }
+
+        Vector3 floor = layout.FungalPockets[index], eye = floor + new Vector3(0f, 1f, 0f), way = Vector3.Zero;
+        for (int k = 0; k < ViewDirections; k++)
+        {
+            float angle = k * MathF.Tau / ViewDirections;
+            Vector3 along = new(MathF.Cos(angle), 0f, MathF.Sin(angle));
+            float t = SightStep;
+            while (t < PocketWayReach && open(eye + (along * t)) > 0f)
+            {
+                t += SightStep;
+            }
+
+            way += along * t;
+        }
+
+        Vector3 outward = way.LengthSquared() > 0f ? Vector3.Normalize(way) : Vector3.UnitX;
+        Vector3 stand = floor;
+        for (float r = PocketViewNearest; r <= PocketViewFarthest; r += SightStep)
+        {
+            Vector3 over = floor + (outward * r) + new Vector3(0f, 1f, 0f);
+            if (open(over) <= 0f)
+            {
+                break;
+            }
+
+            Vector3 feet = StudyField.OnFloor(open, over.X, over.Z, over.Y);
+            if (MathF.Abs(feet.Y - floor.Y) < 1.5f && open(feet + new Vector3(0f, EyeHeight * 0.5f, 0f)) >= PocketRoom && open(feet + new Vector3(0f, EyeHeight, 0f)) >= PocketRoom)
+            {
+                stand = feet;
+            }
+        }
+
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
+        float yaw = MathF.Atan2(floor.X - stand.X, -(floor.Z - stand.Z)) * 180f / MathF.PI;
+        int pieces = layout.Overgrowth.Count(g => g.Kind is OvergrowthKind.Mushrooms or OvergrowthKind.BracketFungi && Vector3.Distance(g.At, floor) < PocketPieces);
+        return string.Create(CultureInfo.InvariantCulture, $"at the fungal pocket {index}: {stand.X:F1},{stand.Y:F1},{stand.Z:F1}, {Vector3.Distance(stand, floor):F1} m out of it ({pieces} fungi), facing yaw={yaw:F0}");
+    }
 
     /// <summary>
     /// Assisted, for the route walk (#10304): stands the player on the floor under a point of a natural cave's main route
@@ -1425,14 +1494,18 @@ internal sealed class DungeonModule : IProductModule
     }
 
     /// <summary>Assisted, for captures (#10304, #10305): open floor seeing the most of a natural cave's pieces of some kinds.</summary>
-    private string VisitPieces(string what, Func<OvergrowthKind, bool> kinds)
+    private string VisitPieces(string what, Func<OvergrowthKind, bool> kinds) =>
+        space?.Layout is DungeonLayout layout ? VisitPlaces(what, [.. layout.Overgrowth.Where(g => kinds(g.Kind)).Select(g => g.At)], ViewNearest)
+            : "visit refused: no natural cave is loaded";
+
+    /// <summary>Stands the player on open floor, from <paramref name="nearest"/> out, that sees the most of the densest gathering of some pieces, facing them.</summary>
+    private string VisitPlaces(string what, List<Vector3> pieces, float nearest)
     {
         if (space?.Layout is not DungeonLayout layout || layout.Shape is not Func<Vector3, float> open)
         {
             return "visit refused: no natural cave is loaded";
         }
 
-        List<Vector3> pieces = [.. layout.Overgrowth.Where(g => kinds(g.Kind)).Select(g => g.At)];
         if (pieces.Count == 0)
         {
             return $"visit refused: this cave grew no {what}";
@@ -1465,7 +1538,7 @@ internal sealed class DungeonModule : IProductModule
         }
 
         (Vector3 Feet, int Seen, Vector3 Facing)? best = null;
-        for (float r = ViewNearest; r <= ViewFarthest; r += ViewRing)
+        for (float r = nearest; r <= ViewFarthest; r += ViewRing)
             for (int k = 0; k < ViewDirections; k++)
             {
                 float angle = k * MathF.Tau / ViewDirections;

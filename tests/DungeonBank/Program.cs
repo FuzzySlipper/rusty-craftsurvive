@@ -198,6 +198,28 @@ if (args is ["probe", string probeSeed, string pt, string pm, string pd, string 
     return 0;
 }
 
+if (args is ["lightgrowth", string lightFrom, string lightTo, ..])
+{
+    KarstCave.StudyNoLightGrowth = args.Contains("unlit");
+    // lightgrowth <from> <to>: growth at the light (#10305) - the arrival's daylight, the ferns, roots and moss by it, and
+    // the fungal pockets with what grew in them - per karst seed, and what the daylight and pockets cost to place.
+    for (ulong lightSeed = ulong.Parse(lightFrom, System.Globalization.CultureInfo.InvariantCulture); lightSeed <= ulong.Parse(lightTo, System.Globalization.CultureInfo.InvariantCulture); lightSeed++)
+    {
+        var litWatch = System.Diagnostics.Stopwatch.StartNew();
+        var lit = KarstCave.Generate(lightSeed, 1d, KarstCave.Centrepiece.None);
+        double litMs = litWatch.Elapsed.TotalMilliseconds;
+        DungeonLayout litLayout = lit.Layout;
+        int ferns = litLayout.Forest.Count(f => f.Species == "fern");
+        int roots = litLayout.Overgrowth.Count(g => g.Kind == OvergrowthKind.RootTangle);
+        int brackets = litLayout.Overgrowth.Count(g => g.Kind == OvergrowthKind.BracketFungi);
+        string stages = $"generate={litMs:F0} " + string.Join(" ", KarstCave.Stages.Where(st => st.Key is "daylight" or "pockets" or "ferns" or "cards" or "ecology" or "sample").Select(st => $"{st.Key}={st.Value:F0}"));
+        string verdict = lit.Verdict.Reason;
+        Console.WriteLine($"karst {lightSeed}: sky={litLayout.SkyOpen} arrival {litLayout.Arrival.X:F0},{litLayout.Arrival.Y:F0},{litLayout.Arrival.Z:F0} ferns={ferns} rootTangles={roots} brackets={brackets} {verdict[verdict.IndexOf("mossCards", StringComparison.Ordinal)..]} [{stages}]");
+    }
+
+    return 0;
+}
+
 if (args is ["karsttime", string karstCount, ..])
 {
     // karsttime <n> [chunksX chunksY chunksZ]: how long KarstCave.Generate takes, and how much air (open voxels) its volume
@@ -720,7 +742,9 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Console.WriteLine($"kit overgrowth: {overgrown} over 8 dungeons ({fewest}..{most} each; {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}); {inDryAir} before dry air");
     Check.That(new[] { OvergrowthKind.Straws, OvergrowthKind.Stalactite, OvergrowthKind.Flowstone, OvergrowthKind.Debris, OvergrowthKind.Gravel }.All(grownKinds.ContainsKey),
         "the ruins must grow the kit's drip and debris: straws, small stalactites, flowstone, debris and gravel");
-    Check.That(fewest > 0 && grownKinds.Keys.Count(k => !OvergrowthPlacement.Formation(k)) == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Ecology(k) && !OvergrowthPlacement.Formation(k)), "every dungeon must grow overgrowth, and the bank every kind of it but the underground ecologies' and the cave formations'");
+    // (The bracket fungi grow only in a cave's damp dead ends, #10305.)
+    Check.That(fewest > 0 && grownKinds.Keys.Count(k => !OvergrowthPlacement.Formation(k)) == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Ecology(k) && !OvergrowthPlacement.Formation(k) && k != OvergrowthKind.BracketFungi),
+        "every dungeon must grow overgrowth, and the bank every kind of it but the underground ecologies', the cave formations' and the caves' bracket fungi");
     Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 
@@ -843,6 +867,45 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
 
     Console.WriteLine($"formations: {string.Join(" ", perCave)} ({string.Join(" ", pieces.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))})");
     Check.That(Enum.GetValues<OvergrowthKind>().Where(OvergrowthPlacement.Formation).All(k => pieces.ContainsKey(k)), "karst caves must place every kind of drip formation");
+}
+
+// Growth at the light (#10305): every karst cave grows ferns by its way in and fungi in damp dead ends among a few seeds -
+// each pocket dark, off the routes, its floor crowded with mushrooms and its walls with bracket fungi - and with the study
+// switched off, neither.
+{
+    List<string> perCave = [];
+    int unlitWays = 0, pockets = 0, unfitPockets = 0;
+    for (ulong seed = 1; seed <= 4; seed++)
+    {
+        DungeonLayout lit = KarstCave.Generate(seed, 1d, KarstCave.Centrepiece.None).Layout;
+        KarstCave.Result cave = KarstCave.Build(seed, KarstCave.Centrepiece.None);
+        int ferns = lit.Forest.Count(f => f.Species == "fern" && System.Numerics.Vector3.Distance(f.At, lit.Arrival) < 18f);
+        unlitWays += ferns == 0 ? 1 : 0;
+        foreach (System.Numerics.Vector3 pocket in cave.FungalPockets)
+        {
+            pockets++;
+            int mushrooms = cave.Overgrowth.Count(g => g.Kind == OvergrowthKind.Mushrooms && System.Numerics.Vector3.Distance(g.At, pocket) < 3.5f);
+            int brackets = cave.Overgrowth.Count(g => g.Kind == OvergrowthKind.BracketFungi && System.Numerics.Vector3.Distance(g.At, pocket) < 7f);
+            bool offRoute = cave.MainRoute.All(r => System.Numerics.Vector3.Distance(r, pocket) >= 4f);
+            bool unfit = cave.DaylightAt(pocket) > 0.02f || !offRoute || mushrooms < 4 || brackets < 1;
+            unfitPockets += unfit ? 1 : 0;
+            if (unfit)
+            {
+                Console.WriteLine($"  unfit pocket {seed} at {pocket}: daylight {cave.DaylightAt(pocket):F3} offRoute {offRoute} mushrooms {mushrooms} brackets {brackets}");
+            }
+        }
+
+        perCave.Add($"{seed}: {ferns} ferns by the way in, {cave.FungalPockets.Count} pockets");
+    }
+
+    KarstCave.StudyNoLightGrowth = true;
+    KarstCave.Result unlit = KarstCave.Build(1, KarstCave.Centrepiece.None);
+    KarstCave.StudyNoLightGrowth = false;
+    bool offGrowsNone = unlit.FungalPockets.Count == 0 && unlit.Daylight.All(d => d == 0f) && unlit.Overgrowth.All(g => g.Kind != OvergrowthKind.BracketFungi);
+    Console.WriteLine($"growth at the light: {string.Join("; ", perCave)}; {unfitPockets}/{pockets} pockets unfit; off grows {(offGrowsNone ? "none" : "SOME")}");
+    Check.That(unlitWays == 0, "every karst cave must grow ferns by its way in");
+    Check.That(pockets > 0 && unfitPockets == 0, "karst caves must grow fungal pockets, each dark, off the main route, with mushrooms and bracket fungi");
+    Check.That(offGrowsNone, "with growth at the light off a cave must grow nothing by the daylight nor in its dead ends");
 }
 
 // A cave kept after the size study chooses a new box samples its own field (R10304-1): a default cave's field and rock at

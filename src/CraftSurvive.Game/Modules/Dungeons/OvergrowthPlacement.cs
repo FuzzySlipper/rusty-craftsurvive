@@ -214,6 +214,9 @@ internal enum OvergrowthKind
 
     /// <summary>A floor patch of fallen angular stone chunks and grit, about 1.4 m across.</summary>
     Debris,
+
+    /// <summary>Growth at the light's fungi (#10305): a wall piece, a cluster of shelf-like bracket fungi stepping out of a damp dead end's wall, about 0.8 m across.</summary>
+    BracketFungi,
 }
 
 /// <summary>

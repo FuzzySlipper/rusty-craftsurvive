@@ -175,6 +175,7 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.Gravel => "models/dungeon-formations/gravel.prop-mesh.json",
         OvergrowthKind.Mud => "models/dungeon-formations/mud.prop-mesh.json",
         OvergrowthKind.Debris => "models/dungeon-formations/debris.prop-mesh.json",
+        OvergrowthKind.BracketFungi => "models/dungeon-overgrowth/bracket-fungi.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 

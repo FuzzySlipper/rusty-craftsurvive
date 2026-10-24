@@ -110,6 +110,13 @@ public sealed class DungeonDebugModule : IDebugCommandModule
         return KarstCave.StudyCarvedFormations ? "the next caves carve their drip formations into the rock" : "the next caves place the geological kit's formation pieces";
     }
 
+    [DebugCommand("craft.dungeon.lightgrowth", Description = "Assisted, for growth at the light's before and after (#10305): off grows nothing by the daylight in the next caves - no ferns, no moss or roots beyond the older rules - and no fungi in their damp dead ends; on grows them (the default).")]
+    public string LightGrowth(string mode)
+    {
+        KarstCave.StudyNoLightGrowth = mode == "off";
+        return KarstCave.StudyNoLightGrowth ? "the next caves grow nothing by the daylight, nor fungi in their dead ends" : "the next caves grow ferns, moss and roots by the daylight and fungi in their damp dead ends";
+    }
+
     [DebugCommand("craft.dungeon.setting", Description = "Assisted, for the community study (#10304): the next caves lie under this region and depth - temperature and moisture (0 to 1, as the world map's) and the cave's depth in metres; a negative depth goes back to each entrance's own.")]
     public string Setting(double temperature, double moisture, double depth) =>
         dungeons.StudySetting(depth < 0 ? null : new CaveSetting(temperature, moisture, (float)depth));
@@ -164,7 +171,7 @@ public sealed class DungeonDebugModule : IDebugCommandModule
             : "no dungeon is loaded";
     }
 
-    [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, a layout cell x,y,z, community:<name>, or route:<i> (#10304: open floor near that community that sees the most of it, naming the yaw that faces it).")]
+    [DebugCommand("craft.dungeon.visit", Description = "Moves the player to a place in the dungeon: arrival, breach, loot, floor0..floorN, a layout cell x,y,z, community:<name>, formations, ferns, roots or pocket:<i> (#10304, #10305: open floor near that community, the formations, the ferns, the root tangles or the cave's i-th fungal pocket, that sees the most of it, naming the yaw that faces it), or route:<i>.")]
     public string Visit(string place) => dungeons.Visit(place);
 
     [DebugCommand("craft.dungeon.sweeproute", Description = "The route walk (#10304): sweeps the player's capsule along a natural cave's main route against the live collision (voxel rock and the communities' trunks) and counts the segments each blocks; passage, not walking.")]

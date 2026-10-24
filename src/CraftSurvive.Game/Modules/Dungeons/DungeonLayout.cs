@@ -80,6 +80,9 @@ internal sealed record DungeonLayout(string Name, DungeonVolume Volume, Vector3 
     /// <summary>The stranger communities a natural cave grew (#10304); empty for built dungeons.</summary>
     internal IReadOnlyList<CaveCommunity> Communities { get; init; } = [];
 
+    /// <summary>A natural cave's fungal pockets (#10305): the floor of each damp dead end its fungi crowd.</summary>
+    internal IReadOnlyList<System.Numerics.Vector3> FungalPockets { get; init; } = [];
+
     /// <summary>The side of the layout's voxels in metres: the world's block, or finer for the micro-voxel study (#10094).</summary>
     internal double VoxelSize { get; init; } = 1d;
 

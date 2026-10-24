@@ -924,20 +924,187 @@ internal static class KarstCave
     }
 
     /// <summary>A cave's openings to the sky, in plan: a tiankeng's, a chasm's.</summary>
-    private static List<(Vector2 Centre, float Radius)> Openings(Result cave)
+    private static List<(Vector2 Centre, float Radius)> Openings(Result cave) => Openings(cave.Tiankeng, cave.Chasm);
+
+    private static List<(Vector2 Centre, float Radius)> Openings((Vector3 Floor, float Radius)? tiankeng, ChasmShape? opened)
     {
         List<(Vector2 Centre, float Radius)> openings = [];
-        if (cave.Tiankeng is (Vector3 floor, float radius))
+        if (tiankeng is (Vector3 floor, float radius))
         {
             openings.Add((new Vector2(floor.X, floor.Z), radius));
         }
 
-        if (cave.Chasm is ChasmShape chasm)
+        if (opened is ChasmShape chasm)
         {
             openings.Add((chasm.Centre, chasm.Radius * (1f + ChasmWobble) + ChasmBand));
         }
 
         return openings;
+    }
+
+    // Growth at the light (#10305): daylight comes into a cave at its way in - the arrival, under its first sink, this far
+    // above the floor - and at its other sinks, lighting what can see them within their reach, and down an opening to the
+    // sky to so far under its rim, where a place can see the opening's middle at the rim. It fades from 1 where it comes
+    // in to 0 at the reach. Moss grows from so much of it (beside its older rule, near a sink and under the sky), ferns
+    // from more, and roots hang from lips from less, near the ground over them. A sight line starts so far out of a grid
+    // cell's middle, so a cell in a wall sees from its face.
+    private const float ArrivalDaylightReach = 18f, SinkDaylightReach = 12f, SkyDaylightDepth = 24f, DaylightAboveFloor = 1.5f, SightFrom = 1.2f;
+    private const float MossDaylight = 0.2f, FernDaylight = 0.4f, RootDaylight = 0.08f;
+
+    /// <summary>Where daylight comes into a cave (#10305): its way in, under the first sink, and its other sinks, each with its reach.</summary>
+    private static (Vector3 At, float Reach)[] DaylightSources(float[] open, Vector3[] sinks, bool skyOpen, ulong seed)
+    {
+        float below = skyOpen ? MathF.Min(sinks[0].Y, SurfaceAt(sinks[0].X, sinks[0].Z, seed) - SinkDepthBelowSurface) : sinks[0].Y;
+        Vector3 way = StudyField.OnFloor(p => Trilinear(open, p), sinks[0].X, sinks[0].Z, below) + (Vector3.UnitY * DaylightAboveFloor);
+        return [(way, ArrivalDaylightReach), .. sinks.Select(s => (s, SinkDaylightReach))];
+    }
+
+    /// <summary>
+    /// How much daylight reaches each cell of the 2 m grid (#10305), 0 to 1: the most of what each source lends a cell that
+    /// sees it, and of what an opening to the sky lends a cell under it that sees its middle at the rim.
+    /// </summary>
+    private static float[] DaylightGrid(float[] open, (Vector3 At, float Reach)[] sources, List<(Vector2 Centre, float Radius)> openings, ulong seed)
+    {
+        float[] light = new float[GridX * GridY * GridZ];
+        bool Sees(Vector3 from, Vector3 to)
+        {
+            Vector3 along = to - from;
+            float length = along.Length();
+            for (float t = SightFrom; t < length - 1f; t += FieldStep)
+            {
+                if (Trilinear(open, from + (along * (t / length))) <= 0f)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        void Lend(int x, int y, int z, float share, Vector3 to)
+        {
+            int i = GridIndex(x, y, z);
+            if (share > light[i] && Sees(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * GridCell, to))
+            {
+                light[i] = share;
+            }
+        }
+
+        foreach ((Vector3 at, float reach) in sources)
+        {
+            int r = (int)MathF.Ceiling(reach / GridCell);
+            (int sx, int sy, int sz) = GridCell3(GridIndex(at));
+            for (int z = Math.Max(0, sz - r); z <= Math.Min(GridZ - 1, sz + r); z++)
+                for (int y = Math.Max(0, sy - r); y <= Math.Min(GridY - 1, sy + r); y++)
+                    for (int x = Math.Max(0, sx - r); x <= Math.Min(GridX - 1, sx + r); x++)
+                    {
+                        float distance = Vector3.Distance(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f) * GridCell, at);
+                        if (distance < reach)
+                        {
+                            Lend(x, y, z, 1f - (distance / reach), at);
+                        }
+                    }
+        }
+
+        foreach ((Vector2 centre, float radius) in openings)
+        {
+            Vector3 sky = new(centre.X, MathF.Min(SurfaceAt(centre.X, centre.Y, seed), (FieldY * FieldStep) - 1f), centre.Y);
+            float reach = radius + MossBeyondOpening;
+            int r = (int)MathF.Ceiling(reach / GridCell);
+            int cx = (int)(centre.X / GridCell), cz = (int)(centre.Y / GridCell);
+            for (int z = Math.Max(0, cz - r); z <= Math.Min(GridZ - 1, cz + r); z++)
+                for (int x = Math.Max(0, cx - r); x <= Math.Min(GridX - 1, cx + r); x++)
+                {
+                    float px = (x + 0.5f) * GridCell, pz = (z + 0.5f) * GridCell;
+                    if (Vector2.Distance(new Vector2(px, pz), centre) >= reach)
+                    {
+                        continue;
+                    }
+
+                    float ground = SurfaceAt(px, pz, seed);
+                    for (int y = Math.Max(0, (int)((ground - SkyDaylightDepth) / GridCell)); y < GridY; y++)
+                    {
+                        float below = ground - ((y + 0.5f) * GridCell);
+                        Lend(x, y, z, below <= 0f ? 1f : 1f - (below / SkyDaylightDepth), sky);
+                    }
+                }
+        }
+
+        return light;
+    }
+
+    /// <summary>The boxes the daylight reaches (#10305): round each source, and under each opening down to the sky's depth.</summary>
+    private static List<(Vector3 Min, Vector3 Max)> DaylightBoxes(Result cave)
+    {
+        List<(Vector3 Min, Vector3 Max)> boxes = [.. cave.DaylightSources.Select(s => (s.At - new Vector3(s.Reach), s.At + new Vector3(s.Reach)))];
+        foreach ((Vector2 centre, float radius) in cave.SkyOpen ? Openings(cave) : [])
+        {
+            float reach = radius + MossBeyondOpening;
+            boxes.Add((new Vector3(centre.X - reach, SurfaceAt(centre.X, centre.Y, cave.Seed) - SkyDaylightDepth, centre.Y - reach),
+                new Vector3(centre.X + reach, FieldY * FieldStep, centre.Y + reach)));
+        }
+
+        return boxes;
+    }
+
+    // Ferns in the daylight (#10305; the overworld's own fern, as the sinkhole forest grows): on floors where the light is
+    // bright enough, on a jittered grid this fine, more of them and larger the brighter up to FernFull; not on the turf (the
+    // sinkhole forest's), nor on steep rock, nor under the water; at most so many.
+    private const float FernSpacing = 1.1f, FernShare = 0.85f, FernFull = 0.7f, FernLeast = 0.35f, FernMost = 0.7f, FernFloorRise = 0.7f;
+    private static int MostFerns => Area(400);
+
+    /// <summary>The ferns growing in a cave's daylight (#10305): each floor under a grid point in a lit box, found looking down.</summary>
+    private static List<ForestPlacement> CaveFerns(Result cave)
+    {
+        List<ForestPlacement> ferns = [];
+        HashSet<(int, int, int)> grown = [];
+        float Open(Vector3 p) => Trilinear(cave.Open, p);
+        foreach ((Vector3 min, Vector3 max) in DaylightBoxes(cave))
+        {
+            for (float gz = MathF.Floor(min.Z / FernSpacing) * FernSpacing; gz < max.Z && ferns.Count < MostFerns; gz += FernSpacing)
+                for (float gx = MathF.Floor(min.X / FernSpacing) * FernSpacing; gx < max.X && ferns.Count < MostFerns; gx += FernSpacing)
+                {
+                    int ix = (int)MathF.Round(gx / FernSpacing), iz = (int)MathF.Round(gz / FernSpacing);
+                    float jx = NaturalCavern.Hash(cave.Seed ^ 0xFE01UL, ix, 0, iz) - 0.5f, jz = NaturalCavern.Hash(cave.Seed ^ 0xFE02UL, ix, 0, iz) - 0.5f;
+                    float x = gx + (jx * FernSpacing * 0.8f), z = gz + (jz * FernSpacing * 0.8f);
+                    if (x < 1f || z < 1f || x > (FieldX * FieldStep) - 1f || z > (FieldZ * FieldStep) - 1f)
+                    {
+                        continue;
+                    }
+
+                    // Every floor in the column within the box: air over rock.
+                    for (float y = MathF.Min(max.Y, (FieldY * FieldStep) - 1f); y > MathF.Max(1f, min.Y); y -= FieldStep * 0.5f)
+                    {
+                        Vector3 p = new(x, y, z);
+                        if (Open(p) <= 0f || Open(p - new Vector3(0f, FieldStep * 0.5f, 0f)) > 0f)
+                        {
+                            continue;
+                        }
+
+                        Vector3 foot = Floor(cave.Open, p) - new Vector3(0f, 0.08f, 0f);
+                        int iy = (int)MathF.Floor(foot.Y);
+                        float light = cave.DaylightAt(foot + Vector3.UnitY);
+                        if (light < FernDaylight || !grown.Add((ix, iy, iz)))
+                        {
+                            continue;
+                        }
+
+                        Vector3 up = new(Open(foot + new Vector3(0.3f, 0.3f, 0f)) - Open(foot + new Vector3(-0.3f, 0.3f, 0f)), 0.6f,
+                            Open(foot + new Vector3(0f, 0.3f, 0.3f)) - Open(foot + new Vector3(0f, 0.3f, -0.3f)));
+                        float bright = Math.Clamp((light - FernDaylight) / (FernFull - FernDaylight), 0f, 1f);
+                        float roll = NaturalCavern.Hash(cave.Seed ^ 0xFE03UL, ix, iy, iz), pick = NaturalCavern.Hash(cave.Seed ^ 0xFE04UL, ix, iy, iz);
+                        if (roll >= FernShare * bright || Vector3.Normalize(up).Y < FernFloorRise || cave.RockAt(foot - new Vector3(0f, FieldStep, 0f)) == BlockId.Grass
+                            || cave.WaterZones.Any(w => w.BedUnder(foot) is not null && w.Surface > foot.Y))
+                        {
+                            continue;
+                        }
+
+                        ferns.Add(new ForestPlacement("fern", (int)(pick * 977f) % 4, foot, pick * 360f, (FernLeast + ((FernMost - FernLeast) * bright)) * (0.85f + (0.3f * roll))));
+                    }
+                }
+        }
+
+        return ferns;
     }
 
     // Moss and ivy cards (#10092; #10044's painted cards): grown where the cave's moss is, more of them the wetter the
@@ -952,6 +1119,10 @@ internal static class KarstCave
     // (an opening's cliff always, else this share times the damp), ivy mounds at mossy walls' feet, ivy clumps on mossy
     // walls, grass tufts on mossy floors; each kind at least so far apart, and at most so many in a cave.
     private const float DrapeShare = 0.5f, MoundShare = 0.35f, ClumpShare = 0.25f, GrassShare = 0.35f, GrowthApart = 1.4f;
+
+    // The share of the lips by a way in that the trees' roots hang from (#10305), so far apart, and at most so many a cave.
+    private const float EntranceRootShare = 0.45f, LipRootsApart = 2.5f;
+    private static int MostLipRoots => Area(24);
     private static int MostOvergrowth => Area(1500);
 
     // Plain mushrooms on damp, still floors anywhere in the dark (beside the glow fungi), and root tangles under the
@@ -997,6 +1168,12 @@ internal static class KarstCave
             boxes.Add((new Vector3(centre.X - reach, floor, centre.Y - reach), new Vector3(centre.X + reach, top, centre.Y + reach)));
         }
 
+        // And as far as the daylight reaches (#10305), after the older boxes so what they grew stays.
+        if (!StudyNoLightGrowth)
+        {
+            boxes.AddRange(cave.DaylightSources.Select(s => (s.At - new Vector3(s.Reach), s.At + new Vector3(s.Reach))));
+        }
+
         bool InIvy(Vector3 p)
         {
             float below = SurfaceAt(p.X, p.Z, cave.Seed) - p.Y;
@@ -1034,17 +1211,18 @@ internal static class KarstCave
 
         HashSet<(int, int, int)> taken = [];
         HashSet<(OvergrowthKind, int, int, int)> grownAt = [];
-        // An overgrowth of a kind at a place, unless one of its kind already grows within GrowthApart.
-        void Grow(OvergrowthKind kind, Vector3 at, Vector3 outward, Vector3 up, float pick)
+        // An overgrowth of a kind at a place, unless one of its kind already grows within so far apart (GrowthApart).
+        void Grow(OvergrowthKind kind, Vector3 at, Vector3 outward, Vector3 up, float pick, float apart = GrowthApart)
         {
             if (overgrowth.Count < MostOvergrowth
-                && grownAt.Add((kind, (int)MathF.Floor(at.X / GrowthApart), (int)MathF.Floor(at.Y / GrowthApart), (int)MathF.Floor(at.Z / GrowthApart))))
+                && grownAt.Add((kind, (int)MathF.Floor(at.X / apart), (int)MathF.Floor(at.Y / apart), (int)MathF.Floor(at.Z / apart))))
             {
                 overgrowth.Add(new OvergrowthPlacement(kind, at, outward, 0.85f + (0.3f * pick), pick, up));
             }
         }
 
         List<MossCard> cards = [];
+        int lipRoots = 0;
         foreach ((Vector3 min, Vector3 max) in boxes)
         {
             for (float z = MathF.Max(1f, min.Z); z < MathF.Min(FieldZ * FieldStep - 1f, max.Z) && cards.Count < MostCards; z += CardStep)
@@ -1079,7 +1257,10 @@ internal static class KarstCave
 
                         bool ivy = openings.Count > 0 && InIvy(s) && Cliff(s, n);
                         bool mossy = MossPatch(s, n);
-                        if (!ivy && !mossy)
+                        // Roots of the trees over a way in (#10305): from lips in the daylight near the ground above.
+                        float ground = cave.SkyOpen ? SurfaceAt(s.X, s.Z, cave.Seed) : top;
+                        bool rooted = !ivy && cave.DaylightAt(s) >= RootDaylight && ground - s.Y < EntranceRootsUnder;
+                        if (!ivy && !mossy && !rooted)
                         {
                             continue;
                         }
@@ -1120,7 +1301,17 @@ internal static class KarstCave
 
                         bool lip = edge < LipAbove && Open(s + (outward * 0.4f) - (Vector3.UnitY * LipDrop)) > 0f;
                         bool foot = Open(s + (outward * 0.3f) - (Vector3.UnitY * FootBelow)) <= 0f;
-                        if (lip && growRoll < (ivy ? 1f : DrapeShare * wet))
+                        if (lip && rooted && lipRoots < MostLipRoots && NaturalCavern.Hash(cave.Seed ^ 0x0F64UL, cx, cy, cz) < EntranceRootShare)
+                        {
+                            int before = overgrowth.Count;
+                            Grow(OvergrowthKind.RootTangle, s + (Vector3.UnitY * edge), outward, Vector3.UnitY, pick, LipRootsApart);
+                            lipRoots += overgrowth.Count - before;
+                        }
+                        else if (!mossy && !ivy)
+                        {
+                            continue;
+                        }
+                        else if (lip && growRoll < (ivy ? 1f : DrapeShare * wet))
                         {
                             // Long vines down an opening's cliff, shorter ones from a lip in the dark.
                             Grow(ivy || growRoll < 0.3f ? OvergrowthKind.VineDrape : OvergrowthKind.VineDrapeShort, s + (Vector3.UnitY * edge), outward, Vector3.UnitY, pick);
@@ -1134,7 +1325,7 @@ internal static class KarstCave
                             Grow(OvergrowthKind.IvyClump, s, n, Vector3.UnitY, pick);
                         }
 
-                        if (lip && roll < (ivy ? 1f : CurtainShare * wet))
+                        if (lip && (mossy || ivy) && roll < (ivy ? 1f : CurtainShare * wet))
                         {
                             Vector3 lipAt = s + (Vector3.UnitY * edge);
                             cards.Add(new MossCard(MossCardKind.Curtain, lipAt, outward, n, pick));
@@ -1582,6 +1773,10 @@ internal static class KarstCave
     // and capped.
     private const float RootsUnderSurface = 7f, RootsClearBelow = 2f, RootsApart = 3.5f;
     private static int MostRoots => Area(14);
+
+    // By the daylight (#10305) roots hang from ceilings this far under the ground, and so many more of them.
+    private const float EntranceRootsUnder = 14f;
+    private static int MostEntranceRoots => Area(8);
     private const float EcologyStep = 1f;
 
     /// <summary>
@@ -1590,7 +1785,7 @@ internal static class KarstCave
     /// dry levels; each kind spaced apart and capped, chosen by hash so a seed always grows the same cave.
     /// </summary>
     private static List<EcologyPlacement> Ecology(float[] open, byte[] formed, float[] flow, float[] drip, float[] standing, int eras, float finalTable, ulong seed,
-        bool skyOpen, List<OvergrowthPlacement> overgrowth)
+        bool skyOpen, List<OvergrowthPlacement> overgrowth, float[] daylight)
     {
         List<(EcologyKind Kind, Vector3 At, Vector3 Normal, float Rank)> candidates = [];
         // The overgrowth's mushrooms and root tangles (#10096), ranked by their own hash.
@@ -1624,15 +1819,19 @@ internal static class KarstCave
                         candidates.Add((EcologyKind.GlowWorms, Ceiling(open, p), -Vector3.UnitY, rank));
                     }
 
-                    // A ceiling just under the surface, with room below: tree roots grown down through the rock.
+                    // A ceiling just under the surface, with room below: tree roots grown down through the rock. By the daylight
+                    // (#10305) they come from deeper, and are chosen first.
                     float ground = skyOpen ? SurfaceAt(p.X, p.Z, seed) : FieldY * FieldStep;
-                    if (Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p - new Vector3(0f, RootsClearBelow, 0f)) > 0f && ground - p.Y < RootsUnderSurface)
+                    bool byDaylight = GridTrilinear(daylight, p) >= RootDaylight;
+                    float under = byDaylight ? EntranceRootsUnder : RootsUnderSurface;
+                    if (Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && Open(p - new Vector3(0f, RootsClearBelow, 0f)) > 0f && ground - p.Y < under)
                     {
                         Vector3 roof = Ceiling(open, p);
-                        if (ground - roof.Y < RootsUnderSurface)
+                        if (ground - roof.Y < under)
                         {
-                            candidates.Add((EcologyKind.RootCurtain, roof, -Vector3.UnitY, rank));
-                            growing.Add((OvergrowthKind.RootTangle, roof + new Vector3(0f, 0.15f, 0f), NaturalCavern.Hash(seed ^ 0x0F63UL, (int)x, (int)y, (int)z)));
+                            float first = byDaylight ? 1f : 0f;
+                            candidates.Add((EcologyKind.RootCurtain, roof, -Vector3.UnitY, rank + first));
+                            growing.Add((OvergrowthKind.RootTangle, roof + new Vector3(0f, 0.15f, 0f), NaturalCavern.Hash(seed ^ 0x0F63UL, (int)x, (int)y, (int)z) + first));
                         }
                     }
 
@@ -1645,7 +1844,7 @@ internal static class KarstCave
 
         List<EcologyPlacement> chosen = [];
         foreach ((EcologyKind kind, float apart, int most) in new[] { (EcologyKind.GlowFungi, FungiApart, MostFungi), (EcologyKind.GlowWorms, WormsApart, MostWorms),
-            (EcologyKind.CrystalBloom, CrystalsApart, MostCrystals), (EcologyKind.RootCurtain, RootsApart, MostRoots) })
+            (EcologyKind.CrystalBloom, CrystalsApart, MostCrystals), (EcologyKind.RootCurtain, RootsApart, MostRoots + MostEntranceRoots) })
         {
             foreach ((EcologyKind _, Vector3 at, Vector3 normal, float rank) in candidates.Where(c => c.Kind == kind).OrderByDescending(c => c.Rank))
             {
@@ -1654,12 +1853,13 @@ internal static class KarstCave
                     continue;
                 }
 
-                chosen.Add(new EcologyPlacement(kind, at, normal, 0.7f + (0.6f * rank), (uint)(rank * uint.MaxValue)));
+                float own = rank % 1f;
+                chosen.Add(new EcologyPlacement(kind, at, normal, 0.7f + (0.6f * own), (uint)(own * uint.MaxValue)));
             }
         }
 
         foreach ((OvergrowthKind kind, float apart, int most) in new[] { (OvergrowthKind.Mushrooms, MushroomsApart, MostMushrooms),
-            (OvergrowthKind.RootTangle, RootTanglesApart, MostRootTangles) })
+            (OvergrowthKind.RootTangle, RootTanglesApart, MostRootTangles + MostEntranceRoots) })
         {
             List<Vector3> placed = [];
             foreach ((OvergrowthKind _, Vector3 at, float rank) in growing.Where(g => g.Kind == kind).OrderByDescending(g => g.Rank))
@@ -1670,13 +1870,216 @@ internal static class KarstCave
                 }
 
                 placed.Add(at);
-                float a = 2f * MathF.PI * rank;
+                float own = rank % 1f, a = 2f * MathF.PI * own;
                 // A floor's up is near enough the world's for a cluster; roots hang from the roof as they grew.
-                overgrowth.Add(new OvergrowthPlacement(kind, at, new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), kind == OvergrowthKind.Mushrooms ? 1.5f + rank : 0.9f + (0.3f * rank), rank));
+                overgrowth.Add(new OvergrowthPlacement(kind, at, new Vector3(MathF.Sin(a), 0f, MathF.Cos(a)), kind == OvergrowthKind.Mushrooms ? 1.5f + own : 0.9f + (0.3f * own), own));
             }
         }
 
         return chosen;
+    }
+
+    // Fungi in the damp dead ends (#10305): a pocket a passage ends in - looking round at this height over its floor, rock
+    // within this reach every way but one run of at most so many of these rays (its way out), a roof over it this near, and
+    // room in it for a body (the field this open at its middle, half that at its head) - where it is dark, damp and still,
+    // at least this far from any route; pockets keep so far apart, at most so many a cave.
+    private const float PocketEye = 1f, PocketReach = 6f, PocketRoof = 4f, PocketBody = 0.3f, PocketHead = 1.7f, PocketFromRoute = 4f, PocketsApart = 10f, PocketDark = 0.02f;
+    private const int PocketRays = 16, PocketWayOut = 5;
+    private static int MostPockets => Area(10);
+
+    // A pocket's growth: mushrooms crowded over its floor out to this radius, looked for on a lattice this fine, at most so
+    // many, each so far from the next, larger nearer its middle; glow fungi among every so many of them; and bracket fungi
+    // on its walls at these heights over the floor, each so far from the next and at most so many, the rays that found its
+    // walls taking this share of their hits.
+    private const float PocketRadius = 3f, PocketLattice = 0.35f, MushroomCrowd = 0.45f, PocketMushroomLeast = 1.4f, PocketMushroomMore = 1.4f, BracketApart = 0.7f, BracketShare = 0.6f;
+    private const int PocketMushrooms = 14, GlowEvery = 4, MostBrackets = 10;
+    private static readonly float[] BracketHeights = [0.3f, 0.9f, 1.5f];
+
+    /// <summary>
+    /// The cave's fungal pockets (#10305): each damp, dark dead end off the routes, by how closed it is, grown with mushrooms,
+    /// glow fungi and bracket fungi; none inside a community's claim.
+    /// </summary>
+    private static List<Vector3> FungalPockets(float[] open, float[] drip, float[] standing, float[] flow, Vector3[] routePoints, float[] daylight, ulong seed,
+        List<EcologyPlacement> ecology, List<OvergrowthPlacement> growth, List<(Vector3 At, float Radius)> claimed)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        // The routes by cell, for the distance to the nearest.
+        Dictionary<(int, int, int), List<Vector3>> routes = [];
+        (int, int, int) RouteCell(Vector3 p) => ((int)MathF.Floor(p.X / PocketFromRoute), (int)MathF.Floor(p.Y / PocketFromRoute), (int)MathF.Floor(p.Z / PocketFromRoute));
+        foreach (Vector3 r in routePoints)
+        {
+            (int, int, int) cell = RouteCell(r);
+            if (!routes.TryGetValue(cell, out List<Vector3>? there))
+            {
+                routes[cell] = there = [];
+            }
+
+            there.Add(r);
+        }
+
+        bool NearRoute(Vector3 p)
+        {
+            (int x, int y, int z) = RouteCell(p);
+            for (int dz = -1; dz <= 1; dz++)
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (routes.TryGetValue((x + dx, y + dy, z + dz), out List<Vector3>? there) && there.Any(r => Vector3.Distance(r, p) < PocketFromRoute))
+                        {
+                            return true;
+                        }
+                    }
+
+            return false;
+        }
+
+        // How far each of the rays round a place runs before rock, out to the reach.
+        float[] Rays(Vector3 eye)
+        {
+            float[] reach = new float[PocketRays];
+            for (int k = 0; k < PocketRays; k++)
+            {
+                float a = k * MathF.Tau / PocketRays;
+                Vector3 along = new(MathF.Cos(a), 0f, MathF.Sin(a));
+                float t = FieldStep;
+                while (t < PocketReach && Open(eye + (along * t)) > 0f)
+                {
+                    t += FieldStep;
+                }
+
+                reach[k] = t;
+            }
+
+            return reach;
+        }
+
+        List<(Vector3 Floor, float Rank)> candidates = [];
+        for (float z = 2f; z < GridZ * GridCell - 2f; z += EcologyStep)
+            for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
+                for (float x = 2f; x < GridX * GridCell - 2f; x += EcologyStep)
+                {
+                    Vector3 p = new(x, y, z);
+                    if (Open(p) <= 0f || Open(p - new Vector3(0f, EcologyStep, 0f)) > 0f)
+                    {
+                        continue;
+                    }
+
+                    if (MathF.Max(GridTrilinear(drip, p), GridTrilinear(standing, p)) < FungiDamp || GridTrilinear(flow, p) >= QuietFlow || GridTrilinear(daylight, p) > PocketDark)
+                    {
+                        continue;
+                    }
+
+                    Vector3 floor = Floor(open, p);
+                    Vector3 eye = floor + new Vector3(0f, PocketEye, 0f);
+                    // Room for a body to stand in it, and a roof over it.
+                    if (Open(eye) < PocketBody || Open(floor + new Vector3(0f, PocketHead, 0f)) < PocketBody * 0.5f || Open(eye + new Vector3(0f, PocketRoof, 0f)) > 0f || NearRoute(floor))
+                    {
+                        continue;
+                    }
+
+                    // Closed every way but one run of rays.
+                    float[] reach = Rays(eye);
+                    int outs = reach.Count(t => t >= PocketReach), runs = 0;
+                    for (int k = 0; k < PocketRays; k++)
+                    {
+                        runs += reach[k] >= PocketReach && reach[(k + PocketRays - 1) % PocketRays] < PocketReach ? 1 : 0;
+                    }
+
+                    if (outs < 1 || outs > PocketWayOut || runs != 1)
+                    {
+                        continue;
+                    }
+
+                    candidates.Add((floor, PocketRays - outs + NaturalCavern.Hash(seed ^ 0xF0F1UL, (int)x, (int)y, (int)z)));
+                }
+
+        List<Vector3> pockets = [];
+        foreach ((Vector3 floor, float _) in candidates.OrderByDescending(c => c.Rank))
+        {
+            if (pockets.Count >= MostPockets || pockets.Any(q => Vector3.Distance(q, floor) < PocketsApart)
+                || claimed.Any(c => Vector3.Distance(c.At, floor) < c.Radius + PocketRadius))
+            {
+                continue;
+            }
+
+            pockets.Add(floor);
+            ulong salt = seed ^ (ulong)pockets.Count * 0x9E37UL;
+            // Mushrooms crowded over its open floor: of the floor points on a fine lattice round it, the first by hash that
+            // keep apart, larger nearer its middle.
+            List<(Vector3 At, float Pick)> floors = [];
+            for (float dz = -PocketRadius; dz <= PocketRadius; dz += PocketLattice)
+                for (float dx = -PocketRadius; dx <= PocketRadius; dx += PocketLattice)
+                {
+                    Vector3 over = floor + new Vector3(dx, PocketEye, dz);
+                    if (dx * dx + dz * dz > PocketRadius * PocketRadius || Open(over) <= 0f)
+                    {
+                        continue;
+                    }
+
+                    Vector3 at = Floor(open, over);
+                    if (MathF.Abs(at.Y - floor.Y) <= PocketEye)
+                    {
+                        floors.Add((at, NaturalCavern.Hash(salt, (int)MathF.Round(dx / PocketLattice), 0, (int)MathF.Round(dz / PocketLattice))));
+                    }
+                }
+
+            List<Vector3> crowded = [];
+            foreach ((Vector3 at, float pick) in floors.OrderBy(f => f.Pick))
+            {
+                if (crowded.Count >= PocketMushrooms || crowded.Any(q => Vector3.Distance(q, at) < MushroomCrowd))
+                {
+                    continue;
+                }
+
+                crowded.Add(at);
+                float near = 1f - MathF.Min(1f, Vector3.Distance(at, floor) / PocketRadius);
+                growth.Add(new OvergrowthPlacement(OvergrowthKind.Mushrooms, at - new Vector3(0f, 0.06f, 0f), new Vector3(MathF.Sin(pick * MathF.Tau), 0f, MathF.Cos(pick * MathF.Tau)),
+                    (PocketMushroomLeast + (PocketMushroomMore * near)) * (0.8f + (0.4f * pick)), pick));
+                if (crowded.Count % GlowEvery == 1)
+                {
+                    ecology.Add(new EcologyPlacement(EcologyKind.GlowFungi, at, Vector3.UnitY, 0.7f + (0.6f * pick), (uint)(pick * uint.MaxValue)));
+                }
+            }
+
+            // Bracket fungi on its walls: where the rays at each height meet the rock, the surface found between the last
+            // air and the rock, facing out of it.
+            List<Vector3> brackets = [];
+            foreach (float height in BracketHeights)
+            {
+                Vector3 eye = floor + new Vector3(0f, height, 0f);
+                float[] reach = Rays(eye);
+                for (int k = 0; k < PocketRays && brackets.Count < MostBrackets; k++)
+                {
+                    if (reach[k] >= PocketReach || NaturalCavern.Hash(salt ^ 0xB1UL, k, (int)(height * 10f), 0) >= BracketShare)
+                    {
+                        continue;
+                    }
+
+                    float a = k * MathF.Tau / PocketRays;
+                    Vector3 along = new(MathF.Cos(a), 0f, MathF.Sin(a));
+                    Vector3 air = eye + (along * (reach[k] - FieldStep)), rock = eye + (along * reach[k]);
+                    for (int step = 0; step < 6; step++)
+                    {
+                        Vector3 mid = (air + rock) * 0.5f;
+                        (air, rock) = Open(mid) > 0f ? (mid, rock) : (air, mid);
+                    }
+
+                    Vector3 g = new(Open(air + (Vector3.UnitX * 0.1f)) - Open(air - (Vector3.UnitX * 0.1f)), Open(air + (Vector3.UnitY * 0.1f)) - Open(air - (Vector3.UnitY * 0.1f)),
+                        Open(air + (Vector3.UnitZ * 0.1f)) - Open(air - (Vector3.UnitZ * 0.1f)));
+                    if (g.LengthSquared() < 1e-8f || MathF.Abs(Vector3.Normalize(g).Y) > CardSideRise || brackets.Any(q => Vector3.Distance(q, air) < BracketApart))
+                    {
+                        continue;
+                    }
+
+                    brackets.Add(air);
+                    Vector3 outward = Vector3.Normalize(new Vector3(g.X, 0f, g.Z));
+                    float pick = NaturalCavern.Hash(salt ^ 0xB2UL, k, (int)(height * 10f), 0);
+                    growth.Add(new OvergrowthPlacement(OvergrowthKind.BracketFungi, air - (outward * 0.05f), outward, 0.8f + (0.5f * pick), pick, Vector3.UnitY));
+                }
+            }
+        }
+
+        return pockets;
     }
 
     /// <summary>
@@ -1695,13 +2098,19 @@ internal static class KarstCave
     internal static bool StudyNoCommunities { get; set; }
 
     /// <summary>The study switches that shape generation, for the generation cache's key.</summary>
-    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}";
+    internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}{(StudyNoLightGrowth ? "-unlit" : string.Empty)}";
 
     /// <summary>
     /// For the geological kit's before and after (#10305): true carves the drip formations into the rock, as before the kit,
     /// and places none of the kit's pieces - in caves or, through <see cref="KitOvergrowth"/>, in ruins.
     /// </summary>
     internal static bool StudyCarvedFormations { get; set; }
+
+    /// <summary>
+    /// For growth at the light's before and after (#10305): true grows nothing by the daylight - no ferns, no moss or roots
+    /// beyond the older rules - and no fungi in the damp dead ends.
+    /// </summary>
+    internal static bool StudyNoLightGrowth { get; set; }
 
     private static int StudyCount(CaveCommunity community) => community switch
     {
@@ -3336,6 +3745,17 @@ private static int MostBarrensPieces => Area(400);
         /// <summary>The region and depth the cave was generated for (#10304).</summary>
         internal CaveSetting Setting { get; init; }
 
+        /// <summary>Where daylight comes in (#10305), each source with its reach, and how much of it reaches each cell of the 2 m grid.</summary>
+        internal required (Vector3 At, float Reach)[] DaylightSources { get; init; }
+
+        internal required float[] Daylight { get; init; }
+
+        /// <summary>The damp dead ends fungi grow in (#10305): each pocket's floor.</summary>
+        internal IReadOnlyList<Vector3> FungalPockets { get; init; } = [];
+
+        /// <summary>How much daylight reaches a place (#10305), 0 to 1.</summary>
+        internal float DaylightAt(Vector3 p) => GridTrilinear(Daylight, p, Box);
+
         /// <summary>The overgrowth the dark grows (#10096): mushrooms on damp still floors, root tangles under the surface.</summary>
         internal required IReadOnlyList<OvergrowthPlacement> Overgrowth { get; init; }
         /// <summary>A tiankeng's floor centre and radius, or null; and whether the cave opens to the sky (it has a surface).</summary>
@@ -3478,10 +3898,15 @@ private static int MostBarrensPieces => Area(400);
 
         /// <summary>
         /// Whether light reaches rock (#10129): near a sink, where the surface's water (and light) comes in, or under a
-        /// tiankeng's or a chasm's opening, within reach of the sky's light down its walls.
+        /// tiankeng's or a chasm's opening, within reach of the sky's light down its walls; or wherever enough daylight does (#10305).
         /// </summary>
         private bool Lit(Vector3 p)
         {
+            if (DaylightAt(p) >= MossDaylight)
+            {
+                return true;
+            }
+
             foreach (Vector3 sink in SinkPoints)
             {
                 if (Vector3.DistanceSquared(sink, p) < MossNearSink * MossNearSink)
@@ -3632,6 +4057,8 @@ private static int MostBarrensPieces => Area(400);
         List<OvergrowthPlacement> overgrowth = [.. cave.Overgrowth];
         List<MossCard> cards = MossCards(cave, overgrowth);
         Mark("cards");
+        List<ForestPlacement> ferns = CaveFerns(cave);
+        Mark("ferns");
         // Nothing grows under the water.
         // (An arch spans over water, its crown above it, and a curtain hangs from the ceiling: those stand.)
         overgrowth.RemoveAll(g => g.Kind is not (OvergrowthKind.RibbonArch or OvergrowthKind.RibbonArchWide or OvergrowthKind.RibbonCurtain)
@@ -3650,17 +4077,18 @@ private static int MostBarrensPieces => Area(400);
                 .Concat(cave.WaterZones.Where(z => z.Kind == WaterZoneKind.MistSump).SelectMany(SumpMist)).Take(MostMistVolumes)],
             Waterfalls = cave.Waterfalls,
             WaterZones = cave.WaterZones,
-            Forest = cave.SkyOpen ? SinkholeForest(cave) : [],
+            Forest = [.. cave.SkyOpen ? SinkholeForest(cave) : [], .. ferns],
             MossCards = cards,
             Overgrowth = overgrowth,
             Abyss = cave.Chasm is ChasmShape abyss ? (new Vector3(abyss.Centre.X, 0f, abyss.Centre.Y), (abyss.Radius * (1f + ChasmWobble)) + ChasmBand) : null,
             Ecology = cave.Ecology,
             Communities = cave.Communities,
             MainRoute = cave.MainRoute,
+            FungalPockets = cave.FungalPockets,
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
-            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
+            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>
@@ -3899,7 +4327,11 @@ private static int MostBarrensPieces => Area(400);
         {
             darkGrowth.AddRange(SmallKit(open, formed, activeFlow, drip, standing, sediment, rubble, eras.Length, finalTable, seed));
         }
-        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
+        // Where daylight comes in and how far it reaches (#10305): the moss, ferns and roots grow by it.
+        (Vector3 At, float Reach)[] daylightSources = DaylightSources(open, sinks, skyOpen, seed);
+        float[] daylight = StudyNoLightGrowth ? new float[GridX * GridY * GridZ] : DaylightGrid(open, daylightSources, skyOpen ? Openings(tiankeng, chasm) : [], seed);
+        Mark("daylight");
+        List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth, daylight);
         Mark("ecology");
         // The cave's stranger communities (#10304; owner, 2026-10-23): the study switches when any is set, else one to three
         // chosen by the region above and by depth, each grown where the cave has its sites and they lie deep enough. Each is
@@ -4049,6 +4481,9 @@ private static int MostBarrensPieces => Area(400);
         }
 
         Mark("communities");
+        // Fungi in the damp dead ends (#10305), clear of the communities.
+        List<Vector3> pockets = StudyNoLightGrowth ? [] : FungalPockets(open, drip, standing, activeFlow, routePoints, daylight, seed, ecology, darkGrowth, claimed);
+        Mark("pockets");
 
         Waterfall[] waterfalls = chasm is ChasmShape fallInto ? Waterfalls(open, activeFlow, passages0, fallInto, seed) : [];
         List<WaterZone> waterZones = WaterZones(open, finalTable);
@@ -4081,6 +4516,9 @@ private static int MostBarrensPieces => Area(400);
             Drip = drip,
             Standing = standing,
             SinkPoints = sinks,
+            DaylightSources = daylightSources,
+            Daylight = daylight,
+            FungalPockets = pockets,
             Spring = spring,
             Chambers = [.. chambers],
             MainRoute = mainRoute,
