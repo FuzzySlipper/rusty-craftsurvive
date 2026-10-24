@@ -154,6 +154,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     private Vector2 followed;
     private Vector2 regionMinimum, regionMaximum;
     private bool detailPending;
+    /// <summary>A patch step left the region window's move to the next update (#10347).</summary>
+    private bool coverWaits;
     private readonly MapCameraRig rig;
     private readonly MapClutter clutter;
     private readonly TerrainGroundMaterials? coarseGround, detailGround, continentGround;
@@ -239,7 +241,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             coarse = Layer(1, CellMetres, fine, NoRiver, 0, (x, z) => InDetail(x, z) ? UnderDetail(fine, x, z) : 0, false, coarseGround, CoarseLayerCoarseBeyond,
                 regions is null ? null : (RegionFade, ContinentCellMetres, Transition(continentGround), map.Sample, []));
             detail = Layer(1d / DetailPerCell, DetailMetres, fine, fineRivers, RiverReach, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond,
-                (EdgeFade, CellMetres, Transition(coarseGround), fine, []));
+                (EdgeFade, CellMetres, Transition(coarseGround), fine, detailDitherSlots));
             clutter = new MapClutter(engine, content, map, fine);
             riverRibbons = new MapRiverRibbons(engine, materials[RiverSlot]);
             waterSurfaces = new MapWaterSurfaces(engine, map, materials[Slot(MapBiome.Sea)], kind => Flat(MapPalette.LakeColour(kind)),
@@ -368,6 +370,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         MoveParty(from);
         foreach (MapVoxelLayer layer in Layers) layer.ResetTimings();
         Profile.Reset();
+        regionMoves = regionPatchResamples = regionCoarseResamples = 0;
         sweepTo = to;
         sweepStep = metresPerUpdate;
     }
@@ -382,6 +385,15 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// </summary>
     internal static bool ExactShift { get; set; } = true;
 
+    /// <summary>
+    /// How a continent's region window moving its 512 m step resamples (#10347). Exact (the default): region ground eases on
+    /// the window's fade alone, so only what reads it where the fade changed is dropped or resampled (<see cref="MoveRegion"/>),
+    /// and the move waits for the update after the patch's step it always falls with. False resamples both windows' whole fade
+    /// bands and drops all the ground the patch and the coarse sink keep, in the patch's step's update, as before, for the A/B.
+    /// A continent sweep's slowest update fell from 0.76-0.80 s that way to 0.44-0.45 s.
+    /// </summary>
+    internal static bool ExactRegion { get; set; } = true;
+
     /// <summary>Where the open map's updates spend their time (#10346).</summary>
     internal MapUpdateProfile Profile { get; } = new();
 
@@ -389,7 +401,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     /// <summary>Each layer's stream cost since the last sweep began.</summary>
     internal string StreamReadout => FormattableString.Invariant(
-        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} party={followed.X:F0},{followed.Y:F0} | ")
+        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} regionMoves={regionMoves} regionCoarse={regionCoarseResamples} regionPatch={regionPatchResamples} party={followed.X:F0},{followed.Y:F0} | ")
         + string.Join(" | ", (continent is null ? new[] { ("coarse", coarse), ("detail", detail) } : [("continent", continent), ("coarse", coarse), ("detail", detail)])
             .Select(entry => entry.Item2.TimingReadout(entry.Item1)))
         + " | " + Profile.Readout;
@@ -536,6 +548,8 @@ internal sealed class WorldMapVoxelView : IDisposable
         {
             // Region tiles finish off-thread: admit what they now cover, and the patch once it can be drawn.
             if (detailPending) Follow(followed);
+            // A patch step this update left the region's move to the next (#10347).
+            else if (coverWaits) coverWaits = false;
             else CoverRegion();
             Profile.Mark("advance.cover");
             if (continent!.PendingChunks > 0 || !continent.Settled)
@@ -568,12 +582,18 @@ internal sealed class WorldMapVoxelView : IDisposable
     private void Follow(Vector2 world)
     {
         followed = world;
-        CoverRegion();
-        Profile.Mark("follow.cover");
         long span = 2 * DetailRadiusChunks;
         long maximumStart = Math.Max(firstDetailChunk, lastDetailChunk - span + 1);
         long x0 = Math.Clamp((long)Math.Floor(world.X / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
         long z0 = Math.Clamp((long)Math.Floor(world.Y / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
+        // A region chunk holds four detail chunks across, so the region window's step always falls with a step of the patch's.
+        // There the region's move waits for the next update (#10347), which resamples what it changed, patch columns included;
+        // the windows come first otherwise (the first, or a jump), as the ground beneath samples them.
+        bool step = ExactRegion && regions is not null && windowChunkX != long.MinValue && (x0 != windowChunkX || z0 != windowChunkZ)
+            && Math.Abs(x0 - windowChunkX) <= 1 && Math.Abs(z0 - windowChunkZ) <= 1;
+        if (step) coverWaits = true;
+        else CoverRegion();
+        Profile.Mark("follow.cover");
         if (x0 == windowChunkX && z0 == windowChunkZ) { detailPending = false; return; }
         if (regions is not null)
         {
@@ -584,6 +604,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             {
                 regions.Prefetch(minX, minZ, maxX, maxZ);
                 detailPending = true;
+                if (step) { coverWaits = false; CoverRegion(); }
                 return;
             }
         }
@@ -711,37 +732,199 @@ internal sealed class WorldMapVoxelView : IDisposable
             // The window moved: the bands beside both its old and new edges carry a changed fade.
             (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
             (regionMinimum, regionMaximum) = (minimum, maximum);
-            sinkRanges.Clear();
-            sinkLattice.Clear();
-            patchKept.Clear();
-            coarse.Invalidate(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum)));
-            // Ribbons over those bands stand on the ground whose fade changed (#9948 review), and a tile around reads it.
-            RebuildRegionRivers(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum))
-                .SelectMany(tile => from dz in Range(-1, 1) from dx in Range(-1, 1) select (tile.X + dx, tile.Z + dz)).ToHashSet());
-            // The continent's sink and its own ribbons follow the window's fade too.
-            HashSet<(long X, long Z)> continentChunks = [.. ContinentChunksOver(oldMinimum, oldMaximum).Concat(ContinentChunksOver(minimum, maximum))];
-            continent!.Invalidate(continentChunks);
-            RebuildContinentRivers(continentChunks);
+            if (ExactRegion)
+            {
+                MoveRegion(oldMinimum, oldMaximum);
+            }
+            else
+            {
+                sinkRanges.Clear();
+                sinkLattice.Clear();
+                patchKept.Clear();
+                Profile.Mark("region.keep");
+                List<(long X, long Z)> band = [.. FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum)).Distinct()];
+                coarse.Invalidate(band);
+                regionMoves++;
+                regionCoarseResamples += band.Count;
+                Profile.Mark("region.coarse");
+                // Ribbons over those bands stand on the ground whose fade changed (#9948 review), and a tile around reads it.
+                RebuildRegionRivers(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum))
+                    .SelectMany(tile => from dz in Range(-1, 1) from dx in Range(-1, 1) select (tile.X + dx, tile.Z + dz)).ToHashSet());
+                Profile.Mark("region.rivers");
+                // The continent's sink and its own ribbons follow the window's fade too.
+                HashSet<(long X, long Z)> continentChunks = [.. ContinentChunksOver(oldMinimum, oldMaximum).Concat(ContinentChunksOver(minimum, maximum))];
+                continent!.Invalidate(continentChunks);
+                Profile.Mark("region.continent");
+                RebuildContinentRivers(continentChunks);
+                Profile.Mark("region.continentRivers");
+            }
         }
+
         regions.Prefetch(x0 * RegionChunkMetres, z0 * RegionChunkMetres, (x1 + 1) * RegionChunkMetres, (z1 + 1) * RegionChunkMetres);
         HashSet<(long X, long Z)> covered = [];
         for (long cz = z0; cz <= z1; cz++)
         for (long cx = x0; cx <= x1; cx++)
             if (regions.Ready(cx * RegionChunkMetres, cz * RegionChunkMetres, (cx + 1) * RegionChunkMetres, (cz + 1) * RegionChunkMetres))
                 covered.Add((cx, cz));
+        Profile.Mark("region.ready");
         if (covered.SetEquals(regionCovered)) return;
         HashSet<(long X, long Z)> changed = [.. covered];
         changed.SymmetricExceptWith(regionCovered);
         regionCovered.Clear();
         regionCovered.UnionWith(covered);
         coarse.Want(covered);
+        Profile.Mark("region.want");
         HashSet<(long X, long Z)> changedChunks = [.. changed];
         RebuildRegionRivers(changedChunks);
         RebuildContinentRivers(new HashSet<(long X, long Z)>(changed.Select(column => (
             (long)Math.Floor(column.X * RegionChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * RegionChunkMetres / ContinentChunkMetres)))));
         continent!.Invalidate(changed.Select(column => (
             (long)Math.Floor(column.X * RegionChunkMetres / ContinentChunkMetres), (long)Math.Floor(column.Z * RegionChunkMetres / ContinentChunkMetres))));
+        Profile.Mark("region.coverChanged");
         factsVersion++;
+    }
+
+    /// <summary>
+    /// The region window moved from these bounds to the current ones (#10347). Region ground eases on the window's fade alone,
+    /// so it changed exactly where the fade did: only what reads it at such a point is dropped or resampled. That is the
+    /// patch's and the coarse sink's kept ground, the coarse tops and the patch dither's slots; the patch's and the coarse
+    /// tier's chunk columns in the window (those entering are sampled with the new fade, those leaving go); and the ribbon
+    /// tiles over them. The continent re-sinks as before; its own ribbons read no fade, only the cover, which they follow when
+    /// it changes.
+    /// </summary>
+    private void MoveRegion(Vector2 oldMinimum, Vector2 oldMaximum)
+    {
+        // Whether the fade moved at a point, on the sink's lattice (every point the coarse tier reads lies on it) or the
+        // patch's column centres; each is read once.
+        Dictionary<(long, long), bool> lattice = [];
+        bool Moved(double x, double z) => WindowFade(x, z, oldMinimum, oldMaximum, RegionMarginMetres, RegionBandMetres, RegionNoiseMetres,
+            RegionNoiseWavelength, RegionCornerMetres) != RegionFade(x, z);
+        bool LatticeMoved(long i, long j)
+        {
+            if (!lattice.TryGetValue((i, j), out bool moved)) lattice[(i, j)] = moved = Moved(i * LatticeMetres, j * LatticeMetres);
+            return moved;
+        }
+
+        bool Steady(double minX, double minZ, double maxX, double maxZ) => RegionSteady(minX, minZ, maxX, maxZ, oldMinimum, oldMaximum, regionMinimum, regionMaximum);
+        // Whether any lattice point over a box moved, past the box test that the fade is steady over all of it.
+        bool LatticeChanged(double minX, double minZ, double maxX, double maxZ)
+        {
+            if (Steady(minX, minZ, maxX, maxZ)) return false;
+            for (long j = (long)Math.Ceiling(minZ / LatticeMetres); j <= (long)Math.Floor(maxZ / LatticeMetres); j++)
+            for (long i = (long)Math.Ceiling(minX / LatticeMetres); i <= (long)Math.Floor(maxX / LatticeMetres); i++)
+                if (LatticeMoved(i, j)) return true;
+            return false;
+        }
+
+        // A coarse column is read at its centre, a lattice point; its sink, over the lattice within a cell of it.
+        bool ColumnMoved((long X, long Z) c) => LatticeMoved((2 * c.X) + 1, (2 * c.Z) + 1);
+        // A patch chunk column reads ground at its column centres, the coarse tops within a cell and the dither's coarse
+        // slots within its transition and a cell.
+        double patchReach = ((coarseGround?.Settings.TransitionCells ?? 0) + 2) * CellMetres;
+        bool PatchChanged((long X, long Z) chunk)
+        {
+            double minX = chunk.X * DetailChunkMetres, minZ = chunk.Z * DetailChunkMetres;
+            if (LatticeChanged(minX - patchReach, minZ - patchReach, minX + DetailChunkMetres + patchReach, minZ + DetailChunkMetres + patchReach)) return true;
+            if (Steady(minX, minZ, minX + DetailChunkMetres, minZ + DetailChunkMetres)) return false;
+            for (int z = 0; z < EdgeLength; z++)
+            for (int x = 0; x < EdgeLength; x++)
+                if (Moved(((chunk.X * EdgeLength) + x + 0.5) * DetailMetres, ((chunk.Z * EdgeLength) + z + 0.5) * DetailMetres)) return true;
+            return false;
+        }
+
+        // Whether a patch chunk column lies within the reach of the patch's edge fade, where it draws the coarse surface.
+        const double edgeWhole = EdgeMarginMetres + (2 * EdgeNoiseMetres) + EdgeBandMetres + FadeNoiseSlackMetres;
+        bool PatchEdge((long X, long Z) chunk)
+        {
+            double minX = chunk.X * DetailChunkMetres, minZ = chunk.Z * DetailChunkMetres;
+            return !(minX >= detailMinimum.X + edgeWhole && minX + DetailChunkMetres <= detailMaximum.X - edgeWhole
+                && minZ >= detailMinimum.Y + edgeWhole && minZ + DetailChunkMetres <= detailMaximum.Y - edgeWhole);
+        }
+
+        foreach ((long, long) column in coarseTops.Keys.Where(c => ColumnMoved(c)).ToArray()) coarseTops.Remove(column);
+        foreach ((long, long) column in detailDitherSlots.Keys.Where(c => ColumnMoved(c)).ToArray()) detailDitherSlots.Remove(column);
+        foreach ((long, long) point in sinkLattice.Keys.Where(p => LatticeMoved(p.Item1, p.Item2)).ToArray()) sinkLattice.Remove(point);
+        foreach ((long, long) column in sinkRanges.Keys.Where(c => LatticeChanged((c.Item1 - 0.5) * CellMetres, (c.Item2 - 0.5) * CellMetres,
+            (c.Item1 + 1.5) * CellMetres, (c.Item2 + 1.5) * CellMetres)).ToArray())
+            sinkRanges.Remove(column);
+        Profile.Mark("region.keep");
+        // A kept patch column whose own centre's fade moved reads its ground afresh; the coarse surface the patch's edge eases
+        // onto is read afresh where the coarse tops it interpolates changed. A chunk column is resampled where either did and
+        // it is drawn from it: its own columns moved, or it lies by the patch's edge, where the coarse surface and the dither show.
+        HashSet<(long X, long Z)> patchChanged = [];
+        foreach (((long X, long Z) chunk, PatchColumns kept) in patchKept)
+        {
+            double minX = chunk.X * DetailChunkMetres, minZ = chunk.Z * DetailChunkMetres;
+            bool own = false;
+            if (!Steady(minX, minZ, minX + DetailChunkMetres, minZ + DetailChunkMetres))
+                for (int z = 0; z < EdgeLength; z++)
+                for (int x = 0; x < EdgeLength; x++)
+                {
+                    if (!Moved(((chunk.X * EdgeLength) + x + 0.5) * DetailMetres, ((chunk.Z * EdgeLength) + z + 0.5) * DetailMetres)) continue;
+                    int i = (z * EdgeLength) + x;
+                    (kept.Full[i], kept.Own[i]) = (double.NaN, PatchColumns.Unknown);
+                    own = true;
+                }
+
+            bool coarseMoved = LatticeChanged(minX - patchReach, minZ - patchReach, minX + DetailChunkMetres + patchReach, minZ + DetailChunkMetres + patchReach);
+            if (coarseMoved) Array.Fill(kept.Coarse, double.NaN);
+            if (own || (coarseMoved && PatchEdge(chunk))) patchChanged.Add(chunk);
+        }
+
+        // The patch's chunk columns whose ground changed are resampled (none, while it lies well inside the region window).
+        if (windowChunkX != long.MinValue)
+        {
+            long span = 2 * DetailRadiusChunks;
+            long dx1 = Math.Min(lastDetailChunk, windowChunkX + span - 1), dz1 = Math.Min(lastDetailChunk, windowChunkZ + span - 1);
+            List<(long X, long Z)> resample = [.. from cz in Range(windowChunkZ, dz1) from cx in Range(windowChunkX, dx1)
+                                                  where patchChanged.Contains((cx, cz)) || (!patchKept.ContainsKey((cx, cz)) && PatchChanged((cx, cz)))
+                                                  select (cx, cz)];
+            detail.Invalidate(resample);
+            // The clutter stands on the patch's ground.
+            if (resample.Count > 0) clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+            regionPatchResamples += resample.Count;
+        }
+
+        Profile.Mark("region.patch");
+        // Region chunk columns (a coarse chunk and a ribbon tile each) over both windows whose ground changed: within a cell of
+        // them for a coarse chunk, whose sinks read that far, and two for a ribbon, which reads the ground a little beside its line.
+        long ax = (long)Math.Floor(Math.Min(oldMinimum.X, regionMinimum.X) / RegionChunkMetres), bx = (long)Math.Floor(Math.Max(oldMaximum.X, regionMaximum.X) / RegionChunkMetres) - 1;
+        long az = (long)Math.Floor(Math.Min(oldMinimum.Y, regionMinimum.Y) / RegionChunkMetres), bz = (long)Math.Floor(Math.Max(oldMaximum.Y, regionMaximum.Y) / RegionChunkMetres) - 1;
+        bool Changed(long cx, long cz, double reach) => LatticeChanged((cx * RegionChunkMetres) - reach, (cz * RegionChunkMetres) - reach,
+            ((cx + 1) * RegionChunkMetres) + reach, ((cz + 1) * RegionChunkMetres) + reach);
+        List<(long X, long Z)> coarseChanged = [.. from cz in Range(az, bz) from cx in Range(ax, bx) where Changed(cx, cz, CellMetres) select (cx, cz)];
+        coarse.Invalidate(coarseChanged);
+        regionMoves++;
+        regionCoarseResamples += coarseChanged.Count;
+        Profile.Mark("region.coarse");
+        RebuildRegionRivers((from cz in Range(az, bz) from cx in Range(ax, bx) where Changed(cx, cz, 2 * CellMetres) select (cx, cz)).ToHashSet());
+        Profile.Mark("region.rivers");
+        continent!.Invalidate([.. ContinentChunksOver(oldMinimum, oldMaximum).Concat(ContinentChunksOver(regionMinimum, regionMaximum)).Distinct()]);
+        Profile.Mark("region.continent");
+    }
+
+    /// <summary>For the stream readout: region window moves since the sweep began, and the patch and coarse chunk columns they resampled.</summary>
+    private long regionMoves, regionPatchResamples, regionCoarseResamples;
+
+    /// <summary>The coarse sink's lattice spacing: the coarse tier's column centres lie on it too.</summary>
+    private const double LatticeMetres = CellMetres / SinkSamplesPerCell;
+
+    /// <summary>
+    /// Whether the region window's fade is the same over a box in the old window and the new (#10347), so the region ground,
+    /// which eases on it alone, is too: along each axis whose edges moved, the box lies where the fade is whole in both
+    /// windows (past the band and the noise's reach) or none in both (within the margin, short of its reach). Past its reach
+    /// on one axis the fade is set by the other's inset alone, as <see cref="WindowFade"/> measures it.
+    /// </summary>
+    private static bool RegionSteady(double minX, double minZ, double maxX, double maxZ, Vector2 oldMinimum, Vector2 oldMaximum, Vector2 minimum, Vector2 maximum) =>
+        RegionAxisSteady(minX, maxX, oldMinimum.X, oldMaximum.X, minimum.X, maximum.X) && RegionAxisSteady(minZ, maxZ, oldMinimum.Y, oldMaximum.Y, minimum.Y, maximum.Y);
+
+    private static bool RegionAxisSteady(double low, double high, float oldMinimum, float oldMaximum, float minimum, float maximum)
+    {
+        if (oldMinimum == minimum && oldMaximum == maximum) return true;
+        const double whole = RegionMarginMetres + (2 * RegionNoiseMetres) + RegionBandMetres + FadeNoiseSlackMetres, none = RegionMarginMetres - FadeNoiseSlackMetres;
+        bool Whole(float first, float last) => low >= first + whole && high <= last - whole;
+        bool None(float first, float last) => high <= first + none || low >= last - none;
+        return (Whole(oldMinimum, oldMaximum) && Whole(minimum, maximum)) || (None(oldMinimum, oldMaximum) && None(minimum, maximum));
     }
 
     /// <summary>The continent's chunk columns over a window, and a chunk around it.</summary>
@@ -1081,7 +1264,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// <summary>
     /// The patch's kept ground for a chunk column: a window shift re-streams the columns whose edge fade changed, and
     /// only the fade and the dither it drives are new. Kept while the column is in the window; a continent's region
-    /// window moving drops them all, as the region ground it eases changes.
+    /// window moving drops the columns' ground where its fade, which the region ground eases on, changed (<see cref="MoveRegion"/>).
     /// </summary>
     private PatchColumns? PatchKept(long chunkX, long chunkZ)
     {
@@ -1100,8 +1283,10 @@ internal sealed class WorldMapVoxelView : IDisposable
     }
 
     private readonly Dictionary<(long, long), double> coarseTops = [];
+    /// <summary>The coarse tier's environment slots the patch's edge dither reads, by coarse column: of region ground on a continent.</summary>
+    private readonly Dictionary<(long, long), uint> detailDitherSlots = [];
     private readonly Dictionary<(long, long), double> continentTops = [];
-    /// <summary>Each coarse column's drawn top under the patch and the lowest the patch can draw within a cell of it, kept as <see cref="CoarseTops"/> are; a continent's region window moving clears them, since the region ground it eases changes.</summary>
+    /// <summary>Each coarse column's drawn top under the patch and the lowest the patch can draw within a cell of it, kept as <see cref="CoarseTops"/> are; a continent's region window moving drops those where its fade, which the region ground eases on, changed.</summary>
     private readonly Dictionary<(long, long), (double Top, double Lowest)> sinkRanges = [];
     /// <summary>The lowest the patch can draw at each point the sink samples, on its lattice of <see cref="SinkSamplesPerCell"/> points a cell.</summary>
     private readonly Dictionary<(long, long), double> sinkLattice = [];

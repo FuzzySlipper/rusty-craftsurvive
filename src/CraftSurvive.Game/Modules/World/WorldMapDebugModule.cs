@@ -86,6 +86,13 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
         return WorldMapVoxelView.ExactShift ? "a window shift resamples what it changed" : "a window shift re-streams both windows' edge rings";
     }
 
+    [DebugCommand("craft.world.mapregion", Description = "Study (#10347): exact (the default) has a continent's region window moving resample only the coarse columns and ribbon tiles where its fade changed, and drop the patch's and the sink's kept ground only there; band resamples both windows' whole fade bands and drops it all, as before, for the A/B.")]
+    public string SetMapRegion(string mode)
+    {
+        WorldMapVoxelView.ExactRegion = mode != "band";
+        return WorldMapVoxelView.ExactRegion ? "a region window move resamples where its fade changed" : "a region window move resamples both windows' fade bands";
+    }
+
     [DebugCommand("craft.world.mapdefer", Description = "Study (#10345, rusty-engine #10327): on hands the map layers' chunks to the Engine deferred once each is drawn - written now, meshed on its worker, installed at a later update's start, the projection refreshed every update until then (the default); off hands them over synchronously, for the A/B.")]
     public string SetMapDefer(string mode)
     {
