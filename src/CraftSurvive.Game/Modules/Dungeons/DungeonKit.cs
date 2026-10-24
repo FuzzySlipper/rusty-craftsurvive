@@ -724,10 +724,18 @@ internal static class DungeonKit
     {
         float turn = Turn(face);
         float stretch = (PieceInterior + (before ? 1 : 0) + (after ? 1 : 0)) / PieceInterior;
-        // In the piece's frame the room looks towards +z; its left (before) is -x.
+        // In the piece's frame the room looks towards +z; its left (before) is -x. It stands WallClearance proud of the
+        // voxel wall it covers.
         float shift = ((after ? 1 : 0) - (before ? 1 : 0)) / 2f;
-        return new KitPlacement(piece, origin, turn, new Vector2(stretch, 1f), new Vector2(shift, 0f));
+        return new KitPlacement(piece, origin, turn, new Vector2(stretch, 1f), new Vector2(shift, WallClearance));
     }
+
+    /// <summary>
+    /// How far a wall piece stands into the room off the voxel wall it covers (#10197): its face was 0 to 8 mm from the
+    /// faceted voxel wall's, which in places stood millimetres in front of it and won the depth test through a roundel's
+    /// disc (rusty-engine #10196: 2 cm cleared it; the Engine's guide asks z^2/near x 6e-8 m, 3 mm at 50 m).
+    /// </summary>
+    private const float WallClearance = 0.02f;
 
     /// <summary>The turn that brings a piece's south edge (-z) to a face.</summary>
     internal static float Turn(ModuleFace face) => face switch
