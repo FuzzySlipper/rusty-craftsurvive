@@ -429,6 +429,7 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
         }
         if (mapOpen)
         {
+            mapView?.Profile.Begin();
             ApplyRequestedMapStyle();
             if (mapView is not null && mapView.SteerWaypoint(update.Input))
             {
@@ -441,8 +442,10 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             // The walking modules rest while the map is open; the river stage follows the clock regardless (#9878 review).
             riverStage.Follow();
             ShowWeatherOnMap();
+            mapView?.Profile.Mark("travel");
             if (mapView is not null && (mapView.Steer(update.Input) | mapView.MarkersStale)) PublishAppearanceSnapshot();
             AdvanceMapView();
+            mapView?.Profile.End();
             return ProductUpdateResult.None;
         }
         ProductStep step = ProductStep.From(update.Facts);
@@ -600,15 +603,19 @@ public sealed partial class CraftSurviveProduct : IEngineProduct, IDebugCommandM
             return;
         }
 
-        engine.Graphics.PublishSnapshot(town.Open || !mapOpen || mapView is null
+        AppearanceFact[] facts = town.Open || !mapOpen || mapView is null
             ? [.. creatures.AppearanceFacts, .. dungeons.AppearanceFacts, .. SledFacts(), .. BoatFacts(), .. OverworldFacts(), .. horizon.Facts, .. TownFacts(), .. StyleFacts()]
-            : mapView.Facts);
+            : mapView.Facts;
+        mapView?.Profile.Mark("snapshot.facts");
+        engine.Graphics.PublishSnapshot(facts);
+        mapView?.Profile.Mark("snapshot.publish");
         creatures.AfterAppearanceSnapshot();
         dungeons.AfterAppearanceSnapshot();
         terrain.AfterAppearanceSnapshot();
         townPresence?.AfterAppearanceSnapshot();
         styleTest.AfterAppearanceSnapshot();
         if (mapOpen) mapView?.AfterAppearanceSnapshot();
+        mapView?.Profile.Mark("snapshot.after");
     }
 
     private enum ProductLifecycleState

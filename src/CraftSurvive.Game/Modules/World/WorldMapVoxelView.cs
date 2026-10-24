@@ -354,6 +354,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     {
         Follow(world);
         partyPosition = Surface(world.X, world.Y);
+        Profile.Mark("move.surface");
         rig.FocusOn(partyPosition);
         factsVersion++;
     }
@@ -366,11 +367,23 @@ internal sealed class WorldMapVoxelView : IDisposable
     {
         MoveParty(from);
         foreach (MapVoxelLayer layer in Layers) layer.ResetTimings();
+        Profile.Reset();
         sweepTo = to;
         sweepStep = metresPerUpdate;
     }
 
     internal bool Sweeping => sweepTo is not null;
+
+    /// <summary>
+    /// Whether a window shift resamples only what it changed (#10346): the detail chunks whose edge fade moved, and the
+    /// coarse sink from kept ground ranges. Off re-streams both windows' edge rings and samples every sink afresh, as
+    /// before, for the A/B. A sweep's shift took 0.8-1.2 s that way, nearly all of it this resampling. Exact also keeps the
+    /// patch's relief tops (<see cref="PatchKept"/>) and lets a window's fade skip its noise where it cannot reach.
+    /// </summary>
+    internal static bool ExactShift { get; set; } = true;
+
+    /// <summary>Where the open map's updates spend their time (#10346).</summary>
+    internal MapUpdateProfile Profile { get; } = new();
 
     private IEnumerable<MapVoxelLayer> Layers => continent is null ? [coarse, detail] : [continent, coarse, detail];
 
@@ -378,7 +391,12 @@ internal sealed class WorldMapVoxelView : IDisposable
     internal string StreamReadout => FormattableString.Invariant(
         $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} party={followed.X:F0},{followed.Y:F0} | ")
         + string.Join(" | ", (continent is null ? new[] { ("coarse", coarse), ("detail", detail) } : [("continent", continent), ("coarse", coarse), ("detail", detail)])
-            .Select(entry => entry.Item2.TimingReadout(entry.Item1)));
+            .Select(entry => entry.Item2.TimingReadout(entry.Item1)))
+        + " | " + Profile.Readout;
+
+    /// <summary>Each layer's sampled ground as a digest (#10346): a window reached by a sweep should hold what a jump to it builds afresh.</summary>
+    internal string DigestReadout => FormattableString.Invariant(
+        $"window={detailMinimum.X:F0},{detailMinimum.Y:F0} continent={continent?.Digest() ?? 0:x16} coarse={coarse.Digest():x16} detail={detail.Digest():x16}");
 
     /// <summary>Show a planned route as a ribbon of markers on the drawn surface, or clear it.</summary>
     internal void ShowRoute(IReadOnlyList<Vector2>? points)
@@ -509,6 +527,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             bool last = offset.Length() <= sweepStep;
             MoveParty(last ? to : followed + (Vector2.Normalize(offset) * sweepStep));
             if (last) sweepTo = null;
+            Profile.Mark("sweep.move");
         }
         bool wasLoaded = Loaded;
         if (startedAt == 0) startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -518,9 +537,11 @@ internal sealed class WorldMapVoxelView : IDisposable
             // Region tiles finish off-thread: admit what they now cover, and the patch once it can be drawn.
             if (detailPending) Follow(followed);
             else CoverRegion();
+            Profile.Mark("advance.cover");
             if (continent!.PendingChunks > 0 || !continent.Settled)
             {
                 continent.Advance(budget);
+                Profile.Mark("advance.continent");
                 if (!continent.Settled && loadMilliseconds == 0) return;
                 budget /= 2;
             }
@@ -528,11 +549,13 @@ internal sealed class WorldMapVoxelView : IDisposable
         if (coarse.PendingChunks > 0 || !coarse.Settled)
         {
             coarse.Advance(budget);
+            Profile.Mark("advance.coarse");
             // Until the whole map is up, it has the budget; afterwards both share it.
             if (!coarse.Settled && loadMilliseconds == 0) return;
             budget /= 2;
         }
         detail.Advance(budget);
+        Profile.Mark("advance.detail");
         if (!wasLoaded && Loaded && loadMilliseconds == 0)
             loadMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
     }
@@ -546,6 +569,7 @@ internal sealed class WorldMapVoxelView : IDisposable
     {
         followed = world;
         CoverRegion();
+        Profile.Mark("follow.cover");
         long span = 2 * DetailRadiusChunks;
         long maximumStart = Math.Max(firstDetailChunk, lastDetailChunk - span + 1);
         long x0 = Math.Clamp((long)Math.Floor(world.X / DetailChunkMetres) - DetailRadiusChunks, firstDetailChunk, maximumStart);
@@ -573,19 +597,51 @@ internal sealed class WorldMapVoxelView : IDisposable
         detailMinimum = new((float)Math.Max(-map.Radius, x0 * DetailChunkMetres), (float)Math.Max(-map.Radius, z0 * DetailChunkMetres));
         detailMaximum = new((float)Math.Min(map.Radius, (x1 + 1) * DetailChunkMetres), (float)Math.Min(map.Radius, (z1 + 1) * DetailChunkMetres));
 
+        foreach ((long X, long Z) gone in patchKept.Keys.Where(key => key.X < x0 || key.X > x1 || key.Z < z0 || key.Z > z1).ToArray()) patchKept.Remove(gone);
         detail.Want(from cz in Range(z0, z1) from cx in Range(x0, x1) select (cx, cz));
+        Profile.Mark("follow.want");
         if (!first)
         {
             windowShifts++;
-            // Columns beside either window's edges carry a fade that has changed.
-            detail.Invalidate(Ring(x0, z0, x1, z1, EdgeRingChunks).Concat(Ring(oldX0, oldZ0, Math.Min(lastDetailChunk, oldX0 + span - 1), Math.Min(lastDetailChunk, oldZ0 + span - 1), EdgeRingChunks)));
+            // Columns in both windows whose edge fade has changed; those just admitted were sampled with the new one.
+            long oldX1 = Math.Min(lastDetailChunk, oldX0 + span - 1), oldZ1 = Math.Min(lastDetailChunk, oldZ0 + span - 1);
+            detail.Invalidate(ExactShift ? FadeChanged(oldX0, oldZ0, oldX1, oldZ1, oldMinimum, oldMaximum, x0, z0, x1, z1)
+                : Ring(x0, z0, x1, z1, EdgeRingChunks).Concat(Ring(oldX0, oldZ0, oldX1, oldZ1, EdgeRingChunks)));
+            Profile.Mark("follow.detailInvalidate");
             // Cells whose cover changed, and the edge rings of both windows, whose columns stand over the patch's lip.
             coarse.Invalidate(CoarseChanged(oldMinimum, oldMaximum).Concat(CoarseEdgeRing(oldMinimum, oldMaximum)).Concat(CoarseEdgeRing(detailMinimum, detailMaximum)).Distinct());
+            Profile.Mark("follow.coarseInvalidate");
         }
         clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+        Profile.Mark("follow.scatter");
         // The coarse tier's ribbons give way to the patch's own rivers where its relief is drawn.
         if (!first) RebuildRegionRivers(RiverTilesOver(oldMinimum, oldMaximum).Concat(RiverTilesOver(detailMinimum, detailMaximum)).ToHashSet());
+        Profile.Mark("follow.rivers");
         factsVersion++;
+    }
+
+    /// <summary>
+    /// Detail chunk columns in both the old and the new window whose edge fade differs between them (#10346). The fade
+    /// at a point reads its inset from each axis's edges only up to <see cref="EdgeRingChunks"/> chunks, past which it
+    /// is whole, so a column changes only along an axis whose edges moved, and only where it lies within that reach
+    /// of them in either window. A shift along one axis leaves the strips along the other as they were.
+    /// </summary>
+    private IEnumerable<(long X, long Z)> FadeChanged(long oldX0, long oldZ0, long oldX1, long oldZ1, Vector2 oldMinimum, Vector2 oldMaximum,
+        long x0, long z0, long x1, long z1)
+    {
+        for (long cz = Math.Max(z0, oldZ0); cz <= Math.Min(z1, oldZ1); cz++)
+        for (long cx = Math.Max(x0, oldX0); cx <= Math.Min(x1, oldX1); cx++)
+            if (AxisFadeChanged(cx, oldMinimum.X, oldMaximum.X, detailMinimum.X, detailMaximum.X)
+                || AxisFadeChanged(cz, oldMinimum.Y, oldMaximum.Y, detailMinimum.Y, detailMaximum.Y))
+                yield return (cx, cz);
+    }
+
+    private static bool AxisFadeChanged(long chunk, float oldMinimum, float oldMaximum, float minimum, float maximum)
+    {
+        if (oldMinimum == minimum && oldMaximum == maximum) return false;
+        double reach = EdgeRingChunks * DetailChunkMetres, low = chunk * DetailChunkMetres, high = (chunk + 1) * DetailChunkMetres;
+        bool Whole(float first, float last) => low >= first + reach && high <= last - reach;
+        return !(Whole(oldMinimum, oldMaximum) && Whole(minimum, maximum));
     }
 
     /// <summary>Coarse chunk columns holding a cell whose cover by the patch changed.</summary>
@@ -623,7 +679,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         from tx in Range((long)Math.Floor(minimum.X / RegionChunkMetres) - 1, (long)Math.Floor(maximum.X / RegionChunkMetres) + 1)
         select (tx, tz);
 
-    /// <summary>Chunk columns within <paramref name="depth"/> chunks of a window's edge.</summary>
+    /// <summary>Chunk columns within <paramref name="depth"/> chunks of a window's edge: what a shift re-streamed before #10346, for the A/B.</summary>
     private static IEnumerable<(long X, long Z)> Ring(long x0, long z0, long x1, long z1, int depth) =>
         from cz in Range(z0, z1) from cx in Range(x0, x1)
         where cx < x0 + depth || cx > x1 - depth || cz < z0 + depth || cz > z1 - depth
@@ -655,6 +711,9 @@ internal sealed class WorldMapVoxelView : IDisposable
             // The window moved: the bands beside both its old and new edges carry a changed fade.
             (Vector2 oldMinimum, Vector2 oldMaximum) = (regionMinimum, regionMaximum);
             (regionMinimum, regionMaximum) = (minimum, maximum);
+            sinkRanges.Clear();
+            sinkLattice.Clear();
+            patchKept.Clear();
             coarse.Invalidate(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum)));
             // Ribbons over those bands stand on the ground whose fade changed (#9948 review), and a tile around reads it.
             RebuildRegionRivers(FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum))
@@ -914,14 +973,24 @@ internal sealed class WorldMapVoxelView : IDisposable
         double origin = OriginY / voxelSize;
         void Sample(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
         {
+            PatchColumns? kept = localRelief ? PatchKept(chunkX, chunkZ) : null;
             for (int z = 0; z < EdgeLength; z++)
             for (int x = 0; x < EdgeLength; x++)
             {
                 int i = z * EdgeLength + x;
                 double worldX = (chunkX * EdgeLength + x + 0.5) * cellMetres, worldZ = (chunkZ * EdgeLength + z + 0.5) * cellMetres;
                 if (Math.Abs(worldX) > map.Radius || Math.Abs(worldZ) > map.Radius) { surface[i] = double.NaN; continue; }
-                MapSample sample = geography(worldX, worldZ);
-                uint ownSlot = sample.Rock >= ExposedRock ? RockSlot : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
+                // A kept column whose relief is known reads nothing new of the ground: none of it moves with the window.
+                bool reuse = kept is not null && kept.Own[i] != PatchColumns.Unknown && !double.IsNaN(kept.Full[i]);
+                MapSample sample = reuse ? default : geography(worldX, worldZ);
+                uint ownSlot = reuse ? kept!.Own[i]
+                    : sample.Rock >= ExposedRock ? RockSlot : Slot(WorldMap.Biome(sample), ground is null ? Tone(worldX, worldZ) : Tones / 2);
+                // Ground under the sea or a lake is drawn as its shore, its own surface covering it (#9952); a river's channel as the river.
+                uint water = reuse ? kept!.Water[i]
+                    : UnderStandingWater(sample) ? Slot(ShoreBiome, ground is null ? Tone(worldX, worldZ) : Tones / 2)
+                    : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + cellMetres * riverReach ? RiverSlot
+                    : PatchColumns.Dry;
+                if (kept is not null) (kept.Own[i], kept.Water[i]) = (ownSlot, water);
                 // Toward a finer tier's edge each column takes its own environment with the share of its fade,
                 // else one of the coarser tier's in the shares that tier blends there, by an ordered threshold.
                 if (dither is var (ditherFade, coarserCell, transition, coarserGround, coarserSlots) && ditherFade(worldX, worldZ) is double faded && faded < 1)
@@ -932,12 +1001,8 @@ internal sealed class WorldMapVoxelView : IDisposable
                 }
 
                 // The detail patch carries the same regional relief walking terrain adds to the map.
-                surface[i] = origin + Top(sample, worldX, worldZ, localRelief) / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
-                // Ground under the sea or a lake is drawn as its shore; the water's own surface covers it (#9952).
-                material[i] = UnderStandingWater(sample)
-                    ? Slot(ShoreBiome, ground is null ? Tone(worldX, worldZ) : Tones / 2)
-                    : rivers(worldX, worldZ) is RiverInfluence river && river.Distance < river.HalfWidth + cellMetres * riverReach ? RiverSlot
-                    : ownSlot;
+                surface[i] = origin + Top(sample, worldX, worldZ, localRelief, kept, i) / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
+                material[i] = water != PatchColumns.Dry ? water : ownSlot;
             }
         }
         if (ground is null) return new MapVoxelLayer(engine, voxelSize, Sample, materials, coarseBeyond: coarseBeyond);
@@ -964,16 +1029,68 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// The drawn top at a point: ground (with regional relief where the detail patch carries it),
     /// raised to a river's surface or the sea. Markers and the party stand on exactly this.
     /// </summary>
-    private double Top(MapSample sample, double worldX, double worldZ, bool localRelief)
+    private double Top(MapSample sample, double worldX, double worldZ, bool localRelief) => Top(sample, worldX, worldZ, localRelief, null, 0);
+
+    /// <param name="kept">A patch chunk column's kept ground (<see cref="PatchKept"/>), or null to keep none.</param>
+    private double Top(MapSample sample, double worldX, double worldZ, bool localRelief, PatchColumns? kept, int column)
     {
         if (!localRelief) return Top(sample, 0);
         double fade = EdgeFade(worldX, worldZ);
-        double full = fade > 0 ? Top(sample, Relief(sample, worldX, worldZ)) : 0;
+        double full = 0;
+        if (fade > 0)
+        {
+            full = kept?.Full[column] ?? double.NaN;
+            if (double.IsNaN(full))
+            {
+                full = Top(sample, Relief(sample, worldX, worldZ));
+                if (kept is not null) kept.Full[column] = full;
+            }
+        }
+
         if (fade >= 1) return full;
         // Toward its edge the patch draws the coarse ground's own surface, a little under it.
-        double coarseSurface = Interpolated(worldX, worldZ, CellMetres, (cx, cz) => Top(fineGround(cx, cz), 0), CoarseTops());
+        double coarseSurface = kept?.Coarse[column] ?? double.NaN;
+        if (double.IsNaN(coarseSurface))
+        {
+            coarseSurface = Interpolated(worldX, worldZ, CellMetres, (cx, cz) => Top(fineGround(cx, cz), 0), CoarseTops());
+            if (kept is not null) kept.Coarse[column] = coarseSurface;
+        }
+
         return coarseSurface - (EdgeUnderMetres * (1 - fade)) + (fade * (full - coarseSurface));
     }
+
+    /// <summary>
+    /// What the patch reads of the ground in a chunk column, none of which moves with the window (#10346): each column's
+    /// top with its relief and the coarse surface over it (NaN until first needed), its own environment's slot before
+    /// any dither, and the shore or river slot water draws it with (<see cref="Unknown"/> until sampled).
+    /// </summary>
+    private sealed class PatchColumns
+    {
+        internal const uint Unknown = uint.MaxValue, Dry = 0;
+        internal readonly double[] Full = new double[MapVoxelLayer.ColumnCount], Coarse = new double[MapVoxelLayer.ColumnCount];
+        internal readonly uint[] Own = new uint[MapVoxelLayer.ColumnCount], Water = new uint[MapVoxelLayer.ColumnCount];
+
+        internal PatchColumns()
+        {
+            Array.Fill(Full, double.NaN);
+            Array.Fill(Coarse, double.NaN);
+            Array.Fill(Own, Unknown);
+        }
+    }
+
+    /// <summary>
+    /// The patch's kept ground for a chunk column: a window shift re-streams the columns whose edge fade changed, and
+    /// only the fade and the dither it drives are new. Kept while the column is in the window; a continent's region
+    /// window moving drops them all, as the region ground it eases changes.
+    /// </summary>
+    private PatchColumns? PatchKept(long chunkX, long chunkZ)
+    {
+        if (!ExactShift) return null;
+        if (!patchKept.TryGetValue((chunkX, chunkZ), out PatchColumns? kept)) patchKept[(chunkX, chunkZ)] = kept = new PatchColumns();
+        return kept;
+    }
+
+    private readonly Dictionary<(long X, long Z), PatchColumns> patchKept = [];
 
     /// <summary>The coarse column tops the patch's edge reads, kept while they are wanted and dropped when the cache grows past a bound.</summary>
     private Dictionary<(long, long), double> CoarseTops()
@@ -984,6 +1101,10 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     private readonly Dictionary<(long, long), double> coarseTops = [];
     private readonly Dictionary<(long, long), double> continentTops = [];
+    /// <summary>Each coarse column's drawn top under the patch and the lowest the patch can draw within a cell of it, kept as <see cref="CoarseTops"/> are; a continent's region window moving clears them, since the region ground it eases changes.</summary>
+    private readonly Dictionary<(long, long), (double Top, double Lowest)> sinkRanges = [];
+    /// <summary>The lowest the patch can draw at each point the sink samples, on its lattice of <see cref="SinkSamplesPerCell"/> points a cell.</summary>
+    private readonly Dictionary<(long, long), double> sinkLattice = [];
 
     private Dictionary<(long, long), double> ContinentTops()
     {
@@ -1024,16 +1145,38 @@ internal sealed class WorldMapVoxelView : IDisposable
         for (int i = -1; i <= 1; i++)
             fade = Math.Max(fade, EdgeFade(worldX + (i * CellMetres), worldZ + (j * CellMetres)));
         if (fade <= 0) return 0;
-        double top = Top(geography(worldX, worldZ), 0), lowest = top;
-        for (int j = -SinkSamplesPerCell; j <= SinkSamplesPerCell; j++)
-        for (int i = -SinkSamplesPerCell; i <= SinkSamplesPerCell; i++)
+        // The ground's range does not move with the patch: kept, so a shift re-sinks a column from its fade alone (#10346).
+        (long, long) column = ((long)Math.Floor(worldX / CellMetres), (long)Math.Floor(worldZ / CellMetres));
+        if (sinkRanges.Count > CoarseTopsLimit) sinkRanges.Clear();
+        if (!ExactShift)
         {
-            double x = worldX + i * CellMetres / SinkSamplesPerCell, z = worldZ + j * CellMetres / SinkSamplesPerCell;
-            MapSample sample = geography(x, z);
-            lowest = Math.Min(lowest, Math.Min(Top(sample, 0), Top(sample, Relief(sample, x, z))));
+            sinkRanges.Clear();
+            sinkLattice.Clear();
         }
 
-        return WorldMap.Smooth(Math.Clamp(fade / SinkFromFade, 0, 1)) * ((fade * (top - lowest) * VerticalExaggeration / CellMetres) + SinkMargin);
+        if (!sinkRanges.TryGetValue(column, out (double Top, double Lowest) range))
+        {
+            double drawn = Top(geography(worldX, worldZ), 0), under = drawn;
+            if (sinkLattice.Count > CoarseTopsLimit) sinkLattice.Clear();
+            for (int j = -SinkSamplesPerCell; j <= SinkSamplesPerCell; j++)
+            for (int i = -SinkSamplesPerCell; i <= SinkSamplesPerCell; i++)
+            {
+                double x = worldX + i * CellMetres / SinkSamplesPerCell, z = worldZ + j * CellMetres / SinkSamplesPerCell;
+                // Neighbouring columns share the sample points: each is read once (#10346).
+                (long, long) point = ((long)Math.Round(x * SinkSamplesPerCell / CellMetres), (long)Math.Round(z * SinkSamplesPerCell / CellMetres));
+                if (!sinkLattice.TryGetValue(point, out double low))
+                {
+                    MapSample sample = geography(x, z);
+                    sinkLattice[point] = low = Math.Min(Top(sample, 0), Top(sample, Relief(sample, x, z)));
+                }
+
+                under = Math.Min(under, low);
+            }
+
+            sinkRanges[column] = range = (drawn, under);
+        }
+
+        return WorldMap.Smooth(Math.Clamp(fade / SinkFromFade, 0, 1)) * ((fade * (range.Top - range.Lowest) * VerticalExaggeration / CellMetres) + SinkMargin);
     }
 
     /// <summary>
@@ -1042,6 +1185,9 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// </summary>
     private double EdgeFade(double worldX, double worldZ) => !InDetail(worldX, worldZ) ? 0
         : WindowFade(worldX, worldZ, detailMinimum, detailMaximum, EdgeMarginMetres, EdgeBandMetres, EdgeNoiseMetres, EdgeNoiseWavelength, EdgeCornerMetres);
+
+    /// <summary>Kept clear of the noise's bound, so a rounding at its extreme never changes a fade the early outs give.</summary>
+    private const double FadeNoiseSlackMetres = 1;
 
     /// <summary>
     /// How fully a window's own ground is drawn at a point: none within a margin of its edge, all of it past
@@ -1053,6 +1199,9 @@ internal sealed class WorldMapVoxelView : IDisposable
         double inset = insetX < corner && insetZ < corner
             ? corner - Math.Sqrt(Math.Pow(corner - insetX, 2) + Math.Pow(corner - insetZ, 2))
             : Math.Min(insetX, insetZ);
+        // The noise moves the boundary by at most its amplitude, so beyond its reach the fade is whole or none without it (#10346).
+        if (ExactShift && inset - margin - (2 * noise) >= band + FadeNoiseSlackMetres) return 1;
+        if (ExactShift && inset <= margin - FadeNoiseSlackMetres) return 0;
         double wander = noise * MapNoise.Fbm(map.Configuration.Contract.GeographyNoiseSeed ^ EdgeNoiseSalt, worldX / wavelength, worldZ / wavelength, 2, 0.5);
         return WorldMap.Smooth(Math.Clamp((inset - margin - noise + wander) / band, 0, 1));
     }

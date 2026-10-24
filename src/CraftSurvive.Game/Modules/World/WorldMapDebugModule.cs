@@ -76,6 +76,16 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
     [DebugCommand("craft.world.mapstream", Description = "Study (#10345): reads each map layer's stream cost since the last sweep began - update percentiles, hand-offs, apply and refresh cost, and deferred hand-offs' lag in updates.")]
     public string ReadStream() => mapView?.Invoke()?.StreamReadout ?? "map=none";
 
+    [DebugCommand("craft.world.mapdigest", Description = "Study (#10346): digests of each map layer's sampled ground, so a window a sweep streamed to can be compared with the same window built by a jump.")]
+    public string ReadDigest() => mapView?.Invoke()?.DigestReadout ?? "map=none";
+
+    [DebugCommand("craft.world.mapshift", Description = "Study (#10346): exact (the default) has a detail window shift resample only the detail chunks whose edge fade changed and re-sink the coarse ground from kept ranges; rings re-streams both windows' edge rings and samples every sink afresh, as before, for the A/B.")]
+    public string SetMapShift(string mode)
+    {
+        WorldMapVoxelView.ExactShift = mode != "rings";
+        return WorldMapVoxelView.ExactShift ? "a window shift resamples what it changed" : "a window shift re-streams both windows' edge rings";
+    }
+
     [DebugCommand("craft.world.mapdefer", Description = "Study (#10345, rusty-engine #10327): on hands the map layers' chunks to the Engine deferred once each is drawn - written now, meshed on its worker, installed at a later update's start, the projection refreshed every update until then (the default); off hands them over synchronously, for the A/B.")]
     public string SetMapDefer(string mode)
     {
