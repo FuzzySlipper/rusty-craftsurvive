@@ -48,6 +48,9 @@ internal sealed class StreamedCave : IDisposable
     // The deferred chunks handed over whose collision is not live yet, each with the revision that makes it live (#10332).
     private readonly Dictionary<(int X, int Y, int Z), ulong> deferredPending = [];
 
+    // The latest deferred transaction's revision while the scene's meshes have not reached it (0 when all are drawn).
+    private ulong deferredUndrawn;
+
     /// <param name="radius">How many chunks (16 m) about the player are kept across; <paramref name="radiusUp"/> up and down.</param>
     /// <param name="budget">The most chunks admitted in one update.</param>
     internal StreamedCave(IEngineContext engine, TerrainWorld terrain, IReadOnlyDictionary<BlockId, Material>? rock, DungeonSurface surface, ulong seed,
@@ -120,14 +123,18 @@ internal sealed class StreamedCave : IDisposable
         bool Round((int X, int Y, int Z) w) => Math.Abs(w.X - cx) <= 1 && Math.Abs(w.Y - cy) <= 1 && Math.Abs(w.Z - cz) <= 1;
         // A deferred hand-off is live once the scene's collision has reached its revision; one round the player not yet live is
         // wanted again, so it is handed over again synchronously, which installs every deferred one first (R10332-1).
-        bool waited = deferredPending.Count > 0;
+        // Every deferred transaction, admissions or only evictions, is drawn once the scene's meshes reach its revision; the
+        // presentation is refreshed on each update one was waiting at the start of, deferral since switched off or not (R10332-3).
+        bool waited = deferredPending.Count > 0 || deferredUndrawn > 0;
         if (waited)
         {
-            ulong live = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).CollisionRevision;
-            foreach ((int X, int Y, int Z) chunk in deferredPending.Where(p => p.Value <= live).Select(p => p.Key).ToList())
+            VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+            foreach ((int X, int Y, int Z) chunk in deferredPending.Where(p => p.Value <= scene.CollisionRevision).Select(p => p.Key).ToList())
             {
                 deferredPending.Remove(chunk);
             }
+
+            deferredUndrawn = scene.MeshRevision >= deferredUndrawn ? 0 : deferredUndrawn;
         }
 
         List<(int X, int Y, int Z)> installingRound = [.. deferredPending.Keys.Where(Round)];
@@ -187,8 +194,9 @@ internal sealed class StreamedCave : IDisposable
                     deferred));
                 if (!deferred)
                 {
-                    // A synchronous change installs every deferred one before it.
+                    // A synchronous change installs every deferred one before it (and this update refreshes after it).
                     deferredPending.Clear();
+                    deferredUndrawn = 0;
                 }
                 else
                 {
@@ -196,6 +204,8 @@ internal sealed class StreamedCave : IDisposable
                     {
                         deferredPending[chunk] = receipt.AcceptedRevision;
                     }
+
+                    deferredUndrawn = Math.Max(deferredUndrawn, receipt.AcceptedRevision);
                 }
             }
 
@@ -241,7 +251,7 @@ internal sealed class StreamedCave : IDisposable
     }
 
     internal string Readout() => string.Create(CultureInfo.InvariantCulture,
-        $"streamed cave: resident={resident.Count} pending={lastPending} admitted={admitted} evicted={evicted} updates={updates} notReadyUpdates={notReadyUpdates} installing={installingUpdates} " +
+        $"streamed cave: resident={resident.Count} pending={lastPending} admitted={admitted} evicted={evicted} updates={updates} notReadyUpdates={notReadyUpdates} installing={installingUpdates} undrawn={deferredUndrawn} " +
         $"generate={generateMs / Math.Max(1, admitted):F2}ms/chunk apply={applyMs / Math.Max(1, admitted):F2}ms/chunk slowestUpdate={slowestMs:F1}ms " +
         $"probeMoves={probeMoves} probe={probeMs / Math.Max(1, probeMoves):F1}ms/move");
 

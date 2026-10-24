@@ -200,14 +200,18 @@ internal sealed class DungeonSpace : IDisposable
         (int X, int Y, int Z) at = ChunkOf(player);
         static bool Round((int X, int Y, int Z) c, (int X, int Y, int Z) at) => Math.Abs(c.X - at.X) <= 1 && Math.Abs(c.Y - at.Y) <= 1 && Math.Abs(c.Z - at.Z) <= 1;
         // A deferred hand-off is live once the scene's collision has reached its revision (#10332).
-        bool waited = deferredPending.Count > 0;
+        // Every deferred transaction, admissions or only evictions, is drawn once the scene's meshes reach its revision; the
+        // presentation is refreshed on each update one was waiting at the start of, deferral since switched off or not (R10332-3).
+        bool waited = deferredPending.Count > 0 || deferredUndrawn > 0;
         if (waited)
         {
-            ulong live = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).CollisionRevision;
-            foreach ((int X, int Y, int Z) chunk in deferredPending.Where(p => p.Value <= live).Select(p => p.Key).ToList())
+            VoxelSceneReadout scene = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session));
+            foreach ((int X, int Y, int Z) chunk in deferredPending.Where(p => p.Value <= scene.CollisionRevision).Select(p => p.Key).ToList())
             {
                 deferredPending.Remove(chunk);
             }
+
+            deferredUndrawn = scene.MeshRevision >= deferredUndrawn ? 0 : deferredUndrawn;
         }
 
         // A deferred chunk round the player whose collision is not live yet is wanted again, so it is handed over again
@@ -308,11 +312,14 @@ internal sealed class DungeonSpace : IDisposable
                 {
                     deferredPending[chunk] = handed.AcceptedRevision;
                 }
+
+                deferredUndrawn = Math.Max(deferredUndrawn, handed.AcceptedRevision);
             }
             else
             {
-                // A synchronous change installs every deferred one before it.
+                // A synchronous change installs every deferred one before it (and this update refreshes after it).
                 deferredPending.Clear();
+                deferredUndrawn = 0;
             }
 
             foreach (((int X, int Y, int Z) chunk, _) in batch)
@@ -374,6 +381,9 @@ internal sealed class DungeonSpace : IDisposable
     // The deferred chunks handed over whose collision is not live yet, each with the revision that makes it live; how many
     // hand-offs were deferred, and how many updates found one round the player still installing.
     private readonly Dictionary<(int X, int Y, int Z), ulong> deferredPending = [];
+
+    // The latest deferred transaction's revision while the scene's meshes have not reached it (0 when all are drawn).
+    private ulong deferredUndrawn;
     private long streamDeferredBatches, streamInstalling, streamUnsettled;
     private long streamRefreshes, lastHandOff;
 
@@ -391,7 +401,7 @@ internal sealed class DungeonSpace : IDisposable
     private const int MostStreamTimes = 100_000;
 
     internal string StreamReadout() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} installing={streamInstalling} unsettled={streamUnsettled} waiting={deferredPending.Count} drawn={drawnMeshRevision}/{engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).MeshRevision} deferred={streamDeferredBatches}/{streamBatches} preparedHere={streamPreparedHere} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms p99={Percentile(0.99):F1}ms slowest={streamSlowest:F1}ms growthMeshes={growths.Count} plan={streamPlanMs:F0}ms apply={streamApplyMs:F0}ms in {streamBatches} transactions ({streamApplyMs / Math.Max(1, streamAdmitted):F2}ms/chunk) refresh={streamRefreshMs / Math.Max(1, streamRefreshes):F2}ms x{streamRefreshes}");
+        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} installing={streamInstalling} unsettled={streamUnsettled} waiting={deferredPending.Count} undrawn={deferredUndrawn} drawn={drawnMeshRevision}/{engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).MeshRevision} deferred={streamDeferredBatches}/{streamBatches} preparedHere={streamPreparedHere} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms p99={Percentile(0.99):F1}ms slowest={streamSlowest:F1}ms growthMeshes={growths.Count} plan={streamPlanMs:F0}ms apply={streamApplyMs:F0}ms in {streamBatches} transactions ({streamApplyMs / Math.Max(1, streamAdmitted):F2}ms/chunk) refresh={streamRefreshMs / Math.Max(1, streamRefreshes):F2}ms x{streamRefreshes}");
 
     private double Percentile(double share)
     {
