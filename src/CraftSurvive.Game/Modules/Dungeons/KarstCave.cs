@@ -1697,7 +1697,10 @@ internal static class KarstCave
     /// <summary>The study switches that shape generation, for the generation cache's key.</summary>
     internal static string StudyKey => $"{string.Join(".", Enum.GetValues<CaveCommunity>().Select(StudyCount))}{(StudyNoCommunities ? "-none" : string.Empty)}{(StudyCarvedFormations ? "-carved" : string.Empty)}";
 
-    /// <summary>For the formation kit's before and after (#10305): true carves the drip formations into the rock, as before the kit, and places no pieces.</summary>
+    /// <summary>
+    /// For the geological kit's before and after (#10305): true carves the drip formations into the rock, as before the kit,
+    /// and places none of the kit's pieces - in caves or, through <see cref="KitOvergrowth"/>, in ruins.
+    /// </summary>
     internal static bool StudyCarvedFormations { get; set; }
 
     private static int StudyCount(CaveCommunity community) => community switch
@@ -3891,6 +3894,11 @@ private static int MostBarrensPieces => Area(400);
         // A standing piece is left off the routes: walked through, or its collider in the way.
         Vector3[] routePoints = [.. routePaths.SelectMany(path => path.Where((_, i) => i % 2 == 0)).Select(FieldCentre)];
         List<OvergrowthPlacement> darkGrowth = [.. formationPieces.Select(f => Settle(open, f)).OfType<OvergrowthPlacement>().Where(f => !InTheWay(f, routePoints))];
+        // The geological kit's smaller pieces (#10305), from the water's marks.
+        if (!StudyCarvedFormations)
+        {
+            darkGrowth.AddRange(SmallKit(open, formed, activeFlow, drip, standing, sediment, rubble, eras.Length, finalTable, seed));
+        }
         List<EcologyPlacement> ecology = Ecology(open, formed, activeFlow, drip, standing, eras.Length, finalTable, seed, skyOpen, darkGrowth);
         Mark("ecology");
         // The cave's stranger communities (#10304; owner, 2026-10-23): the study switches when any is set, else one to three
@@ -4826,6 +4834,132 @@ private static int MostBarrensPieces => Area(400);
 
         return count;
     }
+
+    /// <summary>
+    /// The geological kit's smaller pieces (#10305; owner, 2026-10-23), from what the water did: mud where it stood and its
+    /// silt settled, gravel where it ran, rimstone pools on gently sloping floors under the drip, debris among fallen rubble,
+    /// soda straws on ceilings where it still drips, flowstone coating dripping walls, and popcorn on walls of old dry levels;
+    /// each kind spaced apart and capped, chosen by hash so a seed always grows the same cave.
+    /// </summary>
+    private static List<OvergrowthPlacement> SmallKit(float[] open, byte[] formed, float[] flow, float[] drip, float[] standing, bool[] sediment, bool[] rubble,
+        int eras, float finalTable, ulong seed)
+    {
+        float Open(Vector3 p) => Trilinear(open, p);
+        // Whether a mark lies in the field within a sample or two under a floor point.
+        bool Marked(bool[] marks, Vector3 floor)
+        {
+            int x = (int)(floor.X / FieldStep), y = (int)(floor.Y / FieldStep), z = (int)(floor.Z / FieldStep);
+            for (int dy = -2; dy <= 0; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int sx = x + dx, sy = y + dy, sz = z + dz;
+                        if (sx >= 0 && sx < FieldX && sy >= 0 && sy < FieldY && sz >= 0 && sz < FieldZ && marks[FieldIndex(sx, sy, sz)])
+                        {
+                            return true;
+                        }
+                    }
+
+            return false;
+        }
+
+        List<(OvergrowthKind Kind, Vector3 At, Vector3 Out, float Rank)> candidates = [];
+        for (float z = 2f; z < GridZ * GridCell - 2f; z += EcologyStep)
+            for (float y = 2f; y < GridY * GridCell - 2f; y += EcologyStep)
+                for (float x = 2f; x < GridX * GridCell - 2f; x += EcologyStep)
+                {
+                    Vector3 p = new(x, y, z);
+                    if (Open(p) <= 0f || p.Y <= finalTable)
+                    {
+                        continue;
+                    }
+
+                    float dripping = GridTrilinear(drip, p), still = GridTrilinear(standing, p), running = GridTrilinear(flow, p);
+                    float rank = NaturalCavern.Hash(seed ^ 0x5A11UL, (int)x, (int)y, (int)z);
+                    float turn = NaturalCavern.Hash(seed ^ 0x5A12UL, (int)x, (int)y, (int)z) * MathF.Tau;
+                    Vector3 spin = new(MathF.Cos(turn), 0f, MathF.Sin(turn));
+                    int sample = FieldIndex(Math.Clamp((int)(x / FieldStep), 0, FieldX - 1), Math.Clamp((int)(y / FieldStep), 0, FieldY - 1), Math.Clamp((int)(z / FieldStep), 0, FieldZ - 1));
+                    int age = formed[sample] == Unformed ? 0 : eras - 1 - formed[sample];
+                    if (Open(p - new Vector3(0f, EcologyStep, 0f)) <= 0f)
+                    {
+                        Vector3 floor = Floor(open, p) - new Vector3(0f, SmallSink, 0f);
+                        if (Marked(sediment, floor) && (still >= MudStill || age >= MudAfterEras))
+                        {
+                            candidates.Add((OvergrowthKind.Mud, floor, spin, rank));
+                        }
+                        else if (running >= GravelFlow)
+                        {
+                            candidates.Add((OvergrowthKind.Gravel, floor, spin, rank));
+                        }
+                        else if (Marked(rubble, floor))
+                        {
+                            candidates.Add((OvergrowthKind.Debris, floor, spin, rank));
+                        }
+                        else if (dripping >= RimDrip && running < QuietFlow)
+                        {
+                            // Rimstone on a gentle slope, its pools stepping down it.
+                            float east = Floor(open, p + new Vector3(RimProbe, 0f, 0f)).Y, west = Floor(open, p - new Vector3(RimProbe, 0f, 0f)).Y;
+                            float south = Floor(open, p + new Vector3(0f, 0f, RimProbe)).Y, north = Floor(open, p - new Vector3(0f, 0f, RimProbe)).Y;
+                            Vector2 fall = new(west - east, north - south);
+                            float slope = fall.Length() / (2f * RimProbe);
+                            if (slope > RimSlopeLeast && slope < RimSlopeMost)
+                            {
+                                Vector2 way = Vector2.Normalize(fall);
+                                candidates.Add((OvergrowthKind.Rimstone, floor, new Vector3(way.X, 0f, way.Y), rank));
+                            }
+                        }
+                    }
+
+                    if (Open(p + new Vector3(0f, EcologyStep, 0f)) <= 0f && dripping >= StrawsDrip && Open(p - new Vector3(0f, HeadRoom, 0f)) > 0f)
+                    {
+                        candidates.Add((OvergrowthKind.Straws, Ceiling(open, p) + new Vector3(0f, SmallSink, 0f), spin, rank));
+                    }
+
+                    if (Wall(open, p) is Vector3 wall)
+                    {
+                        Vector3 face = p - (wall * WallReach);
+                        if (dripping >= CoatDrip)
+                        {
+                            candidates.Add((OvergrowthKind.Flowstone, face + new Vector3(0f, FlowstoneHead, 0f), wall, rank));
+                        }
+                        else if (age >= PopcornAfterEras && dripping < FungiDamp && still < FungiDamp)
+                        {
+                            candidates.Add((OvergrowthKind.Popcorn, face, wall, rank));
+                        }
+                    }
+                }
+
+        List<OvergrowthPlacement> chosen = [];
+        foreach ((OvergrowthKind kind, float apart, int most) in new[] { (OvergrowthKind.Mud, MudApart, Area(40)), (OvergrowthKind.Gravel, GravelApart, Area(50)),
+            (OvergrowthKind.Debris, DebrisApart, Area(60)), (OvergrowthKind.Rimstone, RimApart, Area(30)), (OvergrowthKind.Straws, StrawsApart, Area(80)),
+            (OvergrowthKind.Flowstone, FlowstoneApart, Area(40)), (OvergrowthKind.Popcorn, PopcornApart, Area(40)) })
+        {
+            List<OvergrowthPlacement> these = [];
+            foreach ((OvergrowthKind _, Vector3 at, Vector3 outward, float rank) in candidates.Where(c => c.Kind == kind).OrderByDescending(c => c.Rank))
+            {
+                if (these.Count >= most || these.Any(c => Vector3.Distance(c.At, at) < apart))
+                {
+                    continue;
+                }
+
+                these.Add(new OvergrowthPlacement(kind, at, outward, 0.8f + (0.45f * rank), rank));
+            }
+
+            chosen.AddRange(these);
+        }
+
+        return chosen;
+    }
+
+    // The smaller kit (#10305): each piece set so far into its surface; mud on the silt where the water stands this much, or
+    // stood an era or more ago,
+    // gravel where it ran this much, rimstone where it drips this much on floors sloping between these (probed so far each
+    // way), straws where it drips this much over head room, flowstone (its head so far up the wall) where it drips this
+    // much on a wall (a point this far off it), popcorn on walls dry for so many eras; each so far apart.
+    private const float SmallSink = 0.04f, MudStill = 0.12f, GravelFlow = 0.25f, RimDrip = 0.1f, RimProbe = 1f, RimSlopeLeast = 0.06f, RimSlopeMost = 0.35f;
+    private const float StrawsDrip = 0.12f, CoatDrip = 0.15f, FlowstoneHead = 1.2f, WallReach = 0.45f;
+    private const int PopcornAfterEras = 2, MudAfterEras = 1;
+    private const float MudApart = 3f, GravelApart = 2.5f, DebrisApart = 2.5f, RimApart = 4f, StrawsApart = 2f, FlowstoneApart = 3f, PopcornApart = 3f;
 
     /// <summary>A stalagmite rising so far from a floor (the short kind or the tall), its shape marked; false when too short.</summary>
     private static bool Stand(Vector3 at, float ground, float rise, float grand, DungeonRandom random, List<OvergrowthPlacement> placed, float[] shapes)

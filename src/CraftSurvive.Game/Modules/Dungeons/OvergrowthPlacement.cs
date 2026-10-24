@@ -193,6 +193,27 @@ internal enum OvergrowthKind
 
     /// <summary>A calcite drapery curtain 2.4 m along x hanging about 1.3 m from a ceiling line, its +z facing down the ceiling's slope.</summary>
     Drapery,
+
+    /// <summary>The geological kit's smaller pieces (#10305; owner, 2026-10-23): a ceiling patch of soda straws, 0.15 to 0.6 m.</summary>
+    Straws,
+
+    /// <summary>A wall piece: a calcite flowstone coat flowing about 1.8 m down a wall from its head (y = 0), 1.2 m wide.</summary>
+    Flowstone,
+
+    /// <summary>A wall piece: a crust of calcite popcorn nodules round its middle, about 0.9 m across.</summary>
+    Popcorn,
+
+    /// <summary>A floor piece: terraced rimstone pools stepping down along +z, about 1.8 m.</summary>
+    Rimstone,
+
+    /// <summary>A floor patch of rounded pebbles where water ran, about 1.2 m across.</summary>
+    Gravel,
+
+    /// <summary>A floor patch of drying mud cracked into plates, about 2 m across.</summary>
+    Mud,
+
+    /// <summary>A floor patch of fallen angular stone chunks and grit, about 1.4 m across.</summary>
+    Debris,
 }
 
 /// <summary>
@@ -301,9 +322,11 @@ internal readonly record struct OvergrowthPlacement(OvergrowthKind Kind, Vector3
         or OvergrowthKind.FunnelUnfurled or OvergrowthKind.FunnelDrinkers or OvergrowthKind.FunnelDebris;
 
     /// <summary>Whether a kind is placed only turned about its up - one standing on a floor, or (the grove's) hanging from a ceiling (on the plane y = 0) rather than growing on a wall.</summary>
-    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Ecology(kind) || Formation(kind);
+    internal static bool OnFloor(OvergrowthKind kind) => kind is OvergrowthKind.GrassTuft or OvergrowthKind.GrassStrip or OvergrowthKind.Mushrooms || Ecology(kind)
+        || (Formation(kind) && kind is not (OvergrowthKind.Flowstone or OvergrowthKind.Popcorn));
 
-    /// <summary>Whether a kind is one of the geological kit's formations (#10305) rather than growth.</summary>
+    /// <summary>Whether a kind is one of the geological kit's pieces (#10305), its drip formations and its smaller pieces, rather than growth.</summary>
     internal static bool Formation(OvergrowthKind kind) => kind is OvergrowthKind.Stalactite or OvergrowthKind.StalactiteLong or OvergrowthKind.Stalagmite
-        or OvergrowthKind.StalagmiteTall or OvergrowthKind.Column or OvergrowthKind.Drapery;
+        or OvergrowthKind.StalagmiteTall or OvergrowthKind.Column or OvergrowthKind.Drapery or OvergrowthKind.Straws or OvergrowthKind.Flowstone
+        or OvergrowthKind.Popcorn or OvergrowthKind.Rimstone or OvergrowthKind.Gravel or OvergrowthKind.Mud or OvergrowthKind.Debris;
 }

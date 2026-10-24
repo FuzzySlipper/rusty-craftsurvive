@@ -168,6 +168,13 @@ internal sealed class DungeonOvergrowth : IDisposable
         OvergrowthKind.StalagmiteTall => "models/dungeon-formations/stalagmite-tall.prop-mesh.json",
         OvergrowthKind.Column => "models/dungeon-formations/column.prop-mesh.json",
         OvergrowthKind.Drapery => "models/dungeon-formations/drapery.prop-mesh.json",
+        OvergrowthKind.Straws => "models/dungeon-formations/straws.prop-mesh.json",
+        OvergrowthKind.Flowstone => "models/dungeon-formations/flowstone.prop-mesh.json",
+        OvergrowthKind.Popcorn => "models/dungeon-formations/popcorn.prop-mesh.json",
+        OvergrowthKind.Rimstone => "models/dungeon-formations/rimstone.prop-mesh.json",
+        OvergrowthKind.Gravel => "models/dungeon-formations/gravel.prop-mesh.json",
+        OvergrowthKind.Mud => "models/dungeon-formations/mud.prop-mesh.json",
+        OvergrowthKind.Debris => "models/dungeon-formations/debris.prop-mesh.json",
         _ => "models/dungeon-overgrowth/mushrooms.prop-mesh.json",
     };
 

@@ -84,6 +84,9 @@ internal static class KitOvergrowth
             faces.Add(DungeonKit.Turned(w, Vector3.UnitZ));
         }
 
+        // The cells holding a broken piece (#10305): fallen stonework gathers on the floors in and round them.
+        List<Vector3> broken = [.. kit.Where(b => b.Piece is KitPiece.WallBreach or KitPiece.CornerBroken or KitPiece.RubbleHeap or KitPiece.RubbleSlope
+            or KitPiece.FloorHeaved).Select(b => b.Origin)];
         foreach (KitPlacement p in kit)
         {
             if (grown.Count >= Most)
@@ -113,6 +116,10 @@ internal static class KitOvergrowth
                     break;
                 case KitPiece.Floor:
                     Floor(grown, p, damp, seed, walls.GetValueOrDefault(Cell(p.Origin)) ?? []);
+                    Fallen(grown, p, damp, seed, broken.Any(b => Vector3.Distance(b, p.Origin) < BrokenNear));
+                    break;
+                case KitPiece.Vault:
+                    Vault(grown, p, damp, seed);
                     break;
                 case KitPiece.RubbleHeap:
                     for (float x = 0.4f; x <= 1.6f; x += TuftStep / 1.5f)
@@ -198,6 +205,19 @@ internal static class KitOvergrowth
             }
         }
 
+        // Flowstone (#10305; owner, 2026-10-23: drip on the stonework) coating the wettest walls from under the cove, between
+        // the drapes.
+        foreach (float along in FlowstoneAt)
+        {
+            if ((door || feature) && MathF.Abs(along) < OpeningHalf)
+            {
+                continue;
+            }
+
+            float y = ceiling - DrapeUnder - FlowstoneUnder;
+            Grow(grown, p, OvergrowthKind.Flowstone, new Vector3(along, y, WallFace(along, y, ceiling) - FlowstoneSink), PanelNormal(along), Chance(damp, FlowstoneFrom), seed);
+        }
+
         // Mounds at the wall's foot, on the plinth.
         foreach (float along in MoundAt)
         {
@@ -270,6 +290,53 @@ internal static class KitOvergrowth
         }
     }
 
+    /// <summary>
+    /// The drip under a wet vault (#10305; owner, 2026-10-23: straws and small stalactites where water drips on the
+    /// stonework): patches of soda straws hung from its underside off its ribs, and on the wettest a few small stalactites.
+    /// </summary>
+    private static void Vault(List<OvergrowthPlacement> grown, KitPlacement p, float damp, ulong seed)
+    {
+        foreach ((float x, float z) in DripAt)
+        {
+            Vector3 under = new(x, VaultUnder(x, z) + DripSink, z);
+            Grow(grown, p, OvergrowthKind.Straws, under, Turn(p, seed, under), Chance(damp, StrawsFrom), seed);
+            Vector3 beside = under + new Vector3(StalactiteBeside, 0f, 0f);
+            Grow(grown, p, OvergrowthKind.Stalactite, beside with { Y = VaultUnder(beside.X, z) + DripSink }, Turn(p, seed, beside),
+                StalactiteShare * Chance(damp, StalactitesFrom), seed, RuinStalactiteScale);
+        }
+    }
+
+    /// <summary>A storey's vault underside over a point of its cell (kit_authored.py's vault_front, without its ribs and boss).</summary>
+    private static float VaultUnder(float x, float z) => Ceiling - VaultDrop + (VaultRise * MathF.Cos(0.5f * MathF.PI * x / Inner) * MathF.Cos(0.5f * MathF.PI * z / Inner));
+
+    /// <summary>
+    /// What fell on a floor (#10305): debris of broken stonework in and round a cell with a broken piece, sparsely elsewhere,
+    /// and gravel the water laid on a wet floor.
+    /// </summary>
+    private static void Fallen(List<OvergrowthPlacement> grown, KitPlacement p, float damp, ulong seed, bool nearBroken)
+    {
+        foreach (Vector3 spot in FallenAt)
+        {
+            Vector3 on = spot + (Vector3.UnitY * FloorTop);
+            Grow(grown, p, OvergrowthKind.Debris, on, Turn(p, seed, on), nearBroken ? DebrisNearBroken : DebrisElsewhere, seed);
+            Vector3 laid = new Vector3(-spot.Z, 0f, spot.X) + (Vector3.UnitY * FloorTop);
+            Grow(grown, p, OvergrowthKind.Gravel, laid, Turn(p, seed, laid), GravelShare * Chance(damp, GravelFrom), seed);
+        }
+    }
+
+    // The ruins' drip and debris (#10305): straws hung at these places under a vault (off its diagonal ribs), each sunk
+    // so far into it, from this dampness; a small stalactite so far beside a patch, this share of the time on the wettest,
+    // at this size. Flowstone coats a wall at these places along it, so far under the drapes' head and sunk into the panel,
+    // from this dampness. Debris lies at these places on a floor: this likely within BrokenNear of a broken piece, this
+    // elsewhere; gravel beside it, this share of the time on wet floors.
+    private static readonly (float X, float Z)[] DripAt = [(1.5f, 0.4f), (-1.5f, -0.4f), (0.4f, -1.5f), (-0.4f, 1.5f), (0f, 0.9f)];
+    private const float DripSink = 0.08f, StrawsFrom = 0.6f, StalactiteBeside = 0.45f, StalactiteShare = 0.6f, StalactitesFrom = 0.8f, RuinStalactiteScale = 0.5f;
+    private const float VaultDrop = 0.04f, VaultRise = 0.55f;
+    private static readonly float[] FlowstoneAt = [-1.2f, 1.2f];
+    private const float FlowstoneUnder = 0.15f, FlowstoneSink = 0.03f, FlowstoneFrom = 0.85f;
+    private static readonly Vector3[] FallenAt = [new(1.4f, 0f, 1.1f), new(-1.2f, 0f, -1.5f)];
+    private const float BrokenNear = 7f, DebrisNearBroken = 0.75f, DebrisElsewhere = 0.12f, GravelShare = 0.5f, GravelFrom = 0.8f;
+
     /// <summary>A kit cell, by a piece's origin (its pieces share it).</summary>
     private static (int, int, int) Cell(Vector3 origin) => ((int)MathF.Round(origin.X), (int)MathF.Round(origin.Y), (int)MathF.Round(origin.Z));
 
@@ -285,7 +352,7 @@ internal static class KitOvergrowth
         float size = 1f)
     {
         Vector3 at = DungeonKit.Local(p, local);
-        if (Hash(seed ^ (ulong)kind, at) >= chance)
+        if (Hash(seed ^ (ulong)kind, at) >= chance || (KarstCave.StudyCarvedFormations && OvergrowthPlacement.Formation(kind)))
         {
             return;
         }

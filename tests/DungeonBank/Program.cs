@@ -718,7 +718,9 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Console.WriteLine($"kit moisture: {seeped}/8 dungeons seep; of {pieces} pieces {dry} dry (<0.45), {wet} wet (>0.65); grain {(grainEqual ? "equal" : "DIFFERS")}");
     Check.That(seeped == 8 && dry > 0 && wet > 0, "every dungeon must seep and its kit range from dry to wet");
     Console.WriteLine($"kit overgrowth: {overgrown} over 8 dungeons ({fewest}..{most} each; {string.Join(" ", grownKinds.OrderBy(k => k.Key).Select(k => $"{k.Key}={k.Value}"))}); {inDryAir} before dry air");
-    Check.That(fewest > 0 && grownKinds.Count == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Ecology(k) && !OvergrowthPlacement.Formation(k)), "every dungeon must grow overgrowth, and the bank every kind of it but the underground ecologies' and the cave formations'");
+    Check.That(new[] { OvergrowthKind.Straws, OvergrowthKind.Stalactite, OvergrowthKind.Flowstone, OvergrowthKind.Debris, OvergrowthKind.Gravel }.All(grownKinds.ContainsKey),
+        "the ruins must grow the kit's drip and debris: straws, small stalactites, flowstone, debris and gravel");
+    Check.That(fewest > 0 && grownKinds.Keys.Count(k => !OvergrowthPlacement.Formation(k)) == Enum.GetValues<OvergrowthKind>().Count(k => !OvergrowthPlacement.Ecology(k) && !OvergrowthPlacement.Formation(k)), "every dungeon must grow overgrowth, and the bank every kind of it but the underground ecologies' and the cave formations'");
     Check.That(inDryAir == 0, "overgrowth must not grow before dry air");
 }
 
