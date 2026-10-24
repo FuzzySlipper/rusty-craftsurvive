@@ -55,6 +55,13 @@ public sealed class DungeonDebugModule : IDebugCommandModule
     [DebugCommand("craft.dungeon.streamhandoff", Description = "Assisted, for the stored, streamed cave prototype (#10304): hands streamed chunks to the Engine (one transaction and one presentation refresh) at most every so many seconds, sooner when a chunk round the player is missing; 0 every update.")]
     public string StreamHandOff(double seconds) => DungeonModule.StudyStreamHandOff(seconds);
 
+    [DebugCommand("craft.dungeon.streamdefer", Description = "Assisted, for the streamed cave (#10332): on hands streamed chunks away from the player to the Engine deferred - written now, meshed and collided on its worker, installed at a later update's start - with those round the player synchronous (the default); off hands every batch over synchronously, for the A/B.")]
+    public string StreamDefer(string mode)
+    {
+        DungeonSpace.StreamDeferred = mode != "off";
+        return DungeonSpace.StreamDeferred ? "streamed chunks away from the player are handed over deferred" : "streamed chunks are handed over synchronously";
+    }
+
     [DebugCommand("craft.dungeon.streamprobes", Description = "Assisted, for the stored, streamed cave prototype (#10304): the next streamed dungeons' indirect light - follow (a probe volume about the player within the streamed rock, the default), whole (over the whole space, rebaked as rock streams) or off.")]
     public string StreamProbes(string mode) => dungeons.StudyStreamProbes(mode);
 

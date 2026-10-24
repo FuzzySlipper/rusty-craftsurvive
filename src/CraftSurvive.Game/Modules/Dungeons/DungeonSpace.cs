@@ -129,6 +129,9 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>The most chunks admitted in one update while streaming.</summary>
     internal const int StreamBudget = 6;
 
+    /// <summary>The most chunks a deferred hand-off takes (#10332): their rebuild and install cost the Engine's worker and a later update's start, not the write the budget measures.</summary>
+    internal const int DeferredStreamBudget = 6;
+
     private readonly HashSet<(int X, int Y, int Z)> shell = [];
     private readonly HashSet<(int X, int Y, int Z)> resident = [];
     private long streamAdmitted, streamEvicted, streamUpdates, streamNotReady;
@@ -197,9 +200,22 @@ internal sealed class DungeonSpace : IDisposable
         (int X, int Y, int Z) at = ChunkOf(player);
         List<(int X, int Y, int Z)> wanted = [.. shell.Where(c => !resident.Contains(c) && Within(c, at, StreamRadius)).OrderBy(c => Reach(c, at))];
         streamPending = wanted.Count;
-        if (wanted.Any(c => Math.Abs(c.X - at.X) <= 1 && Math.Abs(c.Y - at.Y) <= 1 && Math.Abs(c.Z - at.Z) <= 1))
+        // A deferred hand-off is live once the scene's collision has reached its revision (#10332).
+        if (deferredPending.Count > 0)
+        {
+            ulong live = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).CollisionRevision;
+            foreach ((int X, int Y, int Z) chunk in deferredPending.Where(p => p.Value <= live).Select(p => p.Key).ToList())
+            {
+                deferredPending.Remove(chunk);
+            }
+        }
+
+        static bool Round((int X, int Y, int Z) c, (int X, int Y, int Z) at) => Math.Abs(c.X - at.X) <= 1 && Math.Abs(c.Y - at.Y) <= 1 && Math.Abs(c.Z - at.Z) <= 1;
+        bool installing = deferredPending.Keys.Any(c => Round(c, at));
+        if (wanted.Any(c => Round(c, at)) || installing)
         {
             streamNotReady++;
+            streamInstalling += installing ? 1 : 0;
         }
 
         // The nearest wanted chunks are prepared ahead on a worker; the update only hands prepared ones to the Engine, a
@@ -226,9 +242,13 @@ internal sealed class DungeonSpace : IDisposable
         // One hand-off a update, of as many prepared chunks (nearest first) as the time budget holds at the cost a chunk has
         // taken so far: the Engine meshes a chunk with its neighbours, so neighbours handed together are meshed once.
         streamPlanMs += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        bool urgent = wanted.Any(c => Math.Abs(c.X - at.X) <= 1 && Math.Abs(c.Y - at.Y) <= 1 && Math.Abs(c.Z - at.Z) <= 1);
+        bool urgent = wanted.Any(c => Round(c, at));
         bool due = urgent || Stopwatch.GetElapsedTime(lastHandOff).TotalSeconds >= StreamHandOffSeconds;
-        int room = due ? Math.Clamp((int)(StreamBudgetMs / Math.Max(0.05, chunkApplyMs)), 1, StreamBudget) : 0;
+        // A batch with a chunk round the player is handed over synchronously, so the player never stands where the rock is not
+        // yet live; the rest is deferred (#10332), its write all the update pays for, the rebuild on the Engine's worker.
+        bool defer = StreamDeferred && !urgent;
+        double perChunk = defer ? deferredApplyMs : chunkApplyMs;
+        int room = due ? Math.Clamp((int)(StreamBudgetMs / Math.Max(0.05, perChunk)), 1, defer ? DeferredStreamBudget : StreamBudget) : 0;
         List<((int X, int Y, int Z) Chunk, (uint[] Materials, float[]? Densities) Payload)> batch = [];
         foreach ((int X, int Y, int Z) chunk in wanted)
         {
@@ -258,14 +278,35 @@ internal sealed class DungeonSpace : IDisposable
         {
             lastHandOff = Stopwatch.GetTimestamp();
             long applying = Stopwatch.GetTimestamp();
-            DungeonCollision.ApplyPrepared(engine, Session, batch, leave, layout.VoxelSize);
+            VoxelResidencyReceipt? receipt = DungeonCollision.ApplyPrepared(engine, Session, batch, leave, layout.VoxelSize, defer);
             double applied = Stopwatch.GetElapsedTime(applying).TotalMilliseconds;
             streamApplyMs += applied;
             streamBatches++;
+            streamDeferredBatches += defer ? 1 : 0;
             if (batch.Count > 0)
             {
-                // The cost a chunk takes, smoothed.
-                chunkApplyMs = (chunkApplyMs * 0.8) + (applied / batch.Count * 0.2);
+                // The cost a chunk takes in each way, smoothed.
+                if (defer)
+                {
+                    deferredApplyMs = (deferredApplyMs * 0.8) + (applied / batch.Count * 0.2);
+                }
+                else
+                {
+                    chunkApplyMs = (chunkApplyMs * 0.8) + (applied / batch.Count * 0.2);
+                }
+            }
+
+            if (defer && receipt is VoxelResidencyReceipt handed)
+            {
+                foreach (((int X, int Y, int Z) chunk, _) in batch)
+                {
+                    deferredPending[chunk] = handed.AcceptedRevision;
+                }
+            }
+            else
+            {
+                // A synchronous change installs every deferred one before it.
+                deferredPending.Clear();
             }
 
             foreach (((int X, int Y, int Z) chunk, _) in batch)
@@ -279,7 +320,9 @@ internal sealed class DungeonSpace : IDisposable
         }
 
         // The presentation draws what was resident when it was made, or last refreshed: it follows the stream only when told.
-        if (batch.Count > 0 || leave.Count > 0)
+        // Deferred chunks install at the start of a later update, so a deferring stream tells it every update (about 0.2 ms
+        // with nothing to show, rusty-engine #10331).
+        if (batch.Count > 0 || leave.Count > 0 || StreamDeferred)
         {
             long refreshing = Stopwatch.GetTimestamp();
             engine.VoxelScenePresentation.RefreshScene(projection);
@@ -297,9 +340,21 @@ internal sealed class DungeonSpace : IDisposable
     }
 
     // Admission is prepared ahead (so many chunks a batch, on a worker) and handed to the Engine within a time budget each
-    // update (at least one chunk), at most so many.
+    // update (at least one chunk), at most so many - a deferred hand-off's budget measuring only its write (#10332).
     private const int PrepareAhead = 24;
-    private double chunkApplyMs = 1, streamPlanMs, streamApplyMs, streamRefreshMs;
+    private double chunkApplyMs = 1, deferredApplyMs = 0.5, streamPlanMs, streamApplyMs, streamRefreshMs;
+
+    /// <summary>
+    /// Whether streamed chunks away from the player are handed to the Engine deferred (#10332, rusty-engine #10327): their
+    /// meshes and colliders rebuilt on its worker and installed at a later update's start. False hands every batch over
+    /// synchronously, as before (for the A/B).
+    /// </summary>
+    internal static bool StreamDeferred { get; set; } = true;
+
+    // The deferred chunks handed over whose collision is not live yet, each with the revision that makes it live; how many
+    // hand-offs were deferred, and how many updates found one round the player still installing.
+    private readonly Dictionary<(int X, int Y, int Z), ulong> deferredPending = [];
+    private long streamDeferredBatches, streamInstalling;
     private long streamRefreshes, lastHandOff;
 
     /// <summary>Prototype knob: the least time between hand-offs (0 every update), sooner when a chunk round the player is missing.</summary>
@@ -313,7 +368,7 @@ internal sealed class DungeonSpace : IDisposable
     private const int MostStreamTimes = 100_000;
 
     internal string StreamReadout() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} preparedHere={streamPreparedHere} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms p99={Percentile(0.99):F1}ms slowest={streamSlowest:F1}ms growthMeshes={growths.Count} plan={streamPlanMs:F0}ms apply={streamApplyMs:F0}ms in {streamBatches} transactions ({streamApplyMs / Math.Max(1, streamAdmitted):F2}ms/chunk) refresh={streamRefreshMs / Math.Max(1, streamRefreshes):F2}ms x{streamRefreshes}");
+        $"stream radius={StreamRadius} shell={shell.Count}/{StreamChunks.All} resident={resident.Count} pending={streamPending} admitted={streamAdmitted} evicted={streamEvicted} updates={streamUpdates} notReady={streamNotReady} installing={streamInstalling} deferred={streamDeferredBatches}/{streamBatches} preparedHere={streamPreparedHere} meanUpdate={streamMs / Math.Max(1, streamUpdates):F2}ms p99={Percentile(0.99):F1}ms slowest={streamSlowest:F1}ms growthMeshes={growths.Count} plan={streamPlanMs:F0}ms apply={streamApplyMs:F0}ms in {streamBatches} transactions ({streamApplyMs / Math.Max(1, streamAdmitted):F2}ms/chunk) refresh={streamRefreshMs / Math.Max(1, streamRefreshes):F2}ms x{streamRefreshes}");
 
     private double Percentile(double share)
     {
@@ -329,7 +384,7 @@ internal sealed class DungeonSpace : IDisposable
     /// <summary>Clears the stream's measures, so a walk can be measured on its own.</summary>
     internal void ResetStreamMeasures()
     {
-        streamAdmitted = streamEvicted = streamUpdates = streamNotReady = streamPreparedHere = 0;
+        streamAdmitted = streamEvicted = streamUpdates = streamNotReady = streamPreparedHere = streamInstalling = streamDeferredBatches = 0;
         streamMs = streamSlowest = streamPlanMs = streamApplyMs = streamRefreshMs = 0;
         streamBatches = streamRefreshes = 0;
         streamTimes.Clear();

@@ -113,12 +113,18 @@ internal static class DungeonCollision
     /// Admits prepared chunks (all with densities, or all without) and evicts others in one transaction: a presentation
     /// refreshed after a single transaction republishes only the chunks it touched, after several every chunk.
     /// </summary>
-    internal static void ApplyPrepared(IEngineContext engine, SpatialSession session, IReadOnlyList<((int X, int Y, int Z) Chunk, (uint[] Materials, float[]? Densities) Payload)> chunks,
-        IReadOnlyList<(int X, int Y, int Z)> evict, double voxelSize)
+    /// <param name="deferred">
+    /// Whether the Engine rebuilds the chunks' meshes and colliders on its worker (#10332, rusty-engine #10327): the voxels
+    /// are written now, and the rebuilt chunks install at the start of a later Engine call; until then collision, picking
+    /// and the presentation show them as they were. The receipt's accepted revision says when they are live.
+    /// </param>
+    /// <returns>The receipt, or null when there was nothing to hand over.</returns>
+    internal static VoxelResidencyReceipt? ApplyPrepared(IEngineContext engine, SpatialSession session, IReadOnlyList<((int X, int Y, int Z) Chunk, (uint[] Materials, float[]? Densities) Payload)> chunks,
+        IReadOnlyList<(int X, int Y, int Z)> evict, double voxelSize, bool deferred = false)
     {
         if (chunks.Count == 0 && evict.Count == 0)
         {
-            return;
+            return null;
         }
 
         double chunkMetres = TerrainConstants.ChunkEdgeLength * voxelSize;
@@ -141,9 +147,8 @@ internal static class DungeonCollision
         }
 
         operations.AddRange(evict.Select(c => new VoxelResidencyOperation(VoxelResidencyOperationKind.Evict, new VoxelChunkIdentity(c.X + first.X, c.Y + first.Y, c.Z + first.Z), 0, 0)));
-        engine.Voxel.ApplyResidency(withDensities
-            ? new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, session, operations.ToArray(), materials.ToArray(), values.ToArray())
-            : new VoxelResidencyTransaction(session, operations.ToArray(), materials.ToArray()));
+        return engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, session, operations.ToArray(), materials.ToArray(),
+            withDensities ? values.ToArray() : ReadOnlyMemory<float>.Empty, deferred));
     }
 
     /// <summary>

@@ -128,7 +128,8 @@ internal sealed class StreamedCave : IDisposable
         wanted.Sort((a, b) => Distance(a, cx, cy, cz).CompareTo(Distance(b, cx, cy, cz)));
         lastPending = wanted.Count;
         // Whether the chunks round the player (the 3 x 3 x 3 about them) are all in: if not, they could fall or walk into void.
-        if (wanted.Any(w => Math.Abs(w.X - cx) <= 1 && Math.Abs(w.Y - cy) <= 1 && Math.Abs(w.Z - cz) <= 1))
+        bool urgent = wanted.Any(w => Math.Abs(w.X - cx) <= 1 && Math.Abs(w.Y - cy) <= 1 && Math.Abs(w.Z - cz) <= 1);
+        if (urgent)
         {
             notReadyUpdates++;
         }
@@ -152,11 +153,20 @@ internal sealed class StreamedCave : IDisposable
         }
 
         generateMs += Stopwatch.GetElapsedTime(generating).TotalMilliseconds;
-        if (operations.Count > 0)
+        // Away from the player the hand-off is deferred (#10332), as the stored cave's is; a batch round them, or the first
+        // whole fill, synchronous.
+        bool deferring = DungeonSpace.StreamDeferred;
+        if (operations.Count > 0 || deferring)
         {
             long applying = Stopwatch.GetTimestamp();
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session, operations.ToArray(), materials.ToArray(), densities.ToArray()));
-            // The presentation follows residency only when refreshed.
+            if (operations.Count > 0)
+            {
+                engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session, operations.ToArray(), materials.ToArray(), densities.ToArray(),
+                    deferring && !urgent && !all));
+            }
+
+            // The presentation follows residency only when refreshed; deferred chunks install at a later update's start, so a
+            // deferring stream refreshes every update.
             engine.VoxelScenePresentation.RefreshScene(projection);
             applyMs += Stopwatch.GetElapsedTime(applying).TotalMilliseconds;
         }
