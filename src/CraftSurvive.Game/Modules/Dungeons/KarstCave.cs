@@ -137,6 +137,9 @@ internal static class KarstCave
     /// <summary>How many of the lights go to features off the main route (the maze, bedding rooms, chambers).</summary>
     private static int MostFeatureLights => Area(6);
 
+    /// <summary>How far in front of a wall a kit piece's growth is tested for the cave's rock overgrowing it (#10097).</summary>
+    private const float OvergrownProbe = 0.6f;
+
     /// <summary>The most of a ruin's own lights a cave hangs (#10097).</summary>
     private const int MostRuinLights = 5;
 
@@ -4042,7 +4045,7 @@ private static int MostBarrensPieces => Area(400);
         // The ramp to its breach is fallen stone: rubble.
         Func<Vector3, BlockId> rockAt = ruin is null ? cave.RockAt : p => ruin.UnderRamp(p) ? RubbleRock : cave.RockAt(p);
         (DungeonVolume volume, RockDensity rock) = StudyField.Sample(shape, ChunksX, ChunksY, ChunksZ, voxelSize, rockAt);
-        ruin?.Lay(volume, cave.At);
+        ruin?.Lay(volume, cave.At, rockAt);
         Mark("sample");
         // The arrival is underground, at the foot of the first sink, even when the surface is open above it.
         float below = cave.SkyOpen ? MathF.Min(cave.SinkPoints[0].Y, SurfaceAt(cave.SinkPoints[0].X, cave.SinkPoints[0].Z, seed) - SinkDepthBelowSurface) : cave.SinkPoints[0].Y;
@@ -4105,8 +4108,12 @@ private static int MostBarrensPieces => Area(400);
             moisture = DungeonMoisture.Compute(volume, ruin.Modules, seed);
             DungeonMoisture damp = moisture;
             kit = [.. kit.Select(p => p with { Wet = damp.At(DungeonKit.Probe(p)) })];
-            cards.AddRange(KitMoss.Cards(kit, seed));
-            overgrowth.AddRange(KitOvergrowth.Placements(kit, seed));
+            // The kit's moss and overgrowth grow on its walls, not where the cave's rock has overgrown them (just in front of the
+            // wall, where a piece hangs).
+            bool Overgrown(Vector3 at, Vector3 outward) => new[] { at, at + (outward * OvergrownProbe) }.Any(p =>
+                ruin.Overgrown.ContainsKey(((int)MathF.Floor(p.X), (int)MathF.Floor(p.Y), (int)MathF.Floor(p.Z))));
+            cards.AddRange(KitMoss.Cards(kit, seed).Where(c => !Overgrown(c.At, c.Out)));
+            overgrowth.AddRange(KitOvergrowth.Placements(kit, seed).Where(g => !Overgrown(g.At, g.Out)));
             drips = DungeonDrips.Marks(volume, moisture, kit, seed);
         }
 
@@ -4143,7 +4150,7 @@ private static int MostBarrensPieces => Area(400);
         };
         string grown = string.Join(",", Enum.GetValues<MossCardKind>().Select(k => $"{k}:{cards.Count(c => c.Kind == k)}"));
         return (layout, plan, new DungeonVerdict(true, string.Create(CultureInfo.InvariantCulture,
-            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
+            $"{Readout(cave)} mossCards={cards.Count} ({grown}) overgrowth={overgrowth.Count} ferns={ferns.Count} fungalPockets={cave.FungalPockets.Count} ruin={(ruin is null ? "none" : $"{ruin.Size}:{ruin.Modules.Count}m{(ruin.Vault is null ? "" : "+vault")}:overgrown{ruin.Overgrown.Count}")} kit={kit.Count} in {Stopwatch.GetElapsedTime(cardsFrom).TotalMilliseconds:F0} ms"), 0), volume);
     }
 
     /// <summary>What a generated cave came to, in one line.</summary>

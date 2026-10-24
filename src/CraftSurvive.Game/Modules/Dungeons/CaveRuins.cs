@@ -31,6 +31,12 @@ internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modul
     /// <summary>The cave's air this far into a masonry voxel (metres of the cave's field) bursts it: the cave runs through.</summary>
     internal const float BurstOpen = 0.4f;
 
+    /// <summary>
+    /// The cave's rock overgrowing the burst walls (owner, 2026-10-24): the ruin's air voxels the rock has pushed into past a
+    /// burst, each with its field (negative: how far inside the lobe).
+    /// </summary>
+    internal IReadOnlyDictionary<(int X, int Y, int Z), float> Overgrown { get; init; } = new Dictionary<(int X, int Y, int Z), float>();
+
     // The ramp from the broken wall to the mouth: this wide either side of its line and this tall over its floor, its fallen
     // stone this deep under it; it reaches this far on past both ends.
     private const float RampHalfWidth = 1.6f, RampHeight = 3.2f, RampDepth = 1.5f, RampBeyond = 0.75f;
@@ -113,14 +119,14 @@ internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modul
         int x = (int)MathF.Floor(p.X), y = (int)MathF.Floor(p.Y), z = (int)MathF.Floor(p.Z);
         if (!Building.Contains(x, y, z) || Building.At(x, y, z) == BlockId.Air)
         {
-            return MathF.Max(cave(p), RuinAir);
+            return Overgrown.TryGetValue((x, y, z), out float lobe) ? lobe : MathF.Max(cave(p), RuinAir);
         }
 
         return Burst(cave, x, y, z) ? cave(p) : RuinMasonry;
     };
 
-    /// <summary>Lays the ruin's standing masonry and its air into a sampled cave's voxels.</summary>
-    internal void Lay(DungeonVolume volume, Func<Vector3, float> cave)
+    /// <summary>Lays the ruin's standing masonry, its air and the rock overgrowing it (of the cave's rock there) into a sampled cave's voxels.</summary>
+    internal void Lay(DungeonVolume volume, Func<Vector3, float> cave, Func<Vector3, BlockId> rock)
     {
         foreach (PlacedModule module in Modules)
         {
@@ -137,7 +143,7 @@ internal sealed record CaveRuin(RuinSize Size, IReadOnlyList<PlacedModule> Modul
                         BlockId block = Building.At(x, y, z);
                         if (block == BlockId.Air)
                         {
-                            volume.Set(x, y, z, BlockId.Air);
+                            volume.Set(x, y, z, Overgrown.ContainsKey((x, y, z)) ? rock(new Vector3(x + 0.5f, y + 0.5f, z + 0.5f)) : BlockId.Air);
                         }
                         else if (!Burst(cave, x, y, z))
                         {
@@ -200,7 +206,8 @@ internal static class CaveRuins
                 (DungeonVolume building, IReadOnlyList<Vector3> lights, HashSet<DungeonCell> climbs) = ModularDungeon.StampRuin(grown.Placed, grown.Joins,
                     KarstCave.ChunksX, KarstCave.ChunksY, KarstCave.ChunksZ, random);
                 (Vector3 foot, Vector3 mouth) = Mouth(cave, breach);
-                return new CaveRuin(size, grown.Placed, breach, grown.Vault, building, lights, climbs, foot, mouth);
+                CaveRuin ruin = new(size, grown.Placed, breach, grown.Vault, building, lights, climbs, foot, mouth);
+                return ruin with { Overgrown = Overgrow(ruin, cave, grown.Joins, seed) };
             }
         }
 
@@ -269,6 +276,126 @@ internal static class CaveRuins
         }
 
         return (wall, wall + new Vector3(dx * ModuleCanvas.CellSize / 2f, 0f, dz * ModuleCanvas.CellSize / 2f));
+    }
+
+    // The rock overgrowing the burst walls (owner, 2026-10-24) - the walls the cave's air has burst and the breach's own broken
+    // wall - pushes on past each burst into the room in lobes out to
+    // this reach from the burst's voxels, each place's own reach shaped by noise (this fine) between this share of it and
+    // all of it; only where the cave's own field there is rock or open by less than this (it does not fill the cave's air
+    // running on through the room); never within this far across of a lane from a doorway or the broken wall's foot to the
+    // middle of its cell (in that storey), so the ruin's ways stay open.
+    private const float OvergrowReach = 2.8f, OvergrowLeast = 0.3f, OvergrowNoise = 0.45f, OvergrowCaveOpen = 0.5f, OvergrowClear = 1.5f;
+
+    /// <summary>The rock keeps this far across from the middle of a cell whose light the kit's relic stands by (out towards a corner).</summary>
+    private const float RelicClear = 2.3f;
+
+    /// <summary>The ruin's air voxels the cave's rock has overgrown past its bursts, each with its field (negative inside the lobe).</summary>
+    private static Dictionary<(int X, int Y, int Z), float> Overgrow(CaveRuin ruin, Func<Vector3, float> cave,
+        IReadOnlyList<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> joins, ulong seed)
+    {
+        HashSet<(int X, int Y, int Z)> bursts = [];
+        foreach (PlacedModule module in ruin.Modules)
+        {
+            int x0 = module.X * ModuleCanvas.CellSize, z0 = module.Z * ModuleCanvas.CellSize, y0 = (module.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY;
+            for (int x = x0; x < x0 + (module.Width * ModuleCanvas.CellSize); x++)
+                for (int y = y0; y < y0 + (module.Shape.Height * ModuleCanvas.StoreyHeight); y++)
+                    for (int z = z0; z < z0 + (module.Depth * ModuleCanvas.CellSize); z++)
+                    {
+                        if (ruin.Burst(cave, x, y, z))
+                        {
+                            bursts.Add((x, y, z));
+                        }
+                    }
+        }
+
+        // The breach's own broken wall is the ruin's first burst: its wall slab's voxels between the corners, over its floor row.
+        var broken = ruin.Breach.Sockets().Single(socket => socket.Kind == SocketKind.Cave);
+        (int bdx, int bdz) = ModularDungeon.Step(broken.Face);
+        int wx0 = ruin.Breach.X * ModuleCanvas.CellSize, wz0 = ruin.Breach.Z * ModuleCanvas.CellSize, wy0 = (ruin.Breach.Y * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY;
+        int wallX = bdx > 0 ? wx0 + ModuleCanvas.CellSize - 1 : wx0, wallZ = bdz > 0 ? wz0 + ModuleCanvas.CellSize - 1 : wz0;
+        for (int along = 1; along < ModuleCanvas.CellSize - 1; along++)
+            for (int row = 1; row < ModuleCanvas.StoreyHeight - 1; row++)
+            {
+                bursts.Add(bdx != 0 ? (wallX, wy0 + row, wz0 + along) : (wx0 + along, wy0 + row, wallZ));
+            }
+
+        Dictionary<(int X, int Y, int Z), float> grown = [];
+
+        // The lanes kept clear: from the broken wall's foot, and from each doorway either side, to the middle of the cell it
+        // opens into - the ways through the ruin.
+        Vector3 Middle(int cx, int cy, int cz) => new((cx * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2f), (cy * ModuleCanvas.StoreyHeight) + ModularDungeon.BaseY + 1,
+            (cz * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2f));
+        List<(Vector3 From, Vector3 To)> lanes = [(ruin.WallFoot, Middle(ruin.Breach.X, ruin.Breach.Y, ruin.Breach.Z))];
+        foreach ((int cx, int cy, int cz, ModuleFace face, SocketKind kind) in joins.Where(j => j.Kind == SocketKind.Door))
+        {
+            (int dx, int dz) = ModularDungeon.Step(face);
+            Vector3 here = Middle(cx, cy, cz), door = here + new Vector3(dx * ModuleCanvas.CellSize / 2f, 0f, dz * ModuleCanvas.CellSize / 2f);
+            lanes.Add((door, here));
+            lanes.Add((door, Middle(cx + dx, cy, cz + dz)));
+        }
+
+        // And round each light's cell middle, where the kit stands its relic (DungeonKit: a relic in every cell a light hangs
+        // in, out towards a corner): the room's light stays in the room.
+        List<Vector3> relicCells = [.. ruin.Lights.Where(ruin.Inside).Select(light => Middle((int)MathF.Floor(light.X / ModuleCanvas.CellSize),
+            (int)MathF.Floor((light.Y - ModularDungeon.BaseY) / ModuleCanvas.StoreyHeight), (int)MathF.Floor(light.Z / ModuleCanvas.CellSize)))];
+
+        bool InLane(Vector3 p) => relicCells.Any(c => p.Y >= c.Y - 1f && p.Y < c.Y + ModuleCanvas.StoreyHeight - 1f && new Vector2(p.X - c.X, p.Z - c.Z).Length() < RelicClear) || lanes.Any(lane =>
+        {
+            if (p.Y < lane.From.Y - 1f || p.Y > lane.From.Y + ModuleCanvas.StoreyHeight - 1f)
+            {
+                return false;
+            }
+
+            Vector2 a = new(lane.From.X, lane.From.Z), b = new(lane.To.X, lane.To.Z), at = new(p.X, p.Z);
+            float t = Math.Clamp(Vector2.Dot(at - a, b - a) / MathF.Max(1e-4f, Vector2.DistanceSquared(a, b)), 0f, 1f);
+            return Vector2.Distance(at, a + ((b - a) * t)) < OvergrowClear;
+        });
+
+        int reach = (int)MathF.Ceiling(OvergrowReach);
+        HashSet<(int X, int Y, int Z)> seen = [];
+        foreach ((int bx, int by, int bz) in bursts)
+            for (int dz = -reach; dz <= reach; dz++)
+                for (int dy = -reach; dy <= reach; dy++)
+                    for (int dx = -reach; dx <= reach; dx++)
+                    {
+                        (int X, int Y, int Z) at = (bx + dx, by + dy, bz + dz);
+                        if (!seen.Add(at) || !ruin.Building.Contains(at.X, at.Y, at.Z) || ruin.Building.At(at.X, at.Y, at.Z) != BlockId.Air)
+                        {
+                            continue;
+                        }
+
+                        // Past the wall, not in it: the wall's own slab stays as the burst left it, for the kit's breached wall.
+                        int across = ((at.X % ModuleCanvas.CellSize) + ModuleCanvas.CellSize) % ModuleCanvas.CellSize, along = ((at.Z % ModuleCanvas.CellSize) + ModuleCanvas.CellSize) % ModuleCanvas.CellSize;
+                        if (across == 0 || across == ModuleCanvas.CellSize - 1 || along == 0 || along == ModuleCanvas.CellSize - 1)
+                        {
+                            continue;
+                        }
+
+                        Vector3 centre = new(at.X + 0.5f, at.Y + 0.5f, at.Z + 0.5f);
+                        if (!ruin.Inside(centre) || cave(centre) > OvergrowCaveOpen || InLane(centre))
+                        {
+                            continue;
+                        }
+
+                        float nearest = float.MaxValue;
+                        for (int ez = -reach; ez <= reach; ez++)
+                            for (int ey = -reach; ey <= reach; ey++)
+                                for (int ex = -reach; ex <= reach; ex++)
+                                {
+                                    if (bursts.Contains((at.X + ex, at.Y + ey, at.Z + ez)))
+                                    {
+                                        nearest = MathF.Min(nearest, MathF.Sqrt((ex * ex) + (ey * ey) + (ez * ez)));
+                                    }
+                                }
+
+                        float own = OvergrowReach * (OvergrowLeast + ((1f - OvergrowLeast) * NaturalCavern.Noise(centre * OvergrowNoise, seed ^ 0x0E9UL)));
+                        if (nearest < own)
+                        {
+                            grown[at] = nearest - own;
+                        }
+                    }
+
+        return grown;
     }
 
     /// <summary>A ramp runs at least this far along per metre it rises (about 35 degrees).</summary>
