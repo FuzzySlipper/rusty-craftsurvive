@@ -47,6 +47,22 @@ internal sealed class MapVoxelLayer : IDisposable
     private readonly HashSet<(long X, long Z)> unsampled = [];
     private readonly HashSet<(long X, long Z)> stale = [];
 
+    /// <summary>
+    /// Whether chunks are handed to the Engine deferred once the layer is drawn (#10345, rusty-engine #10327): the voxels are
+    /// written at once, the meshes rebuilt on its worker and installed at a later update's start, so the layer refreshes
+    /// its projection every update until they are. The first load stays synchronous, so the map appears whole. A sweep
+    /// streaming the detail patch 3 m an update: the stream's slowest updates fall from 42-89 ms (p99) to 18-20 ms, a
+    /// chunk's hand-off from 0.48 ms to 0.21 ms, each batch drawn the next update.
+    /// </summary>
+    internal static bool Deferred { get; set; } = true;
+
+    // Deferred hand-offs not yet drawn: the mesh revision that shows each, and the update it was handed over in.
+    private readonly Queue<(ulong Revision, long Update)> installing = new();
+    private long updates, handOffs, deferredHandOffs, handedChunks, refreshes, lateUpdates, lagUpdates, installed, slowestLag;
+    private long applyTicks, refreshTicks;
+    private readonly List<double> updateMilliseconds = [];
+    private const int MostTimedUpdates = 8192;
+
     /// <param name="terrainLayers">Slots drawn by a terrain-layer material, each with its layer index, blended
     /// across <c>TransitionCells</c>; null draws every slot with its own material.</param>
     /// <param name="coarseBeyond">Chunks farther than this from the camera, in map units, are drawn from coarse meshes (#9563); zero draws all fine.</param>
@@ -94,7 +110,7 @@ internal sealed class MapVoxelLayer : IDisposable
     internal int ResidentChunks => resident.Count;
     internal int PendingChunks => pending.Count + unsampled.Count + stale.Count;
     /// <summary>Whether the scene is projected and nothing waits to be sampled or applied.</summary>
-    internal bool Settled => projection is not null && pending.Count == 0 && unsampled.Count == 0 && stale.Count == 0;
+    internal bool Settled => projection is not null && pending.Count == 0 && unsampled.Count == 0 && stale.Count == 0 && installing.Count == 0;
 
     /// <summary>With a sampling budget, the chunk column sampling works outward from.</summary>
     internal (long X, long Z) Focus { get; set; }
@@ -216,11 +232,48 @@ internal sealed class MapVoxelLayer : IDisposable
                 chunk, offset, TerrainConstants.ChunkVolume, offset, TerrainConstants.ChunkVolume));
             resident.Add(address);
         }
+        updates++;
+        // A deferred hand-off is drawn once the scene's meshes have reached its revision, and the projection refreshed:
+        // so it refreshes every update one was waiting at the start of, including the one that finds it installed.
+        bool deferring = installing.Count > 0;
+        if (deferring)
+        {
+            ulong live = engine.Voxel.ReadScene(new VoxelSceneReadRequest(Session)).MeshRevision;
+            while (installing.TryPeek(out (ulong Revision, long Update) handed) && handed.Revision <= live)
+            {
+                installing.Dequeue();
+                long lag = updates - handed.Update;
+                lagUpdates += lag;
+                slowestLag = Math.Max(slowestLag, lag);
+                installed++;
+            }
+        }
+        lateUpdates += installing.Count > 0 ? 1 : 0;
         if (operations.Count > 0)
         {
-            engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session,
-                operations.ToArray(), materials.ToArray(), densities.ToArray()));
-            if (projection is not null) engine.VoxelScenePresentation.RefreshScene(projection);
+            bool defer = Deferred && projection is not null;
+            long applying = Stopwatch.GetTimestamp();
+            VoxelResidencyReceipt receipt = engine.Voxel.ApplyResidency(new VoxelResidencyTransaction(ReadOnlyMemory<uint>.Empty, Session,
+                operations.ToArray(), materials.ToArray(), densities.ToArray(), defer));
+            applyTicks += Stopwatch.GetTimestamp() - applying;
+            handOffs++;
+            handedChunks += operations.Count;
+            if (defer)
+            {
+                deferredHandOffs++;
+                installing.Enqueue((receipt.AcceptedRevision, updates));
+            }
+            // A synchronous change installs every deferred one before it.
+            else installing.Clear();
+            deferring |= defer;
+        }
+        // The projection draws what was installed when last refreshed; deferred chunks install at a later update's start.
+        if (projection is not null && (operations.Count > 0 || deferring))
+        {
+            long refreshing = Stopwatch.GetTimestamp();
+            engine.VoxelScenePresentation.RefreshScene(projection);
+            refreshTicks += Stopwatch.GetTimestamp() - refreshing;
+            refreshes++;
         }
         // The first projection waits for the first complete load, so it appears whole.
         if (projection is null && pending.Count == 0 && unsampled.Count == 0 && wanted.Count > 0)
@@ -230,7 +283,25 @@ internal sealed class MapVoxelLayer : IDisposable
             if (coarseBeyond > 0) engine.VoxelScenePresentation.SetLevelOfDetail(new VoxelSceneLevelOfDetailRequest(projection, coarseBeyond));
             if (layer != RenderLayer.Scene) engine.VoxelScenePresentation.SetLayer(new(projection, layer));
         }
-        workTicks += Stopwatch.GetTimestamp() - started;
+        long spent = Stopwatch.GetTimestamp() - started;
+        workTicks += spent;
+        if (updateMilliseconds.Count < MostTimedUpdates) updateMilliseconds.Add(Stopwatch.GetElapsedTime(0, spent).TotalMilliseconds);
+    }
+
+    /// <summary>The stream's cost since the last <see cref="ResetTimings"/>, for the deferral study.</summary>
+    internal string TimingReadout(string name)
+    {
+        double[] sorted = [.. updateMilliseconds.Order()];
+        double Percentile(double p) => sorted.Length == 0 ? 0 : sorted[Math.Min(sorted.Length - 1, (int)(p * sorted.Length))];
+        double Ms(long ticks) => Stopwatch.GetElapsedTime(0, ticks).TotalMilliseconds;
+        return FormattableString.Invariant(
+            $"{name} updates={updates} p50={Percentile(0.5):F2}ms p95={Percentile(0.95):F2}ms p99={Percentile(0.99):F2}ms max={(sorted.Length == 0 ? 0 : sorted[^1]):F2}ms handOffs={handOffs} deferred={deferredHandOffs} chunks={handedChunks} apply={Ms(applyTicks):F0}ms ({Ms(applyTicks) / Math.Max(1, handedChunks):F3}ms/chunk) refresh={Ms(refreshTicks) / Math.Max(1, refreshes):F2}ms x{refreshes} lateUpdates={lateUpdates} installed={installed} meanLag={(double)lagUpdates / Math.Max(1, installed):F2} slowestLag={slowestLag} waiting={installing.Count}");
+    }
+
+    internal void ResetTimings()
+    {
+        updates = handOffs = deferredHandOffs = handedChunks = refreshes = lateUpdates = lagUpdates = installed = slowestLag = applyTicks = refreshTicks = 0;
+        updateMilliseconds.Clear();
     }
 
     public void Dispose()

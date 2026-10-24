@@ -63,6 +63,26 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
         return view.Readout;
     }
 
+    [DebugCommand("craft.world.mapsweep", Description = "Study (#10345), with the map open: puts the party token at (fromX, fromZ), forgets the map layers' stream timings, then moves it toward (toX, toZ) so many metres an update, streaming the detail patch the same way every run (craft.world.mapstream reads the cost).")]
+    public string Sweep(double fromX, double fromZ, double toX, double toZ, double metresPerUpdate)
+    {
+        WorldMapVoxelView? view = mapView?.Invoke();
+        if (view is null) return "map=none";
+        if (metresPerUpdate <= 0) return "refused: the step must be positive";
+        view.Sweep(new((float)fromX, (float)fromZ), new((float)toX, (float)toZ), (float)metresPerUpdate);
+        return view.StreamReadout;
+    }
+
+    [DebugCommand("craft.world.mapstream", Description = "Study (#10345): reads each map layer's stream cost since the last sweep began - update percentiles, hand-offs, apply and refresh cost, and deferred hand-offs' lag in updates.")]
+    public string ReadStream() => mapView?.Invoke()?.StreamReadout ?? "map=none";
+
+    [DebugCommand("craft.world.mapdefer", Description = "Study (#10345, rusty-engine #10327): on hands the map layers' chunks to the Engine deferred once each is drawn - written now, meshed on its worker, installed at a later update's start, the projection refreshed every update until then (the default); off hands them over synchronously, for the A/B.")]
+    public string SetMapDefer(string mode)
+    {
+        MapVoxelLayer.Deferred = mode == "on";
+        return MapVoxelLayer.Deferred ? "map chunks are handed over deferred once drawn" : "map chunks are handed over synchronously";
+    }
+
     private string Read()
     {
         WorldCatalog c = catalog();

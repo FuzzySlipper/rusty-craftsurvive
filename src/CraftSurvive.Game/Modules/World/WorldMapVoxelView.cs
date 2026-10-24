@@ -190,6 +190,9 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly long firstDetailChunk, lastDetailChunk;
     private int windowShifts;
     private double loadMilliseconds;
+    /// <summary>A study sweep's end and step (#10345): the party token moves so far toward it each update, whatever the travel rules.</summary>
+    private Vector2? sweepTo;
+    private float sweepStep;
 
     internal WorldMapVoxelView(IEngineContext engine, ProductContent content, WorldMap map, Vector3 partyWorldFeet, MapSurfaceStyle style)
     {
@@ -355,6 +358,28 @@ internal sealed class WorldMapVoxelView : IDisposable
         factsVersion++;
     }
 
+    /// <summary>
+    /// A repeatable stream for the deferral study (#10345): put the party at a point, forget the layers' timings, then move
+    /// it toward another so many metres an update, so two runs stream the same columns in the same updates.
+    /// </summary>
+    internal void Sweep(Vector2 from, Vector2 to, float metresPerUpdate)
+    {
+        MoveParty(from);
+        foreach (MapVoxelLayer layer in Layers) layer.ResetTimings();
+        sweepTo = to;
+        sweepStep = metresPerUpdate;
+    }
+
+    internal bool Sweeping => sweepTo is not null;
+
+    private IEnumerable<MapVoxelLayer> Layers => continent is null ? [coarse, detail] : [continent, coarse, detail];
+
+    /// <summary>Each layer's stream cost since the last sweep began.</summary>
+    internal string StreamReadout => FormattableString.Invariant(
+        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} party={followed.X:F0},{followed.Y:F0} | ")
+        + string.Join(" | ", (continent is null ? new[] { ("coarse", coarse), ("detail", detail) } : [("continent", continent), ("coarse", coarse), ("detail", detail)])
+            .Select(entry => entry.Item2.TimingReadout(entry.Item1)));
+
     /// <summary>Show a planned route as a ribbon of markers on the drawn surface, or clear it.</summary>
     internal void ShowRoute(IReadOnlyList<Vector2>? points)
     {
@@ -478,6 +503,13 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// <summary>Apply a bounded batch each update: the whole map first, then the patch around the party.</summary>
     internal void Advance()
     {
+        if (sweepTo is Vector2 to)
+        {
+            Vector2 offset = to - followed;
+            bool last = offset.Length() <= sweepStep;
+            MoveParty(last ? to : followed + (Vector2.Normalize(offset) * sweepStep));
+            if (last) sweepTo = null;
+        }
         bool wasLoaded = Loaded;
         if (startedAt == 0) startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
         int budget = ChunksPerUpdate;
