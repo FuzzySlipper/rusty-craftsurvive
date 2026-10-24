@@ -215,7 +215,8 @@ internal static class KitOvergrowth
             }
 
             float y = ceiling - DrapeUnder - FlowstoneUnder;
-            Grow(grown, p, OvergrowthKind.Flowstone, new Vector3(along, y, WallFace(along, y, ceiling) - FlowstoneSink), PanelNormal(along), Chance(damp, FlowstoneFrom), seed);
+            Grow(grown, p, OvergrowthKind.Flowstone, new Vector3(along, y, WallFace(along, y, ceiling) - FlowstoneSink), PanelNormal(along), Chance(damp, FlowstoneFrom), seed,
+                RuinFlowstoneScale);
         }
 
         // Mounds at the wall's foot, on the plinth.
@@ -299,7 +300,7 @@ internal static class KitOvergrowth
         foreach ((float x, float z) in DripAt)
         {
             Vector3 under = new(x, VaultUnder(x, z) + DripSink, z);
-            Grow(grown, p, OvergrowthKind.Straws, under, Turn(p, seed, under), Chance(damp, StrawsFrom), seed);
+            Grow(grown, p, OvergrowthKind.Straws, under, Turn(p, seed, under), Chance(damp, StrawsFrom), seed, RuinStrawsScale);
             Vector3 beside = under + new Vector3(StalactiteBeside, 0f, 0f);
             Grow(grown, p, OvergrowthKind.Stalactite, beside with { Y = VaultUnder(beside.X, z) + DripSink }, Turn(p, seed, beside),
                 StalactiteShare * Chance(damp, StalactitesFrom), seed, RuinStalactiteScale);
@@ -324,16 +325,18 @@ internal static class KitOvergrowth
         }
     }
 
-    // The ruins' drip and debris (#10305): straws hung at these places under a vault (off its diagonal ribs), each sunk
-    // so far into it, from this dampness; a small stalactite so far beside a patch, this share of the time on the wettest,
-    // at this size. Flowstone coats a wall at these places along it, so far under the drapes' head and sunk into the panel,
-    // from this dampness. Debris lies at these places on a floor: this likely within BrokenNear of a broken piece, this
+    // The ruins' drip and debris (#10305; owner, 2026-10-23: read more strongly, bigger and denser): straws hung at these
+    // places under a vault (off its diagonal ribs), each sunk so far into it, from this dampness, at this size; a small
+    // stalactite so far beside a patch, this share of the time on the wetter vaults, at this size. Flowstone coats a wall at
+    // these places along it, so far under the drapes' head and sunk into the panel, from this dampness, at this size. Debris lies at these places on a floor: this likely within BrokenNear of a broken piece, this
     // elsewhere; gravel beside it, this share of the time on wet floors.
-    private static readonly (float X, float Z)[] DripAt = [(1.5f, 0.4f), (-1.5f, -0.4f), (0.4f, -1.5f), (-0.4f, 1.5f), (0f, 0.9f)];
-    private const float DripSink = 0.08f, StrawsFrom = 0.6f, StalactiteBeside = 0.45f, StalactiteShare = 0.6f, StalactitesFrom = 0.8f, RuinStalactiteScale = 0.5f;
+    private static readonly (float X, float Z)[] DripAt = [(1.5f, 0.4f), (-1.5f, -0.4f), (0.4f, -1.5f), (-0.4f, 1.5f), (0f, 0.9f), (0f, -0.9f), (0.9f, 0f),
+        (-0.9f, 0f), (2.2f, -0.6f), (-2.2f, 0.6f), (0.6f, 2.2f), (-0.6f, -2.2f)];
+    private const float DripSink = 0.08f, StrawsFrom = 0.5f, RuinStrawsScale = 2f, StalactiteBeside = 0.45f, StalactiteShare = 1f, StalactitesFrom = 0.65f;
+    private const float RuinStalactiteScale = 0.85f, RuinFlowstoneScale = 1.2f;
     private const float VaultDrop = 0.04f, VaultRise = 0.55f;
-    private static readonly float[] FlowstoneAt = [-1.2f, 1.2f];
-    private const float FlowstoneUnder = 0.15f, FlowstoneSink = 0.03f, FlowstoneFrom = 0.85f;
+    private static readonly float[] FlowstoneAt = [-1.8f, -0.6f, 0.6f, 1.8f];
+    private const float FlowstoneUnder = 0.15f, FlowstoneSink = 0.03f, FlowstoneFrom = 0.7f;
     private static readonly Vector3[] FallenAt = [new(1.4f, 0f, 1.1f), new(-1.2f, 0f, -1.5f)];
     private const float BrokenNear = 7f, DebrisNearBroken = 0.75f, DebrisElsewhere = 0.12f, GravelShare = 0.5f, GravelFrom = 0.8f;
 
