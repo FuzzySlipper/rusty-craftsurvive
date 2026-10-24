@@ -155,6 +155,14 @@ internal static class DungeonRoutes
     /// published over the space's metres for a profile, and a route asked from the arrival to every place the plan names
     /// and from the last back, each from and to the cell the plan gives.
     /// </summary>
+    /// <summary>
+    /// A natural cave's ruin's routes (#10097): from the cave's floor at its mouth into its breach and on to its loot, and
+    /// back - the junction its fitting makes and the ruin's own ways; the cave's routes to it are the cave's (climbed as
+    /// generated).
+    /// </summary>
+    internal static DungeonRouteVerdict CheckRuin(IEngineContext engine, SpatialSession session, Vector3 extent, DungeonPlan plan, Vector3 mouth, NavigationProfile profile) =>
+        CheckNatural(engine, session, extent, plan with { Arrival = StudyField.Cell(mouth), FloorAnchors = [] }, profile);
+
     internal static DungeonRouteVerdict CheckNatural(IEngineContext engine, SpatialSession session, Vector3 extent, DungeonPlan plan, NavigationProfile profile)
     {
         long started = System.Diagnostics.Stopwatch.GetTimestamp();

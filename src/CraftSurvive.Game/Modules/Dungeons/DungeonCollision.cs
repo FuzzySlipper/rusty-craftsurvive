@@ -102,9 +102,7 @@ internal static class DungeonCollision
                 int cx = (chunk.X * edge) + (index % edge);
                 int cy = (chunk.Y * edge) + (index / edge % edge);
                 int cz = (chunk.Z * edge) + (index / (edge * edge));
-                values![index] = pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered)
-                    : material == (ushort)BlockId.Air ? Math.Clamp(field.At(cx, cy, cz) * perVoxel, DensityFloor, FreeDensityLimit)
-                    : Math.Clamp(field.At(cx, cy, cz) * perVoxel, -FreeDensityLimit, -DensityFloor);
+                values![index] = pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered) : Free(volume, field, cx, cy, cz, (BlockId)material, perVoxel);
             }
         }
 
@@ -183,9 +181,7 @@ internal static class DungeonCollision
                     int cx = (x * edge) + (index % edge);
                     int cy = (y * edge) + (index / edge % edge);
                     int cz = (z * edge) + (index / (edge * edge));
-                    chunkDensities.Add(pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered)
-                        : material == (ushort)BlockId.Air ? Math.Clamp(field.At(cx, cy, cz) * perVoxel, DensityFloor, FreeDensityLimit)
-                        : Math.Clamp(field.At(cx, cy, cz) * perVoxel, -FreeDensityLimit, -DensityFloor));
+                    chunkDensities.Add(pinned ? Density(volume, field, cx, cy, cz, (BlockId)material, weathered) : Free(volume, field, cx, cy, cz, (BlockId)material, perVoxel));
                 }
             }
 
@@ -252,6 +248,25 @@ internal static class DungeonCollision
     /// passage keeps its full height; walls take the sculpted field, and building blocks keep the
     /// cube face.
     /// </summary>
+    /// <summary>
+    /// An unpinned (natural) space's density at a voxel: its rock and air where the field puts the surface, but a ruin's
+    /// masonry in it (#10097), and the air beside that masonry, on the grid as a built dungeon's are - so its floors stay
+    /// flat treads and its walls square while the cave's rock round it stays natural.
+    /// </summary>
+    private static float Free(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block, float perVoxel)
+    {
+        if (block == BlockId.Air)
+        {
+            bool besideMasonry = Sides.Any(side => volume.Contains(x + side.X, y + side.Y, z + side.Z) && Masonry(volume.At(x + side.X, y + side.Y, z + side.Z)));
+            return besideMasonry ? FaceDensity : Math.Clamp(field.At(x, y, z) * perVoxel, DensityFloor, FreeDensityLimit);
+        }
+
+        return Masonry(block) ? -FaceDensity : Math.Clamp(field.At(x, y, z) * perVoxel, -FreeDensityLimit, -DensityFloor);
+    }
+
+    /// <summary>Whether a block of a natural space is a ruin's masonry: neither rock nor the turf under its sky.</summary>
+    private static bool Masonry(BlockId block) => block != BlockId.Air && block != BlockId.Grass && !DungeonSurfaces.IsRock(block);
+
     private static float Density(DungeonVolume volume, RockDensity field, int x, int y, int z, BlockId block, bool weathered)
     {
         bool rock = DungeonSurfaces.IsRock(block);

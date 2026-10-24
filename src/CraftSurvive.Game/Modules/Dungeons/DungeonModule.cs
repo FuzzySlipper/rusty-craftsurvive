@@ -371,8 +371,10 @@ internal sealed class DungeonModule : IProductModule
     /// </summary>
     private bool Accept(DungeonSpace loaded)
     {
-        // A natural study space (#10090, #10094) is entered unchecked: its passages are for looking, and are checked by other means.
-        if (loaded.Layout.Natural)
+        // A natural study space (#10090, #10094) is entered unchecked: its passages are for looking, and are checked by other
+        // means; but a ruin fitted into it (#10097) is walked from the cave at its mouth into it, to its loot and back (when
+        // the space loads whole: streamed, the ruin may not be resident yet).
+        if (loaded.Layout.Natural && (loaded.Layout.RuinMouth is null || loaded.StreamRadius > 0))
         {
             routes = null;
             return true;
@@ -380,7 +382,9 @@ internal sealed class DungeonModule : IProductModule
 
         try
         {
-            routes = DungeonRoutes.Check(engine, loaded.Session, walkable!, plan!, NavigationProfile.Player(engine.Spatial, walkable!));
+            routes = loaded.Layout.RuinMouth is Vector3 mouth
+                ? DungeonRoutes.CheckRuin(engine, loaded.Session, NaturalExtent(loaded.Layout), plan!, mouth, NavigationProfile.Player(engine.Spatial, (int)NaturalExtent(loaded.Layout).X, (int)NaturalExtent(loaded.Layout).Z))
+                : DungeonRoutes.Check(engine, loaded.Session, walkable!, plan!, NavigationProfile.Player(engine.Spatial, walkable!));
         }
         catch (EngineCallException refusal)
         {
@@ -412,6 +416,9 @@ internal sealed class DungeonModule : IProductModule
         last = $"{loading}; the last refused {refusedRoute}";
         return false;
     }
+
+    /// <summary>A natural space's extent in metres, which its navigation spans whatever its voxels.</summary>
+    private static Vector3 NaturalExtent(DungeonLayout layout) => new Vector3(layout.Volume.SizeX, layout.Volume.SizeY, layout.Volume.SizeZ) * (float)layout.VoxelSize;
 
     /// <summary>What the loaded dungeon adds to the appearance snapshot: a sculpted dungeon's rock.</summary>
     internal IEnumerable<AppearanceFact> AppearanceFacts => space?.AppearanceFacts(player.WorldEyePosition) ?? [];
@@ -1297,6 +1304,16 @@ internal sealed class DungeonModule : IProductModule
             return VisitPocket(pocket);
         }
 
+        if (place == RuinPlace)
+        {
+            return VisitRuin(plan);
+        }
+
+        if (place == BurstPlace)
+        {
+            return VisitBurst();
+        }
+
         if (place == RootsPlace)
         {
             return VisitPieces("root tangles", kind => kind == OvergrowthKind.RootTangle);
@@ -1336,7 +1353,47 @@ internal sealed class DungeonModule : IProductModule
         return $"at the {place}: {stand}";
     }
 
-    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations", FernsPlace = "ferns", PocketPlace = "pocket:", RootsPlace = "roots";
+    /// <summary>Assisted (#10097): stands the player back from a cave's ruin's mouth, facing its breach.</summary>
+    private string VisitRuin(DungeonPlan plan)
+    {
+        if (space?.Layout.RuinMouth is not Vector3 mouth)
+        {
+            return "visit refused: this cave holds no ruin";
+        }
+
+        // At the ramp's foot, looking up (or down) it into the breach.
+        Vector3 breach = new(plan.Breach.X + 0.5f, plan.Breach.Y, plan.Breach.Z + 0.5f);
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(mouth + new Vector3(0f, 0.1f, 0f)));
+        Vector3 to = breach + new Vector3(0f, RuinViewAim, 0f) - (mouth + new Vector3(0f, EyeHeight, 0f));
+        float yaw = MathF.Atan2(to.X, -to.Z) * 180f / MathF.PI;
+        float pitch = MathF.Atan2(to.Y, new Vector2(to.X, to.Z).Length()) * 180f / MathF.PI;
+        return string.Create(CultureInfo.InvariantCulture, $"at the ruin's mouth: {mouth.X:F1},{mouth.Y:F1},{mouth.Z:F1}, facing its breach {plan.Breach} yaw={yaw:F0} pitch={pitch:F0}");
+    }
+
+    /// <summary>Assisted (#10097): stands the player in a ruin's cell with a burst wall, facing the wall.</summary>
+    private string VisitBurst()
+    {
+        if (space?.Layout is not DungeonLayout ruined || !ruined.Kit.Any(k => k.Piece == KitPiece.WallBreach))
+        {
+            return "visit refused: this space has no burst wall";
+        }
+
+        KitPlacement burst = ruined.Kit.First(k => k.Piece == KitPiece.WallBreach);
+
+        // In the burst wall's cell, on the far side of it from the wall, facing the wall.
+        Vector3 facing = new(MathF.Sin(burst.Turn), 0f, -MathF.Cos(burst.Turn));
+        Vector3 stand = burst.Origin + new Vector3(0f, 0.05f, 0f) - (facing * BurstViewBack);
+        player.MoveWithinSeparateSpace(DungeonSpace.InSession(stand + new Vector3(0f, 0.1f, 0f)));
+        Vector3 wall = burst.Origin + (facing * (ModuleCanvas.CellSize / 2f));
+        float yaw = MathF.Atan2(wall.X - stand.X, -(wall.Z - stand.Z)) * 180f / MathF.PI;
+        return string.Create(CultureInfo.InvariantCulture, $"before a burst wall: {stand.X:F1},{stand.Y:F1},{stand.Z:F1}, facing it yaw={yaw:F0}");
+    }
+
+    private const string CommunityPlace = "community:", RoutePlace = "route:", FormationsPlace = "formations", FernsPlace = "ferns", PocketPlace = "pocket:", RootsPlace = "roots", RuinPlace = "ruin", BurstPlace = "burst";
+
+    // A ruin's breach is looked at from its mouth this high over the breach's floor (#10097); a burst wall from so far back
+    // from its cell's middle.
+    private const float RuinViewAim = 1.5f, BurstViewBack = 2.5f;
 
     // A fungal pocket is looked into from its way out (#10305), as far out as there is floor between these, its way found within
     // this reach; its pieces those growing this far round its floor.
@@ -1601,10 +1658,12 @@ internal sealed class DungeonModule : IProductModule
         if (space.Layout.Natural)
         {
             // A natural space's places are its own cells in metres; its navigation spans its metres, whatever its voxels.
-            Vector3 extent = new Vector3(space.Layout.Volume.SizeX, space.Layout.Volume.SizeY, space.Layout.Volume.SizeZ) * (float)space.Layout.VoxelSize;
-            DungeonRouteVerdict natural = DungeonRoutes.CheckNatural(engine, space.Session, extent, plan,
-                NavigationProfile.Player(engine.Spatial, (int)extent.X, (int)extent.Z));
-            return natural.ToString();
+            Vector3 extent = NaturalExtent(space.Layout);
+            NavigationProfile profile = NavigationProfile.Player(engine.Spatial, (int)extent.X, (int)extent.Z);
+            DungeonRouteVerdict natural = DungeonRoutes.CheckNatural(engine, space.Session, extent, plan, profile);
+            return space.Layout.RuinMouth is Vector3 mouth
+                ? $"{natural}; ruin from its mouth: {DungeonRoutes.CheckRuin(engine, space.Session, extent, plan, mouth, profile)}"
+                : natural.ToString();
         }
 
         DungeonRouteVerdict verdict = DungeonRoutes.Check(engine, space.Session, walkable, plan, NavigationProfile.Player(engine.Spatial, walkable));

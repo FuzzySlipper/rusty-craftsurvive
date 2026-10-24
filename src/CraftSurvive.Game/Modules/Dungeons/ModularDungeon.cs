@@ -90,6 +90,42 @@ internal static class ModularDungeon
     }
 
     /// <summary>
+    /// A ruin for a cave (#10097): grown from its breach, at most to the storey <paramref name="topStorey"/>, each placement
+    /// weighed also by <paramref name="preference"/> (how buried it lies). The modules in order (the breach first), their
+    /// joins and the vault, or why it could not be grown.
+    /// </summary>
+    internal static (IReadOnlyList<PlacedModule> Placed, IReadOnlyList<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> Joins, PlacedModule? Vault, string? Failure) Ruin(
+        DungeonRandom random, PlacedModule breach, int rooms, int descend, bool vault, int topStorey, Func<PlacedModule, double> preference)
+    {
+        Assembly assembly = new(random, topStorey, preference);
+        string? failure = assembly.GrowRuin(breach, rooms, descend, vault);
+        return (assembly.Placed, assembly.Joins, assembly.VaultModule, failure);
+    }
+
+    /// <summary>
+    /// A ruin's voxels in a volume of its own (#10097): each module stamped, the joins opened, nothing else (air where no
+    /// module stands); the lights its modules hang and the cells a body climbs through.
+    /// </summary>
+    internal static (DungeonVolume Building, IReadOnlyList<Vector3> Lights, HashSet<DungeonCell> Climbs) StampRuin(IReadOnlyList<PlacedModule> placed,
+        IReadOnlyList<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> joins, int chunksX, int chunksY, int chunksZ, DungeonRandom random)
+    {
+        DungeonVolume volume = new(chunksX, chunksY, chunksZ, BlockId.Air);
+        HashSet<DungeonCell> climbs = [];
+        Dictionary<PlacedModule, List<Vector3>> moduleLights = [];
+        foreach (PlacedModule module in placed)
+        {
+            moduleLights[module] = Stamp(volume, module, random, climbs);
+        }
+
+        foreach ((int x, int y, int z, ModuleFace face, SocketKind kind) in joins)
+        {
+            Open(volume, x, y, z, face, kind);
+        }
+
+        return (volume, [.. Lights(placed, moduleLights)], climbs);
+    }
+
+    /// <summary>
     /// A dungeon from modules already placed: stamped, joined wherever two placed sockets face each
     /// other, sculpted and walk-checked as an assembled one is. For hand-placed sketches.
     /// </summary>
@@ -215,7 +251,7 @@ internal static class ModularDungeon
     };
 
     /// <summary>A standing place in a module's cell: the cell's middle, on the floor of a storey.</summary>
-    private static DungeonCell Floor(PlacedModule module, int cellX, int storey) =>
+    internal static DungeonCell Floor(PlacedModule module, int cellX, int storey) =>
         new((module.X + cellX) * ModuleCanvas.CellSize + (ModuleCanvas.CellSize / 2),
             ((module.Y + storey) * ModuleCanvas.StoreyHeight) + BaseY + 1,
             (module.Z * ModuleCanvas.CellSize) + (ModuleCanvas.CellSize / 2));
@@ -335,7 +371,7 @@ internal static class ModularDungeon
     /// socket join. It grows the cave from the arrival down to the building's storey, sets the
     /// breach, grows the building, and sets the vault on the building's deepest storey.
     /// </summary>
-    private sealed class Assembly(DungeonRandom random)
+    private sealed class Assembly(DungeonRandom random, int topStorey = LatticeY - 1, Func<PlacedModule, double>? preference = null)
     {
         private readonly bool[] taken = new bool[LatticeX * LatticeY * LatticeZ];
         private readonly List<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> open = [];
@@ -436,6 +472,65 @@ internal static class ModularDungeon
             return "there was no room for the vault";
         }
 
+        /// <summary>
+        /// Grows a ruin from its breach alone (#10097): the breach set where the cave meets it, so many rooms grown from its
+        /// doors, heading down until a storey so many below the breach is reached, and the vault on its lowest door if
+        /// wanted. Returns why it could not, or null.
+        /// </summary>
+        internal string? GrowRuin(PlacedModule breach, int rooms, int descend, bool vault)
+        {
+            if (!breach.Cells().All(Free))
+            {
+                return "the breach does not fit";
+            }
+
+            Place(breach);
+            BreachModule = breach;
+            // The breach's rubble heap lies before its west door (DungeonModules.Breach's heap; the kit's mound over it): the
+            // ruin grows from its other doors.
+            open.RemoveAll(socket => socket.Kind == SocketKind.Door && socket.Face == Turn(ModuleFace.West, breach.Turns)
+                && breach.Cells().Contains((socket.X, socket.Y, socket.Z)));
+            int lowest = Math.Max(0, breach.Y - descend);
+            for (int tries = 0; tries < MaximumPlacementTries && (Building() <= rooms || LowestBuilding() > lowest); tries++)
+            {
+                List<(int X, int Y, int Z, ModuleFace Face, SocketKind Kind)> doors = [.. open.Where(socket => socket.Kind == SocketKind.Door)];
+                if (doors.Count == 0)
+                {
+                    return "the ruin closed itself off";
+                }
+
+                bool down = LowestBuilding() > lowest;
+                var from = down
+                    ? doors.OrderBy(socket => socket.Y).ThenBy(_ => random.Next()).First()
+                    : doors[random.Range(0, doors.Count - 1)];
+                DungeonModuleShape[] choices = down
+                    ? [DungeonModules.Stair, DungeonModules.Stair, DungeonModules.Collapse, DungeonModules.Room, DungeonModules.Corridor]
+                    : [DungeonModules.Room, DungeonModules.Room, DungeonModules.Corridor, DungeonModules.Hall, DungeonModules.Hall, DungeonModules.Gallery, DungeonModules.Stair, DungeonModules.Collapse];
+                Attach(from, choices);
+            }
+
+            if (LowestBuilding() > lowest)
+            {
+                return "the ruin did not reach its lowest storey";
+            }
+
+            if (!vault)
+            {
+                return null;
+            }
+
+            foreach (var door in open.Where(socket => socket.Kind == SocketKind.Door).OrderBy(socket => socket.Y).ToList())
+            {
+                if (Attach(door, [DungeonModules.Vault]) is PlacedModule placedVault)
+                {
+                    VaultModule = placedVault;
+                    return null;
+                }
+            }
+
+            return "there was no room for the vault";
+        }
+
         private int Building() => Placed.Count(module => module.Shape.Kind == ModuleKind.Building);
 
         private int LowestBuilding() => Placed.Where(module => module.Shape.Kind == ModuleKind.Building).Select(module => module.Y).DefaultIfEmpty(int.MaxValue).Min();
@@ -476,7 +571,7 @@ internal static class ModularDungeon
                         }
 
                         double score = weight + (2 * Openness(candidate, target, facing)) + (random.Unit() * 3)
-                            + (shape.Kind == ModuleKind.Building ? StackingBonus * Stacked(candidate) : 0);
+                            + (shape.Kind == ModuleKind.Building ? StackingBonus * Stacked(candidate) : 0) + (preference?.Invoke(candidate) ?? 0);
                         if (score > bestScore)
                         {
                             bestScore = score;
@@ -561,7 +656,7 @@ internal static class ModularDungeon
             }
         }
 
-        private bool Free((int X, int Y, int Z) cell) => Inside(cell.X, cell.Y, cell.Z) && !taken[Index(cell.X, cell.Y, cell.Z)];
+        private bool Free((int X, int Y, int Z) cell) => Inside(cell.X, cell.Y, cell.Z) && cell.Y <= topStorey && !taken[Index(cell.X, cell.Y, cell.Z)];
 
         private static bool Inside(int x, int y, int z) =>
             x >= 1 && y >= 0 && z >= 1 && x < LatticeX - 1 && y < LatticeY && z < LatticeZ - 1;

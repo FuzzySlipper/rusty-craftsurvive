@@ -76,6 +76,82 @@ internal static class EngineRouteBank
     }
 
     /// <summary>
+    /// The Engine's navigation over karst caves as the game loads them (#10097): each seed's voxels admitted unpinned (its
+    /// ruin's masonry on the grid) with its densities, and the plan's routes asked of navigation over the space's metres,
+    /// as craft.dungeon.validate does. Returns each seed's verdict.
+    /// </summary>
+    internal static IReadOnlyList<(ulong Seed, DungeonLayout Layout, DungeonPlan Plan, DungeonRouteVerdict Verdict)> Karst(ulong firstSeed, ulong lastSeed,
+        Func<ulong, DungeonPlan, DungeonPlan>? from = null)
+    {
+        using EngineTestHost host = CreateHost();
+        List<(ulong, DungeonLayout, DungeonPlan, DungeonRouteVerdict)> verdicts = [];
+        for (ulong seed = firstSeed; seed <= lastSeed; seed++)
+        {
+            var cave = KarstCave.Generate(seed, 1d, KarstCave.Centrepiece.None);
+            DungeonLayout layout = cave.Layout with { Volume = cave.Layout.KitDrawn ?? cave.Walkable, Rock = null, Densities = cave.Layout.Rock };
+            host.Call(engine =>
+            {
+                using SpatialSession session = DungeonCollision.CreateSession(engine, DungeonSurface.Faceted);
+                DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume), layout.Densities, pinned: false, voxelSize: layout.VoxelSize);
+                if (layout.Kit.Count > 0)
+                {
+                    KitCollision.Admit(engine, session, layout.Kit);
+                }
+
+                Vector3 extent = new(layout.Volume.SizeX, layout.Volume.SizeY, layout.Volume.SizeZ);
+                DungeonPlan plan = from?.Invoke(seed, cave.Plan) ?? cave.Plan;
+                verdicts.Add((seed, cave.Layout, plan, DungeonRoutes.CheckNatural(engine, session, extent, plan,
+                    NavigationProfile.Player(engine.Spatial, (int)extent.X, (int)extent.Z))));
+            });
+        }
+
+        return verdicts;
+    }
+
+    /// <summary>
+    /// Enters each karst entrance seed as the game does with a ruin fitted (#10097): candidates in order until one without a
+    /// ruin, or whose ruin the Engine walks from its mouth to its loot and back. Per entrance, the candidate accepted (-1 when
+    /// none was) and, for each tried, its ruin's size and modules and whether its routes passed.
+    /// </summary>
+    internal static IReadOnlyList<(int Accepted, IReadOnlyList<string> Tried)> AcceptKarst(ulong firstSeed, int entrances)
+    {
+        using EngineTestHost host = CreateHost();
+        List<(int, IReadOnlyList<string>)> accepted = [];
+        for (ulong entrance = firstSeed; entrance < firstSeed + (ulong)entrances; entrance++)
+        {
+            int chosen = -1;
+            List<string> tried = [];
+            for (int index = 0; index < DungeonCandidates.MaximumCandidates && chosen < 0; index++)
+            {
+                DungeonCandidate candidate = DungeonCandidates.Generate(DungeonApproach.Karst, entrance, index);
+                DungeonLayout layout = candidate.AllVoxels;
+                if (layout.RuinMouth is not Vector3 mouth)
+                {
+                    tried.Add("no ruin");
+                    chosen = index;
+                    break;
+                }
+
+                DungeonRouteVerdict? verdict = null;
+                host.Call(engine =>
+                {
+                    using SpatialSession session = DungeonCollision.CreateSession(engine, DungeonSurface.Faceted);
+                    DungeonCollision.Admit(engine, session, layout.Volume, DungeonCollision.Chunks(layout.Volume), layout.Densities, pinned: false, voxelSize: layout.VoxelSize);
+                    KitCollision.Admit(engine, session, layout.Kit);
+                    Vector3 extent = new(layout.Volume.SizeX, layout.Volume.SizeY, layout.Volume.SizeZ);
+                    verdict = DungeonRoutes.CheckRuin(engine, session, extent, candidate.Plan, mouth, NavigationProfile.Player(engine.Spatial, (int)extent.X, (int)extent.Z));
+                });
+                tried.Add($"{layout.Modules.Count}m {(verdict!.Walkable ? "walked" : $"refused {verdict.FirstRefused}")}");
+                chosen = verdict.Walkable ? index : -1;
+            }
+
+            accepted.Add((chosen, tried));
+        }
+
+        return accepted;
+    }
+
+    /// <summary>
     /// Enters each entrance seed as the game does: candidates in order until the Engine walks one.
     /// Returns, per seed, the index of the candidate accepted, or -1 when none was.
     /// </summary>

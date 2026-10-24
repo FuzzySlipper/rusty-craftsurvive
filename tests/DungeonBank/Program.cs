@@ -220,6 +220,57 @@ if (args is ["lightgrowth", string lightFrom, string lightTo, ..])
     return 0;
 }
 
+if (args is ["ruinkit", string ruinKitSeed, string kx, string ky, string kz])
+{
+    // ruinkit <seed> <x> <y> <z>: the kit pieces of a karst seed's ruin within 4 m of a place (#10097: what a route hangs on).
+    DungeonLayout kitLayout = KarstCave.Generate(ulong.Parse(ruinKitSeed, System.Globalization.CultureInfo.InvariantCulture), 1d, KarstCave.Centrepiece.None).Layout;
+    System.Numerics.Vector3 near = new(float.Parse(kx, System.Globalization.CultureInfo.InvariantCulture), float.Parse(ky, System.Globalization.CultureInfo.InvariantCulture), float.Parse(kz, System.Globalization.CultureInfo.InvariantCulture));
+    foreach (KitPlacement piece in kitLayout.Kit.Where(k => System.Numerics.Vector3.Distance(k.Origin, near) < 6f).OrderBy(k => System.Numerics.Vector3.Distance(k.Origin, near)))
+    {
+        Console.WriteLine($"  {piece.Piece} at {piece.Origin} turn {piece.Turn} stretch {piece.Stretch} shift {piece.Shift}");
+    }
+
+    return 0;
+}
+
+if (args is ["ruinroutes", string routeFrom, string routeTo])
+{
+    // ruinroutes <from> <to>: the Engine's navigation over each karst seed with its ruin (#10097).
+    // From the cave's floor at each ruin's mouth (the junction the fitting makes), not the arrival.
+    foreach ((ulong seed, DungeonLayout layout, DungeonPlan plan, DungeonRouteVerdict verdict) in EngineRouteBank.Karst(
+        ulong.Parse(routeFrom, System.Globalization.CultureInfo.InvariantCulture), ulong.Parse(routeTo, System.Globalization.CultureInfo.InvariantCulture),
+        (seed, plan) => KarstCave.LastRuin is CaveRuin r ? plan with { Arrival = StudyField.Cell(r.Mouth), FloorAnchors = [] } : plan))
+    {
+        Console.WriteLine($"karst {seed}: ruin {layout.Modules.Count} modules, breach {plan.Breach} loot {plan.Loot}: {verdict}");
+    }
+
+    return 0;
+}
+
+if (args is ["ruins", string ruinFrom, string ruinTo])
+{
+    // ruins <from> <to>: the ruin fitted into each karst seed (#10097) - its size, modules and vault, its kit and burst
+    // walls - and whether a body walks from the cave's arrival into its breach and on to its vault.
+    for (ulong ruinSeed = ulong.Parse(ruinFrom, System.Globalization.CultureInfo.InvariantCulture); ruinSeed <= ulong.Parse(ruinTo, System.Globalization.CultureInfo.InvariantCulture); ruinSeed++)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var ruined = KarstCave.Generate(ruinSeed, 1d, KarstCave.Centrepiece.None);
+        double ms = watch.Elapsed.TotalMilliseconds;
+        DungeonLayout ruinLayout = ruined.Layout;
+        HashSet<DungeonCell> reached = DungeonWalk.Reachable(ruined.Walkable, ruined.Plan.Arrival);
+        HashSet<DungeonCell> fromBreach = DungeonWalk.Reachable(ruined.Walkable, ruined.Plan.Breach);
+        string Near(HashSet<DungeonCell> cells, DungeonCell at) => cells.Any(c => Math.Abs(c.X - at.X) + Math.Abs(c.Z - at.Z) <= 2 && Math.Abs(c.Y - at.Y) <= 1) ? "yes" : "no";
+        string reason = ruined.Verdict.Reason;
+        DungeonCell b = ruined.Plan.Breach;
+        int gap = reached.Count == 0 ? -1 : reached.Min(c => Math.Abs(c.X - b.X) + Math.Abs(c.Y - b.Y) + Math.Abs(c.Z - b.Z));
+        Console.WriteLine($"  reached {reached.Count} from the arrival, nearest the breach {b} by {gap}; {fromBreach.Count} from the breach");
+        Console.WriteLine($"karst {ruinSeed}: {reason[reason.IndexOf("ruin=", StringComparison.Ordinal)..]} modules [{string.Join(" ", ruinLayout.Modules.Select(m => $"{m.Shape.Name}@{m.X},{m.Y},{m.Z}"))}] "
+            + $"bursts={ruinLayout.Kit.Count(k => k.Piece == KitPiece.WallBreach)} arrival->breach={Near(reached, ruined.Plan.Breach)} breach->loot={Near(fromBreach, ruined.Plan.Loot)} {ms:F0} ms [{string.Join(" ", KarstCave.Stages.Where(st => st.Key.StartsWith("ruin", StringComparison.Ordinal) || st.Key == "sample").Select(st => $"{st.Key}={st.Value:F0}"))}]");
+    }
+
+    return 0;
+}
+
 if (args is ["karsttime", string karstCount, ..])
 {
     // karsttime <n> [chunksX chunksY chunksZ]: how long KarstCave.Generate takes, and how much air (open voxels) its volume
@@ -906,6 +957,17 @@ foreach (DungeonModuleShape shape in (DungeonModuleShape[])[DungeonModules.Arriv
     Check.That(unlitWays == 0, "every karst cave must grow ferns by its way in");
     Check.That(pockets > 0 && unfitPockets == 0, "karst caves must grow fungal pockets, each dark, off the main route, with mushrooms and bracket fungi");
     Check.That(offGrowsNone, "with growth at the light off a cave must grow nothing by the daylight nor in its dead ends");
+}
+
+// Ruins fitted into karst caves (#10097; owner, 2026-10-24): entered as the game enters them, every karst entrance has a
+// cave whose ruin the Engine walks from the cave at its mouth into its breach, to its loot and back (or one with no ruin),
+// and most of the first caves tried hold a ruin.
+{
+    var entered = EngineRouteBank.AcceptKarst(1UL, 6);
+    int withRuin = entered.SelectMany(e => e.Tried).Count(t => t != "no ruin");
+    Console.WriteLine($"ruins in karst caves: {string.Join("; ", entered.Select((e, i) => $"{i + 1}: [{string.Join(", ", e.Tried)}] -> {e.Accepted}"))}");
+    Check.That(entered.All(e => e.Accepted >= 0), "every karst entrance must have a cave whose ruin is walked from its mouth to its loot and back");
+    Check.That(entered.Count(e => e.Tried[0] != "no ruin") >= 4, "most karst caves must hold a ruin");
 }
 
 // A cave kept after the size study chooses a new box samples its own field (R10304-1): a default cave's field and rock at
