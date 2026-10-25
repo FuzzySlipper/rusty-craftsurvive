@@ -156,6 +156,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     private bool detailPending;
     /// <summary>A patch step left the region window's move to the next update (#10347).</summary>
     private bool coverWaits;
+    /// <summary>A sliced region move changed the patch's ground: the clutter is scattered afresh once the patch has resampled it (#10352).</summary>
+    private bool scatterWaits;
     private readonly MapCameraRig rig;
     private readonly MapClutter clutter;
     private readonly TerrainGroundMaterials? coarseGround, detailGround, continentGround;
@@ -370,7 +372,7 @@ internal sealed class WorldMapVoxelView : IDisposable
         MoveParty(from);
         foreach (MapVoxelLayer layer in Layers) layer.ResetTimings();
         Profile.Reset();
-        regionMoves = regionPatchResamples = regionCoarseResamples = 0;
+        regionMoves = regionPatchResamples = regionCoarseResamples = slowestDrain = 0;
         sweepTo = to;
         sweepStep = metresPerUpdate;
     }
@@ -394,6 +396,17 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// </summary>
     internal static bool ExactRegion { get; set; } = true;
 
+    /// <summary>
+    /// Whether an exact region move resamples the coarse and the patch chunk columns it changed over later updates (#10352,
+    /// owner-approved): each layer spends up to <see cref="RegionSliceMilliseconds"/> an update on them, nearest the party
+    /// first, and the clutter is scattered afresh once the patch has. Until then those columns draw their old ground, a short
+    /// lag at the region window's outer band and the patch's edge. False resamples them in the move's update, for the A/B.
+    /// </summary>
+    internal static bool SliceRegion { get; set; } = true;
+
+    /// <summary>A sliced region move gives the coarse and the patch layer each up to this long an update to resample what it changed.</summary>
+    internal static double RegionSliceMilliseconds { get; set; } = 3;
+
     /// <summary>Where the open map's updates spend their time (#10346).</summary>
     internal MapUpdateProfile Profile { get; } = new();
 
@@ -401,7 +414,7 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     /// <summary>Each layer's stream cost since the last sweep began.</summary>
     internal string StreamReadout => FormattableString.Invariant(
-        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} regionMoves={regionMoves} regionCoarse={regionCoarseResamples} regionPatch={regionPatchResamples} party={followed.X:F0},{followed.Y:F0} | ")
+        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} regionMoves={regionMoves} regionCoarse={regionCoarseResamples} regionPatch={regionPatchResamples} regionSlice={(SliceRegion ? RegionSliceMilliseconds : 0)}ms stale={coarse.StaleColumns}/{detail.StaleColumns} slowestDrain={slowestDrain} party={followed.X:F0},{followed.Y:F0} | ")
         + string.Join(" | ", (continent is null ? new[] { ("coarse", coarse), ("detail", detail) } : [("continent", continent), ("coarse", coarse), ("detail", detail)])
             .Select(entry => entry.Item2.TimingReadout(entry.Item1)))
         + " | " + Profile.Readout;
@@ -562,14 +575,26 @@ internal sealed class WorldMapVoxelView : IDisposable
         }
         if (coarse.PendingChunks > 0 || !coarse.Settled)
         {
-            coarse.Advance(budget);
+            coarse.Advance(budget, RegionSliceMilliseconds);
             Profile.Mark("advance.coarse");
             // Until the whole map is up, it has the budget; afterwards both share it.
             if (!coarse.Settled && loadMilliseconds == 0) return;
             budget /= 2;
         }
-        detail.Advance(budget);
+        detail.Advance(budget, RegionSliceMilliseconds);
         Profile.Mark("advance.detail");
+        if (draining > 0)
+        {
+            if (coarse.StaleColumns + detail.StaleColumns > 0) draining++;
+            else (slowestDrain, draining) = (Math.Max(slowestDrain, draining), 0);
+        }
+        if (scatterWaits && detail.StaleColumns == 0)
+        {
+            scatterWaits = false;
+            clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+            factsVersion++;
+            Profile.Mark("advance.scatter");
+        }
         if (!wasLoaded && Loaded && loadMilliseconds == 0)
             loadMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
     }
@@ -609,6 +634,9 @@ internal sealed class WorldMapVoxelView : IDisposable
             }
         }
         detailPending = false;
+        // Columns resampled later go nearest the party first.
+        detail.Focus = ((long)Math.Floor(world.X / DetailChunkMetres), (long)Math.Floor(world.Y / DetailChunkMetres));
+        coarse.Focus = ((long)Math.Floor(world.X / RegionChunkMetres), (long)Math.Floor(world.Y / RegionChunkMetres));
         bool first = windowChunkX == long.MinValue;
         (Vector2 oldMinimum, Vector2 oldMaximum) = (detailMinimum, detailMaximum);
         long oldX0 = windowChunkX, oldZ0 = windowChunkZ;
@@ -634,6 +662,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             Profile.Mark("follow.coarseInvalidate");
         }
         clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+        scatterWaits = false;
         Profile.Mark("follow.scatter");
         // The coarse tier's ribbons give way to the patch's own rivers where its relief is drawn.
         if (!first) RebuildRegionRivers(RiverTilesOver(oldMinimum, oldMaximum).Concat(RiverTilesOver(detailMinimum, detailMaximum)).ToHashSet());
@@ -879,9 +908,18 @@ internal sealed class WorldMapVoxelView : IDisposable
             List<(long X, long Z)> resample = [.. from cz in Range(windowChunkZ, dz1) from cx in Range(windowChunkX, dx1)
                                                   where patchChanged.Contains((cx, cz)) || (!patchKept.ContainsKey((cx, cz)) && PatchChanged((cx, cz)))
                                                   select (cx, cz)];
-            detail.Invalidate(resample);
             // The clutter stands on the patch's ground.
-            if (resample.Count > 0) clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+            if (SliceRegion)
+            {
+                detail.InvalidateLater(resample);
+                scatterWaits |= resample.Count > 0;
+            }
+            else
+            {
+                detail.Invalidate(resample);
+                if (resample.Count > 0) clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+            }
+
             regionPatchResamples += resample.Count;
         }
 
@@ -893,7 +931,9 @@ internal sealed class WorldMapVoxelView : IDisposable
         bool Changed(long cx, long cz, double reach) => LatticeChanged((cx * RegionChunkMetres) - reach, (cz * RegionChunkMetres) - reach,
             ((cx + 1) * RegionChunkMetres) + reach, ((cz + 1) * RegionChunkMetres) + reach);
         List<(long X, long Z)> coarseChanged = [.. from cz in Range(az, bz) from cx in Range(ax, bx) where Changed(cx, cz, CellMetres) select (cx, cz)];
-        coarse.Invalidate(coarseChanged);
+        if (SliceRegion) coarse.InvalidateLater(coarseChanged);
+        else coarse.Invalidate(coarseChanged);
+        if (SliceRegion && coarse.StaleColumns + detail.StaleColumns > 0) draining = 1;
         regionMoves++;
         regionCoarseResamples += coarseChanged.Count;
         Profile.Mark("region.coarse");
@@ -903,8 +943,11 @@ internal sealed class WorldMapVoxelView : IDisposable
         Profile.Mark("region.continent");
     }
 
-    /// <summary>For the stream readout: region window moves since the sweep began, and the patch and coarse chunk columns they resampled.</summary>
-    private long regionMoves, regionPatchResamples, regionCoarseResamples;
+    /// <summary>
+    /// For the stream readout: region window moves since the sweep began, the patch and coarse chunk columns they resampled,
+    /// and the most updates a sliced move's columns took to be resampled, the move's own counted.
+    /// </summary>
+    private long regionMoves, regionPatchResamples, regionCoarseResamples, slowestDrain, draining;
 
     /// <summary>The coarse sink's lattice spacing: the coarse tier's column centres lie on it too.</summary>
     private const double LatticeMetres = CellMetres / SinkSamplesPerCell;

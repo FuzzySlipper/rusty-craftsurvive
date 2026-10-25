@@ -177,9 +177,24 @@ internal sealed class MapVoxelLayer : IDisposable
                 continue;
             }
 
+            stale.Remove(key);
             Resample(key);
         }
     }
+
+    /// <summary>
+    /// Resample these chunk columns over later updates (#10352): each <see cref="Advance"/> spends up to its
+    /// <c>staleMilliseconds</c> on them, nearest <see cref="Focus"/> first, whatever the layer's own sampling budget.
+    /// Until then they keep drawing their old ground.
+    /// </summary>
+    internal void InvalidateLater(IEnumerable<(long X, long Z)> chunkColumns)
+    {
+        foreach ((long X, long Z) key in chunkColumns)
+            if (wanted.Contains(key) && !unsampled.Contains(key)) stale.Add(key);
+    }
+
+    /// <summary>Chunk columns waiting to be resampled.</summary>
+    internal int StaleColumns => stale.Count;
 
     private void Resample((long X, long Z) key)
     {
@@ -197,12 +212,14 @@ internal sealed class MapVoxelLayer : IDisposable
     /// <summary>
     /// With a sampling budget, sample waiting columns (changed ones first, then new ones, nearest the focus
     /// first) for up to that long; then apply up to <paramref name="budget"/> pending chunk operations, and
-    /// project or refresh the scene.
+    /// project or refresh the scene. Columns resampled later (<see cref="InvalidateLater"/>) are given at least
+    /// <paramref name="staleMilliseconds"/>.
     /// </summary>
-    internal void Advance(int budget)
+    internal void Advance(int budget, double staleMilliseconds = 0)
     {
         long started = Stopwatch.GetTimestamp();
-        while ((stale.Count > 0 || unsampled.Count > 0) && Stopwatch.GetElapsedTime(started).TotalMilliseconds < sampleBudgetMilliseconds)
+        double Sampling() => stale.Count > 0 ? Math.Max(sampleBudgetMilliseconds, staleMilliseconds) : sampleBudgetMilliseconds;
+        while ((stale.Count > 0 || unsampled.Count > 0) && Stopwatch.GetElapsedTime(started).TotalMilliseconds < Sampling())
         {
             HashSet<(long X, long Z)> from = stale.Count > 0 ? stale : unsampled;
             (long X, long Z) next = from.MinBy(key => Math.Max(Math.Abs(key.X - Focus.X), Math.Abs(key.Z - Focus.Z)));
