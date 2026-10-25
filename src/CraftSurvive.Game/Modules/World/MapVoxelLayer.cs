@@ -138,8 +138,11 @@ internal sealed class MapVoxelLayer : IDisposable
         return hash;
     }
 
-    /// <summary>Make exactly these chunk columns resident: new ones are admitted, dropped ones evicted.</summary>
-    internal void Want(IEnumerable<(long X, long Z)> chunkColumns)
+    /// <summary>
+    /// Make exactly these chunk columns resident: new ones are admitted, dropped ones evicted. New ones <paramref name="later"/>
+    /// names are admitted over later updates, as columns resampled later are (#10354).
+    /// </summary>
+    internal void Want(IEnumerable<(long X, long Z)> chunkColumns, Func<(long X, long Z), bool>? later = null)
     {
         HashSet<(long X, long Z)> next = [.. chunkColumns];
         foreach ((long X, long Z) gone in wanted.Where(column => !next.Contains(column)).ToArray())
@@ -153,7 +156,7 @@ internal sealed class MapVoxelLayer : IDisposable
         foreach ((long X, long Z) added in next.Where(column => !wanted.Contains(column)).ToArray())
         {
             wanted.Add(added);
-            if (sampleBudgetMilliseconds > 0) unsampled.Add(added);
+            if (sampleBudgetMilliseconds > 0 || (later?.Invoke(added) ?? false)) unsampled.Add(added);
             else Admit(added);
         }
     }
@@ -184,7 +187,8 @@ internal sealed class MapVoxelLayer : IDisposable
 
     /// <summary>
     /// Resample these chunk columns over later updates (#10352): each <see cref="Advance"/> spends up to its
-    /// <c>staleMilliseconds</c> on them, nearest <see cref="Focus"/> first, whatever the layer's own sampling budget.
+    /// <c>staleMilliseconds</c> on them and the columns admitted later, nearest <see cref="Focus"/> first, whatever the
+    /// layer's own sampling budget.
     /// Until then they keep drawing their old ground.
     /// </summary>
     internal void InvalidateLater(IEnumerable<(long X, long Z)> chunkColumns)
@@ -193,8 +197,8 @@ internal sealed class MapVoxelLayer : IDisposable
             if (wanted.Contains(key) && !unsampled.Contains(key)) stale.Add(key);
     }
 
-    /// <summary>Chunk columns waiting to be resampled.</summary>
-    internal int StaleColumns => stale.Count;
+    /// <summary>Chunk columns waiting to be sampled or resampled.</summary>
+    internal int StaleColumns => stale.Count + unsampled.Count;
 
     private void Resample((long X, long Z) key)
     {
@@ -212,14 +216,14 @@ internal sealed class MapVoxelLayer : IDisposable
     /// <summary>
     /// With a sampling budget, sample waiting columns (changed ones first, then new ones, nearest the focus
     /// first) for up to that long; then apply up to <paramref name="budget"/> pending chunk operations, and
-    /// project or refresh the scene. Columns resampled later (<see cref="InvalidateLater"/>) are given at least
-    /// <paramref name="staleMilliseconds"/>.
+    /// project or refresh the scene. Columns resampled or admitted later (<see cref="InvalidateLater"/>, <see cref="Want"/>)
+    /// are given at least <paramref name="staleMilliseconds"/>.
     /// </summary>
     internal void Advance(int budget, double staleMilliseconds = 0)
     {
         long started = Stopwatch.GetTimestamp();
-        double Sampling() => stale.Count > 0 ? Math.Max(sampleBudgetMilliseconds, staleMilliseconds) : sampleBudgetMilliseconds;
-        while ((stale.Count > 0 || unsampled.Count > 0) && Stopwatch.GetElapsedTime(started).TotalMilliseconds < Sampling())
+        double sampling = Math.Max(sampleBudgetMilliseconds, staleMilliseconds);
+        while ((stale.Count > 0 || unsampled.Count > 0) && Stopwatch.GetElapsedTime(started).TotalMilliseconds < sampling)
         {
             HashSet<(long X, long Z)> from = stale.Count > 0 ? stale : unsampled;
             (long X, long Z) next = from.MinBy(key => Math.Max(Math.Abs(key.X - Focus.X), Math.Abs(key.Z - Focus.Z)));

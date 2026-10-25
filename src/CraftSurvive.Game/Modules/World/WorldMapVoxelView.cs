@@ -139,6 +139,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     private readonly IEngineContext engine;
     private readonly WorldMap map;
     private readonly int cells;
+    /// <summary>How many coarse tops are kept before the cache is cleared: every column the coarse tier holds, and a margin (#10354).</summary>
+    private readonly int coarseTopsLimit;
     private readonly Dictionary<uint, Material> materials = [];
     private readonly Dictionary<KnownPlaceKind, Appearance> placeMarkers = [];
     private readonly Appearance clusterMarker;
@@ -158,6 +160,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     private bool coverWaits;
     /// <summary>A sliced region move changed the patch's ground: the clutter is scattered afresh once the patch has resampled it (#10352).</summary>
     private bool scatterWaits;
+    /// <summary>The region ribbon tiles a sliced region move changed, rebuilt once the coarse tier has resampled its ground (#10354).</summary>
+    private readonly HashSet<(long X, long Z)> ribbonsWait = [];
     private readonly MapCameraRig rig;
     private readonly MapClutter clutter;
     private readonly TerrainGroundMaterials? coarseGround, detailGround, continentGround;
@@ -204,6 +208,8 @@ internal sealed class WorldMapVoxelView : IDisposable
         this.map = map;
         Style = style;
         cells = Math.Max(1, (int)Math.Round(map.Configuration.Size / CellMetres));
+        int heldAcross = (map.Scale.Continental ? 2 * RegionRadiusChunks * EdgeLength : cells) + (2 * CoarseTopsMarginCells);
+        coarseTopsLimit = Math.Max(CoarseTopsLimit, heldAcross * heldAcross);
         try
         {
             materials[RiverSlot] = Flat(MapPalette.River);
@@ -241,10 +247,11 @@ internal sealed class WorldMapVoxelView : IDisposable
             // Each finer tier chooses its environments toward its edge as the tier beside it blends them.
             static int Transition(TerrainGroundMaterials? beside) => (int)(beside?.Settings.TransitionCells ?? 0);
             coarse = Layer(1, CellMetres, fine, NoRiver, 0, (x, z) => InDetail(x, z) ? UnderDetail(fine, x, z) : 0, false, coarseGround, CoarseLayerCoarseBeyond,
-                regions is null ? null : (RegionFade, ContinentCellMetres, Transition(continentGround), map.Sample, []));
+                regions is null ? null : (RegionFade, ContinentCellMetres, Transition(continentGround), map.Sample, []), CoarseKept,
+                () => KeepGround && ExactShift && ExactRegion ? CoarseTops() : null);
             detail = Layer(1d / DetailPerCell, DetailMetres, fine, fineRivers, RiverReach, (_, _) => 0, true, detailGround, DetailLayerCoarseBeyond,
-                (EdgeFade, CellMetres, Transition(coarseGround), fine, detailDitherSlots));
-            clutter = new MapClutter(engine, content, map, fine);
+                (EdgeFade, CellMetres, Transition(coarseGround), fine, detailDitherSlots), PatchKept);
+            clutter = new MapClutter(engine, content, map, ClutterGround);
             riverRibbons = new MapRiverRibbons(engine, materials[RiverSlot]);
             waterSurfaces = new MapWaterSurfaces(engine, map, materials[Slot(MapBiome.Sea)], kind => Flat(MapPalette.LakeColour(kind)),
                 (x, z) => map.Sample(x, z).Elevation, (x, z, level) => Position(x, level, z) + (Vector3.UnitY * WaterLift));
@@ -414,14 +421,14 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     /// <summary>Each layer's stream cost since the last sweep began.</summary>
     internal string StreamReadout => FormattableString.Invariant(
-        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} regionMoves={regionMoves} regionCoarse={regionCoarseResamples} regionPatch={regionPatchResamples} regionSlice={(SliceRegion ? RegionSliceMilliseconds : 0)}ms stale={coarse.StaleColumns}/{detail.StaleColumns} slowestDrain={slowestDrain} party={followed.X:F0},{followed.Y:F0} | ")
+        $"sweeping={Sweeping} deferred={MapVoxelLayer.Deferred} loaded={Loaded} windowShifts={windowShifts} regionMoves={regionMoves} regionCoarse={regionCoarseResamples} regionPatch={regionPatchResamples} regionSlice={(SliceRegion ? RegionSliceMilliseconds : 0)}ms keepGround={KeepGround} stale={coarse.StaleColumns}/{detail.StaleColumns} slowestDrain={slowestDrain} party={followed.X:F0},{followed.Y:F0} | ")
         + string.Join(" | ", (continent is null ? new[] { ("coarse", coarse), ("detail", detail) } : [("continent", continent), ("coarse", coarse), ("detail", detail)])
             .Select(entry => entry.Item2.TimingReadout(entry.Item1)))
         + " | " + Profile.Readout;
 
     /// <summary>Each layer's sampled ground as a digest (#10346): a window reached by a sweep should hold what a jump to it builds afresh.</summary>
     internal string DigestReadout => FormattableString.Invariant(
-        $"window={detailMinimum.X:F0},{detailMinimum.Y:F0} continent={continent?.Digest() ?? 0:x16} coarse={coarse.Digest():x16} detail={detail.Digest():x16}");
+        $"window={detailMinimum.X:F0},{detailMinimum.Y:F0} continent={continent?.Digest() ?? 0:x16} coarse={coarse.Digest():x16} detail={detail.Digest():x16} clutter={clutter.Digest:x16}");
 
     /// <summary>Show a planned route as a ribbon of markers on the drawn surface, or clear it.</summary>
     internal void ShowRoute(IReadOnlyList<Vector2>? points)
@@ -588,10 +595,16 @@ internal sealed class WorldMapVoxelView : IDisposable
             if (coarse.StaleColumns + detail.StaleColumns > 0) draining++;
             else (slowestDrain, draining) = (Math.Max(slowestDrain, draining), 0);
         }
+        if (ribbonsWait.Count > 0 && coarse.StaleColumns == 0)
+        {
+            RebuildRegionRivers(ribbonsWait);
+            ribbonsWait.Clear();
+            Profile.Mark("advance.rivers");
+        }
         if (scatterWaits && detail.StaleColumns == 0)
         {
             scatterWaits = false;
-            clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+            clutter.Scatter(detailMinimum, detailMaximum, ClutterSurface, EdgeFade);
             factsVersion++;
             Profile.Mark("advance.scatter");
         }
@@ -647,6 +660,8 @@ internal sealed class WorldMapVoxelView : IDisposable
         detailMaximum = new((float)Math.Min(map.Radius, (x1 + 1) * DetailChunkMetres), (float)Math.Min(map.Radius, (z1 + 1) * DetailChunkMetres));
 
         foreach ((long X, long Z) gone in patchKept.Keys.Where(key => key.X < x0 || key.X > x1 || key.Z < z0 || key.Z > z1).ToArray()) patchKept.Remove(gone);
+        foreach ((long X, long Z) gone in coarseKept.Keys.Where(key => !ByPatch(key)).ToArray()) coarseKept.Remove(gone);
+        foreach ((double X, double Z) gone in clutterPoints.Keys.Where(key => !InDetail(key.X, key.Z)).ToArray()) clutterPoints.Remove(gone);
         detail.Want(from cz in Range(z0, z1) from cx in Range(x0, x1) select (cx, cz));
         Profile.Mark("follow.want");
         if (!first)
@@ -661,7 +676,7 @@ internal sealed class WorldMapVoxelView : IDisposable
             coarse.Invalidate(CoarseChanged(oldMinimum, oldMaximum).Concat(CoarseEdgeRing(oldMinimum, oldMaximum)).Concat(CoarseEdgeRing(detailMinimum, detailMaximum)).Distinct());
             Profile.Mark("follow.coarseInvalidate");
         }
-        clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+        clutter.Scatter(detailMinimum, detailMaximum, ClutterSurface, EdgeFade);
         scatterWaits = false;
         Profile.Mark("follow.scatter");
         // The coarse tier's ribbons give way to the patch's own rivers where its relief is drawn.
@@ -770,6 +785,8 @@ internal sealed class WorldMapVoxelView : IDisposable
                 sinkRanges.Clear();
                 sinkLattice.Clear();
                 patchKept.Clear();
+                coarseKept.Clear();
+                clutterPoints.Clear();
                 Profile.Mark("region.keep");
                 List<(long X, long Z)> band = [.. FadeBand(oldMinimum, oldMaximum).Concat(FadeBand(minimum, maximum)).Distinct()];
                 coarse.Invalidate(band);
@@ -801,7 +818,11 @@ internal sealed class WorldMapVoxelView : IDisposable
         changed.SymmetricExceptWith(regionCovered);
         regionCovered.Clear();
         regionCovered.UnionWith(covered);
-        coarse.Want(covered);
+        // Once the map is up, a sliced move admits the columns on the window's outermost ring over later updates: there the
+        // fade is none, so region ground lies under the continent's, which keeps its height within two of its cells of the edge.
+        coarse.Want(covered, KeepGround && SliceRegion && ExactRegion && loadMilliseconds > 0
+            ? column => column.X == x0 || column.X == x1 || column.Z == z0 || column.Z == z1
+            : null);
         Profile.Mark("region.want");
         HashSet<(long X, long Z)> changedChunks = [.. changed];
         RebuildRegionRivers(changedChunks);
@@ -847,6 +868,10 @@ internal sealed class WorldMapVoxelView : IDisposable
 
         // A coarse column is read at its centre, a lattice point; its sink, over the lattice within a cell of it.
         bool ColumnMoved((long X, long Z) c) => LatticeMoved((2 * c.X) + 1, (2 * c.Z) + 1);
+        // The coarse tops are kept only about the window, which the coarse tier holds.
+        bool NearRegion((long X, long Z) c) =>
+            c.X >= Math.Floor(regionMinimum.X / CellMetres) - CoarseTopsMarginCells && c.X < Math.Ceiling(regionMaximum.X / CellMetres) + CoarseTopsMarginCells
+            && c.Z >= Math.Floor(regionMinimum.Y / CellMetres) - CoarseTopsMarginCells && c.Z < Math.Ceiling(regionMaximum.Y / CellMetres) + CoarseTopsMarginCells;
         // A patch chunk column reads ground at its column centres, the coarse tops within a cell and the dither's coarse
         // slots within its transition and a cell.
         double patchReach = ((coarseGround?.Settings.TransitionCells ?? 0) + 2) * CellMetres;
@@ -870,12 +895,26 @@ internal sealed class WorldMapVoxelView : IDisposable
                 && minZ >= detailMinimum.Y + edgeWhole && minZ + DetailChunkMetres <= detailMaximum.Y - edgeWhole);
         }
 
-        foreach ((long, long) column in coarseTops.Keys.Where(c => ColumnMoved(c)).ToArray()) coarseTops.Remove(column);
+        foreach ((long, long) column in coarseTops.Keys.Where(c => ColumnMoved(c) || !NearRegion(c)).ToArray()) coarseTops.Remove(column);
         foreach ((long, long) column in detailDitherSlots.Keys.Where(c => ColumnMoved(c)).ToArray()) detailDitherSlots.Remove(column);
         foreach ((long, long) point in sinkLattice.Keys.Where(p => LatticeMoved(p.Item1, p.Item2)).ToArray()) sinkLattice.Remove(point);
         foreach ((long, long) column in sinkRanges.Keys.Where(c => LatticeChanged((c.Item1 - 0.5) * CellMetres, (c.Item2 - 0.5) * CellMetres,
             (c.Item1 + 1.5) * CellMetres, (c.Item2 + 1.5) * CellMetres)).ToArray())
             sinkRanges.Remove(column);
+        // The coarse tier's kept columns whose centre's fade moved; the clutter's points whose ground or the coarse tops about them did.
+        foreach (((long X, long Z) chunk, PatchColumns kept) in coarseKept)
+        {
+            if (Steady(chunk.X * RegionChunkMetres, chunk.Z * RegionChunkMetres, (chunk.X + 1) * RegionChunkMetres, (chunk.Z + 1) * RegionChunkMetres)) continue;
+            for (int z = 0; z < EdgeLength; z++)
+            for (int x = 0; x < EdgeLength; x++)
+                if (ColumnMoved(((chunk.X * EdgeLength) + x, (chunk.Z * EdgeLength) + z)))
+                    (kept.Full[(z * EdgeLength) + x], kept.Own[(z * EdgeLength) + x]) = (double.NaN, PatchColumns.Unknown);
+        }
+
+        const double clutterReach = 1.5 * CellMetres;
+        (double X, double Z)[] clutterMoved = [.. clutterPoints.Keys.Where(p => Moved(p.X, p.Z)
+            || LatticeChanged(p.X - clutterReach, p.Z - clutterReach, p.X + clutterReach, p.Z + clutterReach))];
+        foreach ((double X, double Z) point in clutterMoved) clutterPoints.Remove(point);
         Profile.Mark("region.keep");
         // A kept patch column whose own centre's fade moved reads its ground afresh; the coarse surface the patch's edge eases
         // onto is read afresh where the coarse tops it interpolates changed. A chunk column is resampled where either did and
@@ -909,15 +948,16 @@ internal sealed class WorldMapVoxelView : IDisposable
                                                   where patchChanged.Contains((cx, cz)) || (!patchKept.ContainsKey((cx, cz)) && PatchChanged((cx, cz)))
                                                   select (cx, cz)];
             // The clutter stands on the patch's ground.
+            bool rescatter = resample.Count > 0 || clutterMoved.Length > 0;
             if (SliceRegion)
             {
                 detail.InvalidateLater(resample);
-                scatterWaits |= resample.Count > 0;
+                scatterWaits |= rescatter;
             }
             else
             {
                 detail.Invalidate(resample);
-                if (resample.Count > 0) clutter.Scatter(detailMinimum, detailMaximum, Surface, EdgeFade);
+                if (rescatter) clutter.Scatter(detailMinimum, detailMaximum, ClutterSurface, EdgeFade);
             }
 
             regionPatchResamples += resample.Count;
@@ -937,7 +977,10 @@ internal sealed class WorldMapVoxelView : IDisposable
         regionMoves++;
         regionCoarseResamples += coarseChanged.Count;
         Profile.Mark("region.coarse");
-        RebuildRegionRivers((from cz in Range(az, bz) from cx in Range(ax, bx) where Changed(cx, cz, 2 * CellMetres) select (cx, cz)).ToHashSet());
+        HashSet<(long X, long Z)> ribbonTiles = [.. from cz in Range(az, bz) from cx in Range(ax, bx) where Changed(cx, cz, 2 * CellMetres) select (cx, cz)];
+        // Sliced, the ribbons wait for the coarse ground they lie on to be drawn, and find its tops kept by then (#10354).
+        if (SliceRegion && KeepGround) ribbonsWait.UnionWith(ribbonTiles);
+        else RebuildRegionRivers(ribbonTiles);
         Profile.Mark("region.rivers");
         continent!.Invalidate([.. ContinentChunksOver(oldMinimum, oldMaximum).Concat(ContinentChunksOver(regionMinimum, regionMaximum)).Distinct()]);
         Profile.Mark("region.continent");
@@ -1048,7 +1091,8 @@ internal sealed class WorldMapVoxelView : IDisposable
             reaches = regionReaches.Values;
         }
 
-        Dictionary<(long, long), double> tops = [];
+        // The coarse tops the patch's edge reads are the same, kept and dropped where a region move changes them (#10354).
+        Dictionary<(long, long), double> tops = ExactRegion && KeepGround ? CoarseTops() : [];
         riverRibbons?.Rebuild(RegionRiverTier, RegionChunkMetres, reaches, RegionRivers,
             (x, z) => InRegion(x, z) && !(InDetail(x, z) && EdgeFade(x, z) >= RibbonGivesWay),
             // By the window's edge the continent's surface covers the region's, so a ribbon lies on the higher.
@@ -1185,6 +1229,8 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// One streamed layer: each voxel column samples the map at its centre, with exaggerated relief,
     /// lowered by <paramref name="sink"/> coarse voxels at a world point. Columns beyond the map are empty.
     /// </summary>
+    /// <param name="keep">A chunk column's kept ground (<see cref="PatchKept"/>, <see cref="CoarseKept"/>), or null to keep none.</param>
+    /// <param name="tops">Where a coarser tier records the tops it samples, by column, or null: the coarse tier's are the patch's edge's and the ribbons' <see cref="CoarseTops"/>.</param>
     /// <param name="dither">
     /// Toward a finer tier's edge, where its ground is chosen by: how far (metres) a column's environment
     /// is drawn from about it, and the ground drawn there (#9952). The coarser tier beside it blends its
@@ -1193,13 +1239,15 @@ internal sealed class WorldMapVoxelView : IDisposable
     /// </param>
     private MapVoxelLayer Layer(double voxelSize, double cellMetres, Func<double, double, MapSample> geography, Func<double, double, RiverInfluence?> rivers, double riverReach,
         Func<double, double, double> sink, bool localRelief, TerrainGroundMaterials? ground, double coarseBeyond,
-        (Func<double, double, double> Fade, double CellMetres, int Transition, Func<double, double, MapSample> Ground, Dictionary<(long, long), uint> Slots)? dither = null)
+        (Func<double, double, double> Fade, double CellMetres, int Transition, Func<double, double, MapSample> Ground, Dictionary<(long, long), uint> Slots)? dither = null,
+        Func<long, long, PatchColumns?>? keep = null, Func<Dictionary<(long, long), double>?>? tops = null)
     {
         double metresPerVoxel = cellMetres / VerticalExaggeration;
         double origin = OriginY / voxelSize;
         void Sample(long chunkX, long chunkZ, Span<double> surface, Span<uint> material)
         {
-            PatchColumns? kept = localRelief ? PatchKept(chunkX, chunkZ) : null;
+            PatchColumns? kept = keep?.Invoke(chunkX, chunkZ);
+            Dictionary<(long, long), double>? sampledTops = tops?.Invoke();
             for (int z = 0; z < EdgeLength; z++)
             for (int x = 0; x < EdgeLength; x++)
             {
@@ -1227,7 +1275,19 @@ internal sealed class WorldMapVoxelView : IDisposable
                 }
 
                 // The detail patch carries the same regional relief walking terrain adds to the map.
-                surface[i] = origin + Top(sample, worldX, worldZ, localRelief, kept, i) / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
+                double top;
+                // A kept column reads its top with relief now, wherever the fade is: it is reused once the fade reaches it (#10354).
+                if (localRelief && !reuse && kept is not null && KeepGround) kept.Full[i] = Top(sample, Relief(sample, worldX, worldZ));
+                if (localRelief) top = Top(sample, worldX, worldZ, true, kept, i);
+                else
+                {
+                    // A coarser tier keeps its top itself: it carries no relief and no edge fade.
+                    top = reuse ? kept!.Full[i] : Top(sample, 0);
+                    if (kept is not null) kept.Full[i] = top;
+                    if (sampledTops is not null) sampledTops[((chunkX * EdgeLength) + x, (chunkZ * EdgeLength) + z)] = top;
+                }
+
+                surface[i] = origin + top / metresPerVoxel - sink(worldX, worldZ) / voxelSize;
                 material[i] = water != PatchColumns.Dry ? water : ownSlot;
             }
         }
@@ -1261,34 +1321,30 @@ internal sealed class WorldMapVoxelView : IDisposable
     private double Top(MapSample sample, double worldX, double worldZ, bool localRelief, PatchColumns? kept, int column)
     {
         if (!localRelief) return Top(sample, 0);
-        double fade = EdgeFade(worldX, worldZ);
-        double full = 0;
-        if (fade > 0)
-        {
-            full = kept?.Full[column] ?? double.NaN;
-            if (double.IsNaN(full))
-            {
-                full = Top(sample, Relief(sample, worldX, worldZ));
-                if (kept is not null) kept.Full[column] = full;
-            }
-        }
+        if (kept is not null) return PatchTop(sample, worldX, worldZ, ref kept.Full[column], ref kept.Coarse[column]);
+        double full = double.NaN, coarseSurface = double.NaN;
+        return PatchTop(sample, worldX, worldZ, ref full, ref coarseSurface);
+    }
 
+    /// <summary>
+    /// The patch's drawn top at a point, from its ground there: its top with its relief and the coarse surface beneath are
+    /// read into <paramref name="full"/> and <paramref name="coarseSurface"/> when first needed (NaN until then), and kept.
+    /// </summary>
+    private double PatchTop(MapSample sample, double worldX, double worldZ, ref double full, ref double coarseSurface)
+    {
+        double fade = EdgeFade(worldX, worldZ);
+        if (fade > 0 && double.IsNaN(full)) full = Top(sample, Relief(sample, worldX, worldZ));
         if (fade >= 1) return full;
         // Toward its edge the patch draws the coarse ground's own surface, a little under it.
-        double coarseSurface = kept?.Coarse[column] ?? double.NaN;
-        if (double.IsNaN(coarseSurface))
-        {
-            coarseSurface = Interpolated(worldX, worldZ, CellMetres, (cx, cz) => Top(fineGround(cx, cz), 0), CoarseTops());
-            if (kept is not null) kept.Coarse[column] = coarseSurface;
-        }
-
-        return coarseSurface - (EdgeUnderMetres * (1 - fade)) + (fade * (full - coarseSurface));
+        if (double.IsNaN(coarseSurface)) coarseSurface = Interpolated(worldX, worldZ, CellMetres, (cx, cz) => Top(fineGround(cx, cz), 0), CoarseTops());
+        return coarseSurface - (EdgeUnderMetres * (1 - fade)) + (fade > 0 ? fade * (full - coarseSurface) : 0);
     }
 
     /// <summary>
     /// What the patch reads of the ground in a chunk column, none of which moves with the window (#10346): each column's
     /// top with its relief and the coarse surface over it (NaN until first needed), its own environment's slot before
-    /// any dither, and the shore or river slot water draws it with (<see cref="Unknown"/> until sampled).
+    /// any dither, and the shore or river slot water draws it with (<see cref="Unknown"/> until sampled). The coarse
+    /// tier keeps the same for its columns by the patch (#10354), its top without relief and no coarse surface.
     /// </summary>
     private sealed class PatchColumns
     {
@@ -1318,12 +1374,72 @@ internal sealed class WorldMapVoxelView : IDisposable
 
     private readonly Dictionary<(long X, long Z), PatchColumns> patchKept = [];
 
+    /// <summary>
+    /// Whether the map's windows moving read again only what they change (#10354). The coarse tier keeps the ground of its
+    /// chunk columns by the patch (<see cref="CoarseKept"/>), which a shift resamples for their sink alone; the clutter keeps
+    /// the ground at its points (<see cref="ClutterAt"/>), which a shift scatters for the edge fade alone; the patch reads a
+    /// fresh column's top with relief at once, so it is reused wherever the fade later reaches; and the region ribbons read
+    /// the kept coarse tops. All are dropped where a continent's region window moving changed the ground, as the patch's is.
+    /// A sliced region move also admits the window's outermost ring over later updates. Off reads them afresh, as before
+    /// (#10352), for the A/B.
+    /// </summary>
+    internal static bool KeepGround { get; set; } = true;
+
+    /// <summary>
+    /// The coarse tier's kept ground for a chunk column within a coarse chunk of the patch, where its shifts resample the
+    /// sink (#10354); none elsewhere, or with <see cref="KeepGround"/> off.
+    /// </summary>
+    private PatchColumns? CoarseKept(long chunkX, long chunkZ)
+    {
+        if (!ExactShift || !KeepGround || !ByPatch((chunkX, chunkZ))) return null;
+        if (!coarseKept.TryGetValue((chunkX, chunkZ), out PatchColumns? kept)) coarseKept[(chunkX, chunkZ)] = kept = new PatchColumns();
+        return kept;
+    }
+
+    private bool ByPatch((long X, long Z) chunk) =>
+        (chunk.X + 2) * RegionChunkMetres > detailMinimum.X && (chunk.X - 1) * RegionChunkMetres < detailMaximum.X
+        && (chunk.Z + 2) * RegionChunkMetres > detailMinimum.Y && (chunk.Z - 1) * RegionChunkMetres < detailMaximum.Y;
+
+    private readonly Dictionary<(long X, long Z), PatchColumns> coarseKept = [];
+
+    /// <summary>The ground at a clutter point, its top with relief and the coarse surface beneath (NaN until first needed).</summary>
+    private sealed class ClutterPoint(MapSample sample)
+    {
+        internal readonly MapSample Sample = sample;
+        internal double Full = double.NaN, Coarse = double.NaN;
+    }
+
+    /// <summary>The clutter's ground at its points in the patch, kept while they are in it (#10354).</summary>
+    private readonly Dictionary<(double X, double Z), ClutterPoint> clutterPoints = [];
+
+    private ClutterPoint ClutterAt(double worldX, double worldZ)
+    {
+        if (!ExactShift || !KeepGround) return new ClutterPoint(fineGround(worldX, worldZ));
+        if (!clutterPoints.TryGetValue((worldX, worldZ), out ClutterPoint? point)) clutterPoints[(worldX, worldZ)] = point = new ClutterPoint(fineGround(worldX, worldZ));
+        return point;
+    }
+
+    /// <summary>Where the clutter reads the ground: the patch's, as <see cref="Surface"/> reads it.</summary>
+    private MapSample ClutterGround(double worldX, double worldZ) => ClutterAt(worldX, worldZ).Sample;
+
+    /// <summary>The drawn surface at a clutter point in the patch, exactly as <see cref="Surface"/> gives it, from its kept ground.</summary>
+    private Vector3 ClutterSurface(double worldX, double worldZ)
+    {
+        if (!InDetail(worldX, worldZ)) return Surface(worldX, worldZ);
+        ClutterPoint point = ClutterAt(worldX, worldZ);
+        double top = PatchTop(point.Sample, worldX, worldZ, ref point.Full, ref point.Coarse);
+        return Position(worldX, Math.Max(top, WaterRules.Surface(point.Sample)), worldZ);
+    }
+
     /// <summary>The coarse column tops the patch's edge reads, kept while they are wanted and dropped when the cache grows past a bound.</summary>
     private Dictionary<(long, long), double> CoarseTops()
     {
-        if (coarseTops.Count > CoarseTopsLimit) coarseTops.Clear();
+        if (coarseTops.Count > coarseTopsLimit) coarseTops.Clear();
         return coarseTops;
     }
+
+    /// <summary>Coarse tops are kept this many cells beyond the region window, where the ribbons and the patch's edge read them.</summary>
+    private const int CoarseTopsMarginCells = 4;
 
     private readonly Dictionary<(long, long), double> coarseTops = [];
     /// <summary>The coarse tier's environment slots the patch's edge dither reads, by coarse column: of region ground on a continent.</summary>

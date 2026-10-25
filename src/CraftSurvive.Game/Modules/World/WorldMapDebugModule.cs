@@ -104,6 +104,13 @@ public sealed class WorldMapDebugModule : IDebugCommandModule
         return FormattableString.Invariant($"a sliced region move resamples up to {milliseconds} ms a layer an update");
     }
 
+    [DebugCommand("craft.world.mapkeep", Description = "Study (#10354): on (the default) has the map's windows moving read again only what they change - the coarse tier's columns by the patch keep their ground and resample for their sink alone, the clutter keeps the ground at its points and scatters for the edge fade alone, the patch's columns are reused wherever the fade reaches, the region ribbons read the kept coarse tops, and a sliced region move admits its outermost ring over later updates; off reads them afresh, as before, for the A/B.")]
+    public string SetMapKeep(string mode)
+    {
+        WorldMapVoxelView.KeepGround = mode != "off";
+        return WorldMapVoxelView.KeepGround ? "the map's windows moving keep the ground they do not change" : "the map's windows moving read their ground afresh";
+    }
+
     [DebugCommand("craft.world.mapdefer", Description = "Study (#10345, rusty-engine #10327): on hands the map layers' chunks to the Engine deferred once each is drawn - written now, meshed on its worker, installed at a later update's start, the projection refreshed every update until then (the default); off hands them over synchronously, for the A/B.")]
     public string SetMapDefer(string mode)
     {

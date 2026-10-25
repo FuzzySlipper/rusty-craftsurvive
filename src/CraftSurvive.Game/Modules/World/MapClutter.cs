@@ -65,6 +65,8 @@ internal sealed class MapClutter : IDisposable
     {
         ulong seed = map.Configuration.Contract.GeographyNoiseSeed ^ ScatterSalt;
         List<AppearanceFact> facts = [];
+        ulong hash = 0xCBF29CE484222325UL;
+        void Mix(ulong value) => hash = unchecked((hash ^ value) * 0x100000001B3UL);
         long x0 = (long)Math.Floor(minimum.X / SpacingMetres), x1 = (long)Math.Floor(maximum.X / SpacingMetres);
         long z0 = (long)Math.Floor(minimum.Y / SpacingMetres), z1 = (long)Math.Floor(maximum.Y / SpacingMetres);
         for (long gz = z0; gz <= z1 && facts.Count < ProductIds.WorldMapClutterLimit; gz++)
@@ -79,14 +81,24 @@ internal sealed class MapClutter : IDisposable
             if (Choose(sample, MapNoise.Unit(seed ^ 2, gx, gz), MapNoise.Unit(seed ^ 3, gx, gz)) is not Model model) continue;
             float size = (model == Model.Rock ? RockHeight : TreeHeight) * (1 + SizeVariation * (2 * (float)MapNoise.Unit(seed ^ 4, gx, gz) - 1));
             Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(MapNoise.Unit(seed ^ 5, gx, gz) * 2 * Math.PI));
+            Vector3 at = surface(x, z);
+            Mix((ulong)model);
+            Mix(BitConverter.SingleToUInt32Bits(at.X));
+            Mix(BitConverter.SingleToUInt32Bits(at.Y));
+            Mix(BitConverter.SingleToUInt32Bits(at.Z));
+            Mix(BitConverter.SingleToUInt32Bits(size));
             facts.Add(new(ProductIds.WorldMapClutterBase + (ulong)facts.Count, false, 0,
-                new(surface(x, z), turn, Vector3.One * size), appearances[model], true, RenderLayer.Scene));
+                new(at, turn, Vector3.One * size), appearances[model], true, RenderLayer.Scene));
         }
+        Digest = hash;
         shown = [.. facts];
         hidden = [.. facts.Select(fact => fact with { Visible = false })];
     }
 
     internal int Count => shown.Length;
+
+    /// <summary>A digest of the last scatter's instances (model, place and size, in order), so a scatter that kept ground can be compared with one read afresh (#10354).</summary>
+    internal ulong Digest { get; private set; }
 
     internal ReadOnlySpan<AppearanceFact> Facts(bool visible) => visible ? shown : hidden;
 
